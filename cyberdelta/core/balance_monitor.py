@@ -341,8 +341,8 @@ class BalanceMonitor:
                 message=f"Attempting to load balance state from {self.state_file}",
             )
             # Example: Read and parse JSON, update self.active_alerts, self.alert_history
-        except Exception as e:
-            logger.error(
+        except (OSError, ValueError, KeyError) as e:
+            logger.exception(
                 "balance_state_load_error",
                 action="load_state",
                 state_file=str(self.state_file),

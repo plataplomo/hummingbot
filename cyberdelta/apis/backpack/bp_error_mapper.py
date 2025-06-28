@@ -111,7 +111,6 @@ class BackpackErrorMapper(IErrorMapper):
                         mapper_class=BackpackErrorMapper.__name__,
                         message="Unmapped or ambiguous Backpack error code",
                     )
-                return mapped_code
             except ValidationError as e:
                 detailed_errors = e.errors(include_url=False, include_context=False)
                 logger.warning(
@@ -124,6 +123,8 @@ class BackpackErrorMapper(IErrorMapper):
                     message="Failed to parse error_data as BackpackRawApiError, "
                     "falling back to heuristics",
                 )
+            else:
+                return mapped_code
 
         # If no error_data or parsing failed, delegate to string-based mapping
         if error_body:
@@ -226,7 +227,6 @@ class BackpackErrorMapper(IErrorMapper):
 
         try:
             raw_error = BackpackRawApiError.model_validate(error_data)
-            return raw_error.code, raw_error.message, ""
         except ValidationError as e_val_specific:
             self._log_validation_error(e_val_specific)
             # Try to extract message even if structure validation failed
@@ -234,6 +234,8 @@ class BackpackErrorMapper(IErrorMapper):
             if isinstance(error_data.get("message"), str):
                 exchange_message = error_data["message"]
             return None, exchange_message, ""
+        else:
+            return raw_error.code, raw_error.message, ""
 
     def _log_validation_error(self, e_val_specific: ValidationError) -> None:
         """Log validation error details."""
@@ -320,7 +322,6 @@ class BackpackErrorMapper(IErrorMapper):
                         retry_after_seconds=parsed_retry_after_seconds,
                         message="Parsed retry_after from Backpack message",
                     )
-                    return parsed_retry_after_seconds
                 except (ValueError, IndexError) as e:
                     logger.debug(
                         "retry_after_parse_failed",
@@ -329,6 +330,8 @@ class BackpackErrorMapper(IErrorMapper):
                         message="Failed to parse numeric value from regex match",
                     )
                     continue
+                else:
+                    return parsed_retry_after_seconds
 
         logger.debug(
             "No parsable retry_after information found in Backpack rate limit message.",

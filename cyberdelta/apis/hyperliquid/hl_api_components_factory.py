@@ -153,7 +153,7 @@ class HyperliquidAPIComponentsFactory:
                     is_mainnet_environment=self.exchange_config.is_mainnet_environment,
                 )
             except ValueError as e:  # Catch init errors from Authenticator
-                logger.error(
+                logger.exception(
                     "authenticator_initialization_failed",
                     action="init_authenticator",
                     authenticator_type="HyperliquidEip712Authenticator",

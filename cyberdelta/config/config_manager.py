@@ -42,11 +42,7 @@ class ConfigManager:
         self.config_path = Path(config_path) if config_path else self._get_default_config_path()
         self.loaded = False
         # Load configuration on instantiation - will raise ConfigurationError on failure
-        try:
-            self.load()
-        except ConfigurationError:
-            # Re-raise ConfigurationError from load() to make it explicit
-            raise
+        self.load()
 
     def load(self) -> None:
         """Load configuration from file and validate against AppSettings model.
@@ -164,8 +160,4 @@ class ConfigManager:
         """
         self.settings = None
         self.loaded = False
-        try:
-            self.load()
-        except ConfigurationError:
-            # Re-raise ConfigurationError from load() to make it explicit
-            raise
+        self.load()

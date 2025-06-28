@@ -86,10 +86,9 @@ class GeneralSettings(BaseModel):
             return None
 
         if not isinstance(v, dict):
-            raise ValueError(
-                f"{info.field_name or 'module_log_levels'}: Expected dict or None, "
-                f"got {type(v).__name__}",
-            )
+            field_name = info.field_name or "module_log_levels"
+            msg = f"{field_name}: Expected dict or None, got {type(v).__name__}"
+            raise TypeError(msg)
 
         validated_levels: dict[str, str] = {}
         allowed_levels = {"INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"}
@@ -267,9 +266,9 @@ class ExchangeSpecificConfig(BaseModel):
         info: ValidationInfo,
     ) -> dict[str, str]:
         if not isinstance(v, dict):
-            raise ValueError(
-                f"{info.field_name or 'symbols'}: Expected dict, got {type(v).__name__}",
-            )
+            field_name = info.field_name or "symbols"
+            msg = f"{field_name}: Expected dict, got {type(v).__name__}"
+            raise TypeError(msg)
 
         validated_symbols: dict[str, str] = {}
         for raw_key, raw_value in v.items():
@@ -449,10 +448,9 @@ class BalanceMonitoringSettings(BaseModel):
     ) -> dict[str, str | int | float | Decimal]:
         """Validate dictionary structure and keys before ConfigDecimal processes values."""
         if not isinstance(v, dict):
-            raise ValueError(
-                f"{info.field_name or 'min_balance_thresholds_usd'}: "
-                f"Expected dict, got {type(v).__name__}",
-            )
+            field_name = info.field_name or "min_balance_thresholds_usd"
+            msg = f"{field_name}: Expected dict, got {type(v).__name__}"
+            raise TypeError(msg)
 
         validated_thresholds: dict[str, str | int | float | Decimal] = {}
         for raw_key, raw_value in v.items():
@@ -521,9 +519,9 @@ class MonitoringSettings(BaseModel):
         info: ValidationInfo,
     ) -> list[str]:
         if not isinstance(v, list):
-            raise ValueError(
-                f"{info.field_name or 'alert_methods'}: Expected list, got {type(v).__name__}",
-            )
+            field_name = info.field_name or "alert_methods"
+            msg = f"{field_name}: Expected list, got {type(v).__name__}"
+            raise TypeError(msg)
 
         validated_methods: list[str] = []
         for i, raw_method in enumerate(v):
@@ -576,9 +574,9 @@ class AppSettings(BaseModel):
         info: ValidationInfo,
     ) -> dict[str, dict[str, str | int | float | bool]]:
         if not isinstance(v, dict):
-            raise ValueError(
-                f"{info.field_name or 'exchanges'}: Expected dict, got {type(v).__name__}",
-            )
+            field_name = info.field_name or "exchanges"
+            msg = f"{field_name}: Expected dict, got {type(v).__name__}"
+            raise TypeError(msg)
 
         # Validate exchange names are non-empty strings
         validated_exchanges: dict[str, dict[str, str | int | float | bool]] = {}

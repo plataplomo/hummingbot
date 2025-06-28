@@ -419,7 +419,7 @@ class RiskManager:
             try:
                 volatility = Decimal(str(raw_volatility))
             except InvalidOperation:
-                self.logger.error(
+                self.logger.exception(
                     "kelly_sizing_volatility_conversion_error",
                     symbol=opportunity.symbol,
                     raw_volatility=str(raw_volatility),
@@ -472,7 +472,7 @@ class RiskManager:
             # volatility
             kelly_fraction_raw = expected_return / (volatility**2)
         except InvalidOperation:
-            self.logger.error(
+            self.logger.exception(
                 "invalid_operation_kelly_calculation",
                 symbol=opportunity.symbol,
                 expected_return=expected_return,
@@ -634,7 +634,7 @@ class RiskManager:
                 )
                 return False
         except (InvalidOperation, TypeError) as e:
-            self.logger.error(
+            self.logger.exception(
                 "price_conversion_error",
                 symbol=opportunity.symbol,
                 error_type=type(e).__name__,
@@ -682,7 +682,7 @@ class RiskManager:
             )
 
         except (TypeError, InvalidOperation) as e:  # Removed KeyError as .get() handles it
-            self.logger.error(
+            self.logger.exception(
                 "balance_access_conversion_error",
                 symbol=opportunity.symbol,
                 error_type=type(e).__name__,
@@ -766,7 +766,7 @@ class RiskManager:
                 )
                 return False
         except (InvalidOperation, TypeError) as e:
-            self.logger.error(
+            self.logger.exception(
                 "leverage_check_error",
                 symbol=opportunity.symbol,
                 error_type=type(e).__name__,
@@ -1585,9 +1585,6 @@ class RiskManager:
                     ),
                 )
                 return None
-
-            return long_validation_factor, short_validation_factor
-
         except ValueError as e:
             self.logger.warning(
                 "opportunity_pre_sizing_validation_failed",
@@ -1598,6 +1595,8 @@ class RiskManager:
                 message=f"Opportunity {opportunity.symbol} failed pre-sizing validation: {e}",
             )
             return None
+        else:
+            return long_validation_factor, short_validation_factor
 
     async def _calculate_sized_opportunity(
         self,
@@ -1913,7 +1912,7 @@ class RiskManager:
                         position_value = abs(Decimal(str(position.size)) * price_to_use)
                         total_exposure += position_value
                     except (InvalidOperation, TypeError, AttributeError) as e:
-                        logger.error(
+                        logger.exception(
                             "error_calculating_exposure",
                             symbol=symbol,
                             exchange_id=exchange_id,
@@ -1942,7 +1941,7 @@ class RiskManager:
                         position_value = abs(Decimal(str(position.size)) * price_to_use)
                         total_exposure += position_value
                     except (InvalidOperation, TypeError, AttributeError) as e:
-                        logger.error(
+                        logger.exception(
                             "error_calculating_position_exposure",
                             symbol=position.symbol,
                             exchange_id=exchange_id,
@@ -2015,7 +2014,7 @@ class RiskManager:
             return ONE / distance_pct if distance_pct > ZERO else Decimal("inf")
 
         except (InvalidOperation, TypeError, AttributeError) as e:
-            self.logger.error(
+            self.logger.exception(
                 "liquidation_risk_evaluation_error",
                 symbol=symbol,
                 error_type=type(e).__name__,
@@ -2240,7 +2239,7 @@ class RiskManager:
             )
 
         except (TypeError, InvalidOperation) as e:  # Removed KeyError as .get() handles it
-            self.logger.error(
+            self.logger.exception(
                 "balance_access_conversion_error",
                 symbol=opportunity.symbol,
                 error_type=type(e).__name__,

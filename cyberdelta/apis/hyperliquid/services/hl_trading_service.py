@@ -135,8 +135,11 @@ class HyperliquidTradingService:
     def _validate_authentication(self, action: str) -> None:
         """Validate authentication requirements for actions that need signing."""
         if not self._authenticator:
+            authenticator_not_initialized_msg = (
+                "HL authenticator not initialized (e.g., missing/invalid private key)."
+            )
             raise APIError(
-                "HL authenticator not initialized (e.g., missing/invalid private key).",
+                authenticator_not_initialized_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
         self._validate_wallet_address(action)
@@ -144,8 +147,9 @@ class HyperliquidTradingService:
     def _validate_wallet_address(self, action: str) -> None:
         """Validate wallet address is available for the given action."""
         if not self._wallet_address:
+            wallet_address_required_msg = f"Wallet address is required to {action}."
             raise APIError(
-                f"Wallet address is required to {action}.",
+                wallet_address_required_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
@@ -193,7 +197,7 @@ class HyperliquidTradingService:
             APIError instance with appropriate error details.
         """
         if isinstance(error, TransformationError):
-            logger.error(
+            logger.exception(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -209,7 +213,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             )
         if isinstance(error, ValidationError):
-            logger.error(
+            logger.exception(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -230,7 +234,7 @@ class HyperliquidTradingService:
             if current_method in error_msg:
                 # Re-raise input validation errors
                 raise error
-            logger.error(
+            logger.exception(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -245,7 +249,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             )
-        logger.error(
+        logger.exception(
             "unexpected_service_failure",
             action=current_method,
             exchange=self._exchange_name,
@@ -281,7 +285,7 @@ class HyperliquidTradingService:
         try:
             return await self._execute_exchange_action(request_payload_model)
         except APIError as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_service_place_order_api_error",
                 action="place_order_raw",
                 message="API error occurred while placing order",
@@ -289,8 +293,8 @@ class HyperliquidTradingService:
                 error_message=e.message,
             )
             raise
-        except Exception as e:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError) as e:
+            logger.exception(
                 "hl_trading_service_place_order_unexpected_error",
                 action="place_order_raw",
                 message="Unexpected error occurred while placing order",
@@ -315,7 +319,7 @@ class HyperliquidTradingService:
         try:
             return await self._execute_exchange_action(cancel_request_payload)
         except APIError as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_service_cancel_order_api_error",
                 action="cancel_order_raw",
                 message="API error occurred while cancelling order",
@@ -323,8 +327,8 @@ class HyperliquidTradingService:
                 error_message=e.message,
             )
             raise
-        except Exception as e:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError) as e:
+            logger.exception(
                 "hl_trading_service_cancel_order_unexpected_error",
                 action="cancel_order_raw",
                 message="Unexpected error occurred while cancelling order",
@@ -343,10 +347,11 @@ class HyperliquidTradingService:
         self._validate_wallet_address("fetch open orders")
         # _validate_wallet_address guarantees wallet_address is not None
         if self._wallet_address is None:
-            raise RuntimeError(
+            error_msg_wallet_validation = (
                 "Wallet address validation failed unexpectedly. "
-                "This should not happen after _validate_wallet_address.",
+                "This should not happen after _validate_wallet_address."
             )
+            raise RuntimeError(error_msg_wallet_validation)
 
         request_payload_model = self._request_builder.build_open_orders_payload(
             GetOpenOrdersArgs(wallet_address=self._wallet_address),
@@ -375,7 +380,7 @@ class HyperliquidTradingService:
             )
             return validated_response.items
         except APIError as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_service_get_open_orders_api_error",
                 action="get_open_orders_raw",
                 message="API error occurred while fetching open orders",
@@ -383,8 +388,8 @@ class HyperliquidTradingService:
                 error_message=e.message,
             )
             raise
-        except Exception as e:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError) as e:
+            logger.exception(
                 "unexpected_error_open_orders",
                 action="get_open_orders_raw",
                 exchange=self._exchange_name,
@@ -408,10 +413,11 @@ class HyperliquidTradingService:
         self._validate_wallet_address("fetch order status")
         # _validate_wallet_address guarantees wallet_address is not None
         if self._wallet_address is None:
-            raise RuntimeError(
+            error_msg_wallet_validation = (
                 "Wallet address validation failed unexpectedly. "
-                "This should not happen after _validate_wallet_address.",
+                "This should not happen after _validate_wallet_address."
             )
+            raise RuntimeError(error_msg_wallet_validation)
 
         request_payload_model: HyperliquidRawOrderStatusRequestPayload = (
             self._request_builder.build_order_status_payload(
@@ -475,14 +481,14 @@ class HyperliquidTradingService:
                 ) from e
 
             # For other errors, log and re-raise
-            logger.error(
+            logger.exception(
                 "order_status_api_error",
                 message="[%s] API error fetching order status raw for OID %s: %s",
                 message_args=(self._exchange_name, order_id, e.message),
             )
             raise
-        except Exception as e:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError) as e:
+            logger.exception(
                 "order_status_unexpected_error",
                 message="[%s] Unexpected error fetching order status raw for OID %s: %s",
                 message_args=(self._exchange_name, order_id, e),
@@ -522,9 +528,10 @@ class HyperliquidTradingService:
             try:
                 order_id_int = int(args.order_id)
             except (ValueError, TypeError) as e:
-                raise ValueError(
-                    f"[{current_method}] 'order_id' must be a valid integer, got '{args.order_id}'",
-                ) from e
+                error_msg_invalid_order_id = (
+                    f"[{current_method}] 'order_id' must be a valid integer, got '{args.order_id}'"
+                )
+                raise ValueError(error_msg_invalid_order_id) from e
 
             raw_historical_order = await self._get_order_status_raw(order_id_int)
             if raw_historical_order is None:
@@ -540,7 +547,7 @@ class HyperliquidTradingService:
             # Re-raise APIErrors from _get_order_status_raw, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
+            logger.exception(
                 "order_transform_error",
                 message="[%s] %s: Failed to transform exchange data for order %s: %s",
                 message_args=(self._exchange_name, current_method, args.order_id, e_transform),
@@ -553,7 +560,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
+            logger.exception(
                 "order_validation_error",
                 message="[%s] %s: Internal data validation failed for order %s: %s",
                 message_args=(self._exchange_name, current_method, args.order_id, e_val),
@@ -573,7 +580,7 @@ class HyperliquidTradingService:
             ):
                 # Re-raise input validation errors
                 raise
-            logger.error(
+            logger.exception(
                 "order_service_logic_error",
                 message="[%s] %s: Service internal logic error for order %s: %s",
                 message_args=(self._exchange_name, current_method, args.order_id, e_service_logic),
@@ -583,8 +590,8 @@ class HyperliquidTradingService:
                 message="Service internal logic error.",
                 original_exception=e_service_logic,
             ) from e_service_logic
-        except Exception as e_unexpected:
-            logger.error(
+        except (OSError, ConnectionError, TimeoutError) as e_unexpected:
+            logger.exception(
                 "order_unexpected_error",
                 message="[%s] %s: Unexpected service failure for order %s: %s",
                 message_args=(self._exchange_name, current_method, args.order_id, e_unexpected),
@@ -658,8 +665,10 @@ class HyperliquidTradingService:
         """Validate orders list and individual order parameters."""
         if not orders:
             if len(orders) == 0 and "batch" in current_method:
-                raise ValueError(f"[{current_method}] Cannot place empty batch of orders")
-            raise ValueError(f"[{current_method}] Cannot place empty order list")
+                error_msg_empty_batch = f"[{current_method}] Cannot place empty batch of orders"
+                raise ValueError(error_msg_empty_batch)
+            error_msg_empty_list = f"[{current_method}] Cannot place empty order list"
+            raise ValueError(error_msg_empty_list)
 
         # Validate each order's parameters
         for order_args in orders:
@@ -672,20 +681,22 @@ class HyperliquidTradingService:
     def _validate_batch_orders(self, orders: list[PlaceOrderArgs], current_method: str) -> None:
         """Validate batch-specific constraints."""
         if len(orders) > MAX_BATCH_SIZE:
-            raise ValueError(
+            error_msg_batch_size = (
                 f"[{current_method}] Batch size {len(orders)} exceeds maximum of {MAX_BATCH_SIZE} "
                 "orders. Consider splitting into smaller batches."
             )
+            raise ValueError(error_msg_batch_size)
 
         market_order_indices = [
             i for i, args in enumerate(orders) if args.order_type == OrderType.MARKET
         ]
         if market_order_indices:
-            raise ValueError(
+            error_msg_market_orders_batch = (
                 f"[{current_method}] Market orders are not supported in batch operations "
                 f"for safety reasons. Found market orders at indices: {market_order_indices}. "
-                "Use individual place_order() calls for market orders.",
+                "Use individual place_order() calls for market orders."
             )
+            raise ValueError(error_msg_market_orders_batch)
 
     async def _prepare_order_data(
         self,
@@ -783,32 +794,36 @@ class HyperliquidTradingService:
             OrderType.STOP_LIMIT,
         ]
         if args.order_type not in supported_order_types:
-            raise ValueError(
+            error_msg_unsupported_order_type = (
                 f"[{current_method}] Order type {args.order_type.value} is not supported "
-                f"by Hyperliquid. Supported types: {[ot.value for ot in supported_order_types]}",
+                f"by Hyperliquid. Supported types: {[ot.value for ot in supported_order_types]}"
             )
+            raise ValueError(error_msg_unsupported_order_type)
 
         # Validate time in force
         if args.time_in_force == TimeInForce.FOK:
-            raise ValueError(
+            error_msg_unsupported_tif = (
                 f"[{current_method}] TimeInForce FOK is not supported by Hyperliquid. "
-                f"Supported values: GTC, IOC, ALO",
+                f"Supported values: GTC, IOC, ALO"
             )
+            raise ValueError(error_msg_unsupported_tif)
 
         # Validate price for limit orders
         if args.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and args.price is None:
-            raise ValueError(
-                f"[{current_method}] Price is required for {args.order_type.value} orders",
+            error_msg_price_required = (
+                f"[{current_method}] Price is required for {args.order_type.value} orders"
             )
+            raise ValueError(error_msg_price_required)
 
         # Validate stop price for stop orders
         if (
             args.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
             and args.stop_price is None
         ):
-            raise ValueError(
-                f"[{current_method}] Stop price is required for {args.order_type.value} orders",
+            error_msg_stop_price_required = (
+                f"[{current_method}] Stop price is required for {args.order_type.value} orders"
             )
+            raise ValueError(error_msg_stop_price_required)
 
     @staticmethod
     def _map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:
@@ -826,10 +841,11 @@ class HyperliquidTradingService:
         }
 
         if tif not in mapping:
-            raise ValueError(
+            error_msg_unsupported_tif_mapping = (
                 f"TimeInForce {tif.value} is not supported by Hyperliquid. "
-                f"Supported values: {list(mapping.keys())}",
+                f"Supported values: {list(mapping.keys())}"
             )
+            raise ValueError(error_msg_unsupported_tif_mapping)
 
         return mapping[tif]
 
@@ -1072,7 +1088,8 @@ class HyperliquidTradingService:
                     APIErrorCode.UNKNOWN.value,
                 )
 
-        raise APIError("Failed to place order or parse response.", APIErrorCode.UNKNOWN.value)
+        error_msg_place_order_failed = "Failed to place order or parse response."
+        raise APIError(error_msg_place_order_failed, APIErrorCode.UNKNOWN.value)
 
     async def _handle_resting_order(
         self,
@@ -1285,7 +1302,7 @@ class HyperliquidTradingService:
         # Process available statuses
         for i, status in enumerate(response_data.statuses):
             if i >= len(original_orders):
-                logger.error(
+                logger.exception(
                     "hl_trading_service_batch_unexpected_status",
                     action="process_batch_order_statuses",
                     message="Unexpected extra status in batch response",
@@ -1303,7 +1320,7 @@ class HyperliquidTradingService:
                     placed_orders,
                     failed_orders,
                 )
-            except Exception as e:
+            except (TransformationError, ValidationError) as e:
                 failed_orders.append((i, f"Processing error: {e!s}"))
 
         # Handle orders that didn't get a status response (filtered by exchange)
@@ -1491,7 +1508,7 @@ class HyperliquidTradingService:
                             ),
                         )
 
-            except Exception as e:
+            except (TransformationError, ValidationError, APIError) as e:
                 # Handle any processing errors for this individual cancellation
                 cancel_results.append(
                     CancelOrderResult(
@@ -1526,9 +1543,10 @@ class HyperliquidTradingService:
         current_method = frame.f_code.co_name if frame is not None else "get_open_orders"
 
         if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
+            error_msg_empty_symbol = (
+                f"[{current_method}] 'symbol' must be a non-empty string when provided."
             )
+            raise ValueError(error_msg_empty_symbol)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -1577,8 +1595,8 @@ class HyperliquidTradingService:
                         raw_simple_order=raw_simple_order,
                     )
                     internal_orders.append(mapped_order)
-                except Exception as e:
-                    logger.error(
+                except (TransformationError, ValidationError) as e:
+                    logger.exception(
                         "order_mapping_error",
                         message=(
                             "[%s] Error mapping raw simple open order to internal: %s. "
@@ -1599,7 +1617,7 @@ class HyperliquidTradingService:
     ) -> list[Order]:
         """Handle errors during get_open_orders processing."""
         if isinstance(error, TransformationError):
-            logger.error(
+            logger.exception(
                 "transform_exchange_data_error",
                 message="[%s] %s: Failed to transform exchange data: %s",
                 message_args=(self._exchange_name, current_method, error),
@@ -1612,7 +1630,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             ) from error
         if isinstance(error, ValidationError):
-            logger.error(
+            logger.exception(
                 "internal_validation_error",
                 message="[%s] %s: Internal data validation failed: %s",
                 message_args=(self._exchange_name, current_method, error),
@@ -1632,7 +1650,7 @@ class HyperliquidTradingService:
             ):
                 # Re-raise input validation errors
                 raise
-            logger.error(
+            logger.exception(
                 "service_logic_error",
                 message="[%s] %s: Service internal logic error: %s",
                 message_args=(self._exchange_name, current_method, error),
@@ -1642,7 +1660,7 @@ class HyperliquidTradingService:
                 message="Service internal logic error.",
                 original_exception=error,
             ) from error
-        logger.error(
+        logger.exception(
             "unexpected_service_failure",
             message="[%s] %s: Unexpected service failure: %s",
             message_args=(self._exchange_name, current_method, error),
@@ -1720,14 +1738,17 @@ class HyperliquidTradingService:
         """Validate cancel args list."""
         if not cancel_args:
             if len(cancel_args) == 0 and "batch" in current_method:
-                raise ValueError(f"[{current_method}] Cannot cancel empty batch of orders")
-            raise ValueError(f"[{current_method}] Cannot cancel empty order list")
+                error_msg_empty_cancel_batch = f"[{current_method}] Cannot cancel empty batch of orders"
+                raise ValueError(error_msg_empty_cancel_batch)
+            error_msg_empty_cancel_list = f"[{current_method}] Cannot cancel empty order list"
+            raise ValueError(error_msg_empty_cancel_list)
 
         if len(cancel_args) > 1 and len(cancel_args) > MAX_BATCH_SIZE:
-            raise ValueError(
+            error_msg_cancel_batch_size = (
                 f"[{current_method}] Batch size {len(cancel_args)} exceeds maximum of "
                 f"{MAX_BATCH_SIZE} cancellations. Consider splitting into smaller batches."
             )
+            raise ValueError(error_msg_cancel_batch_size)
 
     async def _prepare_cancel_data(
         self,
@@ -1815,7 +1836,8 @@ class HyperliquidTradingService:
         if len(cancel_args) == 1:
             symbol = cancel_args[0].symbol
             if symbol is None:
-                raise ValueError("Symbol should not be None after validation")
+                error_msg_symbol_none = "Symbol should not be None after validation"
+                raise ValueError(error_msg_symbol_none)
             cancel_result = self._process_cancel_order_response(
                 raw_exchange_response,
                 http_status,
@@ -1857,18 +1879,21 @@ class HyperliquidTradingService:
 
         # For Hyperliquid, symbol is required
         if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' parameter is required.")
+            error_msg_symbol_required = f"[{current_method}] 'symbol' parameter is required."
+            raise ValueError(error_msg_symbol_required)
 
         # Convert order_id to int (it's always a string from Pydantic model)
         try:
             order_id_int = int(order_id)
         except ValueError as e:
-            raise ValueError(
-                f"[{current_method}] 'order_id' must be a valid integer: {order_id}",
-            ) from e
+            error_msg_invalid_order_id_format = (
+                f"[{current_method}] 'order_id' must be a valid integer: {order_id}"
+            )
+            raise ValueError(error_msg_invalid_order_id_format) from e
 
         if order_id_int <= 0:
-            raise ValueError(f"[{current_method}] 'order_id' must be positive.")
+            error_msg_order_id_positive = f"[{current_method}] 'order_id' must be positive."
+            raise ValueError(error_msg_order_id_positive)
 
         return symbol, order_id_int
 
@@ -1944,7 +1969,7 @@ class HyperliquidTradingService:
                 )
 
             # If we reach here, something unexpected happened
-            logger.error(
+            logger.exception(
                 "hl_trading_service_cancel_unexpected_response",
                 action="process_cancel_order_response",
                 message="Unexpected response structure for cancel order",
@@ -1976,11 +2001,11 @@ class HyperliquidTradingService:
                 status=CancelOrderResultStatus.FAILED,
                 raw_response=raw_exchange_response.model_dump(),
             )
-        except Exception as e:
-            # Convert unexpected errors to failed CancelOrderResult
-            logger.error(
-                "order_cancel_unexpected_error",
-                message="[%s] Unexpected error cancelling order OID %s: %s",
+        except (ValidationError, TransformationError, ValueError, TypeError) as e:
+            # Convert data processing errors to failed CancelOrderResult
+            logger.exception(
+                "order_cancel_processing_error",
+                message="[%s] Data processing error cancelling order OID %s: %s",
                 message_args=(self._exchange_name, order_id_int, e),
             )
             return CancelOrderResult(
@@ -2087,7 +2112,7 @@ class HyperliquidTradingService:
             # valid_orders contains only orders with non-None exchange_order_id
             if order.exchange_order_id is None:
                 # This should never happen due to filtering above, but handle gracefully
-                logger.error(
+                logger.exception(
                     "unexpected_none_exchange_order_id",
                     message="[%s] Unexpected None exchange_order_id in valid_orders",
                     message_args=(self._exchange_name,),
@@ -2147,7 +2172,8 @@ class HyperliquidTradingService:
         """
         order_id_to_cancel_str = order_to_cancel.exchange_order_id
         if order_id_to_cancel_str is None:
-            raise ValueError("exchange_order_id is None")
+            error_msg_exchange_order_id_none = "exchange_order_id is None"
+            raise ValueError(error_msg_exchange_order_id_none)
         return order_id_to_cancel_str
 
     async def _execute_cancel_request(
@@ -2232,7 +2258,7 @@ class HyperliquidTradingService:
                 order_symbol_for_cancel,
                 e_api,
             )
-        except Exception as e_generic:
+        except (OSError, ConnectionError, TimeoutError, RuntimeError) as e_generic:
             return self._create_generic_error_result(
                 order_to_cancel,
                 order_id_to_cancel_str,
@@ -2251,7 +2277,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to invalid order ID format.
         """
-        logger.error(
+        logger.exception(
             "invalid_order_id_format",
             message="[%s] Invalid order_id format '%s' for cancellation.",
             message_args=(self._exchange_name, order_id_to_cancel_str),
@@ -2277,7 +2303,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to API error.
         """
-        logger.error(
+        logger.exception(
             "api_error_cancel_order",
             message="[%s] APIError cancelling order %s for %s: %s",
             message_args=(
@@ -2312,7 +2338,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to unexpected error.
         """
-        logger.error(
+        logger.exception(
             "unexpected_error_cancel_order",
             message="[%s] Unexpected error cancelling order %s for %s: %s",
             message_args=(
@@ -2457,10 +2483,11 @@ class HyperliquidTradingService:
         except APIError:
             # Re-raise APIErrors that may already have proper error codes
             raise
-        except Exception as e:
-            # Handle any other unexpected errors
+        except (OSError, ConnectionError, TimeoutError) as e:
+            # Handle any other unexpected errors  
+            error_msg_unexpected_orderbook = f"Unexpected error fetching order book for {symbol}: {e!s}"
             raise APIError(
-                message=f"Unexpected error fetching order book for {symbol}: {e!s}",
+                message=error_msg_unexpected_orderbook,
                 code=APIErrorCode.UNKNOWN.value,
                 http_status=status_code,
             ) from e

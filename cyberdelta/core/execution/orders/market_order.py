@@ -11,7 +11,7 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
-from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError
+from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError, ValidationError
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
 
@@ -78,7 +78,7 @@ class MarketOrder:
         """
         # 1. Validate configuration
         if not self._config.enabled:
-            raise MarketOrderError("Market orders are disabled in configuration")
+            raise MarketOrderError.disabled_error()
 
         logger.info(
             "market_order_executing",
@@ -131,19 +131,14 @@ class MarketOrder:
 
             # 5. Log execution result
             self._log_execution_result(order)
-
-            return order
-
         except TimeoutError as e:
-            logger.error(
+            logger.exception(
                 "market_order_timeout",
                 action="execute",
                 timeout_seconds=self._config.order_timeout_seconds,
                 message=f"Market order timed out after {self._config.order_timeout_seconds}s",
             )
-            raise MarketOrderError(
-                f"Market order timed out after {self._config.order_timeout_seconds}s",
-            ) from e
+            raise MarketOrderError.timeout_error(self._config.order_timeout_seconds) from e
         except Exception as e:
             logger.exception(
                 "market_order_execution_failed",
@@ -152,6 +147,8 @@ class MarketOrder:
                 message=f"Market order execution failed: {e}",
             )
             raise
+        else:
+            return order
 
     def _log_execution_result(self, order: Order) -> None:
         """Log the execution result for monitoring.
@@ -259,7 +256,7 @@ class MarketOrder:
                 final_order.quantity_filled = total_filled
             return final_order
 
-        raise MarketOrderError("No orders were executed")
+        raise MarketOrderError.no_orders_error()
 
     def validate_order_parameters(self, symbol: str, side: OrderSide, quantity: Decimal) -> None:
         """Validate order parameters before execution.
@@ -273,10 +270,10 @@ class MarketOrder:
             ValueError: If parameters are invalid
         """
         if not symbol:
-            raise ValueError("Symbol must be a non-empty string")
+            raise ValidationError.empty_symbol_error()
 
         if quantity <= Decimal(0):
-            raise ValueError("Quantity must be a positive Decimal")
+            raise ValidationError.invalid_quantity_error()
 
         if not quantity.is_finite():
-            raise ValueError("Quantity must be finite")
+            raise ValidationError.infinite_quantity_error()

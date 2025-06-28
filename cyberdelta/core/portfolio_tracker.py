@@ -327,8 +327,6 @@ class PortfolioTracker:
             else:
                 self._handle_empty_balances(exchange_id, balances_data)
 
-            return True
-
         except Exception as e:
             logger.exception(
                 "balance_fetch_error",
@@ -339,6 +337,8 @@ class PortfolioTracker:
                 message=f"[FETCH_BALANCES:{exchange_id}] Error during balance fetch: {e}",
             )
             return False
+        else:
+            return True
 
     def _process_balances_data(
         self,
@@ -501,7 +501,6 @@ class PortfolioTracker:
                     ),
                 )
                 return None
-            return parsed
         except (ValidationError, TypeError, InvalidOperation) as e:
             logger.exception(
                 "balance_parse_error",
@@ -513,6 +512,8 @@ class PortfolioTracker:
                 message=f"Failed to parse balance for {asset} on {exchange_id}: {e}",
             )
             return None
+        else:
+            return parsed
 
     @staticmethod
     def _safe_decimal_convert(
@@ -534,7 +535,7 @@ class PortfolioTracker:
                 return value
             return Decimal(str(value))  # Convert via string for precision
         except (InvalidOperation, ValueError, TypeError) as e:
-            logger.error(
+            logger.exception(
                 "decimal_conversion_failed",
                 field_name=field_name,
                 value=value,
@@ -600,7 +601,6 @@ class PortfolioTracker:
                 position_count=len(updated_positions),
                 message="Successfully updated positions",
             )
-            return True
         except Exception as e:
             logger.exception(
                 "position_fetch_failed",
@@ -610,6 +610,8 @@ class PortfolioTracker:
                 message=f"Failed to fetch positions for {exchange_id}: {e}",
             )
             return False
+        else:
+            return True
 
     async def _fetch_exchange_orders(self, exchange_id: str) -> bool:
         """Fetch and update open orders for a specific exchange."""
@@ -672,7 +674,6 @@ class PortfolioTracker:
                 order_count=len(updated_orders),
                 message="Successfully updated open orders",
             )
-            return True
         except Exception as e:
             logger.exception(
                 "order_fetch_error",
@@ -682,6 +683,8 @@ class PortfolioTracker:
                 message=f"Unexpected error fetching orders for {exchange_id}: {e}",
             )
             return False
+        else:
+            return True
 
     async def update(self) -> None:
         """Update portfolio state by fetching data from exchanges."""
@@ -1256,7 +1259,7 @@ class PortfolioTracker:
                             asset_value=asset_value,
                         )
                     except (TypeError, InvalidOperation) as e:
-                        logger.error(
+                        logger.exception(
                             "spot_balance_value_calculation_error",
                             asset=asset,
                             exchange_id=exchange_id,
@@ -1350,7 +1353,7 @@ class PortfolioTracker:
                         position_value=position_value,
                     )
                 except (TypeError, InvalidOperation) as e:
-                    logger.error(
+                    logger.exception(
                         "position_value_calculation_error",
                         position_key=position_key,
                         symbol=position.symbol,
@@ -1494,7 +1497,7 @@ class PortfolioTracker:
                             message="Converted realized PNL is not finite. Skipping addition.",
                         )
                 except (TypeError, InvalidOperation) as e:
-                    logger.error(
+                    logger.exception(
                         "realized_pnl_conversion_error",
                         position_key=position_key,
                         error=str(e),
@@ -1688,9 +1691,8 @@ class PortfolioTracker:
                 unrealized_pnl=unrealized_pnl,
                 message="Position unrealized PNL calculated",
             )
-            return unrealized_pnl
         except (TypeError, InvalidOperation) as e:
-            logger.error(
+            logger.exception(
                 "error_calculating_unrealized_pnl",
                 symbol=position.symbol,
                 exchange_id=exchange_id,
@@ -1698,6 +1700,8 @@ class PortfolioTracker:
                 message="Error calculating unrealized PNL",
             )
             return None
+        else:
+            return unrealized_pnl
 
     async def get_current_drawdown(self, base_currency: str = "USDC") -> Decimal | None:
         """Calculate the current drawdown from the high watermark.
@@ -1864,13 +1868,13 @@ class PortfolioTracker:
                     validated_bal_dict,
                 )
             except ValidationError as e:
-                logger.error(
+                logger.exception(
                     "spot_balance_validation_error",
                     asset=asset_str,
                     exchange_id=ex_id_str,
                     error=str(e),
                 )
-            except Exception as e:  # Catch other potential errors from str(k)
+            except (AttributeError, TypeError, KeyError) as e:
                 logger.warning(
                     "balance_processing_error",
                     exchange_id=ex_id_str,
@@ -1916,13 +1920,13 @@ class PortfolioTracker:
                     validated_pos_dict_for_model,
                 )
             except ValidationError as e:
-                logger.error(
+                logger.exception(
                     "derivative_position_validation_error",
                     symbol=sym_str,
                     exchange_id=ex_id_str_pos,
                     error=str(e),
                 )
-            except Exception as e:  # Catch other potential errors from str(k)
+            except (AttributeError, TypeError, KeyError) as e:
                 logger.warning(
                     "position_processing_error",
                     exchange_id=ex_id_str_pos,
@@ -1968,13 +1972,13 @@ class PortfolioTracker:
                     validated_order_dict_for_model,
                 )
             except ValidationError as e:
-                logger.error(
+                logger.exception(
                     "order_validation_error",
                     order_id=ord_id_str,
                     exchange_id=ex_id_str_ord,
                     error=str(e),
                 )
-            except Exception as e:  # Catch other potential errors from str(k)
+            except (AttributeError, TypeError, KeyError) as e:
                 logger.warning(
                     "order_processing_error",
                     exchange_id=ex_id_str_ord,
@@ -2055,7 +2059,7 @@ class PortfolioTracker:
                     message="Received None for timestamp field, skipping.",
                 )
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "timestamp_deserialization_error",
                 field_name=field_name,
                 exchange_id=ex_id_str,
@@ -2220,19 +2224,20 @@ class PortfolioTracker:
             self._normalize_order_fields(order, exchange_id)
             self._normalize_order_status(order)
             current_orders[order.client_order_id] = order
-            return True
         except ValidationError as e:
             client_id_for_log = order_dict_data.get(
                 "clientOrderId",
                 order_dict_data.get("client_order_id", "UnknownClientOrderID"),
             )
-            self.logger.error(
+            self.logger.exception(
                 "order_validation_error_dict",
                 client_order_id=client_id_for_log,
                 exchange_id=exchange_id,
                 error=str(e),
             )
             return False
+        else:
+            return True
 
     def _process_order_object(
         self,
@@ -2545,7 +2550,7 @@ class PortfolioTracker:
                         message=f"Initialized balance for {asset} on {exchange_id}: {quantity}",
                     )
                 except InvalidOperation:
-                    logger.error(
+                    logger.exception(
                         "invalid_decimal_initial_balance",
                         asset=asset,
                         exchange_id=exchange_id,
@@ -2566,7 +2571,7 @@ class PortfolioTracker:
                     message="Initialized position",
                 )
             except (ValidationError, TypeError) as e:
-                logger.error(
+                logger.exception(
                     "derivative_position_creation_failed",
                     error_message=str(e),
                     error_type=type(e).__name__,
@@ -2592,7 +2597,6 @@ class PortfolioTracker:
                 issue="no_account_summary",
                 message=f"No account summary found for {exchange_id}",
             )
-            return None
         except Exception as e:
             logger.exception(
                 "account_summary_fetch_error",
@@ -2601,6 +2605,8 @@ class PortfolioTracker:
                 error=str(e),
                 message=f"Error fetching account summary for {exchange_id}: {e}",
             )
+            return None
+        else:
             return None
 
     def get_all_derivative_positions_for_exchange(

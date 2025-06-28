@@ -130,7 +130,7 @@ class HyperliquidAccountDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "clearinghouse_state_to_spot_balances_transform_failed",
                 component="HyperliquidAccountDataMapper",
                 action="transform_clearinghouse_state_to_spot_balances",
@@ -291,7 +291,7 @@ class HyperliquidAccountDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "clearinghouse_state_to_derivative_positions_transform_failed",
                 component="HyperliquidAccountDataMapper",
                 action="transform_clearinghouse_state_to_derivative_positions",

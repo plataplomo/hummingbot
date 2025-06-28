@@ -106,9 +106,7 @@ class AsyncStateManager:
                 message=f"Successfully loaded state from {self.state_file}",
                 state_file=self.state_file,
             )
-            return True
-
-        except Exception as e:
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
             logger.exception(
                 "state_load_error",
                 action="loading_state",
@@ -117,6 +115,8 @@ class AsyncStateManager:
                 error=str(e),
             )
             return await self._recover_from_backup()
+        else:
+            return True
 
     async def save_state(self, state: dict[str, Any]) -> bool:
         """Save state to file asynchronously.
@@ -156,16 +156,16 @@ class AsyncStateManager:
                     message=f"Successfully saved state to {self.state_file}",
                     state_file=self.state_file,
                 )
-                return True
-            logger.error(
+                result = True
+            else:
+                logger.error(
                 "state_write_failed",
                 action="saving_state",
                 message=f"Failed to write state to {self.state_file}",
                 state_file=self.state_file,
             )
-            return False
-
-        except Exception as e:
+                result = False
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
             logger.exception(
                 "state_save_error",
                 action="saving_state",
@@ -174,6 +174,8 @@ class AsyncStateManager:
                 error=str(e),
             )
             return False
+        else:
+            return result
 
     async def get_current_state(self) -> dict[str, Any]:
         """Get the current state.
@@ -211,9 +213,7 @@ class AsyncStateManager:
                 backup_path=backup_path,
                 timestamp=timestamp,
             )
-            return True
-
-        except Exception as e:
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
             logger.exception(
                 "state_backup_error",
                 action="creating_backup",
@@ -221,6 +221,8 @@ class AsyncStateManager:
                 error=str(e),
             )
             return False
+        else:
+            return True
 
     async def _rotate_backups(self) -> None:
         """Rotate state backups asynchronously, keeping only the most recent ones."""
@@ -237,7 +239,7 @@ class AsyncStateManager:
                     backup_path=backup_path,
                 )
 
-        except Exception as e:
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
             logger.exception(
                 "backup_rotation_error",
                 action="rotating_backups",
@@ -314,7 +316,7 @@ class AsyncStateManager:
                         )
                         return True
 
-                except Exception as e:
+                except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
                     logger.warning(
                         "backup_load_error",
                         action="recovering_from_backup",
@@ -326,15 +328,15 @@ class AsyncStateManager:
 
             # All backups failed
             logger.error("Failed to recover state from any backup")
-            return False
-
-        except Exception as e:
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
             logger.exception(
                 "recovery_process_error",
                 action="recovering_from_backup",
                 message=f"Error during recovery process: {e}",
                 error=str(e),
             )
+            return False
+        else:
             return False
 
     async def _verify_state_integrity(self, state_data: dict[str, Any]) -> bool:
@@ -408,8 +410,8 @@ class AsyncStateManager:
                     return cast("dict[str, Any]", data)
 
             return await loop.run_in_executor(None, _read_sync)
-        except Exception as e:
-            logger.error(
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
+            logger.exception(
                 "json_read_error",
                 action="reading_json_file",
                 message=f"Error reading JSON from {file_path}: {e}",
@@ -432,9 +434,8 @@ class AsyncStateManager:
                 Path(temp_file).replace(file_path)
 
             await loop.run_in_executor(None, _write_sync)
-            return True
-        except Exception as e:
-            logger.error(
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
+            logger.exception(
                 "json_write_error",
                 action="writing_json_file",
                 message=f"Error writing JSON to {file_path}: {e}",
@@ -442,6 +443,8 @@ class AsyncStateManager:
                 error=str(e),
             )
             return False
+        else:
+            return True
 
     async def _async_copy_file(self, src: str, dst: str) -> None:
         """Copy a file asynchronously."""

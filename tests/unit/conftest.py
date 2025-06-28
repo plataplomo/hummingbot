@@ -269,7 +269,7 @@ def hyperliquid_secrets() -> dict[str, str]:
     try:
         account = w3.eth.account.from_key(dummy_private_key)
         derived_address = account.address
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         # Fallback if w3 or account generation fails unexpectedly
         logger.warning(
             "hyperliquid_mock_account_generation_failed",

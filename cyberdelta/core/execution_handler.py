@@ -42,6 +42,77 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = get_logger(__name__)
 
+
+class LongExchangeCircuitBreakerError(CircuitBreakerTrippedError):
+    """Circuit breaker tripped for long exchange."""
+
+    def __init__(self, exchange: str, reason: str) -> None:
+        """Initialize LongExchangeCircuitBreakerError.
+
+        Args:
+            exchange: The exchange where the circuit breaker was tripped
+            reason: The reason for the circuit breaker trip
+        """
+        self.exchange = exchange
+        self.reason = reason
+        super().__init__(f"Circuit breaker tripped for long exchange {exchange}: {reason}")
+
+
+class ShortExchangeCircuitBreakerError(CircuitBreakerTrippedError):
+    """Circuit breaker tripped for short exchange."""
+
+    def __init__(self, exchange: str, reason: str) -> None:
+        """Initialize ShortExchangeCircuitBreakerError.
+
+        Args:
+            exchange: The exchange where the circuit breaker was tripped
+            reason: The reason for the circuit breaker trip
+        """
+        self.exchange = exchange
+        self.reason = reason
+        super().__init__(f"Circuit breaker tripped for short exchange {exchange}: {reason}")
+
+
+class MissingClientError(APIError):
+    """Missing API client error."""
+
+    def __init__(self, exchange: str) -> None:
+        """Initialize MissingClientError.
+
+        Args:
+            exchange: The exchange that is missing an API client
+        """
+        self.exchange = exchange
+        super().__init__(f"Missing API client for '{exchange}'", "MISSING_CLIENT")
+
+
+class SymbolMappingError(APIError):
+    """Symbol mapping failed error."""
+
+    def __init__(self, symbol: str, leg: str, exchange: str) -> None:
+        """Initialize SymbolMappingError.
+
+        Args:
+            symbol: The symbol that could not be mapped
+            leg: The leg type (long/short)
+            exchange: The exchange where mapping failed
+        """
+        self.symbol = symbol
+        self.leg = leg
+        self.exchange = exchange
+        super().__init__(
+            f"Could not map symbol '{symbol}' for {leg} leg on exchange '{exchange}'",
+            "SYMBOL_MAPPING_FAILED",
+        )
+
+
+class AverageFillPriceError(ValueError):
+    """Average fill price cannot be None for synthetic trade."""
+
+    def __init__(self) -> None:
+        """Initialize AverageFillPriceError."""
+        super().__init__("average_fill_price cannot be None for synthetic trade")
+
 # NOTE: CyberDeltaEngine Order model uses 'client_order_id' as the unique identifier,
 # 'quantity_requested' for order size, 'quantity_filled' for filled size, and
 # 'average_fill_price' for fill price. There is no 'id', 'quantity',
@@ -233,7 +304,7 @@ class ExecutionHandler:
             return self._handle_circuit_breaker_rejection(execution, e)
         except APIError as e:
             return self._handle_api_error_during_execution(execution, opportunity, e)
-        except Exception as e:
+        except (ValueError, TypeError, OSError) as e:
             return self._handle_unexpected_error_during_execution(execution, opportunity, e)
 
         # Finalize execution
@@ -256,18 +327,18 @@ class ExecutionHandler:
             opportunity.opportunity.long_exchange,
         )
         if not can_long:
-            raise CircuitBreakerTrippedError(
-                f"Circuit breaker tripped for long exchange "
-                f"{opportunity.opportunity.long_exchange}: {long_reason}",
+            raise LongExchangeCircuitBreakerError(
+                opportunity.opportunity.long_exchange,
+                long_reason,
             )
 
         can_short, short_reason = self.circuit_breaker_system.can_execute(
             opportunity.opportunity.short_exchange,
         )
         if not can_short:
-            raise CircuitBreakerTrippedError(
-                f"Circuit breaker tripped for short exchange "
-                f"{opportunity.opportunity.short_exchange}: {short_reason}",
+            raise ShortExchangeCircuitBreakerError(
+                opportunity.opportunity.short_exchange,
+                short_reason,
             )
 
     async def _setup_execution_prerequisites(
@@ -290,10 +361,7 @@ class ExecutionHandler:
                 if not long_client
                 else opportunity.opportunity.short_exchange
             )
-            raise APIError(
-                f"Missing API client for '{missing_client_exchange_name}'",
-                code="MISSING_CLIENT",
-            )
+            raise MissingClientError(missing_client_exchange_name)
 
         # Get exchange-specific symbols
         long_symbol = self.symbol_mapper.get_exchange_symbol(
@@ -312,10 +380,10 @@ class ExecutionHandler:
                 if not long_symbol
                 else opportunity.opportunity.short_exchange
             )
-            raise APIError(
-                f"Could not map symbol '{opportunity.opportunity.symbol}' for {missing_leg} leg "
-                f"on exchange '{missing_symbol_exchange_name}'",
-                code="SYMBOL_MAPPING_FAILED",
+            raise SymbolMappingError(
+                opportunity.opportunity.symbol,
+                missing_leg,
+                missing_symbol_exchange_name,
             )
 
         return long_client, short_client, long_symbol, short_symbol
@@ -780,7 +848,7 @@ class ExecutionHandler:
                 side=OrderSide.SELL,  # Compensate by selling the long
                 quantity=base_asset_quantity_long,
             )
-        except Exception as e_comp:
+        except (ValueError, TypeError, RuntimeError) as e_comp:
             logger.critical(
                 "execution_compensation_exception",
                 execution_id=execution.id,
@@ -1033,8 +1101,8 @@ class ExecutionHandler:
                     action="process_individual_trades",
                     message="Trade processed successfully",
                 )
-            except Exception as e_process_trade:
-                logger.error(
+            except (ValueError, TypeError, RuntimeError) as e_process_trade:
+                logger.exception(
                     "execution_trade_processing_failed",
                     execution_id=execution.id,
                     trade_id=trade_from_order.id,
@@ -1074,7 +1142,7 @@ class ExecutionHandler:
             # which is guaranteed by the elif condition.
             # DEFENSIVE CHECK: Mypy=[arg-type] Ruff=[none]
             if order.average_fill_price is None:
-                raise ValueError("average_fill_price cannot be None for synthetic trade")
+                raise AverageFillPriceError()
 
             synthetic_trade = Trade(
                 id=f"synth_{order.exchange_order_id or order.client_order_id}_"
@@ -1102,8 +1170,8 @@ class ExecutionHandler:
                 action="create_synthetic_trade",
                 message="Synthetic trade processed successfully",
             )
-        except Exception as e_synth_trade:
-            logger.error(
+        except (ValueError, TypeError, RuntimeError) as e_synth_trade:
+            logger.exception(
                 "execution_synthetic_trade_failed",
                 execution_id=execution.id,
                 order_id=order.exchange_order_id or order.client_order_id,
@@ -1211,9 +1279,9 @@ class ExecutionHandler:
                 # Exponential backoff for retryable errors
                 await self._apply_retry_delay(execution, context, attempt)
 
-            except Exception as e:
+            except (ValueError, TypeError, OSError, RuntimeError) as e:
                 # Catch unexpected errors
-                logger.error(
+                logger.exception(
                     "execution_unexpected_error_during_context",
                     execution_id=execution.id,
                     context=context,
@@ -2015,7 +2083,6 @@ class ExecutionHandler:
                         exchange_id,
                         context=f"Order {order_result.exchange_order_id} placed",
                     )
-                return order_result
             except APIError as e:
                 last_api_error_for_reraise = e  # Store the API error
                 should_retry = await self._handle_api_error(e, exchange_id, context)
@@ -2023,7 +2090,7 @@ class ExecutionHandler:
                     execution.error_message = (
                         f"Non-retryable API error during {context} on {exchange_id}: {e.message}"
                     )
-                    logger.error(
+                    logger.exception(
                         "execution_error",
                         execution_id=execution.id,
                         error_message=execution.error_message,
@@ -2044,12 +2111,12 @@ class ExecutionHandler:
                     message=f"Execution {execution.id}: Retrying {context} in {delay:.2f}s...",
                 )
                 await asyncio.sleep(delay)
-            except Exception as e:
+            except (ValueError, TypeError, OSError, RuntimeError) as e:
                 # Catch unexpected errors
                 execution.error_message = (
                     f"Unexpected error during {context} on {exchange_id}: {e!s}"
                 )
-                logger.error(
+                logger.exception(
                     "execution_unexpected_error",
                     execution_id=execution.id,
                     error_message=execution.error_message,
@@ -2058,6 +2125,9 @@ class ExecutionHandler:
                 )
                 # Decide if unexpected errors are retryable (maybe not)
                 return None
+            else:
+                # Success - return the order result
+                return order_result
 
         # If loop finishes, it means all retries were exhausted for an APIError,
         # or another exception occurred.

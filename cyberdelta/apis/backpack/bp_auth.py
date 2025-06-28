@@ -57,7 +57,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             private_key_bytes = base64.b64decode(private_key_b64)
             self._ed25519_private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "ed25519_key_load_failed",
                 action="load_key",
                 error=str(e),
@@ -345,7 +345,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "ed25519_auth_failed",
                 action="authenticate",
                 method=method,
@@ -403,7 +403,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "websocket_signature_failed",
                 action="generate_signature",
                 error=str(e),

@@ -21,6 +21,21 @@ class SymbolMappingError(Exception):
     """Custom exception for symbol mapping failures."""
 
 
+class InvalidConfigurationError(SymbolMappingError):
+    """Invalid configuration error."""
+
+    def __init__(self, expected_type: str, actual_type: type) -> None:
+        """Initialize with type validation error details.
+        
+        Args:
+            expected_type: The expected configuration type name.
+            actual_type: The actual type that was provided.
+        """
+        self.expected_type = expected_type
+        self.actual_type = actual_type
+        super().__init__(f"Invalid configuration: Expected {expected_type}, got {actual_type}")
+
+
 class SymbolMapper:
     """Centralized utility for mapping between internal symbols and exchange-specific symbols.
 
@@ -66,10 +81,7 @@ class SymbolMapper:
             SymbolMappingError: If the configuration structure is invalid.
         """
         if not isinstance(exchanges_config, dict):  # pyright: ignore [reportUnnecessaryIsInstance]
-            raise SymbolMappingError(
-                f"Invalid configuration: Expected a dictionary of exchanges, "
-                f"got {type(exchanges_config)}",
-            )
+            raise InvalidConfigurationError("a dictionary of exchanges", type(exchanges_config))
 
     def _process_exchanges_config(self, exchanges_config: dict[str, Any]) -> None:
         """Process the exchanges configuration and build symbol mappings."""

@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cyberdelta.core.execution.orders.market_order_errors import ValidationError
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
@@ -91,9 +92,9 @@ class MarketOrderConfig(BaseModel):
             ValueError: If percentage is not finite or not positive.
         """
         if not v.is_finite():
-            raise ValueError("Percentage must be a finite decimal")
+            raise ValidationError.finite_decimal_error()
         if v <= Decimal(0):
-            raise ValueError("Percentage must be positive")
+            raise ValidationError.positive_error()
         return v
 
     @field_validator("slippage_by_symbol")
@@ -105,7 +106,7 @@ class MarketOrderConfig(BaseModel):
             ValueError: If 'default' entry is missing or slippage values are invalid.
         """
         if "default" not in v:
-            raise ValueError("slippage_by_symbol must contain a 'default' entry")
+            raise ValidationError.slippage_default_error()
 
         for symbol, slippage in v.items():
             parsed = parse_decimal_value(
@@ -114,7 +115,7 @@ class MarketOrderConfig(BaseModel):
                 field_name=f"slippage_by_symbol[{symbol}]",
             )
             if parsed is None or not parsed.is_finite() or parsed <= Decimal(0):
-                raise ValueError(f"Invalid slippage for {symbol}: {slippage}")
+                raise ValidationError.slippage_invalid_error(symbol, slippage)
 
         return v
 

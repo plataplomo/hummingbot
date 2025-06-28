@@ -14,6 +14,7 @@ This strategy:
 from __future__ import annotations
 
 import asyncio
+import decimal
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, getcontext
 from typing import Any, cast
@@ -145,7 +146,7 @@ class FundingRateArbitrageStrategy(Strategy):
         value = self.get_param(key, default)
         try:
             return Decimal(str(value))
-        except Exception:
+        except (ValueError, TypeError, decimal.InvalidOperation):
             return default
 
     def _get_int_param(self, key: str, default: int) -> int:
@@ -155,7 +156,7 @@ class FundingRateArbitrageStrategy(Strategy):
         if isinstance(value, int | float | str):
             try:
                 return int(value)
-            except Exception:
+            except (ValueError, TypeError):
                 return default
         return default
 

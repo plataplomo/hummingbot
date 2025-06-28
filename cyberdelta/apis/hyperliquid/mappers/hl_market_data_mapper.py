@@ -170,7 +170,7 @@ class HyperliquidMarketDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "asset_context_to_ticker_transform_failed",
                 component="HyperliquidMarketDataMapper",
                 action="transform_asset_context_to_ticker",
@@ -237,7 +237,7 @@ class HyperliquidMarketDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "order_book_transform_failed",
                 component="HyperliquidMarketDataMapper",
                 action="transform_order_book",
@@ -382,7 +382,7 @@ class HyperliquidMarketDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "public_trade_transform_failed",
                 component="HyperliquidMarketDataMapper",
                 action="transform_public_trade",
@@ -482,7 +482,7 @@ class HyperliquidMarketDataMapper:
             )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "asset_context_to_funding_rate_mapping_failed",
                 action="transform_asset_context_to_funding_rate",
                 symbol=str(raw_asset_ctx.name),
@@ -811,7 +811,7 @@ class HyperliquidMarketDataMapper:
                         message="Trade transformation returned None",
                     )
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "trade_transformation_failed",
                     action="transform_raw_trades",
                     symbol=str(raw_trade.coin),
@@ -872,7 +872,7 @@ class HyperliquidMarketDataMapper:
             return markets
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "market_transformation_failed",
                 action="transform_markets",
                 error=str(e),

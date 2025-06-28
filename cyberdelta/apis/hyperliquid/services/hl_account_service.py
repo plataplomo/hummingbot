@@ -147,7 +147,7 @@ class HyperliquidAccountService:
     async def _get_raw_clearinghouse_state(self) -> HyperliquidRawClearinghouseState:
         """Fetch and validate the raw HyperliquidClearinghouseState."""
         if not self._wallet_address:
-            logger.error(
+            logger.exception(
                 "wallet_address_not_set",
                 action="fetch_clearinghouse_state",
                 exchange=self._exchange_name,
@@ -235,7 +235,7 @@ class HyperliquidAccountService:
         except APIError:  # Re-raise APIErrors directly
             raise
         except (ValidationError, ValueError) as e_val:  # Catch Pydantic/parsing errors
-            logger.error(
+            logger.exception(
                 "validation_map_error_clearinghouse_state",
                 action="fetch_clearinghouse_state",
                 exchange=self._exchange_name,
@@ -255,7 +255,7 @@ class HyperliquidAccountService:
             raw_info_for_log = (
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
-            logger.error(
+            logger.exception(
                 "unhandled_error_clearinghouse_state",
                 action="fetch_clearinghouse_state",
                 exchange=self._exchange_name,
@@ -306,7 +306,7 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
+            logger.exception(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -321,7 +321,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
+            logger.exception(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -338,7 +338,7 @@ class HyperliquidAccountService:
         except (ValueError, TypeError) as e_service_logic:
             # Distinguish input validation from internal errors per ERROR_HANDLING.md
             # No input parameters to validate in get_balances, so wrap as internal error
-            logger.error(
+            logger.exception(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -351,7 +351,7 @@ class HyperliquidAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
+            logger.exception(
                 "unexpected_service_failure",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -428,7 +428,7 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
+            logger.exception(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -443,7 +443,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
+            logger.exception(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -464,7 +464,7 @@ class HyperliquidAccountService:
                 # Re-raise input validation errors
                 raise
             # Wrap internal errors as APIError
-            logger.error(
+            logger.exception(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -477,7 +477,7 @@ class HyperliquidAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
+            logger.exception(
                 "unexpected_service_failure",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -526,7 +526,7 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from _get_raw_clearinghouse_state, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.error(
+            logger.exception(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -541,7 +541,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
+            logger.exception(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -556,7 +556,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.error(
+            logger.exception(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -569,7 +569,7 @@ class HyperliquidAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
+            logger.exception(
                 "unexpected_service_failure",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -793,7 +793,7 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> NoReturn:
         """Handle transformation errors consistently."""
-        logger.error(
+        logger.exception(
             "transformation_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -816,7 +816,7 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> NoReturn:
         """Handle validation errors consistently."""
-        logger.error(
+        logger.exception(
             "validation_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -837,7 +837,7 @@ class HyperliquidAccountService:
         method_name: str,
     ) -> None:
         """Handle service logic errors consistently."""
-        logger.error(
+        logger.exception(
             "service_logic_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -858,7 +858,7 @@ class HyperliquidAccountService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors consistently."""
-        logger.error(
+        logger.exception(
             "unexpected_error_handler",
             action=method_name,
             exchange=self._exchange_name,
@@ -1169,7 +1169,7 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from any future implementation
             raise
         except TransformationError as e_transform:
-            logger.error(
+            logger.exception(
                 "transfer_transform_error",
                 message="[%s] %s: Failed to transform exchange data for transfer: %s",
                 message_args=(self._exchange_name, current_method, e_transform),
@@ -1182,7 +1182,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
+            logger.exception(
                 "transfer_validation_error",
                 message="[%s] %s: Internal data validation failed for transfer: %s",
                 message_args=(self._exchange_name, current_method, e_val),
@@ -1196,7 +1196,7 @@ class HyperliquidAccountService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             # This is from service internal logic - wrap as APIError
-            logger.error(
+            logger.exception(
                 "transfer_service_logic_error",
                 message="[%s] %s: Service internal logic error for transfer: %s",
                 message_args=(self._exchange_name, current_method, e_service_logic),
@@ -1209,7 +1209,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
+            logger.exception(
                 "transfer_unexpected_error",
                 message="[%s] %s: Unexpected service failure for transfer: %s",
                 message_args=(self._exchange_name, current_method, e_unexpected),
@@ -1254,7 +1254,7 @@ class HyperliquidAccountService:
             # Re-raise APIErrors from any future implementation
             raise
         except TransformationError as e_transform:
-            logger.error(
+            logger.exception(
                 "withdraw_transform_error",
                 message="[%s] %s: Failed to transform exchange data for withdraw: %s",
                 message_args=(self._exchange_name, current_method, e_transform),
@@ -1267,7 +1267,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.error(
+            logger.exception(
                 "withdraw_validation_error",
                 message="[%s] %s: Internal data validation failed for withdraw: %s",
                 message_args=(self._exchange_name, current_method, e_val),
@@ -1281,7 +1281,7 @@ class HyperliquidAccountService:
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
             # This is from service internal logic - wrap as APIError
-            logger.error(
+            logger.exception(
                 "withdraw_service_logic_error",
                 message="[%s] %s: Service internal logic error for withdraw: %s",
                 message_args=(self._exchange_name, current_method, e_service_logic),
@@ -1294,7 +1294,7 @@ class HyperliquidAccountService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.error(
+            logger.exception(
                 "withdraw_unexpected_error",
                 message="[%s] %s: Unexpected service failure for withdraw: %s",
                 message_args=(self._exchange_name, current_method, e_unexpected),
@@ -1486,7 +1486,7 @@ class HyperliquidAccountService:
         except APIError:
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "account_settings_update_failed",
                 message="[%s::%s] Failed to update account settings: %s",
                 message_args=(self.__class__.__name__, current_method, e),

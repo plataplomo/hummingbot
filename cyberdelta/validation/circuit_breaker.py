@@ -1493,7 +1493,7 @@ class CircuitBreakerSystem:
             return self._instantiate_breaker(breaker_class, name, breaker_specific_config, cooldown)
 
         except KeyError as e:
-            logger.error(
+            logger.exception(
                 "breaker_config_key_error",
                 breaker_name=name,
                 missing_key=str(e),
@@ -1506,7 +1506,7 @@ class CircuitBreakerSystem:
             )
             return None
         except ValueError as e:
-            logger.error(
+            logger.exception(
                 "breaker_config_value_error",
                 breaker_name=name,
                 error=str(e),
@@ -1519,8 +1519,8 @@ class CircuitBreakerSystem:
                 ),
             )
             return None
-        except Exception as e:
-            logger.error(
+        except (TypeError, AttributeError, RuntimeError) as e:
+            logger.exception(
                 "breaker_creation_error",
                 breaker_name=name,
                 breaker_class=breaker_class.__name__,
@@ -1528,7 +1528,7 @@ class CircuitBreakerSystem:
                 config_details=breaker_specific_config,
                 action="creation_error",
                 message=(
-                    f"Generic error creating breaker {name} of type {breaker_class.__name__}: "
+                    f"Error creating breaker {name} of type {breaker_class.__name__}: "
                     f"{e} (Config: {breaker_specific_config})"
                 ),
             )
@@ -1568,7 +1568,7 @@ class CircuitBreakerSystem:
         try:
             cooldown = int(float(str(cooldown_raw)))  # Robust parsing: str -> float -> int
         except ValueError:
-            logger.error(
+            logger.exception(
                 "breaker_cooldown_parse_error",
                 breaker_name=name,
                 cooldown_value=str(cooldown_raw),

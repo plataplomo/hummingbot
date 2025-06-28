@@ -16,6 +16,7 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
     MarketOrderError,
     PriceDeviationError,
+    ValidationError,
 )
 from cyberdelta.core.models import OrderBook, OrderSide
 from cyberdelta.core.models.market.mid_prices import MidPrices
@@ -71,9 +72,7 @@ class MarketOrderService:
         # 1. Get order book for accurate pricing
         order_book = await self._exchange.get_order_book(symbol)
         if not order_book or not order_book.bids or not order_book.asks:
-            raise MarketOrderError(
-                f"Cannot calculate market order price: no order book for {symbol}",
-            )
+            raise MarketOrderError.no_order_book_error(symbol)
 
         # 2. Check liquidity sufficiency
         available_liquidity = self._calculate_available_liquidity(order_book, side, quantity)
@@ -154,7 +153,7 @@ class MarketOrderService:
                     symbol=symbol,
                     size=quantity,
                 )
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 logger.warning(
                     "slippage_estimation_fallback",
                     error=str(e),
@@ -199,7 +198,7 @@ class MarketOrderService:
 
         # Ensure price is positive and finite
         if not aggressive_price.is_finite() or aggressive_price <= Decimal(0):
-            raise MarketOrderError(f"Invalid aggressive price: {aggressive_price}")
+            raise MarketOrderError.invalid_price_error(aggressive_price)
 
     async def round_to_tick_size(self, price: Decimal, symbol: str) -> Decimal:
         """Round price to exchange tick size.
@@ -217,7 +216,17 @@ class MarketOrderService:
         try:
             # Get market metadata from exchange
             market = await self._exchange.get_market(GetMarketArgs(symbol=symbol))
-
+        except MarketOrderError:
+            raise
+        except (ValueError, TypeError, AttributeError, OSError) as e:
+            logger.exception(
+                "market_metadata_fetch_failed_price",
+                symbol=symbol,
+                error=str(e),
+                message="Failed to get market metadata, returning original price",
+            )
+            return price
+        else:
             if market and market.tick_size:
                 # Round to nearest tick_size multiple
                 tick_size = market.tick_size
@@ -243,17 +252,6 @@ class MarketOrderService:
             )
             return price
 
-        except MarketOrderError:
-            raise
-        except Exception as e:
-            logger.error(
-                "market_metadata_fetch_failed_price",
-                symbol=symbol,
-                error=str(e),
-                message="Failed to get market metadata, returning original price",
-            )
-            return price
-
     async def round_to_step_size(self, quantity: Decimal, symbol: str) -> Decimal:
         """Round quantity to exchange step size.
 
@@ -270,7 +268,17 @@ class MarketOrderService:
         try:
             # Get market metadata from exchange
             market = await self._exchange.get_market(GetMarketArgs(symbol=symbol))
-
+        except MarketOrderError:
+            raise
+        except (ValueError, TypeError, AttributeError, OSError) as e:
+            logger.exception(
+                "market_metadata_fetch_failed_quantity",
+                symbol=symbol,
+                error=str(e),
+                message="Failed to get market metadata, returning original quantity",
+            )
+            return quantity
+        else:
             if market and market.step_size:
                 # Round to nearest step_size multiple
                 step_size = market.step_size
@@ -293,17 +301,6 @@ class MarketOrderService:
                 symbol=symbol,
                 quantity=float(quantity),
                 message="No step size found, returning original quantity",
-            )
-            return quantity
-
-        except MarketOrderError:
-            raise
-        except Exception as e:
-            logger.error(
-                "market_metadata_fetch_failed_quantity",
-                symbol=symbol,
-                error=str(e),
-                message="Failed to get market metadata, returning original quantity",
             )
             return quantity
 
@@ -333,7 +330,7 @@ class MarketOrderService:
                     return all_mids.get(symbol)
         except MarketOrderError:
             raise
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, OSError) as e:
             logger.debug(
                 "allmids_fetch_failed",
                 action="fetch_mids",
@@ -369,10 +366,10 @@ class MarketOrderService:
             ValueError: If configuration is invalid
         """
         if not self._config.enabled:
-            raise ValueError("Market orders are disabled in configuration")
+            raise ValidationError.config_disabled_error()
 
         if self._config.max_slippage_pct <= Decimal(0):
-            raise ValueError("Maximum slippage must be positive")
+            raise ValidationError.config_slippage_error()
 
         if self._config.max_price_deviation_pct <= Decimal(0):
-            raise ValueError("Maximum price deviation must be positive")
+            raise ValidationError.config_deviation_error()

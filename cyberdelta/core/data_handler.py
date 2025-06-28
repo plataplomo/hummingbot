@@ -279,7 +279,7 @@ class DataHandler:
                             message="Error starting connection",
                         )
                     except IndexError:
-                        logger.error(
+                        logger.exception(
                             "connection_start_error_unknown_exchange",
                             index=i,
                             error=str(result),
@@ -332,7 +332,7 @@ class DataHandler:
             )
 
         except ConnectionError as e:
-            logger.error(
+            logger.exception(
                 "websocket_connection_error",
                 exchange_id=exchange_id,
                 error_type="ConnectionError",
@@ -359,8 +359,8 @@ class DataHandler:
                 )
                 await client.close_websocket()
             raise
-        except Exception as e:
-            logger.error(
+        except (OSError, ValueError, RuntimeError) as e:
+            logger.exception(
                 "websocket_connect_subscribe_failed",
                 exchange_id=exchange_id,
                 error_message=str(e),
@@ -586,8 +586,8 @@ class DataHandler:
                     else None,
                 )
                 self._update_ticker(exchange_id, str(symbol), ticker, dt_real.now(UTC))
-        except Exception as e:
-            logger.error(
+        except (ValueError, TypeError, KeyError) as e:
+            logger.exception(
                 "ticker_message_handling_error",
                 exchange_id=exchange_id,
                 error_message=str(e),
@@ -630,8 +630,8 @@ class DataHandler:
                     timestamp=dt_real.now(UTC),
                 )
                 self._update_order_book(exchange_id, str(symbol), orderbook, dt_real.now(UTC))
-        except Exception as e:
-            logger.error(
+        except (ValueError, TypeError, KeyError) as e:
+            logger.exception(
                 "orderbook_message_handling_error",
                 exchange_id=exchange_id,
                 error_message=str(e),
@@ -675,8 +675,8 @@ class DataHandler:
                     next_funding_time=None,  # Extract from message if available
                 )
                 self._update_funding_rate(exchange_id, str(symbol), funding_rate, dt_real.now(UTC))
-        except Exception as e:
-            logger.error(
+        except (ValueError, TypeError, KeyError) as e:
+            logger.exception(
                 "funding_message_handling_error",
                 exchange_id=exchange_id,
                 error_message=str(e),
@@ -711,8 +711,8 @@ class DataHandler:
                 # Handle position updates
                 pass
 
-        except Exception as e:
-            logger.error(
+        except (ValueError, TypeError, KeyError) as e:
+            logger.exception(
                 "user_events_message_handling_error",
                 exchange_id=exchange_id,
                 error_message=str(e),
@@ -749,7 +749,7 @@ class DataHandler:
                 action="task_cancellation",
                 message=f"Message handler for {exchange_id} cancelled.",
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, OSError) as e:
             logger.exception(
                 "message_handler_error",
                 exchange_id=exchange_id,
@@ -1355,8 +1355,8 @@ class DataHandler:
                 message=f"Fetched {len(rates)} funding rates for {exchange_id}",
             )
 
-        except Exception as e:
-            logger.error(
+        except (ConnectionError, ValueError, TypeError) as e:
+            logger.exception(
                 "funding_rates_fetch_failed",
                 exchange_id=exchange_id,
                 error=str(e),
@@ -1415,7 +1415,7 @@ class DataHandler:
                 action="cancel_task",
                 message=f"Error cancelling task-like object {type(task_like)}: {e}",
             )
-        except Exception as e:
+        except AttributeError as e:
             logger.warning(
                 "unexpected_error_cancelling_task",
                 task_type=type(task_like).__name__,
@@ -1622,9 +1622,9 @@ class DataHandler:
                     message="WebSocket maintenance task was cancelled. Exiting loop",
                 )
                 break  # Exit the while True loop if the task itself is cancelled.
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 # Catch any other unexpected exceptions from _connect_and_subscribe
-                logger.error(
+                logger.exception(
                     "websocket_maintenance_unexpected_error",
                     exchange_id=exchange_id,
                     error=str(e),

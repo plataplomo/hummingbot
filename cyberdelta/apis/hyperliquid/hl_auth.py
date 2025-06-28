@@ -226,11 +226,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             # Cryptographic validation using eth_account
             try:
                 account_obj: LocalAccount = Account.from_key(processed_pk_str)
-                return account_obj
             except Exception as e:
-                raise ValueError(
-                    f"Hyperliquid private_key is not cryptographically valid: {e}",
-                ) from e
+                crypto_validation_error_msg = (
+                    f"Hyperliquid private_key is not cryptographically valid: {e}"
+                )
+                raise ValueError(crypto_validation_error_msg) from e
+            
+            return account_obj
 
         except ValueError as e:
             self.logger.exception(
@@ -238,7 +240,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 error_details=str(e),
                 message=f"HyperliquidEip712Authenticator: Invalid private key: {e!s}",
             )
-            raise ValueError(f"Invalid private key: {e}") from e
+            invalid_private_key_msg = f"Invalid private key: {e}"
+            raise ValueError(invalid_private_key_msg) from e
 
     def _process_private_key_string(self, private_key_str: str) -> str:
         """Process private key string by removing 0x prefix if present."""
@@ -250,10 +253,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             len(processed_pk_str) == PRIVATE_KEY_HEX_LENGTH
             and all(c in string.hexdigits for c in processed_pk_str)
         ):
-            raise ValueError(
+            private_key_format_error_msg = (
                 "Hyperliquid private_key must be a 64-character hex string "
-                "(with or without '0x' prefix).",
+                "(with or without '0x' prefix)."
             )
+            raise ValueError(private_key_format_error_msg)
 
     def _validate_passphrase(self, passphrase_secret: SecretStr) -> None:
         """Validate the BIP-39 passphrase if provided."""
@@ -267,31 +271,35 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 error_details=str(e),
                 message=f"HyperliquidEip712Authenticator: Invalid passphrase: {e!s}",
             )
-            raise ValueError(f"Invalid passphrase: {e}") from e
+            invalid_passphrase_msg = f"Invalid passphrase: {e}"
+            raise ValueError(invalid_passphrase_msg) from e
 
     def _validate_passphrase_word_count(self, phrase_str: str) -> None:
         """Validate that passphrase has correct word count."""
         num_words = len(phrase_str.split())
         if num_words not in {12, 24}:
-            raise ValueError(
-                f"Hyperliquid passphrase must consist of 12 or 24 words, got {num_words} words.",
+            word_count_error_msg = (
+                f"Hyperliquid passphrase must consist of 12 or 24 words, got {num_words} words."
             )
+            raise ValueError(word_count_error_msg)
 
     def _validate_passphrase_bip39(self, phrase_str: str) -> None:
         """Validate that passphrase is a valid BIP-39 mnemonic."""
         try:
             mnemonic_validator = Mnemonic("english")
             if not mnemonic_validator.check(phrase_str):
-                raise ValueError(
+                bip39_invalid_msg = (
                     "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
-                    "(checksum or wordlist error).",
+                    "(checksum or wordlist error)."
                 )
+                raise ValueError(bip39_invalid_msg)
         except Exception as e:
             # Handle any other exceptions from mnemonic validation
             if "not a valid BIP-39 mnemonic" not in str(e):
-                raise ValueError(
-                    f"Error validating Hyperliquid passphrase with mnemonic library: {e}",
-                ) from e
+                mnemonic_library_error_msg = (
+                    f"Error validating Hyperliquid passphrase with mnemonic library: {e}"
+                )
+                raise ValueError(mnemonic_library_error_msg) from e
             raise
 
     def _setup_wallet_properties(self) -> None:
@@ -402,9 +410,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             ),
             message_args=(path,),
         )
-        raise NotImplementedError(
-            f"Signing for path {path} is not implemented. Only /exchange endpoint is supported.",
+        path_not_implemented_msg = (
+            f"Signing for path {path} is not implemented. Only /exchange endpoint is supported."
         )
+        raise NotImplementedError(path_not_implemented_msg)
 
     def _validate_exchange_request_data(self, data: dict[str, Any] | None) -> None:
         """Validate exchange request data format."""
@@ -420,7 +429,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 expected_type="dict",
                 message=(f"HyperliquidEip712Authenticator: {msg} Received type: {type(data)}"),
             )
-            raise ValueError(msg)
+            data_type_error_msg = msg
+            raise TypeError(data_type_error_msg)
 
     def _prepare_action_payload(self, data: dict[str, Any] | BaseModel) -> dict[str, Any]:
         """Prepare the action payload for signing using Pydantic model serialization.
@@ -581,14 +591,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             msgpacked_action: bytes = msgpack.packb(action_payload_dict)
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "msgpack_serialization_failed",
                 action="compute_action_hash",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to msgpack action payload: {e}",
             )
+            serialize_action_failed_msg = f"Failed to serialize action payload: {e}"
             raise APIError(
-                f"Failed to serialize action payload: {e}",
+                serialize_action_failed_msg,
                 code=APIErrorCode.INVALID_REQUEST.value,
                 original_exception=e,
             ) from e
@@ -640,14 +651,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         try:
             return keccak(action_hash_input_bytes)
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "action_hash_computation_failed",
                 action="compute_action_hash",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to compute action hash: {e}",
             )
+            compute_action_hash_failed_msg = f"Failed to compute action hash: {e}"
             raise APIError(
-                f"Failed to compute action hash: {e}",
+                compute_action_hash_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
@@ -676,8 +688,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             or not hasattr(signed_message_obj, "s")
             or not hasattr(signed_message_obj, "v")
         ):
+            invalid_signature_components_msg = "Invalid signature object: missing r, s, or v components"
             raise APIError(
-                "Invalid signature object: missing r, s, or v components",
+                invalid_signature_components_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
@@ -694,9 +707,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             # Validate hex format
             if not r_hex.startswith("0x") or len(r_hex) != SIGNATURE_HEX_LENGTH:
-                raise ValueError(f"Invalid r component format: {r_hex}")
+                invalid_r_format_msg = f"Invalid r component format: {r_hex}"
+                raise ValueError(invalid_r_format_msg)
             if not s_hex.startswith("0x") or len(s_hex) != SIGNATURE_HEX_LENGTH:
-                raise ValueError(f"Invalid s component format: {s_hex}")
+                invalid_s_format_msg = f"Invalid s component format: {s_hex}"
+                raise ValueError(invalid_s_format_msg)
 
             signature_dict = {
                 "r": r_hex,
@@ -725,14 +740,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             return signature_dict
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "signature_formatting_failed",
                 action="format_signature_components",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to format signature components: {e}",
             )
+            format_signature_failed_msg = f"Failed to format signature: {e}"
             raise APIError(
-                f"Failed to format signature: {e}",
+                format_signature_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
@@ -750,7 +766,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self._validate_exchange_request_data(data)
         # DEFENSIVE CHECK: Ensure data is not None after validation
         if data is None:
-            raise ValueError("Data cannot be None after validation")
+            data_none_after_validation_msg = "Data cannot be None after validation"
+            raise ValueError(data_none_after_validation_msg)
 
         # Prepare core components
         action_payload_dict = self._prepare_action_payload(data)
@@ -819,8 +836,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     f"Hyperliquid Exchange Agent message: {e}"
                 ),
             )
+            sign_eip712_agent_failed_msg = f"Failed to sign EIP-712 Agent request for /exchange: {e}"
             raise APIError(
-                f"Failed to sign EIP-712 Agent request for /exchange: {e}",
+                sign_eip712_agent_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
@@ -830,14 +848,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         try:
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "eip712_encoding_failed",
                 action="encode_and_sign_message",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to encode EIP-712 typed data: {e}",
             )
+            encode_eip712_failed_msg = f"Failed to encode EIP-712 message: {e}"
             raise APIError(
-                f"Failed to encode EIP-712 message: {e}",
+                encode_eip712_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
@@ -881,14 +900,15 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 )
             return signed_msg
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "eip712_message_signing_failed",
                 action="encode_and_sign_message",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to sign EIP-712 message: {e}",
             )
+            sign_eip712_message_failed_msg = f"Failed to sign EIP-712 message: {e}"
             raise APIError(
-                f"Failed to sign EIP-712 message: {e}",
+                sign_eip712_message_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
@@ -903,11 +923,14 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         try:
             # Validate all required components are present
             if not action_payload_dict:
-                raise ValueError("Action payload cannot be empty")
+                action_payload_empty_msg = "Action payload cannot be empty"
+                raise ValueError(action_payload_empty_msg)
             if not signature_dict:
-                raise ValueError("Signature cannot be empty")
+                signature_empty_msg = "Signature cannot be empty"
+                raise ValueError(signature_empty_msg)
             if current_nonce_ms <= 0:
-                raise ValueError("Nonce must be positive")
+                nonce_positive_msg = "Nonce must be positive"
+                raise ValueError(nonce_positive_msg)
 
             # The SDK always includes vaultAddress and expiresAfter, even when None
             # For standard user trades, these are None
@@ -929,20 +952,21 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 field_count=len(final_http_body),
                 message=f"[HL_AUTH] HTTP body constructed with {len(final_http_body)} fields",
             )
-            return final_http_body
-
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "http_body_construction_failed",
                 action="construct_http_body",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to construct HTTP body: {e}",
             )
+            construct_body_failed_msg = f"Failed to construct request body: {e}"
             raise APIError(
-                f"Failed to construct request body: {e}",
+                construct_body_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
+        
+        return final_http_body
 
     def _prepare_request_headers(self, headers: Mapping[str, Any] | None) -> dict[str, str]:
         """Prepare HTTP headers for the request."""
@@ -970,17 +994,18 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 header_count=len(final_headers),
                 message=f"[HL_AUTH] Prepared {len(final_headers)} HTTP headers",
             )
-            return final_headers
-
         except Exception as e:
-            self.logger.error(
+            self.logger.exception(
                 "header_preparation_failed",
                 action="prepare_request_headers",
                 error_details=str(e),
                 message=f"[HL_AUTH] Failed to prepare headers: {e}",
             )
+            prepare_headers_failed_msg = f"Failed to prepare request headers: {e}"
             raise APIError(
-                f"Failed to prepare request headers: {e}",
+                prepare_headers_failed_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
                 original_exception=e,
             ) from e
+        
+        return final_headers

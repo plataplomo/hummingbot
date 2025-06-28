@@ -230,7 +230,7 @@ class HyperliquidResponseHandler:
                 validated_data,
             ) from e
         except AttributeError:
-            logger.error(
+            logger.exception(
                 "model_incomplete_or_unavailable",
                 context=context,
                 model_name="HyperliquidRawAssetCtx",
@@ -288,14 +288,15 @@ class HyperliquidResponseHandler:
             validated_response = HyperliquidRawRecentTradesResponse.model_validate(
                 raw_response_content,
             )
-            # Return the items from the RootModel
-            return validated_response.items
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e,
                 context,
                 raw_response_content,
             ) from e
+        else:
+            # Return the items from the RootModel
+            return validated_response.items
 
     @staticmethod
     def handle_info_candle_snapshot_response(
@@ -385,7 +386,7 @@ class HyperliquidResponseHandler:
                 validated_data,
             ) from e
         except AttributeError:
-            logger.error(
+            logger.exception(
                 "placeholder_or_missing_model",
                 context=context,
                 model_name="HyperliquidRawVaultDetailsResponse",
@@ -441,14 +442,15 @@ class HyperliquidResponseHandler:
             validated_response = HyperliquidRawHistoricalOrdersResponse.model_validate(
                 raw_response_content,
             )
-            # Return the items from the RootModel
-            return validated_response.items
         except ValidationError as e:
             raise HyperliquidResponseHandler._handle_validation_error(
                 e,
                 context,
                 raw_response_content,
             ) from e
+        else:
+            # Return the items from the RootModel
+            return validated_response.items
 
     @staticmethod
     def handle_historical_funding_rates_response(
@@ -468,8 +470,6 @@ class HyperliquidResponseHandler:
             validated_response = HyperliquidRawFundingHistoryResponse.model_validate(
                 raw_response_content,
             )
-            # Return the items from the RootModel
-            return validated_response.items
         except ValidationError as e:
             # Extract the first error for specific error messages expected by tests
             if e.errors():
@@ -479,7 +479,7 @@ class HyperliquidResponseHandler:
                     first_error.get("msg", ""),
                 ):
                     error_message = str(first_error.get("msg"))
-                    logger.error(
+                    logger.exception(
                         "api_error_response",
                         action="handle_error",
                         error_message=error_message,
@@ -496,7 +496,7 @@ class HyperliquidResponseHandler:
                     first_error.get("msg", ""),
                 ):
                     error_message = str(first_error.get("msg"))
-                    logger.error(
+                    logger.exception(
                         "validation_error_item_type",
                         action="handle_error",
                         error_message=error_message,
@@ -517,6 +517,9 @@ class HyperliquidResponseHandler:
                 status_code,
                 headers,
             ) from e
+        else:
+            # Return the items from the RootModel
+            return validated_response.items
 
     @staticmethod
     def handle_all_mids_response(

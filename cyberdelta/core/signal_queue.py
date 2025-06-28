@@ -134,7 +134,6 @@ class PrioritySignalQueue:
         # Ensure utility_score is float
         try:
             utility_score = float(signal.metadata["utility_score"])
-            signal.metadata["utility_score"] = utility_score  # Store validated float back
         except (ValueError, TypeError, KeyError):  # Added KeyError
             score_val = signal.metadata.get("utility_score", "N/A")  # Use get for safety
             self.logger.warning(
@@ -149,7 +148,10 @@ class PrioritySignalQueue:
                 ),
             )
             utility_score = 0.0
-            signal.metadata["utility_score"] = utility_score  # Store default back
+        else:
+            signal.metadata["utility_score"] = utility_score  # Store validated float back
+        
+        signal.metadata["utility_score"] = utility_score  # Store default back
 
         return True
 
@@ -202,11 +204,10 @@ class PrioritySignalQueue:
         """Push signal to the heap with proper priority calculation."""
         self.counter += 1
         # Ensure utility_score is float before negation
+        metadata = signal.metadata or {}
         try:
-            metadata = signal.metadata or {}
             priority = -float(metadata.get("utility_score", 0.0))
         except (ValueError, TypeError):
-            priority = 0.0  # Default priority if conversion fails
             self.logger.warning(
                 "invalid_utility_score_priority",
                 symbol=signal.symbol,
@@ -214,6 +215,7 @@ class PrioritySignalQueue:
                 action="priority_calculation",
                 message=f"Invalid utility score for {signal.symbol}, using 0.0 priority.",
             )
+            priority = 0.0  # Default priority if conversion fails
 
         heapq.heappush(self.signal_queue, (priority, self.counter, signal))
 
@@ -406,17 +408,17 @@ class PrioritySignalQueue:
                 )
                 return potential_signal
 
-            # If loop finishes, queue is empty
-            return None
-
-        except Exception as e:
+        except (IndexError, ValueError, AttributeError) as e:
             # Log error and return None to prevent system crash
-            self.logger.error(
+            self.logger.exception(
                 "get_next_signal_error",
                 error=str(e),
                 action="signal_retrieval_error",
                 message=f"Error in get_next_signal: {e}",
             )
+            return None
+        else:
+            # If loop finishes, queue is empty
             return None
 
     async def peek_next_signal(self) -> TradeSignal | None:
@@ -626,8 +628,7 @@ class PrioritySignalQueue:
                     action="queue_management",
                     message=f"Trimmed {num_removed} lowest priority signals from queue.",
                 )
-            return True
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             self.logger.exception(
                 "queue_trim_error",
                 error=str(e),
@@ -635,6 +636,8 @@ class PrioritySignalQueue:
                 message=f"Error during queue trimming: {e}",
             )
             return False
+        else:
+            return True
 
     def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
         """Calculate and set default expiration if needed. Modifies signal in place."""
@@ -646,15 +649,8 @@ class PrioritySignalQueue:
                 # Ensure default_expiration_seconds is float or compatible
                 expiration_delta = timedelta(seconds=float(self.default_expiration_seconds))
                 signal.expiration = signal.timestamp + expiration_delta
-                self.logger.debug(
-                    "default_expiration_set",
-                    symbol=signal.symbol,
-                    expiration=signal.expiration.isoformat() if signal.expiration else None,
-                    action="expiration_calculation",
-                    message=f"Set default expiration for {signal.symbol} to {signal.expiration}",
-                )
             except (TypeError, ValueError) as e:
-                self.logger.error(
+                self.logger.exception(
                     "expiration_calculation_failed",
                     symbol=signal.symbol,
                     error=str(e),
@@ -665,6 +661,14 @@ class PrioritySignalQueue:
                     ),
                 )
                 signal.expiration = None  # Ensure it's None if calculation fails
+            else:
+                self.logger.debug(
+                    "default_expiration_set",
+                    symbol=signal.symbol,
+                    expiration=signal.expiration.isoformat() if signal.expiration else None,
+                    action="expiration_calculation",
+                    message=f"Set default expiration for {signal.symbol} to {signal.expiration}",
+                )
         return signal
 
     def _check_circuit_breakers_pre_add(self, signal: TradeSignal) -> bool:

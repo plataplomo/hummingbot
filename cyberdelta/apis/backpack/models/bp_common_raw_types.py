@@ -86,7 +86,7 @@ def _validate_raw_string_to_finite_decimal(v: object, info: ValidationInfo) -> D
     """
     field_name = info.field_name or "raw_string_to_finite_decimal_field"
     if not isinstance(v, str):
-        raise ValueError(f"Field {field_name} raw value must be a string, got {type(v).__name__}")
+        raise TypeError(f"Field {field_name} raw value must be a string, got {type(v).__name__}")
     validated_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     decimal_value = parse_decimal_value(validated_str, field_name=field_name, allow_none=False)
     # DEFENSIVE CHECK: parse_decimal_value with allow_none=False should not return None.
@@ -130,7 +130,7 @@ def _validate_raw_parsable_finite_decimal_string(v: object, info: ValidationInfo
     actual_field_name = info.field_name if info.field_name is not None else "UnknownField"
     if not isinstance(v, str):
         # Ensure the field name is part of the validator's direct error message.
-        raise ValueError(f"{actual_field_name}: Raw value must be a string")
+        raise TypeError(f"{actual_field_name}: Raw value must be a string")
 
     # Use actual_field_name consistently for other checks within this validator
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
@@ -206,9 +206,9 @@ def _validate_raw_non_negative_int(v: object, info: ValidationInfo) -> int:
     elif isinstance(v, int):
         val_int = v
     elif isinstance(v, float):  # Reject all floats for fields using this strict int validator
-        raise ValueError(f"Field {field_name}: Must be an integer")
+        raise TypeError(f"Field {field_name}: Must be an integer")
     else:
-        raise ValueError(
+        raise TypeError(
             f"Field {field_name}: Expected int or parsable string, got {type(v).__name__}.",
         )
 
@@ -701,7 +701,7 @@ def _validate_optional_raw_strict_bool(v: object, info: ValidationInfo) -> bool 
         return None
     field_name = info.field_name or "raw_optional_strict_bool_field"
     if not isinstance(v, bool):
-        raise ValueError(f"Field {field_name} must be a boolean, got {type(v).__name__}")
+        raise TypeError(f"Field {field_name} must be a boolean, got {type(v).__name__}")
     return v
 
 
@@ -718,7 +718,7 @@ def _validate_raw_non_empty_string_for_margin_factor(v: object, info: Validation
     """
     field_name = info.field_name or "margin_factor_field"
     if not isinstance(v, str):
-        raise ValueError(f"Field {field_name}: Expected string, got {type(v).__name__}")
+        raise TypeError(f"Field {field_name}: Expected string, got {type(v).__name__}")
     if not v.strip():
         raise ValueError(f"{field_name}: Validation failed - {field_name}: String cannot be empty")
     # No max_length check here, assuming it's not needed or handled by another validator.
@@ -1234,7 +1234,7 @@ def _validate_raw_string_to_datetime(v: object, info: ValidationInfo) -> datetim
     """Input `v` is raw string. Returns converted datetime if valid ISO8601-like."""
     field_name = info.field_name or "raw_string_to_datetime_field"
     if not isinstance(v, str):
-        raise ValueError(f"Field {field_name} raw value must be a string, got {type(v).__name__}")
+        raise TypeError(f"Field {field_name} raw value must be a string, got {type(v).__name__}")
     # Ensure field_name is str for parsing utilities
     validated_str = validate_str_field(v, field_name=field_name, allow_empty=False)
     # parse_datetime_utc from cyberdelta.utils.parsing handles various ISO formats and Z suffix
@@ -1244,7 +1244,7 @@ def _validate_raw_string_to_datetime(v: object, info: ValidationInfo) -> datetim
     # DEFENSIVE CHECK: parse_datetime_utc should return datetime or raise.
     # Mypy=[assert-type] Ruff=[N/A]
     if not isinstance(dt, datetime):
-        raise ValueError(
+        raise TypeError(
             f"Field {field_name}: parse_datetime_utc returned non-datetime for '{validated_str}'",
         )
     return dt
@@ -1288,7 +1288,7 @@ def _validate_raw_imf_base_decimal_string(v: object, info: ValidationInfo) -> st
     """Validate IMF 'base' field. Error messages use 'base'."""
     actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
-        raise ValueError(
+        raise TypeError(
             f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
         )
     if not v.strip():
@@ -1314,7 +1314,7 @@ def _validate_raw_imf_factor_decimal_string(v: object, info: ValidationInfo) -> 
     """Validate IMF 'factor' field. Error messages use 'factor'."""
     actual_field_name = info.field_name or "factor"  # Should be 'factor'
     if not isinstance(v, str):
-        raise ValueError(
+        raise TypeError(
             f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
         )
     if not v.strip():
@@ -1340,7 +1340,7 @@ def _validate_raw_mmf_base_decimal_string(v: object, info: ValidationInfo) -> st
     """Validate MMF 'base' field. Error messages use 'base'."""
     actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
-        raise ValueError(
+        raise TypeError(
             f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
         )
     if not v.strip():
@@ -1366,7 +1366,7 @@ def _validate_raw_mmf_factor_decimal_string(v: object, info: ValidationInfo) -> 
     """Validate MMF 'factor' field. Error messages use 'factor'."""
     actual_field_name = info.field_name or "factor"  # Should be 'factor'
     if not isinstance(v, str):
-        raise ValueError(
+        raise TypeError(
             f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
         )
     if not v.strip():
@@ -1401,7 +1401,7 @@ def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -
     """
     field_name = info.field_name or "quantity"  # Default to quantity
     if not isinstance(v, str):
-        raise ValueError("Input should be a valid string")
+        raise TypeError("Input should be a valid string")
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     # parse_decimal_value will raise appropriate error for non-parsable strings
@@ -1437,7 +1437,7 @@ def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> s
     """
     field_name = info.field_name or "price"
     if not isinstance(v, str):
-        raise ValueError("Input should be a valid string")
+        raise TypeError("Input should be a valid string")
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -1472,7 +1472,7 @@ def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> s
     """
     field_name = info.field_name or "amount"
     if not isinstance(v, str):
-        raise ValueError("Input should be a valid string")
+        raise TypeError("Input should be a valid string")
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -1507,7 +1507,7 @@ def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
     """
     field_name = info.field_name or "amount"
     if not isinstance(v, str):
-        raise ValueError("Input should be a valid string")
+        raise TypeError("Input should be a valid string")
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -1541,7 +1541,7 @@ def _validate_raw_fill_fee_string(v: object, info: ValidationInfo) -> str:
     if v is None:
         raise ValueError(f"{actual_field_name}: Value cannot be None")
     if not isinstance(v, str):
-        raise ValueError(f"{actual_field_name}: Raw value must be a string")
+        raise TypeError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
     if d is None:
@@ -1566,7 +1566,7 @@ def _validate_raw_fill_price_string(v: object, info: ValidationInfo) -> str:
     if v is None:
         raise ValueError(f"{actual_field_name}: Value cannot be None")
     if not isinstance(v, str):
-        raise ValueError(f"{actual_field_name}: Raw value must be a string")
+        raise TypeError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
     if d is None:
@@ -1591,7 +1591,7 @@ def _validate_raw_fill_quantity_string(v: object, info: ValidationInfo) -> str:
     if v is None:
         raise ValueError(f"{actual_field_name}: Value cannot be None")
     if not isinstance(v, str):
-        raise ValueError(f"{actual_field_name}: Raw value must be a string")
+        raise TypeError(f"{actual_field_name}: Raw value must be a string")
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
     if d is None:

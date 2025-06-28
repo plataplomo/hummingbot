@@ -243,7 +243,7 @@ class TestBackpackOrdersPositive:
             else:
                 # Unexpected system error
                 pytest.fail(f"Unexpected API error: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             # All other exceptions are test failures
             pytest.fail(f"System error in trading operation: {e}")
 

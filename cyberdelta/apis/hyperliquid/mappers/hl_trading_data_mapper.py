@@ -149,7 +149,7 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_mapper_map_status_failed",
                 action="map_status_to_internal",
                 message="Failed to map order status",
@@ -226,7 +226,7 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_mapper_map_type_failed",
                 action="map_type_to_internal",
                 message="Failed to map order type",
@@ -278,7 +278,7 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_mapper_map_tif_failed",
                 action="map_time_in_force",
                 message="Failed to map time in force",
@@ -346,7 +346,7 @@ class HyperliquidTradingDataMapper:
         except TransformationError:
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_mapper_parse_quantities_failed",
                 action="parse_order_quantities_and_price",
                 message="Failed to parse order quantities and price",
@@ -392,7 +392,7 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "order_transform_failed",
                 component="HyperliquidTradingDataMapper",
                 action="transform_raw_order_to_internal",
@@ -495,7 +495,7 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "simple_order_transform_failed",
                 component="HyperliquidTradingDataMapper",
                 action="transform_raw_simple_open_order_to_internal",
@@ -579,7 +579,7 @@ class HyperliquidTradingDataMapper:
         except TransformationError:
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "hl_trading_mapper_parse_timestamps_failed",
                 action="parse_order_timestamps",
                 message="Failed to parse order timestamps",
@@ -735,7 +735,7 @@ class HyperliquidTradingDataMapper:
             # Re-raise TransformationError as-is
             raise
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "historical_order_transform_failed",
                 component="HyperliquidTradingDataMapper",
                 action="transform_raw_historical_order_to_internal",

@@ -220,7 +220,7 @@ def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> No
                 new_asset=balance.asset,
                 message="Immutability Test Warning: object.__setattr__ modified frozen field",
             )
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         pytest.fail(f"object.__setattr__ raised unexpected exception on frozen model: {e}")
     assert isinstance(balance.asset, str)
 

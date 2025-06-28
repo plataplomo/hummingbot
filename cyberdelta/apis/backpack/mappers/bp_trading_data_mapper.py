@@ -529,7 +529,7 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "order_transformation_failed",
                 action="transform_order",
                 order_id=raw_order.id,

@@ -11,6 +11,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
@@ -210,7 +211,7 @@ class TestHyperliquidAPIWebSocketErrorHandling:
             await hl_api.subscribe("l2Book", handler)  # Missing coin
         except AttributeError:
             pytest.fail("subscribe method should exist, got AttributeError")
-        except Exception:  # noqa: S110
+        except (ValueError, TypeError, KeyError, ValidationError):
             # Other exceptions are acceptable (validation errors, etc.)
             # Intentionally pass - we're only checking for AttributeError
             pass
@@ -230,7 +231,7 @@ class TestHyperliquidAPIWebSocketErrorHandling:
             await hl_api.subscribe("l2Book:ETH", none_handler)
         except AttributeError:
             pytest.fail("subscribe method should exist, got AttributeError")
-        except Exception:  # noqa: S110
+        except (ValueError, TypeError, KeyError, ValidationError):
             # Other exceptions are acceptable (validation errors, etc.)
             # Intentionally pass - we're only checking for AttributeError
             pass

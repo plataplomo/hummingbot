@@ -36,7 +36,8 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     def validate_funding_threshold(cls, v: Decimal) -> Decimal:
         """Validate funding threshold is within reasonable bounds."""
         if v > Decimal("0.1"):  # 10% seems unreasonably high
-            raise ValueError(f"funding_threshold {v} is too high (max 0.1 for 10%)")
+            msg = f"funding_threshold {v} is too high (max 0.1 for 10%)"
+            raise ValueError(msg)
         return v
 
     @field_validator("max_price_spread_pct")
@@ -44,7 +45,8 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     def validate_max_price_spread_pct(cls, v: Decimal) -> Decimal:
         """Validate price spread percentage is reasonable."""
         if v > Decimal("0.05"):  # 5% spread seems high for arbitrage
-            raise ValueError(f"max_price_spread_pct {v} is too high (max 0.05 for 5%)")
+            msg = f"max_price_spread_pct {v} is too high (max 0.05 for 5%)"
+            raise ValueError(msg)
         return v
 
     @field_validator("check_interval")
@@ -52,11 +54,11 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     def validate_check_interval(cls, v: int) -> int:
         """Validate check interval is within reasonable bounds."""
         if v < 1:
-            raise ValueError("check_interval must be at least 1 second")
+            msg = "check_interval must be at least 1 second"
+            raise ValueError(msg)
         if v > MAX_CHECK_INTERVAL_SECONDS:
-            raise ValueError(
-                f"check_interval {v} is too long (max {MAX_CHECK_INTERVAL_SECONDS} seconds)"
-            )
+            msg = f"check_interval {v} is too long (max {MAX_CHECK_INTERVAL_SECONDS} seconds)"
+            raise ValueError(msg)
         return v
 
     @field_validator("perp_exchange", "spot_exchange")
@@ -65,30 +67,34 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
         """Validate exchange names are supported."""
         supported_exchanges = {"hyperliquid", "backpack"}
         if v.lower() not in supported_exchanges:
-            raise ValueError(f"Unsupported exchange '{v}'. Supported: {supported_exchanges}")
+            msg = f"Unsupported exchange '{v}'. Supported: {supported_exchanges}"
+            raise ValueError(msg)
         return v.lower()
 
     @model_validator(mode="after")
     def validate_exchange_combination(self) -> Self:
         """Validate that exchange combination makes sense for this strategy."""
         if self.perp_exchange == self.spot_exchange:
-            raise ValueError("perp_exchange and spot_exchange must be different for arbitrage")
+            msg = "perp_exchange and spot_exchange must be different for arbitrage"
+            raise ValueError(msg)
 
         # For HL Perp BP Spot strategy, validate specific combination
         expected_perp = "hyperliquid"
         expected_spot = "backpack"
 
         if self.perp_exchange != expected_perp:
-            raise ValueError(
+            msg = (
                 f"For HL Perp BP Spot strategy, perp_exchange must be '{expected_perp}', "
-                f"got '{self.perp_exchange}'",
+                f"got '{self.perp_exchange}'"
             )
+            raise ValueError(msg)
 
         if self.spot_exchange != expected_spot:
-            raise ValueError(
+            msg = (
                 f"For HL Perp BP Spot strategy, spot_exchange must be '{expected_spot}', "
-                f"got '{self.spot_exchange}'",
+                f"got '{self.spot_exchange}'"
             )
+            raise ValueError(msg)
 
         return self
 

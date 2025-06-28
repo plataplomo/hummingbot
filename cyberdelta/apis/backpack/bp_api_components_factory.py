@@ -101,7 +101,7 @@ class BackpackAPIComponentsFactory:
                     private_key_b64_secret=secrets.api_secret,  # Pass SecretStr for private key
                 )
             except ValueError as e:  # Catch init errors from Authenticator
-                logger.error(
+                logger.exception(
                     "authenticator_initialization_failed",
                     action="init_authenticator",
                     authenticator_type="BackpackEd25519Authenticator",

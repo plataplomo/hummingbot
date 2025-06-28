@@ -213,7 +213,7 @@ class StrategyManager:
             for strategy in self.strategies.values():
                 if strategy.symbol == data.symbol:
                     strategy.update_historical_data(data)
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             log_msg = (
                 f"Critical error updating historical data for {data.symbol} in {strategy_name}. "
                 f"Halting processing."
@@ -249,7 +249,7 @@ class StrategyManager:
         """Process data through a single strategy and handle generated signals."""
         try:
             generated_signals = await strategy.process_data(data)
-        except Exception as e:
+        except (ValueError, RuntimeError, AttributeError) as e:
             logger.exception(
                 "strategy_data_processing_error",
                 strategy_name=strategy_name,
@@ -320,7 +320,7 @@ class StrategyManager:
         if hasattr(signal, "model_dump") and callable(signal.model_dump):
             try:
                 return signal.model_dump()
-            except Exception as dump_err:
+            except (ValueError, TypeError, AttributeError) as dump_err:
                 logger.warning(
                     "signal_dump_failed",
                     error=str(dump_err),
@@ -346,7 +346,7 @@ class StrategyManager:
             # Placeholder for future risk management integration
             return True
 
-        except Exception as risk_e:
+        except (ValueError, RuntimeError) as risk_e:
             logger.exception(
                 "Error during potential (currently bypassed) risk management step",
                 signal_id=signal.signal_id if signal else None,
@@ -360,7 +360,7 @@ class StrategyManager:
             # add_signal is now asynchronous
             await self.signal_queue.add_signal(signal)  # Add await
             logger.debug("Signal added to queue", signal_id=signal.signal_id)
-        except Exception as queue_e:  # Use different variable name
+        except (ValueError, RuntimeError, AttributeError) as queue_e:  # Use different variable name
             logger.exception(
                 "Signal queue failed to add signal",
                 signal_id=signal.signal_id,
@@ -413,8 +413,8 @@ class StrategyManager:
                 # Access the performance_metrics property
                 # The isinstance check is removed as the type hint guarantees it's a dict
                 performance_data[name] = strategy.performance_metrics
-            except Exception as e:
-                logger.error(
+            except (AttributeError, ValueError, RuntimeError) as e:
+                logger.exception(
                     "performance_metrics_error",
                     strategy_name=name,
                     error=str(e),
@@ -438,7 +438,7 @@ class StrategyManager:
                         action="strategy_start",
                         message=f"Strategy '{name}' started.",
                     )
-                except Exception as e:
+                except (RuntimeError, ValueError, AttributeError) as e:
                     logger.exception(
                         "strategy_start_error",
                         strategy_name=name,
@@ -471,7 +471,7 @@ class StrategyManager:
                             action="strategy_cleanup",
                             message=f"Strategy '{name}' disabled after stop.",
                         )
-                except Exception as e:
+                except (RuntimeError, ValueError, AttributeError) as e:
                     logger.exception(
                         "strategy_stop_error",
                         strategy_name=name,

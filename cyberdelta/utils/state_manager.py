@@ -97,8 +97,6 @@ class StateManager:
                 message=f"Successfully loaded state from {self.state_file}",
             )
 
-            return True
-
         except json.JSONDecodeError as e:
             logger.exception(
                 "state_file_decode_error",
@@ -121,6 +119,8 @@ class StateManager:
                 message=f"Error loading state from {self.state_file}: {e!s}",
             )
             return self._recover_from_backup()
+        else:
+            return True
 
     def save_state(self, state: dict[str, Any]) -> bool:
         """Save state to file.
@@ -167,7 +167,6 @@ class StateManager:
                 action="state_saved",
                 message=f"Successfully saved state to {self.state_file}",
             )
-            return True
 
         except Exception as e:
             logger.exception(
@@ -178,6 +177,8 @@ class StateManager:
                 message=f"Error saving state to {self.state_file}: {e!s}",
             )
             return False
+        else:
+            return True
 
     def get_current_state(self) -> dict[str, Any]:
         """Get the current state.
@@ -216,7 +217,6 @@ class StateManager:
                 action="backup_created",
                 message=f"Created state backup at {backup_path}",
             )
-            return True
 
         except Exception as e:
             logger.exception(
@@ -228,6 +228,8 @@ class StateManager:
                 message=f"Error creating state backup: {e!s}",
             )
             return False
+        else:
+            return True
 
     def _rotate_backups(self) -> None:
         """Rotate state backups, keeping only the most recent ones."""
@@ -323,7 +325,7 @@ class StateManager:
                         )
                         return True
 
-                except Exception as e:
+                except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
                     logger.warning(
                         "backup_loading_error",
                         backup_path=backup_path,
@@ -341,7 +343,6 @@ class StateManager:
                 action="recovery_failed",
                 message="Failed to recover state from any backup",
             )
-            return False
 
         except Exception as e:
             logger.exception(
@@ -351,6 +352,8 @@ class StateManager:
                 action="recovery_failed",
                 message=f"Error during recovery process: {e!s}",
             )
+            return False
+        else:
             return False
 
     def _verify_state_integrity(self, state_data: dict[str, Any]) -> bool:

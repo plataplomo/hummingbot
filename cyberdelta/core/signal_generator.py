@@ -28,6 +28,18 @@ from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
+class SignalGeneratorError(Exception):
+    """Base exception for signal generator errors."""
+
+
+class VolatilityCalculationError(SignalGeneratorError):
+    """Raised when volatility calculation fails."""
+
+
+class PriceDataError(SignalGeneratorError):
+    """Raised when required price data is missing."""
+
+
 # Signal generation constants
 MIN_EXCHANGES_FOR_BASIS = 2  # Minimum exchanges needed for basis calculation
 MIN_DATA_POINTS_FOR_VOLATILITY = 2  # Minimum data points needed for volatility calculation
@@ -446,8 +458,8 @@ class SignalGenerator:
                 # Convert result back to Decimal
                 std_dev_decimal = Decimal(str(std_dev))
                 return max(Decimal("1e-8"), std_dev_decimal)
-            except Exception as e2:
-                logger.error(
+            except (ValueError, ArithmeticError, OSError) as e2:
+                logger.exception(
                     "error_calculating_funding_rate_volatility",
                     exchange=exchange,
                     internal_symbol=internal_symbol,
@@ -511,8 +523,8 @@ class SignalGenerator:
                 std_dev = np.std(basis_float)
                 std_dev_decimal = Decimal(str(std_dev))
                 return max(Decimal("1e-8"), std_dev_decimal)
-            except Exception as e2:
-                logger.error(
+            except (ValueError, ArithmeticError, OSError) as e2:
+                logger.exception(
                     "basis_volatility_calculation_error",
                     action="calculate_volatility",
                     symbol=symbol,
@@ -1010,7 +1022,7 @@ class SignalGenerator:
         current_short_price = ticker_a.bid
         if current_long_price is None or current_short_price is None:
             # This should not happen due to prior validation, but defensive check
-            raise ValueError(f"Missing bid/ask prices for {symbol} opportunity creation")
+            raise PriceDataError(symbol)
 
         opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
@@ -1072,7 +1084,7 @@ class SignalGenerator:
         current_short_price = ticker_b.bid
         if current_long_price is None or current_short_price is None:
             # This should not happen due to prior validation, but defensive check
-            raise ValueError(f"Missing bid/ask prices for {symbol} opportunity creation")
+            raise PriceDataError(symbol)
 
         opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 

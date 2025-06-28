@@ -9,6 +9,31 @@ from decimal import Decimal
 class MarketOrderError(Exception):
     """Base exception for market order execution errors."""
 
+    @classmethod
+    def disabled_error(cls) -> "MarketOrderError":
+        """Create error for disabled market orders."""
+        return cls("Market orders are disabled in configuration")
+
+    @classmethod
+    def timeout_error(cls, timeout_seconds: int) -> "MarketOrderError":
+        """Create error for market order timeout."""
+        return cls(f"Market order timed out after {timeout_seconds}s")
+
+    @classmethod
+    def no_orders_error(cls) -> "MarketOrderError":
+        """Create error when no orders were executed."""
+        return cls("No orders were executed")
+
+    @classmethod
+    def invalid_price_error(cls, price: object) -> "MarketOrderError":
+        """Create error for invalid aggressive price."""
+        return cls(f"Invalid aggressive price: {price}")
+
+    @classmethod
+    def no_order_book_error(cls, symbol: str) -> "MarketOrderError":
+        """Create error when no order book is available."""
+        return cls(f"Cannot calculate market order price: no order book for {symbol}")
+
 
 class InsufficientLiquidityError(MarketOrderError):
     """Raised when there's not enough liquidity in the order book.
@@ -91,3 +116,57 @@ class PriceDeviationError(MarketOrderError):
             )
 
         super().__init__(message)
+
+
+class ValidationError(ValueError):
+    """Enhanced ValueError for validation errors."""
+
+    @classmethod
+    def empty_symbol_error(cls) -> "ValidationError":
+        """Create error for empty symbol."""
+        return cls("Symbol must be a non-empty string")
+
+    @classmethod
+    def invalid_quantity_error(cls) -> "ValidationError":
+        """Create error for invalid quantity."""
+        return cls("Quantity must be a positive Decimal")
+
+    @classmethod
+    def infinite_quantity_error(cls) -> "ValidationError":
+        """Create error for infinite quantity."""
+        return cls("Quantity must be finite")
+
+    @classmethod
+    def finite_decimal_error(cls) -> "ValidationError":
+        """Create error for non-finite decimal."""
+        return cls("Percentage must be a finite decimal")
+
+    @classmethod
+    def positive_error(cls) -> "ValidationError":
+        """Create error for non-positive value."""
+        return cls("Percentage must be positive")
+
+    @classmethod
+    def slippage_default_error(cls) -> "ValidationError":
+        """Create error for missing default in slippage map."""
+        return cls("slippage_by_symbol must contain a 'default' entry")
+
+    @classmethod
+    def slippage_invalid_error(cls, symbol: str, slippage: object) -> "ValidationError":
+        """Create error for invalid slippage value."""
+        return cls(f"Invalid slippage for {symbol}: {slippage}")
+
+    @classmethod
+    def config_disabled_error(cls) -> "ValidationError":
+        """Create error for disabled configuration."""
+        return cls("Market orders are disabled in configuration")
+
+    @classmethod
+    def config_slippage_error(cls) -> "ValidationError":
+        """Create error for invalid slippage configuration."""
+        return cls("Maximum slippage must be positive")
+
+    @classmethod
+    def config_deviation_error(cls) -> "ValidationError":
+        """Create error for invalid price deviation configuration."""
+        return cls("Maximum price deviation must be positive")

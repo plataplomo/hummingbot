@@ -731,7 +731,7 @@ class BackpackResponseHandler:
                 validated_klines.append(BackpackRawKline.model_validate(item_raw))
             except ValidationError as e:
                 # Log the specific item that failed validation
-                logger.error(
+                logger.exception(
                     "backpack_kline_validation_failed",
                     context=context,
                     validation_error=str(e),
@@ -747,7 +747,7 @@ class BackpackResponseHandler:
                     validated_list,
                 ) from e
             except Exception as e_unk_item:
-                logger.error(
+                logger.exception(
                     "backpack_kline_unexpected_error",
                     context=context,
                     error=str(e_unk_item),
@@ -876,7 +876,7 @@ class BackpackResponseHandler:
                 # to return successfully validated items if any.
                 # Or, re-raise if strictness is required. For cancelAll, it might be better
                 # to return what was successfully parsed as cancelled.
-                logger.error(
+                logger.exception(
                     "backpack_order_validation_failed",
                     context=context,
                     validation_error=str(e),

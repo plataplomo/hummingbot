@@ -296,7 +296,7 @@ class HyperliquidPositionDetails(BaseModel):
         if field_name is None:
             raise ValueError("Field name is unexpectedly None during validation.")
         if not isinstance(v, int):
-            raise ValueError(f"{field_name}: Expected int, got {type(v).__name__}")
+            raise TypeError(f"{field_name}: Expected int, got {type(v).__name__}")
         if v < 0:
             raise ValueError(f"{field_name}: Must be non-negative")
         return v

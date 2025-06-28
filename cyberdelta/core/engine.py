@@ -21,6 +21,23 @@ from .strategy import Strategy
 logger = structlog.get_logger(__name__)
 
 
+class DataFrameProcessingError(ValueError):
+    """Error processing DataFrame with required columns."""
+
+    def __init__(self, missing_columns: list[str]) -> None:
+        """Initialize with missing column names.
+        
+        Args:
+            missing_columns: List of column names that are missing from the DataFrame.
+        """
+        self.missing_columns = missing_columns
+        super().__init__(f"DataFrame missing required columns: {missing_columns}")
+
+
+class EngineConfigurationError(RuntimeError):
+    """Error with engine configuration."""
+
+
 class Engine:
     """Core trading engine responsible for strategy management and signal routing.
 
@@ -336,7 +353,7 @@ class Engine:
                 missing_columns=missing,
                 message="DataFrame processing failed: Missing required columns",
             )
-            raise ValueError(f"DataFrame missing required columns: {missing}")
+            raise DataFrameProcessingError(missing)
 
         logger.info(
             "dataframe_processing_started",
@@ -381,7 +398,7 @@ class Engine:
                     timestamp = pd_timestamp_result.to_pydatetime()
                 else:
                     timestamp = cast("datetime", pd_timestamp_result)
-            except Exception as e:
+            except (ValueError, TypeError, OverflowError) as e:
                 logger.warning(
                     "dataframe_row_invalid_timestamp",
                     row_index=idx_typed,
@@ -424,13 +441,12 @@ class Engine:
                 # Delegate processing to the main method
                 await self.process_market_data(candle)
             except (InvalidOperation, TypeError, ValueError) as e:
-                logger.error(
+                logger.exception(
                     "dataframe_row_conversion_error",
                     row_index=idx_typed,
                     symbol=symbol,
                     error=str(e),
                     message="Error converting DataFrame row to MarketData types",
-                    exc_info=False,  # Keep log concise for per-row errors
                 )
                 continue  # Skip this row if conversion fails
         logger.info(
@@ -453,7 +469,8 @@ class Engine:
         if not self.signal_handler:
             logger.error("Cannot start Engine: Signal handler has not been set.")
             # Prevent starting without a crucial dependency
-            raise RuntimeError("Engine cannot start without a configured signal handler.")
+            engine_config_error_msg = "Engine cannot start without a configured signal handler."
+            raise EngineConfigurationError(engine_config_error_msg)
 
         logger.info(
             "engine_starting",

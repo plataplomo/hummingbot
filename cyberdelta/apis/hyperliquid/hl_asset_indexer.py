@@ -98,8 +98,9 @@ class HyperliquidAssetIndexResolver:
                 message="[%s] Invalid symbol for asset index resolution: %r",
                 message_args=[self._exchange_name_for_log, symbol],
             )
+            invalid_symbol_msg = "Invalid symbol for asset index resolution."
             raise APIError(
-                "Invalid symbol for asset index resolution.",
+                invalid_symbol_msg,
                 code=APIErrorCode.INVALID_PARAMS.value,
             )
 
@@ -149,9 +150,8 @@ class HyperliquidAssetIndexResolver:
                 endpoint="/info",
                 data=request_payload_data_dict,
             )
-            return raw_response_content, status_code
         except APIError as e_api:
-            self.logger.error(
+            self.logger.exception(
                 "api_error_fetching_asset_index",
                 exchange=self._exchange_name_for_log,
                 symbol=symbol,
@@ -159,8 +159,9 @@ class HyperliquidAssetIndexResolver:
                 message="[%s] API Error fetching asset index for %s: %s",
                 message_args=[self._exchange_name_for_log, symbol, str(e_api)],
             )
+            fetch_failed_msg = f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}"
             raise APIError(
-                f"Failed to fetch asset index for symbol '{symbol}': {e_api.message}",
+                fetch_failed_msg,
                 code=e_api.code,
                 original_exception=e_api,
                 http_status=e_api.http_status,
@@ -174,11 +175,16 @@ class HyperliquidAssetIndexResolver:
                 message="[%s] Unexpected error during API request for asset index %s: %s",
                 message_args=[self._exchange_name_for_log, symbol, str(e_req)],
             )
+            unexpected_fetch_error_msg = (
+                f"Unexpected error fetching asset index for symbol '{symbol}': {e_req}"
+            )
             raise APIError(
-                f"Unexpected error fetching asset index for symbol '{symbol}': {e_req}",
+                unexpected_fetch_error_msg,
                 code=APIErrorCode.NETWORK_ISSUE.value,
                 original_exception=e_req,
             ) from e_req
+        
+        return raw_response_content, status_code
 
     def _process_response(
         self,
@@ -194,8 +200,9 @@ class HyperliquidAssetIndexResolver:
                 message="[%s] Received None response from requester for metaAndAssetCtxs.",
                 message_args=[self._exchange_name_for_log],
             )
+            no_data_received_msg = "No data received for market metadata."
             raise APIError(
-                "No data received for market metadata.",
+                no_data_received_msg,
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
@@ -206,9 +213,8 @@ class HyperliquidAssetIndexResolver:
                     raw_response_content,
                 )
             )
-            return validated_response
         except ValidationError as e_val:
-            self.logger.error(
+            self.logger.exception(
                 "failed_to_validate_meta_and_asset_ctxs",
                 exchange=self._exchange_name_for_log,
                 validation_error=str(e_val),
@@ -216,8 +222,9 @@ class HyperliquidAssetIndexResolver:
                 message="[%s] Failed to validate metaAndAssetCtxs: %s. Raw: %r",
                 message_args=[self._exchange_name_for_log, str(e_val), raw_response_content],
             )
+            parse_failed_msg = "Failed to parse market metadata for asset index mapping."
             raise APIError(
-                "Failed to parse market metadata for asset index mapping.",
+                parse_failed_msg,
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 original_exception=e_val,
                 http_status=status_code,
@@ -234,12 +241,17 @@ class HyperliquidAssetIndexResolver:
                 message="[%s] Unexpected error parsing metaAndAssetCtxs for %s: %s",
                 message_args=[self._exchange_name_for_log, symbol, str(e_parse)],
             )
+            unexpected_parse_error_msg = (
+                f"Unexpected error parsing market metadata for {symbol}: {e_parse}"
+            )
             raise APIError(
-                f"Unexpected error parsing market metadata for {symbol}: {e_parse}",
+                unexpected_parse_error_msg,
                 code=APIErrorCode.UNKNOWN.value,
                 original_exception=e_parse,
                 http_status=status_code,
             ) from e_parse
+        
+        return validated_response
 
     def _populate_cache(self, validated_response: HyperliquidRawMetaAndAssetCtxsResponse) -> None:
         """Populate the asset index cache with the validated response."""
@@ -266,7 +278,8 @@ class HyperliquidAssetIndexResolver:
             message="[%s] Asset index for %s not found after fetch.",
             message_args=[self._exchange_name_for_log, symbol],
         )
+        symbol_not_found_msg = f"Asset index for symbol '{symbol}' not found."
         raise APIError(
-            f"Asset index for symbol '{symbol}' not found.",
+            symbol_not_found_msg,
             code=APIErrorCode.SYMBOL_NOT_FOUND.value,
         )

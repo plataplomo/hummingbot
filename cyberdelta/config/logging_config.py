@@ -63,7 +63,7 @@ def setup_logging(app_settings: AppSettings) -> None:
         if log_dir_path and not log_dir_path.exists():
             try:
                 log_dir_path.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
+            except (OSError, PermissionError) as e:
                 root_logger.warning(
                     "log_directory_creation_failed: Failed to create log directory %s: %s",
                     str(log_dir_path),
@@ -79,7 +79,7 @@ def setup_logging(app_settings: AppSettings) -> None:
                 "file_logging_configured: Logging to file: %s",
                 log_file_path_str,
             )
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             root_logger.warning(
                 "log_file_creation_failed: Failed to create log file %s: %s",
                 log_file_path_str,
@@ -103,7 +103,7 @@ def setup_logging(app_settings: AppSettings) -> None:
                     module_name_str,
                     level_literal,
                 )
-            except Exception as e:
+            except (OSError, PermissionError) as e:
                 root_logger.warning(
                     "module_log_level_failed: Failed to set log level for %s: %s",
                     module_name_str,

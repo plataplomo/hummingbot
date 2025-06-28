@@ -151,9 +151,10 @@ class HyperliquidRequestBuilder:
 
             # Final validation - ensure result is parseable
             _ = Decimal(result)
-            return result
         except Exception as e:
             raise ValueError(f"Failed to normalize wire format for {original_value}: {e}") from e
+        else:
+            return result
 
     @staticmethod
     def _decimal_to_wire_format(value: Decimal | None) -> str:

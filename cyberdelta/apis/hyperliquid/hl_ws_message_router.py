@@ -390,7 +390,7 @@ class HyperliquidWsMessageRouter:
             orderbook_dict = internal_orderbook.model_dump(mode="json")
             await app_handler(orderbook_dict, message)
         except TransformationError as e_transform:
-            self.logger.error(
+            self.logger.exception(
                 "l2book_transformation_failed",
                 action="process_l2book_data",
                 exchange=self._exchange_name,
@@ -439,7 +439,7 @@ class HyperliquidWsMessageRouter:
                     trade_dict = internal_trade.model_dump(mode="json")
                     await app_handler(trade_dict, message)
                 except TransformationError as e_transform:
-                    self.logger.error(
+                    self.logger.exception(
                         "trade_transformation_failed",
                         action="process_trades_data",
                         exchange=self._exchange_name,
@@ -515,7 +515,7 @@ class HyperliquidWsMessageRouter:
                 await app_handler(event_item_dict, message)
 
         except (APIError, ValidationError) as e_user_event_item:
-            self.logger.error(
+            self.logger.exception(
                 "user_event_processing_error",
                 action="process_single_user_event",
                 exchange=self._exchange_name,
@@ -551,7 +551,7 @@ class HyperliquidWsMessageRouter:
             trade_dict = internal_trade.model_dump(mode="json")
             await app_handler(trade_dict, message)
         except TransformationError as e_transform:
-            self.logger.error(
+            self.logger.exception(
                 "fill_event_transformation_failed",
                 action="process_fill_event",
                 exchange=self._exchange_name,
@@ -581,7 +581,7 @@ class HyperliquidWsMessageRouter:
             order_dict = internal_order.model_dump(mode="json")
             await app_handler(order_dict, message)
         except TransformationError as e_transform:
-            self.logger.error(
+            self.logger.exception(
                 "order_event_transformation_failed",
                 action="process_order_event",
                 exchange=self._exchange_name,
@@ -611,7 +611,7 @@ class HyperliquidWsMessageRouter:
             position_dict = internal_position.model_dump(mode="json")
             await app_handler(position_dict, message)
         except TransformationError as e_transform:
-            self.logger.error(
+            self.logger.exception(
                 "position_event_transformation_failed",
                 action="process_position_update_event",
                 exchange=self._exchange_name,
