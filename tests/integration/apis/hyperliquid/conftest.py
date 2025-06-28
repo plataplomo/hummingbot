@@ -16,6 +16,20 @@ import pytest
 import pytest_asyncio
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
+from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
+from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
+from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.apis.hyperliquid.mappers import (
+    HyperliquidAccountDataMapper,
+    HyperliquidMarketDataMapper,
+    HyperliquidTradingDataMapper,
+)
+from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
+    HyperliquidMarketDataService,
+)
+from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
@@ -46,7 +60,6 @@ def mock_hl_authenticator() -> MagicMock:
     Returns:
         MagicMock: Mock authenticator with EIP-712 signature capabilities for Hyperliquid API.
     """
-    from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 
     mock_auth = MagicMock(spec=HyperliquidEip712Authenticator)
     mock_auth.prepare_request = AsyncMock()
@@ -61,7 +74,6 @@ def mock_hl_error_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock error mapper for handling Hyperliquid API error responses.
     """
-    from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 
     return MagicMock(spec=HyperliquidErrorMapper)
 
@@ -73,7 +85,6 @@ def mock_hl_request_builder() -> MagicMock:
     Returns:
         MagicMock: Mock request builder for constructing Hyperliquid API requests.
     """
-    from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 
     return MagicMock(spec=HyperliquidRequestBuilder)
 
@@ -85,7 +96,6 @@ def mock_hl_response_handler() -> MagicMock:
     Returns:
         MagicMock: Mock response handler for processing Hyperliquid API responses.
     """
-    from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 
     return MagicMock(spec=HyperliquidResponseHandler)
 
@@ -97,7 +107,6 @@ def mock_hl_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock market data mapper for transforming Hyperliquid market data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 
     return MagicMock(spec=HyperliquidMarketDataMapper)
 
@@ -109,7 +118,6 @@ def mock_hl_account_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock account data mapper for processing Hyperliquid account data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
     return MagicMock(spec=HyperliquidAccountDataMapper)
 
@@ -121,7 +129,6 @@ def mock_hl_order_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock trading data mapper for legacy order data processing.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
@@ -133,7 +140,6 @@ def mock_hl_trading_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock trading data mapper for processing Hyperliquid trading data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
 
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
@@ -145,7 +151,6 @@ def mock_hl_user_fill_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock account data mapper specialized for user fill data processing.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
 
     return MagicMock(spec=HyperliquidAccountDataMapper)
 
@@ -157,7 +162,6 @@ def mock_hl_account_service() -> MagicMock:
     Returns:
         MagicMock: Mock account service for Hyperliquid account operations.
     """
-    from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 
     return MagicMock(spec=HyperliquidAccountService)
 
@@ -169,7 +173,6 @@ def mock_hl_trading_service() -> MagicMock:
     Returns:
         MagicMock: Mock trading service for Hyperliquid trading operations.
     """
-    from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 
     return MagicMock(spec=HyperliquidTradingService)
 
@@ -181,9 +184,6 @@ def mock_hl_market_data_service() -> MagicMock:
     Returns:
         MagicMock: Mock market data service for Hyperliquid market data operations.
     """
-    from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
-        HyperliquidMarketDataService,
-    )
 
     return MagicMock(spec=HyperliquidMarketDataService)
 

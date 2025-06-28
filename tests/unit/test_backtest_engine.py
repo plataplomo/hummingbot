@@ -26,7 +26,7 @@ strategy developers to validate their algorithms against historical data,
 optimize parameters, and assess risk before live trading deployment.
 """
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -304,8 +304,8 @@ class MockTradingStrategy(TradingStrategy):
         self.analyze_market_called = True
         # Simple mock implementation that returns buy signals for specific assets
         signals: dict[str, int] = {}
-        for asset in market_data:
-            if "price" in market_data[asset] and len(market_data[asset]["price"]) > 0:
+        for asset, asset_data in market_data.items():
+            if "price" in asset_data and len(asset_data["price"]) > 0:
                 # Generate random signals for testing
                 signals[asset] = 1 if np.random.random() > 0.5 else -1
         return signals
@@ -397,22 +397,22 @@ def backtest_setup() -> tuple[BacktestEngine, MockTradingStrategy, dict[str, Any
             "price": [10000, 10100, 10200, 10300, 10250],
             "volume": [100, 110, 105, 95, 100],
             "timestamp": [
-                datetime.now() - timedelta(minutes=4),
-                datetime.now() - timedelta(minutes=3),
-                datetime.now() - timedelta(minutes=2),
-                datetime.now() - timedelta(minutes=1),
-                datetime.now(),
+                datetime.now(UTC) - timedelta(minutes=4),
+                datetime.now(UTC) - timedelta(minutes=3),
+                datetime.now(UTC) - timedelta(minutes=2),
+                datetime.now(UTC) - timedelta(minutes=1),
+                datetime.now(UTC),
             ],
         },
         "ETH-USD": {
             "price": [200, 205, 210, 208, 215],
             "volume": [500, 520, 510, 530, 540],
             "timestamp": [
-                datetime.now() - timedelta(minutes=4),
-                datetime.now() - timedelta(minutes=3),
-                datetime.now() - timedelta(minutes=2),
-                datetime.now() - timedelta(minutes=1),
-                datetime.now(),
+                datetime.now(UTC) - timedelta(minutes=4),
+                datetime.now(UTC) - timedelta(minutes=3),
+                datetime.now(UTC) - timedelta(minutes=2),
+                datetime.now(UTC) - timedelta(minutes=1),
+                datetime.now(UTC),
             ],
         },
     }
@@ -459,25 +459,25 @@ def test_calculate_performance_metrics(
             "asset": "BTC-USD",
             "size": 1.0,
             "price": 10100,
-            "timestamp": datetime.now() - timedelta(hours=2),
+            "timestamp": datetime.now(UTC) - timedelta(hours=2),
         },
         {
             "asset": "BTC-USD",
             "size": -1.0,
             "price": 10300,
-            "timestamp": datetime.now() - timedelta(hours=1),
+            "timestamp": datetime.now(UTC) - timedelta(hours=1),
         },
         {
             "asset": "ETH-USD",
             "size": 5.0,
             "price": 205,
-            "timestamp": datetime.now() - timedelta(hours=2),
+            "timestamp": datetime.now(UTC) - timedelta(hours=2),
         },
         {
             "asset": "ETH-USD",
             "size": -5.0,
             "price": 215,
-            "timestamp": datetime.now() - timedelta(hours=1),
+            "timestamp": datetime.now(UTC) - timedelta(hours=1),
         },
     ]
 
@@ -500,8 +500,8 @@ def test_update_positions(
     """Test updating positions based on trades."""
     engine, _, _ = backtest_setup
     trades = {
-        "BTC-USD": {"size": 1.5, "price": 10200, "timestamp": datetime.now()},
-        "ETH-USD": {"size": -2.5, "price": 210, "timestamp": datetime.now()},
+        "BTC-USD": {"size": 1.5, "price": 10200, "timestamp": datetime.now(UTC)},
+        "ETH-USD": {"size": -2.5, "price": 210, "timestamp": datetime.now(UTC)},
     }
 
     engine.update_positions(trades)
@@ -524,8 +524,8 @@ def test_update_positions_existing(
 
     # Execute additional trades
     trades = {
-        "BTC-USD": {"size": -0.5, "price": 10300, "timestamp": datetime.now()},
-        "ETH-USD": {"size": -1.5, "price": 215, "timestamp": datetime.now()},
+        "BTC-USD": {"size": -0.5, "price": 10300, "timestamp": datetime.now(UTC)},
+        "ETH-USD": {"size": -1.5, "price": 215, "timestamp": datetime.now(UTC)},
     }
 
     engine.update_positions(trades)

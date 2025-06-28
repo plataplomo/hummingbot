@@ -1,7 +1,7 @@
 """Tests for the FundingRateValidator class."""
 
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -225,7 +225,7 @@ class TestFundingRateValidator:
         validator.record_payment("hyperliquid", "BTC", 0.0012, 1.2, 100.0)
 
         # Manually add old data (100 days ago)
-        old_time = datetime.now() - timedelta(days=100)
+        old_time = datetime.now(UTC) - timedelta(days=100)
         old_timestamp = int(old_time.timestamp() * 1000)
 
         validator.predictions.append(

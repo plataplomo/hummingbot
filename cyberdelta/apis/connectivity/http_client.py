@@ -469,8 +469,6 @@ class HttpClient:
         if method.upper() != "GET" and data is not None:
             json_payload = data
             # Log the actual JSON string for debugging
-            import json
-
             json_string = json.dumps(json_payload)
             logger.info(
                 "json_payload_to_be_sent",

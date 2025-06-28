@@ -153,9 +153,11 @@ class MockExchangeAPI(ExchangeAPI):
 
         if not is_valid_url:
             logger.warning(
-                f"[{exchange_name}] MockExchangeAPI overriding api_base_url "
-                f"'{current_api_base_url}' "
-                f"with 'http://fixedmock.exchange' for HttpClientConfig stability.",
+                "mock_exchange_api_url_override",
+                exchange_name=exchange_name,
+                original_url=current_api_base_url,
+                new_url="http://fixedmock.exchange",
+                message="MockExchangeAPI overriding api_base_url for HttpClientConfig stability",
             )
             config_copy["api_base_url"] = "http://fixedmock.exchange"  # Force a valid one
 
@@ -244,8 +246,12 @@ class MockExchangeAPI(ExchangeAPI):
         self._ws_subscriptions: dict[str, MessageHandler] = {}
 
         logger.info(
-            f"Initialized MockExchangeAPI for {exchange_name} (Maker Fee: {self.maker_fee}, "
-            f"Taker Fee: {self.taker_fee}, Fee Asset: {self.fee_asset})",
+            "mock_exchange_initialized",
+            exchange_name=exchange_name,
+            maker_fee=float(self.maker_fee),
+            taker_fee=float(self.taker_fee),
+            fee_asset=self.fee_asset,
+            message="Initialized MockExchangeAPI"
         )
 
     # --- Test Control Methods ADDED ---
@@ -264,44 +270,78 @@ class MockExchangeAPI(ExchangeAPI):
         self._error_config.clear()
         self._call_counts.clear()
         self._open_orders_behavior = "keep_open"
-        logger.debug(f"MockExchangeAPI for {self.exchange_name} has been reset.")
+        logger.debug(
+            "mock_exchange_reset",
+            exchange_name=self.exchange_name,
+            message="MockExchangeAPI has been reset",
+        )
 
     def set_mock_balance(self, balance: SpotBalance) -> None:
         """Set a mock balance for a specific asset."""
         if balance.exchange != self.exchange_name:
             logger.warning(
-                f"Attempted to set balance for {balance.exchange} on "
-                f"{self.exchange_name} mock. Ignoring.",
+                "balance_exchange_mismatch",
+                balance_exchange=balance.exchange,
+                mock_exchange=self.exchange_name,
+                balance_exchange=balance.exchange,
+                mock_exchange=self.exchange_name,
+                message="Attempted to set balance for different exchange on mock. Ignoring.",
             )
             return
         self._balances[balance.asset] = balance
-        logger.debug(f"Mock balance set for {self.exchange_name} - {balance.asset}: {balance}")
+        logger.debug(
+            "mock_balance_set",
+            exchange_name=self.exchange_name,
+            asset=balance.asset,
+            balance=str(balance),
+            message="Mock balance set for exchange",
+        )
 
     def set_mock_ticker(self, ticker: Ticker) -> None:
         """Set a mock ticker for a specific symbol."""
         self._mock_tickers[ticker.symbol] = ticker
-        logger.debug(f"Mock ticker set for {self.exchange_name} - {ticker.symbol}: {ticker}")
+        logger.debug(
+            "mock_ticker_set",
+            exchange_name=self.exchange_name,
+            symbol=ticker.symbol,
+            ticker=str(ticker),
+            message="Mock ticker set for exchange",
+        )
 
     def set_mock_funding_rate(self, funding_rate: FundingRate) -> None:
         """Set a mock funding rate for a specific symbol."""
         self._mock_funding_rates[funding_rate.symbol] = funding_rate
         logger.debug(
-            f"Mock funding rate set for {self.exchange_name} - "
-            f"{funding_rate.symbol}: {funding_rate}",
+            "mock_funding_rate_set",
+            exchange_name=self.exchange_name,
+            symbol=funding_rate.symbol,
+            funding_rate=str(funding_rate),
+            message="Mock funding rate set for exchange",
         )
 
     def set_mock_position(self, position: DerivativePosition) -> None:
         """Set a mock derivative position for a specific symbol."""
         if position.exchange != self.exchange_name:
             logger.warning(
-                f"Attempted to set position for {position.exchange} on "
-                f"{self.exchange_name} mock. Ignoring.",
+                "position_exchange_mismatch",
+                position_exchange=position.exchange,
+                mock_exchange=self.exchange_name,
+                message=(
+                    f"Attempted to set position for {position.exchange} on "
+                    f"{self.exchange_name} mock. Ignoring."
+                ),
             )
             return
         self._positions[position.symbol] = (
             position  # Store in the _positions dict used by get_positions
         )
-        logger.debug(f"Mock position set for {self.exchange_name} - {position.symbol}: {position}")
+        logger.debug(
+            "mock_position_set",
+            exchange_name=self.exchange_name,
+            symbol=position.symbol,
+            position=str(position),
+            message="Mock position set for exchange",
+        )
 
     def set_open_orders_behavior(self, behavior: str) -> None:
         """Set the behavior for handling open orders.
@@ -312,7 +352,12 @@ class MockExchangeAPI(ExchangeAPI):
         if behavior not in ["keep_open", "fill_immediately", "partial_fill"]:
             raise ValueError(f"Invalid open orders behavior: {behavior}")
         self._open_orders_behavior = behavior
-        logger.debug(f"Open orders behavior set for {self.exchange_name}: {behavior}")
+        logger.debug(
+            "open_orders_behavior_set",
+            exchange_name=self.exchange_name,
+            behavior=behavior,
+            message="Open orders behavior set for exchange",
+        )
 
     async def get_account_summary(self) -> MarginAccountSummary:
         """Return a mock account summary."""
@@ -444,8 +489,10 @@ class MockExchangeAPI(ExchangeAPI):
             self._error_config.clear()
             self._call_counts.clear()
         logger.info(
-            f"MockExchange {self.exchange_name} error simulation cleared"
-            f"{'{ for ' + method_name + '}' if method_name else ''}",
+            "error_simulation_cleared",
+            exchange_name=self.exchange_name,
+            method_name=method_name,
+            message="MockExchange error simulation cleared",
         )
 
     def _split_symbol(self, symbol: str) -> tuple[str, str]:
@@ -463,7 +510,11 @@ class MockExchangeAPI(ExchangeAPI):
             return parts[0], parts[1]
         # Default assumption if no separator
         logger.warning(
-            f"Could not determine base/quote for symbol '{symbol}', assuming '{symbol}' and 'USD'",
+            "symbol_parse_warning",
+            symbol=symbol,
+            assumed_base=symbol,
+            assumed_quote="USD",
+            message="Could not determine base/quote for symbol, making assumptions",
         )
         return symbol, "USD"
 
@@ -475,8 +526,11 @@ class MockExchangeAPI(ExchangeAPI):
             self._call_counts[method_name] += 1
             if trigger_after is None or current_count >= trigger_after:
                 logger.warning(
-                    f"MockExchange {self.exchange_name} raising simulated error for "
-                    f"{method_name}: {error}",
+                    "simulated_error_raised",
+                    exchange_name=self.exchange_name,
+                    method_name=method_name,
+                    error=str(error),
+                    message="MockExchange raising simulated error",
                 )
                 raise error
 
@@ -522,13 +576,20 @@ class MockExchangeAPI(ExchangeAPI):
     ) -> None:
         """No-op for mock. Exchanges might use this to update internal rate limit states."""
         logger.debug(
-            f"_update_rate_limit_from_headers called with headers: {headers}, "
-            f"method: {method}, path: {path} (no-op)",
+            "rate_limit_headers_update",
+            headers=dict(headers),
+            method=method,
+            path=path,
+            message="_update_rate_limit_from_headers called (no-op)",
         )
 
     async def ping_websocket(self) -> None:
         """Mock implementation for WebSocket ping."""
-        logger.debug(f"MockExchange {self.exchange_name}: Simulating WebSocket ping.")
+        logger.debug(
+            "websocket_ping_simulated",
+            exchange_name=self.exchange_name,
+            message="MockExchange simulating WebSocket ping",
+        )
         self._check_error("ping_websocket")
         await self._simulate_latency()
         # No actual action needed
@@ -572,18 +633,32 @@ class MockExchangeAPI(ExchangeAPI):
     ) -> None:  # Ensure handler type is correct
         """Subscribe to a WebSocket topic."""
         self._ws_subscriptions[topic] = handler  # Storing in _ws_subscriptions
-        logger.info(f"Mock subscribed to {topic}")
+        logger.info(
+            "mock_subscription_added",
+            topic=topic,
+            message="Mock subscribed to topic",
+        )
 
     async def _resubscribe(self) -> None:
         """Mock implementation for resubscribing to WebSocket topics."""
-        logger.info(f"MockExchange {self.exchange_name}: Resubscribing to all known topics.")
+        logger.info(
+            "websocket_resubscribing",
+            exchange_name=self.exchange_name,
+            topic_count=len(self._ws_subscriptions),
+            message="MockExchange resubscribing to all known topics",
+        )
         for topic, handler in self._ws_subscriptions.items():
             await self.subscribe(topic, handler)  # Re-use subscribe logic
         await self._simulate_latency()
 
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Mock implementation for generic WebSocket message handling."""
-        logger.debug(f"MockExchange {self.exchange_name}: Received generic WS message: {message}")
+        logger.debug(
+            "websocket_message_received",
+            exchange_name=self.exchange_name,
+            message_type=message.get("type"),
+            message="MockExchange received generic WebSocket message",
+        )
         # This could parse common message types if not routed by _route_ws_message
 
     async def get_ticker(self, symbol: str) -> Ticker:
@@ -701,7 +776,15 @@ class MockExchangeAPI(ExchangeAPI):
         ).available_quantity
 
         if current_balance < required_balance:
-            logger.warning(f"Mock {self.exchange_name}: Insufficient balance for order {order_id}")
+            logger.warning(
+                "insufficient_balance_order",
+                exchange_name=self.exchange_name,
+                order_id=order_id,
+                required_balance=str(required_balance),
+                available_balance=str(current_balance),
+                asset=asset_to_check,
+                message="Insufficient balance for order",
+            )
             raise APIError("Insufficient balance", code=APIErrorCode.INSUFFICIENT_FUNDS.value)
 
     def _determine_order_fill_params(
@@ -801,8 +884,10 @@ class MockExchangeAPI(ExchangeAPI):
             fill_price_for_trade = avg_fill_price if avg_fill_price is not None else order.price
             if fill_price_for_trade is None:
                 logger.warning(
-                    f"Cannot determine fill price for trade sim for order "
-                    f"{order.client_order_id}. Using 0.",
+                    "missing_fill_price",
+                    order_id=order.client_order_id,
+                    fallback_price="0",
+                    message="Cannot determine fill price for trade simulation, using fallback",
                 )
                 fill_price_for_trade = Decimal(0)
 
@@ -831,7 +916,11 @@ class MockExchangeAPI(ExchangeAPI):
             self._update_balance_and_position(trade)
 
         logger.debug(
-            f"Mock {self.exchange_name}: Placed order {order.client_order_id}: {order.status}",
+            "order_placed",
+            exchange_name=self.exchange_name,
+            order_id=order.client_order_id,
+            order_status=order.status.value,
+            message="Mock order placed",
         )
         return order
 
@@ -852,7 +941,11 @@ class MockExchangeAPI(ExchangeAPI):
         from cyberdelta.core.models.market.order import CancelOrderResult
 
         if order_id not in self._orders:
-            logger.warning(f"Mock order not found for order_id: {order_id}")
+            logger.warning(
+                "cancel_order_not_found",
+                order_id=order_id,
+                message="Mock order not found for cancellation",
+            )
             return CancelOrderResult(
                 symbol=symbol,
                 order_id=order_id,
@@ -868,7 +961,11 @@ class MockExchangeAPI(ExchangeAPI):
         # Optionally validate symbol if provided
         if symbol is not None and order.symbol != symbol:
             logger.warning(
-                f"Mock order {order_id} symbol mismatch: expected {symbol}, found {order.symbol}",
+                "cancel_order_symbol_mismatch",
+                order_id=order_id,
+                expected_symbol=symbol,
+                found_symbol=order.symbol,
+                message="Mock order symbol mismatch during cancellation",
             )
             return CancelOrderResult(
                 symbol=symbol,
@@ -881,7 +978,12 @@ class MockExchangeAPI(ExchangeAPI):
             )
 
         if order.status not in [OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED]:
-            logger.warning(f"Mock order {order_id} is not in a cancellable state: {order.status}")
+            logger.warning(
+                "cancel_order_invalid_state",
+                order_id=order_id,
+                order_status=order.status.value,
+                message="Mock order is not in a cancellable state",
+            )
             return CancelOrderResult(
                 symbol=symbol,
                 order_id=order_id,
@@ -898,7 +1000,12 @@ class MockExchangeAPI(ExchangeAPI):
         if order_id in self.open_orders:
             del self.open_orders[order_id]
 
-        logger.info(f"MockExchange {self.exchange_name}: Cancelled order {order_id}")
+        logger.info(
+            "order_cancelled",
+            exchange_name=self.exchange_name,
+            order_id=order_id,
+            message="MockExchange cancelled order",
+        )
         return CancelOrderResult(
             symbol=symbol,
             order_id=order_id,
@@ -916,8 +1023,12 @@ class MockExchangeAPI(ExchangeAPI):
             Order | None: Order details if found, None otherwise.
         """
         logger.debug(
-            f"Mock {self.exchange_name}: Getting order: ID={args.order_id}, "
-            f"Symbol={args.symbol}, ClientID={args.client_order_id}",
+            "get_order_request",
+            exchange_name=self.exchange_name,
+            order_id=args.order_id,
+            symbol=args.symbol,
+            client_order_id=args.client_order_id,
+            message="Mock getting order details",
         )
         self._check_error("get_order")
         await self._simulate_latency()
@@ -936,8 +1047,11 @@ class MockExchangeAPI(ExchangeAPI):
         # Optionally check symbol match if provided
         if args.symbol and order and order.symbol != args.symbol:
             logger.warning(
-                f"Order ID {args.order_id or args.client_order_id} found but symbol mismatch: "
-                f"req '{args.symbol}', found '{order.symbol}'",
+                "get_order_symbol_mismatch",
+                order_id=args.order_id or args.client_order_id,
+                requested_symbol=args.symbol,
+                found_symbol=order.symbol,
+                message="Order found but symbol mismatch",
             )
             return None  # Behavior for symbol mismatch can be refined.
         return order
@@ -952,7 +1066,11 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
         order = self._orders.get(args.order_id)
         if order is None:
-            logger.warning(f"Mock order not found for order_id: {args.order_id}")
+            logger.warning(
+                "get_order_status_not_found",
+                order_id=args.order_id,
+                message="Mock order not found for status query",
+            )
             return None
         return order
 
@@ -970,7 +1088,12 @@ class MockExchangeAPI(ExchangeAPI):
                     orders_to_return.append(order)
             return orders_to_return
         except Exception as e:
-            logger.exception(f"Error in mock get_open_orders: {e}")
+            logger.exception(
+                "get_open_orders_error",
+                error=str(e),
+                symbol=symbol,
+                message="Error in mock get_open_orders",
+            )
             return []
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
@@ -986,15 +1109,26 @@ class MockExchangeAPI(ExchangeAPI):
                     orders_to_return.append(order)
             return orders_to_return
         except Exception as e:
-            logger.exception(f"Error in mock get_all_open_orders: {e}")
+            logger.exception(
+                "get_all_open_orders_error",
+                error=str(e),
+                symbol=args.symbol,
+                message="Error in mock get_all_open_orders",
+            )
             return []
 
     # --- Placeholder for balance and position update --- #
     def _update_balance_and_position(self, trade: Trade) -> None:
         """Simulate updating balances and positions after a trade."""
         logger.info(
-            f"Mock {self.exchange_name}: Simulating balance/position update for trade: {trade.id} "
-            f"({trade.side} {trade.quantity} {trade.symbol} @ {trade.price})",
+            "balance_position_update_simulated",
+            exchange_name=self.exchange_name,
+            trade_id=trade.id,
+            trade_side=trade.side.value,
+            trade_quantity=str(trade.quantity),
+            trade_symbol=trade.symbol,
+            trade_price=str(trade.price),
+            message="Mock simulating balance/position update for trade",
         )
         # TODO: Implement actual balance and position update logic if needed for tests.
         # This would involve:
@@ -1015,7 +1149,12 @@ class MockExchangeAPI(ExchangeAPI):
         Returns:
             BaseModel: Generic subscription payload as BaseModel.
         """
-        logger.debug(f"MockExchange {self.exchange_name}: Constructing payload for {topic}")
+        logger.debug(
+            "subscription_payload_constructed",
+            exchange_name=self.exchange_name,
+            topic=topic,
+            message="MockExchange constructing subscription payload",
+        )
         # Return a generic payload as a BaseModel
 
         class MockSubscriptionPayload(BaseModel):
@@ -1056,7 +1195,10 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Return empty list for simplicity, or a predefined set of historical rates
         logger.debug(
-            f"MockExchange {self.exchange_name}: get_historical_funding_rates for {args.symbol}",
+            "get_historical_funding_rates_request",
+            exchange_name=self.exchange_name,
+            symbol=args.symbol,
+            message="MockExchange get_historical_funding_rates request",
         )
         return []
 
@@ -1072,8 +1214,12 @@ class MockExchangeAPI(ExchangeAPI):
 
         # Return empty list for simplicity, or a predefined set of candles
         logger.debug(
-            f"MockExchange {self.exchange_name}: get_market_data for {symbol}, "
-            f"{timeframe}, {limit}",
+            "get_market_data_request",
+            exchange_name=self.exchange_name,
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+            message="MockExchange get_market_data request",
         )
         return []
 
@@ -1113,9 +1259,11 @@ class MockExchangeAPI(ExchangeAPI):
             )
 
         logger.info(
-            f"MockExchange {self.exchange_name}: Cancelled all orders "
-            f"({len(orders_to_cancel_ids)})"
-            f"{' for symbol ' + symbol if symbol else ''}.",
+            "all_orders_cancelled",
+            exchange_name=self.exchange_name,
+            cancelled_count=len(orders_to_cancel_ids),
+            symbol=symbol,
+            message="MockExchange cancelled all orders",
         )
         return results
 
@@ -1263,7 +1411,12 @@ class MockExchangeAPI(ExchangeAPI):
                 results.append(order)
             except Exception as e:
                 # In batch operations, we continue even if some orders fail
-                logger.error(f"MockExchange {self.exchange_name}: Failed to place batch order: {e}")
+                logger.error(
+                    "batch_order_placement_failed",
+                    exchange_name=self.exchange_name,
+                    error=str(e),
+                    message="MockExchange failed to place batch order",
+                )
                 # Create a failed order object
                 failed_order = Order(
                     client_order_id=order_args.client_order_id
@@ -1290,8 +1443,11 @@ class MockExchangeAPI(ExchangeAPI):
                 results.append(failed_order)
 
         logger.info(
-            f"MockExchange {self.exchange_name}: Placed batch of {len(results)} orders "
-            f"(Success: {sum(1 for o in results if o.status != OrderStatus.REJECTED)})",
+            "batch_orders_placed",
+            exchange_name=self.exchange_name,
+            total_orders=len(results),
+            successful_orders=sum(1 for o in results if o.status != OrderStatus.REJECTED),
+            message="MockExchange placed batch orders",
         )
         return results
 
@@ -1316,7 +1472,10 @@ class MockExchangeAPI(ExchangeAPI):
             except Exception as e:
                 # In batch operations, we continue even if some cancellations fail
                 logger.error(
-                    f"MockExchange {self.exchange_name}: Failed to cancel batch order: {e}",
+                    "batch_order_cancellation_failed",
+                    exchange_name=self.exchange_name,
+                    error=str(e),
+                    message="MockExchange failed to cancel batch order",
                 )
                 results.append(
                     CancelOrderResult(
@@ -1330,14 +1489,21 @@ class MockExchangeAPI(ExchangeAPI):
                 )
 
         logger.info(
-            f"MockExchange {self.exchange_name}: Cancelled batch of {len(results)} orders "
-            f"(Success: {sum(1 for r in results if r.success)})",
+            "batch_orders_cancelled",
+            exchange_name=self.exchange_name,
+            total_orders=len(results),
+            successful_cancellations=sum(1 for r in results if r.success),
+            message="MockExchange cancelled batch orders",
         )
         return results
 
     async def close(self) -> None:
         """Close any resources held by the mock API (e.g., WebSocket connection)."""
-        logger.info(f"MockExchangeAPI for {self.exchange_name} is being closed.")
+        logger.info(
+            "mock_exchange_api_closing",
+            exchange_name=self.exchange_name,
+            message="MockExchangeAPI is being closed",
+        )
         # In a real scenario, you might close mock WebSocket connections or clean up resources.
         # For this mock, we primarily log. If specific mock resources were created (e.g.,
         # a mock WebSocket server task), they would be cleaned up here.
@@ -1353,7 +1519,11 @@ class MockExchangeAPI(ExchangeAPI):
             await super().close()
         except (AttributeError, TypeError) as e:
             # Expected when http_client/ws_manager are mocked - just log and continue
-            logger.debug(f"MockExchangeAPI close caught expected error from mocked components: {e}")
+            logger.debug(
+                "mock_exchange_close_error",
+                error=str(e),
+                message="MockExchangeAPI close caught expected error from mocked components",
+            )
 
         # For now, this mock's close is mostly a placeholder for testability.
 

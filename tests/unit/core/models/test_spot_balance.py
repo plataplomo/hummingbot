@@ -211,7 +211,7 @@ def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> No
     logger = get_logger(__name__)
     original_asset = balance.asset
     try:
-        object.__setattr__(balance, "asset", "NEWASSET")
+        balance.asset = "NEWASSET"
         if balance.asset != original_asset:
             logger.warning(
                 f"Immutability Test Warning: object.__setattr__ modified frozen field 'asset' "

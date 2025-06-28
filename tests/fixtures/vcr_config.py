@@ -8,6 +8,7 @@ timestamps, and personal information.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -62,8 +63,6 @@ def vcr_config() -> dict[str, Any]:
             )
 
             # Replace common sensitive patterns
-            import re
-
             # Filter private keys (hex strings that look like private keys)
             body_str = re.sub(
                 r'"private_key":\s*"0x[a-fA-F0-9]{64}"',

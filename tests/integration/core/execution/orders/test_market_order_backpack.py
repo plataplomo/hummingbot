@@ -73,7 +73,12 @@ class TestBackpackMarketOrderIntegration:
             symbol,
             OrderSide.BUY,
         )
-        logger.info(f"Using minimal test quantity: {test_quantity} for {symbol}")
+        logger.info(
+            "market_order_test_quantity_selected",
+            test_quantity=test_quantity,
+            symbol=symbol,
+            message=f"Using minimal test quantity: {test_quantity} for {symbol}"
+        )
 
         # Create market order executor
         service = MarketOrderService(exchange_api=backpack_api, config=market_order_config)
@@ -104,8 +109,9 @@ class TestBackpackMarketOrderIntegration:
             # For Backpack IOC orders, the order disappears immediately after execution
             # We need to check order history to verify the fill
             logger.info(
-                f"Market order placed: {order.exchange_order_id}. "
-                "Polling order history for confirmation...",
+                "market_order_placed_pending_confirmation",
+                order_id=order.exchange_order_id,
+                message=f"Market order placed: {order.exchange_order_id}. Polling order history for confirmation..."
             )
 
             # Verify order appears in history (polls every 2 seconds for up to 40 seconds)
@@ -138,8 +144,10 @@ class TestBackpackMarketOrderIntegration:
             _test_order_data["backpack_buy_quantity"] = filled_order.quantity_filled
 
             logger.info(
-                f"Successfully placed and verified market buy order: "
-                f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
+                "market_buy_order_success",
+                order_id=filled_order.exchange_order_id,
+                quantity_filled=filled_order.quantity_filled,
+                message=f"Successfully placed and verified market buy order: {filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
             )
 
         except Exception as e:
@@ -202,7 +210,10 @@ class TestBackpackMarketOrderIntegration:
         # Use the historical quantity for selling
         sell_quantity = historical_quantity
         logger.info(
-            f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}",
+            "previous_buy_order_found",
+            buy_order_id=buy_order_id,
+            filled_quantity=sell_quantity,
+            message=f"Found previous buy order {buy_order_id} with filled quantity: {sell_quantity}"
         )
 
         # Create market order executor
@@ -233,8 +244,9 @@ class TestBackpackMarketOrderIntegration:
 
             # For Backpack IOC orders, check order history
             logger.info(
-                f"Market sell order placed: {order.exchange_order_id}. "
-                "Waiting for order to appear in history...",
+                "market_sell_order_placed_pending_history",
+                order_id=order.exchange_order_id,
+                message=f"Market sell order placed: {order.exchange_order_id}. Waiting for order to appear in history..."
             )
 
             # Verify order appears in history (polls automatically)
@@ -286,8 +298,10 @@ class TestBackpackMarketOrderIntegration:
             )
 
             logger.info(
-                f"Successfully placed and verified market sell order: "
-                f"{filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}",
+                "market_sell_order_success",
+                order_id=filled_order.exchange_order_id,
+                quantity_filled=filled_order.quantity_filled,
+                message=f"Successfully placed and verified market sell order: {filled_order.exchange_order_id}, filled: {filled_order.quantity_filled}"
             )
 
             # Clean up test data
@@ -324,7 +338,11 @@ class TestBackpackMarketOrderIntegration:
 
                 logger.debug("No PERP markets found in markets endpoint response")
         except Exception as e:
-            logger.debug(f"Error getting markets list: {e}")
+            logger.debug(
+                "markets_list_error",
+                error=str(e),
+                message=f"Error getting markets list: {e}"
+            )
 
         # Based on order history data, these PERP symbols are known to exist on Backpack
         # even if they don't appear in the markets endpoint
@@ -335,10 +353,19 @@ class TestBackpackMarketOrderIntegration:
                 # Try to get market data for the symbol
                 market = await backpack_api.get_market(GetMarketArgs(symbol=symbol))
                 if market:
-                    logger.info(f"Found PERP market {symbol} via direct market query")
+                    logger.info(
+                        "perp_market_found",
+                        symbol=symbol,
+                        message=f"Found PERP market {symbol} via direct market query"
+                    )
                     return symbol
             except Exception as e:
-                logger.debug(f"PERP symbol {symbol} not accessible: {e}")
+                logger.debug(
+                    "perp_symbol_not_accessible",
+                    symbol=symbol,
+                    error=str(e),
+                    message=f"PERP symbol {symbol} not accessible: {e}"
+                )
                 continue
 
         logger.info("No accessible PERP markets found on Backpack")
@@ -367,7 +394,11 @@ class TestBackpackMarketOrderIntegration:
             if not perp_symbol:
                 pytest.skip("No BTC perpetual market found on Backpack")
 
-            logger.info(f"Testing perpetual market: {perp_symbol}")
+            logger.info(
+                "testing_perpetual_market",
+                perp_symbol=perp_symbol,
+                message=f"Testing perpetual market: {perp_symbol}"
+            )
 
             # Get minimal test quantity
             test_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
@@ -392,7 +423,11 @@ class TestBackpackMarketOrderIntegration:
             )
 
             # Verify buy order appears in history
-            logger.info(f"Perp buy order placed: {buy_order.exchange_order_id}")
+            logger.info(
+                "perp_buy_order_placed",
+                order_id=buy_order.exchange_order_id,
+                message=f"Perp buy order placed: {buy_order.exchange_order_id}"
+            )
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
                 backpack_api,
                 buy_order,
@@ -425,7 +460,11 @@ class TestBackpackMarketOrderIntegration:
                 quantity=buy_filled_qty,
             )
 
-            logger.info(f"Perp sell order placed: {sell_order.exchange_order_id}")
+            logger.info(
+                "perp_sell_order_placed",
+                order_id=sell_order.exchange_order_id,
+                message=f"Perp sell order placed: {sell_order.exchange_order_id}"
+            )
 
             # Verify sell order appears in history
             found_sell = await MarketOrderTestHelpers.verify_order_in_history(

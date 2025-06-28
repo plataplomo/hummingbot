@@ -5,8 +5,10 @@ This script scans test files to find various time mocking patterns and
 generates a report of files that need migration to the new time fixtures.
 """
 
+import argparse
 import ast
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -104,8 +106,6 @@ def analyze_file(file_path: Path) -> dict[str, Any]:
 
 def generate_report(results: dict[Path, dict[str, Any]]) -> None:
     """Generate a comprehensive report of time mocking patterns."""
-    import sys
-
     # Summary statistics
     sys.stdout.write(f"Total files: {len(results)}\n")
     patches_count = sum(1 for r in results.values() if r.get("patterns"))
@@ -123,8 +123,6 @@ def generate_report(results: dict[Path, dict[str, Any]]) -> None:
 
 def main() -> None:
     """Main script execution."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Analyze time mocking patterns in test files")
     parser.add_argument(
         "--target-dir",
@@ -139,8 +137,6 @@ def main() -> None:
     # Find all test files
     test_files = list(args.target_dir.rglob("test_*.py"))
 
-    import sys
-
     sys.stdout.write(f"Analyzing {len(test_files)} test files...\n")
 
     # Analyze each file
@@ -150,8 +146,6 @@ def main() -> None:
 
     # Generate report
     if args.output:
-        import sys
-
         original_stdout = sys.stdout
         with open(args.output, "w") as f:
             sys.stdout = f

@@ -383,12 +383,18 @@ class TestHyperliquidWebSocketIntegration:
         if stale_data_age > timedelta(seconds=30):
             # This should trigger a warning or rejection in real trading
             logger.warning(
-                f"Detected stale WebSocket data: {stale_data_age} old. "
-                "This would be rejected in real trading scenarios.",
+                "stale_websocket_data_detected",
+                data_age_seconds=stale_data_age.total_seconds(),
+                message=(
+                    f"Detected stale WebSocket data: {stale_data_age} old. "
+                    "This would be rejected in real trading scenarios."
+                ),
             )
 
         # Test timezone consistency
-        naive_timestamp = datetime.now()  # Naive datetime (no timezone)
+        naive_timestamp = datetime.now(UTC).replace(
+            tzinfo=None
+        )  # Create naive datetime for testing
 
         # WebSocket data with naive timestamp should be rejected
         try:
@@ -408,7 +414,11 @@ class TestHyperliquidWebSocketIntegration:
 
         except Exception as e:
             # Expected - naive timestamps should cause problems
-            logger.info(f"Correctly rejected naive timestamp: {e}")
+            logger.info(
+                "naive_timestamp_rejected",
+                error=str(e),
+                message=f"Correctly rejected naive timestamp: {e}",
+            )
 
     async def _test_connection_retry_logic(self, max_attempts: int = 3) -> int:
         """Test WebSocket connection retry logic.
@@ -480,7 +490,11 @@ class TestHyperliquidWebSocketIntegration:
 
         except (ValueError, json.JSONDecodeError, decimal.InvalidOperation) as e:
             # Expected - invalid data should fail
-            logger.info(f"Correctly rejected invalid WebSocket message: {e}")
+            logger.info(
+                "invalid_websocket_message_rejected",
+                error=str(e),
+                message=f"Correctly rejected invalid WebSocket message: {e}",
+            )
             return True
 
         except Exception as e:
@@ -509,7 +523,11 @@ class TestHyperliquidWebSocketIntegration:
         except APIError as e:
             # Subscription failures should be handled gracefully but reported
             if "INVALID_SYMBOL" in str(e.code):
-                logger.info(f"Correctly handled subscription failure: {e}")
+                logger.info(
+                    "subscription_failure_handled",
+                    error=str(e),
+                    message=f"Correctly handled subscription failure: {e}",
+                )
                 return True
             pytest.fail(f"Unexpected subscription error: {e}")
 

@@ -90,7 +90,12 @@ async def create_test_perp_position(
         order = await api.place_order(order_args)
 
         if order.exchange_order_id:
-            logger.info(f"Created test position: {symbol} {min_quantity} @ market price")
+            logger.info(
+                "created_test_position",
+                symbol=symbol,
+                quantity=min_quantity,
+                message="Created test position at market price",
+            )
 
             # Wait for position to be created
             from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
@@ -110,7 +115,11 @@ async def create_test_perp_position(
         raise ValueError("Order placed but no order ID returned")
 
     except Exception as e:
-        logger.error(f"Failed to create test position: {e}")
+        logger.error(
+            "failed_to_create_test_position",
+            error=str(e),
+            message="Failed to create test position",
+        )
         raise
 
 
@@ -213,7 +222,12 @@ class TestBackpackPerpPositionsPrivate:
                 # Try to create a position, but if it fails due to balance or API issues,
                 # mark the test as expected failure
                 order_id, quantity = await create_test_perp_position(bp_api_for_test_env)
-                logger.info(f"Created test position with order {order_id}, quantity {quantity}")
+                logger.info(
+                    "test_position_created",
+                    order_id=order_id,
+                    quantity=float(quantity),
+                    message="Created test position for testing",
+                )
 
                 # Get positions again
                 positions = await bp_api_for_test_env.get_positions()

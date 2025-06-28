@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import UTC, datetime
 from decimal import Decimal
 from http import HTTPStatus
 from typing import TYPE_CHECKING
@@ -51,6 +52,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -523,8 +525,6 @@ class BackpackAccountService:
             collateral_asset = collateral_by_symbol.get(asset_symbol)
             if collateral_asset:
                 # Parse collateral amounts
-                from cyberdelta.utils.parsing import parse_decimal_value
-
                 total_quantity = parse_decimal_value(
                     collateral_asset.total_quantity,
                     allow_none=False,
@@ -543,8 +543,6 @@ class BackpackAccountService:
 
                 if total_quantity and total_quantity > Decimal(0):
                     # Create enhanced bp_details with lend_quantity
-                    from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
-
                     enhanced_bp_details = BackpackSpotBalanceDetails(
                         open_order_quantity=open_order_quantity,
                         lend_quantity=lend_quantity,
@@ -578,11 +576,6 @@ class BackpackAccountService:
         # Add any assets that exist only in collateral (not in spot response)
         for asset_symbol, collateral_asset in collateral_by_symbol.items():
             if asset_symbol not in enhanced_balances:
-                from datetime import UTC, datetime
-
-                from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
-                from cyberdelta.utils.parsing import parse_decimal_value
-
                 total_quantity = parse_decimal_value(
                     collateral_asset.total_quantity,
                     allow_none=False,

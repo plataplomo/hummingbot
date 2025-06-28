@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
@@ -1295,9 +1296,6 @@ class DataHandler:
             exchange_id: Exchange identifier
             symbols: List of symbols to fetch, or None for all configured symbols
         """
-        # Import here to avoid circular import
-        from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
-
         try:
             client = self.api_clients.get(exchange_id)
             if not client:

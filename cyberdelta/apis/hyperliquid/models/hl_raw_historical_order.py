@@ -28,6 +28,7 @@ from cyberdelta.apis.hyperliquid.models.common_raw_types import (
     RawStrictBool,
     RawTimestampMsInt,
 )
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
@@ -283,8 +284,6 @@ class HyperliquidRawHistoricalOrdersResponse(
         for i, item in enumerate(v):
             if not is_dict_str_any(item):
                 # Log warning but skip non-dict items
-                from cyberdelta.config.structlog_config import get_logger
-
                 logger = get_logger(__name__)
                 logger.warning(
                     "skipping_non_dict_item_in_historical_orders",

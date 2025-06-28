@@ -664,16 +664,22 @@ def _log_balance_details(
 
     if balance_obj.bp_details and balance_obj.bp_details.lend_quantity:
         logger.info(
-            f"{found_currency} balance - total: {total_balance}, "
-            f"spot_available: {available_quantity}, "
-            f"lent: {balance_obj.bp_details.lend_quantity}, "
-            f"using_total_for_trading: {available_balance} (auto-lending active)",
+            "balance_details_with_lending",
+            currency=found_currency,
+            total_balance=float(total_balance),
+            spot_available=float(available_quantity),
+            lent_quantity=float(balance_obj.bp_details.lend_quantity),
+            using_for_trading=float(available_balance),
+            message="Balance details with auto-lending active",
         )
     else:
         logger.info(
-            f"{found_currency} balance - total: {total_balance}, "
-            f"available: {available_quantity}, "
-            f"using_for_trading: {available_balance}",
+            "balance_details",
+            currency=found_currency,
+            total_balance=float(total_balance),
+            available_quantity=float(available_quantity),
+            using_for_trading=float(available_balance),
+            message="Balance details",
         )
 
 
@@ -725,12 +731,14 @@ async def _check_buy_order_balance(
         # User has confirmed sufficient balance - this is an auto-lending detection issue
         # Log the discrepancy but allow test to proceed with minimum quantity
         logger.warning(
-            f"Balance calculation discrepancy for {symbol} order. "
-            f"Required: {min_quantity * price} {quote_currency}, "
-            f"Available: {available_balance} {quote_currency}, "
-            f"Total: {total_balance} {quote_currency}, "
-            f"Max affordable: {max_affordable_quantity} (with 2% fee buffer). "
-            "User confirmed sufficient balance - proceeding with minimum order size.",
+            "balance_calculation_discrepancy",
+            symbol=symbol,
+            required_amount=float(min_quantity * price),
+            available_balance=float(available_balance),
+            total_balance=float(total_balance),
+            max_affordable_quantity=float(max_affordable_quantity),
+            quote_currency=quote_currency,
+            message="Balance calculation discrepancy - proceeding with minimum order size",
         )
 
 

@@ -222,7 +222,7 @@ def test_margin_summary_immutability(base_margin_summary_data: dict[str, Any]) -
     logger = get_logger(__name__)
     original_exchange = summary.exchange
     try:
-        object.__setattr__(summary, "exchange", "new_exchange")
+        summary.exchange = "new_exchange"
         if summary.exchange != original_exchange:
             logger.warning(
                 f"Immutability Test Warning: object.__setattr__ modified frozen field 'exchange' "

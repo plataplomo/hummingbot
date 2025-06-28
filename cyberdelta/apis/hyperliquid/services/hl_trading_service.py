@@ -10,6 +10,7 @@ This version of the service returns Internal Domain Models by using the Hyperliq
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -1108,9 +1109,6 @@ class HyperliquidTradingService:
             )
 
         # Create a minimal order object with the information we have
-        from datetime import UTC, datetime
-
-        from cyberdelta.core.models.market.order import Order
 
         # Generate a client order ID if none provided
         client_order_id = (
@@ -1824,8 +1822,6 @@ class HyperliquidTradingService:
             )
 
             if cancel_args[0].client_order_id:
-                from cyberdelta.core.models.market.order import CancelOrderResult
-
                 cancel_result = CancelOrderResult(
                     symbol=cancel_result.symbol,
                     order_id=cancel_result.order_id,
@@ -1886,8 +1882,6 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult with cancellation status and details.
         """
-        from cyberdelta.core.models.enums import CancelOrderResultStatus
-
         # Debug logging to understand the response
         logger.debug(
             "cancel_order_response_debug",
@@ -2479,7 +2473,6 @@ class HyperliquidTradingService:
             OrderBook object with basic bid/ask data.
         """
         # Convert to OrderBook format
-        from datetime import UTC, datetime
 
         bids: list[tuple[Decimal, Decimal]] = []
         asks: list[tuple[Decimal, Decimal]] = []

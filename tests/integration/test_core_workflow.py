@@ -808,17 +808,26 @@ async def test_happy_path_full_cycle(
 
     # 6. Execute Sized Opportunity (sized_opportunity is now correct type)
     logger.info(
-        f"Executing opportunity: {sized_opportunity.opportunity.long_exchange} "
-        f"LONG {sized_opportunity.long_size} {symbol_bp}, "
-        f"{sized_opportunity.opportunity.short_exchange} "
-        f"SHORT {sized_opportunity.short_size} {symbol_hl}",
+        "executing_opportunity",
+        long_exchange=sized_opportunity.opportunity.long_exchange,
+        long_size=float(sized_opportunity.long_size),
+        long_symbol=symbol_bp,
+        short_exchange=sized_opportunity.opportunity.short_exchange,
+        short_size=float(sized_opportunity.short_size),
+        short_symbol=symbol_hl,
+        message="Executing arbitrage opportunity"
     )
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
         sized_opportunity,
     )
 
     # 7. Verify Execution Result from ExecutionHandler
-    logger.info(f"Execution result: {trade_execution_result}")
+    logger.info(
+        "trade_execution_result",
+        status=trade_execution_result.status.value,
+        error_message=trade_execution_result.error_message,
+        message="Trade execution completed",
+    )
     assert trade_execution_result.status == ExecutionStatus.COMPLETED, (
         f"Execution failed or incomplete: Status={trade_execution_result.status.name}, "
         f"Error='{trade_execution_result.error_message}'"
@@ -839,21 +848,35 @@ async def test_happy_path_full_cycle(
     assert hl_balance is not None
     assert bp_balance is not None
     logger.debug(
-        f"Final HL Balance: {hl_balance.total_quantity} "
-        f"(Available: {hl_balance.available_quantity})",
-    )  # Use correct fields
+        "final_hl_balance",
+        total_quantity=float(hl_balance.total_quantity),
+        available_quantity=float(hl_balance.available_quantity),
+        message=(
+            f"Final HL Balance: {hl_balance.total_quantity} "
+            f"(Available: {hl_balance.available_quantity})"
+        ),
+    )
     logger.debug(
-        f"Final BP Balance: {bp_balance.total_quantity} "
-        f"(Available: {bp_balance.available_quantity})",
-    )  # Use correct fields
+        "final_bp_balance", 
+        total_quantity=float(bp_balance.total_quantity),
+        available_quantity=float(bp_balance.available_quantity),
+        message=(
+            f"Final BP Balance: {bp_balance.total_quantity} "
+            f"(Available: {bp_balance.available_quantity})"
+        ),
+    )
     # Add assertions about balance changes if fees/costs are accurately simulated
 
     # Get final positions (should be updated by ExecutionHandler via PortfolioTracker.record_trade)
     hl_pos = portfolio_tracker.get_position("hyperliquid", symbol_base)
     bp_pos = portfolio_tracker.get_position("backpack", symbol_base)
 
-    logger.debug(f"Final HL Position: {hl_pos}")
-    logger.debug(f"Final BP Position: {bp_pos}")
+    logger.debug(
+        "final_positions_debug",
+        hl_position=str(hl_pos),
+        bp_position=str(bp_pos),
+        message="Final positions after execution",
+    )
 
     assert hl_pos is not None, f"Hyperliquid position ({symbol_base}) not found in tracker"
     assert bp_pos is not None, f"Backpack position ({symbol_base}) not found in tracker"
@@ -1020,7 +1043,12 @@ def _setup_bp_mock_behaviors(
     def place_order_side_effect(*args: object, **kwargs: object) -> Order:
         call_counts["place"] += 1
         side = kwargs.get("side")
-        logger.debug(f"MOCK BP place_order call {call_counts['place']}, side={side}")
+        logger.debug(
+            "mock_bp_place_order_call",
+            call_number=call_counts["place"],
+            side=side.value if side else None,
+            message="MOCK BP place_order call",
+        )
 
         if call_counts["place"] == 1 and side == OrderSide.BUY:
             return orders["initial"]
@@ -1030,13 +1058,21 @@ def _setup_bp_mock_behaviors(
 
     def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
+        logger.debug(
+            "mock_bp_get_order_status_called",
+            order_id=order_id,
+            message="MOCK BP get_order_status called",
+        )
 
         if order_id == order_ids["bp_long"]:
             return orders["initial"]
         if order_id == order_ids["bp_comp"]:
             return orders["compensation"]
-        logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
+        logger.warning(
+            "mock_bp_get_order_status_unknown_id",
+            order_id=order_id,
+            message="MOCK BP get_order_status: Unknown order ID",
+        )
         return None
 
     mocker.patch.object(mock_api, "place_order", side_effect=place_order_side_effect)
@@ -1106,7 +1142,12 @@ def _setup_hl_partial_fill_behaviors(
     def place_order_side_effect(*args: object, **kwargs: object) -> Order:
         hl_call_counts["place"] += 1
         side = kwargs.get("side")
-        logger.debug(f"MOCK HL place_order call {hl_call_counts['place']}, side={side}")
+        logger.debug(
+            "mock_hl_place_order_called",
+            call_count=hl_call_counts["place"],
+            side=side.value if side else None,
+            message="MOCK HL place_order call",
+        )
 
         if hl_call_counts["place"] == 1 and side == OrderSide.SELL:
             return hl_orders["initial"]
@@ -1114,13 +1155,21 @@ def _setup_hl_partial_fill_behaviors(
 
     def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
+        logger.debug(
+            "mock_hl_get_order_status_called",
+            order_id=order_id,
+            message="MOCK HL get_order_status called",
+        )
 
         if order_id == order_ids["hl_short"]:
             return hl_orders["initial"]
         if order_id == order_ids["hl_comp"]:
             return hl_orders["compensation"]
-        logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+        logger.warning(
+            "mock_hl_get_order_status_unknown_id",
+            order_id=order_id,
+            message="MOCK HL get_order_status: Unknown order ID",
+        )
         return None
 
     mocker.patch.object(mock_hl_api, "place_order", side_effect=place_order_side_effect)
@@ -1268,8 +1317,10 @@ async def test_partial_fill(
             internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
             if internal_sym is None:
                 logger.warning(
-                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} "
-                    f"to internal symbol. Skipping.",
+                    "test_funding_prep_mapping_failed_1",
+                    exchange_id=ex_id_key,
+                    exchange_symbol=ex_specific_sym,
+                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol. Skipping.",
                 )
                 continue
 
@@ -1285,7 +1336,11 @@ async def test_partial_fill(
     )
 
     # --- Logging and Assertions for Opportunities ---
-    logger.info(f"Generated {len(opportunities)} opportunities.")
+    logger.info(
+        "arbitrage_opportunities_generated",
+        opportunity_count=len(opportunities),
+        message=f"Generated {len(opportunities)} opportunities.",
+    )
     if not opportunities:
         logger.warning("No opportunities generated. This is unexpected.")
         return
@@ -1314,9 +1369,17 @@ async def test_partial_fill(
 
     # --- Add Debug Logging ---
     # Get balances using internal dict for test verification
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker.balances}")
+    logger.debug(
+        "portfolio_balances_before_validation",
+        balances=portfolio_tracker.balances,
+        message="PT Balances before RM validation",
+    )
     total_cap_debug = await portfolio_tracker.get_total_capital()  # Added await
-    logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
+    logger.debug(
+        "portfolio_total_capital_before_validation",
+        total_capital=str(total_cap_debug),
+        message="PT get_total_capital() before RM validation",
+    )
     # --- End Debug Logging ---
 
     # 2. Validate & Size
@@ -1337,7 +1400,11 @@ async def test_partial_fill(
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
         sized_opportunity,  # Pass SizedOpportunity
     )
-    logger.info(f"Execution result: {trade_execution_result}")
+    logger.info(
+        "execution_result",
+        execution_status=trade_execution_result.status.value,
+        message="Execution result",
+    )
 
     # 4. Verification
     # Verify that the execution handler correctly identifies the partial fill
@@ -1359,8 +1426,16 @@ async def test_partial_fill(
     bp_final_pos = portfolio_tracker.get_position("backpack", symbol_key)
     hl_final_pos = portfolio_tracker.get_position("hyperliquid", symbol_key)
 
-    logger.debug(f"Final BP Position after partial fill scenario: {bp_final_pos}")
-    logger.debug(f"Final HL Position after partial fill scenario: {hl_final_pos}")
+    logger.debug(
+        "final_bp_position_partial_fill",
+        position=str(bp_final_pos),
+        message="Final BP Position after partial fill scenario",
+    )
+    logger.debug(
+        "final_hl_position_partial_fill",
+        position=str(hl_final_pos),
+        message="Final HL Position after partial fill scenario",
+    )
 
     # Check the state *as left* by the ExecutionHandler
     # (which doesn't wait for full fills/compensation)
@@ -1548,7 +1623,12 @@ def _setup_bp_compensation_mock_behaviors(
     def place_order_side_effect(*args: object, **kwargs: object) -> Order:
         call_counts["place"] += 1
         side = kwargs.get("side")
-        logger.debug(f"MOCK BP place_order (call {call_counts['place']}, side={side}) called")
+        logger.debug(
+            "mock_bp_place_order_compensation_called",
+            call_count=call_counts["place"],
+            side=side.value if side else None,
+            message="MOCK BP place_order called",
+        )
 
         if call_counts["place"] == 1 and side == OrderSide.BUY:
             logger.debug("MOCK BP place_order: Returning successful initial long order.")
@@ -1557,7 +1637,10 @@ def _setup_bp_compensation_mock_behaviors(
             logger.debug("MOCK BP place_order: Returning successful compensation sell order.")
             return compensation_order
         logger.error(
-            f"MOCK BP place_order: Unexpected call {call_counts['place']} with side {side}",
+            "mock_bp_place_order_unexpected_call",
+            call_count=call_counts["place"],
+            side=side.value if side else None,
+            message="MOCK BP place_order: Unexpected call",
         )
         raise MockAPIError(
             f"Unexpected BP place_order call {call_counts['place']} with side {side}",
@@ -1565,7 +1648,11 @@ def _setup_bp_compensation_mock_behaviors(
 
     def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK BP get_order_status called for ID: {order_id}")
+        logger.debug(
+            "mock_bp_get_order_status_compensation_called",
+            order_id=order_id,
+            message="MOCK BP get_order_status called",
+        )
 
         if order_id == long_order_id:
             logger.debug("MOCK BP get_order_status: Returning status for initial long order.")
@@ -1573,7 +1660,11 @@ def _setup_bp_compensation_mock_behaviors(
         if order_id == comp_order_id:
             logger.debug("MOCK BP get_order_status: Returning status for compensation order.")
             return compensation_order
-        logger.warning(f"MOCK BP get_order_status: Unknown order ID {order_id}")
+        logger.warning(
+            "mock_bp_get_order_status_unknown_id_compensation",
+            order_id=order_id,
+            message="MOCK BP get_order_status: Unknown order ID",
+        )
         return None
 
     if not hasattr(mock_api.place_order, "call_args_list"):
@@ -1648,14 +1739,21 @@ def _setup_hl_compensation_mock_behaviors(
         call_counts["place"] += 1
         side = kwargs.get("side")
         logger.debug(
-            f"MOCK HL place_order call {call_counts['place']}, side={side}, qty={target_qty}",
+            "mock_hl_place_order_compensation_called",
+            call_count=call_counts["place"],
+            side=side.value if side else None,
+            target_qty=str(target_qty),
+            message="MOCK HL place_order called",
         )
 
         if call_counts["place"] == 1 and side == OrderSide.SELL:
             logger.debug("MOCK HL place_order: Raising simulated API error.")
             raise api_error
         logger.error(
-            f"MOCK HL place_order: Unexpected call {call_counts['place']} with side {side}",
+            "mock_hl_place_order_unexpected_call",
+            call_count=call_counts["place"],
+            side=side.value if side else None,
+            message="MOCK HL place_order: Unexpected call",
         )
         raise MockAPIError(
             f"Unexpected HL place_order call {call_counts['place']} with side {side}",
@@ -1663,17 +1761,31 @@ def _setup_hl_compensation_mock_behaviors(
 
     def get_order_status_side_effect(*args: object, **kwargs: object) -> Order | None:
         order_id = kwargs.get("order_id") or (args[1] if len(args) > 1 else None)
-        logger.debug(f"MOCK HL get_order_status called for ID: {order_id}")
+        logger.debug(
+            "mock_hl_get_order_status_compensation_called",
+            order_id=order_id,
+            message="MOCK HL get_order_status called",
+        )
 
         if order_id == order_ids["hl_short"]:
-            logger.debug(f"MOCK HL get_order_status: Returning FILLED for initial order {order_id}")
+            logger.debug(
+                "mock_hl_returning_filled_initial_order",
+                order_id=order_id,
+                message="MOCK HL get_order_status: Returning FILLED for initial order",
+            )
             return orders["initial"]
         if order_id == order_ids["hl_comp"]:
             logger.debug(
-                f"MOCK HL get_order_status: Returning FILLED for compensation order {order_id}",
+                "mock_hl_returning_filled_compensation_order",
+                order_id=order_id,
+                message="MOCK HL get_order_status: Returning FILLED for compensation order",
             )
             return orders["compensation"]
-        logger.warning(f"MOCK HL get_order_status: Unknown order ID {order_id}")
+        logger.warning(
+            "mock_hl_get_order_status_unknown_id_compensation",
+            order_id=order_id,
+            message="MOCK HL get_order_status: Unknown order ID",
+        )
         return None
 
     if not hasattr(mock_api.place_order, "call_args_list"):
@@ -1698,8 +1810,10 @@ def _prepare_funding_data(
             internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
             if internal_sym is None:
                 logger.warning(
-                    f"TEST_FUNDING_PREP: Could not map {ex_id_key}/{ex_specific_sym} "
-                    f"to internal symbol. Skipping.",
+                    "test_funding_prep_mapping_failed_2",
+                    exchange_id=ex_id_key,
+                    exchange_symbol=ex_specific_sym,
+                    message="TEST_FUNDING_PREP: Could not map exchange symbol to internal symbol. Skipping.",
                 )
                 continue
             sg_funding_data[internal_sym][ex_id_key] = rate_data_obj
@@ -1732,7 +1846,11 @@ def _validate_opportunities(
     Returns:
         First valid arbitrage opportunity from the list.
     """
-    logger.info(f"Generated {len(opportunities)} opportunities.")
+    logger.info(
+        "opportunities_generated",
+        opportunities_count=len(opportunities),
+        message="Generated opportunities",
+    )
     if not opportunities:
         logger.warning("No opportunities generated. This is unexpected.")
         raise ValueError("No opportunities generated")
@@ -1762,9 +1880,17 @@ def _validate_opportunities(
 
 async def _log_debug_info(portfolio_tracker: PortfolioTracker) -> None:
     """Log debug information about portfolio tracker state."""
-    logger.debug(f"PT Balances before RM validation: {portfolio_tracker.balances}")
+    logger.debug(
+        "portfolio_balances_debug_info",
+        balances=portfolio_tracker.balances,
+        message="PT Balances before RM validation",
+    )
     total_cap_debug = await portfolio_tracker.get_total_capital()
-    logger.debug(f"PT get_total_capital() before RM validation: {total_cap_debug}")
+    logger.debug(
+        "portfolio_total_capital_debug_info",
+        total_capital=str(total_cap_debug),
+        message="PT get_total_capital() before RM validation",
+    )
 
 
 @pytest.mark.skip(reason="Compensation flow needs ExecutionCompensationHandler implementation")
@@ -1957,7 +2083,11 @@ async def test_execution_failure_compensation(
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
         sized_opportunity,  # Pass SizedOpportunity
     )
-    logger.info(f"Execution result: {trade_execution_result}")
+    logger.info(
+        "execution_result",
+        execution_status=trade_execution_result.status.value,
+        message="Execution result",
+    )
 
     # 4. Verification
     assert trade_execution_result.status == ExecutionStatus.FAILED, (
@@ -1989,14 +2119,29 @@ async def test_execution_failure_compensation(
         f"but got {final_hl_pos.size if final_hl_pos else 'None'}"
     )
 
-    logger.info(f"Final BP Position: {final_bp_pos}")
-    logger.info(f"Final HL Position: {final_hl_pos}")
+    logger.info(
+        "final_bp_position",
+        position=str(final_bp_pos),
+        message="Final BP Position",
+    )
+    logger.info(
+        "final_hl_position",
+        position=str(final_hl_pos),
+        message="Final HL Position",
+    )
     # Get balances using internal dict for test verification
     logger.info(
-        f"Final mock_hl USD Balance after compensation test: "
-        f"{portfolio_tracker.get_exchange_balance('mock_hl', 'USD')}",
+        "final_mock_hl_usd_balance",
+        exchange="mock_hl",
+        asset="USD",
+        balance=str(portfolio_tracker.get_exchange_balance("mock_hl", "USD")),
+        message="Final mock_hl USD Balance after compensation test",
     )
-    logger.info(f"Final Balances: {portfolio_tracker.balances}")
+    logger.info(
+        "final_balances",
+        balances=portfolio_tracker.balances,
+        message="Final Balances",
+    )
 
     # Check logs for confirmation
     expected_log_part = (
@@ -2091,7 +2236,11 @@ async def test_failed_execution(
 
     # Verify balances are set
     total_balance = await portfolio_tracker.get_total_capital()
-    logger.info(f"Total balance after setup: {total_balance}")
+    logger.info(
+        "total_balance_after_setup",
+        total_balance=str(total_balance),
+        message="Total balance after setup",
+    )
 
     # --- Simulate API Error on one leg ---
     target_qty = Decimal("0.5")
@@ -2178,7 +2327,12 @@ async def test_failed_execution(
     trade_execution_result = await execution_handler.execute_opportunity(sized_opportunity)
 
     # --- Verify Result ---
-    logger.info(f"Execution result for failed leg: {trade_execution_result}")
+    logger.info(
+        "execution_result_failed_leg",
+        execution_status=trade_execution_result.status.value,
+        error_message=trade_execution_result.error_message,
+        message="Execution result for failed leg",
+    )
     assert trade_execution_result.status == ExecutionStatus.FAILED
     assert trade_execution_result.error_message is not None
     assert "Simulated placement error" in trade_execution_result.error_message

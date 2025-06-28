@@ -138,8 +138,17 @@ class TestBackpackSpotOrdersPositiveBalance:
             )
 
         logger.info(
-            f"✓ Market order executed: {placed_order.exchange_order_id}, "
-            f"status: {placed_order.status}, filled: {placed_order.quantity_filled}",
+            "market_order_executed",
+            order_id=placed_order.exchange_order_id,
+            status=str(placed_order.status),
+            quantity_filled=(
+                float(placed_order.quantity_filled) 
+                if placed_order.quantity_filled else None
+            ),
+            message=(
+                f"✓ Market order executed: {placed_order.exchange_order_id}, "
+                f"status: {placed_order.status}, filled: {placed_order.quantity_filled}"
+            ),
         )
 
     @pytest.mark.vcr
@@ -202,7 +211,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                     symbol=symbol,
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
-                logger.info(f"✓ Stop market order cleaned up: {placed_order.exchange_order_id}")
+                logger.info(
+                    "stop_market_order_cleaned",
+                    order_id=placed_order.exchange_order_id,
+                    message=f"✓ Stop market order cleaned up: {placed_order.exchange_order_id}",
+                )
             except Exception as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
@@ -276,7 +289,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                     symbol=symbol,
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
-                logger.info(f"✓ Stop limit order cleaned up: {placed_order.exchange_order_id}")
+                logger.info(
+                    "stop_limit_order_cleaned",
+                    order_id=placed_order.exchange_order_id,
+                    message=f"✓ Stop limit order cleaned up: {placed_order.exchange_order_id}",
+                )
             except Exception as e:
                 # Order cancellation should work if order was placed successfully
                 pytest.fail(
@@ -348,7 +365,12 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
                 logger.info(
-                    f"✓ Take profit market order cleaned up: {placed_order.exchange_order_id}",
+                    "take_profit_market_order_cleaned",
+                    order_id=placed_order.exchange_order_id,
+                    message=(
+                        f"✓ Take profit market order cleaned up: "
+                        f"{placed_order.exchange_order_id}"
+                    ),
                 )
             except Exception as e:
                 # Order cancellation should work if order was placed successfully
@@ -426,7 +448,12 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
                 await bp_api_for_test_env.cancel_order(cancel_args)
                 logger.info(
-                    f"✓ Take profit limit order cleaned up: {placed_order.exchange_order_id}",
+                    "take_profit_limit_order_cleaned",
+                    order_id=placed_order.exchange_order_id,
+                    message=(
+                        f"✓ Take profit limit order cleaned up: "
+                        f"{placed_order.exchange_order_id}"
+                    ),
                 )
             except Exception as e:
                 # Order cancellation should work if order was placed successfully
@@ -478,7 +505,11 @@ class TestBackpackSpotOrdersPositiveBalance:
             f"Market order should execute immediately, got {entry_order.status}"
         )
 
-        logger.info(f"✓ Entry order executed: {entry_order.exchange_order_id}")
+        logger.info(
+            "entry_order_executed",
+            order_id=entry_order.exchange_order_id,
+            message=f"✓ Entry order executed: {entry_order.exchange_order_id}",
+        )
 
         # Step 2: Place stop loss order (assuming we now have position)
         if entry_order.status == OrderStatus.FILLED:
@@ -505,7 +536,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                     f"Stop order should be pending, got {stop_order.status}"
                 )
 
-                logger.info(f"✓ Stop loss placed: {stop_order.exchange_order_id}")
+                logger.info(
+                    "stop_loss_placed",
+                    order_id=stop_order.exchange_order_id,
+                    message=f"✓ Stop loss placed: {stop_order.exchange_order_id}",
+                )
 
                 # Clean up stop loss
                 if stop_order.exchange_order_id:
@@ -526,7 +561,11 @@ class TestBackpackSpotOrdersPositiveBalance:
             except Exception as e:
                 # Stop loss placement may fail if we don't have a position
                 if "position" in str(e).lower() or "balance" in str(e).lower():
-                    logger.info(f"Stop loss correctly rejected - no position: {e}")
+                    logger.info(
+                        "stop_loss_rejected_no_position",
+                        error=str(e),
+                        message=f"Stop loss correctly rejected - no position: {e}",
+                    )
                 else:
                     pytest.fail(
                         f"Stop loss placement failed with unexpected error: {e}. "
@@ -634,8 +673,13 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
 
                 logger.info(
-                    f"✓ {test_case['order_type'].value} order validation passed: "
-                    f"{placed_order.exchange_order_id}",
+                    "order_validation_passed",
+                    order_type=test_case["order_type"].value,
+                    order_id=placed_order.exchange_order_id,
+                    message=(
+                        f"✓ {test_case['order_type'].value} order validation passed: "
+                        f"{placed_order.exchange_order_id}"
+                    ),
                 )
 
             except Exception as e:
@@ -664,7 +708,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                         "Order cancellation is a critical operation that must work.",
                     )
 
-        logger.info(f"✓ Parameter validation completed for {len(placed_orders)} order types")
+        logger.info(
+            "parameter_validation_completed",
+            order_types_count=len(placed_orders),
+            message=f"✓ Parameter validation completed for {len(placed_orders)} order types",
+        )
 
     # =============================================================================
     # EDGE CASE AND PRECISION TESTS
@@ -741,8 +789,15 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
 
                 logger.info(
-                    f"✓ Precision test '{test_case['name']}' passed: "
-                    f"qty={placed_order.quantity_requested}, price={placed_order.price}",
+                    "precision_test_passed",
+                    test_name=test_case["name"],
+                    quantity_requested=float(placed_order.quantity_requested),
+                    price=float(placed_order.price) if placed_order.price else None,
+                    order_id=placed_order.exchange_order_id,
+                    message=(
+                        f"✓ Precision test '{test_case['name']}' passed: "
+                        f"qty={placed_order.quantity_requested}, price={placed_order.price}"
+                    ),
                 )
 
             except Exception as e:
@@ -768,7 +823,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                         "Order cancellation is a critical operation that must work.",
                     )
 
-        logger.info(f"✓ Extreme precision tests completed: {len(placed_orders)} orders tested")
+        logger.info(
+            "extreme_precision_tests_completed",
+            orders_tested=len(placed_orders),
+            message=f"✓ Extreme precision tests completed: {len(placed_orders)} orders tested",
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -822,8 +881,14 @@ class TestBackpackSpotOrdersPositiveBalance:
                 )
 
                 logger.info(
-                    f"✓ Large order {multiplier}x minimum accepted: "
-                    f"qty={large_quantity}, id={placed_order.exchange_order_id}",
+                    "large_order_accepted",
+                    multiplier=multiplier,
+                    quantity=float(large_quantity),
+                    order_id=placed_order.exchange_order_id,
+                    message=(
+                        f"✓ Large order {multiplier}x minimum accepted: "
+                        f"qty={large_quantity}, id={placed_order.exchange_order_id}"
+                    ),
                 )
 
             except Exception as e:
@@ -833,7 +898,12 @@ class TestBackpackSpotOrdersPositiveBalance:
                     or "insufficient" in str(e).lower()
                     or "limit" in str(e).lower()
                 ):
-                    logger.info(f"Large order {multiplier}x correctly rejected due to limits: {e}")
+                    logger.info(
+                        "large_order_rejected_limits",
+                        multiplier=multiplier,
+                        error=str(e),
+                        message=f"Large order {multiplier}x correctly rejected due to limits: {e}",
+                    )
                     break  # Expected - stop testing larger orders
                 pytest.fail(
                     f"Large order {multiplier}x failed with unexpected error: {e}. "
@@ -856,7 +926,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                         "Order cancellation is a critical operation that must work.",
                     )
 
-        logger.info(f"✓ Large order edge case tests completed: {len(placed_orders)} orders tested")
+        logger.info(
+            "large_order_edge_case_tests_completed",
+            orders_tested=len(placed_orders),
+            message=f"✓ Large order edge case tests completed: {len(placed_orders)} orders tested",
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -911,7 +985,12 @@ class TestBackpackSpotOrdersPositiveBalance:
                 assert placed_order.symbol == symbol, f"Symbol mismatch: expected {symbol}"
                 assert placed_order.status == OrderStatus.OPEN, f"Order for {symbol} should be open"
 
-                logger.info(f"✓ Order placed for {symbol}: {placed_order.exchange_order_id}")
+                logger.info(
+                    "order_placed_for_symbol",
+                    symbol=symbol,
+                    order_id=placed_order.exchange_order_id,
+                    message=f"✓ Order placed for {symbol}: {placed_order.exchange_order_id}",
+                )
 
             except Exception as e:
                 # Multi-symbol order placement should work
@@ -931,7 +1010,11 @@ class TestBackpackSpotOrdersPositiveBalance:
                 for order_id in placed_order_ids:
                     assert order_id in open_order_ids, f"Order {order_id} should be in open orders"
 
-                logger.info(f"✓ All {len(placed_orders)} orders found in open orders query")
+                logger.info(
+                    "all_orders_found_in_open_query",
+                    orders_count=len(placed_orders),
+                    message=f"✓ All {len(placed_orders)} orders found in open orders query",
+                )
 
             except Exception as e:
                 # Open orders query should work
@@ -957,5 +1040,10 @@ class TestBackpackSpotOrdersPositiveBalance:
                     )
 
         logger.info(
-            f"✓ Multi-symbol order management completed: {len(test_symbols)} symbols tested",
+            "multi_symbol_order_management_completed",
+            symbols_tested=len(test_symbols),
+            message=(
+                f"✓ Multi-symbol order management completed: "
+                f"{len(test_symbols)} symbols tested"
+            ),
         )

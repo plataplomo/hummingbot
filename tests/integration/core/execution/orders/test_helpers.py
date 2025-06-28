@@ -69,19 +69,28 @@ class MarketOrderTestHelpers:
         """
         # Debug: print available market types
         market_types = {m.market_type for m in markets}
-        logger.info(f"Available market types on Backpack: {market_types}")
+        logger.info(
+            "available_market_types_backpack",
+            market_types=list(market_types),
+            message="Available market types on Backpack",
+        )
 
         # Filter for spot markets - Backpack returns "SPOT" in uppercase
         spot_markets = [m for m in markets if m.market_type.upper() == "SPOT"]
         if not spot_markets:
             # If no spot markets, try to use any available market for testing
             logger.warning(
-                f"No spot markets found. Available markets: "
-                f"{[(m.symbol, m.market_type) for m in markets[:5]]}",
+                "no_spot_markets_found",
+                available_markets=[(m.symbol, m.market_type) for m in markets[:5]],
+                message="No spot markets found. Available markets",
             )
             if markets:
                 # Use first available market as fallback
-                logger.info(f"Using first available market: {markets[0].symbol}")
+                logger.info(
+                    "using_first_available_market",
+                    symbol=markets[0].symbol,
+                    message="Using first available market",
+                )
                 return markets[0].symbol
 
             raise RuntimeError(
@@ -177,8 +186,10 @@ class MarketOrderTestHelpers:
                 )
 
                 logger.info(
-                    f"Using Hyperliquid minimal order size for {symbol}: {minimal_quantity} "
-                    f"(meets $10 minimum notional requirement)",
+                    "using_hyperliquid_minimal_order_size",
+                    symbol=symbol,
+                    minimal_quantity=str(minimal_quantity),
+                    message="Using Hyperliquid minimal order size (meets $10 minimum notional requirement)",
                 )
 
                 return minimal_quantity
@@ -206,8 +217,11 @@ class MarketOrderTestHelpers:
             minimal_quantity = market.min_quantity
 
             logger.info(
-                f"Using exchange minimum quantity for {symbol}: {minimal_quantity} "
-                f"(step_size: {market.step_size})",
+                "using_exchange_minimum_quantity",
+                symbol=symbol,
+                minimal_quantity=str(minimal_quantity),
+                step_size=str(market.step_size),
+                message="Using exchange minimum quantity",
             )
 
             return minimal_quantity
@@ -268,7 +282,11 @@ class MarketOrderTestHelpers:
                         continue
 
             except Exception as e:
-                logger.debug(f"Error checking order status: {e}")
+                logger.debug(
+                    "error_checking_order_status",
+                    error=str(e),
+                    message="Error checking order status",
+                )
 
             await asyncio.sleep(0.1)
 
@@ -314,24 +332,31 @@ class MarketOrderTestHelpers:
                 orders = await exchange_api.get_order_history(history_args)
 
                 logger.debug(
-                    f"Retrieved {len(orders) if orders else 0} orders from history, "
-                    f"looking for {order.exchange_order_id}",
+                    "retrieved_orders_from_history",
+                    orders_count=len(orders) if orders else 0,
+                    looking_for_order_id=order.exchange_order_id,
+                    message="Retrieved orders from history",
                 )
 
                 if orders:
                     # Check if our order is in the history
                     for i, historical_order in enumerate(orders):
                         logger.debug(
-                            f"Order {i + 1}: {historical_order.exchange_order_id} "
-                            f"(status: {historical_order.status}, "
-                            f"symbol: {historical_order.symbol})",
+                            "order_history_item",
+                            order_number=i + 1,
+                            order_id=historical_order.exchange_order_id,
+                            status=historical_order.status.value,
+                            symbol=historical_order.symbol,
+                            message="Order history item",
                         )
 
                         # Compare both as strings to handle type mismatches
                         if str(historical_order.exchange_order_id) == str(order.exchange_order_id):
                             logger.info(
-                                f"✅ Order {order.exchange_order_id} found in history "
-                                f"at position {i + 1}",
+                                "order_found_in_history",
+                                order_id=order.exchange_order_id,
+                                position=i + 1,
+                                message="✅ Order found in history",
                             )
                             return True
                         if (
@@ -340,8 +365,10 @@ class MarketOrderTestHelpers:
                             and str(historical_order.client_order_id) == str(order.client_order_id)
                         ):
                             logger.info(
-                                f"✅ Order {order.client_order_id} found in history "
-                                f"by client ID at position {i + 1}",
+                                "order_found_by_client_id",
+                                client_order_id=order.client_order_id,
+                                position=i + 1,
+                                message="✅ Order found in history by client ID",
                             )
                             return True
                 else:
@@ -354,7 +381,11 @@ class MarketOrderTestHelpers:
                 if trades:
                     for trade in trades:
                         if trade.order_id == order.exchange_order_id:
-                            logger.info(f"Order {order.exchange_order_id} found in trades")
+                            logger.info(
+                                "order_found_in_trades",
+                                order_id=order.exchange_order_id,
+                                message="Order found in trades",
+                            )
                             return True
 
             except Exception as e:
@@ -409,8 +440,10 @@ class MarketOrderTestHelpers:
                     )
                     return historical_order.quantity_filled
                 logger.debug(
-                    f"Found order {order_id} but quantity_filled is "
-                    f"{historical_order.quantity_filled}",
+                    "found_order_but_zero_quantity",
+                    order_id=order_id,
+                    quantity_filled=str(historical_order.quantity_filled),
+                    message="Found order but quantity_filled is zero",
                 )
 
         return None
@@ -432,14 +465,21 @@ class MarketOrderTestHelpers:
             if not trades:
                 return None
 
-            logger.debug(f"Retrieved {len(trades)} trades from history")
+            logger.debug(
+                "retrieved_trades_from_history",
+                trades_count=len(trades),
+                message="Retrieved trades from history",
+            )
             total_filled = Decimal(0)
             matching_trades = 0
 
             for trade in trades:
                 logger.debug(
-                    f"Checking trade: order_id={trade.order_id}, "
-                    f"quantity={trade.quantity}, symbol={trade.symbol}",
+                    "checking_trade",
+                    trade_order_id=trade.order_id,
+                    trade_quantity=str(trade.quantity),
+                    trade_symbol=trade.symbol,
+                    message="Checking trade",
                 )
                 if trade.order_id == order_id:
                     total_filled += trade.quantity
@@ -447,14 +487,27 @@ class MarketOrderTestHelpers:
 
             if total_filled > 0:
                 logger.info(
-                    f"Found {matching_trades} trades for order {order_id} totaling: {total_filled}",
+                    "trades_found_for_order",
+                    matching_trades_count=matching_trades,
+                    order_id=order_id,
+                    total_filled=str(total_filled),
+                    message="Found trades for order",
                 )
                 return total_filled
-            logger.debug(f"No matching trades found for order {order_id}")
+            logger.debug(
+                "no_matching_trades_found",
+                order_id=order_id,
+                message="No matching trades found for order",
+            )
 
         except Exception as trade_error:
             # Trades endpoint may not be available for all market types (e.g., PERP markets)
-            logger.debug(f"Trade history access failed for order {order_id}: {trade_error}")
+            logger.debug(
+                "trade_history_access_failed",
+                order_id=order_id,
+                error=str(trade_error),
+                message="Trade history access failed for order",
+            )
 
         return None
 
@@ -485,7 +538,11 @@ class MarketOrderTestHelpers:
         for attempt in range(max_retries):
             try:
                 logger.debug(
-                    f"Attempt {attempt + 1}/{max_retries}: Looking for order {order_id} in history",
+                    "looking_for_order_in_history",
+                    attempt=attempt + 1,
+                    max_retries=max_retries,
+                    order_id=order_id,
+                    message="Looking for order in history",
                 )
 
                 # Prepare history args with time window
@@ -517,18 +574,27 @@ class MarketOrderTestHelpers:
                 # If this is not the last attempt, wait before retrying
                 if attempt < max_retries - 1:
                     logger.debug(
-                        f"Order {order_id} not found in history, waiting {retry_delay}s "
-                        f"before retry {attempt + 2}",
+                        "order_not_found_waiting_retry",
+                        order_id=order_id,
+                        retry_delay=retry_delay,
+                        next_attempt=attempt + 2,
+                        message="Order not found in history, waiting before retry",
                     )
                     await asyncio.sleep(retry_delay)
                 else:
                     logger.warning(
-                        f"Order {order_id} not found in history after {max_retries} attempts",
+                        "order_not_found_after_retries",
+                        order_id=order_id,
+                        max_retries=max_retries,
+                        message="Order not found in history after retries",
                     )
 
             except Exception as e:
                 logger.error(
-                    f"Error getting filled quantity from history (attempt {attempt + 1}): {e}",
+                    "error_getting_filled_quantity",
+                    attempt=attempt + 1,
+                    error=str(e),
+                    message="Error getting filled quantity from history",
                 )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(retry_delay)
@@ -557,7 +623,11 @@ class MarketOrderTestHelpers:
                                 order_id=order.exchange_order_id or order.client_order_id,
                             )
                             await exchange_api.cancel_order(cancel_args)
-                            logger.info(f"Cancelled open order: {order.exchange_order_id}")
+                            logger.info(
+                                "cancelled_open_order",
+                                order_id=order.exchange_order_id,
+                                message="Cancelled open order",
+                            )
                         except Exception as e:
                             raise RuntimeError(
                                 f"Failed to cancel order {order.exchange_order_id}: {e}. "

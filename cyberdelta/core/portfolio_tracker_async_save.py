@@ -10,13 +10,11 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
-
-if TYPE_CHECKING:
-    from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 logger = get_logger(__name__)
 
@@ -242,8 +240,6 @@ async def _async_read_file(file_path: str) -> str:
 # Monkey-patch the methods to PortfolioTracker
 def patch_portfolio_tracker() -> None:
     """Patch the PortfolioTracker class with async save/load methods."""
-    from cyberdelta.core.portfolio_tracker import PortfolioTracker
-
     # Replace the placeholder methods with our async implementations
     # Cast to Any to satisfy type checker, then assign methods
     pt_any = cast("Any", PortfolioTracker)

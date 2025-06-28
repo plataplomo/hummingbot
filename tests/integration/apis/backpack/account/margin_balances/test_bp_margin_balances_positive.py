@@ -250,16 +250,19 @@ class TestBackpackMarginBalancesPositive:
 
             # Log the actual value for debugging
             logger.info(
-                f"Margin fraction from API: {margin_fraction}, "
-                f"Maintenance margin: {account_summary.total_maintenance_margin_required}, "
-                f"Total equity: {account_summary.total_equity}",
+                "margin_fraction_debug_info",
+                margin_fraction=margin_fraction,
+                maintenance_margin=account_summary.total_maintenance_margin_required,
+                total_equity=account_summary.total_equity,
+                message="Margin fraction from API with maintenance margin and total equity values",
             )
 
             # If margin fraction is > 1, it indicates leverage or high margin usage
             if margin_fraction > Decimal(1):
                 logger.info(
-                    "Margin fraction > 1 indicates leveraged position or "
-                    f"high margin usage: {margin_fraction}",
+                    "high_margin_usage_detected",
+                    margin_fraction=margin_fraction,
+                    message="Margin fraction > 1 indicates leveraged position or high margin usage",
                 )
 
         # Available equity should account for margin requirements

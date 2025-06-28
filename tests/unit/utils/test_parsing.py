@@ -6,6 +6,7 @@ Tests parsing functions for various data types including decimals, datetimes, an
 import math
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -92,7 +93,10 @@ class TestParseDatetimeUTC:
     def test_datetime_passthrough(self) -> None:
         """Should return aware datetime unchanged, or make naive datetime UTC-aware."""
         dt_aware = datetime(2023, 1, 1, 12, 0, tzinfo=UTC)
-        dt_naive = datetime(2023, 1, 1, 12, 0)
+        dt_naive_construction = datetime(2023, 1, 1, 12, 0, tzinfo=UTC)
+        dt_naive = dt_naive_construction.replace(
+            tzinfo=None
+        )  # Create truly naive datetime for test
         assert parse_datetime_utc(dt_aware) == dt_aware
         result = parse_datetime_utc(dt_naive)
         assert result is not None
@@ -127,7 +131,6 @@ class TestParseDatetimeUTC:
     def test_invalid_type(self) -> None:
         """Should raise ValueError for unsupported type."""
         # Testing with an invalid type by using cast to bypass type checking
-        from typing import cast
 
         invalid_value = cast("str", [])  # Cast list to str to satisfy type checker
         with pytest.raises(ValueError, match="Unsupported datetime type"):

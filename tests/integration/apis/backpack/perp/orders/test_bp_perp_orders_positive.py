@@ -123,8 +123,11 @@ class TestBackpackPerpOrdersPositiveBalance:
             )
 
         logger.info(
-            f"✓ Perp market order executed: {placed_order.exchange_order_id}, "
-            f"status: {placed_order.status}, filled: {placed_order.quantity_filled}",
+            "perp_market_order_executed",
+            order_id=placed_order.exchange_order_id,
+            status=placed_order.status,
+            quantity_filled=placed_order.quantity_filled,
+            message="Perp market order executed successfully",
         )
 
     @pytest.mark.vcr
@@ -177,8 +180,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_loss_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop LOSS order placed: {stop_loss_order.exchange_order_id}, "
-            f"status: {stop_loss_order.status}",
+            "stop_loss_order_placed",
+            order_id=stop_loss_order.exchange_order_id,
+            status=stop_loss_order.status,
+            message="Stop LOSS order placed successfully",
         )
 
         # Test 2: STOP BUY (BUY above current price)
@@ -209,8 +214,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop BUY order placed: {stop_buy_order.exchange_order_id}, "
-            f"status: {stop_buy_order.status}",
+            "stop_buy_order_placed",
+            order_id=stop_buy_order.exchange_order_id,
+            status=stop_buy_order.status,
+            message="Stop BUY order placed successfully",
         )
 
         # Clean up both orders
@@ -225,7 +232,12 @@ class TestBackpackPerpOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                    logger.info(f"✓ {order_name} order cleaned up: {order.exchange_order_id}")
+                    logger.info(
+                        "order_cleaned_up",
+                        order_name=order_name,
+                        order_id=order.exchange_order_id,
+                        message="Order cleaned up successfully",
+                    )
                 except Exception as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
@@ -287,8 +299,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_loss_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop LOSS LIMIT order placed: {stop_loss_order.exchange_order_id}, "
-            f"status: {stop_loss_order.status}",
+            "stop_loss_limit_order_placed",
+            order_id=stop_loss_order.exchange_order_id,
+            status=stop_loss_order.status,
+            message="Stop LOSS LIMIT order placed successfully",
         )
 
         # Test 2: STOP BUY LIMIT (BUY above current price)
@@ -323,8 +337,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert stop_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Stop BUY LIMIT order placed: {stop_buy_order.exchange_order_id}, "
-            f"status: {stop_buy_order.status}",
+            "stop_buy_limit_order_placed",
+            order_id=stop_buy_order.exchange_order_id,
+            status=stop_buy_order.status,
+            message="Stop BUY LIMIT order placed successfully",
         )
 
         # Clean up both orders
@@ -342,7 +358,12 @@ class TestBackpackPerpOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                    logger.info(f"✓ {order_name} order cleaned up: {order.exchange_order_id}")
+                    logger.info(
+                        "order_cleaned_up",
+                        order_name=order_name,
+                        order_id=order.exchange_order_id,
+                        message="Order cleaned up successfully",
+                    )
                 except Exception as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
@@ -403,8 +424,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert tp_sell_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit SELL order placed: {tp_sell_order.exchange_order_id}, "
-            f"status: {tp_sell_order.status}",
+            "take_profit_sell_order_placed",
+            order_id=tp_sell_order.exchange_order_id,
+            status=tp_sell_order.status,
+            message="Take Profit SELL order placed successfully",
         )
 
         # Test 2: TAKE PROFIT BUY (for short position - buy below current price)
@@ -438,8 +461,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert tp_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit BUY order placed: {tp_buy_order.exchange_order_id}, "
-            f"status: {tp_buy_order.status}",
+            "take_profit_buy_order_placed",
+            order_id=tp_buy_order.exchange_order_id,
+            status=tp_buy_order.status,
+            message="Take Profit BUY order placed successfully",
         )
 
         # Clean up both orders
@@ -457,7 +482,12 @@ class TestBackpackPerpOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                    logger.info(f"✓ {order_name} order cleaned up: {order.exchange_order_id}")
+                    logger.info(
+                        "order_cleaned_up",
+                        order_name=order_name,
+                        order_id=order.exchange_order_id,
+                        message="Order cleaned up successfully",
+                    )
                 except Exception as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
@@ -521,8 +551,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert tp_sell_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit LIMIT SELL order placed: {tp_sell_order.exchange_order_id}, "
-            f"status: {tp_sell_order.status}",
+            "take_profit_limit_sell_order_placed",
+            order_id=tp_sell_order.exchange_order_id,
+            status=tp_sell_order.status,
+            message="Take Profit LIMIT SELL order placed successfully",
         )
 
         # Test 2: TAKE PROFIT LIMIT BUY (for short position - buy below current price)
@@ -558,8 +590,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         assert tp_buy_order.exchange_order_id, "Should have exchange order ID"
 
         logger.info(
-            f"✓ Take Profit LIMIT BUY order placed: {tp_buy_order.exchange_order_id}, "
-            f"status: {tp_buy_order.status}",
+            "take_profit_limit_buy_order_placed",
+            order_id=tp_buy_order.exchange_order_id,
+            status=tp_buy_order.status,
+            message="Take Profit LIMIT BUY order placed successfully",
         )
 
         # Clean up both orders
@@ -577,7 +611,12 @@ class TestBackpackPerpOrdersPositiveBalance:
                         symbol=symbol,
                     )
                     await bp_api_for_test_env.cancel_order(cancel_args)
-                    logger.info(f"✓ {order_name} order cleaned up: {order.exchange_order_id}")
+                    logger.info(
+                        "order_cleaned_up",
+                        order_name=order_name,
+                        order_id=order.exchange_order_id,
+                        message="Order cleaned up successfully",
+                    )
                 except Exception as e:
                     # Order cancellation must work if order placement worked
                     pytest.fail(
@@ -627,7 +666,11 @@ class TestBackpackPerpOrdersPositiveBalance:
             f"Perp market order should execute immediately, got {entry_order.status}"
         )
 
-        logger.info(f"✓ Perp entry order executed: {entry_order.exchange_order_id}")
+        logger.info(
+            "perp_entry_order_executed",
+            order_id=entry_order.exchange_order_id,
+            message="Perp entry order executed successfully",
+        )
 
         # Step 2: Place stop loss order (assuming we now have leveraged position)
         if entry_order.status == OrderStatus.FILLED:
@@ -654,8 +697,11 @@ class TestBackpackPerpOrdersPositiveBalance:
                 # after market orders
                 # Exchange behavior (immediate trigger vs pending) is exchange's responsibility
                 logger.info(
-                    f"✓ Stop loss order placed successfully: {stop_order.exchange_order_id}, "
-                    f"type: {stop_order.order_type}, status: {stop_order.status}",
+                    "stop_loss_order_placed_successfully",
+                    order_id=stop_order.exchange_order_id,
+                    order_type=stop_order.order_type,
+                    status=stop_order.status,
+                    message="Stop loss order placed successfully",
                 )
 
                 # Verify order has required fields
@@ -663,7 +709,11 @@ class TestBackpackPerpOrdersPositiveBalance:
                 assert stop_order.symbol == symbol, "Symbol should match"
                 assert stop_order.side == OrderSide.SELL, "Stop loss should be SELL side"
 
-                logger.info(f"✓ Perp stop loss placed: {stop_order.exchange_order_id}")
+                logger.info(
+                    "perp_stop_loss_placed",
+                    order_id=stop_order.exchange_order_id,
+                    message="Perp stop loss placed successfully",
+                )
 
                 # Clean up stop loss
                 if stop_order.exchange_order_id:
@@ -728,7 +778,11 @@ class TestBackpackPerpOrdersPositiveBalance:
         market_constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = market_constraints["tick_size"]
 
-        logger.info(f"Testing ALL conditional orders at price: {current_price}")
+        logger.info(
+            "testing_all_conditional_orders",
+            current_price=current_price,
+            message="Testing ALL conditional orders at current market price",
+        )
 
         # Calculate all prices upfront
         stop_loss_price = (current_price * Decimal("0.85")).quantize(tick_size)  # 15% below
@@ -890,8 +944,11 @@ class TestBackpackPerpOrdersPositiveBalance:
                 success_count += 1
 
                 logger.info(
-                    f"✓ {order_name} placed successfully: {placed_order.exchange_order_id}, "
-                    f"status: {placed_order.status}",
+                    "conditional_order_placed_successfully",
+                    order_name=order_name,
+                    order_id=placed_order.exchange_order_id,
+                    status=placed_order.status,
+                    message="Conditional order placed successfully",
                 )
 
             except Exception as e:
@@ -999,7 +1056,10 @@ class TestBackpackPerpOrdersPositiveBalance:
         margin_requirement = notional_value / max_leverage
 
         logger.info(
-            f"Perp order calculations - Notional: {notional_value}, Margin: {margin_requirement}",
+            "perp_order_calculations",
+            notional_value=notional_value,
+            margin_requirement=margin_requirement,
+            message="Perp order calculations computed",
         )
 
         # Test precision of leverage calculations
@@ -1177,7 +1237,12 @@ class TestBackpackPerpOrdersPositiveBalance:
             funding_rate = await bp_api_for_test_env.get_funding_rate(symbol)
 
             if funding_rate:
-                logger.info(f"Current funding rate for {symbol}: {funding_rate.funding_rate}")
+                logger.info(
+                    "current_funding_rate",
+                    symbol=symbol,
+                    funding_rate=funding_rate.funding_rate,
+                    message="Current funding rate retrieved",
+                )
 
                 # Funding rate affects long vs short positioning
                 # Positive funding rate: longs pay shorts
@@ -1248,9 +1313,12 @@ class TestBackpackPerpOrdersPositiveBalance:
         expected_margin = notional_value / max_leverage
 
         logger.info(
-            f"Testing margin requirements - Quantity: {test_quantity}, "
-            f"Price: {test_price}, Notional: {notional_value}, "
-            f"Expected margin: {expected_margin}",
+            "testing_margin_requirements",
+            quantity=test_quantity,
+            price=test_price,
+            notional_value=notional_value,
+            expected_margin=expected_margin,
+            message="Testing margin requirements for order",
         )
 
         place_args = PlaceOrderArgs(
@@ -1277,8 +1345,10 @@ class TestBackpackPerpOrdersPositiveBalance:
                 else test_price * test_quantity
             )
             logger.info(
-                f"✓ Order placed successfully with notional: {actual_notional}, "
-                f"margin requirement: {actual_notional / max_leverage}",
+                "order_placed_successfully",
+                actual_notional=actual_notional,
+                margin_requirement=actual_notional / max_leverage,
+                message="Order placed successfully with margin calculations",
             )
 
         except Exception as e:
@@ -1288,7 +1358,11 @@ class TestBackpackPerpOrdersPositiveBalance:
                 keyword in error_msg
                 for keyword in ["margin", "balance", "insufficient", "collateral"]
             ):
-                logger.info(f"Order correctly rejected due to margin requirements: {e}")
+                logger.info(
+                    "order_rejected_margin_requirements",
+                    error_message=str(e),
+                    message="Order correctly rejected due to margin requirements",
+                )
                 # This is expected behavior - the system correctly enforced margin requirements
             else:
                 # Unexpected system error - this is a real problem

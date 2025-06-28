@@ -9,6 +9,7 @@ import time
 import urllib.parse
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import urlparse
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import SecretStr
@@ -149,8 +150,6 @@ class BackpackEd25519Authenticator(IAuthenticator):
         # Extract path component if a full URL is provided
         lookup_path = path
         if path.startswith(("http://", "https://")):
-            from urllib.parse import urlparse
-
             parsed_url = urlparse(path)
             lookup_path = parsed_url.path
 

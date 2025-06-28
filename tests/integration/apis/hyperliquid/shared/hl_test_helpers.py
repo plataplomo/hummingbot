@@ -8,12 +8,19 @@ dynamic helper patterns but adapted for Hyperliquid's specific API structure.
 from __future__ import annotations
 
 import asyncio
+import secrets
+import time
 from collections.abc import Callable
-from decimal import Decimal
+from datetime import UTC, datetime, timedelta
+from decimal import ROUND_HALF_UP, ROUND_UP, Decimal
 from typing import Any
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args_models import GetMarketArgs
+from cyberdelta.apis.models.service_args_models import (
+    GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
+    GetMarketsArgs,
+)
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
 
@@ -50,7 +57,6 @@ class HyperliquidTestHelpers:
         try:
             # For Hyperliquid, perp symbols are like "BTC", "ETH", "SOL"
             # We'll get these from the markets endpoint
-            from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
             markets = await api.get_markets(GetMarketsArgs())
             if markets:
@@ -209,9 +215,7 @@ class HyperliquidTestHelpers:
             # But we should get this from actual market data if available
 
             # Try to get historical funding rates to determine actual bounds
-            from datetime import UTC, datetime, timedelta
 
-            from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
 
             # Get last 7 days of funding data to establish bounds
             end_time = datetime.now(UTC)
@@ -314,7 +318,6 @@ class HyperliquidTestHelpers:
         # Round to tick size (properly)
         tick_size = constraints["tick_size"]
         # Round to the nearest tick and ensure no floating point errors
-        from decimal import ROUND_HALF_UP
 
         # Get the precision of the tick size first
         exponent = tick_size.as_tuple().exponent
@@ -450,7 +453,6 @@ class HyperliquidTestHelpers:
             required_min_quantity = max(min_quantity, min_qty_for_notional)
 
             # Round up to next valid step size to ensure we meet minimums
-            from decimal import ROUND_UP
 
             rounded_steps = (required_min_quantity / step_size).quantize(
                 Decimal(1),
@@ -530,7 +532,6 @@ class HyperliquidTestHelpers:
 
             # For zero balance tests, just return the exchange minimum
             # Round to next valid step size if needed
-            from decimal import ROUND_UP
 
             rounded_steps = (min_quantity / step_size).quantize(Decimal(1), rounding=ROUND_UP)
             final_quantity = rounded_steps * step_size
@@ -645,7 +646,6 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If order cancellation verification fails or times out.
         """
-        import time
 
         start_time = time.time()
         attempt = 0
@@ -686,7 +686,6 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If order placement verification fails or times out.
         """
-        import time
 
         start_time = time.time()
         attempt = 0
@@ -723,7 +722,6 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If condition is not met within timeout.
         """
-        import time
 
         start_time = time.time()
         attempt = 0
@@ -987,7 +985,6 @@ def generate_test_cloid() -> str:
         >>> assert cloid.startswith("0x")
         >>> assert len(cloid) == 34  # 0x + 32 hex chars
     """
-    import secrets
 
     # Generate 16 random bytes (128 bits)
     random_bytes = secrets.token_bytes(16)

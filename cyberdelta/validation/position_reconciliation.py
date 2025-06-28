@@ -749,9 +749,9 @@ class PositionReconciliationSystem:
                 )
 
         # Finalize exchange_stats by calculating symbols_affected_count
-        for exchange_key in exchange_stats:
-            exchange_stats[exchange_key]["symbols_affected_count"] = len(
-                exchange_stats[exchange_key].pop("symbols_affected_list"),  # Pop and get length
+        for _exchange_key, exchange_data in exchange_stats.items():
+            exchange_data["symbols_affected_count"] = len(
+                exchange_data.pop("symbols_affected_list"),  # Pop and get length
             )
 
         return {

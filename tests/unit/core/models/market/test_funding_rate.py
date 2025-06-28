@@ -190,7 +190,7 @@ class TestFundingRate:
         assert fr.timestamp.hour == 12
 
         # Test with datetime objects (non-UTC should be converted to UTC)
-        naive_dt = datetime(2023, 3, 16, 12, 0, 0)
+        naive_dt = datetime(2023, 3, 16, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None)
         fr = FundingRate(
             symbol="BTC-PERP",
             timestamp=naive_dt,

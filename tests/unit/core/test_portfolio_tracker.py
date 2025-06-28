@@ -139,12 +139,20 @@ def _create_mock_get_ticker_side_effect(
 
     async def mock_get_ticker_side_effect(symbol: str) -> Ticker | None:
         await asyncio.sleep(0)  # Satisfy RUF029
-        mock_logger.debug(f"SIDE_EFFECT: Called with symbol: '{symbol}'")
+        mock_logger.debug(
+            "mock_ticker_called",
+            symbol=symbol,
+            message=f"SIDE_EFFECT: Called with symbol: '{symbol}'",
+        )
 
         # Parse symbol
         parts = symbol.split("-")
         if len(parts) != 2:
-            mock_logger.error(f"SIDE_EFFECT: Invalid symbol format '{symbol}', returning None.")
+            mock_logger.error(
+                "invalid_symbol_format",
+                symbol=symbol,
+                message=f"SIDE_EFFECT: Invalid symbol format '{symbol}', returning None.",
+            )
             return None
         base, quote = parts
         now = datetime.now(UTC)
@@ -152,22 +160,41 @@ def _create_mock_get_ticker_side_effect(
         # Try direct pairs
         price = _handle_direct_pairs(base, quote, prices)
         if price is not None:
-            mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
+            mock_logger.debug(
+                "mock_ticker_direct_pair",
+                symbol=symbol,
+                price=float(price),
+                message=f"SIDE_EFFECT: Returning {symbol} ticker price={price}",
+            )
             return Ticker(symbol=symbol, timestamp=now, price=price)
 
         # Try inverse pairs
         price = _handle_inverse_pairs(base, quote, prices)
         if price is not None:
-            mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
+            mock_logger.debug(
+                "mock_ticker_inverse_pair",
+                symbol=symbol,
+                price=float(price),
+                message=f"SIDE_EFFECT: Returning {symbol} ticker price={price}",
+            )
             return Ticker(symbol=symbol, timestamp=now, price=price)
 
         # Try USD/USDC pairs
         price = _handle_usd_usdc_pairs(base, quote)
         if price is not None:
-            mock_logger.debug(f"SIDE_EFFECT: Returning {symbol} ticker price={price}")
+            mock_logger.debug(
+                "mock_ticker_usd_usdc_pair",
+                symbol=symbol,
+                price=float(price),
+                message=f"SIDE_EFFECT: Returning {symbol} ticker price={price}",
+            )
             return Ticker(symbol=symbol, timestamp=now, price=price)
 
-        mock_logger.warning(f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.")
+        mock_logger.warning(
+            "unhandled_symbol",
+            symbol=symbol,
+            message=f"SIDE_EFFECT: Unhandled symbol '{symbol}', returning None.",
+        )
         return None
 
     return mock_get_ticker_side_effect

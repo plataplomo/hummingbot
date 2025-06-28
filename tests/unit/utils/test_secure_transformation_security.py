@@ -4,6 +4,7 @@ This module tests security scenarios for the secure_transform function,
 ensuring that it properly validates data and prevents validation bypass attacks.
 """
 
+import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -353,8 +354,6 @@ class TestSecureTransformSecurity:
 
     def test_concurrent_transformation_safety(self) -> None:
         """Test thread safety of secure_transform."""
-        import threading
-
         results: list[MockBalance] = []
         errors: list[TransformationError] = []
 

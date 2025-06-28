@@ -45,6 +45,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_list_response,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -339,9 +340,6 @@ class BackpackResponseHandler:
             )
 
         # Create CancelOrderResult for successful cancellation
-        from cyberdelta.core.models.enums import CancelOrderResultStatus
-        from cyberdelta.core.models.market.order import CancelOrderResult
-
         return CancelOrderResult(
             symbol=symbol,
             order_id=order_id,

@@ -527,8 +527,6 @@ def active_bp_secrets(test_secrets_config: SecretsConfig) -> ApiKeyAuthSecrets:
     Returns:
         ApiKeyAuthSecrets: Backpack authentication secrets with API key and secret.
     """
-    from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-
     secrets = test_secrets_config.exchanges["backpack"]
     if not isinstance(secrets, ApiKeyAuthSecrets):
         pytest.fail("Backpack secrets in test_secrets.yaml are not ApiKeyAuthSecrets type.")

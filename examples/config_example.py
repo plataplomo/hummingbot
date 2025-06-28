@@ -30,6 +30,8 @@ import time
 from pathlib import Path
 from typing import cast
 
+import structlog
+
 from cyberdelta.config import get_app_settings, get_secrets_config
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
@@ -447,7 +449,6 @@ def main() -> None:
         setup_structlog(app_settings)
     except Exception:
         # Fallback to basic setup if config loading fails
-        import structlog
 
         # Use a minimal fallback logging setup for examples
         structlog.configure(

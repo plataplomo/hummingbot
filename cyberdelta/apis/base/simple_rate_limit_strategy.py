@@ -13,6 +13,7 @@ from __future__ import annotations
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.config.structlog_config import get_logger
 
 
 class SimpleTokenBucketStrategy(RateLimitStrategy):
@@ -64,8 +65,6 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
         """
         if hasattr(self, "limiter") and hasattr(self.limiter, "trigger_ip_ban"):
             # Log the action being taken by this specific strategy
-            from cyberdelta.config.structlog_config import get_logger
-
             logger = get_logger(__name__)
             logger.info(
                 "rate_limit_retry_after_received",

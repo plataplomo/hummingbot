@@ -290,7 +290,7 @@ class TestMultiTierFundingProvider:
             exchange="hyperliquid",
             symbol="BTC-PERP",
             rate=0.0015,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             dispersion=0.0001,
             sources_count=3,
             primary_available=True,
@@ -356,7 +356,7 @@ class TestMultiTierFundingProvider:
     def test_integrate_funding_data(self) -> None:
         """Test integrating funding data from multiple sources."""
         # Create test data
-        now = datetime.now()
+        now = datetime.now(UTC)
         primary_data = FundingData(
             exchange="hyperliquid",
             symbol="BTC-PERP",

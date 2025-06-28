@@ -11,9 +11,10 @@ Fixtures:
 """
 
 from collections.abc import Callable, Generator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from unittest.mock import MagicMock, _patch, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -177,8 +178,6 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
             second: Second for the simulated time
             timezone: Timezone string
         """
-        from zoneinfo import ZoneInfo
-
         target_time = datetime(year, month, day, hour, minute, second, tzinfo=ZoneInfo(timezone))
         freezer.move_to(target_time)
 
@@ -214,8 +213,6 @@ def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]
             advance_minutes: Minutes to advance
             advance_hours: Hours to advance
         """
-        from datetime import timedelta
-
         # Get current frozen time
         current = datetime.now(UTC)
 

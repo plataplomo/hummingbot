@@ -8,6 +8,11 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+    HyperliquidRawAssetDefinition,
+    HyperliquidRawMetaAndAssetCtxsResponse,
+    HyperliquidRawMetaResponse,
+)
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -58,12 +63,6 @@ async def test_asset_index_resolution() -> None:
     mock_requester.return_value = (mock_api_response, 200, {})
 
     # Mock the response handler to parse and return validated response
-    from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
-        HyperliquidRawAssetDefinition,
-        HyperliquidRawMetaAndAssetCtxsResponse,
-        HyperliquidRawMetaResponse,
-    )
-
     mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse(
         meta=HyperliquidRawMetaResponse(
             universe=[

@@ -10,6 +10,7 @@ Raw Pydantic Models.
 
 # Typing and Pydantic
 import inspect
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -29,6 +30,9 @@ from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
 
 # Removed unused raw model imports as handlers return these directly now
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
+    HyperliquidRawFundingHistoryItem,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
@@ -58,6 +62,7 @@ from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.mid_prices import MidPrices
 
 # Project-specific imports for connectivity and base types
+from cyberdelta.utils.parsing import timeframe_to_ms
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -936,10 +941,6 @@ class HyperliquidMarketDataService:
         end_time_ms: int | None,
     ) -> list[Any]:
         """Fetch historical funding rates data from the API."""
-        from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
-            HyperliquidRawFundingHistoryItem,
-        )
-
         logger.debug(
             "historical_funding_rates_request",
             message="[%s] Getting historical funding rates for %s from %s to %s.",
@@ -1214,11 +1215,6 @@ class HyperliquidMarketDataService:
 
         # Calculate time range if not provided
         if start_time_ms is None or end_time_ms is None:
-            # Import timeframe_to_ms here to avoid circular import
-            import time
-
-            from cyberdelta.utils.parsing import timeframe_to_ms
-
             interval_ms = timeframe_to_ms(interval)
             if interval_ms == 0:
                 raise ValueError(f"[{current_method}] Invalid or unsupported timeframe: {interval}")

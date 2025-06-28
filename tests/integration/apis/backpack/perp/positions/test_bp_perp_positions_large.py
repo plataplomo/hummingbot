@@ -102,7 +102,12 @@ class TestBackpackPerpLargePositions:
                         )
                     except Exception as e:
                         # Log and ignore errors when closing positions in cleanup
-                        logger.warning(f"Failed to close position {position.symbol}: {e}")
+                        logger.warning(
+                            "failed_to_close_position",
+                            symbol=position.symbol,
+                            error=str(e),
+                            message="Failed to close position in cleanup",
+                        )
                         continue
         except Exception:
             # Ignore errors in position cleanup

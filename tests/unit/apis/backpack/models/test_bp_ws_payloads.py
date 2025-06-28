@@ -105,7 +105,7 @@ class TestBackpackWsPayloads:
         request = BackpackRawWsSubscriptionRequest(method="SUBSCRIBE", params=["ticker.BTC_USDC"])
 
         with pytest.raises(ValidationError) as exc_info:
-            request.__setattr__("method", "UNSUBSCRIBE")
+            request.method = "UNSUBSCRIBE"
         assert "Instance is frozen" in str(exc_info.value)
 
     def test_extra_fields_forbidden(self) -> None:

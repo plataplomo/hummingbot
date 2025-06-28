@@ -304,13 +304,9 @@ class ArbitrageOpportunity(BaseModel):
     def set_expiration(self) -> Self:
         """Set expiration_timestamp to 1 hour after timestamp (UTC)."""
         if self.timestamp.tzinfo:
-            object.__setattr__(self, "expiration_timestamp", self.timestamp.timestamp() + 3600)
+            self.expiration_timestamp = self.timestamp.timestamp() + 3600
         else:
-            object.__setattr__(
-                self,
-                "expiration_timestamp",
-                self.timestamp.replace(tzinfo=UTC).timestamp() + 3600,
-            )
+            self.expiration_timestamp = self.timestamp.replace(tzinfo=UTC).timestamp() + 3600
         return self
 
     @model_validator(mode="after")

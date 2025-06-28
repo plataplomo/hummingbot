@@ -183,7 +183,13 @@ class TestBackpackOrdersZeroBalance:
             )
 
             logger.info(
-                f"✓ Extreme edge case '{test_case['name']}' properly rejected: {api_error.code}",
+                "extreme_edge_case_rejected",
+                test_name=test_case["name"],
+                error_code=api_error.code,
+                message=(
+                    f"✓ Extreme edge case '{test_case['name']}' properly rejected: "
+                    f"{api_error.code}"
+                ),
             )
 
     @pytest.mark.vcr
@@ -240,13 +246,25 @@ class TestBackpackOrdersZeroBalance:
                 )
 
                 logger.info(
-                    f"✓ Malformed symbol '{malformed_symbol}' properly rejected: {api_error.code}",
+                    "malformed_symbol_rejected",
+                    symbol=malformed_symbol,
+                    error_code=api_error.code,
+                    message=(
+                        f"✓ Malformed symbol '{malformed_symbol}' properly rejected: "
+                        f"{api_error.code}"
+                    ),
                 )
 
             except Exception as e:
                 # Some malformed symbols might fail at Pydantic validation level
                 logger.info(
-                    f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: {e}",
+                    "malformed_symbol_validation_error",
+                    symbol=malformed_symbol,
+                    error_message=str(e),
+                    message=(
+                        f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: "
+                        f"{e}"
+                    ),
                 )
 
     @pytest.mark.vcr
@@ -319,7 +337,12 @@ class TestBackpackOrdersZeroBalance:
                 APIErrorCode.INVALID_REQUEST.value,  # API returns this for precision errors
             ], f"Precision test '{test_case['name']}' got unexpected error: {api_error.code}"
 
-            logger.info(f"✓ Precision edge case '{test_case['name']}' handled: {api_error.code}")
+            logger.info(
+                "precision_edge_case_handled",
+                test_case_name=test_case["name"],
+                api_error_code=api_error.code,
+                message="✓ Precision edge case handled",
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -377,18 +400,33 @@ class TestBackpackOrdersZeroBalance:
             elif result.code == APIErrorCode.INSUFFICIENT_FUNDS.value:
                 insufficient_funds_count += 1
 
-            logger.info(f"Concurrent request {i}: {result.code}")
+            logger.info(
+                "concurrent_request_result",
+                request_index=i,
+                error_code=result.code,
+                message=f"Concurrent request {i}: {result.code}"
+            )
 
         assert error_count == 5, f"Expected 5 errors, got {error_count}"
         assert insufficient_funds_count > 0, "At least one request should get insufficient funds"
 
         # Rate limiting is acceptable in concurrent scenarios
         if rate_limit_count > 0:
-            logger.info(f"✓ Rate limiting detected in {rate_limit_count}/5 concurrent requests")
+            logger.info(
+                "rate_limiting_detected",
+                rate_limit_count=rate_limit_count,
+                total_requests=5,
+                message=f"✓ Rate limiting detected in {rate_limit_count}/5 concurrent requests"
+            )
 
         logger.info(
-            f"✓ Concurrent operations handled: {insufficient_funds_count} insufficient funds, "
-            f"{rate_limit_count} rate limited",
+            "concurrent_operations_summary",
+            insufficient_funds_count=insufficient_funds_count,
+            rate_limit_count=rate_limit_count,
+            message=(
+                f"✓ Concurrent operations handled: {insufficient_funds_count} insufficient funds, "
+                f"{rate_limit_count} rate limited"
+            )
         )
 
     @pytest.mark.vcr
@@ -447,7 +485,10 @@ class TestBackpackOrdersZeroBalance:
             APIErrorCode.EXCHANGE_SPECIFIC.value,
         ]
         logger.info(
-            f"✓ Step 2: Cancel non-existent order correctly failed: {cancel_exc.value.code}",
+            "cancel_nonexistent_order_failed",
+            step=2,
+            error_code=cancel_exc.value.code,
+            message=f"✓ Step 2: Cancel non-existent order correctly failed: {cancel_exc.value.code}"
         )
 
         # Step 3: Query order history (should work but return empty/minimal results)
@@ -458,11 +499,21 @@ class TestBackpackOrdersZeroBalance:
             # Should return empty list or minimal orders for zero balance account
             assert isinstance(orders, list)
             assert len(orders) <= 10  # Respects limit
-            logger.info(f"✓ Step 3: Order history query succeeded, found {len(orders)} orders")
+            logger.info(
+                "order_history_query_success",
+                step=3,
+                orders_count=len(orders),
+                message=f"✓ Step 3: Order history query succeeded, found {len(orders)} orders"
+            )
 
         except APIError as history_exc:
             # Might fail with authentication or other error
-            logger.info(f"✓ Step 3: Order history query failed appropriately: {history_exc.code}")
+            logger.info(
+                "order_history_query_failed",
+                step=3,
+                error_code=history_exc.code,
+                message=f"✓ Step 3: Order history query failed appropriately: {history_exc.code}"
+            )
 
         # Step 4: Query open orders (should work, may have conditional orders from other tests)
         try:
@@ -471,12 +522,22 @@ class TestBackpackOrdersZeroBalance:
             # Note: May have conditional orders (STOP_MARKET, STOP_LIMIT) from other tests
             # These don't require immediate funds and can exist with zero balance
             logger.info(
-                f"✓ Step 4: Open orders query succeeded, found {len(open_orders)} orders "
-                f"(may include conditional orders)",
+                "open_orders_query_success",
+                step=4,
+                orders_count=len(open_orders),
+                message=(
+                    f"✓ Step 4: Open orders query succeeded, found {len(open_orders)} orders "
+                    f"(may include conditional orders)"
+                )
             )
 
         except APIError as open_exc:
-            logger.info(f"✓ Step 4: Open orders query failed appropriately: {open_exc.code}")
+            logger.info(
+                "open_orders_query_failed",
+                step=4,
+                error_code=open_exc.code,
+                message=f"✓ Step 4: Open orders query failed appropriately: {open_exc.code}"
+            )
 
         logger.info("✓ Complete order lifecycle simulation completed with zero balance")
 
@@ -528,7 +589,11 @@ class TestBackpackOrdersZeroBalance:
             f"got {api_error.code}: {api_error.message}"
         )
 
-        logger.info(f"✓ Market order correctly failed with insufficient funds: {api_error.message}")
+        logger.info(
+            "market_order_insufficient_funds",
+            error_message=api_error.message,
+            message=f"✓ Market order correctly failed with insufficient funds: {api_error.message}"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -572,7 +637,11 @@ class TestBackpackOrdersZeroBalance:
             assert order.exchange_order_id is not None
             assert order.order_type == OrderType.STOP_MARKET
             logger.info(
-                f"✓ Stop market order accepted as conditional order: {order.exchange_order_id}",
+                "stop_market_order_accepted",
+                order_id=order.exchange_order_id,
+                message=(
+                    f"✓ Stop market order accepted as conditional order: {order.exchange_order_id}"
+                )
             )
 
             # Clean up the order if it was created
@@ -584,7 +653,11 @@ class TestBackpackOrdersZeroBalance:
                     )
                     await bp_api_for_zero_balance_test.cancel_order(cancel_args)
                 except Exception as cleanup_error:
-                    logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+                    logger.debug(
+                        "cleanup_cancellation_failed",
+                        error=str(cleanup_error),
+                        message=f"Cleanup cancellation failed (expected): {cleanup_error}"
+                    )
 
         except APIError as e:
             # If it fails, check for expected error codes
@@ -597,7 +670,12 @@ class TestBackpackOrdersZeroBalance:
                 f"Stop market order should fail appropriately if rejected, "
                 f"got {e.code}: {e.message}"
             )
-            logger.info(f"✓ Stop market order correctly failed: {e.code} - {e.message}")
+            logger.info(
+                "stop_market_order_failed",
+                error_code=e.code,
+                error_message=e.message,
+                message=f"✓ Stop market order correctly failed: {e.code} - {e.message}"
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -650,7 +728,12 @@ class TestBackpackOrdersZeroBalance:
             f"Stop limit order should fail appropriately, got {api_error.code}: {api_error.message}"
         )
 
-        logger.info(f"✓ Stop limit order correctly failed: {api_error.code} - {api_error.message}")
+        logger.info(
+            "stop_limit_order_failed",
+            error_code=api_error.code,
+            error_message=api_error.message,
+            message=f"✓ Stop limit order correctly failed: {api_error.code} - {api_error.message}"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -694,8 +777,12 @@ class TestBackpackOrdersZeroBalance:
             assert order.exchange_order_id is not None
             assert order.order_type == OrderType.TAKE_PROFIT_MARKET
             logger.info(
-                f"✓ Take profit market order accepted as conditional order: "
-                f"{order.exchange_order_id}",
+                "take_profit_market_order_accepted",
+                order_id=order.exchange_order_id,
+                message=(
+                    f"✓ Take profit market order accepted as conditional order: "
+                    f"{order.exchange_order_id}"
+                )
             )
 
             # Clean up the order if it was created
@@ -707,7 +794,11 @@ class TestBackpackOrdersZeroBalance:
                     )
                     await bp_api_for_zero_balance_test.cancel_order(cancel_args)
                 except Exception as cleanup_error:
-                    logger.debug(f"Cleanup cancellation failed (expected): {cleanup_error}")
+                    logger.debug(
+                        "cleanup_cancellation_failed",
+                        error=str(cleanup_error),
+                        message=f"Cleanup cancellation failed (expected): {cleanup_error}"
+                    )
 
         except APIError as e:
             # If it fails, check for expected error codes
@@ -720,7 +811,12 @@ class TestBackpackOrdersZeroBalance:
                 f"Take profit market order should fail appropriately if rejected, "
                 f"got {e.code}: {e.message}"
             )
-            logger.info(f"✓ Take profit market order correctly failed: {e.code} - {e.message}")
+            logger.info(
+                "take_profit_market_order_failed",
+                error_code=e.code,
+                error_message=e.message,
+                message=f"✓ Take profit market order correctly failed: {e.code} - {e.message}"
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -775,7 +871,13 @@ class TestBackpackOrdersZeroBalance:
         )
 
         logger.info(
-            f"✓ Take profit limit order correctly failed: {api_error.code} - {api_error.message}",
+            "take_profit_limit_order_failed",
+            error_code=api_error.code,
+            error_message=api_error.message,
+            message=(
+                f"✓ Take profit limit order correctly failed: {api_error.code} - "
+                f"{api_error.message}"
+            )
         )
 
     @pytest.mark.vcr
@@ -916,8 +1018,13 @@ class TestBackpackOrdersZeroBalance:
                         f"got: {order.status.value}"
                     )
                     logger.info(
-                        f"✓ {test_case['name']} conditional order placed successfully: "
-                        f"{order.status.value}",
+                        "conditional_order_placed_successfully",
+                        test_case_name=test_case["name"],
+                        order_status=order.status.value,
+                        message=(
+                            f"✓ {test_case['name']} conditional order placed successfully: "
+                            f"{order.status.value}"
+                        )
                     )
                 else:
                     # Non-conditional orders should not succeed with zero balance
@@ -932,11 +1039,21 @@ class TestBackpackOrdersZeroBalance:
                     f"{api_error.code} - {api_error.message}"
                 )
                 logger.info(
-                    f"✓ {test_case['name']} correctly failed: {api_error.code} - "
-                    f"{api_error.message}",
+                    "order_type_correctly_failed",
+                    test_case_name=test_case["name"],
+                    error_code=api_error.code,
+                    error_message=api_error.message,
+                    message=(
+                        f"✓ {test_case['name']} correctly failed: {api_error.code} - "
+                        f"{api_error.message}"
+                    )
                 )
 
-        logger.info(f"✓ All {len(order_type_tests)} order types tested with zero balance")
+        logger.info(
+            "all_order_types_tested",
+            order_types_count=len(order_type_tests),
+            message=f"✓ All {len(order_type_tests)} order types tested with zero balance"
+        )
 
     # =============================================================================
     # EXTREME EDGE CASES AND ERROR SCENARIOS
@@ -1015,11 +1132,21 @@ class TestBackpackOrdersZeroBalance:
             )
 
             logger.info(
-                f"✓ Extreme case '{test_case['name']}' correctly rejected: "
-                f"{api_error.code} - {api_error.message}",
+                "extreme_case_correctly_rejected",
+                test_case_name=test_case["name"],
+                error_code=api_error.code,
+                error_message=api_error.message,
+                message=(
+                    f"✓ Extreme case '{test_case['name']}' correctly rejected: "
+                    f"{api_error.code} - {api_error.message}"
+                )
             )
 
-        logger.info(f"✓ All {len(extreme_test_cases)} extreme edge cases tested")
+        logger.info(
+            "extreme_edge_cases_tested",
+            test_cases_count=len(extreme_test_cases),
+            message=f"✓ All {len(extreme_test_cases)} extreme edge cases tested"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -1101,10 +1228,20 @@ class TestBackpackOrdersZeroBalance:
             )
 
             logger.info(
-                f"✓ Invalid combination '{test_case['name']}' correctly rejected: {api_error.code}",
+                "invalid_combination_correctly_rejected",
+                test_case_name=test_case["name"],
+                error_code=api_error.code,
+                message=(
+                    f"✓ Invalid combination '{test_case['name']}' correctly rejected: "
+                    f"{api_error.code}"
+                )
             )
 
-        logger.info(f"✓ All {len(invalid_combinations)} invalid trigger combinations tested")
+        logger.info(
+            "invalid_trigger_combinations_tested",
+            combinations_count=len(invalid_combinations),
+            message=f"✓ All {len(invalid_combinations)} invalid trigger combinations tested"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -1175,7 +1312,14 @@ class TestBackpackOrdersZeroBalance:
                     )
 
                     logger.info(
-                        f"✓ {symbol} {order_test['type']} order correctly failed: {api_error.code}",
+                        "symbol_order_correctly_failed",
+                        symbol=symbol,
+                        order_type=order_test["type"],
+                        error_code=api_error.code,
+                        message=(
+                            f"✓ {symbol} {order_test['type']} order correctly failed: "
+                            f"{api_error.code}"
+                        )
                     )
 
             except Exception as e:
@@ -1186,7 +1330,9 @@ class TestBackpackOrdersZeroBalance:
                 )
 
         logger.info(
-            f"✓ Multi-symbol zero balance testing completed for {len(test_symbols)} symbols",
+            "multi_symbol_testing_completed",
+            symbols_count=len(test_symbols),
+            message=f"✓ Multi-symbol zero balance testing completed for {len(test_symbols)} symbols"
         )
 
     @pytest.mark.vcr
@@ -1285,7 +1431,12 @@ class TestBackpackOrdersZeroBalance:
                     f"unexpected error: {error_str}"
                 )
                 logger.info(
-                    f"✓ Edge case '{test_case['name']}' correctly rejected by Pydantic validation",
+                    "edge_case_pydantic_validation_rejection",
+                    test_case_name=test_case["name"],
+                    message=(
+                        f"✓ Edge case '{test_case['name']}' correctly rejected by "
+                        "Pydantic validation"
+                    )
                 )
 
         # Test cases that pass Pydantic but should fail at API level
@@ -1349,8 +1500,12 @@ class TestBackpackOrdersZeroBalance:
                 # With zero balance, we might get insufficient funds instead of validation error
                 if exc_info.value.code == APIErrorCode.INSUFFICIENT_FUNDS.value:
                     logger.info(
-                        f"✓ Edge case '{test_case['name']}' rejected due to zero balance "
-                        "(would validate params with funded account)",
+                        "edge_case_zero_balance_rejection",
+                        test_case_name=test_case["name"],
+                        message=(
+                            f"✓ Edge case '{test_case['name']}' rejected due to zero balance "
+                            "(would validate params with funded account)"
+                        )
                     )
                 else:
                     # Check if it's one of the expected validation errors
@@ -1359,8 +1514,13 @@ class TestBackpackOrdersZeroBalance:
                         f"{exc_info.value.code} - {exc_info.value.message}"
                     )
                     logger.info(
-                        f"✓ Edge case '{test_case['name']}' correctly rejected by API: "
-                        f"{exc_info.value.code}",
+                        "edge_case_api_rejection",
+                        test_case_name=test_case["name"],
+                        error_code=exc_info.value.code,
+                        message=(
+                            f"✓ Edge case '{test_case['name']}' correctly rejected by API: "
+                            f"{exc_info.value.code}"
+                        )
                     )
 
             except Exception as e:
@@ -1428,7 +1588,12 @@ class TestBackpackOrdersZeroBalance:
         assert isinstance(api_error.code, int), "Error code should be integer"
         assert api_error.code > 0, "Error code should be positive"
 
-        logger.info(f"✓ Error validation passed: {api_error.code} - {api_error.message}")
+        logger.info(
+            "error_validation_passed",
+            error_code=api_error.code,
+            error_message=api_error.message,
+            message=f"✓ Error validation passed: {api_error.code} - {api_error.message}"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -1470,6 +1635,10 @@ class TestBackpackOrdersZeroBalance:
 
         except Exception as e:
             if "timeout" in str(e).lower():
-                logger.info(f"✓ Timeout-related error properly handled: {e}")
+                logger.info(
+                    "timeout_error_handled",
+                    error_details=str(e),
+                    message=f"✓ Timeout-related error properly handled: {e}"
+                )
             else:
                 raise  # Re-raise if not timeout related

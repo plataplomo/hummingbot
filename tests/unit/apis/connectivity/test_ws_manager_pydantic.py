@@ -87,9 +87,9 @@ async def ws_manager(
             message_handler=AsyncMock(),
         )
 
-        # Manually set the connection for testing using object.__setattr__ to bypass protection
-        object.__setattr__(manager, "_ws_connection", mock_websocket)
-        object.__setattr__(manager, "_is_connected", True)
+        # Manually set the connection for testing using setattr to bypass protection
+        manager._ws_connection = mock_websocket
+        manager._is_connected = True
 
         yield manager
 
@@ -180,8 +180,8 @@ class TestWebSocketManagerPydanticIntegration:
     @pytest.mark.asyncio
     async def test_send_json_when_not_connected(self, ws_manager: WebSocketManager) -> None:
         """Test send_json returns False when not connected."""
-        # Simulate disconnected state using object.__setattr__ to bypass protection
-        object.__setattr__(ws_manager, "_ws_connection", None)
+        # Simulate disconnected state using setattr to bypass protection
+        ws_manager._ws_connection = None
 
         model = MockSubscriptionModel(method="subscribe", topic="ticker")
 

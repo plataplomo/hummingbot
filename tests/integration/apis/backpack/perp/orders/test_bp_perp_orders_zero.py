@@ -147,7 +147,11 @@ class TestBackpackPerpOrdersZeroBalance:
             await bp_api_for_zero_balance_test.place_order(place_args)
 
         error = exc_info.value
-        logger.info(f"Large perp order error (expected): {error}")
+        logger.info(
+            "large_perp_order_error_expected",
+            error=str(error),
+            message="Large perp order error as expected",
+        )
 
         # Validate error structure
         assert hasattr(error, "error_code") or hasattr(error, "message"), (

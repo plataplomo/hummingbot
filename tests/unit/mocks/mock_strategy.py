@@ -39,13 +39,21 @@ class MockStrategy(Strategy):
     async def start_async(self) -> None:
         """Mock start method."""
         self.start_async_called = True
-        logger.debug(f"{self.name} started (mock)")
+        logger.debug(
+            "mock_strategy_started",
+            strategy_name=self.name,
+            message="Mock strategy started",
+        )
         await asyncio.sleep(0)  # Yield control
 
     async def stop_async(self) -> None:
         """Mock stop method."""
         self.stop_async_called = True
-        logger.debug(f"{self.name} stopped (mock)")
+        logger.debug(
+            "mock_strategy_stopped",
+            strategy_name=self.name,
+            message="Mock strategy stopped",
+        )
         await asyncio.sleep(0)  # Yield control
 
     async def process_data(self, data: Candle) -> list[TradeSignal] | None:
@@ -55,5 +63,10 @@ class MockStrategy(Strategy):
             None for mock strategy testing
         """
         self.process_data_async_called_with = data
-        logger.debug(f"{self.name} processed data: {data.symbol} (mock)")
+        logger.debug(
+            "mock_strategy_processed_data",
+            strategy_name=self.name,
+            symbol=data.symbol,
+            message="Mock strategy processed data",
+        )
         return None

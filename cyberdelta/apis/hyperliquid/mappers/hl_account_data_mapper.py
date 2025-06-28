@@ -47,6 +47,7 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,
 )
+from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDetails
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -404,8 +405,6 @@ class HyperliquidAccountDataMapper:
         )
 
         # Determine side based on position size
-        from cyberdelta.core.models.enums import OrderSide
-
         if size > Decimal(0):
             side = OrderSide.BUY
         elif size < Decimal(0):
@@ -918,8 +917,6 @@ class HyperliquidAccountDataMapper:
             )
 
             # Determine side based on position size
-            from cyberdelta.core.models.enums import OrderSide
-
             if size > Decimal(0):
                 side = OrderSide.BUY
             elif size < Decimal(0):
@@ -1011,9 +1008,6 @@ class HyperliquidAccountDataMapper:
 
         """
         try:
-            from cyberdelta.core.models import AccountSettings
-            from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDetails
-
             # Create Hyperliquid-specific details
             hl_details = HyperliquidAccountSettingsDetails(
                 asset_leverage_settings=asset_leverage_settings,

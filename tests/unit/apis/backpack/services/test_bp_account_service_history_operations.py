@@ -10,7 +10,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_query_params import (
+    BackpackRawGetBalancesParams,
+    BackpackRawGetOrderHistoryParams,
+    BackpackRawGetTradeHistoryParams,
+)
+from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
@@ -49,9 +56,6 @@ class TestBackpackAccountServiceHistoryOperations:
         end_time = datetime(2023, 1, 2, tzinfo=UTC)
 
         # Import the proper model
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetOrderHistoryParams,
-        )
 
         mock_built_params = BackpackRawGetOrderHistoryParams(
             symbol=symbol,
@@ -181,9 +185,6 @@ class TestBackpackAccountServiceHistoryOperations:
     ) -> None:
         """Test get_order_history handles APIError from response_handler."""
         symbol = "SOL_USDC"
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetOrderHistoryParams,
-        )
 
         mock_built_params = BackpackRawGetOrderHistoryParams(symbol=symbol)
         mock_raw_response_list: list[dict[str, Any]] = [{"invalid": "order"}]
@@ -218,9 +219,6 @@ class TestBackpackAccountServiceHistoryOperations:
     ) -> None:
         """Test get_order_history handles APIError from mapper."""
         symbol = "SOL_USDC"
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetOrderHistoryParams,
-        )
 
         mock_built_params = BackpackRawGetOrderHistoryParams(symbol=symbol)
         mock_raw_order_data = {
@@ -266,9 +264,6 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 10
 
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetOrderHistoryParams,
-        )
 
         mock_params = BackpackRawGetOrderHistoryParams(symbol=symbol, limit=limit)
         mock_request_builder.build_get_order_history_params.return_value = mock_params
@@ -434,9 +429,6 @@ class TestBackpackAccountServiceHistoryOperations:
         limit = 50
 
         # Import the proper model
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetTradeHistoryParams,
-        )
 
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_raw_trade_data = {
@@ -468,7 +460,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         # Since we're using /wapi/v1/history/fills, we need to use handle_get_fills_response
         # and transform BackpackRawFill models
-        from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 
         mock_raw_fill_data = {
             "fee": "0.01",
@@ -540,9 +531,6 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetTradeHistoryParams,
-        )
 
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_request_builder.build_get_trade_history_params.return_value = mock_params
@@ -568,9 +556,6 @@ class TestBackpackAccountServiceHistoryOperations:
         symbol = "SOL_USDC"
         limit = 50
 
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetTradeHistoryParams,
-        )
 
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol, limit=limit)
         mock_raw_response = [{"invalid": "trade"}]
@@ -579,7 +564,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_http_client_requester.return_value = (mock_raw_response, 200, {})
         # Create a ValidationError by trying to validate invalid data
         try:
-            from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 
             BackpackRawPublicTrade.model_validate({"invalid": "data"})
         except ValidationError as e:
@@ -604,9 +588,6 @@ class TestBackpackAccountServiceHistoryOperations:
         """Test get_trade_history when unexpected exception occurs."""
         symbol = "SOL_USDC"
 
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-            BackpackRawGetTradeHistoryParams,
-        )
 
         mock_params = BackpackRawGetTradeHistoryParams(symbol=symbol)
         mock_raw_response = [{"id": "order_123"}]
@@ -653,7 +634,6 @@ class TestBackpackAccountServiceHistoryOperations:
             available_quantity=Decimal("100.0"),
         )
 
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 
         mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
         mock_http_client_requester.return_value = (
@@ -682,7 +662,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test constructor creates default mapper when none provided by testing behavior."""
-        from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 
         service = BackpackAccountService(
             http_client_requester=mock_http_client_requester,

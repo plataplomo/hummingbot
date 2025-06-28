@@ -14,7 +14,7 @@ Usage:
     OrderManager.apply_fill(order, trade)
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -95,7 +95,7 @@ class OrderManager:
         order.quantity_filled = new_quantity_filled
         order.trades.append(trade)
         order.updated_at = (
-            datetime.now(order.created_at.tzinfo) if order.created_at.tzinfo else datetime.now()
+            datetime.now(order.created_at.tzinfo) if order.created_at.tzinfo else datetime.now(UTC)
         )
 
         # Handle overfill (snapping)

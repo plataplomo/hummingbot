@@ -235,7 +235,11 @@ class TestBackpackOrdersPositive:
         except APIError as e:
             if "insufficient_funds" in str(e).lower():
                 # Expected business logic error
-                logger.info(f"Order correctly rejected due to balance: {e}")
+                logger.info(
+                    "order_rejected_insufficient_funds",
+                    error_message=str(e),
+                    message="Order correctly rejected due to balance",
+                )
             else:
                 # Unexpected system error
                 pytest.fail(f"Unexpected API error: {e}")

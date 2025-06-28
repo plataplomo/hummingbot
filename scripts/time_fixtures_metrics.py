@@ -5,8 +5,10 @@ This script analyzes the test codebase to track adoption of centralized
 time fixtures and generates metrics suitable for CI dashboards.
 """
 
+import argparse
 import json
 import re
+import sys
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -215,8 +217,6 @@ def format_github_output(metrics: dict[str, Any]) -> str:
 
 def main() -> None:
     """Main script execution."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Generate metrics for time fixture adoption")
     parser.add_argument(
         "--format",
@@ -248,11 +248,9 @@ def main() -> None:
     # Write output
     if args.output:
         args.output.write_text(output)
-        import sys
 
         sys.stdout.write(f"Metrics written to {args.output}\n")
     else:
-        import sys
 
         sys.stdout.write(output + "\n")
 

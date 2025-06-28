@@ -73,7 +73,11 @@ class TestBackpackPerpPositionsZero:
 
         # For zero balance accounts, expect empty list or very small positions
         if positions:
-            logger.info(f"Found {len(positions)} positions in zero balance account")
+            logger.info(
+                "positions_found_in_zero_balance",
+                position_count=len(positions),
+                message="Found positions in zero balance account",
+            )
             # If positions exist, they should be very small (dust amounts)
             for i, position in enumerate(positions):
                 assert isinstance(position, DerivativePosition), (
@@ -124,11 +128,21 @@ class TestBackpackPerpPositionsZero:
                         )
                         self._validate_position_structure(position, 0)
                 else:
-                    logger.info(f"✓ No positions found for {symbol} in zero balance account")
+                    logger.info(
+                        "no_positions_found_zero_balance",
+                        symbol=symbol,
+                        message="✓ No positions found for symbol in zero balance account",
+                    )
 
             except APIError as e:
                 # Some symbols might not exist or have specific requirements
-                logger.info(f"Symbol {symbol} returned API error (expected for some symbols): {e}")
+                logger.info(
+                    "symbol_api_error_expected",
+                    symbol=symbol,
+                    error_code=e.code,
+                    error_message=str(e),
+                    message="Symbol returned API error (expected for some symbols)",
+                )
                 assert e.code in [
                     APIErrorCode.INVALID_SYMBOL.value,
                     APIErrorCode.SYMBOL_NOT_FOUND.value,
@@ -178,7 +192,11 @@ class TestBackpackPerpPositionsZero:
                 # If no error thrown, should be empty list for invalid symbols
                 assert isinstance(positions, list), f"Invalid symbol {symbol} should return list"
                 assert len(positions) == 0, f"Invalid symbol {symbol} should return empty list"
-                logger.info(f"Invalid symbol {symbol} returned empty list (graceful handling)")
+                logger.info(
+                    "invalid_symbol_empty_list",
+                    symbol=symbol,
+                    message="Invalid symbol returned empty list (graceful handling)"
+                )
 
             except APIError as e:
                 # Expected errors for invalid symbols
@@ -192,12 +210,21 @@ class TestBackpackPerpPositionsZero:
                 assert e.code in expected_codes, (
                     f"Unexpected error code for invalid symbol {symbol}: {e.code}"
                 )
-                logger.info(f"✓ Invalid symbol {symbol} properly rejected with error: {e.code}")
+                logger.info(
+                    "invalid_symbol_rejected",
+                    symbol=symbol,
+                    error_code=e.code,
+                    message="✓ Invalid symbol properly rejected with error"
+                )
 
             except ValueError as e:
                 # Service layer validation errors (e.g., empty string symbols)
                 assert symbol == "", f"ValueError should only occur for empty symbol, got: {symbol}"
-                logger.info(f"✓ Empty symbol properly rejected with ValueError: {e}")
+                logger.info(
+                    "empty_symbol_value_error",
+                    error_message=str(e),
+                    message="✓ Empty symbol properly rejected with ValueError"
+                )
 
             except Exception as e:
                 pytest.fail(
@@ -255,7 +282,11 @@ class TestBackpackPerpPositionsZero:
                         f"Position {j} size changed too much: {size_diff}"
                     )
 
-        logger.info(f"✓ Data consistency verified across {calls_count} calls")
+        logger.info(
+            "data_consistency_verified",
+            calls_count=calls_count,
+            message="✓ Data consistency verified across calls"
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -280,7 +311,11 @@ class TestBackpackPerpPositionsZero:
                         isinstance(result, APIError)
                         and result.code == APIErrorCode.RATE_LIMITED.value
                     ):
-                        logger.info(f"Concurrent request {i + 1} hit rate limit (expected)")
+                        logger.info(
+                            "concurrent_rate_limit",
+                            request_number=i + 1,
+                            message="Concurrent request hit rate limit (expected)"
+                        )
                     else:
                         pytest.fail(f"Unexpected error in concurrent request {i + 1}: {result}")
                 else:
@@ -300,7 +335,10 @@ class TestBackpackPerpPositionsZero:
                     )
 
             logger.info(
-                f"✓ {len(successful_results)}/{concurrent_count} concurrent requests succeeded",
+                "concurrent_requests_succeeded",
+                successful_count=len(successful_results),
+                total_count=concurrent_count,
+                message="✓ Concurrent requests succeeded"
             )
 
         except Exception as e:
@@ -324,7 +362,11 @@ class TestBackpackPerpPositionsZero:
             assert len(positions_none) == len(positions_all), "None symbol should equal no symbol"
 
         except Exception as e:
-            logger.info(f"None symbol test resulted in: {e}")
+            logger.info(
+                "none_symbol_test_result",
+                error_message=str(e),
+                message="None symbol test resulted in error"
+            )
 
         # Test timestamp consistency if positions exist
         positions = await bp_api_for_zero_balance_test.get_positions()
@@ -362,7 +404,11 @@ class TestBackpackPerpPositionsZero:
         assert response_time < 10.0, f"Response time too slow: {response_time}s"
 
         assert isinstance(positions, list), "Should return list despite timing check"
-        logger.info(f"✓ Response time: {response_time:.3f}s")
+        logger.info(
+            "response_time_measured",
+            response_time_seconds=round(response_time, 3),
+            message="✓ Response time measured"
+        )
 
     def _validate_position_structure(self, position: DerivativePosition, index: int) -> None:
         """Validate the structure and types of a DerivativePosition."""
@@ -451,7 +497,12 @@ class TestBackpackPerpPositionsZero:
         if position.bp_details:
             self._validate_backpack_position_details(position.bp_details, index)
 
-        logger.debug(f"✓ Position {index} structure validation passed: {position.symbol}")
+        logger.debug(
+            "position_validation_passed",
+            position_index=index,
+            symbol=position.symbol,
+            message="✓ Position structure validation passed"
+        )
 
     def _validate_backpack_position_details(
         self,
@@ -511,4 +562,8 @@ class TestBackpackPerpPositionsZero:
             )
             # Cumulative funding can be negative
 
-        logger.debug(f"✓ Position {index} Backpack details validation passed")
+        logger.debug(
+            "backpack_details_validation_passed",
+            position_index=index,
+            message="✓ Position Backpack details validation passed"
+        )

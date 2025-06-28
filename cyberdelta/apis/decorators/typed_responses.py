@@ -4,6 +4,7 @@ Advanced decorator-based solution for type-safe API responses that eliminates
 boilerplate while providing compile-time type guarantees and runtime validation.
 """
 
+import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
 from functools import wraps
@@ -441,8 +442,6 @@ def mapped_response[T: BaseModel](
             if mapper and hasattr(mapper, mapper_method):
                 mapper_func = getattr(mapper, mapper_method)
                 # Handle both sync and async mapper methods
-                import asyncio
-
                 if asyncio.iscoroutinefunction(mapper_func):
                     return await mapper_func(raw_result)
                 return mapper_func(raw_result)

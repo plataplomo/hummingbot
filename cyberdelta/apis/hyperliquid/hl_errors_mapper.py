@@ -259,8 +259,6 @@ class HyperliquidErrorMapper(IErrorMapper):
                 retry_after = 10 + RATE_LIMIT_BUFFER_SECONDS  # Add small buffer
             elif "one request every" in msg_lower:
                 # Try to extract the number of seconds from the message
-                import re
-
                 match = re.search(r"one request every (\d+) seconds", msg_lower)
                 if match:
                     seconds = int(match.group(1))

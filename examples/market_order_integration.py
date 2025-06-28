@@ -5,6 +5,7 @@ integrating it with CyberDeltaEngine's trading system.
 """
 
 import asyncio
+import time
 from decimal import Decimal
 from typing import Any
 
@@ -158,7 +159,6 @@ class ExchangeAgnosticMarketOrderExecutor:
         market_order = self.market_orders[exchange_name]
 
         # Execute the order
-        import time
 
         start_time = time.time()
 

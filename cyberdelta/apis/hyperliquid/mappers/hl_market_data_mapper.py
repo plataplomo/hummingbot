@@ -20,7 +20,7 @@ All transformation methods follow the standard pattern:
 - Raise TransformationError for unmappable data
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from cyberdelta.apis.common import TransformationError
@@ -443,8 +443,6 @@ class HyperliquidMarketDataMapper:
                 )
 
             # Calculate next funding time (start of next hour)
-            from datetime import timedelta
-
             now_utc = datetime.now(UTC)
             next_funding_time = now_utc.replace(minute=0, second=0, microsecond=0) + timedelta(
                 hours=1,

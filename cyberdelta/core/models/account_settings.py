@@ -11,7 +11,7 @@ rather than financial state.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -80,7 +80,6 @@ class AccountSettings(BaseModel):
             if parsed is None or not parsed.is_finite() or parsed < Decimal(1):
                 raise ValueError("Leverage limit must be finite and >= 1")
         self.leverage_limit = new_limit
-        from datetime import UTC
 
         self.timestamp = datetime.now(UTC)
 

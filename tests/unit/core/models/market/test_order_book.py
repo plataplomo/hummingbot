@@ -93,7 +93,7 @@ class TestOrderBook:
         """Test timestamp parsing from various supported formats (int, str, datetime)."""
         ms_timestamp = 1678881600000  # 2023-03-15 12:00:00 UTC
         iso_timestamp = "2023-03-15T12:00:00Z"
-        naive_dt = datetime(2023, 3, 15, 12, 0, 0)
+        naive_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None)
         expected_dt = datetime(2023, 3, 15, 12, 0, 0, tzinfo=UTC)
 
         # Test int timestamp parsing using Any

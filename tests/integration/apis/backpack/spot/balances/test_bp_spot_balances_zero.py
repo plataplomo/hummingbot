@@ -49,7 +49,12 @@ class TestBackpackSpotBalancesZero:
             assert isinstance(spot_balance, SpotBalance)
             assert_valid_spot_balance(spot_balance)
             assert spot_balance.exchange == "backpack"
-            logger.info(f"✓ Zero balance for {asset_symbol}: {spot_balance}")
+            logger.info(
+                "zero_balance_validated",
+                asset_symbol=asset_symbol,
+                spot_balance=str(spot_balance),
+                message=f"✓ Zero balance for {asset_symbol}: {spot_balance}",
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -75,7 +80,11 @@ class TestBackpackSpotBalancesZero:
         api_error = exc_info.value
         assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
         assert "unauthorized" in str(api_error).lower() or "auth" in str(api_error).lower()
-        logger.info(f"✓ Authentication failure properly detected: {api_error.message}")
+        logger.info(
+            "authentication_failure_detected",
+            error_message=api_error.message,
+            message=f"✓ Authentication failure properly detected: {api_error.message}",
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -107,7 +116,11 @@ class TestBackpackSpotBalancesZero:
             ]
 
             if rate_limit_errors:
-                logger.info(f"✓ Rate limiting detected: {len(rate_limit_errors)} requests limited")
+                logger.info(
+                    "rate_limiting_detected",
+                    limited_requests=len(rate_limit_errors),
+                    message=f"✓ Rate limiting detected: {len(rate_limit_errors)} requests limited",
+                )
             else:
                 logger.info("✓ No rate limiting encountered in this test run")
 
@@ -140,7 +153,11 @@ class TestBackpackSpotBalancesZero:
             assert hasattr(spot_balance.bp_details, "lend_quantity")
             assert hasattr(spot_balance.bp_details, "collateral_weight")
 
-            logger.info(f"✓ Structure valid for {asset_symbol} even with zero balance")
+            logger.info(
+                "structure_valid_zero_balance",
+                asset_symbol=asset_symbol,
+                message=f"✓ Structure valid for {asset_symbol} even with zero balance",
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -175,7 +192,12 @@ class TestBackpackSpotBalancesZero:
                     assert result[asset].total_quantity == first_result[asset].total_quantity
 
         logger.info(
-            f"✓ Concurrent balance requests consistent: {len(successful_results)} successful",
+            "concurrent_requests_consistent",
+            successful_count=len(successful_results),
+            message=(
+                f"✓ Concurrent balance requests consistent: "
+                f"{len(successful_results)} successful"
+            ),
         )
 
     @pytest.mark.vcr
@@ -194,11 +216,19 @@ class TestBackpackSpotBalancesZero:
 
             if spot_balance.available_quantity == Decimal(0):
                 assert str(spot_balance.available_quantity) == "0"
-                logger.info(f"✓ Zero available balance precise for {asset_symbol}")
+                logger.info(
+                    "zero_available_balance_precise",
+                    asset_symbol=asset_symbol,
+                    message=f"✓ Zero available balance precise for {asset_symbol}",
+                )
 
             if spot_balance.total_quantity == Decimal(0):
                 assert str(spot_balance.total_quantity) == "0"
-                logger.info(f"✓ Zero total balance precise for {asset_symbol}")
+                logger.info(
+                    "zero_total_balance_precise",
+                    asset_symbol=asset_symbol,
+                    message=f"✓ Zero total balance precise for {asset_symbol}",
+                )
 
             total_value = spot_balance.total_quantity + Decimal(0)
             assert total_value == spot_balance.total_quantity
@@ -206,7 +236,11 @@ class TestBackpackSpotBalancesZero:
             assert spot_balance.total_quantity >= Decimal(0)
             assert spot_balance.available_quantity <= spot_balance.total_quantity
 
-            logger.info(f"✓ Decimal operations stable for {asset_symbol}")
+            logger.info(
+                "decimal_operations_stable",
+                asset_symbol=asset_symbol,
+                message=f"✓ Decimal operations stable for {asset_symbol}",
+            )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -230,9 +264,17 @@ class TestBackpackSpotBalancesZero:
 
             known_assets = {"USDC", "SOL", "BTC", "ETH", "BONK", "JUP", "WIF"}
             if asset_symbol in known_assets:
-                logger.info(f"✓ Known asset {asset_symbol} properly formatted")
+                logger.info(
+                    "known_asset_formatted",
+                    asset_symbol=asset_symbol,
+                    message=f"✓ Known asset {asset_symbol} properly formatted",
+                )
             else:
-                logger.info(f"✓ Unknown asset {asset_symbol} follows format rules")
+                logger.info(
+                    "unknown_asset_follows_rules",
+                    asset_symbol=asset_symbol,
+                    message=f"✓ Unknown asset {asset_symbol} follows format rules",
+                )
 
             assert asset_symbol.isalpha()
 
@@ -258,10 +300,20 @@ class TestBackpackSpotBalancesZero:
                     assert sys.getsizeof(balance) < 1000
                     assert sys.getsizeof(asset) < 100
 
-                logger.info(f"Request {i + 1}: {len(balances)} assets processed")
+                logger.info(
+                    "request_processed",
+                    request_number=i + 1,
+                    assets_count=len(balances),
+                    message=f"Request {i + 1}: {len(balances)} assets processed",
+                )
 
             except Exception as e:
-                logger.info(f"Request {i + 1} failed: {e}")
+                logger.info(
+                    "request_failed",
+                    request_number=i + 1,
+                    error=str(e),
+                    message=f"Request {i + 1} failed: {e}",
+                )
 
         gc.collect()
         final_objects = len(gc.get_objects())
@@ -269,4 +321,8 @@ class TestBackpackSpotBalancesZero:
         object_growth = final_objects - initial_objects
         assert object_growth < 1000
 
-        logger.info(f"✓ Memory efficiency validated: {object_growth} object growth")
+        logger.info(
+            "memory_efficiency_validated",
+            object_growth=object_growth,
+            message=f"✓ Memory efficiency validated: {object_growth} object growth",
+        )

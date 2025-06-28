@@ -3,7 +3,7 @@
 import os
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, ClassVar, Literal
 
@@ -286,7 +286,7 @@ class BalanceMonitor:
 
         """
         status: dict[str, Any] = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "balances": {},
             "alerts": [str(alert) for alert in self.active_alerts],
         }

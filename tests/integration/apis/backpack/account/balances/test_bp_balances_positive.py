@@ -267,13 +267,21 @@ class TestBackpackBalancesPositive:
 
             # Log for debugging
             logger.debug(
-                f"Auto-lending detected - Account Equity: {account_summary.total_equity}, "
-                f"USD Balances: {total_balance_value}",
+                "auto_lending_detected",
+                total_equity=account_summary.total_equity,
+                usd_balances=total_balance_value,
+                message="Auto-lending detected",
             )
             for asset, balance in balances.items():
                 if balance.total_quantity > Decimal(0):
                     lend_qty = balance.bp_details.lend_quantity if balance.bp_details else None
-                    logger.debug(f"  {asset}: {balance.total_quantity} (lent: {lend_qty})")
+                    logger.debug(
+                        "asset_balance_details",
+                        asset=asset,
+                        total_quantity=balance.total_quantity,
+                        lent_quantity=lend_qty,
+                        message="Asset balance and lending details",
+                    )
 
     def _validate_normal_scenario(
         self,
@@ -312,9 +320,21 @@ class TestBackpackBalancesPositive:
         ]
 
         if non_stablecoin_assets and total_stablecoin_balance > Decimal(0):
-            logger.debug(f"Non-stablecoin assets held: {non_stablecoin_assets}")
-            logger.debug(f"Total equity: {account_summary.total_equity}")
-            logger.debug(f"Stablecoin balance: {total_stablecoin_balance}")
+            logger.debug(
+                "non_stablecoin_assets_detected",
+                assets=non_stablecoin_assets,
+                message="Non-stablecoin assets held detected"
+            )
+            logger.debug(
+                "account_total_equity",
+                total_equity=account_summary.total_equity,
+                message="Account total equity value"
+            )
+            logger.debug(
+                "stablecoin_balance_total",
+                stablecoin_balance=total_stablecoin_balance,
+                message="Total stablecoin balance across assets"
+            )
 
         # 5. Validate individual balance constraints
         for asset, balance in balances.items():

@@ -4,14 +4,33 @@ Tests use dependency injection patterns to mock collaborators and focus on isola
 """
 
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
+from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
+from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
+from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
+from cyberdelta.apis.hyperliquid.mappers import (
+    HyperliquidAccountDataMapper,
+    HyperliquidMarketDataMapper,
+    HyperliquidTradingDataMapper,
+)
+from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
+    HyperliquidMarketDataService,
+)
+from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
+from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from cyberdelta.core.models.market.market import Market
 
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
@@ -40,8 +59,6 @@ def mock_hl_authenticator() -> MagicMock:
     Returns:
         MagicMock: Mock authenticator with wallet address and prepare_request method.
     """
-    from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
-
     mock_auth = MagicMock(spec=HyperliquidEip712Authenticator)
     mock_auth.prepare_request = AsyncMock()
     mock_auth.wallet_address = "0x1234567890123456789012345678901234567890"
@@ -55,8 +72,6 @@ def mock_hl_error_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock error mapper for handling API errors.
     """
-    from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-
     return MagicMock(spec=HyperliquidErrorMapper)
 
 
@@ -67,8 +82,6 @@ def mock_hl_request_builder() -> MagicMock:
     Returns:
         MagicMock: Mock request builder for constructing API requests.
     """
-    from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-
     return MagicMock(spec=HyperliquidRequestBuilder)
 
 
@@ -79,8 +92,6 @@ def mock_hl_response_handler() -> MagicMock:
     Returns:
         MagicMock: Mock response handler for processing API responses.
     """
-    from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
-
     return MagicMock(spec=HyperliquidResponseHandler)
 
 
@@ -91,8 +102,6 @@ def mock_hl_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock market data mapper for transforming market data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidMarketDataMapper
-
     return MagicMock(spec=HyperliquidMarketDataMapper)
 
 
@@ -103,8 +112,6 @@ def mock_hl_account_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock account data mapper for transforming account data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
-
     return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
@@ -115,8 +122,6 @@ def mock_hl_order_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock trading data mapper for transforming order data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
-
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
@@ -127,8 +132,6 @@ def mock_hl_trading_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock trading data mapper for transforming trading data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidTradingDataMapper
-
     return MagicMock(spec=HyperliquidTradingDataMapper)
 
 
@@ -139,8 +142,6 @@ def mock_hl_user_fill_mapper() -> MagicMock:
     Returns:
         MagicMock: Mock account data mapper for transforming user fill data.
     """
-    from cyberdelta.apis.hyperliquid.mappers import HyperliquidAccountDataMapper
-
     return MagicMock(spec=HyperliquidAccountDataMapper)
 
 
@@ -151,8 +152,6 @@ def mock_hl_account_service() -> MagicMock:
     Returns:
         MagicMock: Mock account service with async methods for account operations.
     """
-    from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
-
     mock_service = MagicMock(spec=HyperliquidAccountService)
     mock_service.get_balances = AsyncMock()
     mock_service.get_positions = AsyncMock()
@@ -169,8 +168,6 @@ def mock_hl_trading_service() -> MagicMock:
     Returns:
         MagicMock: Mock trading service with async methods for trading operations.
     """
-    from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-
     mock_service = MagicMock(spec=HyperliquidTradingService)
     mock_service.place_order = AsyncMock()
     mock_service.cancel_order = AsyncMock()
@@ -187,10 +184,6 @@ def mock_hl_market_data_service() -> MagicMock:
     Returns:
         MagicMock: Mock market data service with async methods for market data operations.
     """
-    from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
-        HyperliquidMarketDataService,
-    )
-
     mock_service = MagicMock(spec=HyperliquidMarketDataService)
     mock_service.get_ticker = AsyncMock()
     mock_service.get_order_book = AsyncMock()
@@ -229,7 +222,6 @@ def hl_api_with_di(
     Returns:
         Callable[..., Any]: Factory function for creating HyperliquidAPI instances.
     """
-    from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 
     def _create_api(
         # Allow overriding specific dependencies if needed
@@ -449,11 +441,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test successful get_markets call delegates to market data service."""
-        from decimal import Decimal
-
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-        from cyberdelta.core.models.market.market import Market
-
         # Create test data
         expected_markets = [
             Market(
@@ -502,8 +489,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test get_markets returns empty list when service returns empty list."""
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         # Configure mock service to return empty list
         mock_hl_market_data_service.get_markets.return_value = []
 
@@ -528,9 +513,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that exceptions from market data service are propagated."""
-        from cyberdelta.apis.common import APIError, APIErrorCode
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         # Configure mock service to raise an error
         api_error = APIError(
             message="Failed to fetch markets",
@@ -556,11 +538,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test successful get_market call delegates to market data service."""
-        from decimal import Decimal
-
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
-        from cyberdelta.core.models.market.market import Market
-
         # Create test data
         symbol = "BTC-USD"
         expected_market = Market(
@@ -600,11 +577,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test get_market works with different symbol formats."""
-        from decimal import Decimal
-
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
-        from cyberdelta.core.models.market.market import Market
-
         test_cases = [
             ("BTC-USD", "BTC", "USD"),
             ("ETH-USDC", "ETH", "USDC"),
@@ -648,9 +620,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that exceptions from market data service are propagated."""
-        from cyberdelta.apis.common import APIError, APIErrorCode
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
-
         # Configure mock service to raise an error
         symbol = "BTC-USD"
         api_error = APIError(
@@ -677,10 +646,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that GetMarketArgs validation works correctly."""
-        from pydantic import ValidationError
-
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
-
         # Test valid args creation
         valid_args = GetMarketArgs(symbol="BTC-USD")
         assert valid_args.symbol == "BTC-USD"
@@ -700,10 +665,6 @@ class TestHyperliquidAPIMarketDataMethods:
         mock_hl_market_data_service: MagicMock,
     ) -> None:
         """Test that GetMarketsArgs validation works correctly."""
-        from pydantic import ValidationError
-
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         # Test valid args creation (no fields required)
         valid_args = GetMarketsArgs()
         assert valid_args is not None

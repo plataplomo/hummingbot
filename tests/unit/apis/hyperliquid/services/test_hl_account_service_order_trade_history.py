@@ -284,16 +284,16 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         result = await hyperliquid_account_service.get_order_history(
             GetOrderHistoryArgs(
                 symbol="BTC",
-                start_time=datetime(2023, 1, 1),
-                end_time=datetime(2023, 1, 2),
+                start_time=datetime(2023, 1, 1, tzinfo=UTC),
+                end_time=datetime(2023, 1, 2, tzinfo=UTC),
             ),
         )
         assert result == [mapped_order1]
         result_all = await hyperliquid_account_service.get_order_history(
             GetOrderHistoryArgs(
                 symbol=None,
-                start_time=datetime(2023, 1, 1),
-                end_time=datetime(2023, 1, 2),
+                start_time=datetime(2023, 1, 1, tzinfo=UTC),
+                end_time=datetime(2023, 1, 2, tzinfo=UTC),
             ),
         )
         assert set(result_all) == {mapped_order1, mapped_order2}
@@ -333,8 +333,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             await service_no_wallet.get_order_history(
                 GetOrderHistoryArgs(
                     symbol=None,
-                    start_time=datetime(2024, 1, 1),
-                    end_time=datetime(2024, 1, 2),
+                    start_time=datetime(2024, 1, 1, tzinfo=UTC),
+                    end_time=datetime(2024, 1, 2, tzinfo=UTC),
                 ),
             )
         assert excinfo_no_wallet.value.code == APIErrorCode.INVALID_REQUEST.value
@@ -358,8 +358,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             await hyperliquid_account_service.get_order_history(
                 GetOrderHistoryArgs(
                     symbol=None,
-                    start_time=datetime(2024, 1, 1),
-                    end_time=datetime(2024, 1, 2),
+                    start_time=datetime(2024, 1, 1, tzinfo=UTC),
+                    end_time=datetime(2024, 1, 2, tzinfo=UTC),
                 ),
             )
 

@@ -13,17 +13,21 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.models.service_args_models import GetMarketsArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
-from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
     DEFAULT_TEST_SYMBOL_PERP,
     PNL_TOLERANCE,
+    get_minimal_order_size,
     is_valid_margin_fraction,
     is_within_ratio_bounds,
     is_within_tolerance,
     validate_pnl_direction,
+    wait_for_condition,
 )
 
 
@@ -103,8 +107,6 @@ class TestBackpackPositionsPositive:
         Raises:
             AssertionError: If no perpetual symbols are available for testing.
         """
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         markets = await bp_api.get_markets(GetMarketsArgs())
         perp_symbols = [m.symbol for m in markets if "_PERP" in m.symbol]
 
@@ -112,7 +114,11 @@ class TestBackpackPositionsPositive:
             # Use first available perpetual symbol instead
             if perp_symbols:
                 symbol = perp_symbols[0]
-                logger.info(f"Using available perp symbol: {symbol}")
+                logger.info(
+                    "using_available_perp_symbol",
+                    symbol=symbol,
+                    message="Using available perp symbol",
+                )
                 return symbol
             raise AssertionError("No perpetual symbols available for testing")
 
@@ -132,8 +138,6 @@ class TestBackpackPositionsPositive:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.common import APIError, APIErrorCode
-
         try:
             positions = await bp_api.get_positions(symbol=symbol)
             assert isinstance(positions, list)
@@ -150,12 +154,6 @@ class TestBackpackPositionsPositive:
         Raises:
             ValueError: If cannot determine market price for the symbol.
         """
-        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-        from cyberdelta.core.models.enums import OrderType, TimeInForce
-        from tests.integration.apis.backpack.shared.bp_test_helpers import (
-            get_minimal_order_size,
-        )
-
         side = OrderSide.BUY  # Open a long position
 
         # Get current market price for size calculation
@@ -179,8 +177,6 @@ class TestBackpackPositionsPositive:
         await bp_api.place_order(args)
 
         # Wait for position to be reflected
-        from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
-
         async def position_exists() -> bool:
             positions = await bp_api.get_positions(symbol=symbol)
             return len(positions) > 0 and positions[0].size != Decimal(0)
@@ -194,9 +190,6 @@ class TestBackpackPositionsPositive:
 
     async def _close_position(self, bp_api: BackpackAPI, symbol: str) -> None:
         """Close any open positions for the given symbol."""
-        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-        from cyberdelta.core.models.enums import OrderType, TimeInForce
-
         try:
             # Get current positions to determine close side
             current_positions = await bp_api.get_positions(symbol=symbol)
@@ -236,8 +229,6 @@ class TestBackpackPositionsPositive:
             AssertionError: If position validation fails.
             APIError: If API call fails or symbol is not found.
         """
-        from cyberdelta.apis.common import APIError, APIErrorCode
-
         symbol = DEFAULT_TEST_SYMBOL_PERP
         opened_position = False
 

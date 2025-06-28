@@ -7,12 +7,22 @@ end-to-end testing of the trading engine components working together.
 
 import asyncio
 import os
+import re
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import create_autospec, patch
+
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.config.models.config_models import (
+    AddressActionSafetyNetConfig,
+    ExchangeSpecificConfig,
+)
+from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -202,11 +212,6 @@ async def mock_hl_api(
     """
     exchange_name = "mock_hl"
     # Create a proper ExchangeSpecificConfig object for the mock
-    from cyberdelta.config.models.config_models import (
-        AddressActionSafetyNetConfig,
-        ExchangeSpecificConfig,
-    )
-    from cyberdelta.enums.exchange_names import ExchangeName
 
     exchange_config = ExchangeSpecificConfig(
         exchange_name=ExchangeName.HYPERLIQUID,
@@ -257,8 +262,6 @@ async def mock_bp_api(
     """
     exchange_name = "mock_bp"
     # Create a proper ExchangeSpecificConfig object for the mock
-    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
-    from cyberdelta.enums.exchange_names import ExchangeName
 
     exchange_config = ExchangeSpecificConfig(
         exchange_name=ExchangeName.BACKPACK,
@@ -310,9 +313,7 @@ def data_handler(
     Returns:
         DataHandler: Data handler instance with mocked dependencies.
     """
-    from typing import cast
 
-    from cyberdelta.apis.base.exchange_api import ExchangeAPI
 
     api_clients: dict[str, ExchangeAPI] = cast(
         "dict[str, ExchangeAPI]",
@@ -371,7 +372,6 @@ def risk_manager(
     Returns:
         object: RiskManager instance with mocked dependencies.
     """
-    from cyberdelta.core.risk_manager import RiskManager  # Local import
 
     mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
     mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
@@ -407,7 +407,6 @@ def execution_handler(
     Returns:
         ExecutionHandler: Execution handler with registered mock API clients.
     """
-    from cyberdelta.core.execution_handler import ExecutionHandler  # Local import
 
     # Convert AppSettings exchanges config to dict format that SymbolMapper expects
     # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
@@ -437,8 +436,6 @@ def funding_rate_validator() -> FundingRateValidatorProtocol:
     Returns:
         FundingRateValidatorProtocol: Mock funding rate validator.
     """
-    from typing import cast
-    from unittest.mock import create_autospec  # Local import
 
     mock_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
@@ -538,7 +535,6 @@ def vcr_config() -> dict[str, Any]:
             )
 
             # Replace common sensitive patterns
-            import re
 
             # Filter private keys (hex strings that look like private keys)
             body_str = re.sub(

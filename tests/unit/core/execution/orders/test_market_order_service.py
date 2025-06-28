@@ -1,5 +1,6 @@
 """Unit tests for MarketOrderService."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
@@ -79,8 +80,6 @@ class TestMarketOrderService:
         Returns:
             OrderBook: Order book with good bid/ask liquidity for testing.
         """
-        from datetime import UTC, datetime
-
         return OrderBook(
             symbol="BTC",
             bids=[
@@ -103,8 +102,6 @@ class TestMarketOrderService:
         Returns:
             OrderBook: Order book with limited liquidity for testing.
         """
-        from datetime import UTC, datetime
-
         return OrderBook(
             symbol="ILLIQUID",
             bids=[(Decimal(100), Decimal("0.1"))],
@@ -230,7 +227,6 @@ class TestMarketOrderService:
     ) -> None:
         """Test error when price deviation exceeds limits."""
         # Create order book with extreme spread
-        from datetime import UTC, datetime
 
         extreme_book = OrderBook(
             symbol="EXTREME",
@@ -268,8 +264,6 @@ class TestMarketOrderService:
 
     def test_calculate_liquidity_ratio(self, service: MarketOrderService) -> None:
         """Test liquidity ratio calculation."""
-        from datetime import UTC, datetime
-
         order_book = OrderBook(
             symbol="TEST",
             bids=[(Decimal(100), Decimal(5))],
@@ -392,8 +386,6 @@ class TestMarketOrderService:
         mock_exchange_api: AsyncMock,
     ) -> None:
         """Test handling of order book with empty bid/ask levels."""
-        from datetime import UTC, datetime
-
         empty_book = OrderBook(
             symbol="EMPTY",
             bids=[],  # Empty bids

@@ -103,12 +103,20 @@ class TestBackpackAPIWebSocketBasicOperations:
         async def test_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             """Test message handler for WebSocket data."""
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Received WebSocket message: {message}")
+            logger.info(
+                "websocket_message_received",
+                message=message,
+                event="Received WebSocket message"
+            )
 
         # Test subscription with real symbol
         try:
             await bp_api_for_test_env.subscribe(topics[0], test_handler)
-            logger.info(f"✓ Successfully subscribed to {topics[0]}")
+            logger.info(
+                "websocket_subscription_success",
+                topic=topics[0],
+                message=f"✓ Successfully subscribed to {topics[0]}"
+            )
         except Exception as e:
             pytest.fail(
                 f"WebSocket subscription failed for real symbol {test_symbol}: {e}. "
@@ -136,11 +144,21 @@ class TestBackpackAPIWebSocketBasicOperations:
 
         async def handler1(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Handler1 received: {message}")
+            logger.info(
+                "handler1_message_received",
+                message=message,
+                handler="Handler1",
+                event="Handler1 received message"
+            )
 
         async def handler2(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Handler2 received: {message}")
+            logger.info(
+                "handler2_message_received",
+                message=message,
+                handler="Handler2",
+                event="Handler2 received message"
+            )
 
         symbol1, symbol2 = available_symbols[0], available_symbols[1]
         topic1 = f"ticker.{symbol1}"
@@ -149,7 +167,12 @@ class TestBackpackAPIWebSocketBasicOperations:
         try:
             await bp_api_for_test_env.subscribe(topic1, handler1)
             await bp_api_for_test_env.subscribe(topic2, handler2)
-            logger.info(f"✓ Successfully subscribed to {topic1} and {topic2}")
+            logger.info(
+                "multiple_subscriptions_success",
+                topic1=topic1,
+                topic2=topic2,
+                message=f"✓ Successfully subscribed to {topic1} and {topic2}"
+            )
         except Exception as e:
             pytest.fail(
                 f"Multiple WebSocket subscriptions failed: {e}. "
@@ -173,7 +196,12 @@ class TestBackpackAPIWebSocketBasicOperations:
 
         async def status_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Status handler received: {message}")
+            logger.info(
+                "status_handler_message_received",
+                message=message,
+                handler="status_handler",
+                event="Status handler received message"
+            )
 
         # Test connection status consistency
         initial_status = bp_api_for_test_env.is_connected
@@ -192,8 +220,10 @@ class TestBackpackAPIWebSocketBasicOperations:
             )
 
             logger.info(
-                f"✓ Connection status validation passed: "
-                f"{initial_status} -> {after_subscription_status}",
+                "connection_status_validation_passed",
+                initial_status=initial_status,
+                after_subscription_status=after_subscription_status,
+                message=f"✓ Connection status validation passed: {initial_status} -> {after_subscription_status}"
             )
 
         except Exception as e:
@@ -231,12 +261,21 @@ class TestBackpackAPIWebSocketLifecycle:
         async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             received_messages.append(message)
-            logger.info(f"Lifecycle handler received message: {message}")
+            logger.info(
+                "lifecycle_handler_message_received",
+                message=message,
+                handler="lifecycle_handler",
+                event="Lifecycle handler received message"
+            )
 
         # Test subscription
         try:
             await bp_api_for_test_env.subscribe(topics[0], lifecycle_handler)
-            logger.info(f"✓ Subscription successful for {topics[0]}")
+            logger.info(
+                "subscription_lifecycle_success",
+                topic=topics[0],
+                message=f"✓ Subscription successful for {topics[0]}"
+            )
         except Exception as e:
             pytest.fail(
                 f"Subscription lifecycle failed for {test_symbol}: {e}. "
@@ -249,11 +288,20 @@ class TestBackpackAPIWebSocketLifecycle:
             full_message: dict[str, Any],
         ) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Replacement handler: {message}")
+            logger.info(
+                "replacement_handler_message_received",
+                message=message,
+                handler="replacement_handler",
+                event="Replacement handler received message"
+            )
 
         try:
             await bp_api_for_test_env.subscribe(topics[0], replacement_handler)
-            logger.info(f"✓ Handler replacement successful for {topics[0]}")
+            logger.info(
+                "handler_replacement_success",
+                topic=topics[0],
+                message=f"✓ Handler replacement successful for {topics[0]}"
+            )
         except Exception as e:
             pytest.fail(
                 f"Handler replacement failed for {test_symbol}: {e}. "
@@ -281,7 +329,12 @@ class TestBackpackAPIWebSocketLifecycle:
 
         async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Concurrent handler: {message}")
+            logger.info(
+                "concurrent_handler_message_received",
+                message=message,
+                handler="concurrent_handler",
+                event="Concurrent handler received message"
+            )
 
         # Create subscription tasks for multiple symbols
         subscription_tasks: list[tuple[str, Any]] = []
@@ -294,7 +347,9 @@ class TestBackpackAPIWebSocketLifecycle:
         try:
             await asyncio.gather(*[task for _, task in subscription_tasks])
             logger.info(
-                f"✓ Concurrent subscriptions successful for {len(subscription_tasks)} symbols",
+                "concurrent_subscriptions_success",
+                symbol_count=len(subscription_tasks),
+                message=f"✓ Concurrent subscriptions successful for {len(subscription_tasks)} symbols"
             )
         except Exception as e:
             pytest.fail(
@@ -324,7 +379,12 @@ class TestBackpackAPIWebSocketEdgeCases:
 
         async def error_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Error handler: {message}")
+            logger.info(
+                "error_handler_message_received",
+                message=message,
+                handler="error_handler",
+                event="Error handler received message"
+            )
 
         invalid_topics = [
             "",  # Empty topic
@@ -345,7 +405,11 @@ class TestBackpackAPIWebSocketEdgeCases:
                     f"Connection state should be boolean after invalid topic {invalid_topic}"
                 )
 
-                logger.info(f"✓ Invalid topic handling completed for: {invalid_topic}")
+                logger.info(
+                    "invalid_topic_handling_completed",
+                    invalid_topic=invalid_topic,
+                    message=f"✓ Invalid topic handling completed for: {invalid_topic}"
+                )
 
             except Exception as e:
                 # If an exception is raised, it should be a proper API error
@@ -357,7 +421,12 @@ class TestBackpackAPIWebSocketEdgeCases:
                     )
                 else:
                     # API validation errors are acceptable
-                    logger.info(f"✓ API correctly rejected invalid topic {invalid_topic}: {e}")
+                    logger.info(
+                        "api_rejected_invalid_topic",
+                        invalid_topic=invalid_topic,
+                        error=str(e),
+                        message=f"✓ API correctly rejected invalid topic {invalid_topic}: {e}"
+                    )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -380,7 +449,11 @@ class TestBackpackAPIWebSocketEdgeCases:
                 "Connection state should be boolean after connect attempt"
             )
 
-            logger.info(f"✓ WebSocket connection attempt completed, state: {connection_state}")
+            logger.info(
+                "websocket_connection_attempt_completed",
+                connection_state=connection_state,
+                message=f"✓ WebSocket connection attempt completed, state: {connection_state}"
+            )
 
         except Exception as e:
             # Connection failures should fail the test
@@ -406,7 +479,12 @@ class TestBackpackAPIWebSocketEdgeCases:
 
         async def sequence_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Sequence handler: {message}")
+            logger.info(
+                "sequence_handler_message_received",
+                message=message,
+                handler="sequence_handler",
+                event="Sequence handler received message"
+            )
 
         try:
             # Subscribe first
@@ -420,7 +498,9 @@ class TestBackpackAPIWebSocketEdgeCases:
             assert isinstance(final_state, bool), "Final connection state should be boolean"
 
             logger.info(
-                f"✓ Subscription -> connection sequence completed, final state: {final_state}",
+                "subscription_connection_sequence_completed",
+                final_state=final_state,
+                message=f"✓ Subscription -> connection sequence completed, final state: {final_state}"
             )
 
         except Exception as e:
@@ -445,7 +525,12 @@ class TestBackpackAPIWebSocketEdgeCases:
 
         async def rapid_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            logger.info(f"Rapid handler: {message}")
+            logger.info(
+                "rapid_handler_message_received",
+                message=message,
+                handler="rapid_handler",
+                event="Rapid handler received message"
+            )
 
         topic = f"trades.{test_symbol}"
         rapid_subscription_count = 5
@@ -462,7 +547,9 @@ class TestBackpackAPIWebSocketEdgeCases:
                 )
 
             logger.info(
-                f"✓ Rapid subscription operations completed: {rapid_subscription_count} operations",
+                "rapid_subscription_operations_completed",
+                operation_count=rapid_subscription_count,
+                message=f"✓ Rapid subscription operations completed: {rapid_subscription_count} operations"
             )
 
         except Exception as e:

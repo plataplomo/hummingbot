@@ -4,10 +4,12 @@ This shows how to use market orders within CyberDeltaEngine's strategy framework
 in an exchange-agnostic manner.
 """
 
+import asyncio
 from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,
     MarketOrder,
@@ -172,7 +174,6 @@ class ArbitrageStrategyWithMarketOrders(Strategy):
         quantity: Decimal = opportunity["quantity"]
 
         # Execute simultaneously for speed
-        import asyncio
 
         buy_task = self.market_orders[buy_exchange].execute_market_order(
             symbol=symbol,
@@ -245,7 +246,6 @@ class MarketOrderEngine:
                 quantity=quantity,
             )
         # Use regular order placement
-        from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 
         args = PlaceOrderArgs(
             symbol=symbol,

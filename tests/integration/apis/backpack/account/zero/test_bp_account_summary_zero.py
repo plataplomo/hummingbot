@@ -71,7 +71,11 @@ class TestBackpackAccountSummaryZero:
             if account_summary.total_maintenance_margin_required is not None:
                 assert account_summary.total_maintenance_margin_required >= Decimal(0)
 
-        logger.info(f"Zero balance account summary: equity={account_summary.total_equity}")
+        logger.info(
+            "zero_balance_account_summary",
+            total_equity=account_summary.total_equity,
+            message="Zero balance account summary",
+        )
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

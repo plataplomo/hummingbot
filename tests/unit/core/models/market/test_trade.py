@@ -30,8 +30,8 @@ Architecture Compliance:
 - Adheres to RULE-NO-SILENCING-V4 for type safety without suppressions
 """
 
-from datetime import datetime
-from decimal import Decimal
+from datetime import UTC, datetime
+from decimal import Decimal, Decimal as D
 
 import pydantic
 import pytest
@@ -53,7 +53,7 @@ def test_trade_minimal_valid() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -90,7 +90,7 @@ def test_trade_with_all_optionals() -> None:
     trade = Trade(
         id="12345",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="67890",
         exchange="backpack",
@@ -127,7 +127,7 @@ def test_trade_cost_computed() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -150,7 +150,7 @@ def test_trade_id_and_order_id_validation() -> None:
         trade = Trade(
             id=valid_id,
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id=valid_id,
             exchange="backpack",
@@ -164,7 +164,7 @@ def test_trade_id_and_order_id_validation() -> None:
         Trade(
             id="",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -176,7 +176,7 @@ def test_trade_id_and_order_id_validation() -> None:
         Trade(
             id="   ",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -188,7 +188,7 @@ def test_trade_id_and_order_id_validation() -> None:
         Trade(
             id="A" * 129,
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -201,7 +201,7 @@ def test_trade_id_and_order_id_validation() -> None:
             Trade(
                 id=bad_id,  # type: ignore
                 symbol="BTC-PERP",
-                executed_at=datetime(2024, 1, 1, 0, 0, 0),
+                executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
                 side=OrderSide.BUY,
                 order_id="order-xyz",
                 exchange="backpack",
@@ -222,7 +222,7 @@ def test_trade_fee_asset_required() -> None:
         Trade(
             id="abc123",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -243,7 +243,7 @@ def test_trade_negative_fee_allowed() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -263,7 +263,7 @@ def test_trade_positive_constraints() -> None:
         Trade(
             id="abc123",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -275,7 +275,7 @@ def test_trade_positive_constraints() -> None:
         Trade(
             id="abc123",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -289,7 +289,7 @@ def test_trade_decimal_parsing() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -314,7 +314,7 @@ def test_trade_optional_string_fields() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -333,7 +333,7 @@ def test_trade_optional_string_fields() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -351,7 +351,7 @@ def test_trade_optional_string_fields() -> None:
         Trade(
             id="abc123",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
             exchange="backpack",
@@ -375,7 +375,7 @@ def test_trade_optional_decimal_fields() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -395,7 +395,7 @@ def test_trade_optional_decimal_fields() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -421,7 +421,7 @@ def test_trade_custom_to_dict_serialization() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="backpack",
@@ -433,7 +433,6 @@ def test_trade_custom_to_dict_serialization() -> None:
     d = trade.to_dict()
     assert d["price"] == "100.0"
     assert d["quantity"] == "2.0"
-    from decimal import Decimal as D
 
     assert D(d["cost"]) == D("200.0")
     assert d["fee"] == "0.01"
@@ -457,7 +456,7 @@ def test_trade_model_dump_json_serialization() -> None:
     trade = Trade(
         id="abc123",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
         exchange="hyperliquid",
@@ -471,7 +470,6 @@ def test_trade_model_dump_json_serialization() -> None:
     d = trade.model_dump(mode="json")
     assert d["price"] == "100.0"
     assert d["quantity"] == "2.0"
-    from decimal import Decimal as D
 
     assert D(d["cost"]) == D("200.0")
     assert d["fee"] == "0.01"
@@ -542,7 +540,7 @@ def test_trade_enrichment_slots_acceptance_and_serialization() -> None:
     trade = Trade(
         id="t1",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="o1",
         exchange="hyperliquid",
@@ -567,7 +565,7 @@ def test_trade_enrichment_slots_none() -> None:
     trade = Trade(
         id="t2",
         symbol="BTC-PERP",
-        executed_at=datetime(2024, 1, 1, 0, 0, 0),
+        executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.SELL,
         order_id="o2",
         exchange="backpack",
@@ -590,7 +588,7 @@ def test_trade_enrichment_invalid_details() -> None:
         Trade(
             id="t3",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="o3",
             exchange="hyperliquid",
@@ -603,7 +601,7 @@ def test_trade_enrichment_invalid_details() -> None:
         Trade(
             id="t4",
             symbol="BTC-PERP",
-            executed_at=datetime(2024, 1, 1, 0, 0, 0),
+            executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="o4",
             exchange="backpack",

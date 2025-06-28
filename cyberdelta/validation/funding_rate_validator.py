@@ -91,7 +91,7 @@ class FundingRateValidator:
 
         prediction = {
             "timestamp": timestamp,
-            "datetime": datetime.fromtimestamp(timestamp / 1000),
+            "datetime": datetime.fromtimestamp(timestamp / 1000, UTC),
             "exchange": exchange,
             "symbol": symbol,
             "predicted_rate": predicted_rate,
@@ -137,7 +137,7 @@ class FundingRateValidator:
 
         payment = {
             "timestamp": timestamp,
-            "datetime": datetime.fromtimestamp(timestamp / 1000),
+            "datetime": datetime.fromtimestamp(timestamp / 1000, UTC),
             "exchange": exchange,
             "symbol": symbol,
             "actual_rate": actual_rate,
