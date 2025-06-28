@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from pytest import fixture
+import pytest
 
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import SpotBalance
@@ -24,7 +24,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
 
-@fixture
+@pytest.fixture
 def mock_config_dict() -> dict[str, Any]:
     """Return mock config dict for testing."""
     return {
@@ -72,7 +72,7 @@ def mock_config_dict() -> dict[str, Any]:
     }
 
 
-@fixture
+@pytest.fixture
 def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
     """Create a mock AppSettings object for testing.
 
@@ -142,7 +142,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
     return mock
 
 
-@fixture
+@pytest.fixture
 def mock_portfolio_tracker() -> MagicMock:
     """Return mock portfolio tracker for testing."""
     tracker = MagicMock(spec=PortfolioTrackerProtocol)
@@ -163,7 +163,7 @@ def mock_portfolio_tracker() -> MagicMock:
     return tracker
 
 
-@fixture
+@pytest.fixture
 def mock_circuit_breaker_system() -> MagicMock:
     """Return mock circuit breaker system for testing."""
     system = MagicMock(spec=CircuitBreakerSystemProtocol)
@@ -175,7 +175,7 @@ def mock_circuit_breaker_system() -> MagicMock:
     return system
 
 
-@fixture
+@pytest.fixture
 def mock_circuit_breaker() -> MagicMock:
     """Create a mock CircuitBreakerSystem.
 
@@ -190,7 +190,7 @@ def mock_circuit_breaker() -> MagicMock:
     return cb
 
 
-@fixture
+@pytest.fixture
 def mock_funding_validator() -> MagicMock:
     """Create a mock FundingRateValidator.
 
@@ -216,7 +216,7 @@ def mock_funding_validator() -> MagicMock:
     return fv
 
 
-@fixture
+@pytest.fixture
 def mock_data_handler() -> MagicMock:
     """Create a mock data handler for testing.
 
@@ -231,7 +231,7 @@ def mock_data_handler() -> MagicMock:
     return dh
 
 
-@fixture
+@pytest.fixture
 def risk_manager(
     mock_config: MagicMock,
     mock_portfolio_tracker: PortfolioTrackerProtocol,
@@ -251,7 +251,7 @@ def risk_manager(
     )
 
 
-@fixture
+@pytest.fixture
 def sample_opportunity_dict() -> dict[str, Any]:
     """Create sample opportunity dict for testing.
 
@@ -278,7 +278,7 @@ def sample_opportunity_dict() -> dict[str, Any]:
     }
 
 
-@fixture
+@pytest.fixture
 def sample_opportunity(sample_opportunity_dict: dict[str, Any]) -> ArbitrageOpportunity:
     """Create sample opportunity for testing.
 

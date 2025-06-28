@@ -102,8 +102,10 @@ class TestHyperliquidSignL1Action:
         assert "r" in sig
         assert "s" in sig
         assert "v" in sig
-        assert isinstance(sig["r"], str) and sig["r"].startswith("0x")
-        assert isinstance(sig["s"], str) and sig["s"].startswith("0x")
+        assert isinstance(sig["r"], str)
+        assert sig["r"].startswith("0x")
+        assert isinstance(sig["s"], str)
+        assert sig["s"].startswith("0x")
         assert isinstance(sig["v"], int)
 
     @pytest.mark.asyncio

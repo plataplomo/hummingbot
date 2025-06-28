@@ -177,8 +177,7 @@ def format_console_output(metrics: dict[str, Any]) -> str:
 
     if metrics["migration_candidates"]:
         output.append("## Next Migration Candidates")
-        for path in metrics["migration_candidates"]:
-            output.append(f"  - {path}")
+        output.extend(f"  - {path}" for path in metrics["migration_candidates"])
 
     return "\n".join(output)
 

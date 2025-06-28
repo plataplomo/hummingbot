@@ -135,7 +135,7 @@ class DataHandler:
         exchanges_conf = self.app_settings.exchanges
 
         # Correctly iterate and calculate timedelta
-        for exchange_id, _exchange_data in exchanges_conf.items():
+        for exchange_id in exchanges_conf:
             # TODO: Add data_handler.staleness configuration to ExchangeSpecificConfig when needed
             # For now, use default values
             ticker_thresh = default_ticker_sec

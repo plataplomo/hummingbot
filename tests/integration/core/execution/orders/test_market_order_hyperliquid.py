@@ -119,9 +119,7 @@ class TestHyperliquidMarketOrderIntegration:
                 f"Order not filled. Status: {filled_order.status}"
             )
             assert filled_order.quantity_filled is not None, "Filled order missing quantity_filled"
-            assert filled_order.quantity_filled is not None and filled_order.quantity_filled > 0, (
-                "No quantity was filled"
-            )
+            assert filled_order.quantity_filled > 0, "No quantity was filled"
 
             # Verify order appears in history
             found_in_history = await MarketOrderTestHelpers.verify_order_in_history(
@@ -252,9 +250,7 @@ class TestHyperliquidMarketOrderIntegration:
                 f"Order not filled. Status: {filled_order.status}"
             )
             assert filled_order.quantity_filled is not None, "Filled order missing quantity_filled"
-            assert filled_order.quantity_filled is not None and filled_order.quantity_filled > 0, (
-                "No quantity was filled"
-            )
+            assert filled_order.quantity_filled > 0, "No quantity was filled"
 
             # Verify exact quantity was filled - exchanges should handle exact amounts
             # No arbitrary tolerances allowed per security rules
@@ -453,10 +449,10 @@ class TestHyperliquidMarketOrderIntegration:
 
         except PriceDeviationError as e:
             # Expected in most cases - verify error details
-            assert symbol in str(e), f"Error should mention symbol {symbol}"
-            assert "slippage" in str(e).lower() or "deviation" in str(e).lower(), (
-                "Error should mention slippage or deviation"
-            )
+            if symbol not in str(e):
+                pytest.fail(f"Error should mention symbol {symbol}")
+            if "slippage" not in str(e).lower() and "deviation" not in str(e).lower():
+                pytest.fail("Error should mention slippage or deviation")
             logger.info(
                 "price_deviation_error_caught",
                 symbol=symbol,

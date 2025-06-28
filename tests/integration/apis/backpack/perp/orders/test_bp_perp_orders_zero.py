@@ -292,7 +292,10 @@ class TestBackpackPerpOrdersZeroBalance:
 
         # Should not be an authentication error, but a margin error
         error_msg = str(error).lower()
-        assert "unauthorized" not in error_msg and "authentication" not in error_msg, (
+        assert "unauthorized" not in error_msg, (
+            f"Should not be auth error with valid credentials: {error}"
+        )
+        assert "authentication" not in error_msg, (
             f"Should not be auth error with valid credentials: {error}"
         )
 

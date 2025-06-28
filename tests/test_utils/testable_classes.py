@@ -22,7 +22,7 @@ class TestableExecutionHandler(ExecutionHandler):
 
     __test__ = False  # Tell pytest this is not a test class
 
-    async def test_place_order_with_retry(
+    async def expose_place_order_with_retry(
         self,
         execution: TradeExecution,
         exchange_id: str,
@@ -36,7 +36,7 @@ class TestableExecutionHandler(ExecutionHandler):
         post_only: bool = False,
         is_long_leg: bool = True,
     ) -> Order | None:
-        """Test wrapper for _place_order_with_retry."""
+        """Wrapper that exposes _place_order_with_retry for testing."""
         return await self._place_order_with_retry(
             execution,
             exchange_id,
@@ -51,7 +51,7 @@ class TestableExecutionHandler(ExecutionHandler):
             is_long_leg,
         )
 
-    async def test_get_order_status(
+    async def expose_get_order_status(
         self,
         execution: TradeExecution,
         exchange_id: str,
@@ -59,7 +59,7 @@ class TestableExecutionHandler(ExecutionHandler):
         symbol: str | None = None,
         client_order_id: str | None = None,
     ) -> Order | None:
-        """Test wrapper for _get_order_status."""
+        """Wrapper that exposes _get_order_status for testing."""
         return await self._get_order_status(
             execution,
             exchange_id,

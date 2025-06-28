@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for RiskManager portfolio constraint checking logic through public interface."""
 
 from datetime import UTC, datetime

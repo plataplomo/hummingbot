@@ -1044,19 +1044,18 @@ class BackpackTradingService:
             return []
 
         # Transform raw orders to CancelOrderResult objects
-        results: list[CancelOrderResult] = []
-        for raw_order in raw_orders:
-            # All orders returned by cancel all should have been cancelled
-            results.append(
-                CancelOrderResult(
-                    order_id=raw_order.id,
-                    client_order_id=str(raw_order.clientId) if raw_order.clientId else None,
-                    symbol=raw_order.symbol,
-                    success=True,  # If returned by cancel all, it was successfully cancelled
-                    message="Successfully cancelled.",
-                    status=CancelOrderResultStatus.SUCCESS,
-                ),
+        # All orders returned by cancel all should have been cancelled
+        results: list[CancelOrderResult] = [
+            CancelOrderResult(
+                order_id=raw_order.id,
+                client_order_id=str(raw_order.clientId) if raw_order.clientId else None,
+                symbol=raw_order.symbol,
+                success=True,  # If returned by cancel all, it was successfully cancelled
+                message="Successfully cancelled.",
+                status=CancelOrderResultStatus.SUCCESS,
             )
+            for raw_order in raw_orders
+        ]
 
         logger.info(
             "orders_cancelled: Successfully cancelled orders",

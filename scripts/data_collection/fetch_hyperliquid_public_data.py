@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch raw JSON data from Hyperliquid public REST API endpoints.
 
 This script collects fresh JSON responses from Hyperliquid's public API endpoints

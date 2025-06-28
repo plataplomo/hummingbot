@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """Secrets Manager for securely loading API keys and other sensitive information.
 
 This module ensures secrets are stored outside the source code repository.

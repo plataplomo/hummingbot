@@ -871,7 +871,7 @@ class CircuitBreakerSystem:
         if exchange not in self.exchange_breakers:
             return True, None
 
-        for _breaker_type, breaker_item in self.exchange_breakers[exchange].items():
+        for breaker_item in self.exchange_breakers[exchange].values():
             breakers_to_check = self._get_breakers_to_check(breaker_item, symbol)
 
             for breaker in breakers_to_check:
@@ -896,8 +896,7 @@ class CircuitBreakerSystem:
             actual_breaker = breaker_item[symbol]
             breakers_to_check.append(actual_breaker)
         elif not symbol:
-            for s_breaker in breaker_item.values():
-                breakers_to_check.append(s_breaker)
+            breakers_to_check = list(breaker_item.values())
 
         return breakers_to_check
 
@@ -1177,10 +1176,10 @@ class CircuitBreakerSystem:
 
         # If we have any exchange-specific volatility breakers, trip those too
         # as a critical failure might indicate market conditions are unstable
-        for _breaker_key, breaker_item_val in self.exchange_breakers.get(
+        for breaker_item_val in self.exchange_breakers.get(
             exchange,
             {},
-        ).items():  # Renamed breaker_type to _breaker_key
+        ).values():  # Renamed breaker_type to _breaker_key
             if isinstance(breaker_item_val, VolatilityBreaker):
                 breaker_item_val.trip(
                     f"Critical failure triggered volatility breaker: {error_message}",

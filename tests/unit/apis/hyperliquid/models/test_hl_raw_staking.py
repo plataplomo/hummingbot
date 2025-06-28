@@ -110,7 +110,7 @@ def test_delegation_item_valid(valid_delegation_item_data: dict[str, Any]) -> No
 
 
 @pytest.mark.parametrize(
-    "field,val",
+    ("field", "val"),
     [("validator", "short"), ("amount", "nan"), ("lockedUntilTimestamp", -1)],
 )
 def test_delegation_item_invalid(
@@ -148,7 +148,7 @@ def test_delegator_summary_valid(valid_delegator_summary_data: dict[str, Any]) -
 
 
 @pytest.mark.parametrize(
-    "field,val",
+    ("field", "val"),
     [("delegated", "nan"), ("nPendingWithdrawals", "abc"), ("undelegated", None)],
 )
 def test_delegator_summary_invalid(
@@ -200,7 +200,7 @@ class TestHyperliquidRawDelegatorHistoryItem:
         assert isinstance(item.delta, HyperliquidRawDelegatorHistoryDelta)
 
     @pytest.mark.parametrize(
-        "field,val",
+        ("field", "val"),
         [
             ("time", "not-a-timestamp"),
             ("time", -1),
@@ -259,7 +259,7 @@ def test_rewards_response_valid() -> None:
 
 # Extra Fields Tests
 @pytest.mark.parametrize(
-    "model_class, valid_data_fixture_name",
+    ("model_class", "valid_data_fixture_name"),
     [
         (HyperliquidRawDelegationItem, "valid_delegation_item_data"),
         (HyperliquidRawDelegatorSummaryResponse, "valid_delegator_summary_data"),

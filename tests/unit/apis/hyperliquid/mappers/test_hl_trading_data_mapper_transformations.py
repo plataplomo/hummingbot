@@ -218,9 +218,8 @@ class TestTransformRawOrderToInternal:
         # DEFENSIVE CHECK: Ensure transformation succeeded. Mypy=[unreachable] Ruff=[]
         assert result is not None, "Transformation should not return None"
         assert result.exchange_order_id == "54321"
-        assert (
-            isinstance(result.client_order_id, str) and len(result.client_order_id) > 0
-        )  # UUID generated when cloid is None
+        assert isinstance(result.client_order_id, str)
+        assert len(result.client_order_id) > 0
         assert result.symbol == "BTC-PERP"
         assert result.side == OrderSide.SELL
         assert result.order_type == OrderType.LIMIT  # Historical market orders map to LIMIT
@@ -487,7 +486,8 @@ class TestTransformRawHistoricalOrderToInternal:
         result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
         # Should use created_at for updated_at when status timestamp is missing
         # Allow for small time differences due to processing time
-        assert result.updated_at is not None and result.created_at is not None
+        assert result.updated_at is not None
+        assert result.created_at is not None
         time_diff = abs((result.updated_at - result.created_at).total_seconds())
         assert time_diff < 1.0  # Less than 1 second difference
 
@@ -500,9 +500,8 @@ class TestTransformRawHistoricalOrderToInternal:
         raw_order = create_raw_historical_order(cloid=None)
 
         result = trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
-        assert (
-            isinstance(result.client_order_id, str) and len(result.client_order_id) > 0
-        )  # UUID generated when cloid is None
+        assert isinstance(result.client_order_id, str)
+        assert len(result.client_order_id) > 0
 
     def test_transform_raw_historical_order_exception_wrapping(
         self,

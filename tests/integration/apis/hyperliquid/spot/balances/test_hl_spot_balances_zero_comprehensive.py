@@ -136,11 +136,12 @@ class TestHyperliquidBalancesZeroComprehensive:
         except APIError as e:
             # If we get a timeout or network error, validate it's properly classified
             if "timeout" in e.message.lower() or "connection" in e.message.lower():
-                assert e.code in [
+                if e.code not in [
                     APIErrorCode.TIMEOUT.value,
                     APIErrorCode.CONNECTION_ERROR.value,
                     APIErrorCode.NETWORK_ISSUE.value,
-                ], f"Network error should map to network-related code, got {e.code}"
+                ]:
+                    pytest.fail(f"Network error should map to network-related code, got {e.code}")
             else:
                 # Re-raise non-network errors
                 raise
@@ -162,9 +163,7 @@ class TestHyperliquidBalancesZeroComprehensive:
         """
         try:
             # Make multiple rapid calls to potentially trigger rate limiting
-            tasks: list[Any] = []
-            for _ in range(5):
-                tasks.append(hl_api_for_zero_balance_test.get_balances())
+            tasks: list[Any] = [hl_api_for_zero_balance_test.get_balances() for _ in range(5)]
 
             # Most should succeed, but if rate limited, validate error handling
             results: list[dict[str, Any]] = []
@@ -175,14 +174,17 @@ class TestHyperliquidBalancesZeroComprehensive:
                     assert isinstance(result, dict), f"Call {i} should return dict if successful"
                 except APIError as e:
                     if "rate" in e.message.lower() or "limit" in e.message.lower():
-                        assert e.code == APIErrorCode.RATE_LIMITED.value, (
-                            f"Rate limit error should map to RATE_LIMITED, got {e.code}"
-                        )
-                        # Check if retry-after information is preserved
-                        if hasattr(e, "retry_after") and e.retry_after:
-                            assert isinstance(e.retry_after, int | float), (
-                                "retry_after should be numeric if present"
+                        if e.code != APIErrorCode.RATE_LIMITED.value:
+                            pytest.fail(
+                                f"Rate limit error should map to RATE_LIMITED, got {e.code}"
                             )
+                        # Check if retry-after information is preserved
+                        if (
+                            hasattr(e, "retry_after")
+                            and e.retry_after
+                            and not isinstance(e.retry_after, int | float)
+                        ):
+                            pytest.fail("retry_after should be numeric if present")
                     else:
                         raise  # Re-raise non-rate-limit errors
 

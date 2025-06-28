@@ -107,10 +107,10 @@ def _wrap_validate_lax_eth_address_str(
     # Test `test_referred_by_invalid[referrer-0x123]` (len 5) expects failure.
     # Test `test_subaccounts_invalid_root_list` for "0xshort" (len 7) expects failure.
     # Setting min_length=8 makes both "0x123" (len 5) and "0xshort" (len 7) fail.
-    MIN_LEN = 8
-    if len(s) < MIN_LEN:
+    min_len = 8
+    if len(s) < min_len:
         raise ValueError(
-            f"{field_name}: String value too short (min {MIN_LEN} chars, got {len(s)}).",
+            f"{field_name}: String value too short (min {min_len} chars, got {len(s)}).",
         )
 
     if not s.startswith("0x"):
@@ -561,9 +561,9 @@ def _validate_optional_non_empty_str128(v: object, info: ValidationInfo) -> str 
     field_name = info.field_name or "optional_non_empty_str128_field_hl"
     if not v.strip():
         raise ValueError(f"{field_name}: String cannot be empty or whitespace.")
-    MAX_LEN = 128
-    if len(v) > MAX_LEN:
-        raise ValueError(f"{field_name}: String value too long (max {MAX_LEN} chars)")
+    max_len = 128
+    if len(v) > max_len:
+        raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
     try:
         v.encode("utf-8", "strict")
     except UnicodeEncodeError as e:
@@ -594,9 +594,9 @@ def _validate_optional_non_empty_str1024(v: object, info: ValidationInfo) -> str
     field_name = info.field_name or "optional_non_empty_str1024_field_hl"
     if not v.strip():
         raise ValueError(f"{field_name}: String cannot be empty or whitespace.")
-    MAX_LEN = 1024
-    if len(v) > MAX_LEN:
-        raise ValueError(f"{field_name}: String value too long (max {MAX_LEN} chars)")
+    max_len = 1024
+    if len(v) > max_len:
+        raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
     try:
         v.encode("utf-8", "strict")
     except UnicodeEncodeError as e:

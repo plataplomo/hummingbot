@@ -50,18 +50,27 @@ async def test_hl_get_perp_market_data_btc_1h_success(
                 f"Candle {i} should be Candle model, got {type(candle)}"
             )
 
-            assert hasattr(candle, "open") and isinstance(candle.open, Decimal)
-            assert hasattr(candle, "high") and isinstance(candle.high, Decimal)
-            assert hasattr(candle, "low") and isinstance(candle.low, Decimal)
-            assert hasattr(candle, "close") and isinstance(candle.close, Decimal)
-            assert hasattr(candle, "volume") and isinstance(candle.volume, Decimal)
+            assert hasattr(candle, "open")
+            assert isinstance(candle.open, Decimal)
+            assert hasattr(candle, "high")
+            assert isinstance(candle.high, Decimal)
+            assert hasattr(candle, "low")
+            assert isinstance(candle.low, Decimal)
+            assert hasattr(candle, "close")
+            assert isinstance(candle.close, Decimal)
+            assert hasattr(candle, "volume")
+            assert isinstance(candle.volume, Decimal)
 
-            assert candle.high >= candle.open and candle.high >= candle.close
-            assert candle.low <= candle.open and candle.low <= candle.close
+            assert candle.high >= candle.open
+            assert candle.high >= candle.close
+            assert candle.low <= candle.open
+            assert candle.low <= candle.close
             assert candle.high >= candle.low
 
-            assert candle.open > Decimal(0) and candle.high > Decimal(0)
-            assert candle.low > Decimal(0) and candle.close > Decimal(0)
+            assert candle.open > Decimal(0)
+            assert candle.high > Decimal(0)
+            assert candle.low > Decimal(0)
+            assert candle.close > Decimal(0)
             assert candle.volume >= Decimal(0)
 
             assert candle.symbol == "BTC", f"Wrong symbol: {candle.symbol}"

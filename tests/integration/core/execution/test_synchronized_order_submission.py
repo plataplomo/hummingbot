@@ -243,9 +243,11 @@ class TestOrderVerifier:
 
         assert result_fail.get("success") is False
         error_msg = result_fail.get("error")
-        assert error_msg is not None and "not found in local portfolio" in error_msg
+        assert error_msg is not None
+        assert "not found in local portfolio" in error_msg
         details = result_fail.get("details")
-        assert details is not None and details.get("local_order") is None
+        assert details is not None
+        assert details.get("local_order") is None
 
     @pytest.mark.asyncio
     async def test_verify_order_execution(self, portfolio_tracker: MagicMock) -> None:

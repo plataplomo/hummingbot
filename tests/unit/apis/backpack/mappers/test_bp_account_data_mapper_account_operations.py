@@ -122,9 +122,7 @@ def _add_optional_withdrawal_fields(
     Returns:
         Updated withdrawal data dict with non-None optional fields
     """
-    for key, value in optional_fields.items():
-        if value is not None:
-            data[key] = value
+    data.update({key: value for key, value in optional_fields.items() if value is not None})
     return data
 
 

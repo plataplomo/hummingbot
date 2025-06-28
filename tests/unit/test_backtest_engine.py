@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """Unit tests for the CyberDeltaEngine Backtesting Framework.
 
 This module provides comprehensive unit tests for the backtesting system, which is
@@ -228,16 +226,16 @@ class BacktestEngine:
             trades_by_asset[asset].append(trade)
 
         # Calculate P&L for each asset
-        for _asset, trades in trades_by_asset.items():  # B007: Rename unused asset
+        for trades in trades_by_asset.values():
             if len(trades) >= 2:
                 # Assuming first trade is entry, second is exit for simplicity
                 entry = trades[0]
-                exit = trades[1]
+                exit_trade = trades[1]
 
                 if entry["size"] > 0:  # Long position
-                    profit_loss += (exit["price"] - entry["price"]) * abs(entry["size"])
+                    profit_loss += (exit_trade["price"] - entry["price"]) * abs(entry["size"])
                 else:  # Short position
-                    profit_loss += (entry["price"] - exit["price"]) * abs(entry["size"])
+                    profit_loss += (entry["price"] - exit_trade["price"]) * abs(entry["size"])
 
         return {
             "total_trades": len(self.trade_history),
@@ -307,7 +305,8 @@ class MockTradingStrategy(TradingStrategy):
         for asset, asset_data in market_data.items():
             if "price" in asset_data and len(asset_data["price"]) > 0:
                 # Generate random signals for testing
-                signals[asset] = 1 if np.random.random() > 0.5 else -1
+                rng = np.random.default_rng()
+                signals[asset] = 1 if rng.random() > 0.5 else -1
         return signals
 
     def execute_trades(

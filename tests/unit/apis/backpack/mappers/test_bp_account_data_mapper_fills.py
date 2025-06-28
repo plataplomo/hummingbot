@@ -84,7 +84,7 @@ def create_raw_fill(
 
 
 def create_raw_trade(
-    id: str = "trade123",
+    trade_id: str = "trade123",
     symbol: str = "SOL-USDC",
     price: str = "100.50",
     qty: str = "10.0",
@@ -97,7 +97,7 @@ def create_raw_trade(
         BackpackRawPublicTrade instance configured with test data.
     """
     return BackpackRawPublicTrade(
-        id=id,
+        id=trade_id,
         symbol=symbol,
         price=price,
         qty=qty,
@@ -291,7 +291,7 @@ class TestFillTransformation:
         assert result.fee == Decimal("0.000000001")
 
     @pytest.mark.parametrize(
-        "side_input,expected_side",
+        ("side_input", "expected_side"),
         [
             ("Bid", OrderSide.BUY),
             ("Ask", OrderSide.SELL),
@@ -325,7 +325,7 @@ class TestTradeTransformation:
     ) -> None:
         """Test that BackpackRawPublicTrade transformation returns None due to missing side info."""
         raw_trade = create_raw_trade(
-            id="trade123",
+            trade_id="trade123",
             symbol="SOL-USDC",
             price="100.50",
             qty="10.0",

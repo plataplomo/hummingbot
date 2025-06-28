@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test script to verify update_account_settings consistency across exchanges."""
 
 from datetime import UTC, datetime

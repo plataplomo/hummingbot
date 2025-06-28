@@ -35,7 +35,7 @@ class TestFormatSymbol:
         assert BackpackRequestBuilder.format_symbol("") == ""
 
     @pytest.mark.parametrize(
-        "input_symbol, expected_output",
+        ("input_symbol", "expected_output"),
         [
             ("sol-usdc", "SOL_USDC"),
             ("BTC-PERP", "BTC_PERP"),

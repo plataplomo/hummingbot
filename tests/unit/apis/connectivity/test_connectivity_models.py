@@ -42,7 +42,7 @@ class TestProcessedResponseHeaders:
         assert headers.content_type == valid_content_type
 
     @pytest.mark.parametrize(
-        "invalid_content_type, expected_error_part",
+        ("invalid_content_type", "expected_error_part"),
         [
             ("a" * (MAX_CONTENT_TYPE_LENGTH + 1), "string should have at most 256 characters"),
             ("application/json\\n", "invalid characters"),
@@ -116,7 +116,7 @@ class TestHttpClientConfig:
         assert config.retry_delay_seconds is None
 
     @pytest.mark.parametrize(
-        "field, invalid_value, error_part",
+        ("field", "invalid_value", "error_part"),
         [
             ("rest_endpoint", "not_a_url", "input should be a valid url"),
             ("default_request_timeout", 0.0, "Input should be greater than 0"),
@@ -217,7 +217,7 @@ class TestWebSocketManagerConfig:
         assert config.connection_timeout == 10.0
 
     @pytest.mark.parametrize(
-        "field, invalid_value, error_part",
+        ("field", "invalid_value", "error_part"),
         [
             ("ws_url", "not a websocket url", "input should be a valid url"),
             ("ping_interval", 0.0, "Input should be greater than 0"),

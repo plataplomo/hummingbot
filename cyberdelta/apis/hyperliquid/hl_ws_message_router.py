@@ -290,7 +290,10 @@ class HyperliquidWsMessageRouter:
                 action="get_l2book_topic_key",
                 exchange=self._exchange_name,
                 data_type=type(raw_data_any).__name__,
-                message="[%s] Expected dict for 'l2Book' data to derive topic key, received other type. Msg: %s",  # noqa: E501
+                message=(
+                    "[%s] Expected dict for 'l2Book' data to derive topic key, "
+                    "received other type. Msg: %s"
+                ),
                 message_args=(self._exchange_name, message),
             )
         return channel
@@ -300,13 +303,12 @@ class HyperliquidWsMessageRouter:
         coin_for_topic_str: str | None = None
         if isinstance(raw_data_any, list):
             # Explicitly type the list after check, elements are still Any
-            checked_list_for_topic_derivation: list[dict[str, Any]] = []
             # After isinstance check, we know it's a list
             # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
             raw_list: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
-            for item in raw_list:
-                if isinstance(item, dict):
-                    checked_list_for_topic_derivation.append(cast("dict[str, Any]", item))
+            checked_list_for_topic_derivation: list[dict[str, Any]] = [
+                cast("dict[str, Any]", item) for item in raw_list if isinstance(item, dict)
+            ]
 
             if checked_list_for_topic_derivation:
                 first_item_for_topic_any: Any = checked_list_for_topic_derivation[0]
@@ -459,13 +461,14 @@ class HyperliquidWsMessageRouter:
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         # Explicitly type the list after check, elements are still Any
-        checked_list_of_any_events: list[dict[str, Any]] = []
         # After isinstance check, we know it's a list
         # DEFENSIVE CHECK: raw_data_any is confirmed as list[Any] by isinstance.
         raw_list_events: list[Any] = cast("list[Any]", raw_data_any)  # type: ignore[redundant-cast]
-        for event_loop_var_any in raw_list_events:
-            if isinstance(event_loop_var_any, dict):
-                checked_list_of_any_events.append(cast("dict[str, Any]", event_loop_var_any))
+        checked_list_of_any_events: list[dict[str, Any]] = [
+            cast("dict[str, Any]", event_loop_var_any)
+            for event_loop_var_any in raw_list_events
+            if isinstance(event_loop_var_any, dict)
+        ]
 
         for event_item_dict in checked_list_of_any_events:
             await self._process_single_user_event(event_item_dict, app_handler, message)
@@ -519,7 +522,9 @@ class HyperliquidWsMessageRouter:
                 event_type=event_type_str,
                 error_details=str(e_user_event_item),
                 event_item=event_item_dict,
-                message="[%s] Error processing userEvent item (type: %s): %s. Item: %s. Skipping item.",  # noqa: E501
+                message=(
+                    "[%s] Error processing userEvent item (type: %s): %s. Item: %s. Skipping item."
+                ),
                 message_args=(
                     self._exchange_name,
                     event_type_str,
@@ -681,7 +686,10 @@ class HyperliquidWsMessageRouter:
             exchange=self._exchange_name,
             channel=channel,
             message_content=message,
-            message="[%s] Unhandled channel '%s' by specific validation, passing raw data if dict. Msg: %s",  # noqa: E501
+            message=(
+                "[%s] Unhandled channel '%s' by specific validation, "
+                "passing raw data if dict. Msg: %s"
+            ),
             message_args=(self._exchange_name, channel, message),
         )
         payload_for_handler = (

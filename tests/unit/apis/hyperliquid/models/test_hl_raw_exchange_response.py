@@ -173,11 +173,10 @@ def test_hl_response_valid_missing_data() -> None:
 
 # Resting Model Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_msg_part",
+    ("invalid_data", "expected_msg_part"),
     [
         ({"oid": -1}, "Value -1 cannot be negative"),
         ({"oid": "abc"}, "Must be an integer"),
-        ({"oid": 1.0}, "Must be an integer"),
         ({"oid": 1.0}, "Must be an integer"),
         ({}, "Field required"),
     ],
@@ -200,7 +199,7 @@ def test_hl_resting_extra_fields_ignored() -> None:
 
 # Filled Model Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_keywords",
+    ("invalid_data", "expected_keywords"),
     [
         ({"oid": 1, "totalSz": "1.5", "avgPx": "inf"}, ("finite decimal", "inf")),
         ({"oid": 1, "totalSz": "NaN", "avgPx": "1.0"}, ("finite decimal", "nan")),
@@ -237,7 +236,7 @@ def test_hl_filled_extra_fields_ignored() -> None:
 
 # Status Object Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_keywords",
+    ("invalid_data", "expected_keywords"),
     [
         ({"resting": {"oid": -1}}, ("value", "-1", "cannot be negative")),
         ({"filled": {"oid": 1, "totalSz": "", "avgPx": "1"}}, ("string", "cannot be empty")),
@@ -268,7 +267,7 @@ def test_hl_status_object_extra_fields_ignored() -> None:
 
 # Response Data Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_exception, expected_keywords",
+    ("invalid_data", "expected_exception", "expected_keywords"),
     [
         ({"type": "", "statuses": []}, ValueError, ("string", "cannot be empty")),
         ({"type": 123, "statuses": []}, ValueError, ("expected string", "got int")),
@@ -316,7 +315,7 @@ def test_hl_response_data_extra_fields_ignored() -> None:
 
 # Top Level Response Failures
 @pytest.mark.parametrize(
-    "invalid_data, expected_exception, expected_keywords",
+    ("invalid_data", "expected_exception", "expected_keywords"),
     [
         ({"status": "error", "data": None}, ValidationError, ("literal_error", "status")),
         ({"status": 123, "data": None}, ValueError, ("expected string", "got int")),
@@ -351,7 +350,7 @@ def test_hl_response_invalid(
 
 
 @pytest.mark.parametrize(
-    "statuses_list, is_valid",
+    ("statuses_list", "is_valid"),
     [
         (["canceled", "modified", "success"], True),  # All valid strings
         ([{"resting": {"oid": 1}}], True),  # Valid resting object

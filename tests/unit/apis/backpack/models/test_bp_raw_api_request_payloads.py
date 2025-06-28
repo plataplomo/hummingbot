@@ -734,7 +734,7 @@ class TestBackpackRawInternalTransferRequest:
         assert request.clientId == "transfer_123"
 
     @pytest.mark.parametrize(
-        "from_account,to_account",
+        ("from_account", "to_account"),
         [
             ("SPOT", "MARGIN"),
             ("SPOT", "FUTURES"),

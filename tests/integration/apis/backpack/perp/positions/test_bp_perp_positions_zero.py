@@ -143,10 +143,11 @@ class TestBackpackPerpPositionsZero:
                     error_message=str(e),
                     message="Symbol returned API error (expected for some symbols)",
                 )
-                assert e.code in [
+                if e.code not in [
                     APIErrorCode.INVALID_SYMBOL.value,
                     APIErrorCode.SYMBOL_NOT_FOUND.value,
-                ], f"Unexpected error code for symbol {symbol}: {e.code}"
+                ]:
+                    pytest.fail(f"Unexpected error code for symbol {symbol}: {e.code}")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -164,9 +165,8 @@ class TestBackpackPerpPositionsZero:
             logger.info("✓ Authentication validation passed")
         except APIError as e:
             # If authentication fails, it should be a specific auth error
-            assert e.code == APIErrorCode.AUTHENTICATION_FAILED.value, (
-                f"Unexpected authentication error: {e.code}"
-            )
+            if e.code != APIErrorCode.AUTHENTICATION_FAILED.value:
+                pytest.fail(f"Unexpected authentication error: {e.code}")
             pytest.fail(f"Authentication should not fail with valid credentials: {e}")
 
     @pytest.mark.vcr
@@ -207,9 +207,8 @@ class TestBackpackPerpPositionsZero:
                     APIErrorCode.INVALID_PARAMS.value,
                     APIErrorCode.SERVER_ERROR.value,  # VCR-related errors
                 ]
-                assert e.code in expected_codes, (
-                    f"Unexpected error code for invalid symbol {symbol}: {e.code}"
-                )
+                if e.code not in expected_codes:
+                    pytest.fail(f"Unexpected error code for invalid symbol {symbol}: {e.code}")
                 logger.info(
                     "invalid_symbol_rejected",
                     symbol=symbol,

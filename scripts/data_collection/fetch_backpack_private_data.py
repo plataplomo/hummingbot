@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch raw JSON data from Backpack private API endpoints.
 
 This script collects fresh JSON responses from Backpack's private API endpoints

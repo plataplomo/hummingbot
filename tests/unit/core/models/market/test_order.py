@@ -188,7 +188,7 @@ def test_order_required_fields_missing(base_order_data: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         # Strings
         ("exchange", "", r"exchange.*String should not be empty"),
@@ -422,7 +422,7 @@ def test_hl_details_creation_and_immutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         ("remaining_sz", Decimal(-1), "Input should be greater than or equal to 0"),
         ("remaining_sz", Decimal("NaN"), "Value must be finite if provided"),
@@ -486,7 +486,7 @@ def test_bp_details_creation_and_immutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         # Decimals (Optional, >=0)
         (

@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any, cast
 
 import pytest
-from pytest import LogCaptureFixture
+from _pytest.logging import LogCaptureFixture
 from pytest_mock import MockerFixture  # Added MockerFixture
 
 from cyberdelta.apis.common import (  # Import APIError for test_failed_execution
@@ -2370,12 +2370,10 @@ async def test_failed_execution(
     hl_pos = portfolio_tracker.get_position("hyperliquid", symbol_key)
     bp_pos = portfolio_tracker.get_position("backpack", symbol_key)
 
-    assert (
-        hl_balance is not None and hl_balance.total_quantity == initial_hl_balance.total_quantity
-    )  # No balance change
-    assert (
-        bp_balance is not None and bp_balance.total_quantity == initial_bp_balance.total_quantity
-    )  # No balance change
+    assert hl_balance is not None
+    assert hl_balance.total_quantity == initial_hl_balance.total_quantity
+    assert bp_balance is not None
+    assert bp_balance.total_quantity == initial_bp_balance.total_quantity
     assert hl_pos is None  # No position opened on failed leg
     assert bp_pos is None  # No position opened on other leg either
 

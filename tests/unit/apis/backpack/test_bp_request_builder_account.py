@@ -101,7 +101,7 @@ class TestBuildGetFundingRateParams:
         assert params.model_dump(by_alias=True, exclude_none=True) == {"symbol": "BTC_PERP"}
 
     @pytest.mark.parametrize(
-        "input_symbol, expected_symbol",
+        ("input_symbol", "expected_symbol"),
         [
             ("SOL-PERP", "SOL_PERP"),
             ("BTC-PERP", "BTC_PERP"),

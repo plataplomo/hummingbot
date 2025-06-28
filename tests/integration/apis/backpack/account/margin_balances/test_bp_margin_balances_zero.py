@@ -157,7 +157,7 @@ class TestBackpackMarginBalancesZero:
         spot_balances = await bp_api_for_zero_balance_test.get_balances()
 
         # Even with zero balances, common assets might be returned
-        for _, balance in spot_balances.items():
+        for balance in spot_balances.values():
             assert isinstance(balance, SpotBalance)
 
             if balance.total_quantity == Decimal(0):

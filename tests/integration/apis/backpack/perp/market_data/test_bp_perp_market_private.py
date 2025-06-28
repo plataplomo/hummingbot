@@ -183,10 +183,14 @@ class TestBackpackPerpMarketPrivate:
             await bp_api_for_test_env.get_market(invalid_args)
 
         error_message = str(exc_info.value).lower()
-        assert (
+        is_invalid_symbol_error = (
             "invalid" in error_message or "not found" in error_message or "symbol" in error_message
-        ), f"Error should be about invalid symbol, got: {exc_info.value}"
+        )
+        assert is_invalid_symbol_error, (
+            f"Error should be about invalid symbol, got: {exc_info.value}"
+        )
 
-        assert "auth" not in error_message and "permission" not in error_message, (
+        is_not_auth_error = "auth" not in error_message and "permission" not in error_message
+        assert is_not_auth_error, (
             f"Should not be authentication error for public endpoint, got: {exc_info.value}"
         )

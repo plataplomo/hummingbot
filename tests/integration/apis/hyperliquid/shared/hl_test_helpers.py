@@ -236,14 +236,13 @@ class HyperliquidTestHelpers:
 
                 if historical_rates and len(historical_rates) > 0:
                     # Calculate actual observed bounds from recent data
-                    rates: list[Decimal] = []
-                    for rate_entry in historical_rates:
-                        # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
-                        if (
-                            rate_entry.funding_rate is not None
-                            and rate_entry.funding_rate.is_finite()
-                        ):
-                            rates.append(rate_entry.funding_rate)
+                    # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
+                    rates: list[Decimal] = [
+                        rate_entry.funding_rate
+                        for rate_entry in historical_rates
+                        if rate_entry.funding_rate is not None
+                        and rate_entry.funding_rate.is_finite()
+                    ]
 
                     if rates:
                         min_observed: Decimal = min(rates)

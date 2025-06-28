@@ -185,6 +185,9 @@ class TestBackpackSpotMarketPrivate:
             "invalid" in error_message or "not found" in error_message or "symbol" in error_message
         ), f"Error should be about invalid symbol, got: {exc_info.value}"
 
-        assert "auth" not in error_message and "permission" not in error_message, (
+        assert "auth" not in error_message, (
             f"Should not be authentication error for public endpoint, got: {exc_info.value}"
+        )
+        assert "permission" not in error_message, (
+            f"Should not be permission error for public endpoint, got: {exc_info.value}"
         )

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for RiskManager standard (Kelly) sizing path."""
 
 from decimal import Decimal

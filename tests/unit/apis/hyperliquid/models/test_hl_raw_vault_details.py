@@ -101,7 +101,7 @@ def test_perf_history_item_valid(valid_perf_history_data: dict[str, Any]) -> Non
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("time", -1),
         ("time", "not-an-int"),
@@ -144,7 +144,7 @@ def test_user_equity_valid(valid_user_equity_data: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("user", "not-an-address"),
         ("user", "0x123"),
@@ -187,7 +187,7 @@ def test_relationship_data_valid(valid_relationship_data: dict[str, list[str]]) 
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("childAddresses", ["0xvalid", "invalid-address"]),
         ("childAddresses", "not-a-list"),
@@ -216,7 +216,7 @@ def test_relationship_valid(valid_relationship: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("type", None),
         ("data", None),
@@ -264,7 +264,7 @@ def test_vault_details_valid(valid_vault_details_data: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value, is_missing_test",
+    ("field", "value", "is_missing_test"),
     [
         ("name", None, True),
         ("allowDeposits", "not-a-bool", False),

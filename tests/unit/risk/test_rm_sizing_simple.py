@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for RiskManager simple (v0.0.1) sizing path."""
 
 from datetime import UTC, datetime

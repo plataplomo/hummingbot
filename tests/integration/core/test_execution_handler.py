@@ -369,8 +369,10 @@ class TestExecutionHandler:
         mock_circuit_breaker_system.can_execute.return_value = (False, "CB open")
         execution = await execution_handler.execute_opportunity(sized_opportunity)
         mock_circuit_breaker_system.can_execute.assert_called_once_with("hyperliquid")
-        assert execution is not None and execution.status == ExecutionStatus.REJECTED
-        assert execution.error_message is not None and "CB open" in execution.error_message
+        assert execution is not None
+        assert execution.status == ExecutionStatus.REJECTED
+        assert execution.error_message is not None
+        assert "CB open" in execution.error_message
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_mapping_failure(
@@ -393,7 +395,8 @@ class TestExecutionHandler:
 
         mock_symbol_mapper.get_exchange_symbol.side_effect = get_symbol_side_effect
         execution = await execution_handler.execute_opportunity(sized_opportunity)
-        assert execution is not None and execution.status == ExecutionStatus.FAILED
+        assert execution is not None
+        assert execution.status == ExecutionStatus.FAILED
         assert execution.error_message is not None
         # Check for more specific parts of the error message
         assert "Could not map symbol" in execution.error_message
@@ -444,7 +447,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.place_order.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_order = await testable_execution_handler.test_place_order_with_retry(
+        result_order = await testable_execution_handler.expose_place_order_with_retry(
             execution=execution,
             exchange_id="hyperliquid",
             symbol="BTC-PERP",
@@ -467,7 +470,7 @@ class TestExecutionHandler:
         mock_hl_api.place_order.side_effect = APIError("Timeout", APIErrorCode.TIMEOUT.value)
         execution = TradeExecution(sized_opportunity)
         with pytest.raises(APIError):
-            await testable_execution_handler.test_place_order_with_retry(
+            await testable_execution_handler.expose_place_order_with_retry(
                 execution=execution,
                 exchange_id="hyperliquid",
                 symbol="BTC-PERP",
@@ -517,7 +520,7 @@ class TestExecutionHandler:
         )
         mock_hl_api.get_order_status.return_value = mock_order
         execution = TradeExecution(sized_opportunity)
-        result_status = await testable_execution_handler.test_get_order_status(
+        result_status = await testable_execution_handler.expose_get_order_status(
             execution=execution,
             exchange_id="hyperliquid",
             order_id="HL-Status",
@@ -543,7 +546,7 @@ class TestExecutionHandler:
             APIErrorCode.ORDER_NOT_FOUND.value,
         )
         execution = TradeExecution(sized_opportunity)
-        result_status = await testable_execution_handler.test_get_order_status(
+        result_status = await testable_execution_handler.expose_get_order_status(
             execution=execution,
             exchange_id="hyperliquid",
             order_id="HL-NotFound",

@@ -124,7 +124,7 @@ def create_raw_order_book(
 
 
 def create_raw_trade(
-    id: str = "trade123",
+    trade_id: str = "trade123",
     symbol: str = "SOL-USDC",
     price: str = "100.50",
     qty: str = "10.0",
@@ -137,7 +137,7 @@ def create_raw_trade(
         BackpackRawPublicTrade: Raw public trade data for testing.
     """
     return BackpackRawPublicTrade(
-        id=id,
+        id=trade_id,
         symbol=symbol,
         price=price,
         qty=qty,
@@ -762,7 +762,7 @@ class TestTradeTransformation:
     ) -> None:
         """Test successful transformation of BackpackRawPublicTrade to internal Trade."""
         raw_trade = create_raw_trade(
-            id="trade123",
+            trade_id="trade123",
             symbol="SOL-USDC",
             price="100.50",
             qty="10.0",
@@ -838,7 +838,7 @@ class TestTradeTransformation:
 
         # Create a valid raw trade and mock the timestamp parsing to return None
         raw_trade = create_raw_trade(
-            id="trade123",
+            trade_id="trade123",
             symbol="SOL-USDC",
             price="100.50",
             qty="10.0",
@@ -899,7 +899,7 @@ class TestTradeTransformation:
         """Test trade transformation with maximum allowed trade ID length."""
         long_id = "a" * 64  # 64 character ID (max allowed by BackpackRawPublicTrade.id)
         raw_trade = create_raw_trade(
-            id=long_id,
+            trade_id=long_id,
             time=test_timestamp,
         )
 

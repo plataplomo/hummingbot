@@ -110,7 +110,7 @@ def create_raw_order(
 
 
 @pytest.mark.parametrize(
-    "bp_side,expected_side",
+    ("bp_side", "expected_side"),
     [
         ("Buy", OrderSide.BUY),
         ("Sell", OrderSide.SELL),
@@ -178,7 +178,7 @@ def test_invalid_order_side_raises_error(
 
 
 @pytest.mark.parametrize(
-    "bp_status,expected_status",
+    ("bp_status", "expected_status"),
     [
         ("NEW", OrderStatus.OPEN),
         ("FILLED", OrderStatus.FILLED),
@@ -257,7 +257,7 @@ def test_invalid_order_status_defaults_to_unknown(
 
 
 @pytest.mark.parametrize(
-    "bp_type,expected_type",
+    ("bp_type", "expected_type"),
     [
         ("LIMIT", OrderType.LIMIT),
         ("MARKET", OrderType.MARKET),
@@ -283,7 +283,7 @@ def test_order_type_mapping(
 
 
 @pytest.mark.parametrize(
-    "bp_type,expected_type",
+    ("bp_type", "expected_type"),
     [
         ("STOP", OrderType.STOP_MARKET),
         ("TRAILING_STOP", OrderType.STOP_MARKET),
@@ -308,7 +308,7 @@ def test_stop_order_type_mapping(
 
 
 @pytest.mark.parametrize(
-    "bp_tif,expected_tif",
+    ("bp_tif", "expected_tif"),
     [
         ("GTC", TimeInForce.GTC),
         ("IOC", TimeInForce.IOC),
@@ -421,7 +421,8 @@ class TestTransformRawOrderToInternal:
         assert result.average_fill_price == Decimal("50000.00")
         assert result.time_in_force == TimeInForce.GTC
         assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.client_order_id is not None and len(result.client_order_id) > 0
+        assert result.client_order_id is not None
+        assert len(result.client_order_id) > 0
 
     def test_transform_raw_order_with_stop_price(
         self,
@@ -629,7 +630,8 @@ class TestTransformOrderDataToInternal:
         assert result.quantity_filled == Decimal(0)
         assert result.price == Decimal("3000.00")
         assert result.time_in_force == TimeInForce.GTC
-        assert result.client_order_id is not None and len(result.client_order_id) > 0
+        assert result.client_order_id is not None
+        assert len(result.client_order_id) > 0
         assert result.created_at is not None
 
     def test_transform_order_data_with_price(

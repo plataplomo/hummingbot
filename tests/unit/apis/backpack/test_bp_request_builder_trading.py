@@ -142,7 +142,7 @@ class TestBuildGetTradeHistoryParams:
         assert params_dict == expected
 
     @pytest.mark.parametrize(
-        "symbol, limit, from_id, expected_base",
+        ("symbol", "limit", "from_id", "expected_base"),
         [
             ("SOL_USDC", None, None, {"symbol": "SOL_USDC"}),
             ("BTC_USDT", 50, None, {"symbol": "BTC_USDT", "limit": 50}),
@@ -170,7 +170,7 @@ class TestBuildGetTradeHistoryParams:
         assert params_dict == expected_base
 
     @pytest.mark.parametrize(
-        "start_time, end_time, expected_time_params",
+        ("start_time", "end_time", "expected_time_params"),
         [
             (None, None, {}),
             (1000000, None, {"from": 1000000}),

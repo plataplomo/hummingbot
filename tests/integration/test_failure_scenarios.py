@@ -175,9 +175,8 @@ class TestFailureScenarios:
             pytest.fail(f"Circuit breaker did not trip after {max_failures_to_trip + 1} attempts.")
 
         # 3. Verify Breaker State
-        assert not isinstance(breaker, dict) and breaker.state == BreakerState.OPEN, (
-            "Breaker should be OPEN"
-        )
+        assert not isinstance(breaker, dict), "Breaker should not be a dict"
+        assert breaker.state == BreakerState.OPEN, "Breaker should be OPEN"
 
         # --- MODIFIED: Attempt execution *after* breaker is confirmed OPEN ---
         breaker_name_for_log = api_breaker.name if not isinstance(api_breaker, dict) else "dict"
@@ -201,10 +200,8 @@ class TestFailureScenarios:
         # The actual breaker name format is "{exchange}/api_error"
         expected_breaker_name_in_message = f"{target_exchange}/api_error"
         # Add None check before 'in'
-        assert (
-            rejected_result.error_message is not None
-            and expected_breaker_name_in_message in rejected_result.error_message
-        ), (
+        assert rejected_result.error_message is not None, "Error message should not be None"
+        assert expected_breaker_name_in_message in rejected_result.error_message, (
             f"Error message '{rejected_result.error_message}' does not mention "
             f"the originally failing exchange breaker '{expected_breaker_name_in_message}'"
         )
@@ -267,10 +264,9 @@ class TestFailureScenarios:
             target_breaker_type,
         )
         assert other_breaker is not None
-        assert not isinstance(other_breaker, dict) and other_breaker.state == BreakerState.CLOSED, (
-            f"Other exchange breaker "
-            f"{other_breaker.name if not isinstance(other_breaker, dict) else 'dict'} "
-            f"should be CLOSED"
+        assert not isinstance(other_breaker, dict), "Other breaker should not be a dict"
+        assert other_breaker.state == BreakerState.CLOSED, (
+            f"Other exchange breaker {other_breaker.name} should be CLOSED"
         )
 
         other_result = await execution_handler.execute_opportunity(other_sized_opportunity)
@@ -308,10 +304,8 @@ class TestFailureScenarios:
             )
         elif other_result.status == ExecutionStatus.REJECTED:
             # Add None check before 'in'
-            assert (
-                other_result.error_message is not None
-                and f"exchange:{target_exchange}:" in other_result.error_message
-            ), (
+            assert other_result.error_message is not None, "Error message should not be None"
+            assert f"exchange:{target_exchange}:" in other_result.error_message, (
                 f"Execution rejected, but error message '{other_result.error_message}' "
                 f"doesn't mention the originally failing exchange breaker '{target_exchange}'"
             )
@@ -395,11 +389,11 @@ class TestFailureScenarios:
         # Instead, directly call trip on the breaker instance for the test
         if not isinstance(breaker, dict):
             breaker.trip("Manual trip for testing")
-        assert not isinstance(breaker, dict) and breaker.state is BreakerState.OPEN, (
-            f"Breaker state after trip was "
-            f"{breaker.state if not isinstance(breaker, dict) else 'dict'}, expected OPEN."
+        assert not isinstance(breaker, dict), "Breaker should not be a dict"
+        assert breaker.state is BreakerState.OPEN, (
+            f"Breaker state after trip was {breaker.state}, expected OPEN."
         )
-        assert not isinstance(breaker, dict) and breaker.trip_reason == "Manual trip for testing"
+        assert breaker.trip_reason == "Manual trip for testing"
 
     # Test RiskManager circuit breakers
     # TODO: Re-enable and refine these tests

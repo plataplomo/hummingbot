@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for RiskManager initialization."""
 
 from decimal import Decimal

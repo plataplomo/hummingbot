@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for RiskManager portfolio level controls logic through public interface."""
 
 from decimal import Decimal

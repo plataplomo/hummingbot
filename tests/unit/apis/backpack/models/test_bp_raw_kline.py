@@ -90,7 +90,7 @@ def test_invalid_structure_list_length() -> None:
 
 
 @pytest.mark.parametrize(
-    "index, field_name, invalid_value, expected_exception, expected_error_msg",
+    ("index", "field_name", "invalid_value", "expected_exception", "expected_error_msg"),
     [
         # --- startTimeMs validation (index 0) ---
         (0, "start_time_ms", "1700000000000", TypeError, "Raw value must be an integer"),

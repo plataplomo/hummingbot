@@ -127,7 +127,7 @@ def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str,
 
 # --- Failure Cases: Type Errors ---
 @pytest.mark.parametrize(
-    "field, invalid_value",
+    ("field", "invalid_value"),
     [
         ("fee", 0.1),  # Should be string
         ("feeSymbol", 123),
@@ -183,7 +183,7 @@ def test_backpack_raw_fill_invalid_types(
 
 # --- Failure Cases: Format/Constraint Errors ---
 @pytest.mark.parametrize(
-    "field, invalid_value, expected_msg_part",
+    ("field", "invalid_value", "expected_msg_part"),
     [
         ("fee", "", "String cannot be empty"),
         ("fee", "not_a_number", "Cannot convert 'not_a_number' to Decimal"),

@@ -138,7 +138,7 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
 
 # --- Core MarginAccountSummary Failure Tests ---
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         # Required Strings
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
@@ -253,7 +253,7 @@ def test_hyperliquid_margin_details_creation_and_immutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         (
             "cross_maintenance_margin_used",
@@ -309,7 +309,7 @@ def test_backpack_margin_details_creation_and_immutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         ("assets_value", Decimal(-1), "Input should be greater than or equal to 0"),
         ("borrow_liability", Decimal("NaN"), "Value must be finite if provided"),

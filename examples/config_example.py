@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Example script demonstrating the usage of the CyberDeltaEngine configuration system.
 
 This script shows how to:

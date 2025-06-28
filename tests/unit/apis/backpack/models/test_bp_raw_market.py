@@ -589,7 +589,7 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
 
 
 @pytest.mark.parametrize(
-    "field, value, expected_msg_part",
+    ("field", "value", "expected_msg_part"),
     [
         ("s", "", "String cannot be empty"),
         ("s", None, "Field required"),
@@ -677,7 +677,7 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 
 
 @pytest.mark.parametrize(
-    "field, value, expected_msg_part",
+    ("field", "value", "expected_msg_part"),
     [
         ("lastUpdateId", "", "String cannot be empty"),
         ("lastUpdateId", None, "Expected string, got NoneType"),

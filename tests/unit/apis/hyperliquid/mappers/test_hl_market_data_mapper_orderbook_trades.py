@@ -23,7 +23,7 @@ from pydantic import ValidationError
 
 # Third-party imports for type checking only
 if TYPE_CHECKING:
-    from pytest import LogCaptureFixture
+    import pytest
     from pytest_mock import MockerFixture
 
 # Project-specific imports
@@ -508,7 +508,7 @@ class TestTransformRawTrades:
         self,
         market_data_mapper: HyperliquidMarketDataMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test transformation with some invalid trades that return None."""
         # Create an invalid trade with zero price
@@ -549,7 +549,7 @@ class TestTransformRawTrades:
         market_data_mapper: HyperliquidMarketDataMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
         mocker: MockerFixture,
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test transformation with error during single trade transformation."""
         # Create a trade that will trigger the error

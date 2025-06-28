@@ -42,7 +42,7 @@ class TestBuildGetTickerParams:
         assert params_dict == {"symbol": "SOL_USDC"}
 
     @pytest.mark.parametrize(
-        "input_symbol, expected_symbol",
+        ("input_symbol", "expected_symbol"),
         [
             ("sol-usdc", "SOL_USDC"),
             ("BTC-PERP", "BTC_PERP"),
@@ -86,7 +86,7 @@ class TestBuildGetOrderBookParams:
         assert params_dict == {"symbol": "BTC_USDT", "limit": 20}
 
     @pytest.mark.parametrize(
-        "limit, expected_params",
+        ("limit", "expected_params"),
         [
             (None, {"symbol": "SOL_USDC"}),
             (5, {"symbol": "SOL_USDC", "limit": 5}),
@@ -131,7 +131,7 @@ class TestBuildGetRecentTradesParams:
         assert params_dict == {"symbol": "ETH_USDC", "limit": 25}
 
     @pytest.mark.parametrize(
-        "symbol, limit, expected_params",
+        ("symbol", "limit", "expected_params"),
         [
             ("SOL_USDC", None, {"symbol": "SOL_USDC"}),
             ("BTC_USDT", 10, {"symbol": "BTC_USDT", "limit": 10}),
@@ -208,7 +208,7 @@ class TestBuildGetMarketDataParams:
         assert params_dict == expected
 
     @pytest.mark.parametrize(
-        "timeframe, limit, expected_interval",
+        ("timeframe", "limit", "expected_interval"),
         [
             ("1m", 100, "1m"),
             ("5m", 200, "5m"),
@@ -278,7 +278,7 @@ class TestBuildGetHistoricalTradesParams:
         assert params_dict == expected
 
     @pytest.mark.parametrize(
-        "symbol, limit, from_id, expected_params",
+        ("symbol", "limit", "from_id", "expected_params"),
         [
             ("SOL_USDC", 25, None, {"symbol": "SOL_USDC", "limit": 25}),
             ("BTC_USDT", 50, "id123", {"symbol": "BTC_USDT", "limit": 50, "fromId": "id123"}),
@@ -344,7 +344,7 @@ class TestBuildGetMarketParams:
         assert params_dict == {"symbol": "SOL_USDC"}
 
     @pytest.mark.parametrize(
-        "input_symbol, expected_symbol",
+        ("input_symbol", "expected_symbol"),
         [
             ("sol-usdc", "SOL_USDC"),
             ("BTC-PERP", "BTC_PERP"),

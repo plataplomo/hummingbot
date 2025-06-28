@@ -84,7 +84,7 @@ def create_raw_order_book(
 
 
 def create_raw_trade(
-    id: str = "trade123",
+    trade_id: str = "trade123",
     symbol: str = "SOL-USDC",
     price: str = "100.50",
     qty: str = "10.0",
@@ -93,7 +93,7 @@ def create_raw_trade(
 ) -> BackpackRawPublicTrade:
     """Create BackpackRawPublicTrade instances for robustness testing."""
     return BackpackRawPublicTrade(
-        id=id,
+        id=trade_id,
         symbol=symbol,
         price=price,
         qty=qty,
@@ -212,7 +212,7 @@ class TestBoundaryValueHandling:
         # Test with maximum trade ID length (64 characters based on model validation)
         max_trade_id = "a" * 64
         raw_trade = create_raw_trade(
-            id=max_trade_id,
+            trade_id=max_trade_id,
         )
 
         result = mapper.transform_raw_trade_to_internal(raw_trade)
@@ -269,7 +269,7 @@ class TestUnicodeAndEncodingSupport:
 
         for trade_id in unicode_trade_ids:
             raw_trade = create_raw_trade(
-                id=trade_id,
+                trade_id=trade_id,
             )
 
             result = mapper.transform_raw_trade_to_internal(raw_trade)
@@ -495,12 +495,12 @@ class TestPerformanceAndMemoryConsiderations:
         ticker1 = create_raw_ticker(symbol="BTC-USDC", last_price="50000.00")
         ticker2 = create_raw_ticker(symbol="ETH-USDC", last_price="3000.00")
         trade1 = create_raw_trade(
-            id="trade1",
+            trade_id="trade1",
             symbol="SOL-USDC",
             price="100.00",
         )
         trade2 = create_raw_trade(
-            id="trade2",
+            trade_id="trade2",
             symbol="DOGE-USDC",
             price="0.50",
         )

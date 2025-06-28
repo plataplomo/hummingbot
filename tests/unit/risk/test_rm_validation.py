@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for RiskManager opportunity validation logic."""
 
 from decimal import Decimal

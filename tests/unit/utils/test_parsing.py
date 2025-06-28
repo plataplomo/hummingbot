@@ -100,13 +100,15 @@ class TestParseDatetimeUTC:
         assert parse_datetime_utc(dt_aware) == dt_aware
         result = parse_datetime_utc(dt_naive)
         assert result is not None
-        assert result.tzinfo == UTC and result.replace(tzinfo=None) == dt_naive
+        assert result.tzinfo == UTC
+        assert result.replace(tzinfo=None) == dt_naive
 
     def test_epoch_seconds(self) -> None:
         """Should parse int/float epoch seconds to UTC datetime."""
         ts = 1700000000
         dt = parse_datetime_utc(ts)
-        assert isinstance(dt, datetime) and dt.tzinfo == UTC
+        assert isinstance(dt, datetime)
+        assert dt.tzinfo == UTC
         # Allow small delta due to float conversion
         assert abs(dt.timestamp() - ts) < 1
 
@@ -114,15 +116,19 @@ class TestParseDatetimeUTC:
         """Should parse int/float epoch ms to UTC datetime."""
         ts_ms = 1700000000000
         dt = parse_datetime_utc(ts_ms)
-        assert isinstance(dt, datetime) and dt.tzinfo == UTC
+        assert isinstance(dt, datetime)
+        assert dt.tzinfo == UTC
         assert abs(dt.timestamp() - ts_ms / 1000) < 1
 
     def test_iso_string(self) -> None:
         """Should parse ISO 8601 string to UTC datetime."""
         iso = "2023-01-01T12:00:00"
         dt = parse_datetime_utc(iso)
-        assert isinstance(dt, datetime) and dt.tzinfo == UTC
-        assert dt.year == 2023 and dt.month == 1 and dt.day == 1
+        assert isinstance(dt, datetime)
+        assert dt.tzinfo == UTC
+        assert dt.year == 2023
+        assert dt.month == 1
+        assert dt.day == 1
 
     def test_none_returns_none(self) -> None:
         """Should return None if value is None."""
@@ -154,20 +160,23 @@ class TestParseDatetimeUTC:
         """Should parse negative epoch seconds (before 1970) to UTC datetime."""
         ts = -1000000000  # ~1938
         dt = parse_datetime_utc(ts)
-        assert isinstance(dt, datetime) and dt.year < 1970
+        assert isinstance(dt, datetime)
+        assert dt.year < 1970
 
     def test_far_future_epoch(self) -> None:
         """Should parse far future epoch seconds (e.g., year 3000) to UTC datetime."""
         ts = 32503680000  # 3000-01-01T00:00:00Z
         dt = parse_datetime_utc(ts)
-        assert isinstance(dt, datetime) and dt.year == 3000
+        assert isinstance(dt, datetime)
+        assert dt.year == 3000
 
     def test_leap_year_feb_29(self) -> None:
         """Should parse Feb 29 on a leap year."""
         iso = "2020-02-29T12:00:00"
         dt = parse_datetime_utc(iso)
         assert dt is not None
-        assert dt.month == 2 and dt.day == 29
+        assert dt.month == 2
+        assert dt.day == 29
 
     def test_non_leap_year_feb_29(self) -> None:
         """Should raise ValueError for Feb 29 on a non-leap year."""
@@ -185,7 +194,8 @@ class TestParseDatetimeUTC:
         dt = parse_datetime_utc(iso)
         assert dt is not None
         offset = dt.utcoffset()
-        assert offset is not None and offset.total_seconds() == 7200
+        assert offset is not None
+        assert offset.total_seconds() == 7200
 
     def test_datetime_trailing_z(self) -> None:
         """Should parse ISO string with trailing 'Z' as UTC."""
@@ -193,7 +203,8 @@ class TestParseDatetimeUTC:
         dt = parse_datetime_utc(iso.replace("Z", "+00:00"))
         assert dt is not None
         offset = dt.utcoffset()
-        assert offset is not None and offset.total_seconds() == 0
+        assert offset is not None
+        assert offset.total_seconds() == 0
 
     def test_datetime_empty_string(self) -> None:
         """Should raise ValueError for empty string."""

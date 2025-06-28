@@ -144,9 +144,8 @@ class TestEdgeCasesAndBoundaryValues:
 
         # Should handle minimal data gracefully
         assert result.exchange_order_id == "12345"
-        assert (
-            isinstance(result.client_order_id, str) and len(result.client_order_id) > 0
-        )  # UUID generated when cloid is None
+        assert isinstance(result.client_order_id, str)
+        assert len(result.client_order_id) > 0
         assert result.symbol == "ETH-PERP"
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.MARKET
@@ -176,8 +175,10 @@ class TestEdgeCasesAndBoundaryValues:
         # Should handle boundary values without error
         assert result1.exchange_order_id == "999999999999999999"
         assert result2.exchange_order_id == "1"
-        assert result1.price is not None and result1.price > Decimal(0)
-        assert result2.price is not None and result2.price > Decimal(0)
+        assert result1.price is not None
+        assert result1.price > Decimal(0)
+        assert result2.price is not None
+        assert result2.price > Decimal(0)
 
     def test_complex_trigger_scenarios(
         self,
@@ -197,7 +198,7 @@ class TestEdgeCasesAndBoundaryValues:
         assert result is not None
 
     @pytest.mark.parametrize(
-        "status_input,expected_output",
+        ("status_input", "expected_output"),
         [
             ("canceled", OrderStatus.CANCELED),  # Valid status, direct mapping
             ("rejected", OrderStatus.REJECTED),  # Valid status, direct mapping

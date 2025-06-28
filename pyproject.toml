@@ -162,14 +162,19 @@ select = [  # Linting rules to apply
     "SIM", # similar
     "ERA", # commented-out-code
 #    "DOC", # docstrings
-#    "INP", # import
+    "INP", # import
     "PLR2004",  # magic-value-comparison (good for trading systems)
     "PLR6201",  # literal-membership (performance improvement)
     "PLR1714",  # repeated-equality-comparison (cleaner code)
     "PLR6104",  # non-augmented-assignment (minor improvement)
     "G",
     "DTZ",
-    "INP",
+    "PT",
+    "NPY",
+    "PERF",
+    "A",
+    "EXE",  # executable code
+    "N",
 ]
 
 # Ignore rules that conflict with current codebase formatting
@@ -194,10 +199,17 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy 
 [tool.ruff.lint.per-file-ignores]
 # Allow assert statements and subprocess calls in tests
 # allow magic value comparisons
-"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PLR6201"]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PLR6201", "PT011", "PT012", "N802", "N803", "N806"]
 "tests/integration/test_config_example.py" = ["S603", "S404"]  # Allow subprocess calls for testing config script
 # Examples are demonstration scripts with proper __init__.py but ruff has detection issues
 "examples/*.py" = ["INP001"]
+# Scripts are standalone and don't need __init__.py
+"scripts/**/*.py" = ["INP001"]
+# AST visitor methods require specific naming convention
+"scripts/analyze_time_mocking_patterns.py" = ["N802"]
+# API models must match external API field names (camelCase)
+"cyberdelta/apis/backpack/models/bp_*.py" = ["N815"]
+"cyberdelta/apis/hyperliquid/models/hl_*.py" = ["N815"]
 
 # Configure pydocstyle to match current docstring conventions
 [tool.ruff.lint.pydocstyle]

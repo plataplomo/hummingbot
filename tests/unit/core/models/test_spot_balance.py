@@ -129,7 +129,7 @@ def test_spot_balance_creation_with_strings(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         # Required String Fields
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
@@ -251,7 +251,7 @@ def test_bp_details_creation_and_immutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         ("open_order_quantity", Decimal(-1), "Input should be greater than or equal to 0"),
         ("open_order_quantity", Decimal("NaN"), "Value must be finite if provided"),

@@ -125,7 +125,8 @@ class TestBoundaryValueHandling:
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
-        assert result.client_order_id is not None and len(result.client_order_id) > 0
+        assert result.client_order_id is not None
+        assert len(result.client_order_id) > 0
 
     def test_boundary_values(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
         """Test transformation with boundary values."""
@@ -485,7 +486,7 @@ class TestDataConsistencyAndValidation:
     """Tests for data consistency and validation across transformations."""
 
     @pytest.mark.parametrize(
-        "status_input,expected_output",
+        ("status_input", "expected_output"),
         [
             ("NEW", OrderStatus.OPEN),
             ("FILLED", OrderStatus.FILLED),

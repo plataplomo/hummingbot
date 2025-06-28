@@ -45,7 +45,7 @@ def test_user_vault_equity_item_valid(valid_user_vault_equity_item_data: dict[st
 
 
 @pytest.mark.parametrize(
-    "field, value, is_missing_test",
+    ("field", "value", "is_missing_test"),
     [
         ("vaultAddress", None, True),  # Required
         ("vaultAddress", "not-an-address", False),

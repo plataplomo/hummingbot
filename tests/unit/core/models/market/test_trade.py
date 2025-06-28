@@ -31,7 +31,7 @@ Architecture Compliance:
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal, Decimal as D
+from decimal import Decimal
 
 import pydantic
 import pytest
@@ -434,7 +434,7 @@ def test_trade_custom_to_dict_serialization() -> None:
     assert d["price"] == "100.0"
     assert d["quantity"] == "2.0"
 
-    assert D(d["cost"]) == D("200.0")
+    assert Decimal(d["cost"]) == Decimal("200.0")
     assert d["fee"] == "0.01"
     assert d["fee_asset"] == "USDC"
     assert d["side"] == "BUY"
@@ -471,7 +471,7 @@ def test_trade_model_dump_json_serialization() -> None:
     assert d["price"] == "100.0"
     assert d["quantity"] == "2.0"
 
-    assert D(d["cost"]) == D("200.0")
+    assert Decimal(d["cost"]) == Decimal("200.0")
     assert d["fee"] == "0.01"
     assert d["fee_asset"] == "USDC"
     assert d["side"] == "BUY"

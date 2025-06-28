@@ -210,7 +210,7 @@ class StrategyManager:
         """Update historical data for all strategies handling this symbol."""
         strategy_name = ""  # Initialize strategy_name
         try:
-            for _strategy_name, strategy in self.strategies.items():
+            for strategy in self.strategies.values():
                 if strategy.symbol == data.symbol:
                     strategy.update_historical_data(data)
         except Exception as e:

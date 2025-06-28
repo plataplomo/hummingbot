@@ -143,7 +143,7 @@ def test_BackpackRawPosition_valid_int_user_id_str(
 
 
 @pytest.mark.parametrize(
-    "field, value, expected_msg_part",
+    ("field", "value", "expected_msg_part"),
     [
         ("symbol", "", "String cannot be empty"),
         ("symbol", "A" * 65, "String value too long"),
@@ -299,7 +299,7 @@ def test_BackpackRawPositionUpdate_valid_timestamp_formats(
 
 
 @pytest.mark.parametrize(
-    "field, value, expected_msg_part",
+    ("field", "value", "expected_msg_part"),
     [
         ("e", "wrongUpdate", "Invalid value"),  # Wrong event type
         ("e", "", "String cannot be empty"),

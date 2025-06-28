@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test script to verify Hyperliquid update_account_settings implementation."""
 
 from datetime import UTC, datetime

@@ -63,7 +63,8 @@ class TestCircuitBreakerBase:
         assert breaker.state == BreakerState.OPEN
         assert isinstance(breaker.trip_time, datetime)
         assert breaker.trip_time.tzinfo is not None, "Trip time should be timezone-aware"
-        assert breaker.trip_time >= trip_time_before and breaker.trip_time <= trip_time_after_1
+        assert breaker.trip_time >= trip_time_before
+        assert breaker.trip_time <= trip_time_after_1
         assert breaker.trip_reason == "Test reason 1"
         assert breaker.trip_count == 1
         trip_time_first = breaker.trip_time
@@ -241,7 +242,8 @@ class TestVolatilityBreaker:
 
         # Volatility should be high, breaker trips
         assert breaker.state == BreakerState.OPEN
-        assert breaker.trip_reason is not None and "Volatility" in breaker.trip_reason
+        assert breaker.trip_reason is not None
+        assert "Volatility" in breaker.trip_reason
 
     def test_check_with_current_price(self) -> None:
         """Test check with a current price parameter."""
@@ -340,7 +342,8 @@ class TestDrawdownBreaker:
         assert breaker.peak_value == 100
         assert breaker.current_value == 85
         assert breaker.state == BreakerState.OPEN
-        assert breaker.trip_reason is not None and "Drawdown" in breaker.trip_reason
+        assert breaker.trip_reason is not None
+        assert "Drawdown" in breaker.trip_reason
 
     def test_check_recovery(self) -> None:
         """Test recovery check."""
@@ -396,7 +399,8 @@ class TestAPIErrorBreaker:
         # Should be open
         assert breaker.state == BreakerState.OPEN
         # Check if the trip reason contains key information
-        assert breaker.trip_reason is not None and "API errors" in breaker.trip_reason
+        assert breaker.trip_reason is not None
+        assert "API errors" in breaker.trip_reason
 
     def test_check_old_errors_removed(self) -> None:
         """Test that old errors are removed from consideration."""
@@ -464,7 +468,8 @@ class TestLiquidityBreaker:
 
         # Should trip
         assert breaker.state == BreakerState.OPEN
-        assert breaker.trip_reason is not None and "Liquidity" in breaker.trip_reason
+        assert breaker.trip_reason is not None
+        assert "Liquidity" in breaker.trip_reason
 
     def test_check_recovery(self) -> None:
         """Test recovery check."""

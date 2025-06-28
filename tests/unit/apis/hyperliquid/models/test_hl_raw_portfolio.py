@@ -116,7 +116,9 @@ def test_history_entry_invalid_list_input(value_list: list[Any]) -> None:
         HyperliquidRawPortfolioHistoryEntry.model_validate(value_list)
 
 
-@pytest.mark.parametrize("key_alias, value", [(0, "not-an-int"), (1, "not-a-decimal"), (0, -123)])
+@pytest.mark.parametrize(
+    ("key_alias", "value"), [(0, "not-an-int"), (1, "not-a-decimal"), (0, -123)]
+)
 def test_history_entry_invalid_dict_input(key_alias: int, value: str | int) -> None:
     """Test history entry invalid dict input."""
     data: dict[int | str, Any] = {0: 1741886630493, 1: "0.0"}
@@ -149,7 +151,7 @@ def test_timeframe_data_valid(valid_timeframe_data: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value, is_missing_test",
+    ("field", "value", "is_missing_test"),
     [
         ("accountValueHistory", None, True),
         ("accountValueHistory", [[123, "valid"], ["invalid-ts", "1.0"]], False),

@@ -20,7 +20,7 @@ class TestCrossExchangeSpotBalanceConsistency:
 
     @pytest.mark.skip(reason="Hyperliquid spot business logic isn't ready yet")
     @pytest.mark.parametrize(
-        "symbol,expected_precision",
+        ("symbol", "expected_precision"),
         [
             ("SOL", 8),
             ("BTC", 8),

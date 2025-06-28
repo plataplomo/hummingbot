@@ -11,9 +11,10 @@ Fixtures:
 """
 
 from collections.abc import Callable, Generator
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
-from unittest.mock import MagicMock, _patch, patch
+from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -37,7 +38,7 @@ class FreezerProtocol(Protocol):
 
 
 @pytest.fixture
-def frozen_time(freezer: FreezerProtocol) -> Generator[FreezerProtocol]:
+def frozen_time(freezer: FreezerProtocol) -> FreezerProtocol:
     """Provides frozen time control for deterministic tests.
 
     This fixture wraps the pytest-freezer fixture to provide additional
@@ -48,16 +49,16 @@ def frozen_time(freezer: FreezerProtocol) -> Generator[FreezerProtocol]:
             frozen_time.move_to("2024-01-01 12:00:00")
             assert datetime.now(UTC).hour == 12
 
-    Yields:
+    Returns:
         FreezerProtocol: The freezer instance for time control.
     """
     # Start at a deterministic time for consistency
     freezer.move_to("2024-01-01 00:00:00+00:00")
-    yield freezer
+    return freezer
 
 
 @pytest.fixture
-def mock_time_factory() -> Generator[Callable[..., Any]]:
+def mock_time_factory() -> Callable[..., Any]:
     """Factory for creating time mocks with standard patterns.
 
     This fixture provides a factory function that creates properly configured
@@ -74,7 +75,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
                 # Code under test uses mocked time
                 pass
 
-    Yields:
+    Returns:
         Callable[..., Any]: Factory function for creating time mocks.
     """
 
@@ -82,7 +83,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
         module_path: str,
         fixed_time: datetime | None = None,
         side_effect: Callable[[], datetime] | None = None,
-    ) -> _patch[Any]:
+    ) -> AbstractContextManager[MagicMock]:
         """Create a time mock for the specified module.
 
         Args:
@@ -115,7 +116,7 @@ def mock_time_factory() -> Generator[Callable[..., Any]]:
         mock_datetime.utcnow = MagicMock(return_value=now.replace(tzinfo=None))
         return patch(module_path, mock_datetime)
 
-    yield create_time_mock
+    return create_time_mock
 
 
 @pytest.fixture
@@ -138,7 +139,7 @@ def mock_time_patch() -> Generator[MagicMock]:
 
 
 @pytest.fixture
-def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., None]]:
+def market_time_simulation(freezer: FreezerProtocol) -> Callable[..., None]:
     """Fixture for simulating market hours and timing.
 
     Provides utilities for simulating different market conditions and
@@ -152,7 +153,7 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
     Args:
         freezer: Time freezing protocol for time manipulation
 
-    Yields:
+    Returns:
         Callable[..., None]: Function to set market time.
     """
 
@@ -181,11 +182,11 @@ def market_time_simulation(freezer: FreezerProtocol) -> Generator[Callable[..., 
         target_time = datetime(year, month, day, hour, minute, second, tzinfo=ZoneInfo(timezone))
         freezer.move_to(target_time)
 
-    yield set_market_time
+    return set_market_time
 
 
 @pytest.fixture
-def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]:
+def rate_limit_timer(freezer: FreezerProtocol) -> Callable[..., None]:
     """Fixture for rate limiting tests with precise timing control.
 
     Provides utilities for testing rate limiting behavior by controlling
@@ -197,7 +198,7 @@ def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]
             rate_limit_timer(advance_seconds=0.1)  # Advance 100ms
             # Make another request
 
-    Yields:
+    Returns:
         Callable[..., None]: Function to advance time.
     """
 
@@ -226,4 +227,4 @@ def rate_limit_timer(freezer: FreezerProtocol) -> Generator[Callable[..., None]]
         # Move to new time
         freezer.move_to(current + total_advance)
 
-    yield advance_time
+    return advance_time

@@ -159,7 +159,7 @@ def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerI
 
 
 @pytest.mark.parametrize(
-    "hl_side,expected_side",
+    ("hl_side", "expected_side"),
     [
         ("B", OrderSide.BUY),
         ("A", OrderSide.SELL),
@@ -209,7 +209,7 @@ def test_invalid_order_side_raises_error(
 
 
 @pytest.mark.parametrize(
-    "hl_status,expected_status",
+    ("hl_status", "expected_status"),
     [
         ("open", OrderStatus.OPEN),
         ("filled", OrderStatus.FILLED),
@@ -258,7 +258,7 @@ class TestOrderStatusMapping:
 
 
 @pytest.mark.parametrize(
-    "order_type_dict,expected_type",
+    ("order_type_dict", "expected_type"),
     [
         ({"limit": {"tif": "Gtc"}}, OrderType.LIMIT),
         (
@@ -299,7 +299,7 @@ class TestOrderTypeMapping:
 
 
 @pytest.mark.parametrize(
-    "order_type_dict,trigger_tpsl,expected_type",
+    ("order_type_dict", "trigger_tpsl", "expected_type"),
     [
         ({"limit": {"tif": "Gtc"}}, None, OrderType.LIMIT),
         ({"market": {}}, None, OrderType.MARKET),
@@ -365,7 +365,7 @@ def test_unknown_order_type_defaults_to_limit(
 
 
 @pytest.mark.parametrize(
-    "order_type_dict,expected_tif",
+    ("order_type_dict", "expected_tif"),
     [
         ({"limit": {"tif": "Gtc"}}, TimeInForce.GTC),
         ({"limit": {"tif": "Ioc"}}, TimeInForce.IOC),

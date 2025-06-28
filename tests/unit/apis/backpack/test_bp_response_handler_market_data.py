@@ -727,9 +727,8 @@ class TestHandleGetMarketsResponse:
 
     def test_large_markets_list(self) -> None:
         """Test handling a large list of markets."""
-        raw_data: list[dict[str, Any]] = []
-        for i in range(100):
-            raw_data.append({
+        raw_data: list[dict[str, Any]] = [
+            {
                 "symbol": f"ASSET{i}_USDC",
                 "baseSymbol": f"ASSET{i}",
                 "quoteSymbol": "USDC",
@@ -744,7 +743,9 @@ class TestHandleGetMarketsResponse:
                 },
                 "orderBookState": "NORMAL",
                 "createdAt": "2024-01-01T00:00:00.000Z",
-            })
+            }
+            for i in range(100)
+        ]
 
         markets = BackpackResponseHandler.handle_get_markets_response(
             cast("ParsedJsonResponse", raw_data),

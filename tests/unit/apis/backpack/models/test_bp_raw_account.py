@@ -74,7 +74,7 @@ def test_BackpackRawAccount_status_enum_invalid(status: str) -> None:
 
 # Adversarial: Wrong types
 @pytest.mark.parametrize(
-    "field,value",
+    ("field", "value"),
     [
         ("id", 123),
         ("email", ["user@example.com"]),
@@ -91,7 +91,7 @@ def test_BackpackRawAccount_wrong_type_fields(field: str, value: object) -> None
 
 # Adversarial: Empty, whitespace, overlong, unicode, XSS, SQLi
 @pytest.mark.parametrize(
-    "field,value",
+    ("field", "value"),
     [
         ("id", ""),
         ("id", "   "),
@@ -156,7 +156,7 @@ def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
 
 # Schema-driven: Decimal edge cases
 @pytest.mark.parametrize(
-    "field,value,should_pass",
+    ("field", "value", "should_pass"),
     [
         ("available", "0", True),
         ("available", "-1.0", True),
@@ -181,7 +181,7 @@ def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pa
 
 # Adversarial: Empty, whitespace, overlong, unicode, emoji, XSS, SQLi
 @pytest.mark.parametrize(
-    "field,value",
+    ("field", "value"),
     [
         ("available", ""),
         ("available", "   "),

@@ -647,7 +647,8 @@ class TestErrorRecoveryScenarios:
         assert ticker1.price == ticker2.price
         assert ticker1.volume == ticker2.volume
 
-        assert funding1 is not None and funding2 is not None
+        assert funding1 is not None
+        assert funding2 is not None
         assert funding1.symbol == funding2.symbol
         assert funding1.funding_rate == funding2.funding_rate
         assert funding1.mark_price == funding2.mark_price

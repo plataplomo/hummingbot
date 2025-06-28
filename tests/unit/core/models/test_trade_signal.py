@@ -141,7 +141,7 @@ def test_tradesignal_extra_fields_forbidden(minimal_signal_data: dict[str, Any])
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         # String validations
         ("symbol", "", r"symbol.*String should not be empty"),

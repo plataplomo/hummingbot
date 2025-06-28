@@ -124,7 +124,7 @@ def test_eth_withdrawal_payload_valid() -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value, expected_error_part",
+    ("field", "value", "expected_error_part"),
     [
         ("amount", INVALID_DECIMAL_STR_NON_FINITE, "must be a parseable finite decimal string"),
         ("amount", INVALID_DECIMAL_STR_EMPTY, "String cannot be empty"),
@@ -216,7 +216,7 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
 
 
 @pytest.mark.parametrize(
-    "field_alias, value, expected_error_part",
+    ("field_alias", "value", "expected_error_part"),
     [
         ("asset_index", -1, "cannot be negative"),
         ("asset_index", "not-an-int", "Must be an integer"),
@@ -434,7 +434,7 @@ def test_l2_usd_transfer_action_details_valid() -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value, expected_error_part",
+    ("field", "value", "expected_error_part"),
     [
         ("chain", "L1", "Input should be 'L2'"),
         ("chain", None, "Field required"),

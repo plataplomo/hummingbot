@@ -106,7 +106,10 @@ class TestHyperliquidPerpPositionsPrivate:
         assert test_position.size != Decimal(0), (
             f"Position size should be non-zero after opening trade, got {test_position.size}"
         )
-        assert test_position.entry_price is not None and test_position.entry_price > Decimal(0), (
+        assert test_position.entry_price is not None, (
+            f"entry_price must not be None, got {test_position.entry_price}"
+        )
+        assert test_position.entry_price > Decimal(0), (
             f"entry_price must be positive, got {test_position.entry_price}"
         )
 

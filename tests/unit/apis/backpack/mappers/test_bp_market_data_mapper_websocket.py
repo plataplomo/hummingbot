@@ -633,18 +633,17 @@ class TestWebSocketTradeEventTransformation:
         """Test WebSocket trade event transformation in real-time scenarios."""
         # Simulate rapid succession of trades with different timestamps
         base_time = 1705314600000
-        trade_events: list[BackpackRawPublicTradeEvent] = []
 
-        for i in range(5):
-            trade_events.append(
-                create_raw_trade_event(
-                    t=f"trade_{i}",
-                    p=f"{100 + i * 0.01:.2f}",  # Slightly increasing prices
-                    q=f"{10 + i}.0",  # Increasing quantities
-                    m=(i % 2 == 0),  # Alternate maker status
-                    event_time=base_time + i * 1000,  # 1 second apart
-                ),
+        trade_events: list[BackpackRawPublicTradeEvent] = [
+            create_raw_trade_event(
+                t=f"trade_{i}",
+                p=f"{100 + i * 0.01:.2f}",  # Slightly increasing prices
+                q=f"{10 + i}.0",  # Increasing quantities
+                m=(i % 2 == 0),  # Alternate maker status
+                event_time=base_time + i * 1000,  # 1 second apart
             )
+            for i in range(5)
+        ]
 
         results: list[Trade] = []
         for trade_event in trade_events:

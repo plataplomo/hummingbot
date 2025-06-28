@@ -992,13 +992,13 @@ if __name__ == "__main__":
 
     # Generate sample return data
     dates = pd.date_range(start="2020-01-01", end="2020-12-31", freq="D")
-    np.random.seed(42)
+    rng = np.random.Generator(np.random.PCG64(42))
 
     returns_data = pd.DataFrame(
         {
-            "Strategy1": np.random.normal(0.001, 0.02, len(dates)),
-            "Strategy2": np.random.normal(0.0005, 0.015, len(dates)),
-            "Strategy3": np.random.normal(0.0015, 0.025, len(dates)),
+            "Strategy1": rng.normal(0.001, 0.02, len(dates)),
+            "Strategy2": rng.normal(0.0005, 0.015, len(dates)),
+            "Strategy3": rng.normal(0.0015, 0.025, len(dates)),
         },
         index=dates,
     )
@@ -1006,11 +1006,11 @@ if __name__ == "__main__":
     # Generate sample trade data
     trade_data = pd.DataFrame(
         {
-            "strategy": np.random.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
-            "entry_time": np.random.choice(dates, 100),
-            "exit_time": np.random.choice(dates, 100),
-            "duration": np.random.randint(1, 1000, 100),
-            "pnl": np.random.normal(50, 200, 100),
+            "strategy": rng.choice(["Strategy1", "Strategy2", "Strategy3"], 100),
+            "entry_time": rng.choice(dates, 100),
+            "exit_time": rng.choice(dates, 100),
+            "duration": rng.integers(1, 1000, 100),
+            "pnl": rng.normal(50, 200, 100),
         },
     )
 
@@ -1020,7 +1020,7 @@ if __name__ == "__main__":
         {
             "asset": np.repeat(assets, len(dates)),
             "date": np.tile(dates, len(assets)),
-            "funding_rate": np.random.normal(0, 0.01, len(dates) * len(assets)),
+            "funding_rate": rng.normal(0, 0.01, len(dates) * len(assets)),
         },
     )
     funding_data.set_index("date", inplace=True)

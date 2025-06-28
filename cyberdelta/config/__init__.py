@@ -73,18 +73,18 @@ def _initialize_config() -> None:
         )
         return
 
-    CONFIG_FILE_PATH = _get_config_file_path()
-    SECRETS_FILE_PATH = _get_secrets_file_path()
+    config_file_path = _get_config_file_path()
+    secrets_file_path = _get_secrets_file_path()
 
     try:
         # Create manager instances (they load automatically and raise ConfigurationError on failure)
-        _config_manager = ConfigManager(str(CONFIG_FILE_PATH))
-        _secrets_manager = SecretsManager(str(SECRETS_FILE_PATH))
+        _config_manager = ConfigManager(str(config_file_path))
+        _secrets_manager = SecretsManager(str(secrets_file_path))
     except ConfigurationError as e:
         logger.critical(
             "configuration_system_initialization_failed",
-            config_file_path=str(CONFIG_FILE_PATH),
-            secrets_file_path=str(SECRETS_FILE_PATH),
+            config_file_path=str(config_file_path),
+            secrets_file_path=str(secrets_file_path),
             error=str(e),
             action="raising_runtime_error",
             message=f"CRITICAL: Configuration system initialization failed: {e}",

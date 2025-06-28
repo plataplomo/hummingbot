@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """CyberDeltaEngine main entry point module.
 
 This module serves as the primary entry point for the CyberDeltaEngine trading system.

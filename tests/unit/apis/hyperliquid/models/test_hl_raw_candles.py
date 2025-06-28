@@ -101,7 +101,7 @@ def test_extra_field_forbidden() -> None:
 
 
 @pytest.mark.parametrize(
-    "field_to_invalidate,invalid_value,expected_msg_part",
+    ("field_to_invalidate", "invalid_value", "expected_msg_part"),
     [
         ("t", "not_a_list", "Input should be a valid list"),
         ("o", False, "Input should be a valid list"),
@@ -141,7 +141,7 @@ def test_missing_field() -> None:
 
 
 @pytest.mark.parametrize(
-    "list_field,item_index,invalid_item,expected_key_terms",
+    ("list_field", "item_index", "invalid_item", "expected_key_terms"),
     [
         ("t", 0, "not_an_int", ("integer", "got str")),
         ("t", 0, -1, ("value", "-1", "cannot be negative")),

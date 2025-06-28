@@ -108,9 +108,7 @@ class TestBackpackSpotBalancesPrivate:
             APIError: If rate limiting is encountered
         """
         try:
-            tasks: list[Any] = []
-            for _ in range(5):
-                tasks.append(bp_api_for_test_env.get_balances())
+            tasks: list[Any] = [bp_api_for_test_env.get_balances() for _ in range(5)]
 
             results: list[dict[str, Any]] = []
             for task in tasks:
@@ -120,9 +118,16 @@ class TestBackpackSpotBalancesPrivate:
                     assert isinstance(result, dict)
                 except APIError as e:
                     if "rate" in e.message.lower() or "limit" in e.message.lower():
-                        assert e.code == APIErrorCode.RATE_LIMITED.value
-                        if hasattr(e, "retry_after") and e.retry_after:
-                            assert isinstance(e.retry_after, int | float)
+                        if e.code != APIErrorCode.RATE_LIMITED.value:
+                            pytest.fail(f"Expected RATE_LIMITED error code, got: {e.code}")
+                        if (
+                            hasattr(e, "retry_after")
+                            and e.retry_after
+                            and not isinstance(e.retry_after, int | float)
+                        ):
+                            pytest.fail(
+                                f"retry_after should be int or float, got: {type(e.retry_after)}"
+                            )
                     else:
                         raise
 
@@ -142,7 +147,7 @@ class TestBackpackSpotBalancesPrivate:
         if not balances:
             pytest.skip("No balances for precision testing")
 
-        for _, balance in balances.items():
+        for balance in balances.values():
             if balance.total_quantity > Decimal(0):
                 assert balance.total_quantity.is_finite()
 
@@ -168,7 +173,7 @@ class TestBackpackSpotBalancesPrivate:
         if not balances:
             pytest.skip("No balances for Backpack-specific testing")
 
-        for _, balance in balances.items():
+        for balance in balances.values():
             if balance.bp_details:
                 bp_details = balance.bp_details
 
@@ -240,11 +245,12 @@ class TestBackpackSpotBalancesPrivate:
 
         except APIError as e:
             if "timeout" in e.message.lower() or "connection" in e.message.lower():
-                assert e.code in [
+                if e.code not in [
                     APIErrorCode.TIMEOUT.value,
                     APIErrorCode.CONNECTION_ERROR.value,
                     APIErrorCode.NETWORK_ISSUE.value,
-                ]
+                ]:
+                    pytest.fail(f"Expected timeout/connection error code, got: {e.code}")
             else:
                 raise
 

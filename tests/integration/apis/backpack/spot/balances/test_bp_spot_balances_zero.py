@@ -94,9 +94,7 @@ class TestBackpackSpotBalancesZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() rate limiting behavior."""
-        tasks: list[Any] = []
-        for _ in range(5):
-            tasks.append(bp_api_for_zero_balance_test.get_balances())
+        tasks: list[Any] = [bp_api_for_zero_balance_test.get_balances() for _ in range(5)]
 
         try:
             results: list[dict[str, SpotBalance] | BaseException] = await asyncio.gather(

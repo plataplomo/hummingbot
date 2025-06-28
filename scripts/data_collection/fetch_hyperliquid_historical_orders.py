@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch historical orders from Hyperliquid API and save as raw JSON.
 
 This script downloads all historical orders for a specified wallet address

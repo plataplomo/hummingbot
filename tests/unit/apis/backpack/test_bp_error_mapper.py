@@ -61,7 +61,7 @@ class TestBackpackErrorMapper:
     """
 
     @pytest.mark.parametrize(
-        "http_status, error_body, expected_code, expected_message_contains",
+        ("http_status", "error_body", "expected_code", "expected_message_contains"),
         [
             (
                 400,
@@ -102,7 +102,7 @@ class TestBackpackErrorMapper:
         assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
-        "http_status, error_body, expected_code, expected_message_contains",
+        ("http_status", "error_body", "expected_code", "expected_message_contains"),
         [
             (
                 401,
@@ -142,7 +142,13 @@ class TestBackpackErrorMapper:
         assert api_error.http_status == http_status
 
     @pytest.mark.parametrize(
-        "http_status, error_body, bp_error_code_str, expected_api_code, expected_message_contains",
+        (
+            "http_status",
+            "error_body",
+            "bp_error_code_str",
+            "expected_api_code",
+            "expected_message_contains",
+        ),
         [
             (
                 400,
@@ -186,7 +192,7 @@ class TestBackpackErrorMapper:
         assert api_error.http_status == http_status
 
     @pytest.mark.parametrize(
-        "http_status, error_body, expected_code, expected_message_contains",
+        ("http_status", "error_body", "expected_code", "expected_message_contains"),
         [
             (
                 429,
@@ -220,7 +226,7 @@ class TestBackpackErrorMapper:
         assert api_error.http_status == http_status
 
     @pytest.mark.parametrize(
-        "http_status, error_body, expected_code, expected_message_contains",
+        ("http_status", "error_body", "expected_code", "expected_message_contains"),
         [
             (
                 500,
@@ -255,7 +261,7 @@ class TestBackpackErrorMapper:
         assert api_error.http_status == http_status
 
     @pytest.mark.parametrize(
-        "http_status, error_body, expected_code, expected_message_contains",
+        ("http_status", "error_body", "expected_code", "expected_message_contains"),
         [
             (
                 503,
@@ -283,7 +289,7 @@ class TestBackpackErrorMapper:
         assert expected_message_contains in api_error.message
 
     @pytest.mark.parametrize(
-        "status_code, error_body, error_code_enum, expected_message_contains",
+        ("status_code", "error_body", "error_code_enum", "expected_message_contains"),
         [
             (
                 404,
@@ -310,7 +316,7 @@ class TestBackpackErrorMapper:
         assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
-        "status_code, error_body, error_code_enum, expected_message_contains",
+        ("status_code", "error_body", "error_code_enum", "expected_message_contains"),
         [
             (
                 400,
@@ -337,7 +343,7 @@ class TestBackpackErrorMapper:
         assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
-        "status_code, error_body, error_code_enum, expected_message_contains",
+        ("status_code", "error_body", "error_code_enum", "expected_message_contains"),
         [
             (
                 400,
@@ -364,7 +370,7 @@ class TestBackpackErrorMapper:
         assert api_error.exchange_message == json.loads(error_body)["message"]
 
     @pytest.mark.parametrize(
-        "status_code, error_body, expected_api_code, expected_message_part",
+        ("status_code", "error_body", "expected_api_code", "expected_message_part"),
         [
             (400, "Invalid JSON input", APIErrorCode.INVALID_REQUEST, "Invalid JSON input"),
             (
@@ -395,7 +401,7 @@ class TestBackpackErrorMapper:
         assert api_error.exchange_message == error_body
 
     @pytest.mark.parametrize(
-        "status_code, error_body, expected_api_code, expected_message_part",
+        ("status_code", "error_body", "expected_api_code", "expected_message_part"),
         [
             (
                 400,
@@ -433,7 +439,7 @@ class TestBackpackErrorMapper:
         assert api_error.exchange_message == ""
 
     @pytest.mark.parametrize(
-        "status_code, error_data, error_body, expected_retry_after",
+        ("status_code", "error_data", "error_body", "expected_retry_after"),
         [
             # Test Case: Primary Regex - Seconds
             (

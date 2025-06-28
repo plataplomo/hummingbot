@@ -85,7 +85,8 @@ async def test_hl_get_historical_funding_rates_btc_success(
             assert isinstance(funding_rate, FundingRate), (
                 f"FundingRate {i} should be FundingRate model"
             )
-            assert hasattr(funding_rate, "symbol") and hasattr(funding_rate, "funding_rate")
+            assert hasattr(funding_rate, "symbol")
+            assert hasattr(funding_rate, "funding_rate")
             assert funding_rate.symbol == "BTC", f"Wrong symbol: {funding_rate.symbol}"
 
             # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
@@ -327,12 +328,13 @@ async def test_hl_get_historical_funding_rates_edge_cases(
         assert len(future_rates) == 0, "Future date query must return empty list"
     except APIError as e:
         # Future dates causing API error is acceptable - validate error type
-        assert e.code in [
+        if e.code not in [
             APIErrorCode.INVALID_REQUEST.value,
             APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
             APIErrorCode.INVALID_PARAMS.value,
             APIErrorCode.EXCHANGE_SPECIFIC.value,  # Hyperliquid may return generic error
-        ], f"Future date error should be appropriate, got {e.code}"
+        ]:
+            pytest.fail(f"Future date error should be appropriate, got {e.code}")
 
     # Test 3: Very long date range - test system limits
     long_start = datetime.now(UTC) - timedelta(days=7)  # 7 days to match bounds calculation
@@ -559,11 +561,12 @@ async def test_hl_funding_rate_boundary_conditions(
         assert len(same_time_rates) <= 1, "Same time query should return at most one rate"
     except APIError as e:
         # Same time query might cause error - must be appropriate error
-        assert e.code in [
+        if e.code not in [
             APIErrorCode.INVALID_REQUEST.value,
             APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
             APIErrorCode.INVALID_PARAMS.value,
-        ], f"Same time error should be appropriate, got {e.code}"
+        ]:
+            pytest.fail(f"Same time error should be appropriate, got {e.code}")
 
     # Test 3: Reversed time range (end before start) - MUST fail
     reversed_start = datetime.now(UTC)

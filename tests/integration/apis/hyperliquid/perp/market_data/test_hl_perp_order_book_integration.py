@@ -31,14 +31,18 @@ async def test_hl_get_perp_order_book_btc_success(
     assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
     assert order_book.symbol == "BTC", f"Expected symbol 'BTC', got '{order_book.symbol}'"
 
-    assert isinstance(order_book.bids, list) and len(order_book.bids) > 0
-    assert isinstance(order_book.asks, list) and len(order_book.asks) > 0
+    assert isinstance(order_book.bids, list)
+    assert len(order_book.bids) > 0
+    assert isinstance(order_book.asks, list)
+    assert len(order_book.asks) > 0
 
     bid_price, _bid_size = order_book.bids[0]
     ask_price, _ask_size = order_book.asks[0]
 
-    assert isinstance(bid_price, Decimal) and bid_price > Decimal(0)
-    assert isinstance(ask_price, Decimal) and ask_price > bid_price
+    assert isinstance(bid_price, Decimal)
+    assert bid_price > Decimal(0)
+    assert isinstance(ask_price, Decimal)
+    assert ask_price > bid_price
 
 
 @pytest.mark.parametrize(

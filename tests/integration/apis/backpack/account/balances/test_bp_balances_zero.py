@@ -54,7 +54,7 @@ class TestBackpackBalancesZero:
             assert balances == {}
         else:
             # If we have balances, they should all be zero or very small
-            for _asset, balance in balances.items():
+            for balance in balances.values():
                 assert isinstance(balance, SpotBalance)
                 assert balance.exchange == "backpack"
                 assert isinstance(balance.total_quantity, Decimal)

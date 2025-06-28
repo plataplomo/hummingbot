@@ -195,7 +195,7 @@ class TestBuildPlaceOrderPayload:
             assert payload_dict[key] == expected_value
 
     @pytest.mark.parametrize(
-        "side, expected_side_str",
+        ("side", "expected_side_str"),
         [
             (OrderSide.BUY, "Bid"),
             (OrderSide.SELL, "Ask"),
@@ -220,7 +220,7 @@ class TestBuildPlaceOrderPayload:
         assert payload.side == expected_side_str
 
     @pytest.mark.parametrize(
-        "order_type, expected_type_str",
+        ("order_type", "expected_type_str"),
         [
             (OrderType.LIMIT, "Limit"),
             (OrderType.MARKET, "Market"),
@@ -287,7 +287,7 @@ class TestBuildCancelOrderPayload:
         assert payload_dict == expected_payload
 
     @pytest.mark.parametrize(
-        "symbol, order_id, client_id_int, expected_payload",
+        ("symbol", "order_id", "client_id_int", "expected_payload"),
         [
             ("SOL_USDC", "123", None, {"symbol": "SOL_USDC", "orderId": "123"}),
             ("BTC_USDT", None, 456789, {"symbol": "BTC_USDT", "clientId": 456789}),
@@ -343,7 +343,7 @@ class TestBuildGetOpenOrdersParams:
         assert params_dict == {"symbol": "SOL_USDC"}
 
     @pytest.mark.parametrize(
-        "symbol, expected_dict",
+        ("symbol", "expected_dict"),
         [
             (None, {}),
             ("SOL_USDC", {"symbol": "SOL_USDC"}),
@@ -384,7 +384,7 @@ class TestBuildGetOrderParams:
         assert params_dict == {"symbol": "SOL_USDC"}
 
     @pytest.mark.parametrize(
-        "input_symbol, expected_symbol",
+        ("input_symbol", "expected_symbol"),
         [
             ("SOL_USDC", "SOL_USDC"),
             ("btc-usdt", "BTC_USDT"),
@@ -476,7 +476,7 @@ class TestBuildGetOrderHistoryParams:
         assert params_dict == {"symbol": "SOL_USDC"}
 
     @pytest.mark.parametrize(
-        "symbol, limit, expected_base",
+        ("symbol", "limit", "expected_base"),
         [
             (None, None, {}),
             ("SOL_USDC", 25, {"symbol": "SOL_USDC", "limit": 25}),
@@ -522,7 +522,7 @@ class TestBuildCancelAllOrdersPayload:
         assert payload_dict == {"symbol": "SOL_USDC"}
 
     @pytest.mark.parametrize(
-        "symbol, expected_dict",
+        ("symbol", "expected_dict"),
         [
             ("SOL_USDC", {"symbol": "SOL_USDC"}),
             ("btc-usdt", {"symbol": "BTC_USDT"}),

@@ -4,7 +4,6 @@ from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
-from pytest import FixtureRequest
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_role import (
     HyperliquidRawUserRoleData,
@@ -43,7 +42,7 @@ VALID_ROLE_DATA_SUBACCOUNT: dict[str, str | None] = {
         VALID_USER_ROLE_MISSING,
     ],
 )
-def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
+def valid_user_role_data(request: pytest.FixtureRequest) -> dict[str, Any]:
     """Return valid user role data for testing."""
     return cast("dict[str, Any]", request.param).copy()  # Ensure individual test data is copied
 
@@ -56,7 +55,7 @@ def valid_user_role_data(request: FixtureRequest) -> dict[str, Any]:
         {},  # Empty data
     ],
 )
-def valid_role_data_params(request: FixtureRequest) -> dict[str, str | None]:
+def valid_role_data_params(request: pytest.FixtureRequest) -> dict[str, str | None]:
     """Return valid role data params for testing."""
     return cast("dict[str, str | None]", request.param).copy()
 
@@ -105,7 +104,7 @@ def test_role_data_valid(valid_role_data_params: dict[str, str | None]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("user", "not-an-address"),
         ("user", "0xshort"),
@@ -147,7 +146,7 @@ def test_user_role_response_valid(valid_user_role_data: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value, is_missing_test",
+    ("field", "value", "is_missing_test"),
     [
         ("role", None, True),  # Required
         ("role", "unknownRole", False),  # Invalid enum value

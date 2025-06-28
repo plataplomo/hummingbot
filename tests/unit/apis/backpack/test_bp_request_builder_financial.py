@@ -160,7 +160,7 @@ class TestBuildWithdrawPayload:
             )
 
     @pytest.mark.parametrize(
-        "asset, amount_str, network, expected_asset, expected_amount, expected_network",
+        ("asset", "amount_str", "network", "expected_asset", "expected_amount", "expected_network"),
         [
             ("USDC", "50.0", "Solana", "USDC", "50.0", "Solana"),
             ("ETH", "2.5", "Ethereum", "ETH", "2.5", "Ethereum"),
@@ -311,7 +311,7 @@ class TestBuildInternalTransferPayload:
         assert payload_dict == expected_payload
 
     @pytest.mark.parametrize(
-        "asset_symbol, amount, from_acc, to_acc, client_id, expected_symbol",
+        ("asset_symbol", "amount", "from_acc", "to_acc", "client_id", "expected_symbol"),
         [
             ("USDC", "100", "SPOT", "FUTURES", None, "USDC"),
             ("sol-perp", "50", "FUTURES", "SPOT", "transfer1", "SOL_PERP"),
@@ -349,7 +349,7 @@ class TestBuildInternalTransferPayload:
         assert payload_dict == expected
 
     @pytest.mark.parametrize(
-        "from_account, to_account",
+        ("from_account", "to_account"),
         [
             ("SPOT", "FUTURES"),
             ("FUTURES", "SPOT"),

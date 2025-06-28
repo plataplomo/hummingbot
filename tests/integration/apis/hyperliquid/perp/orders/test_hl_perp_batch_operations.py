@@ -243,15 +243,14 @@ class TestHyperliquidBatchOperations:
         )
 
         # Prepare cancellation arguments
-        cancel_args: list[CancelOrderArgs] = []
-        for order in placed_orders:
-            if order.exchange_order_id is not None:
-                cancel_args.append(
-                    CancelOrderArgs(
-                        order_id=order.exchange_order_id,
-                        symbol=order.symbol,
-                    ),
-                )
+        cancel_args: list[CancelOrderArgs] = [
+            CancelOrderArgs(
+                order_id=order.exchange_order_id,
+                symbol=order.symbol,
+            )
+            for order in placed_orders
+            if order.exchange_order_id is not None
+        ]
 
         # Test batch cancellation
         cancel_start = time.time()
@@ -615,8 +614,10 @@ class TestHyperliquidBatchOperations:
                 message="Batch operation failed as expected",
             )
             # Ensure we get meaningful error information
-            assert len(str(e)) > 0, "Error should have meaningful message"
-            assert hasattr(e, "error_code"), "APIError should have error_code attribute"
+            if len(str(e)) == 0:
+                pytest.fail("Error should have meaningful message")
+            if not hasattr(e, "error_code"):
+                pytest.fail("APIError should have error_code attribute")
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
@@ -696,7 +697,8 @@ class TestHyperliquidBatchOperations:
                 error=str(e),
                 message="Invalid symbol correctly rejected",
             )
-            assert len(str(e)) > 0, "Error should have meaningful message"
+            if len(str(e)) == 0:
+                pytest.fail("Error should have meaningful message")
 
         # Test 3: Invalid cancel operations
         # Use the first available symbol if we have one, otherwise use a placeholder
@@ -734,4 +736,5 @@ class TestHyperliquidBatchOperations:
                 error=str(e),
                 message="Invalid cancel correctly rejected",
             )
-            assert len(str(e)) > 0, "Error should have meaningful message"
+            if len(str(e)) == 0:
+                pytest.fail("Error should have meaningful message")

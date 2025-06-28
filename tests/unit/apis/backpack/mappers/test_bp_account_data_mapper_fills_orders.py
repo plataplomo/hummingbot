@@ -82,7 +82,7 @@ def create_raw_fill(
 
 
 def create_raw_order(
-    id: str = "order123",
+    order_id: str = "order123",
     symbol: str = "SOL-USDC",
     side: str = "Bid",
     order_type: str = "LIMIT",
@@ -103,7 +103,7 @@ def create_raw_order(
     """
     return BackpackRawOrder(
         clientId=None,
-        id=id,
+        id=order_id,
         symbol=symbol,
         side=side,
         orderType=order_type,
@@ -129,7 +129,7 @@ def create_raw_order(
 
 
 def create_raw_trade(
-    id: str = "trade123",
+    trade_id: str = "trade123",
     symbol: str = "SOL-USDC",
     price: str = "100.50",
     qty: str = "10.0",
@@ -143,7 +143,7 @@ def create_raw_trade(
         BackpackRawPublicTrade instance configured with test data.
     """
     return BackpackRawPublicTrade(
-        id=id,
+        id=trade_id,
         symbol=symbol,
         price=price,
         qty=qty,
@@ -296,7 +296,7 @@ class TestOrderTransformation:
     ) -> None:
         """Test successful transformation of BackpackRawOrder to internal Order."""
         raw_order = create_raw_order(
-            id="order123",
+            order_id="order123",
             symbol="SOL-USDC",
             side="Bid",
             order_type="LIMIT",
@@ -323,7 +323,7 @@ class TestOrderTransformation:
         assert result.bp_details is not None
 
     @pytest.mark.parametrize(
-        "bp_side,expected_side",
+        ("bp_side", "expected_side"),
         [
             ("Buy", OrderSide.BUY),
             ("Sell", OrderSide.SELL),
@@ -346,7 +346,7 @@ class TestOrderTransformation:
         assert result.side == expected_side
 
     @pytest.mark.parametrize(
-        "bp_status,expected_status",
+        ("bp_status", "expected_status"),
         [
             ("NEW", OrderStatus.NEW),
             ("FILLED", OrderStatus.FILLED),
@@ -371,7 +371,7 @@ class TestOrderTransformation:
         assert result.status == expected_status
 
     @pytest.mark.parametrize(
-        "bp_type,expected_type",
+        ("bp_type", "expected_type"),
         [
             ("LIMIT", OrderType.LIMIT),
             ("MARKET", OrderType.MARKET),
@@ -400,7 +400,7 @@ class TestOrderTransformation:
         assert result.order_type == expected_type
 
     @pytest.mark.parametrize(
-        "bp_tif,expected_tif",
+        ("bp_tif", "expected_tif"),
         [
             ("GTC", TimeInForce.GTC),
             ("IOC", TimeInForce.IOC),
@@ -487,7 +487,7 @@ class TestTradeTransformation:
     ) -> None:
         """Test that BackpackRawPublicTrade transformation returns None due to missing side info."""
         raw_trade = create_raw_trade(
-            id="trade123",
+            trade_id="trade123",
             symbol="SOL-USDC",
             price="100.50",
             qty="10.0",
@@ -595,7 +595,7 @@ class TestTradeTransformation:
     ) -> None:
         """Test trade transformation with very long trade ID (should still return None)."""
         long_id = "a" * 64  # Maximum allowed length
-        raw_trade = create_raw_trade(id=long_id, time=test_timestamp)
+        raw_trade = create_raw_trade(trade_id=long_id, time=test_timestamp)
 
         result = mapper.transform_raw_trade_to_internal(raw_trade)
 

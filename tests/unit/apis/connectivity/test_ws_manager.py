@@ -18,7 +18,6 @@ import structlog.testing
 from aiohttp import ClientSession as RealAiohttpCliSession, WSMessage, WSMsgType
 from aiohttp.helpers import sentinel
 from pydantic import AnyUrl, BaseModel, ValidationError
-from pytest import LogCaptureFixture
 
 from cyberdelta.apis.connectivity.connectivity_models import WebSocketManagerConfig
 from cyberdelta.apis.connectivity.ws_manager import (
@@ -301,7 +300,7 @@ class TestWebSocketManager:
         MockAiohttpSessionConstructor: MagicMock,  # Patched class
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test the full flow of a successful connection and starting internal tasks."""
         caplog.set_level(logging.INFO, logger="TestAnextBlockIndefinitely")
@@ -682,7 +681,7 @@ class TestWebSocketManagerTaskManagement:
         mock_aiohttp_session_ws_connect_method: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test _listen loop processes messages and triggers reconnect on unexpected close."""
         caplog.set_level(logging.INFO, logger="WebSocketManager.listen_reconnect_test")
@@ -789,7 +788,7 @@ class TestWebSocketManagerTaskManagement:
             WebSocketManagerConfig.model_validate(invalid_data_for_url_test)
 
     @pytest.mark.parametrize(
-        "field, invalid_value, error_part",
+        ("field", "invalid_value", "error_part"),
         [
             ("ping_interval", -1, "Input should be greater than 0"),
             ("reconnect_delay", 0, "Input should be greater than 0"),
@@ -1057,7 +1056,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         self,
         mock_ws_connect: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test connection timeout during WebSocket handshake."""
         # Configure mock to raise timeout during connection
@@ -1099,7 +1098,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         self,
         mock_ws_connect: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test connection refused error handling."""
         # Configure mock to raise connection refused
@@ -1140,7 +1139,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         mock_ws_connect: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test that message handler exceptions don't crash the connection."""
 
@@ -1197,7 +1196,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
         mock_ws_connect: AsyncMock,
         default_ws_manager_config: WebSocketManagerConfig,
         mock_ws_connection_factory: Callable[..., AsyncMock],
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test handling of malformed JSON messages."""
         # Track processed messages
@@ -1254,7 +1253,7 @@ class TestWebSocketManagerComprehensiveErrorHandling:
     async def test_send_when_not_connected(
         self,
         default_ws_manager_config: WebSocketManagerConfig,
-        caplog: LogCaptureFixture,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test send operation when WebSocket is not connected."""
         manager = WebSocketManager(

@@ -293,8 +293,7 @@ class BackpackRawOrder(BaseModel):
             if not found_alias and canonical_name in current_values:
                 processed_values[canonical_name] = current_values.pop(canonical_name)
 
-        for key, value in current_values.items():
-            processed_values[key] = value
+        processed_values.update(dict(current_values.items()))
 
         return processed_values
 

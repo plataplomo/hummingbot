@@ -122,7 +122,7 @@ def create_mock_ticker(
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def basic_opportunity() -> ArbitrageOpportunity:
     """Provide a basic ArbitrageOpportunity instance for integration tests.
 
@@ -344,7 +344,7 @@ def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
     return SymbolMapper(config_data_for_mapper)
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def signal_generator(
     mock_config: AppSettings,
     data_handler: DataHandler,

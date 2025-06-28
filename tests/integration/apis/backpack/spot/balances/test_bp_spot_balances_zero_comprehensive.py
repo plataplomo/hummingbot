@@ -149,12 +149,17 @@ class TestBackpackSpotBalancesZeroComprehensive:
             # This is acceptable for VCR playback scenarios
         except APIError as api_error:
             # This is the expected behavior for real API calls with invalid credentials
-            assert api_error.code in [
+            if api_error.code not in [
                 APIErrorCode.AUTHENTICATION_FAILED.value,
                 APIErrorCode.INVALID_REQUEST.value,
                 APIErrorCode.INVALID_PARAMS.value,
-            ], f"Expected authentication error, got: {api_error.code}"
-            assert "auth" in api_error.message.lower() or "invalid" in api_error.message.lower()
+            ]:
+                pytest.fail(f"Expected authentication error, got: {api_error.code}")
+            msg = api_error.message.lower()
+            if "auth" not in msg and "invalid" not in msg:
+                pytest.fail(
+                    f"Expected 'auth' or 'invalid' in error message, got: {api_error.message}"
+                )
         except Exception as e:
             pytest.fail(f"Unexpected exception type: {type(e).__name__}: {e}")
         finally:
@@ -182,7 +187,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
             logger.info("Zero balance account has no assets, test passed")
             return
 
-        for _, balance in balances.items():
+        for balance in balances.values():
             # Test very small balance handling
             if balance.total_quantity > Decimal(0):
                 # Validate that small balances maintain precision
@@ -295,9 +300,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         """
         try:
             # Make multiple rapid calls to potentially trigger rate limiting
-            tasks: list[Any] = []
-            for _ in range(5):
-                tasks.append(bp_api_for_zero_balance_test.get_balances())
+            tasks: list[Any] = [bp_api_for_zero_balance_test.get_balances() for _ in range(5)]
 
             # Most should succeed, but if rate limited, validate error handling
             results: list[dict[str, SpotBalance]] = []
@@ -308,14 +311,17 @@ class TestBackpackSpotBalancesZeroComprehensive:
                     assert isinstance(result, dict), f"Call {i} should return dict if successful"
                 except APIError as e:
                     if "rate" in e.message.lower() or "limit" in e.message.lower():
-                        assert e.code == APIErrorCode.RATE_LIMITED.value, (
-                            f"Rate limit error should map to RATE_LIMITED, got {e.code}"
-                        )
-                        # Check if retry-after information is preserved
-                        if hasattr(e, "retry_after") and e.retry_after:
-                            assert isinstance(e.retry_after, int | float), (
-                                "retry_after should be numeric if present"
+                        if e.code != APIErrorCode.RATE_LIMITED.value:
+                            pytest.fail(
+                                f"Rate limit error should map to RATE_LIMITED, got {e.code}"
                             )
+                        # Check if retry-after information is preserved
+                        if (
+                            hasattr(e, "retry_after")
+                            and e.retry_after
+                            and not isinstance(e.retry_after, int | float)
+                        ):
+                            pytest.fail("retry_after should be numeric if present")
                     else:
                         raise  # Re-raise non-rate-limit errors
 
@@ -348,11 +354,12 @@ class TestBackpackSpotBalancesZeroComprehensive:
         except APIError as e:
             # If we get a timeout or network error, validate it's properly classified
             if "timeout" in e.message.lower() or "connection" in e.message.lower():
-                assert e.code in [
+                if e.code not in [
                     APIErrorCode.TIMEOUT.value,
                     APIErrorCode.CONNECTION_ERROR.value,
                     APIErrorCode.NETWORK_ISSUE.value,
-                ], f"Network error should map to network-related code, got {e.code}"
+                ]:
+                    pytest.fail(f"Network error should map to network-related code, got {e.code}")
             else:
                 # Re-raise non-network errors
                 raise

@@ -12,7 +12,6 @@ trading engine, providing real-time portfolio information to other system compon
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
-from builtins import BaseException
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
@@ -1194,10 +1193,12 @@ class PortfolioTracker:
         """
         all_positions_list: list[tuple[str, DerivativePosition]] = []
         for exchange_id, symbol_positions_map in self.positions.items():
-            for _symbol, position_obj in symbol_positions_map.items():
-                # Only include positions with non-zero size
-                if position_obj.size != Decimal(0):
-                    all_positions_list.append((exchange_id, position_obj))
+            # Only include positions with non-zero size
+            all_positions_list.extend(
+                (exchange_id, position_obj)
+                for position_obj in symbol_positions_map.values()
+                if position_obj.size != Decimal(0)
+            )
         return all_positions_list
 
     def get_positions_by_exchange(self, exchange_id: str) -> list[DerivativePosition]:
@@ -1753,11 +1754,10 @@ class PortfolioTracker:
 
     def get_order_history(self, exchange_id: str, symbol: str | None = None) -> list[Order]:
         """Get all orders (open and closed) for a given exchange and optionally a symbol."""
-        all_orders: list[Order] = []
         exchange_orders = self.orders.get(exchange_id, {})
-        for order in exchange_orders.values():
-            if symbol is None or order.symbol == symbol:
-                all_orders.append(order)
+        all_orders: list[Order] = [
+            order for order in exchange_orders.values() if symbol is None or order.symbol == symbol
+        ]
         return all_orders
 
     def get_order_by_id(self, exchange_id: str, order_id: str) -> Order | None:
@@ -2204,8 +2204,7 @@ class PortfolioTracker:
                         message="Skipping unexpected value type in orders_data dict",
                     )
         else:  # orders_data is list[Order]
-            for item_in_list in orders_data:
-                items_to_process.append(item_in_list)
+            items_to_process = list(orders_data)
 
         return items_to_process
 

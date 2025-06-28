@@ -32,11 +32,13 @@ async def test_hl_get_perp_recent_trades_btc_success(
     if len(trades) > 0:
         for i, trade in enumerate(trades):
             assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
-            assert (
-                hasattr(trade, "symbol") and hasattr(trade, "price") and hasattr(trade, "quantity")
-            )
-            assert isinstance(trade.price, Decimal) and trade.price > Decimal(0)
-            assert isinstance(trade.quantity, Decimal) and trade.quantity > Decimal(0)
+            assert hasattr(trade, "symbol")
+            assert hasattr(trade, "price")
+            assert hasattr(trade, "quantity")
+            assert isinstance(trade.price, Decimal)
+            assert trade.price > Decimal(0)
+            assert isinstance(trade.quantity, Decimal)
+            assert trade.quantity > Decimal(0)
 
 
 @pytest.mark.parametrize(

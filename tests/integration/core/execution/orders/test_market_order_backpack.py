@@ -133,9 +133,10 @@ class TestBackpackMarketOrderIntegration:
                 backpack_api,
                 order.exchange_order_id,
             )
-            assert filled_quantity is not None and filled_quantity > 0, (
-                f"Order {order.exchange_order_id} not filled or fill quantity not found"
+            assert filled_quantity is not None, (
+                f"Order {order.exchange_order_id} fill quantity not found"
             )
+            assert filled_quantity > 0, f"Order {order.exchange_order_id} not filled"
 
             # Update order with actual fill data
             filled_order = order
@@ -276,9 +277,10 @@ class TestBackpackMarketOrderIntegration:
                 backpack_api,
                 order.exchange_order_id,
             )
-            assert filled_quantity is not None and filled_quantity > 0, (
-                f"Order {order.exchange_order_id} not filled or fill quantity not found"
+            assert filled_quantity is not None, (
+                f"Order {order.exchange_order_id} fill quantity not found"
             )
+            assert filled_quantity > 0, f"Order {order.exchange_order_id} not filled"
 
             # Update order with actual fill data
             filled_order = order
@@ -494,9 +496,10 @@ class TestBackpackMarketOrderIntegration:
                 max_retries=10,  # More retries for PERP markets
                 retry_delay=3.0,  # Longer delay for PERP markets
             )
-            assert sell_filled_qty is not None and sell_filled_qty > 0, (
-                f"Sell order {sell_order.exchange_order_id} not filled"
+            assert sell_filled_qty is not None, (
+                f"Sell order {sell_order.exchange_order_id} fill quantity not found"
             )
+            assert sell_filled_qty > 0, f"Sell order {sell_order.exchange_order_id} not filled"
 
             logger.info(
                 "perpetual_market_test_success",
@@ -678,10 +681,10 @@ class TestBackpackMarketOrderIntegration:
 
         except PriceDeviationError as e:
             # Expected in most cases - verify error details
-            assert symbol in str(e), f"Error should mention symbol {symbol}"
-            assert "slippage" in str(e).lower() or "deviation" in str(e).lower(), (
-                "Error should mention slippage or deviation"
-            )
+            if symbol not in str(e):
+                pytest.fail(f"Error should mention symbol {symbol}, but got: {e}")
+            if "slippage" not in str(e).lower() and "deviation" not in str(e).lower():
+                pytest.fail(f"Error should mention slippage or deviation, but got: {e}")
             logger.info(
                 "price_deviation_error_caught",
                 error=str(e),

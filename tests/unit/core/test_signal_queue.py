@@ -745,13 +745,16 @@ async def test_add_signal_different_priorities(
 
     # Retrieve signals and check order
     retrieved1 = await signal_queue.get_next_signal()
-    assert retrieved1 is not None and retrieved1.symbol == "HIGH"
+    assert retrieved1 is not None
+    assert retrieved1.symbol == "HIGH"
 
     retrieved2 = await signal_queue.get_next_signal()
-    assert retrieved2 is not None and retrieved2.symbol == "MID"
+    assert retrieved2 is not None
+    assert retrieved2.symbol == "MID"
 
     retrieved3 = await signal_queue.get_next_signal()
-    assert retrieved3 is not None and retrieved3.symbol == "LOW"
+    assert retrieved3 is not None
+    assert retrieved3.symbol == "LOW"
 
     # Queue should be empty now
     assert await signal_queue.count() == 0
@@ -760,12 +763,14 @@ async def test_add_signal_different_priorities(
     # Test peeking doesn't remove the item
     await signal_queue.add_signal(signal_high)  # Add back the high priority one
     peeked = await signal_queue.peek_next_signal()
-    assert peeked is not None and peeked.symbol == "HIGH"
+    assert peeked is not None
+    assert peeked.symbol == "HIGH"
     assert await signal_queue.count() == 1
     assert not await signal_queue.is_empty()
 
     # Ensure get_next_signal still retrieves it after peeking
     retrieved_after_peek = await signal_queue.get_next_signal()
-    assert retrieved_after_peek is not None and retrieved_after_peek.symbol == "HIGH"
+    assert retrieved_after_peek is not None
+    assert retrieved_after_peek.symbol == "HIGH"
     assert await signal_queue.count() == 0
     assert await signal_queue.is_empty()

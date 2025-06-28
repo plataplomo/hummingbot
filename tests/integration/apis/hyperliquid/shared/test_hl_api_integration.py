@@ -695,8 +695,9 @@ class TestHyperliquidAPIConcurrentOperations:
             await hl_api_for_test_env.place_order(order_args)
             pytest.fail("Expected APIError for invalid symbol in place_order")
         except APIError as e:
-            assert e.code in [
+            if e.code not in [
                 APIErrorCode.INVALID_SYMBOL.value,
                 APIErrorCode.SYMBOL_NOT_FOUND.value,
                 APIErrorCode.INVALID_REQUEST.value,  # Hyperliquid may return this
-            ], f"Trading service returned unexpected error code: {e.code}"
+            ]:
+                pytest.fail(f"Trading service returned unexpected error code: {e.code}")

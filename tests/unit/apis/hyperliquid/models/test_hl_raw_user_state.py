@@ -623,12 +623,12 @@ def test_position_info_all_optional_missing_and_all_edge_cases() -> None:
     del d["entryPx"]
     del d["liquidationPx"]
     obj = HyperliquidRawPositionInfo.model_validate(d)
-    assert obj.entry_px is None and obj.liquidation_px is None
+    assert obj.entry_px is None
+    assert obj.liquidation_px is None
     # All present, set to edge-case values
     d2 = valid_position_info().copy()
     d2["entryPx"] = "0.0"
     d2["liquidationPx"] = "0.0"
     obj2 = HyperliquidRawPositionInfo.model_validate(d2)
-    assert (
-        obj2.entry_px == "0" and obj2.liquidation_px == "0"
-    )  # Business logic normalizes decimal strings
+    assert obj2.entry_px == "0"
+    assert obj2.liquidation_px == "0"

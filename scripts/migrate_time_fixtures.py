@@ -23,7 +23,7 @@ class TimePatchMigrator(ast.NodeTransformer):
         self.imports_to_add: set[str] = set()
         self.imports_to_remove: set[str] = set()
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:  # noqa: N802
         """Visit function definitions to check for patches and fixtures."""
         # Check for existing fixtures
         for arg in node.args.args:

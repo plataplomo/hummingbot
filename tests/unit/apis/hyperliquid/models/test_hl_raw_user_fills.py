@@ -484,7 +484,7 @@ def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any])
 
 # --- Failure Cases: Type Errors ---
 @pytest.mark.parametrize(
-    "field, invalid_value",
+    ("field", "invalid_value"),
     [
         ("coin", 123),
         ("px", 2000.50),  # Validator allows float -> Decimal string coercion
@@ -544,7 +544,7 @@ def test_hl_raw_user_fill_invalid_types(
 
 # --- Failure Cases: Format/Constraint Errors ---
 @pytest.mark.parametrize(
-    "field, invalid_value, expected_keywords",
+    ("field", "invalid_value", "expected_keywords"),
     [
         ("tid", -1, ("value", "-1", "cannot be negative")),
         ("coin", "", ("string", "cannot be empty")),

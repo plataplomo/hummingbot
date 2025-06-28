@@ -211,7 +211,7 @@ def test_derivative_position_mutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         # Required Strings
         ("exchange", None, "Value error, exchange: Expected string, got NoneType"),
@@ -383,7 +383,7 @@ def test_hyperliquid_details_creation_and_immutability(
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         ("leverage_type", "sideways", "Invalid value"),
         ("leverage_type", 123, "Expected string"),
@@ -430,7 +430,7 @@ def test_backpack_details_creation_and_immutability(valid_bp_details_data: dict[
 
 
 @pytest.mark.parametrize(
-    "field, value, error_match",
+    ("field", "value", "error_match"),
     [
         ("imf_base", Decimal("NaN"), "Value must be finite if provided"),
         ("imf_factor", "invalid", "Cannot convert 'invalid' to Decimal"),

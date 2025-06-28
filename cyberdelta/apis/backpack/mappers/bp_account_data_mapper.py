@@ -739,15 +739,16 @@ class BackpackAccountDataMapper:
                     calculated_total_position_notional += abs(dp.size * dp.entry_price)
 
             # Prepare collateral assets data for bp_details
-            collateral_assets_data: list[dict[str, str]] = []
-            for asset in raw_collateral.collateral:
-                collateral_assets_data.append({
+            collateral_assets_data: list[dict[str, str]] = [
+                {
                     "symbol": asset.symbol,
                     "total_quantity": str(asset.total_quantity),
                     "collateral_value": str(asset.collateral_value),
                     "collateral_weight": str(asset.collateral_weight),
                     "asset_mark_price": str(asset.asset_mark_price),
-                })
+                }
+                for asset in raw_collateral.collateral
+            ]
 
             # Create enhanced BackpackMarginDetails
             bp_details = BackpackMarginDetails(

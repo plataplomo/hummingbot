@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """Configuration Manager for loading and validating application configuration."""
 
 import os

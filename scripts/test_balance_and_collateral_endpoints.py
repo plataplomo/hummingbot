@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Final test script for Backpack API integration."""
 
 import asyncio

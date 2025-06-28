@@ -826,7 +826,7 @@ class ExchangeAPI(ABC):
             ),
         )
         if self._ws_manager and self.is_connected:
-            for topic, _handler in self._ws_handlers.copy().items():
+            for topic in self._ws_handlers.copy():
                 try:
                     subscription_payload = self._construct_subscription_payload(topic)
                     success = await self._ws_manager.send_json(subscription_payload)

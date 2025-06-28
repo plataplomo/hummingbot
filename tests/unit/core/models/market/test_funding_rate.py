@@ -171,7 +171,8 @@ class TestFundingRate:
         assert isinstance(fr.timestamp, datetime)
         assert isinstance(fr.next_funding_time, datetime)
         assert fr.timestamp.tzinfo is not None
-        assert fr.next_funding_time is not None and fr.next_funding_time.tzinfo is not None
+        assert fr.next_funding_time is not None
+        assert fr.next_funding_time.tzinfo is not None
 
         # Test with string ISO timestamps
         iso_timestamp = "2023-03-16T12:00:00Z"

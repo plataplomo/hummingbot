@@ -78,7 +78,8 @@ class TestBackpackPositionsZero:
             # Handle expected case where no position exists for the symbol
             if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
                 # This is the expected behavior for zero balance tests
-                assert "No position found" in str(e.message)
+                if "No position found" not in str(e.message):
+                    pytest.fail(f"Expected 'No position found' in error message, got: {e.message}")
             else:
                 raise
 
@@ -140,7 +141,8 @@ class TestBackpackPositionsZero:
             # Handle expected case where no position exists for spot symbols
             if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
                 # This is the expected behavior for spot symbols
-                assert "No position found" in str(e.message)
+                if "No position found" not in str(e.message):
+                    pytest.fail(f"Expected 'No position found' in error message, got: {e.message}")
             else:
                 raise
 
@@ -266,7 +268,12 @@ class TestBackpackPositionsZero:
             # Handle expected case where API raises error for delisted/invalid symbols
             if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
                 # This is the expected behavior for delisted symbols
-                assert "No position found" in str(e.message) or "DOGE_USDC_PERP" in str(e.message)
+                msg = str(e.message)
+                if not ("No position found" in msg or "DOGE_USDC_PERP" in msg):
+                    pytest.fail(
+                        "Expected 'No position found' or 'DOGE_USDC_PERP' in error message, "
+                        f"got: {msg}"
+                    )
             else:
                 raise
 

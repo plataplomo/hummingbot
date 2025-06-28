@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test script to verify Hyperliquid asset index resolution is working properly."""
 
 import asyncio

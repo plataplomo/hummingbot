@@ -60,7 +60,7 @@ def test_frontend_order_valid(valid_frontend_order_data: dict[str, Any]) -> None
 
 
 @pytest.mark.parametrize(
-    "field, value, is_missing_test",
+    ("field", "value", "is_missing_test"),
     [
         ("coin", None, True),  # Required
         ("coin", "BTCTOOLONG" * 20, False),  # Too long

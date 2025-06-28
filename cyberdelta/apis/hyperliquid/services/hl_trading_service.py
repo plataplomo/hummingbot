@@ -1307,8 +1307,10 @@ class HyperliquidTradingService:
                 failed_orders.append((i, f"Processing error: {e!s}"))
 
         # Handle orders that didn't get a status response (filtered by exchange)
-        for i in range(len(response_data.statuses), len(original_orders)):
-            failed_orders.append((i, "Order filtered or rejected by exchange (no status returned)"))
+        failed_orders.extend(
+            (i, "Order filtered or rejected by exchange (no status returned)")
+            for i in range(len(response_data.statuses), len(original_orders))
+        )
 
     async def _process_single_batch_order_status(
         self,

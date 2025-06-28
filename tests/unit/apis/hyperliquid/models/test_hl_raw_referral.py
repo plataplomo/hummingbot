@@ -4,7 +4,6 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel, ValidationError
-from pytest import FixtureRequest
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_referral import (
     HyperliquidRawReferralResponse,
@@ -103,7 +102,7 @@ def test_referred_by_valid(valid_referred_by_data: dict[str, str]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [("referrer", "invalid"), ("code", None), ("referrer", "0x123")],
 )
 def test_referred_by_invalid(
@@ -129,7 +128,7 @@ def test_referral_state_item_valid(valid_referral_state_item_data: dict[str, Any
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("cumVlm", "nan"),
         ("timeJoined", "abc"),
@@ -161,7 +160,7 @@ def test_referrer_data_valid(valid_referrer_data_data: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [("code", None), ("referralStates", "not-a-list"), ("referralStates", [{"user": "invalid"}])],
 )
 def test_referrer_data_invalid(
@@ -188,7 +187,7 @@ def test_referrer_state_valid(valid_referrer_state_data: dict[str, Any]) -> None
 
 
 @pytest.mark.parametrize(
-    "field, value",
+    ("field", "value"),
     [
         ("stage", None),
         ("data", "not-a-dict"),
@@ -221,7 +220,7 @@ def test_referral_response_valid(valid_referral_response_data: dict[str, Any]) -
 
 
 @pytest.mark.parametrize(
-    "field, value, is_missing_test",
+    ("field", "value", "is_missing_test"),
     [
         ("referredBy", None, True),
         ("cumVlm", "inf", False),
@@ -252,7 +251,7 @@ def test_referral_response_invalid(
 
 
 @pytest.mark.parametrize(
-    "model_class, valid_data_fixture_name",
+    ("model_class", "valid_data_fixture_name"),
     [
         (HyperliquidRawReferredBy, "valid_referred_by_data"),
         (HyperliquidRawReferralState, "valid_referral_state_item_data"),
@@ -264,7 +263,7 @@ def test_referral_response_invalid(
 def test_all_referral_models_extra_fields(
     model_class: type[BaseModel],
     valid_data_fixture_name: str,
-    request: FixtureRequest,
+    request: pytest.FixtureRequest,
 ) -> None:
     """Test that all referral-related models forbid extra fields."""
     valid_data = request.getfixturevalue(valid_data_fixture_name)

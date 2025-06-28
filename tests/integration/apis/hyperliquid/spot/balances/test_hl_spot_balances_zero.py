@@ -87,11 +87,12 @@ class TestHyperliquidSpotBalancesZero:
 
         except APIError as e:
             if "timeout" in e.message.lower() or "connection" in e.message.lower():
-                assert e.code in [
+                if e.code not in [
                     APIErrorCode.TIMEOUT.value,
                     APIErrorCode.CONNECTION_ERROR.value,
                     APIErrorCode.NETWORK_ISSUE.value,
-                ], f"Network error should map to network-related code, got {e.code}"
+                ]:
+                    pytest.fail(f"Network error should map to network-related code, got {e.code}")
             else:
                 raise
 
@@ -109,9 +110,7 @@ class TestHyperliquidSpotBalancesZero:
                 occur during rapid concurrent requests.
         """
         try:
-            tasks: list[Any] = []
-            for _ in range(5):
-                tasks.append(hl_api_for_zero_balance_test.get_balances())
+            tasks: list[Any] = [hl_api_for_zero_balance_test.get_balances() for _ in range(5)]
 
             results: list[dict[str, Any]] = []
             for i, task in enumerate(tasks):
@@ -121,13 +120,16 @@ class TestHyperliquidSpotBalancesZero:
                     assert isinstance(result, dict), f"Call {i} should return dict if successful"
                 except APIError as e:
                     if "rate" in e.message.lower() or "limit" in e.message.lower():
-                        assert e.code == APIErrorCode.RATE_LIMITED.value, (
-                            f"Rate limit error should map to RATE_LIMITED, got {e.code}"
-                        )
-                        if hasattr(e, "retry_after") and e.retry_after:
-                            assert isinstance(e.retry_after, int | float), (
-                                "retry_after should be numeric if present"
+                        if e.code != APIErrorCode.RATE_LIMITED.value:
+                            pytest.fail(
+                                f"Rate limit error should map to RATE_LIMITED, got {e.code}"
                             )
+                        if (
+                            hasattr(e, "retry_after")
+                            and e.retry_after
+                            and not isinstance(e.retry_after, int | float)
+                        ):
+                            pytest.fail("retry_after should be numeric if present")
                     else:
                         raise
 

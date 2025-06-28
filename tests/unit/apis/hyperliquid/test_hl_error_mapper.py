@@ -16,7 +16,7 @@ def hyperliquid_error_mapper() -> HyperliquidErrorMapper:
 
 
 @pytest.mark.parametrize(
-    "error_body_str, expected_code, expected_message_contains",
+    ("error_body_str", "expected_code", "expected_message_contains"),
     [("Order not found", APIErrorCode.ORDER_NOT_FOUND, "Order not found")],
 )
 def test_map_hl_string_error_order_not_found(
@@ -163,7 +163,7 @@ def test_map_hl_empty_error_body(hyperliquid_error_mapper: HyperliquidErrorMappe
 
 
 @pytest.mark.parametrize(
-    "status_code, error_body, expected_code",
+    ("status_code", "error_body", "expected_code"),
     [
         # Test Case: IP Ban (403 + rate limit message)
         (

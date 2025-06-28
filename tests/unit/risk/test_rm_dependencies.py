@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Integration Tests for RiskManager Dependency Failure Handling."""
 
 from decimal import Decimal

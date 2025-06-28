@@ -666,10 +666,11 @@ class TestBackpackOrdersZeroBalance:
                 APIErrorCode.INVALID_REQUEST.value,  # No position to stop
                 APIErrorCode.EXCHANGE_SPECIFIC.value,
             ]
-            assert e.code in expected_errors, (
-                f"Stop market order should fail appropriately if rejected, "
-                f"got {e.code}: {e.message}"
-            )
+            if e.code not in expected_errors:
+                pytest.fail(
+                    f"Stop market order should fail appropriately if rejected, "
+                    f"got {e.code}: {e.message}"
+                )
             logger.info(
                 "stop_market_order_failed",
                 error_code=e.code,
@@ -807,10 +808,11 @@ class TestBackpackOrdersZeroBalance:
                 APIErrorCode.INVALID_REQUEST.value,
                 APIErrorCode.EXCHANGE_SPECIFIC.value,
             ]
-            assert e.code in expected_errors, (
-                f"Take profit market order should fail appropriately if rejected, "
-                f"got {e.code}: {e.message}"
-            )
+            if e.code not in expected_errors:
+                pytest.fail(
+                    f"Take profit market order should fail appropriately if rejected, "
+                    f"got {e.code}: {e.message}"
+                )
             logger.info(
                 "take_profit_market_order_failed",
                 error_code=e.code,
@@ -1034,10 +1036,11 @@ class TestBackpackOrdersZeroBalance:
                     )
             except APIError as api_error:
                 # Order failed as expected
-                assert api_error.code in test_case["expected_errors"], (
-                    f"Order type {test_case['name']} failed with unexpected error: "
-                    f"{api_error.code} - {api_error.message}"
-                )
+                if api_error.code not in test_case["expected_errors"]:
+                    pytest.fail(
+                        f"Order type {test_case['name']} failed with unexpected error: "
+                        f"{api_error.code} - {api_error.message}"
+                    )
                 logger.info(
                     "order_type_correctly_failed",
                     test_case_name=test_case["name"],
