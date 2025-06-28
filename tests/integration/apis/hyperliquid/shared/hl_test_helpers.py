@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import secrets
-import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, ROUND_UP, Decimal
@@ -684,80 +683,89 @@ class HyperliquidTestHelpers:
     async def wait_for_order_cancellation(
         api: HyperliquidAPI,
         symbol: str | None = None,
-        timeout: int = 30,
+        timeout_seconds: int = 30,
     ) -> None:
         """Wait for order cancellation to complete with proper verification and adaptive polling.
 
         Raises:
             RuntimeError: If order cancellation verification fails or times out.
         """
-        start_time = time.time()
         attempt = 0
 
-        while time.time() - start_time < timeout:
-            try:
-                open_orders = await api.get_open_orders()
-                if symbol:
-                    symbol_orders = [order for order in open_orders if order.symbol == symbol]
-                    if not symbol_orders:
-                        return  # All orders for symbol cancelled
-                elif not open_orders:
-                    return  # All orders cancelled
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                while True:
+                    try:
+                        open_orders = await api.get_open_orders()
+                        if symbol:
+                            symbol_orders = [
+                                order for order in open_orders if order.symbol == symbol
+                            ]
+                            if not symbol_orders:
+                                return  # All orders for symbol cancelled
+                        elif not open_orders:
+                            return  # All orders cancelled
 
-                # Adaptive polling interval: shorter intervals initially, longer as time passes
-                attempt += 1
-                if attempt <= 3:
-                    interval = 0.5  # 0.5s for first 3 attempts (fast initial checks)
-                elif attempt <= 10:
-                    interval = 1.0  # 1s for next 7 attempts (standard polling)
-                else:
-                    interval = 2.0  # 2s for remaining attempts (slower polling)
+                        # Adaptive polling interval: shorter intervals initially,
+                        # longer as time passes
+                        attempt += 1
+                        if attempt <= 3:
+                            interval = 0.5  # 0.5s for first 3 attempts (fast initial checks)
+                        elif attempt <= 10:
+                            interval = 1.0  # 1s for next 7 attempts (standard polling)
+                        else:
+                            interval = 2.0  # 2s for remaining attempts (slower polling)
 
-                await asyncio.sleep(interval)
-            except Exception as e:
-                raise RuntimeError(f"Failed to verify order cancellation: {e}") from e
-
-        raise RuntimeError(f"Order cancellation not completed within {timeout} seconds")
+                        await asyncio.sleep(interval)
+                    except Exception as e:
+                        raise RuntimeError(f"Failed to verify order cancellation: {e}") from e
+        except TimeoutError:
+            raise RuntimeError(
+                f"Order cancellation not completed within {timeout_seconds} seconds"
+            ) from None
 
     @staticmethod
     async def wait_for_order_placement(
         api: HyperliquidAPI,
         order_id: str,
-        timeout: int = 30,
+        timeout_seconds: int = 30,
     ) -> None:
         """Wait for order to appear in open orders with proper verification.
 
         Raises:
             RuntimeError: If order placement verification fails or times out.
         """
-        start_time = time.time()
         attempt = 0
 
-        while time.time() - start_time < timeout:
-            try:
-                open_orders = await api.get_open_orders()
-                if any(order.exchange_order_id == order_id for order in open_orders):
-                    return  # Order found in open orders
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                while True:
+                    try:
+                        open_orders = await api.get_open_orders()
+                        if any(order.exchange_order_id == order_id for order in open_orders):
+                            return  # Order found in open orders
 
-                # Adaptive polling interval
-                attempt += 1
-                if attempt <= 3:
-                    interval = 0.5  # Fast initial checks
-                elif attempt <= 10:
-                    interval = 1.0  # Standard polling
-                else:
-                    interval = 2.0  # Slower polling
+                        # Adaptive polling interval
+                        attempt += 1
+                        if attempt <= 3:
+                            interval = 0.5  # Fast initial checks
+                        elif attempt <= 10:
+                            interval = 1.0  # Standard polling
+                        else:
+                            interval = 2.0  # Slower polling
 
-                await asyncio.sleep(interval)
-            except Exception as e:
-                raise RuntimeError(f"Failed to verify order placement: {e}") from e
-
-        raise RuntimeError(f"Order {order_id} not found in open orders within {timeout} seconds")
+                        await asyncio.sleep(interval)
+                    except Exception as e:
+                        raise RuntimeError(f"Failed to verify order placement: {e}") from e
+        except TimeoutError:
+            raise RuntimeError(
+                f"Order {order_id} not found in open orders within {timeout_seconds} seconds"
+            ) from None
 
     @staticmethod
     async def eventually_assert(
         condition_func: Callable[[], bool | Any],
-        timeout: int = 30,
+        timeout_seconds: int = 30,
         message: str = "Condition not met",
     ) -> None:
         """Poll until condition is true or timeout occurs.
@@ -765,34 +773,35 @@ class HyperliquidTestHelpers:
         Raises:
             RuntimeError: If condition is not met within timeout.
         """
-        start_time = time.time()
         attempt = 0
 
-        while time.time() - start_time < timeout:
-            try:
-                condition_result = condition_func()
-                if asyncio.iscoroutine(condition_result):
-                    result = await condition_result
-                else:
-                    result = condition_result
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                while True:
+                    try:
+                        condition_result = condition_func()
+                        if asyncio.iscoroutine(condition_result):
+                            result = await condition_result
+                        else:
+                            result = condition_result
 
-                if result:
-                    return  # Condition met
+                        if result:
+                            return  # Condition met
 
-                # Adaptive polling interval
-                attempt += 1
-                if attempt <= 3:
-                    interval = 0.5
-                elif attempt <= 10:
-                    interval = 1.0
-                else:
-                    interval = 2.0
+                        # Adaptive polling interval
+                        attempt += 1
+                        if attempt <= 3:
+                            interval = 0.5
+                        elif attempt <= 10:
+                            interval = 1.0
+                        else:
+                            interval = 2.0
 
-                await asyncio.sleep(interval)
-            except Exception as e:
-                raise RuntimeError(f"Failed to check condition: {e}") from e
-
-        raise RuntimeError(f"{message} (timeout after {timeout} seconds)")
+                        await asyncio.sleep(interval)
+                    except Exception as e:
+                        raise RuntimeError(f"Failed to check condition: {e}") from e
+        except TimeoutError:
+            raise RuntimeError(f"{message} (timeout after {timeout_seconds} seconds)") from None
 
     @staticmethod
     async def get_account_margin_parameters(api: HyperliquidAPI) -> dict[str, Decimal]:

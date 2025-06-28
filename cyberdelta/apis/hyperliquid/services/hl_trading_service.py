@@ -193,7 +193,7 @@ class HyperliquidTradingService:
             APIError instance with appropriate error details.
         """
         if isinstance(error, TransformationError):
-            logger.exception(
+            logger.error(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -209,7 +209,7 @@ class HyperliquidTradingService:
                 exchange_message=raw_response_content,
             )
         if isinstance(error, ValidationError):
-            logger.exception(
+            logger.error(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -230,7 +230,7 @@ class HyperliquidTradingService:
             if current_method in error_msg:
                 # Re-raise input validation errors
                 raise error
-            logger.exception(
+            logger.error(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -245,7 +245,7 @@ class HyperliquidTradingService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             )
-        logger.exception(
+        logger.error(
             "unexpected_service_failure",
             action=current_method,
             exchange=self._exchange_name,
@@ -290,7 +290,7 @@ class HyperliquidTradingService:
             )
             raise
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "hl_trading_service_place_order_unexpected_error",
                 action="place_order_raw",
                 message="Unexpected error occurred while placing order",
@@ -324,7 +324,7 @@ class HyperliquidTradingService:
             )
             raise
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "hl_trading_service_cancel_order_unexpected_error",
                 action="cancel_order_raw",
                 message="Unexpected error occurred while cancelling order",
@@ -384,7 +384,7 @@ class HyperliquidTradingService:
             )
             raise
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "unexpected_error_open_orders",
                 action="get_open_orders_raw",
                 exchange=self._exchange_name,
@@ -482,7 +482,7 @@ class HyperliquidTradingService:
             )
             raise
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "order_status_unexpected_error",
                 message="[%s] Unexpected error fetching order status raw for OID %s: %s",
                 message_args=(self._exchange_name, order_id, e),
@@ -1642,7 +1642,7 @@ class HyperliquidTradingService:
                 message="Service internal logic error.",
                 original_exception=error,
             ) from error
-        logger.exception(
+        logger.error(
             "unexpected_service_failure",
             message="[%s] %s: Unexpected service failure: %s",
             message_args=(self._exchange_name, current_method, error),
@@ -2312,7 +2312,7 @@ class HyperliquidTradingService:
         Returns:
             CancelOrderResult indicating failure due to unexpected error.
         """
-        logger.exception(
+        logger.error(
             "unexpected_error_cancel_order",
             message="[%s] Unexpected error cancelling order %s for %s: %s",
             message_args=(

@@ -11,7 +11,7 @@ import json
 import urllib.parse
 from http import HTTPStatus
 from types import TracebackType
-from typing import Any
+from typing import Any, Self
 
 import aiohttp
 from multidict import CIMultiDictProxy
@@ -842,7 +842,7 @@ class HttpClient:
             api_error_code=APIErrorCode.NETWORK_ISSUE,
         ) from last_exception
 
-    async def __aenter__(self) -> HttpClient:
+    async def __aenter__(self) -> Self:
         """Enter the async context manager and ensure session is ready."""
         await self._get_session()  # Ensure session is created if used in "async with"
         return self

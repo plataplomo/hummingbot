@@ -603,7 +603,7 @@ class ExchangeAPI(ABC):
         request_url: str,
     ) -> APIError:
         """Handle unexpected errors."""
-        logger.exception(
+        logger.error(
             "exchange_api_unhandled_exception",
             exchange_name=self.exchange_name,
             method=method,
@@ -614,6 +614,7 @@ class ExchangeAPI(ABC):
                 f"[{self.exchange_name}] Unhandled exception during request {method} "
                 f"{request_url}: {e_unhandled}"
             ),
+            exc_info=e_unhandled,
         )
         return self.error_mapper.map_exchange_error(
             status_code=500,  # Internal Server Error

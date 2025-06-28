@@ -18,6 +18,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
+from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.vcr, pytest.mark.timing]
@@ -519,13 +520,9 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
                 )
 
                 # Brief async pause to allow for processing
-                from tests.integration.apis.backpack.shared.bp_test_helpers import (
-                    wait_for_condition,
-                )
-
                 await wait_for_condition(
                     lambda: True,  # Always true, just wait
-                    timeout=0.01,
+                    timeout_seconds=0.01,
                     poll_interval=0.01,
                     message="Processing delay",
                 )

@@ -17,6 +17,7 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
 from typing import Any
 
@@ -144,8 +145,6 @@ class TestHyperliquidSpotBalancesZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with concurrent requests to same endpoint."""
-        import asyncio
-
         tasks = [
             hl_api_for_zero_balance_test.get_balances(),
             hl_api_for_zero_balance_test.get_balances(),

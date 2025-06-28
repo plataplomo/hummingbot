@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import decimal
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -34,7 +35,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
@@ -271,7 +272,6 @@ class TestHyperliquidWebSocketIntegration:
             order_handler(ws_order_placed)
 
             # Step 2: Cancel the order to generate cancellation event
-            from cyberdelta.apis.models.service_args_models import CancelOrderArgs
 
             cancel_args = CancelOrderArgs(
                 order_id=placed_order.exchange_order_id,
@@ -473,8 +473,6 @@ class TestHyperliquidWebSocketIntegration:
         Returns:
             True if error handling works correctly
         """
-        import json
-
         # Simulate invalid JSON message
         invalid_json = '{"price": "not_a_number", "symbol": "' + test_symbol + '"}'
 

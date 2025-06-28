@@ -17,6 +17,7 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -246,8 +247,6 @@ class TestBackpackSpotBalancesZeroComprehensive:
         This validates that concurrent balance requests don't interfere with each other
         and that the underlying API handles concurrency properly.
         """
-        import asyncio
-
         # Make multiple concurrent calls
         tasks = [
             bp_api_for_zero_balance_test.get_balances(),

@@ -11,6 +11,7 @@ Tests cover spot markets only:
 - Complete API -> Service -> Handler -> Mapper -> Internal Model pipeline
 """
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -73,8 +74,6 @@ class TestBackpackSpotTrades:
                 assert trade.symbol == "SOL_USDC", (
                     f"Trade {i} symbol should be 'SOL_USDC', got '{trade.symbol}'"
                 )
-
-                from datetime import datetime
 
                 assert isinstance(trade.executed_at, datetime), (
                     f"Trade {i} executed_at should be datetime, got {type(trade.executed_at)}"

@@ -15,7 +15,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.models.market.market import Market
+from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.spot]
@@ -59,8 +59,6 @@ class TestBackpackSpotMarketPrivate:
         )
 
         if market.bp_details is not None:
-            from cyberdelta.core.models.market.market import BackpackMarketDetails
-
             assert isinstance(market.bp_details, BackpackMarketDetails), (
                 f"bp_details should be BackpackMarketDetails, got {type(market.bp_details)}"
             )

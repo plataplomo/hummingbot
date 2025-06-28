@@ -11,8 +11,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -26,6 +28,7 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models import (
     DerivativePosition,
+    FundingRate,
     MarginAccountSummary,
     SpotBalance,
     Ticker,
@@ -69,8 +72,6 @@ def mock_bp_authenticator() -> MagicMock:
     Returns:
         MagicMock configured for Backpack authentication.
     """
-    from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
-
     mock_auth = MagicMock(spec=BackpackEd25519Authenticator)
     mock_auth.prepare_request = AsyncMock()
     return mock_auth
@@ -212,7 +213,6 @@ def bp_api_with_di(
     Returns:
         Factory function for creating BackpackAPI instances with injected dependencies.
     """
-    from cyberdelta.apis.backpack.bp_api import BackpackAPI
 
     def _create_api(
         # Allow overriding specific dependencies if needed
@@ -661,8 +661,6 @@ class TestBackpackAPIMarketDataOperations:
         api = bp_api_with_di()
 
         # Configure mock market data service
-        from cyberdelta.core.models import FundingRate
-
         expected_rates = [
             FundingRate(
                 symbol="SOL",
@@ -830,8 +828,6 @@ class TestBackpackAPIComprehensiveErrorHandling:
         api = bp_api_with_di()
 
         # Configure service to raise specific APIError
-        from pydantic import ValidationError
-
         validation_error = APIError(
             message="Invalid balance response structure",
             code=APIErrorCode.INVALID_RESPONSE.value,

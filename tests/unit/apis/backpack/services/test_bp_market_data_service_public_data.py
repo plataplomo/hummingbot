@@ -19,6 +19,10 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetRecentTradesParams,
     BackpackRawGetTickerParams,
 )
+from cyberdelta.apis.backpack.models.bp_raw_trade import (
+    BackpackRawPublicTrade,
+    BackpackRawRecentPublicTrade,
+)
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
@@ -491,8 +495,6 @@ class TestBackpackMarketDataServicePublicData:
             mock_headers_from_client,
         )
         # Mock raw trade models that the response handler would return
-        from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentPublicTrade
-
         mock_raw_trade_models = [
             BackpackRawRecentPublicTrade(
                 id=12345,
@@ -604,8 +606,6 @@ class TestBackpackMarketDataServicePublicData:
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
-
             BackpackRawPublicTrade.model_validate({"invalid": "data"})
         except ValidationError as e:
             mock_response_handler.handle_get_recent_trades_response.side_effect = e

@@ -32,7 +32,7 @@ class TestFormatSymbol:
 
     def test_format_symbol_empty_string(self) -> None:
         """Test _format_symbol handles edge cases."""
-        assert BackpackRequestBuilder.format_symbol("") == ""
+        assert not BackpackRequestBuilder.format_symbol("")
 
     @pytest.mark.parametrize(
         ("input_symbol", "expected_output"),

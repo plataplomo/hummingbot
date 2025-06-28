@@ -11,6 +11,7 @@ from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 from _pytest.logging import LogCaptureFixture
@@ -2096,8 +2097,6 @@ async def test_execution_failure_compensation(
 
     # Verify compensation order was placed and filled (check mocks and logs)
     # Use the mock object returned by mocker.patch.object for assertions
-    from unittest.mock import MagicMock
-
     bp_place_order_mock = cast("MagicMock", mock_bp_api.place_order)
     bp_place_order_mock.assert_called()
     calls = bp_place_order_mock.call_args_list
@@ -2346,8 +2345,6 @@ async def test_failed_execution(
     # Assert mock place_order was called on the failing exchange (HL - short leg)
     # Note: We need to check the mock object created by mocker.patch.object
     # The actual mock object is accessible through the patched method
-    from unittest.mock import MagicMock
-
     hl_place_order_mock = cast("MagicMock", mock_hl_api.place_order)
     hl_place_order_mock.assert_called_once()
 

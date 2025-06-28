@@ -74,7 +74,7 @@ def add_timing_marker(file_path: Path) -> tuple[bool, str]:
 
         # Look for the last import statement
         for i, line in enumerate(lines):
-            if line.strip() and (line.startswith("import ") or line.startswith("from ")):
+            if line.strip() and line.startswith(("import ", "from ")):
                 insert_index = i
 
         # If we found imports, add after them

@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.core.models import OrderBook
 
@@ -58,8 +59,6 @@ async def test_hl_get_perp_order_book_nonexistent_symbol_raises_api_error(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_order_book() with non-existent symbol raises APIError."""
-    from cyberdelta.apis.common import APIError, APIErrorCode
-
     with pytest.raises(APIError) as exc_info:
         await hl_api_for_test_env.get_order_book("NONEXISTENT")
 

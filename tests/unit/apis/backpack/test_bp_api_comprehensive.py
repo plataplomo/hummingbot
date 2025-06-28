@@ -40,7 +40,13 @@ from cyberdelta.core.models import (
     Transfer,
     Withdrawal,
 )
-from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 
@@ -639,8 +645,6 @@ class TestBackpackAPIPublicBehavior:
         bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test successful order status retrieval."""
-        from cyberdelta.core.models.enums import OrderStatus
-
         mock_order = MagicMock(spec=Order)
         mock_order.client_order_id = "order123"
         mock_order.status = OrderStatus.FILLED

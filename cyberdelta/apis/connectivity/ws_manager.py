@@ -731,11 +731,12 @@ class WebSocketManager:
         original_connection: ClientWebSocketResponse | None,
     ) -> None:
         """Handle unexpected exceptions in the listener."""
-        self._logger.exception(
+        self._logger.error(
             "websocket_listener_unexpected_error",
             action="handle_listener_exception",
             error_details=str(error),
             message=f"[DEBUG_LISTEN] Unexpected error in WebSocket listener: {error}",
+            exc_info=error,
         )
         if self._ws_connection is original_connection:
             self._is_connected = False

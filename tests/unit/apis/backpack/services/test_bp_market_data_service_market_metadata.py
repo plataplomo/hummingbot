@@ -13,7 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetMarketsParams,
 )
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market import Market
 
@@ -224,8 +224,6 @@ class TestBackpackMarketDataServiceMarketMetadata:
         mock_response_handler.handle_get_market_response.return_value = mock_validated_market_raw
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            from cyberdelta.apis.common import TransformationError
-
             mock_mapper.transform_raw_market_to_internal.side_effect = TransformationError(
                 "Failed to transform market data",
             )
@@ -459,8 +457,6 @@ class TestBackpackMarketDataServiceMarketMetadata:
         mock_response_handler.handle_get_markets_response.return_value = mock_validated_markets_raw
 
         with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            from cyberdelta.apis.common import TransformationError
-
             mock_mapper.transform_raw_market_to_internal.side_effect = TransformationError(
                 "Failed to transform markets data",
             )

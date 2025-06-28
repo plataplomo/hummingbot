@@ -57,7 +57,7 @@ _secrets_config: SecretsConfig | None = None
 
 def _initialize_config() -> None:
     """Initialize configuration managers lazily."""
-    global _config_manager, _secrets_manager, _app_settings, _secrets_config
+    global _config_manager, _secrets_manager, _app_settings, _secrets_config  # noqa: PLW0603
 
     if _config_manager is not None:
         return  # Already initialized

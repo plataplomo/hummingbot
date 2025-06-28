@@ -198,7 +198,7 @@ class HyperliquidMarketDataService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transformation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -213,7 +213,7 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content_str,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -343,7 +343,7 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -357,7 +357,7 @@ class HyperliquidMarketDataService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -558,7 +558,7 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -572,7 +572,7 @@ class HyperliquidMarketDataService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -760,7 +760,7 @@ class HyperliquidMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "service_logic_error",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -774,7 +774,7 @@ class HyperliquidMarketDataService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure",
                 action=current_method,
                 exchange=self._exchange_name,
@@ -1026,7 +1026,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle transformation errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "historical_funding_rates_transform_error",
             message="[%s] [%s] TransformationError: %s. Status: %s, Raw: %s",
             message_args=(
@@ -1055,7 +1055,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle validation errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "historical_funding_rates_validation_error",
             message="[%s] [%s] ValidationError: %s. Status: %s, Raw: %s",
             message_args=(
@@ -1082,7 +1082,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle service logic errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "service_logic_error",
             message="[%s] [%s] Service logic error: %s",
             message_args=(self._exchange_name, current_method, error),
@@ -1101,7 +1101,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle unexpected errors for historical funding rates."""
         current_method = "get_historical_funding_rates"
-        logger.exception(
+        logger.error(
             "unexpected_error",
             message="[%s] [%s] Unexpected error: %s. Status: %s, Raw: %s",
             message_args=(
@@ -1316,7 +1316,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle transformation errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_transform_error",
             message="[%s] %s: Failed to transform exchange data for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1338,7 +1338,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle validation errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_validation_error",
             message="[%s] %s: Internal data validation failed for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1358,7 +1358,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle service logic errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_service_logic_error",
             message="[%s] %s: Service internal logic error for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1378,7 +1378,7 @@ class HyperliquidMarketDataService:
     ) -> None:
         """Handle unexpected errors for market data."""
         current_method = "get_market_data"
-        logger.exception(
+        logger.error(
             "market_data_unexpected_error",
             message="[%s] %s: Unexpected service failure for %s: %s",
             message_args=(self._exchange_name, current_method, symbol, error),
@@ -1459,7 +1459,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_transform_error",
             message="[%s] get_funding_rates: Failed to transform exchange data: %s",
             message_args=(self._exchange_name, error),
@@ -1479,7 +1479,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_validation_error",
             message="[%s] get_funding_rates: Internal data validation failed: %s",
             message_args=(self._exchange_name, error),
@@ -1494,7 +1494,7 @@ class HyperliquidMarketDataService:
 
     def _handle_funding_rates_service_logic_error(self, error: ValueError | TypeError) -> None:
         """Handle service logic errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_service_logic_error",
             message="[%s] get_funding_rates: Service internal logic error: %s",
             message_args=(self._exchange_name, error),
@@ -1512,7 +1512,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for funding rates."""
-        logger.exception(
+        logger.error(
             "funding_rates_unexpected_error",
             message="[%s] get_funding_rates: Unexpected service failure: %s",
             message_args=(self._exchange_name, error),
@@ -1624,7 +1624,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_transform_error",
             message="[%s] get_recent_trades: Failed to transform exchange data for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1645,7 +1645,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_validation_error",
             message="[%s] get_recent_trades: Internal data validation failed for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1664,7 +1664,7 @@ class HyperliquidMarketDataService:
         symbol: str,
     ) -> None:
         """Handle service logic errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_service_logic_error",
             message="[%s] get_recent_trades: Service internal logic error for %s: %s",
             message_args=(self._exchange_name, symbol, error),
@@ -1683,7 +1683,7 @@ class HyperliquidMarketDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for recent trades."""
-        logger.exception(
+        logger.error(
             "recent_trades_unexpected_error",
             message="[%s] get_recent_trades: Unexpected service failure for %s: %s",
             message_args=(self._exchange_name, symbol, error),

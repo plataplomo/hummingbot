@@ -29,25 +29,13 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 os.chdir(project_root)  # Change to project root to ensure imports work
 
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator  # noqa: E402
+from cyberdelta.config import get_app_settings, get_secrets_config  # noqa: E402
+from cyberdelta.config.logging_config import setup_logging  # noqa: E402
 from cyberdelta.config.structlog_config import get_logger  # noqa: E402
 
 
 logger = get_logger(__name__)
-
-
-def lazy_import_authenticator() -> type:
-    """Lazily import the authenticator to avoid circular imports."""
-    from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
-
-    return BackpackEd25519Authenticator
-
-
-def lazy_import_config() -> tuple[Any, Any, Any]:
-    """Lazily import config functions to avoid circular imports."""
-    from cyberdelta.config import get_app_settings, get_secrets_config
-    from cyberdelta.config.logging_config import setup_logging
-
-    return get_app_settings, get_secrets_config, setup_logging
 
 
 class BackpackPrivateDataCollector:
@@ -64,9 +52,8 @@ class BackpackPrivateDataCollector:
         self.session = session
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Lazy import to avoid circular dependencies
-        get_app_settings, get_secrets_config, _ = lazy_import_config()
-        authenticator_class = lazy_import_authenticator()
+        # Direct imports now available at top level
+        authenticator_class = BackpackEd25519Authenticator
 
         # Initialize configuration and authenticator
         try:
@@ -77,7 +64,7 @@ class BackpackPrivateDataCollector:
             if not backpack_config.enabled:
                 raise ValueError("Backpack exchange is disabled in configuration")
 
-            self.api_base_url = str(backpack_config.api_base_url).rstrip("/")
+            self.api_base_url = str(backpack_config.active_api_base_url).rstrip("/")
             self.configured_symbols = backpack_config.symbols
 
             # Get authentication secrets
@@ -175,7 +162,7 @@ class BackpackPrivateDataCollector:
         """Save JSON data to a file."""
         filepath = self.output_dir / filename
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
+            with filepath.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
         except Exception as e:
@@ -784,7 +771,7 @@ async def main() -> None:
 
     # Initialize configuration and logging
     try:
-        get_app_settings, _, setup_logging = lazy_import_config()
+        # Direct access to imports now available at top level
         app_settings = get_app_settings()
         setup_logging(app_settings)
         logger.info("Configuration and logging initialized successfully")

@@ -30,6 +30,12 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
+    HyperliquidTestHelpers,
+    generate_test_cloid,
+    get_minimal_test_quantity,
+    get_safe_test_price,
+)
 
 
 logger = get_logger(__name__)
@@ -55,9 +61,6 @@ class TestHyperliquidBatchOperations:
         Expected performance improvement: <1 second vs ~9 seconds sequential
         """
         # Get available symbols from exchange using dynamic discovery
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            HyperliquidTestHelpers,
-        )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env,
@@ -82,9 +85,6 @@ class TestHyperliquidBatchOperations:
         # Note: market_price is retrieved within get_safe_test_price when needed
 
         # Get minimal test quantity from exchange constraints
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            get_minimal_test_quantity,
-        )
 
         test_quantity = await get_minimal_test_quantity(hl_api_for_test_env, symbol, OrderSide.BUY)
 
@@ -92,9 +92,6 @@ class TestHyperliquidBatchOperations:
         for i in range(6):
             # Create orders at different prices to avoid conflicts
             # Use 15% below market for buy orders to avoid accidental fills
-            from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-                get_safe_test_price,
-            )
 
             price_offset_percentage = Decimal("0.15") + (Decimal("0.01") * i)  # 15%, 16%, 17%, etc.
             test_price = await get_safe_test_price(
@@ -179,11 +176,6 @@ class TestHyperliquidBatchOperations:
     async def test_cancel_batch_orders_success(self, hl_api_for_test_env: HyperliquidAPI) -> None:
         """Test successful batch cancellation of multiple orders."""
         # Get available symbols from exchange using dynamic discovery
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            HyperliquidTestHelpers,
-            get_minimal_test_quantity,
-            get_safe_test_price,
-        )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env,
@@ -311,11 +303,6 @@ class TestHyperliquidBatchOperations:
     async def test_batch_market_orders_rejected(self, hl_api_for_test_env: HyperliquidAPI) -> None:
         """Test that market orders are rejected in batch operations for safety."""
         # Get available symbols from exchange using dynamic discovery
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            HyperliquidTestHelpers,
-            get_minimal_test_quantity,
-            get_safe_test_price,
-        )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env,
@@ -364,12 +351,6 @@ class TestHyperliquidBatchOperations:
     async def test_batch_orders_mixed_symbols(self, hl_api_for_test_env: HyperliquidAPI) -> None:
         """Test batch operations with orders for different symbols."""
         # Get available symbols from exchange using dynamic discovery
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            HyperliquidTestHelpers,
-            generate_test_cloid,
-            get_minimal_test_quantity,
-            get_safe_test_price,
-        )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env,
@@ -483,11 +464,6 @@ class TestHyperliquidBatchOperations:
     ) -> None:
         """Test batch operations with mixed success/failure scenarios."""
         # Get available symbols from exchange using dynamic discovery
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            HyperliquidTestHelpers,
-            get_minimal_test_quantity,
-            get_safe_test_price,
-        )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env,
@@ -635,11 +611,6 @@ class TestHyperliquidBatchOperations:
 
         # Test 2: Invalid order parameters
         # Get a test quantity from available symbols first
-        from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-            HyperliquidTestHelpers,
-            get_minimal_test_quantity,
-            get_safe_test_price,
-        )
 
         available_symbols = await HyperliquidTestHelpers.get_available_perp_symbols(
             hl_api_for_test_env,

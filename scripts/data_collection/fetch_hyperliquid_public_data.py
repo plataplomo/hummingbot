@@ -220,7 +220,7 @@ class HyperliquidDataCollector:
         """Save JSON data to a file."""
         filepath = self.output_dir / filename
         try:
-            with open(filepath, "w", encoding="utf-8") as f:
+            with filepath.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             logger.info(
                 "fixture_saved: Saved JSON fixture",

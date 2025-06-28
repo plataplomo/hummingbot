@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.common import APIError, APIErrorCode
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     COMMON_SPOT_SYMBOLS,
     DELISTED_PERP_SYMBOL,
@@ -65,8 +66,6 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.common import APIError, APIErrorCode
-
         try:
             positions = await bp_api_for_zero_balance_test.get_positions(
                 symbol=TEST_SYMBOL_BTC_PERP,
@@ -125,8 +124,6 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.common import APIError, APIErrorCode
-
         try:
             # Try to get position for spot symbol
             # SOL-USDC
@@ -158,8 +155,6 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.common import APIError, APIErrorCode
-
         positions = await bp_api_for_zero_balance_test.get_positions()
 
         assert isinstance(positions, list)
@@ -252,8 +247,6 @@ class TestBackpackPositionsZero:
         Raises:
             APIError: If API call fails with non-symbol-not-found errors.
         """
-        from cyberdelta.apis.common import APIError, APIErrorCode
-
         try:
             # Try an invalid/delisted symbol
             # Use a less common perp symbol that might not exist

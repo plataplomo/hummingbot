@@ -55,14 +55,14 @@ def save_json(data: dict[str, Any], output_dir: Path) -> None:
     filepath = output_dir / filename
 
     # Save JSON with pretty formatting
-    with open(filepath, "w") as f:
+    with filepath.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
 
     # Saved data to file
 
     # Also save a "latest" version for easy access
     latest_filepath = output_dir / f"historicalOrders_{data['wallet'][:8]}_latest.json"
-    with open(latest_filepath, "w") as f:
+    with latest_filepath.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
 
     # Also saved as latest file

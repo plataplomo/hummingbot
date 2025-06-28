@@ -1,5 +1,7 @@
 """Tests for Backpack WebSocket subscription payload models."""
 
+import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -149,7 +151,6 @@ class TestBackpackWsPayloads:
         assert data["signature"] == ("verifying_key", "signature", "1234567890", "5000")
 
         # JSON serialization would convert to list
-        import json
 
         json_str = request.model_dump_json(by_alias=True)
         parsed = json.loads(json_str)

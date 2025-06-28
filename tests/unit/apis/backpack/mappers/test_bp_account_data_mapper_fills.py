@@ -27,6 +27,7 @@ from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.utils.parsing import parse_decimal_value
 
 
 @pytest.fixture
@@ -361,9 +362,7 @@ class TestTradeTransformation:
                 if field_name == "price":
                     return None
                 # For other fields, call the real function
-                from cyberdelta.utils.parsing import parse_decimal_value as real_parse
-
-                return real_parse(value, allow_none=allow_none, field_name=field_name)
+                return parse_decimal_value(value, allow_none=allow_none, field_name=field_name)
 
             mock_parse.side_effect = side_effect
 
@@ -396,9 +395,7 @@ class TestTradeTransformation:
                 if field_name == "quantity":
                     return None
                 # For other fields, call the real function
-                from cyberdelta.utils.parsing import parse_decimal_value as real_parse
-
-                return real_parse(value, allow_none=allow_none, field_name=field_name)
+                return parse_decimal_value(value, allow_none=allow_none, field_name=field_name)
 
             mock_parse.side_effect = side_effect
 

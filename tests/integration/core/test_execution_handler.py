@@ -9,7 +9,7 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -845,7 +845,6 @@ class TestExecutionHandler:
             await asyncio.sleep(0.001)  # Simulate async call
 
             # Extract all necessary parameters from kwargs with proper type casting
-            from typing import cast
 
             execution: TradeExecution = cast("TradeExecution", kwargs["execution"])
             exchange_id: str = cast("str", kwargs["exchange_id"])
@@ -935,8 +934,6 @@ class TestExecutionHandler:
                 context=f"Order {base_long_order.exchange_order_id} placed",
             )
 
-        from cyberdelta.core.models import Trade
-
         return base_long_order.model_copy(
             update={
                 "client_order_id": client_oid,
@@ -979,8 +976,6 @@ class TestExecutionHandler:
                 "backpack",
                 context=f"Order {base_short_order.exchange_order_id} placed",
             )
-
-        from cyberdelta.core.models import Trade
 
         return base_short_order.model_copy(
             update={
@@ -1110,8 +1105,6 @@ class TestExecutionHandler:
 
         # TODO: Implement helper methods for test setup
         # For now, create minimal test objects
-        from cyberdelta.core.models import Ticker
-
         hl_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),

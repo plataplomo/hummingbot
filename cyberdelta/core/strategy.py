@@ -13,7 +13,7 @@ from __future__ import annotations  # Enable postponed evaluation
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.candle import Candle
@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from cyberdelta.core.models import TradeSignal
 
 logger = get_logger(__name__)
-
-_T = TypeVar("_T")  # Define a TypeVar for generic parameter types
 
 
 class Strategy(ABC):

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -122,7 +121,7 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
             raise ValueError("State file path cannot be None")
 
         # Check if file exists
-        if not os.path.exists(state_file_path):
+        if not Path(state_file_path).exists():
             logger.warning(
                 "state_file_not_found",
                 action="load",
@@ -215,7 +214,7 @@ async def _async_write_file(file_path: str, content: str) -> None:
         temp_path = f"{file_path}.tmp"
         Path(temp_path).write_text(content, encoding="utf-8")
         # Atomic rename
-        os.replace(temp_path, file_path)
+        Path(temp_path).replace(file_path)
 
     await loop.run_in_executor(None, _write_sync)
 

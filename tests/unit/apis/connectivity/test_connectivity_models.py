@@ -22,7 +22,7 @@ class TestProcessedResponseHeaders:
     def test_valid_instantiation_defaults(self) -> None:
         """Test successful instantiation with default values."""
         headers = ProcessedResponseHeaders()
-        assert headers.content_type == ""
+        assert not headers.content_type
         assert headers.model_config.get("frozen") is True
         assert headers.model_config.get("extra") == "forbid"
 

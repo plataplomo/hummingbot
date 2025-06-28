@@ -2,8 +2,8 @@
 
 import logging
 import logging.handlers
-import os
 import sys
+from pathlib import Path
 from types import TracebackType
 
 from cyberdelta.config.models.config_models import AppSettings
@@ -59,14 +59,14 @@ def setup_logging(app_settings: AppSettings) -> None:
     log_file_path_str = app_settings.general.log_file  # Optional[NonEmptyConfigString]
     if log_file_path_str:
         # Create the directory if it doesn't exist
-        log_dir: str = os.path.dirname(log_file_path_str)
-        if log_dir and not os.path.exists(log_dir):
+        log_dir_path = Path(log_file_path_str).parent
+        if log_dir_path and not log_dir_path.exists():
             try:
-                os.makedirs(log_dir)
+                log_dir_path.mkdir(parents=True, exist_ok=True)
             except Exception as e:
                 root_logger.warning(
                     "log_directory_creation_failed: Failed to create log directory %s: %s",
-                    log_dir,
+                    str(log_dir_path),
                     e,
                 )
 

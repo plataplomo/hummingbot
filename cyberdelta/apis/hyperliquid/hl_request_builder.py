@@ -644,7 +644,7 @@ class HyperliquidRequestBuilder:
         if len(orders_with_indices) > MAX_BATCH_SIZE:  # Conservative batch size limit
             raise ValueError(
                 f"Batch size {len(orders_with_indices)} exceeds maximum of {MAX_BATCH_SIZE} "
-                + "orders. Consider splitting into smaller batches."
+                "orders. Consider splitting into smaller batches."
             )
 
         # Build order specs for all orders in the batch
@@ -689,7 +689,7 @@ class HyperliquidRequestBuilder:
         if len(cancel_items) > MAX_BATCH_SIZE:  # Conservative batch size limit
             raise ValueError(
                 f"Batch size {len(cancel_items)} exceeds maximum of {MAX_BATCH_SIZE} "
-                + "cancellations. Consider splitting into smaller batches."
+                "cancellations. Consider splitting into smaller batches."
             )
 
         # Build cancel item specs for all cancellations in the batch

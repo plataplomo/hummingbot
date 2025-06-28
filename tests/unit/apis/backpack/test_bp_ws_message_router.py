@@ -15,6 +15,7 @@ from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMess
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 
 
@@ -115,8 +116,6 @@ class TestBackpackWsMessageRouter:
         result = router.construct_subscription_payload("depth.SOL_USDC")
 
         # Verify the result is a BackpackRawWsSubscriptionRequest
-        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-
         assert isinstance(result, BackpackRawWsSubscriptionRequest)
         assert result.method == "SUBSCRIBE"
         assert result.params == ["depth.SOL_USDC"]
@@ -127,8 +126,6 @@ class TestBackpackWsMessageRouter:
         router: BackpackWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for various topic types."""
-        from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
-
         test_cases = [
             "ticker.BTC_USDC",
             "fills",

@@ -15,7 +15,7 @@ import pytest
 import pytest_asyncio
 
 from cyberdelta.apis.backpack import BackpackAPI
-from cyberdelta.apis.models.service_args_models import GetMarketArgs
+from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,
@@ -339,8 +339,6 @@ class TestBackpackMarketOrderIntegration:
         Returns:
             Perpetual market symbol if found, None otherwise.
         """
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
-
         # First, try to find from available markets
         try:
             markets = await backpack_api.get_markets(GetMarketsArgs())
@@ -786,8 +784,6 @@ class TestBackpackMarketOrderIntegration:
         Returns:
             Tuple of (symbol, opposite_side, filled_quantity) if successful, None otherwise.
         """
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         markets = await backpack_api.get_markets(GetMarketsArgs())
         if not markets:
             return None

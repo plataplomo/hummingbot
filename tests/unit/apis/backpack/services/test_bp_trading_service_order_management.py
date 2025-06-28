@@ -758,8 +758,6 @@ class TestBackpackTradingServiceOrderManagement:
         ]
 
         # Mock the response handler to return BackpackRawOrder objects
-        from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-
         mock_raw_orders: list[BackpackRawOrder] = []
         for order_data in mock_raw_response_list:
             # Create BackpackRawOrder with explicit field mapping to avoid mypy confusion

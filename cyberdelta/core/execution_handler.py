@@ -350,7 +350,7 @@ class ExecutionHandler:
         op_error_msg = (
             f"APIError during execution {execution.id} for {opportunity.opportunity.symbol}: {e}"
         )
-        logger.exception(
+        logger.error(
             "api_error_during_execution",
             action="handle_api_error",
             execution_id=execution.id,
@@ -379,7 +379,7 @@ class ExecutionHandler:
             f"Unexpected error during execution {execution.id} "
             f"for {opportunity.opportunity.symbol}: {e}"
         )
-        logger.exception(op_error_msg)
+        logger.error(op_error_msg)
         execution.error_message = str(e)
         execution.status = ExecutionStatus.FAILED
         execution.end_time = datetime.now(UTC)
@@ -1034,7 +1034,7 @@ class ExecutionHandler:
                     message="Trade processed successfully",
                 )
             except Exception as e_process_trade:
-                logger.exception(
+                logger.error(
                     "execution_trade_processing_failed",
                     execution_id=execution.id,
                     trade_id=trade_from_order.id,
@@ -1103,7 +1103,7 @@ class ExecutionHandler:
                 message="Synthetic trade processed successfully",
             )
         except Exception as e_synth_trade:
-            logger.exception(
+            logger.error(
                 "execution_synthetic_trade_failed",
                 execution_id=execution.id,
                 order_id=order.exchange_order_id or order.client_order_id,
@@ -1213,7 +1213,7 @@ class ExecutionHandler:
 
             except Exception as e:
                 # Catch unexpected errors
-                logger.exception(
+                logger.error(
                     "execution_unexpected_error_during_context",
                     execution_id=execution.id,
                     context=context,
@@ -2049,7 +2049,7 @@ class ExecutionHandler:
                 execution.error_message = (
                     f"Unexpected error during {context} on {exchange_id}: {e!s}"
                 )
-                logger.exception(
+                logger.error(
                     "execution_unexpected_error",
                     execution_id=execution.id,
                     error_message=execution.error_message,

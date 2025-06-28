@@ -47,6 +47,7 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.market import Market
@@ -261,9 +262,6 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         Returns:
             CancelOrderResult with success status and details.
         """
-        from cyberdelta.core.models.enums import CancelOrderResultStatus
-        from cyberdelta.core.models.market.order import CancelOrderResult
-
         return CancelOrderResult(
             symbol=args.symbol,
             order_id=args.order_id,

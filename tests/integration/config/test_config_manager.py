@@ -6,6 +6,7 @@ including file handling, validation, and error scenarios.
 
 import os
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
@@ -115,7 +116,7 @@ class TestConfigManager:
         config_path = Path(temp_dir) / filename
         config_data = self.create_valid_config_dict()
 
-        with open(config_path, "w") as f:
+        with config_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(config_data, f)
 
         return config_path
@@ -159,7 +160,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            Path(config_path).write_text("invalid: yaml: content: [\n")
+            Path(config_path).write_text("invalid: yaml: content: [\n", encoding="utf-8")
             with pytest.raises(ConfigurationError) as exc_info:
                 ConfigManager(str(config_path))
 
@@ -171,7 +172,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "empty.yaml"
 
             # Write empty file
-            Path(config_path).write_text("")
+            Path(config_path).write_text("", encoding="utf-8")
             with pytest.raises(ConfigurationError) as exc_info:
                 ConfigManager(str(config_path))
 
@@ -190,7 +191,7 @@ class TestConfigManager:
                 # Missing other required sections
             }
 
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(invalid_data, f)
 
             with pytest.raises(ConfigurationError) as exc_info:
@@ -203,13 +204,13 @@ class TestConfigManager:
         """Test _get_default_config_path with config in current directory."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Change to temp directory and create config.yaml
-            original_cwd = os.getcwd()
+            original_cwd = Path.cwd()
             try:
                 os.chdir(temp_dir)
                 config_path = Path(temp_dir) / "config.yaml"
 
                 # Create a valid config file
-                with open(config_path, "w") as f:
+                with config_path.open("w", encoding="utf-8") as f:
                     yaml.safe_dump(self.create_valid_config_dict(), f)
 
                 # Initialize without explicit path - should find the config in cwd
@@ -225,7 +226,7 @@ class TestConfigManager:
     def test_get_default_config_path_config_subdir(self) -> None:
         """Test _get_default_config_path with config in config/ subdirectory."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            original_cwd = os.getcwd()
+            original_cwd = Path.cwd()
             try:
                 os.chdir(temp_dir)
                 config_dir = Path(temp_dir) / "config"
@@ -233,7 +234,7 @@ class TestConfigManager:
                 config_path = config_dir / "config.yaml"
 
                 # Create a valid config file
-                with open(config_path, "w") as f:
+                with config_path.open("w", encoding="utf-8") as f:
                     yaml.safe_dump(self.create_valid_config_dict(), f)
 
                 # Initialize without explicit path - should find the config in config/ subdir
@@ -253,7 +254,7 @@ class TestConfigManager:
             custom_path = Path(temp_dir) / "custom_config.yaml"
 
             # Create the custom config file
-            with open(custom_path, "w") as f:
+            with custom_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(self.create_valid_config_dict(), f)
 
             # Patch the environment variable to point to our test file
@@ -319,7 +320,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            Path(config_path).write_text("invalid: yaml: [unclosed\n")
+            Path(config_path).write_text("invalid: yaml: [unclosed\n", encoding="utf-8")
             manager = ConfigManager.__new__(ConfigManager)
             manager.config_path = config_path
             manager.settings = None
@@ -340,7 +341,7 @@ class TestConfigManager:
             # Write structurally valid YAML but invalid config structure
             invalid_data = {"invalid": "structure"}
 
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(invalid_data, f)
 
             manager = ConfigManager.__new__(ConfigManager)
@@ -371,7 +372,7 @@ class TestConfigManager:
             modified_data["exchanges"]["backpack"]["rate_limit_per_minute"] = 30
             modified_data["exchanges"]["backpack"]["symbols"]["ETH"] = "ETH-USD"
 
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(modified_data, f)
 
             # Reload
@@ -394,7 +395,7 @@ class TestConfigManager:
             manager = ConfigManager(str(config_path))
 
             # Corrupt the config file
-            Path(config_path).write_text("invalid: yaml: [unclosed\n")
+            Path(config_path).write_text("invalid: yaml: [unclosed\n", encoding="utf-8")
             # Reload should fail
             with pytest.raises(ConfigurationError):
                 manager.reload()
@@ -411,7 +412,7 @@ class TestConfigManager:
             config_data["strategies"]["hl_perp_bp_spot"]["long_exchange"] = "nonexistent"
 
             config_path = Path(temp_dir) / "config.yaml"
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(config_data, f)
 
             with pytest.raises(ConfigurationError) as exc_info:
@@ -431,7 +432,7 @@ class TestConfigManager:
             config_data["execution"]["max_slippage_pct"] = "0.01"  # string
 
             config_path = Path(temp_dir) / "config.yaml"
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(config_data, f)
 
             manager = ConfigManager(str(config_path))
@@ -439,7 +440,6 @@ class TestConfigManager:
             assert manager.loaded is True
             assert manager.settings is not None
             # All should be converted to Decimal
-            from decimal import Decimal
 
             assert manager.settings.strategies.hl_perp_bp_spot.params.funding_threshold == Decimal(
                 "0.01",
@@ -480,7 +480,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid structure
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump({"invalid": "structure"}, f)
 
             with pytest.raises(ConfigurationError):
@@ -520,7 +520,6 @@ class TestConfigManager:
 
             # Test accessing risk settings
             risk_config = manager.settings.risk
-            from decimal import Decimal
 
             assert risk_config.global_risk.max_position_usd == Decimal("1000.0")
             assert risk_config.simple_sizing_method == "fixed_fraction"
@@ -531,7 +530,7 @@ class TestConfigManager:
             config_path = Path(temp_dir) / "config.yaml"
 
             # Create file but make it unreadable
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(self.create_valid_config_dict(), f)
 
             # Make file unreadable (this might not work on all systems)
@@ -597,7 +596,7 @@ portfolio_tracker:
 dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"]
 """
 
-            Path(config_path).write_text(dangerous_yaml)
+            Path(config_path).write_text(dangerous_yaml, encoding="utf-8")
             # Should fail validation due to extra field, not execute dangerous code
             with pytest.raises(ConfigurationError) as exc_info:
                 ConfigManager(str(config_path))
@@ -723,7 +722,7 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
             }
 
             config_path = Path(temp_dir) / "complex_config.yaml"
-            with open(config_path, "w") as f:
+            with config_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(complex_config, f)
 
             manager = ConfigManager(str(config_path))

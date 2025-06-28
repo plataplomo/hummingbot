@@ -20,9 +20,8 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
-
-from ..enums import OrderSide
 
 
 class Trade(BaseModel):

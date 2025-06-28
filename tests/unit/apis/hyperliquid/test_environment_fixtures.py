@@ -7,6 +7,9 @@ to target mainnet or testnet based on configuration.
 import os
 from unittest.mock import patch
 
+from cyberdelta.apis.hyperliquid.hl_api_components_factory import (
+    HyperliquidAPIComponentsFactory,
+)
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -139,10 +142,6 @@ class TestEnvironmentConfigurationIntegration:
         # that can be used with the actual API components
 
         # Verify that we can create components with these fixtures
-        from cyberdelta.apis.hyperliquid.hl_api_components_factory import (
-            HyperliquidAPIComponentsFactory,
-        )
-
         # Should be able to create a factory without errors
         factory = HyperliquidAPIComponentsFactory(
             exchange_config=active_hl_config,

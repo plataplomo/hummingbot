@@ -7,10 +7,10 @@ and recovery in the CyberDeltaEngine trading system.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 from cyberdelta.config.models.config_models import AppSettings
@@ -45,7 +45,7 @@ class StateManager:
         self.backup_count: int = config.general.state_backup_count
 
         # Ensure backup directory exists
-        os.makedirs(self.backup_dir, exist_ok=True)
+        Path(self.backup_dir).mkdir(parents=True, exist_ok=True)
 
         # Current state
         self.current_state: dict[str, Any] = {}
@@ -59,7 +59,7 @@ class StateManager:
 
         """
         try:
-            if not os.path.exists(self.state_file):
+            if not Path(self.state_file).exists():
                 logger.info(
                     "state_file_not_exists_starting_empty",
                     state_file=self.state_file,
@@ -71,7 +71,7 @@ class StateManager:
                 return False
 
             # Read state file
-            with open(self.state_file) as file:
+            with Path(self.state_file).open(encoding="utf-8") as file:
                 state_data = json.load(file)
 
             # Verify state integrity
@@ -150,7 +150,7 @@ class StateManager:
 
             # Write state to a temporary file first
             temp_file: str = f"{self.state_file}.tmp"
-            with open(temp_file, "w") as file:
+            with Path(temp_file).open("w", encoding="utf-8") as file:
                 json.dump(state_data, file, indent=2)
 
             # Atomically replace the state file
@@ -195,13 +195,13 @@ class StateManager:
             True if backup was created successfully, False otherwise
 
         """
-        if not os.path.exists(self.state_file):
+        if not Path(self.state_file).exists():
             return False
 
         try:
             # Generate backup filename with timestamp
             timestamp: int = int(time.time())
-            backup_path: str = os.path.join(self.backup_dir, f"state_{timestamp}.json")
+            backup_path: str = str(Path(self.backup_dir) / f"state_{timestamp}.json")
 
             # Copy current state file to backup
             shutil.copy2(self.state_file, backup_path)
@@ -233,18 +233,22 @@ class StateManager:
         """Rotate state backups, keeping only the most recent ones."""
         try:
             # Get all backup files
-            files: list[str] = []
-            for filename in os.listdir(self.backup_dir):
-                if filename.startswith("state_") and filename.endswith(".json"):
-                    backup_path: str = os.path.join(self.backup_dir, filename)
-                    files.append(backup_path)
+            backup_dir_path = Path(self.backup_dir)
+            files: list[str] = [
+                str(file_path)
+                for file_path in backup_dir_path.iterdir()
+                if file_path.name.startswith("state_") and file_path.name.endswith(".json")
+            ]
 
             # Sort by modification time (newest first)
-            files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            def get_mtime(file_path: str) -> float:
+                return Path(file_path).stat().st_mtime
+
+            files.sort(key=get_mtime, reverse=True)
 
             # Remove excess backups
             for backup_path in files[self.backup_count :]:
-                os.remove(backup_path)
+                Path(backup_path).unlink()
                 logger.debug(
                     "old_backup_removed",
                     backup_path=backup_path,
@@ -272,11 +276,12 @@ class StateManager:
         """
         try:
             # Get all backup files
-            files: list[str] = []
-            for filename in os.listdir(self.backup_dir):
-                if filename.startswith("state_") and filename.endswith(".json"):
-                    backup_path: str = os.path.join(self.backup_dir, filename)
-                    files.append(backup_path)
+            backup_dir_path = Path(self.backup_dir)
+            files: list[str] = [
+                str(file_path)
+                for file_path in backup_dir_path.iterdir()
+                if file_path.name.startswith("state_") and file_path.name.endswith(".json")
+            ]
 
             if not files:
                 logger.warning(
@@ -288,13 +293,16 @@ class StateManager:
                 return False
 
             # Sort by modification time (newest first)
-            files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            def get_mtime(file_path: str) -> float:
+                return Path(file_path).stat().st_mtime
+
+            files.sort(key=get_mtime, reverse=True)
 
             # Try each backup in order until one works
             for backup_path in files:
                 try:
                     # Read backup file
-                    with open(backup_path) as file:
+                    with Path(backup_path).open(encoding="utf-8") as file:
                         state_data = json.load(file)
 
                     # Verify state integrity

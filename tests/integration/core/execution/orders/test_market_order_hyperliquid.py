@@ -111,7 +111,7 @@ class TestHyperliquidMarketOrderIntegration:
             filled_order = await MarketOrderTestHelpers.wait_for_order_fill(
                 hyperliquid_api,
                 order,
-                timeout=30,
+                timeout_seconds=30,
             )
 
             # Verify order was filled
@@ -242,7 +242,7 @@ class TestHyperliquidMarketOrderIntegration:
             filled_order = await MarketOrderTestHelpers.wait_for_order_fill(
                 hyperliquid_api,
                 order,
-                timeout=30,
+                timeout_seconds=30,
             )
 
             # Verify order was filled
@@ -524,7 +524,7 @@ class TestHyperliquidMarketOrderIntegration:
             filled_order = await MarketOrderTestHelpers.wait_for_order_fill(
                 hyperliquid_api,
                 order,
-                timeout=30,
+                timeout_seconds=30,
             )
 
             # Verify fill details for metrics
@@ -561,7 +561,7 @@ class TestHyperliquidMarketOrderIntegration:
                 await MarketOrderTestHelpers.wait_for_order_fill(
                     hyperliquid_api,
                     sell_order,
-                    timeout=30,
+                    timeout_seconds=30,
                 )
 
             except Exception as e:

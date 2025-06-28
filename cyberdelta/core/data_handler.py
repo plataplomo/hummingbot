@@ -89,6 +89,7 @@ class DataHandler:
         self.ws_connections: dict[str, Any] = {}  # Placeholder for WebSocket clients
         self.ws_tasks: dict[str, asyncio.Task[Any]] = {}
         self._running: bool = True  # Initialize _running attribute
+        self._shutdown_event = asyncio.Event()  # Event for coordinated shutdown
 
         # Storage for latest data (exchange_id -> symbol -> data)
         self.tickers: dict[str, dict[str, Ticker]] = {}
@@ -733,7 +734,13 @@ class DataHandler:
         # Keep the connection alive by monitoring the connection status
         try:
             while client.is_connected and self._running:
-                await asyncio.sleep(1)  # Check connection status every second
+                # Wait for shutdown event or timeout every second to check connection
+                try:
+                    await asyncio.wait_for(self._shutdown_event.wait(), timeout=1.0)
+                    break  # Shutdown event was set
+                except TimeoutError:
+                    # Timeout is expected - continue monitoring
+                    continue
         except asyncio.CancelledError:
             logger.info(
                 "message_handler_cancelled",
@@ -1460,6 +1467,7 @@ class DataHandler:
         """Stop all WebSocket connections and associated tasks."""
         logger.info("Stopping WebSocket connections...")
         self._running = False  # Signal loops to stop
+        self._shutdown_event.set()  # Signal async loops to stop
 
         # Cancel funding refresh tasks
         await self._cancel_funding_refresh_tasks()

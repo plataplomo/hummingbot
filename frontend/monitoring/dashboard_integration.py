@@ -4,7 +4,6 @@ This module provides tools for integrating the real-time dashboard
 with the performance tracker and other system components.
 """
 
-import os
 import threading
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -50,7 +49,7 @@ class DashboardIntegration:
             debug: Enable debug mode for the dashboard
 
         """
-        self.output_dir = output_dir or os.path.join(os.getcwd(), "performance_data")
+        self.output_dir = output_dir or str(Path.cwd() / "performance_data")
 
         # Create output directory if it doesn't exist
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
@@ -313,7 +312,7 @@ def get_dashboard_integration(
         DashboardIntegration instance
 
     """
-    global _dashboard_integration
+    global _dashboard_integration  # noqa: PLW0603
 
     if _dashboard_integration is None:
         _dashboard_integration = DashboardIntegration(

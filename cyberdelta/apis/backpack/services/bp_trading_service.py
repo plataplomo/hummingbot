@@ -290,7 +290,7 @@ class BackpackTradingService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for place order operations."""
-        logger.exception(
+        logger.error(
             "place_order_error: Failed to place order",
             exchange=self._exchange_name,
             method=current_method,
@@ -477,7 +477,7 @@ class BackpackTradingService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for cancel order operations."""
-        logger.exception(
+        logger.error(
             "cancel_order_error: Failed to cancel order",
             exchange=self._exchange_name,
             method=current_method,
@@ -548,7 +548,7 @@ class BackpackTradingService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transformation_error: Failed to transform exchange data for open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -563,7 +563,7 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error: Internal data validation failed for open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -586,7 +586,7 @@ class BackpackTradingService:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
             # This is from service internal logic - wrap as APIError
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -601,7 +601,7 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_error: Unexpected service failure for open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -807,7 +807,7 @@ class BackpackTradingService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for get order operations."""
-        logger.exception(
+        logger.error(
             "get_order_error: Failed to get order",
             exchange=self._exchange_name,
             method=current_method,
@@ -857,7 +857,7 @@ class BackpackTradingService:
             # Re-raise APIErrors from get_order method or self-raised
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transformation_error: Failed to transform exchange data for order status",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -871,7 +871,7 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error: Internal data validation failed for order status",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -893,7 +893,7 @@ class BackpackTradingService:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
             # This is from service internal logic - wrap as APIError
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for order status",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -907,7 +907,7 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_error: Unexpected service failure for order status",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1120,7 +1120,7 @@ class BackpackTradingService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for cancel all orders operations."""
-        logger.exception(
+        logger.error(
             "cancel_all_orders_error: Failed to cancel all orders",
             exchange=self._exchange_name,
             method=current_method,
@@ -1158,7 +1158,7 @@ class BackpackTradingService:
             # Re-raise APIErrors from get_open_orders method
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transformation_error: Failed to transform exchange data for all open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1172,7 +1172,7 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error: Internal data validation failed for all open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1192,7 +1192,7 @@ class BackpackTradingService:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
             # This is from service internal logic - wrap as APIError
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for all open orders",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1206,7 +1206,7 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_error: Unexpected service failure for all open orders",
                 exchange=self._exchange_name,
                 method=current_method,

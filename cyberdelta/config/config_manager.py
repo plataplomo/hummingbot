@@ -68,7 +68,7 @@ class ConfigManager:
 
         try:
             # Read and parse YAML file
-            with open(self.config_path) as f:
+            with self.config_path.open(encoding="utf-8") as f:
                 config_data_dict = yaml.safe_load(f)
 
             # Ensure loaded data is valid

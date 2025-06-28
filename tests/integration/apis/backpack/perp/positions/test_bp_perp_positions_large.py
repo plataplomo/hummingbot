@@ -96,7 +96,7 @@ class TestBackpackPerpLargePositions:
 
                         await wait_for_condition(
                             position_closed,
-                            timeout=30.0,  # Increased timeout for exchange operations
+                            timeout_seconds=30.0,  # Increased timeout for exchange operations
                             poll_interval=0.5,  # Less frequent polling to reduce API load
                             message=f"Position {position.symbol} was not closed",
                         )
@@ -190,7 +190,7 @@ class TestBackpackPerpLargePositions:
 
         await wait_for_condition(
             all_positions_closed,
-            timeout=30.0,  # Increased timeout for exchange operations
+            timeout_seconds=30.0,  # Increased timeout for exchange operations
             poll_interval=0.5,  # Less frequent polling to reduce API load
             message="All positions were not closed",
         )

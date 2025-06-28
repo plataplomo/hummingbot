@@ -383,7 +383,7 @@ class TestHttpClient:
         )
         assert content is None
         assert status_code == 204
-        assert processed_headers.content_type == ""  # Defaults to empty if not present
+        assert not processed_headers.content_type  # Defaults to empty if not present
         assert raw_headers == CIMultiDictProxy(CIMultiDict[str]())
         mock_aio_response.text.assert_not_called()  # Key check for 204 handling
 
@@ -909,7 +909,7 @@ class TestHttpClientRequestResponseParsing:
         assert status_code == 204
 
         assert content is None
-        assert processed_headers.content_type == ""  # Default if not present
+        assert not processed_headers.content_type  # Default if not present
         assert isinstance(raw_headers, CIMultiDictProxy)
         assert not raw_headers  # Empty
         # To assert that response.text() was not called by HttpClient._parse_and_validate_response,
@@ -973,7 +973,7 @@ class TestHttpClientRequestResponseParsing:
         )
         assert status_code == 200
         assert content == expected_text  # Should be treated as text
-        assert processed_headers.content_type == ""  # ProcessedResponseHeaders defaults to empty
+        assert not processed_headers.content_type  # ProcessedResponseHeaders defaults to empty
         mock_session_instance.request.assert_called_once()
 
     @pytest.mark.asyncio

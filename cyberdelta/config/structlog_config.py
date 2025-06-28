@@ -212,7 +212,7 @@ class TraceLevelLogger:
 
     def exception(self, event: str | None = None, **kwargs: object) -> None:
         """Log an exception with traceback."""
-        self._logger.exception(event, **kwargs)
+        self._logger.error(event, exc_info=True, **kwargs)  # noqa: LOG014
 
     def trace(self, event: str, **kwargs: object) -> None:
         """Log at TRACE level (below DEBUG)."""

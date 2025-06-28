@@ -13,6 +13,7 @@ Tests cover spot markets only:
 - Backpack-specific market details (bp_details extension slots)
 """
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -21,7 +22,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.models.market.market import Market
+from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 
 
 # Mark all tests in this file
@@ -128,16 +129,12 @@ class TestBackpackSpotMarkets:
 
         # Validate optional timestamp
         if market.created_at is not None:
-            from datetime import datetime
-
             assert isinstance(market.created_at, datetime), (
                 f"created_at should be datetime, got {type(market.created_at)}"
             )
 
         # Validate Backpack-specific details
         if market.bp_details is not None:
-            from cyberdelta.core.models.market.market import BackpackMarketDetails
-
             assert isinstance(market.bp_details, BackpackMarketDetails), (
                 f"bp_details should be BackpackMarketDetails, got {type(market.bp_details)}"
             )

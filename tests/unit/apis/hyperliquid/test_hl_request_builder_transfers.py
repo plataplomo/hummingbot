@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -82,8 +83,6 @@ class TestHyperliquidRequestBuilderTransfers:
         Request builder should not validate - that's done in the service layer.
         The Pydantic model will raise ValidationError for empty strings.
         """
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
             args_empty = TransferL2UsdArgs(
                 destination_address="",
@@ -93,8 +92,6 @@ class TestHyperliquidRequestBuilderTransfers:
 
     def test_build_l2_usd_transfer_payload_invalid_whitespace_address(self) -> None:
         """Test build_l2_usd_transfer_payload with whitespace-only address."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="String cannot be empty"):
             args_whitespace = TransferL2UsdArgs(
                 destination_address="   ",
@@ -186,8 +183,6 @@ class TestHyperliquidRequestBuilderTransfers:
         Request builder should not validate - that's done in the service layer.
         The Pydantic model will raise ValidationError for empty strings.
         """
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
             args_empty = WithdrawL1Args(
                 asset="USDC",
@@ -198,8 +193,6 @@ class TestHyperliquidRequestBuilderTransfers:
 
     def test_build_withdrawal_payload_invalid_whitespace_address(self) -> None:
         """Test build_withdrawal_payload with whitespace-only address."""
-        from pydantic import ValidationError
-
         with pytest.raises(ValidationError, match="String cannot be empty"):
             args_whitespace = WithdrawL1Args(
                 asset="USDC",

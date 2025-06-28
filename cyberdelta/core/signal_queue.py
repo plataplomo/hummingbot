@@ -1113,7 +1113,6 @@ class PrioritySignalQueue:
 
     async def wait_for_signals(
         self,
-        timeout: float | None = None,
         max_signals: int = 1,
     ) -> list[TradeSignal]:
         """Wait for signals to become available.
@@ -1121,7 +1120,6 @@ class PrioritySignalQueue:
         Returns up to max_signals highest priority signals.
 
         Args:
-            timeout: Maximum time to wait in seconds (None = wait indefinitely)
             max_signals: Maximum number of signals to return
 
         Returns:

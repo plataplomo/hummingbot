@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
@@ -14,14 +14,25 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusObject,
     HyperliquidRawExchangeStatusResting,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
+    HyperliquidRawHistoricalOrder,
+    HyperliquidRawHistoricalOrderData,
+    HyperliquidRawHistoricalOrderResponse,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOpenOrdersRequestPayload,
     HyperliquidRawOpenOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
     HyperliquidRawOrderStatusRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetOpenOrdersArgs,
+    GetOrderArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 
@@ -521,9 +532,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         # Configure the mock to return a payload for order status
-        from cyberdelta.apis.hyperliquid.models.hl_raw_order_status import (
-            HyperliquidRawOrderStatusRequestPayload,
-        )
 
         mock_payload = HyperliquidRawOrderStatusRequestPayload(
             type="orderStatus",
@@ -592,11 +600,6 @@ class TestHyperliquidTradingServiceOrders:
         )
 
         # Mock response handler to return historical order response
-        from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
-            HyperliquidRawHistoricalOrder,
-            HyperliquidRawHistoricalOrderData,
-            HyperliquidRawHistoricalOrderResponse,
-        )
 
         mock_historical_order_data = HyperliquidRawHistoricalOrderData.model_validate(
             mock_response_content["order"],
@@ -608,7 +611,6 @@ class TestHyperliquidTradingServiceOrders:
         )
 
         # For the mapper, create a full HyperliquidRawHistoricalOrder with all fields
-        from typing import cast
 
         mock_historical_order = HyperliquidRawHistoricalOrder.model_validate({
             **cast("dict[str, Any]", mock_response_content["order"]),
@@ -673,9 +675,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         # Configure the mock to return a payload for open orders
-        from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-            HyperliquidRawOpenOrdersRequestPayload,
-        )
 
         mock_payload = HyperliquidRawOpenOrdersRequestPayload(
             type="openOrders",
@@ -751,9 +750,6 @@ class TestHyperliquidTradingServiceOrders:
         )
 
         # Mock request builder to return expected payload
-        from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
-            HyperliquidRawOpenOrdersRequestPayload,
-        )
 
         mock_payload = HyperliquidRawOpenOrdersRequestPayload(
             type="openOrders",
@@ -834,7 +830,6 @@ class TestHyperliquidTradingServiceOrders:
         assert result == expected_orders
         assert len(result) == 2
         # Verify request builder was called correctly
-        from cyberdelta.apis.models.service_args_models import GetOpenOrdersArgs
 
         mock_hl_request_builder.build_open_orders_payload.assert_called_once_with(
             GetOpenOrdersArgs(wallet_address=wallet_address),

@@ -5,6 +5,7 @@ and its integration with AppSettings.
 """
 
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -369,8 +370,6 @@ class TestFileLogging:
             )
 
             # Force flush by getting all handlers and flushing them
-            import logging
-
             root_logger = logging.getLogger()
             for handler in root_logger.handlers:
                 handler.flush()

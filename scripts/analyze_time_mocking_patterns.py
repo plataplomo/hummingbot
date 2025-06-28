@@ -147,7 +147,7 @@ def main() -> None:
     # Generate report
     if args.output:
         original_stdout = sys.stdout
-        with open(args.output, "w") as f:
+        with Path(args.output).open("w", encoding="utf-8") as f:
             sys.stdout = f
             generate_report(results)
         sys.stdout = original_stdout

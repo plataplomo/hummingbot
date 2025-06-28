@@ -183,7 +183,7 @@ class TestBackpackPositionsPositive:
 
         await wait_for_condition(
             position_exists,
-            timeout=5.0,
+            timeout_seconds=5.0,
             poll_interval=0.1,
             message=f"Position for {symbol} was not created",
         )

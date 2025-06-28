@@ -5,14 +5,20 @@ ensuring all tests use real market data and follow security rules.
 """
 
 import asyncio
+import time
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+
+# Exchange-specific imports
+from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetMarketArgs,
+    GetMarketsArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
@@ -20,6 +26,7 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order, OrderSide, OrderStatus
 from cyberdelta.core.models.market import Market
+from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 
 logger = get_logger(__name__)
@@ -126,7 +133,6 @@ class MarketOrderTestHelpers:
         """
         try:
             # Get available markets from the exchange dynamically
-            from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 
             markets = await exchange_api.get_markets(GetMarketsArgs())
             if not markets:
@@ -172,13 +178,7 @@ class MarketOrderTestHelpers:
         """
         try:
             # For Hyperliquid, use specialized helpers that handle $10 minimum notional requirement
-            from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-
             if isinstance(exchange_api, HyperliquidAPI):
-                from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
-                    HyperliquidTestHelpers,
-                )
-
                 minimal_quantity: Decimal = await HyperliquidTestHelpers.get_minimal_order_size(
                     exchange_api,
                     symbol,
@@ -236,14 +236,14 @@ class MarketOrderTestHelpers:
     async def wait_for_order_fill(
         exchange_api: ExchangeAPI,
         order: Order,
-        timeout: int = 30,
+        timeout_seconds: int = 30,
     ) -> Order:
         """Wait for order to fill or reach terminal state.
 
         Args:
             exchange_api: Exchange API instance
             order: Order to monitor
-            timeout: Maximum seconds to wait
+            timeout_seconds: Maximum seconds to wait
 
         Returns:
             Updated order with final status
@@ -251,48 +251,49 @@ class MarketOrderTestHelpers:
         Raises:
             TimeoutError: If order doesn't reach terminal state in time
         """
-        start_time = asyncio.get_event_loop().time()
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                while True:
+                    # Get updated order status
+                    try:
+                        # Try to get order by ID - Backpack requires symbol parameter
+                        args = GetOrderArgs(
+                            order_id=order.exchange_order_id or order.client_order_id,
+                            symbol=order.symbol,
+                        )
+                        updated_order = await exchange_api.get_order(args)
 
-        while asyncio.get_event_loop().time() - start_time < timeout:
-            # Get updated order status
-            try:
-                # Try to get order by ID - Backpack requires symbol parameter
-                args = GetOrderArgs(
-                    order_id=order.exchange_order_id or order.client_order_id,
-                    symbol=order.symbol,
-                )
-                updated_order = await exchange_api.get_order(args)
+                        if updated_order:
+                            # Check if order is in terminal state
+                            terminal_states = {
+                                OrderStatus.FILLED,
+                                OrderStatus.CANCELED,
+                                OrderStatus.REJECTED,
+                                OrderStatus.EXPIRED,
+                            }
 
-                if updated_order:
-                    # Check if order is in terminal state
-                    terminal_states = {
-                        OrderStatus.FILLED,
-                        OrderStatus.CANCELED,
-                        OrderStatus.REJECTED,
-                        OrderStatus.EXPIRED,
-                    }
+                            if updated_order.status in terminal_states:
+                                return updated_order
 
-                    if updated_order.status in terminal_states:
-                        return updated_order
+                            # For market orders, partial fill is also acceptable
+                            if updated_order.status == OrderStatus.PARTIALLY_FILLED:
+                                # Wait a bit more to see if it fills completely
+                                await asyncio.sleep(0.5)
+                                continue
 
-                    # For market orders, partial fill is also acceptable
-                    if updated_order.status == OrderStatus.PARTIALLY_FILLED:
-                        # Wait a bit more to see if it fills completely
-                        await asyncio.sleep(0.5)
-                        continue
+                    except Exception as e:
+                        logger.debug(
+                            "error_checking_order_status",
+                            error=str(e),
+                            message="Error checking order status",
+                        )
 
-            except Exception as e:
-                logger.debug(
-                    "error_checking_order_status",
-                    error=str(e),
-                    message="Error checking order status",
-                )
-
-            await asyncio.sleep(0.1)
-
-        raise TimeoutError(
-            f"Order {order.client_order_id} did not reach terminal state within {timeout} seconds",
-        )
+                    await asyncio.sleep(0.1)
+        except TimeoutError:
+            raise TimeoutError(
+                f"Order {order.client_order_id} did not reach terminal state within "
+                f"{timeout_seconds} seconds",
+            ) from None
 
     @staticmethod
     async def verify_order_in_history(
@@ -312,14 +313,11 @@ class MarketOrderTestHelpers:
         Returns:
             True if order found in history, False otherwise
         """
-        import time
-
         loop_start_time = time.time()
 
         while time.time() - loop_start_time < max_wait_seconds:
             try:
                 # Get recent order history - Hyperliquid requires start_time and end_time
-                from datetime import UTC, datetime, timedelta
 
                 end_time = datetime.now(UTC)
                 start_time = end_time - timedelta(hours=1)  # Look back 1 hour
@@ -557,9 +555,6 @@ class MarketOrderTestHelpers:
         Returns:
             Filled quantity if found, None otherwise
         """
-        import asyncio
-        from datetime import UTC, datetime, timedelta
-
         for attempt in range(max_retries):
             try:
                 logger.debug(

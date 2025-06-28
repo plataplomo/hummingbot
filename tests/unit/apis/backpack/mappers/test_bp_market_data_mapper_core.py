@@ -35,6 +35,7 @@ from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import FundingRate
+from cyberdelta.core.models.market.market import BackpackMarketDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from tests.fixtures.time_fixtures import FreezerProtocol
 
@@ -380,8 +381,6 @@ class TestMarketTransformation:
         )
 
         result = mapper.transform_raw_market_to_internal(raw_market)
-
-        from cyberdelta.core.models.market.market import BackpackMarketDetails
 
         assert isinstance(result.bp_details, BackpackMarketDetails)
         assert result.bp_details.order_book_state == "HALTED"

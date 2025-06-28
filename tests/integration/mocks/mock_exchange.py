@@ -11,7 +11,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel
 
@@ -57,7 +57,11 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.enums import CancelOrderResultStatus
+from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
+    InternalTransferStatus,
+    InternalWithdrawalStatus,
+)
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import CancelOrderResult
@@ -144,10 +148,10 @@ class MockExchangeAPI(ExchangeAPI):
             config_copy = {"api_base_url": "http://fixedmock.exchange"}  # Simplified for mock
             current_api_base_url = str(config.api_base_url_mainnet)
         is_valid_url = False
-        if isinstance(current_api_base_url, str) and (
-            current_api_base_url.startswith("http://")
-            or current_api_base_url.startswith("https://")
-        ):
+        if isinstance(current_api_base_url, str) and current_api_base_url.startswith((
+            "http://",
+            "https://",
+        )):
             # Simple check for protocol, can be enhanced if needed
             is_valid_url = True
 
@@ -162,7 +166,6 @@ class MockExchangeAPI(ExchangeAPI):
             config_copy["api_base_url"] = "http://fixedmock.exchange"  # Force a valid one
 
         mock_error_mapper = MockErrorMapper()  # Use the placeholder ErrorMapper
-        from typing import cast
 
         # Pass the original config object to the base class if it's ExchangeSpecificConfig
         if isinstance(config, ExchangeSpecificConfig):
@@ -935,9 +938,6 @@ class MockExchangeAPI(ExchangeAPI):
         order_id = args.order_id
         symbol = args.symbol
 
-        from cyberdelta.core.models.enums import CancelOrderResultStatus
-        from cyberdelta.core.models.market.order import CancelOrderResult
-
         if order_id not in self._orders:
             logger.warning(
                 "cancel_order_not_found",
@@ -1316,9 +1316,6 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
 
         # Return a mock transfer result
-        from cyberdelta.core.models.enums import InternalTransferStatus
-        from cyberdelta.core.models.operations import Transfer
-
         return Transfer(
             id=f"mock_transfer_{args.client_transfer_id or 'auto'}",
             exchange=self.exchange_name,
@@ -1338,9 +1335,6 @@ class MockExchangeAPI(ExchangeAPI):
         await self._simulate_latency()
 
         # Return a mock withdrawal result
-        from cyberdelta.core.models.enums import InternalWithdrawalStatus
-        from cyberdelta.core.models.operations import Withdrawal
-
         return Withdrawal(
             id=f"mock_withdrawal_{args.client_withdrawal_id or 'auto'}",
             exchange=self.exchange_name,

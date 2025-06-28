@@ -17,7 +17,8 @@ VCR: Records both success and error responses with sensitive data filtering
 
 from __future__ import annotations
 
-from decimal import Decimal
+import asyncio
+from decimal import ROUND_UP, Decimal
 from typing import Any
 
 import pytest
@@ -26,6 +27,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
+    GetOrderArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
@@ -87,7 +89,6 @@ class TestHyperliquidPerpOrdersPrivate:
         Uses dynamic helpers to calculate safe test prices and quantities.
         """
         # Use dynamic helpers to get appropriate test symbol from exchange
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_test_symbol
 
         test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
@@ -254,12 +255,9 @@ class TestHyperliquidPerpOrdersPrivate:
         assert order_id is not None, "Order ID should not be None after placement"
 
         # Small delay to ensure order is settled
-        import asyncio
-
         await asyncio.sleep(1.0)
 
         # Verify order exists before cancelling
-        from cyberdelta.apis.models.service_args_models import GetOrderArgs
 
         get_order_args = GetOrderArgs(
             order_id=order_id,
@@ -420,7 +418,6 @@ class TestHyperliquidPerpOrdersPrivate:
         required_min_quantity = max(min_quantity, min_qty_for_notional)
 
         # Round up to next valid step size to ensure we meet minimums
-        from decimal import ROUND_UP
 
         rounded_steps = (required_min_quantity / step_size).quantize(
             Decimal(1),

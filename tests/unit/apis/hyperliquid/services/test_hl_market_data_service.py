@@ -11,7 +11,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
@@ -2099,8 +2099,6 @@ class TestHyperliquidMarketDataServiceGetMarkets:
             mock_get_contexts.return_value = mock_raw_response
 
             # Make mapper raise TransformationError
-            from cyberdelta.apis.common import TransformationError
-
             transformation_error = TransformationError("Failed to transform market data")
             mock_hl_mapper.transform_raw_meta_and_asset_ctxs_to_markets.side_effect = (
                 transformation_error

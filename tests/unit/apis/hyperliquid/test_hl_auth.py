@@ -313,7 +313,6 @@ class TestHyperliquidEip712Authenticator:
     ) -> None:
         """Test prepare_request with a valid dictionary payload for 'data'."""
         # Set up the mock to return a proper signature structure
-        from unittest.mock import MagicMock
 
         signed_msg_mock = MagicMock()
         signed_msg_mock.r = 12345

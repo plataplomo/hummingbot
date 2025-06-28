@@ -175,6 +175,15 @@ select = [  # Linting rules to apply
     "A",
     "EXE",  # executable code
     "N",
+    "PTH",
+    "PLC",
+    "PLW",
+    "PYI",
+    "ISC",
+    "PIE",
+    "TID",
+    "ASYNC",
+    "LOG",
 ]
 
 # Ignore rules that conflict with current codebase formatting

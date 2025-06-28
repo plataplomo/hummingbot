@@ -14,6 +14,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
+from tests.integration.apis.backpack.shared.bp_test_helpers import SMALL_VALUE_TOLERANCE
 
 
 # Mark all tests in this file
@@ -163,8 +164,5 @@ class TestBackpackAccountSummaryPrivate:
                 # Assets value might be slightly higher than equity due to timing differences
                 # between when collateral and main account endpoints are called
                 # Allow for small precision differences
-                from tests.integration.apis.backpack.shared.bp_test_helpers import (
-                    SMALL_VALUE_TOLERANCE,
-                )
 
                 assert account_summary.bp_details.assets_value <= equity + SMALL_VALUE_TOLERANCE

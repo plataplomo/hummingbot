@@ -11,6 +11,7 @@ Tests cover perpetual futures funding rates:
 - Complete API -> Service -> Handler -> Mapper -> Internal Model pipeline
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -73,13 +74,10 @@ async def test_bp_get_funding_rate_sol_perp_success(
 
     # Validate timestamp if present
     if hasattr(funding_rate, "timestamp"):
-        from datetime import datetime
-
         assert isinstance(funding_rate.timestamp, datetime), (
             f"Timestamp should be datetime, got {type(funding_rate.timestamp)}"
         )
         # Should be a reasonable timestamp (after 2020)
-        from datetime import UTC, datetime
 
         min_date = datetime(2020, 1, 1, tzinfo=UTC)
         assert funding_rate.timestamp > min_date, (
@@ -279,7 +277,6 @@ async def test_bp_get_funding_rates_chronological_ordering(
             # Verify both rates have timestamps
             if hasattr(current_rate, "timestamp") and hasattr(next_rate, "timestamp"):
                 # Check that timestamps are reasonable and consistent
-                from datetime import datetime
 
                 assert isinstance(current_rate.timestamp, datetime), (
                     f"Funding rate {i} timestamp should be datetime, "

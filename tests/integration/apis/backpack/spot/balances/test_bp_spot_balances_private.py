@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -193,8 +194,6 @@ class TestBackpackSpotBalancesPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_balances() with concurrent requests to same endpoint."""
-        import asyncio
-
         tasks = [
             bp_api_for_test_env.get_balances(),
             bp_api_for_test_env.get_balances(),
@@ -220,9 +219,9 @@ class TestBackpackSpotBalancesPrivate:
             for _i, result in enumerate(successful_results[1:], 1):
                 assert set(first_result.keys()) == set(result.keys())
 
-                for asset in first_result:
+                for asset, first_balance_obj in first_result.items():
                     if asset in result:
-                        first_balance = first_result[asset].total_quantity
+                        first_balance = first_balance_obj.total_quantity
                         second_balance = result[asset].total_quantity
                         balance_diff = abs(first_balance - second_balance)
                         assert balance_diff <= Decimal("0.00001")

@@ -21,7 +21,7 @@ import pytest
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.models.market.market import Market
+from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
@@ -111,8 +111,6 @@ async def test_hl_get_perp_market_btc_success(
     assert len(market.status) > 0, "status should not be empty"
 
     if market.hl_details is not None:
-        from cyberdelta.core.models.market.market import HyperliquidMarketDetails
-
         assert isinstance(market.hl_details, HyperliquidMarketDetails), (
             f"hl_details should be HyperliquidMarketDetails, got {type(market.hl_details)}"
         )
@@ -310,8 +308,6 @@ async def test_hl_get_perp_markets_success(
         )
 
         if market.hl_details is not None:
-            from cyberdelta.core.models.market.market import HyperliquidMarketDetails
-
             assert isinstance(market.hl_details, HyperliquidMarketDetails), (
                 f"hl_details should be HyperliquidMarketDetails for {market.symbol}"
             )

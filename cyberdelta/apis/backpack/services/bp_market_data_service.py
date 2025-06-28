@@ -224,7 +224,7 @@ class BackpackMarketDataService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -239,7 +239,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -254,7 +254,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -269,7 +269,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unhandled:
-            logger.exception(
+            logger.error(
                 "unexpected_error: Unexpected error occurred",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -314,7 +314,7 @@ class BackpackMarketDataService:
             # Re-raise APIErrors from any future implementation
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "all_tickers_transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -328,7 +328,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "all_tickers_validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -342,7 +342,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "all_tickers_logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -356,7 +356,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "all_tickers_unexpected_error: Unexpected service failure",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -447,7 +447,7 @@ class BackpackMarketDataService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -462,7 +462,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -477,7 +477,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -492,7 +492,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unhandled:
-            logger.exception(
+            logger.error(
                 "unexpected_error: Unexpected error occurred",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -620,7 +620,7 @@ class BackpackMarketDataService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "recent_trades_transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -635,7 +635,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "recent_trades_validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -650,7 +650,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValueError | TypeError):
-            logger.exception(
+            logger.error(
                 "recent_trades_logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -664,7 +664,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "recent_trades_unexpected_error: Unexpected error occurred",
             exchange=self._exchange_name,
             method=current_method,
@@ -801,7 +801,7 @@ class BackpackMarketDataService:
         """Handle funding rate errors."""
         if isinstance(error, TransformationError | ValidationError | ValueError | TypeError):
             error_type = type(error).__name__
-            logger.exception(
+            logger.error(
                 "funding_rate_error: Error processing funding rate",
                 exchange=self._exchange_name,
                 error_type=error_type,
@@ -819,7 +819,7 @@ class BackpackMarketDataService:
                 message=f"Failed to process funding rate data: {error_type}",
                 original_exception=error,
             ) from error
-        logger.exception(
+        logger.error(
             "funding_rate_unexpected_error: Unexpected error in funding rate processing",
             exchange=self._exchange_name,
             symbol=symbol,
@@ -875,7 +875,7 @@ class BackpackMarketDataService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "funding_rates_transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -889,7 +889,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "funding_rates_validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -903,7 +903,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValueError | TypeError):
-            logger.exception(
+            logger.error(
                 "funding_rates_logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -916,7 +916,7 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "funding_rates_unexpected_error: Unexpected service failure",
             exchange=self._exchange_name,
             method=current_method,
@@ -1192,7 +1192,7 @@ class BackpackMarketDataService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for funding rates operations."""
-        logger.exception(
+        logger.error(
             "funding_rates_api_error: Creating API error for funding rates operation",
             exchange=self._exchange_name,
             method=current_method,
@@ -1495,7 +1495,7 @@ class BackpackMarketDataService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1510,7 +1510,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1525,7 +1525,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1540,7 +1540,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unhandled:
-            logger.exception(
+            logger.error(
                 "unexpected_error: Unexpected error occurred",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1643,7 +1643,7 @@ class BackpackMarketDataService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "markets_transform_error: Failed to transform exchange data",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1657,7 +1657,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "markets_validation_error: Internal data validation failed",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1671,7 +1671,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "markets_logic_error: Service internal logic error",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1685,7 +1685,7 @@ class BackpackMarketDataService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unhandled:
-            logger.exception(
+            logger.error(
                 "markets_unexpected_error: Unexpected error occurred",
                 exchange=self._exchange_name,
                 method=current_method,
@@ -1710,7 +1710,7 @@ class BackpackMarketDataService:
         error_code: APIErrorCode,
     ) -> APIError:
         """Create a standardized APIError for market data operations."""
-        logger.exception(
+        logger.error(
             "market_data_api_error: Creating API error for market data operation",
             exchange=self._exchange_name,
             method=current_method,

@@ -14,7 +14,7 @@ repos:
 
   # Ruff - Python linting and formatting (replaces black, isort, and flake8)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.0
+    rev: v0.11.9
     hooks:
       # Run the linter first (includes import sorting)
       - id: ruff

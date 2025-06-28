@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from types import TracebackType
-from typing import Any, cast
+from typing import Any, Self, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -72,7 +72,7 @@ class MockResponse:
         """
         return self._data
 
-    async def __aenter__(self) -> MockResponse:
+    async def __aenter__(self) -> Self:
         """Enter async context manager.
 
         Returns:
@@ -106,7 +106,7 @@ class MockClientSession:
         self.requests: list[dict[str, Any]] = []  # Flexible for test requests
         self.closed = False
 
-    async def __aenter__(self) -> MockClientSession:
+    async def __aenter__(self) -> Self:
         """Enter async context manager.
 
         Returns:

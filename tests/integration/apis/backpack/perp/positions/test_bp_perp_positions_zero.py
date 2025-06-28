@@ -25,18 +25,16 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-
-
-if TYPE_CHECKING:
-    from cyberdelta.core.models.derivative_position import BackpackPositionDetails
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.derivative_position import DerivativePosition
+from cyberdelta.core.models.derivative_position import BackpackPositionDetails, DerivativePosition
+from cyberdelta.core.models.enums import OrderSide
+from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 
 logger = get_logger(__name__)
@@ -218,7 +216,7 @@ class TestBackpackPerpPositionsZero:
 
             except ValueError as e:
                 # Service layer validation errors (e.g., empty string symbols)
-                assert symbol == "", f"ValueError should only occur for empty symbol, got: {symbol}"
+                assert symbol == "", f"ValueError should only occur for empty symbol, got: {symbol}"  # noqa: PLC1901
                 logger.info(
                     "empty_symbol_value_error",
                     error_message=str(e),
@@ -250,13 +248,9 @@ class TestBackpackPerpPositionsZero:
 
             # Small delay to avoid rate limiting
             if i < calls_count - 1:
-                from tests.integration.apis.backpack.shared.bp_test_helpers import (
-                    wait_for_condition,
-                )
-
                 await wait_for_condition(
                     lambda: True,  # Always true, just wait
-                    timeout=0.1,
+                    timeout_seconds=0.1,
                     poll_interval=0.1,
                     message="Rate limit delay",
                 )
@@ -486,7 +480,6 @@ class TestBackpackPerpPositionsZero:
             )
 
         # Validate side (BUY/SELL)
-        from cyberdelta.core.models.enums import OrderSide
 
         assert position.side in [OrderSide.BUY, OrderSide.SELL], (
             f"Position {index} side must be BUY or SELL"
@@ -509,9 +502,6 @@ class TestBackpackPerpPositionsZero:
         index: int,
     ) -> None:
         """Validate Backpack-specific position details."""
-        # Import here to avoid circular imports
-        from cyberdelta.core.models.derivative_position import BackpackPositionDetails
-
         assert isinstance(bp_details, BackpackPositionDetails), (
             f"Position {index} bp_details must be BackpackPositionDetails"
         )

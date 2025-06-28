@@ -98,9 +98,7 @@ class TestValidationErrorHandling:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that asset context with missing required fields raises validation error."""
-        from pydantic import ValidationError as PydanticValidationError
-
-        with pytest.raises(PydanticValidationError):
+        with pytest.raises(ValidationError):
             # Test missing required field 'name'
             invalid_data = {
                 "funding": "0.00001",
@@ -116,9 +114,7 @@ class TestValidationErrorHandling:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that asset context with non-numeric values raises validation error."""
-        from pydantic import ValidationError as PydanticValidationError
-
-        with pytest.raises(PydanticValidationError):
+        with pytest.raises(ValidationError):
             # Test invalid numeric value in funding field
             invalid_data = {
                 "name": "INVALID-PERP",
@@ -149,9 +145,7 @@ class TestValidationErrorHandling:
         market_data_mapper: HyperliquidMarketDataMapper,
     ) -> None:
         """Test that trade with missing hash raises validation error."""
-        from pydantic import ValidationError as PydanticValidationError
-
-        with pytest.raises(PydanticValidationError):
+        with pytest.raises(ValidationError):
             # Test by trying to validate invalid data
             invalid_data = {
                 "coin": "INVALID-PERP",

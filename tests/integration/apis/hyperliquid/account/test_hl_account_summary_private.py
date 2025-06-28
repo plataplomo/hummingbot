@@ -30,6 +30,8 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetMarketArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
@@ -37,6 +39,10 @@ from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
+from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
+    get_exchange_symbol_mapping,
+    get_major_crypto_symbol,
+)
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_balance, pytest.mark.positive_balance]
@@ -92,10 +98,6 @@ class TestHyperliquidAccountSummaryPrivate:
         initial_margin_used = initial_summary.total_initial_margin_required
 
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
-            get_exchange_symbol_mapping,
-            get_major_crypto_symbol,
-        )
 
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
@@ -142,7 +144,6 @@ class TestHyperliquidAccountSummaryPrivate:
         )
 
         # Get market constraints for debugging
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
 
         market_info = await hl_api_for_test_env.get_market(GetMarketArgs(symbol=test_symbol))
 
@@ -238,7 +239,6 @@ class TestHyperliquidAccountSummaryPrivate:
             )
 
         # Clean up - cancel the order to restore account state (cancellation is critical)
-        from cyberdelta.apis.models.service_args_models import CancelOrderArgs
 
         cancel_args = CancelOrderArgs(
             order_id=placed_order.exchange_order_id,
@@ -263,7 +263,6 @@ class TestHyperliquidAccountSummaryPrivate:
         are opened, modified, or closed through trading operations.
         """
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
@@ -344,7 +343,6 @@ class TestHyperliquidAccountSummaryPrivate:
         attempting operations that would exceed available margin.
         """
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
@@ -461,7 +459,6 @@ class TestHyperliquidAccountSummaryPrivate:
                 )
 
         # Get available symbol from exchange instead of hardcoding
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
         # Use a major crypto symbol that should always have data
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
@@ -514,7 +511,6 @@ class TestHyperliquidAccountSummaryPrivate:
             )
 
         # Clean up precision order - critical for test isolation
-        from cyberdelta.apis.models.service_args_models import CancelOrderArgs
 
         if precision_order.exchange_order_id is not None:
             cancel_args = CancelOrderArgs(
@@ -545,7 +541,6 @@ class TestHyperliquidAccountSummaryPrivate:
         # Account summary is guaranteed to exist (raises on error)
 
         # Get market constraints for validation
-        from tests.integration.apis.hyperliquid.shared.symbol_helpers import get_major_crypto_symbol
 
         test_symbol = await get_major_crypto_symbol(hl_api_for_test_env, "BTC")
         market_constraints = await HyperliquidTestHelpers.get_market_constraints(
@@ -621,8 +616,6 @@ class TestHyperliquidAccountSummaryPrivate:
         # Clean up all placed orders - critical for test isolation
         for order in placed_orders:
             if order.exchange_order_id:
-                from cyberdelta.apis.models.service_args_models import CancelOrderArgs
-
                 cancel_args = CancelOrderArgs(
                     order_id=order.exchange_order_id,
                     symbol=test_symbol,

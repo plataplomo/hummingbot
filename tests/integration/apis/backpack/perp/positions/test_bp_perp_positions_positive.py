@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -20,7 +21,9 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
+    get_market_constraints,
     get_minimal_order_size,
+    wait_for_condition,
 )
 
 
@@ -98,7 +101,6 @@ async def create_test_perp_position(
             )
 
             # Wait for position to be created
-            from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
             async def position_exists() -> bool:
                 positions = await api.get_positions()
@@ -106,7 +108,7 @@ async def create_test_perp_position(
 
             await wait_for_condition(
                 position_exists,
-                timeout=5.0,
+                timeout_seconds=5.0,
                 poll_interval=0.1,
                 message=f"Position for {symbol} was not created",
             )
@@ -174,9 +176,6 @@ class TestBackpackPerpPositionsPrivate:
 
         if position.entry_price is not None:
             # Get market constraints from exchange to validate entry_price precision
-            from tests.integration.apis.backpack.shared.bp_test_helpers import (
-                get_market_constraints,
-            )
 
             constraints = await get_market_constraints(api, position.symbol)
             tick_size = constraints["tick_size"]
@@ -415,8 +414,6 @@ class TestBackpackPerpPositionsPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with concurrent requests to same endpoint."""
-        import asyncio
-
         tasks = [
             bp_api_for_test_env.get_positions(),
             bp_api_for_test_env.get_positions(),

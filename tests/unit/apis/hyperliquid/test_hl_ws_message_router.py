@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsR
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import HyperliquidRawWsSubscribeRequest
 
 
 class TestHyperliquidWsMessageRouter:
@@ -117,10 +118,6 @@ class TestHyperliquidWsMessageRouter:
         result = router.construct_subscription_payload("l2Book:SOL", None)
 
         # Verify the result is a HyperliquidRawWsSubscribeRequest
-        from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
-            HyperliquidRawWsSubscribeRequest,
-        )
-
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
         assert result.subscription.type == "l2Book"
@@ -132,10 +129,6 @@ class TestHyperliquidWsMessageRouter:
     ) -> None:
         """Test subscription payload construction for trades."""
         result = router.construct_subscription_payload("trades:BTC", None)
-
-        from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
-            HyperliquidRawWsSubscribeRequest,
-        )
 
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
@@ -149,10 +142,6 @@ class TestHyperliquidWsMessageRouter:
         """Test subscription payload construction for userEvents."""
         wallet_address = "0x1234567890abcdef"
         result = router.construct_subscription_payload("userEvents", wallet_address)
-
-        from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
-            HyperliquidRawWsSubscribeRequest,
-        )
 
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
@@ -177,10 +166,6 @@ class TestHyperliquidWsMessageRouter:
         """Test subscription payload construction for candle."""
         result = router.construct_subscription_payload("candle:ETH:1m", None)
 
-        from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
-            HyperliquidRawWsSubscribeRequest,
-        )
-
         assert isinstance(result, HyperliquidRawWsSubscribeRequest)
         assert result.method == "subscribe"
         assert result.subscription.type == "candle"
@@ -192,8 +177,6 @@ class TestHyperliquidWsMessageRouter:
         router: HyperliquidWsMessageRouter,
     ) -> None:
         """Test subscription payload construction for invalid topic."""
-        from cyberdelta.apis.common import APIError
-
         with pytest.raises(APIError, match="Unsupported WebSocket topic"):
             router.construct_subscription_payload("invalid_topic", None)
 

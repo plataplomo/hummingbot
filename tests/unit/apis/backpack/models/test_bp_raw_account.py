@@ -107,7 +107,7 @@ def test_BackpackRawAccount_adversarial_strings(field: str, value: object) -> No
     p = valid_account().copy()
     p[field] = value
     if (
-        (isinstance(value, str) and value.strip() == "")
+        (isinstance(value, str) and not value.strip())
         or not isinstance(value, str)
         or (field == "email" and len(value) > 254)
     ):

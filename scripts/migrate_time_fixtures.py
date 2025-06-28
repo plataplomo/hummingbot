@@ -114,7 +114,7 @@ def _add_imports_and_cleanup(migrator: TimePatchMigrator, new_content: str) -> s
 
     # Find last import
     for i, line in enumerate(lines):
-        if line.strip() and (line.startswith("import ") or line.startswith("from ")):
+        if line.strip() and line.startswith(("import ", "from ")):
             import_index = i
 
     # Add time fixture imports if needed

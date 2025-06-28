@@ -6,6 +6,7 @@ to improve modularity and reduce complexity.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -340,8 +341,6 @@ class TestHyperliquidAssetIndexResolver:
         mock_meta_response: HyperliquidRawMetaAndAssetCtxsResponse,
     ) -> None:
         """Test that concurrent requests for the same symbol don't cause race conditions."""
-        import asyncio
-
         # Setup mock responses
         mock_raw_json_response: Any = [{"universe": [{"name": "BTC"}, {"name": "ETH"}]}, [{}, {}]]
         mock_requester.return_value = (mock_raw_json_response, 200, {})

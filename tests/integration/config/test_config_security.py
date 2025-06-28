@@ -15,6 +15,7 @@ import os
 import sys
 import tempfile
 from collections.abc import Generator
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -23,9 +24,9 @@ import yaml
 
 
 # Add parent directory to path to import from cyberdelta
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from cyberdelta.config.config_manager import ConfigManager
+from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets
 
@@ -39,7 +40,7 @@ def secure_config_manager_setup() -> Generator[tuple[ConfigManager, str, str]]:
             invalid config files.
     """
     with tempfile.TemporaryDirectory() as temp_dir_name:
-        config_path = os.path.join(temp_dir_name, "config.yaml")
+        config_path = str(Path(temp_dir_name) / "config.yaml")
         Path(config_path).write_text(
             """
 # General settings
@@ -128,7 +129,7 @@ portfolio_tracker:
             encoding="utf-8",
         )
 
-        invalid_config_path = os.path.join(temp_dir_name, "invalid_config.yaml")
+        invalid_config_path = str(Path(temp_dir_name) / "invalid_config.yaml")
         Path(invalid_config_path).write_text(
             """
 # Missing required sections
@@ -155,8 +156,6 @@ def test_config_validation_failure(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
     """Test that an invalid config fails validation."""
-    from cyberdelta.config.config_manager import ConfigurationError
-
     _, _, invalid_config_path = secure_config_manager_setup
     with pytest.raises(ConfigurationError):
         ConfigManager(invalid_config_path)
@@ -192,7 +191,7 @@ def test_missing_nested_access(secure_config_manager_setup: tuple[ConfigManager,
 def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, str, str]) -> None:
     """Test that configuration changes are detected on reload."""
     config_manager, config_path, _ = secure_config_manager_setup
-    with open(config_path) as f:
+    with Path(config_path).open(encoding="utf-8") as f:
         config_data = yaml.safe_load(f)
 
     config_data["general"]["log_level"] = "INFO"
@@ -204,7 +203,6 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
     config_manager.reload()
     assert config_manager.settings is not None
     assert config_manager.settings.general.log_level == "INFO"
-    from decimal import Decimal
 
     assert config_manager.settings.risk.global_risk.max_position_usd == Decimal("200.0")
 
@@ -220,7 +218,7 @@ def secure_secrets_manager_setup() -> Generator[tuple[str, str, str]]:
         tempfile.TemporaryDirectory() as temp_dir_name,
         tempfile.TemporaryDirectory() as home_dir_name,
     ):
-        secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
+        secrets_path = str(Path(temp_dir_name) / "secrets.yaml")
         Path(secrets_path).write_text(
             """
 exchanges:
@@ -241,9 +239,9 @@ logfire:
             encoding="utf-8",
         )
 
-        cyberdelta_dir_in_home = os.path.join(home_dir_name, ".cyberdelta")
-        os.makedirs(cyberdelta_dir_in_home)
-        home_secrets_path = os.path.join(cyberdelta_dir_in_home, "secrets.yaml")
+        cyberdelta_dir_in_home = str(Path(home_dir_name) / ".cyberdelta")
+        Path(cyberdelta_dir_in_home).mkdir(parents=True, exist_ok=True)
+        home_secrets_path = str(Path(cyberdelta_dir_in_home) / "secrets.yaml")
         Path(home_secrets_path).write_text(
             """
 exchanges:
@@ -306,12 +304,12 @@ def test_env_variable_override(secure_secrets_manager_setup: tuple[str, str, str
 def test_nonexistent_secrets_file(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
     """Test handling of nonexistent secrets file."""
     _, _, temp_dir_name = secure_secrets_manager_setup
-    nonexistent_path = os.path.join(temp_dir_name, "nonexistent.yaml")
-    with patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}):
-        from cyberdelta.config.secrets_manager import ConfigurationError
-
-        with pytest.raises(ConfigurationError):
-            SecretsManager()
+    nonexistent_path = str(Path(temp_dir_name) / "nonexistent.yaml")
+    with (
+        patch.dict("os.environ", {"CYBERDELTA_SECRETS_PATH": nonexistent_path}),
+        pytest.raises(ConfigurationError),
+    ):
+        SecretsManager()
 
 
 def test_secrets_deep_nested_access(secure_secrets_manager_setup: tuple[str, str, str]) -> None:
@@ -352,7 +350,7 @@ def integration_config_secrets_setup() -> Generator[tuple[ConfigManager, Secrets
     with (
         tempfile.TemporaryDirectory() as temp_dir_name,
     ):
-        config_path = os.path.join(temp_dir_name, "config.yaml")
+        config_path = str(Path(temp_dir_name) / "config.yaml")
         Path(config_path).write_text(
             """
 general:
@@ -424,7 +422,7 @@ portfolio_tracker:
             encoding="utf-8",
         )
 
-        secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
+        secrets_path = str(Path(temp_dir_name) / "secrets.yaml")
         Path(secrets_path).write_text(
             """
 exchanges:

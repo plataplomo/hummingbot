@@ -34,6 +34,7 @@ from cyberdelta.core.models.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 logger = get_logger(__name__)
@@ -506,8 +507,6 @@ class TestCoreValidationLogic:
         trading_data_mapper: HyperliquidTradingDataMapper,
     ) -> None:
         """Test that exchange name is consistently assigned."""
-        from cyberdelta.enums.exchange_names import ExchangeName
-
         raw_order = create_raw_order()
         historical_order = create_raw_historical_order()
 

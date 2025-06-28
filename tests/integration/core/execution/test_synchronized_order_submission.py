@@ -86,9 +86,7 @@ class TestOrderVerifier:
         mock_tracker = MagicMock(spec=PortfolioTracker)
 
         # Initialize orders ; type is inferred from spec=PortfolioTracker
-        mock_tracker.orders = defaultdict(
-            lambda: dict[str, Order](),
-        )  # More precise default factory
+        mock_tracker.orders = defaultdict(dict)  # More precise default factory
 
         # Define a sample filled order for mocking
         sample_filled_order = Order(

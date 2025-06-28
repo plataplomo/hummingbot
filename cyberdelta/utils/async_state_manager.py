@@ -60,7 +60,7 @@ class AsyncStateManager:
             True if state was loaded successfully, False otherwise
         """
         try:
-            if not os.path.exists(self.state_file):
+            if not Path(self.state_file).exists():
                 logger.info(
                     "state_file_not_found",
                     action="loading_state",
@@ -190,13 +190,13 @@ class AsyncStateManager:
         Returns:
             True if backup was created successfully, False otherwise
         """
-        if not os.path.exists(self.state_file):
+        if not Path(self.state_file).exists():
             return False
 
         try:
             # Generate backup filename with timestamp
             timestamp: int = int(time.time())
-            backup_path: str = os.path.join(self.backup_dir, f"state_{timestamp}.json")
+            backup_path: str = str(Path(self.backup_dir) / f"state_{timestamp}.json")
 
             # Copy current state file to backup asynchronously
             await self._async_copy_file(self.state_file, backup_path)
@@ -250,17 +250,21 @@ class AsyncStateManager:
         loop = asyncio.get_event_loop()
 
         def _get_backup_files() -> list[str]:
-            files: list[str] = []
-            for filename in os.listdir(self.backup_dir):
-                if filename.startswith("state_") and filename.endswith(".json"):
-                    backup_path: str = os.path.join(self.backup_dir, filename)
-                    files.append(backup_path)
+            backup_dir_path = Path(self.backup_dir)
+            files: list[str] = [
+                str(file_path)
+                for file_path in backup_dir_path.iterdir()
+                if file_path.name.startswith("state_") and file_path.name.endswith(".json")
+            ]
 
             if not files:
                 return []
 
             # Sort by modification time (newest first)
-            files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            def get_mtime(file_path: str) -> float:
+                return Path(file_path).stat().st_mtime
+
+            files.sort(key=get_mtime, reverse=True)
             return files
 
         return await loop.run_in_executor(None, _get_backup_files)
@@ -399,7 +403,7 @@ class AsyncStateManager:
             loop = asyncio.get_event_loop()
 
             def _read_sync() -> dict[str, Any]:
-                with open(file_path, encoding="utf-8") as f:
+                with Path(file_path).open(encoding="utf-8") as f:
                     data = json.load(f)
                     return cast("dict[str, Any]", data)
 
@@ -422,10 +426,10 @@ class AsyncStateManager:
             def _write_sync() -> None:
                 # Write to temporary file first
                 temp_file = f"{file_path}.tmp"
-                with open(temp_file, "w", encoding="utf-8") as f:
+                with Path(temp_file).open("w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
                 # Atomic replace
-                os.replace(temp_file, file_path)
+                Path(temp_file).replace(file_path)
 
             await loop.run_in_executor(None, _write_sync)
             return True

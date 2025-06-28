@@ -7,7 +7,7 @@ including field validation, model validation, and security features.
 from typing import Any
 
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr, TypeAdapter, ValidationError
 
 from cyberdelta.config.secrets_models import (
     AnyExchangeSecrets,
@@ -171,7 +171,6 @@ class TestAnyExchangeSecrets:
         }
 
         # Parse as the union type
-        from pydantic import TypeAdapter
 
         adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
         secrets = adapter.validate_python(data)
@@ -187,8 +186,6 @@ class TestAnyExchangeSecrets:
         }
 
         # Parse as the union type
-        from pydantic import TypeAdapter
-
         adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
         secrets = adapter.validate_python(data)
 
@@ -202,8 +199,6 @@ class TestAnyExchangeSecrets:
             "api_key": "test_key",
             "api_secret": "test_secret",
         }
-
-        from pydantic import TypeAdapter
 
         adapter: TypeAdapter[AnyExchangeSecrets] = TypeAdapter(AnyExchangeSecrets)
         with pytest.raises(ValidationError) as exc_info:

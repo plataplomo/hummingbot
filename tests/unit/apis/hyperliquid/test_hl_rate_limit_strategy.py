@@ -3,6 +3,8 @@
 Tests the dual-limiter strategy that manages IP weights and address action counts for Hyperliquid.
 """
 
+import asyncio
+import time
 from unittest.mock import Mock
 
 import pytest
@@ -54,8 +56,6 @@ class TestHyperliquidRateLimitStrategy:
         )
 
         # Should not raise an exception, indicating limiters are properly initialized
-        import asyncio
-
         asyncio.run(strategy.prepare_and_acquire(request_context))
 
     def test_initialization_calculates_correct_rates(
@@ -75,9 +75,6 @@ class TestHyperliquidRateLimitStrategy:
             request_weight=1,
             endpoint_group=None,
         )
-
-        import asyncio
-        import time
 
         async def test_rate_behavior() -> None:
             # First request should work immediately
@@ -251,8 +248,6 @@ class TestHyperliquidRateLimitStrategy:
         hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test concurrent calls to prepare_and_acquire."""
-        import asyncio
-
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
         request_context = RateLimitRequestContext(
@@ -312,8 +307,6 @@ class TestHyperliquidRateLimitStrategyIntegration:
         hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Test that real limiters enforce rate limits through observable timing."""
-        import time
-
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
         # Make multiple calls quickly to test rate limiting

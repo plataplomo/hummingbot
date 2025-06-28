@@ -271,7 +271,7 @@ class BackpackAccountService:
             raw_info_for_log = (
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
-            logger.exception(
+            logger.error(
                 "unhandled_error_positions: Unhandled error for raw positions",
                 symbol=symbol or "all",
                 error=str(e_unhandled),
@@ -339,7 +339,7 @@ class BackpackAccountService:
             raw_info_for_log = (
                 f"Raw: {raw_data!r}" if raw_data is not None else "Raw data unavailable"
             )
-            logger.exception(
+            logger.error(
                 "unhandled_error_account_summary: Unhandled error for raw account summary",
                 error=str(e_unhandled),
                 raw_info=raw_info_for_log,
@@ -444,7 +444,7 @@ class BackpackAccountService:
             # Re-raise APIErrors from _get_raw_balances_dict, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform exchange data",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -458,7 +458,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -472,7 +472,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -484,7 +484,7 @@ class BackpackAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure: Unexpected service failure",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -670,7 +670,7 @@ class BackpackAccountService:
             # Re-raise APIErrors from _get_raw_positions_list, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform exchange data for positions",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -685,7 +685,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed for positions",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -708,7 +708,7 @@ class BackpackAccountService:
                 # This is likely from our input parameter validation - re-raise as is
                 raise
             # This is from service internal logic - wrap as APIError
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for positions",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -723,7 +723,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure: Unexpected service failure for positions",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -794,7 +794,7 @@ class BackpackAccountService:
         except APIError:
             raise
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service logic error",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -807,7 +807,7 @@ class BackpackAccountService:
                 http_status=400,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure: Unexpected service failure",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -885,7 +885,7 @@ class BackpackAccountService:
             # Re-raise other API errors
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform enhanced data",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -899,7 +899,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_enhanced_account_failure: Unexpected enhanced account failure",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -966,7 +966,7 @@ class BackpackAccountService:
             # Re-raise APIErrors from _get_raw_* methods, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform basic data",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -980,7 +980,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -994,7 +994,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_val
         except (ValueError, TypeError) as e_service_logic:
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1006,7 +1006,7 @@ class BackpackAccountService:
                 original_exception=e_service_logic,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_basic_account_failure: Unexpected basic account failure",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1069,7 +1069,7 @@ class BackpackAccountService:
             )
 
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "collateral_fetch_failed: Failed to fetch collateral data",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1143,7 +1143,7 @@ class BackpackAccountService:
             return max_quantity
 
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "max_borrow_fetch_failed: Failed to fetch max borrow quantity",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1216,7 +1216,7 @@ class BackpackAccountService:
             return max_quantity
 
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "max_order_fetch_failed: Failed to fetch max order quantity",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1290,7 +1290,7 @@ class BackpackAccountService:
             return max_quantity
 
         except Exception as e:
-            logger.exception(
+            logger.error(
                 "max_withdrawal_fetch_failed: Failed to fetch max withdrawal quantity",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1406,11 +1406,12 @@ class BackpackAccountService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform exchange data for transfer",
                 exchange_name=self._exchange_name,
                 method=current_method,
                 error=str(e),
+                exc_info=e,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1420,11 +1421,12 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed for transfer",
                 exchange_name=self._exchange_name,
                 method=current_method,
                 error=str(e),
+                exc_info=e,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1439,11 +1441,12 @@ class BackpackAccountService:
                 param in error_msg for param in ["from_account_type", "to_account_type"]
             ):
                 raise
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for transfer",
                 exchange_name=self._exchange_name,
                 method=current_method,
                 error=str(e),
+                exc_info=e,
             )
             raise APIError(
                 code=APIErrorCode.UNKNOWN.value,
@@ -1452,11 +1455,12 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "unexpected_service_failure: Unexpected service failure for transfer",
             exchange_name=self._exchange_name,
             method=current_method,
             error=str(e),
+            exc_info=e,
         )
         raise APIError(
             code=APIErrorCode.UNKNOWN.value,
@@ -1604,11 +1608,12 @@ class BackpackAccountService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform exchange data for withdrawal",
                 exchange_name=self._exchange_name,
                 method=current_method,
                 error=str(e),
+                exc_info=e,
             )
             raise APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
@@ -1618,7 +1623,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed for withdrawal",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1635,7 +1640,7 @@ class BackpackAccountService:
             error_msg = str(e)
             if current_method in error_msg and "network" in error_msg:
                 raise
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for withdrawal",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1648,7 +1653,7 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "unexpected_service_failure: Unexpected service failure for withdrawal",
             exchange_name=self._exchange_name,
             method=current_method,
@@ -1774,7 +1779,7 @@ class BackpackAccountService:
             # Re-raise APIErrors from _requester, ResponseHandler, etc.
             raise
         except TransformationError as e_transform:
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform exchange data for order history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1788,7 +1793,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_transform
         except ValidationError as e_val:
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed for order history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1804,7 +1809,7 @@ class BackpackAccountService:
         except (ValueError, TypeError) as e_service_logic:
             # Since input parameter validation is now handled by Pydantic model,
             # any ValueError/TypeError here is from service internal logic - wrap as APIError
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for order history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1818,7 +1823,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e_service_logic
         except Exception as e_unexpected:
-            logger.exception(
+            logger.error(
                 "unexpected_service_failure: Unexpected service failure for order history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1924,7 +1929,7 @@ class BackpackAccountService:
         if isinstance(e, APIError):
             raise
         if isinstance(e, TransformationError):
-            logger.exception(
+            logger.error(
                 "transform_failed: Failed to transform exchange data for trade history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1938,7 +1943,7 @@ class BackpackAccountService:
                 exchange_message=raw_response_content,
             ) from e
         if isinstance(e, ValidationError):
-            logger.exception(
+            logger.error(
                 "validation_failed: Internal data validation failed for trade history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1955,7 +1960,7 @@ class BackpackAccountService:
             error_msg = str(e)
             if current_method in error_msg and "limit" in error_msg:
                 raise
-            logger.exception(
+            logger.error(
                 "service_logic_error: Service internal logic error for trade history",
                 exchange_name=self._exchange_name,
                 method=current_method,
@@ -1968,7 +1973,7 @@ class BackpackAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
-        logger.exception(
+        logger.error(
             "unexpected_service_failure: Unexpected service failure for trade history",
             exchange_name=self._exchange_name,
             method=current_method,

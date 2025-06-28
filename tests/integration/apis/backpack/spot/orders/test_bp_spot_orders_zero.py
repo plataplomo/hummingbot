@@ -19,6 +19,7 @@ Balance: $0 USDC (insufficient funds scenarios for spot trading)
 
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal
 from typing import Any
 
@@ -354,8 +355,6 @@ class TestBackpackOrdersZeroBalance:
         Tests multiple simultaneous order placement attempts with zero balance.
         Should handle concurrent requests gracefully.
         """
-        import asyncio
-
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,

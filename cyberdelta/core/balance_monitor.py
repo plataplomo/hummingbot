@@ -1,10 +1,10 @@
 """Balance monitoring and alerting system for portfolio tracking."""
 
-import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from cyberdelta.config.models.config_models import AppSettings
@@ -323,7 +323,7 @@ class BalanceMonitor:
         # Use default state file path since it's not in the new config structure
         self.state_file = ""
 
-        if not self.state_file or not os.path.exists(self.state_file):
+        if not self.state_file or not Path(self.state_file).exists():
             logger.info(
                 "no_state_file_found",
                 action="load_state",

@@ -72,7 +72,7 @@ class SecretsManager:
 
         try:
             # Read and parse YAML file
-            with open(self.secrets_path) as f:
+            with self.secrets_path.open(encoding="utf-8") as f:
                 secrets_data_dict = yaml.safe_load(f)
 
             # Ensure loaded data is valid

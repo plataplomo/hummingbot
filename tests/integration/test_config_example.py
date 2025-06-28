@@ -20,7 +20,7 @@ import pytest
 
 
 # Add parent directory to path to import from project
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 
 @pytest.fixture
@@ -31,35 +31,31 @@ def example_test_setup() -> Generator[tuple[str, str]]:
         tuple[str, str]: Temporary directory path and example script path.
     """
     with tempfile.TemporaryDirectory() as temp_dir_name:
-        example_script_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "examples",
-            "config_example.py",
+        example_script_path = (
+            Path(__file__).resolve().parent.parent.parent / "examples" / "config_example.py"
         )
         # Make sure the example script exists
-        assert os.path.exists(example_script_path), (
-            f"Example script not found at {example_script_path}"
-        )
-        yield temp_dir_name, example_script_path
+        assert example_script_path.exists(), f"Example script not found at {example_script_path}"
+        yield temp_dir_name, str(example_script_path)
 
 
 def test_create_example(example_test_setup: tuple[str, str]) -> None:
     """Test that the script creates example files."""
     temp_dir_name, example_script = example_test_setup
     # Create a temporary directory for the config files
-    config_dir = os.path.join(temp_dir_name, "config")
-    os.makedirs(config_dir, exist_ok=True)
+    config_dir = Path(temp_dir_name) / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
 
     # Create a temporary directory for cyberdelta/config
-    cyberdelta_config_dir = os.path.join(temp_dir_name, "cyberdelta", "config")
-    os.makedirs(cyberdelta_config_dir, exist_ok=True)
+    cyberdelta_config_dir = Path(temp_dir_name) / "cyberdelta" / "config"
+    cyberdelta_config_dir.mkdir(parents=True, exist_ok=True)
 
     # Set HOME to the temp directory for ~/.cyberdelta
     with patch.dict("os.environ", {"HOME": temp_dir_name}):
-        script_dir = os.path.dirname(example_script)
+        script_dir = Path(example_script).parent
 
         result = subprocess.run(
-            [sys.executable, os.path.basename(example_script), "--create-example"],
+            [sys.executable, Path(example_script).name, "--create-example"],
             cwd=script_dir,
             capture_output=True,
             text=True,
@@ -69,21 +65,16 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
 
         assert exit_code == 0, f"Script failed with exit code {exit_code}"
 
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        project_root = Path(__file__).resolve().parent.parent.parent
 
-        cyberdelta_config_example = os.path.join(
-            project_root,
-            "cyberdelta",
-            "config",
-            "config.yaml.example",
-        )
-        root_config_example = os.path.join(project_root, "config", "config.example.yaml")
-        home_config_example = os.path.join(temp_dir_name, ".cyberdelta", "secrets.yaml.example")
+        cyberdelta_config_example = project_root / "cyberdelta" / "config" / "config.yaml.example"
+        root_config_example = project_root / "config" / "config.example.yaml"
+        home_config_example = Path(temp_dir_name) / ".cyberdelta" / "secrets.yaml.example"
 
         files_created = (
-            os.path.exists(cyberdelta_config_example)
-            or os.path.exists(root_config_example)
-            or os.path.exists(home_config_example)
+            cyberdelta_config_example.exists()
+            or root_config_example.exists()
+            or home_config_example.exists()
         )
 
         assert files_created, "No example files were created in any of the expected locations"
@@ -93,14 +84,14 @@ def test_create_example(example_test_setup: tuple[str, str]) -> None:
 def test_benchmark(example_test_setup: tuple[str, str]) -> None:
     """Test that the benchmark function runs."""
     temp_dir_name, example_script = example_test_setup
-    config_path = os.path.join(temp_dir_name, "config.yaml")
-    secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
+    config_path = Path(temp_dir_name) / "config.yaml"
+    secrets_path = Path(temp_dir_name) / "secrets.yaml"
 
     # Set environment variables for the config system
-    os.environ["CYBERDELTA_CONFIG_PATH"] = config_path
-    os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
+    os.environ["CYBERDELTA_CONFIG_PATH"] = str(config_path)
+    os.environ["CYBERDELTA_SECRETS_PATH"] = str(secrets_path)
 
-    Path(config_path).write_text(
+    config_path.write_text(
         """
 # General settings
 general:
@@ -142,7 +133,7 @@ risk:
         encoding="utf-8",
     )
 
-    Path(secrets_path).write_text(
+    secrets_path.write_text(
         """
 exchanges:
   hyperliquid:
@@ -155,19 +146,19 @@ exchanges:
         encoding="utf-8",
     )
 
-    script_dir = os.path.dirname(example_script)
+    script_dir = Path(example_script).parent
 
     # Create a copy of the environment with our paths
     env = os.environ.copy()
-    env["CYBERDELTA_CONFIG_PATH"] = config_path
-    env["CYBERDELTA_SECRETS_PATH"] = secrets_path
+    env["CYBERDELTA_CONFIG_PATH"] = str(config_path)
+    env["CYBERDELTA_SECRETS_PATH"] = str(secrets_path)
     # Remove pytest indicator so config initializes
     env.pop("PYTEST_CURRENT_TEST", None)
 
     result = subprocess.run(
         [
             sys.executable,
-            os.path.basename(example_script),
+            Path(example_script).name,
             "--benchmark",
             "--config",
             str(config_path),
@@ -191,14 +182,14 @@ exchanges:
 def test_display_config(example_test_setup: tuple[str, str]) -> None:
     """Test that the script displays configuration correctly."""
     temp_dir_name, example_script = example_test_setup
-    config_path = os.path.join(temp_dir_name, "config.yaml")
-    secrets_path = os.path.join(temp_dir_name, "secrets.yaml")
+    config_path = Path(temp_dir_name) / "config.yaml"
+    secrets_path = Path(temp_dir_name) / "secrets.yaml"
 
     # Set environment variables for the config system
-    os.environ["CYBERDELTA_CONFIG_PATH"] = config_path
-    os.environ["CYBERDELTA_SECRETS_PATH"] = secrets_path
+    os.environ["CYBERDELTA_CONFIG_PATH"] = str(config_path)
+    os.environ["CYBERDELTA_SECRETS_PATH"] = str(secrets_path)
 
-    Path(config_path).write_text(
+    config_path.write_text(
         """
 # General settings
 general:
@@ -238,7 +229,7 @@ risk:
         encoding="utf-8",
     )
 
-    Path(secrets_path).write_text(
+    secrets_path.write_text(
         """
 exchanges:
   hyperliquid:
@@ -251,19 +242,19 @@ exchanges:
         encoding="utf-8",
     )
 
-    script_dir = os.path.dirname(example_script)
+    script_dir = Path(example_script).parent
 
     # Create a copy of the environment with our paths
     env = os.environ.copy()
-    env["CYBERDELTA_CONFIG_PATH"] = config_path
-    env["CYBERDELTA_SECRETS_PATH"] = secrets_path
+    env["CYBERDELTA_CONFIG_PATH"] = str(config_path)
+    env["CYBERDELTA_SECRETS_PATH"] = str(secrets_path)
     # Remove pytest indicator so config initializes
     env.pop("PYTEST_CURRENT_TEST", None)
 
     result = subprocess.run(
         [
             sys.executable,
-            os.path.basename(example_script),
+            Path(example_script).name,
             "--config",
             str(config_path),
             "--secrets",

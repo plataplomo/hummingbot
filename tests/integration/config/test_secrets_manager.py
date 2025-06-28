@@ -64,7 +64,7 @@ class TestSecretsManager:
         secrets_path = Path(temp_dir) / filename
         secrets_data = self.create_valid_secrets_dict()
 
-        with open(secrets_path, "w") as f:
+        with secrets_path.open("w", encoding="utf-8") as f:
             yaml.safe_dump(secrets_data, f)
 
         return secrets_path
@@ -108,7 +108,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            Path(secrets_path).write_text("invalid: yaml: content: [\n")
+            Path(secrets_path).write_text("invalid: yaml: content: [\n", encoding="utf-8")
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
@@ -120,7 +120,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "empty.yaml"
 
             # Write empty file
-            Path(secrets_path).write_text("")
+            Path(secrets_path).write_text("", encoding="utf-8")
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
@@ -142,7 +142,7 @@ class TestSecretsManager:
                 # Missing notifications and logfire
             }
 
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(invalid_data, f)
 
             with pytest.raises(ConfigurationError) as exc_info:
@@ -162,7 +162,7 @@ class TestSecretsManager:
 
         try:
             # Create a valid secrets file
-            with open(default_secrets_path, "w") as f:
+            with default_secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(self.create_valid_secrets_dict(), f)
 
             # Initialize without explicit path - should find the default
@@ -186,7 +186,7 @@ class TestSecretsManager:
             custom_path = Path(temp_dir) / "custom_secrets.yaml"
 
             # Create the custom secrets file
-            with open(custom_path, "w") as f:
+            with custom_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(self.create_valid_secrets_dict(), f)
 
             # Patch the environment variable to point to our test file
@@ -235,7 +235,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid YAML
-            Path(secrets_path).write_text("invalid: yaml: [unclosed\n")
+            Path(secrets_path).write_text("invalid: yaml: [unclosed\n", encoding="utf-8")
             manager = SecretsManager.__new__(SecretsManager)
             manager.secrets_path = secrets_path
             manager.secrets_data = None
@@ -256,7 +256,7 @@ class TestSecretsManager:
             # Write structurally valid YAML but invalid secrets structure
             invalid_data = {"invalid": "structure"}
 
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(invalid_data, f)
 
             manager = SecretsManager.__new__(SecretsManager)
@@ -288,7 +288,7 @@ class TestSecretsManager:
                 "api_secret": "new_secret",
             }
 
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(modified_data, f)
 
             # Reload
@@ -309,7 +309,7 @@ class TestSecretsManager:
             manager = SecretsManager(str(secrets_path))
 
             # Corrupt the secrets file
-            Path(secrets_path).write_text("invalid: yaml: [unclosed\n")
+            Path(secrets_path).write_text("invalid: yaml: [unclosed\n", encoding="utf-8")
             # Reload should fail
             with pytest.raises(ConfigurationError):
                 manager.reload()
@@ -328,7 +328,7 @@ class TestSecretsManager:
             )
 
             secrets_path = Path(temp_dir) / "secrets.yaml"
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(secrets_data, f)
 
             manager = SecretsManager(str(secrets_path))
@@ -354,7 +354,7 @@ class TestSecretsManager:
             }
 
             secrets_path = Path(temp_dir) / "secrets.yaml"
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(secrets_data, f)
 
             manager = SecretsManager(str(secrets_path))
@@ -379,7 +379,7 @@ class TestSecretsManager:
             }
 
             secrets_path = Path(temp_dir) / "secrets.yaml"
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(secrets_data, f)
 
             with pytest.raises(ConfigurationError) as exc_info:
@@ -422,7 +422,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "invalid.yaml"
 
             # Write invalid structure
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump({"invalid": "structure"}, f)
 
             with pytest.raises(ConfigurationError):
@@ -462,7 +462,7 @@ class TestSecretsManager:
             secrets_path = Path(temp_dir) / "secrets.yaml"
 
             # Create file but make it unreadable
-            with open(secrets_path, "w") as f:
+            with secrets_path.open("w", encoding="utf-8") as f:
                 yaml.safe_dump(self.create_valid_secrets_dict(), f)
 
             # Make file unreadable (this might not work on all systems)
@@ -499,7 +499,7 @@ logfire:
 dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"]
 """
 
-            Path(secrets_path).write_text(dangerous_yaml)
+            Path(secrets_path).write_text(dangerous_yaml, encoding="utf-8")
             # Should fail validation due to extra field, not execute dangerous code
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))

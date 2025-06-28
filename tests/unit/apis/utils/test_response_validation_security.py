@@ -5,6 +5,8 @@ ensuring that validation utilities properly handle malicious inputs, edge cases,
 and potential attack vectors.
 """
 
+import threading
+import time
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
@@ -214,8 +216,6 @@ class TestSecurityValidationScenarios:
 
     def test_concurrent_validation_safety(self) -> None:
         """Test that validation functions are thread-safe."""
-        import threading
-
         results = []
         errors = []
 
@@ -299,8 +299,6 @@ class TestValidationPerformance:
 
     def test_large_response_performance(self) -> None:
         """Test that validation handles large responses efficiently."""
-        import time
-
         # Create a large list
         large_list = [{"id": i, "data": f"item_{i}"} for i in range(100000)]
 

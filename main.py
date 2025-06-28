@@ -14,6 +14,7 @@ import signal
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 # Corrected imports for API clients
@@ -139,7 +140,6 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
 
 async def shutdown(app_state: dict[str, Any]) -> None:
     """Perform graceful shutdown using cancellation token."""
-    global cancellation_token
     if cancellation_token.is_set():
         logger.warning("Shutdown already in progress.")
         return
@@ -555,8 +555,6 @@ async def _handle_shutdown_and_cleanup(
     main_tasks: list[asyncio.Task[Any]],
 ) -> None:
     """Handle shutdown sequence and cleanup background tasks."""
-    global cancellation_token
-
     logger.info("Main loop terminated or error occurred. Ensuring shutdown...")
     if not cancellation_token.is_set():
         logger.warning("Shutdown not initiated by signal handler, triggering now.")
@@ -595,7 +593,6 @@ async def _handle_shutdown_and_cleanup(
 
 async def main() -> None:
     """Main application entry point."""
-    global cancellation_token
     app_state: dict[str, Any] = {}
     main_tasks: list[asyncio.Task[Any]] = []  # Initialize to avoid unbound variable
 
@@ -656,9 +653,9 @@ if __name__ == "__main__":
     main_module = sys.modules.get("__main__")
     is_direct_run = False
     if main_module and hasattr(main_module, "__file__") and main_module.__file__:
-        # Use os.path.abspath for robustness
-        main_file_path = os.path.abspath(main_module.__file__)
-        if main_file_path.endswith(os.path.join("cyberdelta", "main.py")):
+        # Use Path.resolve() for robustness
+        main_file_path = str(Path(main_module.__file__).resolve())
+        if main_file_path.endswith(str(Path("cyberdelta") / "main.py")):
             is_direct_run = True
 
     if is_direct_run:

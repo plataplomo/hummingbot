@@ -72,8 +72,14 @@ async def fetch_backpack_time() -> None:
 
                     # Save as JSON
                     filepath = output_dir / "bp_time.json"
-                    with open(filepath, "w", encoding="utf-8") as f:
-                        json.dump(json_data, f, indent=2)
+                    # Use async file writing to avoid blocking in async function
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(
+                        None,
+                        lambda: filepath.write_text(
+                            json.dumps(json_data, indent=2), encoding="utf-8"
+                        ),
+                    )
                     logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
                 else:
                     logger.error(

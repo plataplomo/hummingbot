@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import time
 from collections.abc import Awaitable, Callable
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.margin_account import MarginAccountSummary
@@ -36,7 +36,7 @@ T = TypeVar("T")
 
 async def wait_for_condition(
     condition_fn: Callable[[], bool] | Callable[[], Awaitable[bool]],
-    timeout: float = 30.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.1,
     message: str = "Condition not met",
 ) -> None:
@@ -44,38 +44,38 @@ async def wait_for_condition(
 
     Args:
         condition_fn: Function that returns True when condition is met
-        timeout: Maximum time to wait in seconds
+        timeout_seconds: Maximum time to wait in seconds
         poll_interval: Time between polls in seconds
         message: Error message if timeout occurs
 
     Raises:
         TimeoutError: If condition is not met within timeout
     """
-    start_time = time.time()
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            while True:
+                try:
+                    # Handle both sync and async condition functions
+                    if asyncio.iscoroutinefunction(condition_fn):
+                        result = await condition_fn()
+                    else:
+                        result = condition_fn()
 
-    while time.time() - start_time < timeout:
-        try:
-            # Handle both sync and async condition functions
-            if asyncio.iscoroutinefunction(condition_fn):
-                result = await condition_fn()
-            else:
-                result = condition_fn()
+                    if result:
+                        return
+                except Exception:
+                    # Continue polling on transient errors
+                    logger.debug("Transient error during polling, continuing...")
 
-            if result:
-                return
-        except Exception:
-            # Continue polling on transient errors
-            logger.debug("Transient error during polling, continuing...")
-
-        await asyncio.sleep(poll_interval)
-
-    raise TimeoutError(f"{message} after {timeout} seconds")
+                await asyncio.sleep(poll_interval)
+    except TimeoutError:
+        raise TimeoutError(f"{message} after {timeout_seconds} seconds") from None
 
 
 async def wait_for_value(
     value_fn: Callable[[], T] | Callable[[], Awaitable[T]],
     expected_value: T,
-    timeout: float = 30.0,
+    timeout_seconds: float = 30.0,
     poll_interval: float = 0.1,
     message: str | None = None,
 ) -> T:
@@ -84,7 +84,7 @@ async def wait_for_value(
     Args:
         value_fn: Function that returns the value to check
         expected_value: The value to wait for
-        timeout: Maximum time to wait in seconds
+        timeout_seconds: Maximum time to wait in seconds
         poll_interval: Time between polls in seconds
         message: Error message if timeout occurs
 
@@ -101,7 +101,7 @@ async def wait_for_value(
             value = value_fn()
         return bool(value == expected_value)
 
-    await wait_for_condition(check_value, timeout, poll_interval, message)
+    await wait_for_condition(check_value, timeout_seconds, poll_interval, message)
     return expected_value
 
 
@@ -135,8 +135,6 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
         >>> perp_symbols = await get_available_symbols(api, "perp")
     """
     try:
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         # Get all available markets from exchange
         args = GetMarketsArgs()
         all_markets = await api.get_markets(args)
@@ -273,8 +271,6 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
         ... )
     """
     try:
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         # Get market information that includes symbol formatting
         args = GetMarketsArgs()
         markets = await api.get_markets(args)
@@ -379,8 +375,6 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
         >>> # Returns Decimal("0.01") for 2 decimal places
     """
     try:
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         markets = await api.get_markets(GetMarketsArgs())
 
         for market in markets:
@@ -415,8 +409,6 @@ async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
         RuntimeError: If symbol is not found or API call fails.
     """
     try:
-        from cyberdelta.apis.models.service_args_models import GetMarketsArgs
-
         markets = await api.get_markets(GetMarketsArgs())
 
         for market in markets:
@@ -457,8 +449,6 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
         RuntimeError: If API call fails or constraints cannot be retrieved.
     """
     try:
-        from cyberdelta.apis.models.service_args_models import GetMarketArgs
-
         market = await api.get_market(GetMarketArgs(symbol=symbol))
 
         constraints = {

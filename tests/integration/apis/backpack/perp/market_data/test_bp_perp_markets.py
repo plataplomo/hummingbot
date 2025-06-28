@@ -14,6 +14,7 @@ Tests cover perpetual futures markets only:
 - Backpack-specific market details (bp_details extension slots)
 """
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -21,8 +22,13 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.models.market.market import Market
+from cyberdelta.apis.models.service_args_models import (
+    GetFundingRatesArgs,
+    GetMarketArgs,
+    GetMarketsArgs,
+)
+from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
+from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
 
 
 # Mark all tests in this file
@@ -132,16 +138,12 @@ class TestBackpackPerpMarkets:
 
         # Validate optional timestamp
         if market.created_at is not None:
-            from datetime import datetime
-
             assert isinstance(market.created_at, datetime), (
                 f"created_at should be datetime, got {type(market.created_at)}"
             )
 
         # Validate Backpack-specific details
         if market.bp_details is not None:
-            from cyberdelta.core.models.market.market import BackpackMarketDetails
-
             assert isinstance(market.bp_details, BackpackMarketDetails), (
                 f"bp_details should be BackpackMarketDetails, got {type(market.bp_details)}"
             )
@@ -535,9 +537,6 @@ class TestBackpackPerpMarkets:
         # Validate tick_size is reasonable relative to ACTUAL current prices
         if market.quote_symbol == "USDC":
             # Get real current price to validate tick size makes sense
-            from tests.integration.apis.backpack.shared.bp_test_helpers import (
-                get_current_market_price,
-            )
 
             current_price = await get_current_market_price(bp_api_for_test_env, market.symbol)
             # Tick size should be much smaller than current price (reasonable precision)
@@ -579,9 +578,6 @@ class TestBackpackPerpMarkets:
         for leverage in test_leverages:
             # Test notional calculations with REAL market data
             # Get actual current market price - no hardcoded values allowed
-            from tests.integration.apis.backpack.shared.bp_test_helpers import (
-                get_current_market_price,
-            )
 
             actual_price = await get_current_market_price(bp_api_for_test_env, "SOL_USDC_PERP")
 
@@ -629,7 +625,6 @@ class TestBackpackPerpMarkets:
 
         # Test that tick size allows reasonable funding rate calculations with REAL data
         # Get actual funding rate from exchange - no hardcoded rates
-        from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 
         funding_rates = await bp_api_for_test_env.get_funding_rates(
             GetFundingRatesArgs(symbols=["SOL_USDC_PERP"]),
@@ -642,7 +637,6 @@ class TestBackpackPerpMarkets:
         actual_funding_rate = abs(funding_data.funding_rate)
 
         # Get real current price - no hardcoded prices
-        from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
 
         actual_price = await get_current_market_price(bp_api_for_test_env, "SOL_USDC_PERP")
         funding_payment = actual_price * actual_funding_rate

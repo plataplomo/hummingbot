@@ -887,7 +887,7 @@ class RawHlCoinName(UserString):
         return cls(value)
 
     @classmethod
-    def __get_pydantic_core_schema__(
+    def __get_pydantic_core_schema__(  # noqa: PLW3201
         cls,
         source_type: type[str],
         handler: GetCoreSchemaHandler,

@@ -179,8 +179,6 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
         except ValidationError:
             pass  # Expected
         else:
-            import pytest
-
             pytest.fail(
                 f"Failed corruption case: {description} ("
                 f"{field}={value!r}) - ValidationError not raised",

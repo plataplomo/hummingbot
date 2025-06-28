@@ -159,7 +159,7 @@ def test_map_hl_empty_error_body(hyperliquid_error_mapper: HyperliquidErrorMappe
     assert error.code == APIErrorCode.AUTHENTICATION_FAILED.value
     assert error.http_status == 401
     assert "Authentication failed" in error.message  # Default for 401
-    assert error.exchange_message == ""
+    assert not error.exchange_message
 
 
 @pytest.mark.parametrize(
