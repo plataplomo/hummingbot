@@ -51,7 +51,13 @@ graph TD
     H1 --> I
 ```
 
-## Strategic Approach
+## Enhanced Strategic Approach
+
+### Architectural Alignment: The 6-Layer Strategy
+
+The primary goal of this refactoring is not just to resolve linting errors, but to elevate the project's resilience and observability. By creating a rich, domain-specific exception hierarchy that aligns perfectly with the **6-Layer Architecture** defined in `cyberdelta/apis/API_ARCHITECTURE.md`, we transform error conditions from simple failures into valuable, structured data points.
+
+This alignment ensures that errors are handled at the appropriate level, provide maximum context, and integrate seamlessly with logging, monitoring, and automated recovery systems.
 
 ### Delta-Neutral Arbitrage Trading Flow
 
@@ -109,63 +115,82 @@ sequenceDiagram
     Portfolio--xEngine: Sync Error
 ```
 
-### Exception Architecture Deep Dive
+### Enhanced Exception Architecture
 
-The current exception handling requires comprehensive refactoring to support the complex business logic of delta-neutral arbitrage trading. Here's the detailed analysis:
+The refactored exception architecture is explicitly designed to mirror the 6-Layer system design. This provides clear, domain-specific errors at each layer, ensuring that exceptions are handled at the appropriate level and provide maximum context for debugging and automated recovery.
 
 ```mermaid
 classDiagram
-    class TradingError {
-        +exchange: str
-        +operation_type: str
-        +timestamp: datetime
+    direction LR
+    class CyberDeltaError {
+        <<abstract>>
+        +message: str
         +context: dict
     }
-
-    class AuthenticationError {
-        +credentials_type: str
-        +exchange: str
-        +retry_allowed: bool
+    class TechnicalError {
+        <<Layer 1-3>>
+    }
+    class FinancialError {
+        <<Layer 4-6>>
+    }
+    class StrategyError {
+        <<Application Layer>>
     }
 
-    class RateLimitError {
+    CyberDeltaError <|-- TechnicalError
+    CyberDeltaError <|-- FinancialError
+    CyberDeltaError <|-- StrategyError
+
+    class ConnectivityError {
+        +host: str
+        +port: int
+    }
+    class APIError {
+        +exchange: str
+        +http_status: int
         +retry_after: int
-        +current_weight: int
-        +limit_type: str
     }
+    class AuthenticationError
+    class RateLimitError
 
-    class MarketError {
-        +symbol: str
-        +market_state: str
-        +expected_state: str
+    TechnicalError <|-- ConnectivityError
+    TechnicalError <|-- APIError
+    APIError <|-- AuthenticationError
+    APIError <|-- RateLimitError
+
+    class TransformationError {
+        +mapper: str
+        +direction: str
     }
-
     class ValidationError {
-        +field_name: str
-        +field_value: any
-        +constraint: str
+        +model: str
+        +field: str
+    }
+    class TradingError {
+        +symbol: str
+        +order_id: str
+    }
+    class RiskError {
+         +limit_type: str
+         +current_value: Decimal
+         +limit_value: Decimal
     }
 
-    class PositionError {
-        +position_id: str
-        +expected_size: Decimal
-        +actual_size: Decimal
-        +exchange: str
-    }
+    FinancialError <|-- TransformationError
+    FinancialError <|-- ValidationError
+    FinancialError <|-- TradingError
+    FinancialError <|-- RiskError
 
-    class ArbitrageError {
-        +opportunity_id: str
+    class OpportunityError {
         +profitability: Decimal
-        +risk_score: float
-        +rejection_reason: str
+    }
+    class PositionImbalanceError {
+        +expected_delta: Decimal
+        +actual_delta: Decimal
     }
 
-    TradingError <|-- AuthenticationError
-    TradingError <|-- RateLimitError
-    TradingError <|-- MarketError
-    TradingError <|-- ValidationError
-    TradingError <|-- PositionError
-    TradingError <|-- ArbitrageError
+    StrategyError <|-- OpportunityError
+    StrategyError <|-- PositionImbalanceError
 ```
 
 ### Phase 1: Exception Class Architecture (TRY003 - 857 errors)
@@ -802,83 +827,81 @@ class ExceptionSimulator:
         return results
 ```
 
-## Implementation Workflow
+## Architecturally-Aligned Implementation Plan
 
-### Enhanced Implementation Strategy
+This is a detailed, step-by-step implementation plan, ordered by architectural layer and business criticality.
 
 ```mermaid
 gantt
-    title Ruff Error Resolution Implementation Timeline
+    title Architecturally-Aligned Exception Refactoring Timeline
     dateFormat  YYYY-MM-DD
-    section Phase 1: Architecture
-    Exception Design          :active, des1, 2024-01-01, 7d
-    Base Classes             :des2, after des1, 5d
-    section Phase 2: Critical Path
-    Authentication Errors    :critical, crit1, after des2, 3d
-    Trading Operations       :crit2, after crit1, 5d
-    Market Data              :crit3, after crit2, 4d
-    Risk Management          :crit4, after crit3, 3d
-    section Phase 3: Standard Path
-    Configuration Errors     :std1, after crit4, 4d
-    Validation Errors        :std2, after std1, 5d
-    Data Transformation      :std3, after std2, 4d
-    section Phase 4: Integration
-    Control Flow Refactoring :int1, after std3, 6d
-    Testing & Validation     :int2, after int1, 5d
-    Performance Optimization :int3, after int2, 3d
+    section Phase 1: Foundation (1 week)
+    Create Exception Modules & Bases :active, 2024-01-01, 7d
+
+    section Phase 2: Core Hardening (1 week)
+    Harden Layers 1-3 (Connectivity, Auth, API) : 2024-01-08, 7d
+
+    section Phase 3: Data Pipeline (1 week)
+    Fortify Layers 4-5 (Services, Mappers) : 2024-01-15, 7d
+
+    section Phase 4: Business Logic (1 week)
+    Enhance Layer 6 & App (Strategies, Core) : 2024-01-22, 7d
+
+    section Phase 5: Observability & QA (1 week)
+    Integrate Logging & Final Tests : 2024-01-29, 7d
 ```
 
-### Step 1: Exception Hierarchy Design (Week 1)
+### **Step 1: Create the New Exception Modules (Foundation)**
 
-```bash
-# 1. Create exception module structure
-mkdir -p cyberdelta/exceptions/{financial,technical,system}
+This step establishes the file structure for our new, organized exception hierarchy.
 
-# 2. Design base exception classes
-# Focus on business domain separation and error context preservation
+*   **Action:** Create the new directory structure and base exception files.
+    *   `cyberdelta/exceptions/`
+        *   `__init__.py`
+        *   `base_exceptions.py` (Defines `CyberDeltaError`, `TechnicalError`, `FinancialError`, `StrategyError`)
+        *   `technical.py` (Defines `ConnectivityError`, `APIError`, `AuthenticationError`, `RateLimitError`)
+        *   `financial.py` (Defines `TransformationError`, `ValidationError`, `TradingError`, `RiskError`)
+        *   `strategy.py` (Defines `OpportunityError`, `PositionImbalanceError`, and other strategy-specific exceptions from the refactoring documents)
 
-# 3. Create migration mapping
-# Map current exception messages to new exception classes
-```
+### **Step 2: Harden the Core (Layers 1-3: Connectivity & Exchange Components)**
 
-### Step 2: Critical Path Implementation (Week 2-3)
+This phase focuses on the lowest layers of the architecture, ensuring that fundamental interactions with exchanges are robust.
 
-```bash
-# Priority order for TRY003 fixes:
-# 1. Authentication & security (bp_auth.py, api security)
-# 2. Trading operations (place_order, cancel_order, position management)
-# 3. Market data (ticker, price feeds, market status)
-# 4. Risk management (balance validation, limit checks)
+*   **Files:** `cyberdelta/apis/connectivity/http_client.py`, `cyberdelta/apis/{exchange}/bp_api.py`, `cyberdelta/apis/{exchange}/hl_api.py`, `cyberdelta/apis/{exchange}/bp_auth.py`, `cyberdelta/apis/{exchange}/hl_auth.py`
+*   **Task:**
+    1.  Replace generic `Exception` and `ValueError` catches with specific `ConnectivityError` and `AuthenticationError` types from `technical.py`.
+    2.  Refactor API client `__init__` methods to raise specific `ConfigurationError` (a subclass of `TechnicalError`) for missing API keys or URLs.
+    3.  Ensure `RateLimitError` is raised with `retry_after` context where applicable.
 
-# Approach per file:
-# 1. Identify all exceptions in the file
-# 2. Group by business domain
-# 3. Create/use appropriate exception classes
-# 4. Update raise statements
-# 5. Verify business logic preservation
-# 6. Run tests to ensure no regressions
-```
+### **Step 3: Fortify the Data Pipeline (Layers 4-5: Services & Mappers)**
 
-### Step 3: Control Flow Refactoring (Week 4)
+This is the largest phase, addressing the bulk of the `TRY003` and `TRY301` errors by introducing strong types into the data processing pipeline.
 
-```bash
-# For each TRY301 error:
-# 1. Analyze the business logic being validated
-# 2. Extract validation to dedicated function
-# 3. Preserve error handling behavior
-# 4. Maintain logging and error context
-# 5. Test the refactored validation logic
-```
+*   **Files:** All files within `cyberdelta/apis/**/mappers/`, `cyberdelta/apis/**/services/`, and `cyberdelta/apis/models/service_args_models.py`.
+*   **Task:**
+    1.  **Refactor Mappers:** In all `*Mapper` files, replace `ValueError` and generic `Exception` with `TransformationError`. The context should include the model and field that failed to transform.
+    2.  **Refactor Service Argument Models:** In `service_args_models.py`, replace all `ValueError`s in Pydantic validators with specific `ValidationError` subclasses (e.g., `MissingPriceError`, `InvalidQuantityError`).
+    3.  **Refactor Services (Resolve TRY301):** Apply the "Validation Chain Refactoring" pattern from the planning documents. Extract validation logic into private helper methods that raise specific exceptions, moving the `raise` statements out of the `try...except` blocks.
 
-### Step 4: Validation & Testing (Week 5)
+### **Step 4: Enhance the Business Logic (Layer 6 & Application Layer)**
 
-```bash
-# 1. Run comprehensive test suite
-# 2. Verify error handling behavior in integration tests
-# 3. Check error message consistency across exchanges
-# 4. Validate financial safety requirements compliance
-# 5. Performance testing for exception overhead
-```
+This phase focuses on making the high-level business logic more explicit and observable.
+
+*   **Files:** `cyberdelta/strategies/funding_rate_arbitrage.py`, `cyberdelta/core/portfolio_tracker.py`, `cyberdelta/core/risk_manager.py`
+*   **Task:**
+    1.  In the `FundingRateArbitrageStrategy`, replace silent `return None` flows with explicit `raise OpportunityError` for unprofitable (but valid) market conditions.
+    2.  Raise `DataUnavailableError` (a subclass of `StrategyError`) when required ticker or market data is missing.
+    3.  In the `RiskManager` and `PortfolioTracker`, introduce `raise RiskError` and `raise PositionImbalanceError` where appropriate, capturing the state that violated risk constraints.
+
+### **Step 5: Integrate with Observability (Logging & Monitoring)**
+
+This step connects our new exception hierarchy to the existing monitoring tools, making the system truly observable.
+
+*   **Files:** `cyberdelta/logging/logging_helpers.py`, `cyberdelta/monitoring/performance_tracker.py`
+*   **Task:**
+    1.  **Create a new logging helper:** In `logging_helpers.py`, add a function `log_exception_event(logger, exception: CyberDeltaError)`. This function will serialize the custom exception's message and context into a structured log entry.
+    2.  **Create a new tracking method:** In `performance_tracker.py`, add a method `track_error_event(timestamp: datetime, error_type: str, severity: str, context: dict)`.
+    3.  **Implement a global exception handler (optional but recommended):** In the main application entry point, add a top-level `try...except CyberDeltaError` block that calls both `log_exception_event` and `track_error_event`.
 
 ## Business Logic Preservation Rules
 
