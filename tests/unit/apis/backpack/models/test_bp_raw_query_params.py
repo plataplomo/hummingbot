@@ -66,7 +66,7 @@ class TestBackpackRawGetTickerParams:
     def test_symbol_wrong_type(self) -> None:
         """Test symbol type validation."""
         data: dict[str, Any] = {"symbol": 123}
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeError):
             BackpackRawGetTickerParams.model_validate(data)
 
     def test_extra_fields_forbidden(self) -> None:

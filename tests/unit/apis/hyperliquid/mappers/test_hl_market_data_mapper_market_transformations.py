@@ -235,7 +235,8 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
             transformation_logs = [
                 log
                 for log in warning_logs
-                if "Failed to transform asset definition ETH-PERP" in str(log)
+                if log.get("event") == "asset_definition_to_market_transform_failed"
+                and log.get("asset_name") == "ETH-PERP"
             ]
             assert len(transformation_logs) > 0, (
                 f"Expected transformation failure logs, got: {captured_logs}"
@@ -530,7 +531,8 @@ class TestMarketTransformationErrorHandling:
             transformation_logs = [
                 log
                 for log in warning_logs
-                if "Failed to transform asset definition VALID-PERP" in str(log)
+                if log.get("event") == "asset_definition_to_market_transform_failed"
+                and log.get("asset_name") == "VALID-PERP"
             ]
             assert len(transformation_logs) > 0, (
                 f"Expected transformation failure logs, got: {captured_logs}"

@@ -326,10 +326,11 @@ class TestHyperliquidWsMessageRouter:
                 await router.route_message(message, ws_handlers)
 
             # Should be called twice (once for each control message)
-            assert mock_logger.debug.call_count == 2
+            # Business logic uses logger.trace() for control messages, not debug()
+            assert mock_logger.trace.call_count == 2
 
             # Check that structured logging calls were made
-            call_args_list = mock_logger.debug.call_args_list
+            call_args_list = mock_logger.trace.call_args_list
 
             # Find calls for both channels
             pong_calls = [call for call in call_args_list if call[1].get("channel") == "pong"]

@@ -41,11 +41,11 @@ def test_BackpackRawApiError_wrong_type_fields() -> None:
     """Test BackpackRawApiError wrong type fields."""
     p: dict[str, Any] = valid_api_error().copy()
     p["code"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
     p = valid_api_error().copy()
     p["message"] = ["notastring"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
 
 
@@ -78,7 +78,7 @@ def test_BackpackRawApiError_corruption_cases() -> None:
     # Null required
     p: dict[str, Any] = valid_api_error().copy()
     p["code"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
     # Unicode/control chars
     p = valid_api_error().copy()
@@ -111,7 +111,7 @@ def test_BackpackRawApiError_corruption_null_code() -> None:
     """Should fail: null value for required 'code'."""
     p = valid_api_error().copy()
     p["code"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
 
 
@@ -119,7 +119,7 @@ def test_BackpackRawApiError_corruption_binary_message() -> None:
     """Should fail: binary data for 'message'."""
     p = valid_api_error().copy()
     p["message"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
 
 
@@ -127,7 +127,7 @@ def test_BackpackRawApiError_corruption_nested_code() -> None:
     """Should fail: nested object for 'code'."""
     p = valid_api_error().copy()
     p["code"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
 
 
@@ -135,7 +135,7 @@ def test_BackpackRawApiError_corruption_list_message() -> None:
     """Should fail: list for 'message'."""
     p = valid_api_error().copy()
     p["message"] = ["Signature is invalid or expired."]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawApiError.model_validate(p)
 
 

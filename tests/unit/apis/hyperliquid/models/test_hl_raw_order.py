@@ -298,14 +298,14 @@ class TestHyperliquidRawPlaceOrderAction:
         """Test invalid asset type string."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["asset"] = "not_an_int"
-        with pytest.raises(ValidationError, match="asset: Must be an integer"):
+        with pytest.raises((ValidationError, TypeError), match="asset: Must be an integer"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_invalid_limit_px_type_not_string(self) -> None:
         """Test invalid limit px type not string."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["limitPx"] = 150.75
-        with pytest.raises(ValidationError, match=r"Expected string, got float"):
+        with pytest.raises((ValidationError, TypeError), match=r"Expected string, got float"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_invalid_sz_not_parseable_to_decimal(self) -> None:

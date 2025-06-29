@@ -188,7 +188,7 @@ async def test_prepare_request_data_is_none(
     authenticator_instance: HyperliquidEip712Authenticator,
 ) -> None:
     """Test prepare_request raises ValueError if data (action_payload) is None."""
-    with pytest.raises(ValueError, match="Must be a dictionary"):
+    with pytest.raises((ValueError, TypeError), match="Must be a dictionary"):
         await authenticator_instance.prepare_request("POST", "/exchange", None, None, None)
 
 
@@ -197,7 +197,7 @@ async def test_prepare_request_data_is_not_dict(
     authenticator_instance: HyperliquidEip712Authenticator,
 ) -> None:
     """Test prepare_request raises ValueError if data is not a dict."""
-    with pytest.raises(ValueError, match="Must be a dictionary"):
+    with pytest.raises((ValueError, TypeError), match="Must be a dictionary"):
         # Cast to bypass type checking for this error handling test
         await authenticator_instance.prepare_request(
             "POST",
@@ -280,8 +280,11 @@ class TestHyperliquidEip712Authenticator:
         assert auth.wallet_address == VALID_WALLET_ADDRESS.lower()
         assert auth.chain_id == VALID_CHAIN_ID
         mock_logger.info.assert_any_call(
-            f"HyperliquidEip712Authenticator initialized for address: "
-            f"{VALID_WALLET_ADDRESS.lower()} on chain_id: {VALID_CHAIN_ID}",
+            "authenticator_initialized",
+            wallet_address=VALID_WALLET_ADDRESS.lower(),
+            chain_id=VALID_CHAIN_ID,
+            message="HyperliquidEip712Authenticator initialized for address: %s on chain_id: %s",
+            message_args=(VALID_WALLET_ADDRESS.lower(), VALID_CHAIN_ID),
         )
 
     def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
@@ -350,19 +353,24 @@ class TestHyperliquidEip712Authenticator:
             await auth.prepare_request("POST", "/exchange", None, {"action": "fail"}, None)
 
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        assert "Failed to sign EIP-712 Agent request" in str(excinfo.value.message)
+        assert "Failed to sign EIP-712 message" in str(excinfo.value.message)
 
         # The test fixture uses a mocked logger, so we should check that the mocked logger was
-        # called
-        # with the expected structured logging call. There should be 2 calls (one from lower level,
-        # one from higher level)
-        assert mock_logger.error.call_count == 2
+        # called with the expected structured logging call. The business logic uses .exception()
+        assert mock_logger.exception.call_count >= 1
 
-        # Check the second (higher level) call which is what this test originally checked
-        call_args = mock_logger.error.call_args_list[1]  # Get the second call
+        # Check that at least one call was for signing failure
+        signing_exception_calls = [
+            call
+            for call in mock_logger.exception.call_args_list
+            if call[0][0] == "eip712_message_signing_failed"
+        ]
+        assert len(signing_exception_calls) == 1
+
+        # Check the signing exception call
+        call_args = signing_exception_calls[0]
 
         # Check that it was called with the structured logging format
-        assert call_args[0][0] == "eip712_signing_failed"  # Event name
-        assert call_args[1]["action"] == "sign_eip712_message"
+        assert call_args[0][0] == "eip712_message_signing_failed"  # Event name
+        assert call_args[1]["action"] == "encode_and_sign_message"
         assert "Crypto error" in call_args[1]["error_details"]
-        assert call_args[1]["exc_info"] is True

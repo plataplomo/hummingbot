@@ -1067,7 +1067,7 @@ class TestBackpackAPIPublicBehavior:
         backpack_api = bp_api_with_di()
 
         with (
-            patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger,
+            patch("cyberdelta.apis.backpack.bp_api.logger"),
             patch.object(
                 backpack_api.__class__.__bases__[0],
                 "subscribe",
@@ -1076,9 +1076,7 @@ class TestBackpackAPIPublicBehavior:
         ):
             await backpack_api.subscribe("test_topic", mock_handler)
 
-            # Should log subscription info
-            mock_logger.info.assert_called_once()
-            # Should delegate to parent
+            # Should delegate to parent (logging removed as per code comment)
             mock_super.assert_called_once_with("test_topic", mock_handler)
 
     @pytest.mark.asyncio

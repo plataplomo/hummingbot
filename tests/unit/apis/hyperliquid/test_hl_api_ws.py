@@ -45,13 +45,17 @@ class TestHyperliquidAPIWebSocketPublicInterface:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountDataMapper"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataMapper"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingDataMapper"),
-            patch("cyberdelta.apis.hyperliquid.hl_api.HttpClient"),
+            patch("cyberdelta.apis.hyperliquid.hl_api.HttpClient") as mock_http_client,
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
+            # Configure the mock HTTP client to have an async close_session method
+            mock_http_client_instance = AsyncMock()
+            mock_http_client.return_value = mock_http_client_instance
+
             return HyperliquidAPI(
                 exchange_config=active_hl_config,
                 exchange_secrets=active_hl_secrets,
@@ -184,13 +188,17 @@ class TestHyperliquidAPIWebSocketErrorHandling:
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountDataMapper"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataMapper"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingDataMapper"),
-            patch("cyberdelta.apis.hyperliquid.hl_api.HttpClient"),
+            patch("cyberdelta.apis.hyperliquid.hl_api.HttpClient") as mock_http_client,
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidAccountService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidTradingService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidMarketDataService"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidRateLimitStrategy"),
             patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager"),
         ):
+            # Configure the mock HTTP client to have an async close_session method
+            mock_http_client_instance = AsyncMock()
+            mock_http_client.return_value = mock_http_client_instance
+
             return HyperliquidAPI(
                 exchange_config=active_hl_config,
                 exchange_secrets=active_hl_secrets,

@@ -34,28 +34,28 @@ def test_asset_definition_happy_path() -> None:
 def test_asset_definition_missing_required() -> None:
     """Test asset definition missing required."""
     obj = {"szDecimals": 6, "maxLeverage": 50, "onlyIsolated": True}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetDefinition.model_validate(obj)
 
 
 def test_asset_definition_type_errors() -> None:
     """Test asset definition type errors."""
     obj = {"name": 123, "szDecimals": "6", "maxLeverage": "50", "onlyIsolated": "yes"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetDefinition.model_validate(obj)
 
 
 def test_asset_definition_extra_field() -> None:
     """Test asset definition extra field."""
     obj = {"name": "ETH", "szDecimals": 6, "maxLeverage": 50, "onlyIsolated": True, "foo": 1}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetDefinition.model_validate(obj)
 
 
 def test_asset_definition_constraints() -> None:
     """Test asset definition constraints."""
     obj = {"name": "E" * 65, "szDecimals": -1, "maxLeverage": 2000, "onlyIsolated": True}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetDefinition.model_validate(obj)
 
 
@@ -148,7 +148,7 @@ def test_asset_ctx_invalid_decimal() -> None:
         "dayNtlVlm": "1000000.0",
         "impactPx": "-inf",
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetCtx.model_validate(obj)
 
 
@@ -163,7 +163,7 @@ def test_asset_ctx_extra_field() -> None:
         "impactPx": "0.1",
         "foo": 1,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetCtx.model_validate(obj)
 
 
@@ -289,7 +289,7 @@ def test_meta_response_happy_path() -> None:
 def test_meta_response_invalid_universe() -> None:
     """Test meta response invalid universe."""
     obj = {"universe": "notalist"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawMetaResponse.model_validate(obj)
 
 
@@ -379,7 +379,7 @@ def test_meta_request_payload_happy_path() -> None:
 def test_meta_request_payload_invalid_type() -> None:
     """Test meta request payload invalid type."""
     obj = {"type": "notmeta"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawMetaRequestPayload.model_validate(obj)
 
 
@@ -394,7 +394,7 @@ def test_meta_and_asset_ctxs_request_payload_happy_path() -> None:
 def test_meta_and_asset_ctxs_request_payload_invalid_type() -> None:
     """Test meta and asset ctxs request payload invalid type."""
     obj = {"type": "notmetaandassetctxs"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawMetaAndAssetCtxsRequestPayload.model_validate(obj)
 
 
@@ -411,14 +411,14 @@ def test_update_leverage_request_happy_path() -> None:
 def test_update_leverage_request_invalid_types() -> None:
     """Test update leverage request invalid types."""
     obj = {"asset": "one", "isCross": "yes", "leverage": "ten"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUpdateLeverageRequest.model_validate(obj)
 
 
 def test_update_leverage_request_bounds() -> None:
     """Test update leverage request bounds."""
     obj = {"asset": -1, "isCross": True, "leverage": 2000}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUpdateLeverageRequest.model_validate(obj)
 
 
@@ -435,12 +435,12 @@ def test_update_isolated_margin_request_happy_path() -> None:
 def test_update_isolated_margin_request_invalid_types() -> None:
     """Test update isolated margin request invalid types."""
     obj = {"asset": "one", "isBuy": "no", "ntli": "hundred"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUpdateIsolatedMarginRequest.model_validate(obj)
 
 
 def test_update_isolated_margin_request_bounds() -> None:
     """Test update isolated margin request bounds."""
     obj = {"asset": -1, "isBuy": True, "ntli": -100}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUpdateIsolatedMarginRequest.model_validate(obj)

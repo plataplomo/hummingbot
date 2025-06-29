@@ -70,12 +70,12 @@ def test_handle_ticker_payload_valid() -> None:
 
 
 def test_handle_ticker_payload_invalid() -> None:
-    """Test handle_ticker_payload with invalid data (wrong type for 'p')."""
+    """Test handle_ticker_payload with invalid data (wrong type for 'lastPrice')."""
     invalid_payload = {
         "e": "ticker",
         "E": 1678886400000,
         "s": "SOL_USDC",
-        "lastPrice": 150.55,
+        "lastPrice": 150.55,  # Should be string not float
         "high": "151.00",
         "low": "148.50",
         "o": "149.00",
@@ -83,10 +83,9 @@ def test_handle_ticker_payload_invalid() -> None:
         "quoteVolume": "1500000.0",
         "priceChangePercent": "0.12",
     }
-    with pytest.raises(APIError) as excinfo:
+    with pytest.raises(TypeError) as excinfo:
         BackpackWsRawMessageHandler.handle_ticker_payload(invalid_payload)
-    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert isinstance(excinfo.value.original_exception, ValidationError)
+    assert "last_price: Raw value must be a string" in str(excinfo.value)
 
 
 # --- Trade Event --- (BackpackRawPublicTradeEvent)

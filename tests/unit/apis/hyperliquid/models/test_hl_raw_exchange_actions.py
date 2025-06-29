@@ -263,12 +263,16 @@ def test_order_item_spec_invalid_fields(
     else:
         base_data[field_alias] = cast("Any", value)  # Cast for test compatibility
 
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises((ValidationError, TypeError)) as exc_info:
         HyperliquidRawOrderItemSpec.model_validate(base_data)
-    assert any(
-        expected_error_part.lower() in err_detail["msg"].lower()
-        for err_detail in exc_info.value.errors()
-    )
+    if isinstance(exc_info.value, ValidationError):
+        assert any(
+            expected_error_part.lower() in err_detail["msg"].lower()
+            for err_detail in exc_info.value.errors()
+        )
+    else:
+        # TypeError from business logic
+        assert expected_error_part.lower() in str(exc_info.value).lower()
 
 
 def test_order_item_spec_extra_field() -> None:

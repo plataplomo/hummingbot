@@ -93,7 +93,7 @@ def test_leverage_type_wrong_type() -> None:
     """Test leverage type wrong type."""
     d = valid_leverage()
     d["type"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawLeverage.model_validate(d)
 
 
@@ -109,7 +109,7 @@ def test_leverage_value_wrong_type() -> None:
     """Test leverage value wrong type."""
     d = valid_leverage()
     d["value"] = "5"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawLeverage.model_validate(d)
 
 
@@ -231,15 +231,15 @@ def test_position_info_type_errors() -> None:
     """Test position info type errors."""
     d = valid_position_info().copy()
     d["coin"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPositionInfo.model_validate(d)
     d = valid_position_info().copy()
     d["leverage"] = "notaleverage"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPositionInfo.model_validate(d)
     d = valid_position_info().copy()
     d["maxLeverage"] = "10"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPositionInfo.model_validate(d)
 
 
@@ -373,11 +373,11 @@ def test_asset_position_type_errors() -> None:
     """Test asset position type errors."""
     d = valid_asset_position().copy()
     d["asset"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetPosition.model_validate(d)
     d = valid_asset_position().copy()
     d["position"] = "notaposition"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAssetPosition.model_validate(d)
 
 
@@ -440,7 +440,7 @@ def test_margin_summary_type_and_format_errors() -> None:
     for field in ["accountValue", "totalMarginUsed", "totalNtlPos", "totalRawUsd"]:
         d = valid_margin_summary().copy()
         d[field] = 123
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawMarginSummary.model_validate(d)
         d[field] = "notanumber"
         with pytest.raises(ValidationError):
@@ -536,15 +536,15 @@ def test_clearinghouse_state_type_errors() -> None:
     """Test clearinghouse state type errors."""
     d = valid_clearinghouse_state().copy()
     d["assetPositions"] = "notalist"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawClearinghouseState.model_validate(d)
     d = valid_clearinghouse_state().copy()
     d["marginSummary"] = "notasummary"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawClearinghouseState.model_validate(d)
     d = valid_clearinghouse_state().copy()
     d["crossMaintenanceMarginUsed"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawClearinghouseState.model_validate(d)
 
 

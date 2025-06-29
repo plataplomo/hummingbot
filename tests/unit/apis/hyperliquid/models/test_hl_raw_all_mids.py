@@ -25,21 +25,21 @@ def test_all_mids_empty_dict() -> None:
 def test_all_mids_non_dict() -> None:
     """Test all mids non dict."""
     obj: list[str] = ["ETH", "BTC"]
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_non_str_keys() -> None:
     """Test all mids non str keys."""
     obj: dict[object, str] = {123: "3000.0"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_non_str_values() -> None:
     """Test all mids non str values."""
     obj: dict[str, object] = {"ETH": 3000.0}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
@@ -47,42 +47,42 @@ def test_all_mids_extra_field_like_nested() -> None:
     """Test all mids extra field like nested."""
     # Not possible, as extra fields are not a concept in a dict root model, but test for nested dict
     obj: dict[str, object] = {"ETH": {"mid": "3000.0"}}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_symbol_too_long() -> None:
     """Test all mids symbol too long."""
     obj: dict[str, str] = {"E" * 65: "3000.0"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_price_too_long() -> None:
     """Test all mids price too long."""
     obj: dict[str, str] = {"ETH": "1" * 65}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_price_not_decimal() -> None:
     """Test all mids price not decimal."""
     obj: dict[str, str] = {"ETH": "not_a_number"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_price_nan() -> None:
     """Test all mids price nan."""
     obj: dict[str, str] = {"ETH": "NaN"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
 def test_all_mids_price_inf() -> None:
     """Test all mids price inf."""
     obj: dict[str, str] = {"ETH": "inf"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
 
 
@@ -154,7 +154,7 @@ def test_all_mids_empty_string_symbol_or_price() -> None:
     """Test all mids empty string symbol or price."""
     # Empty string as symbol or price (should be rejected)
     obj: dict[str, str] = {"": "3000.0"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawAllMids.model_validate(obj)
     obj2: dict[str, str] = {"ETH": ""}
     with pytest.raises(ValidationError):

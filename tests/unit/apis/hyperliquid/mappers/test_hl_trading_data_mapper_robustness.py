@@ -372,7 +372,7 @@ class TestErrorHandlingAndExceptions:
         quantity_logs = [
             log
             for log in warning_logs
-            if "quantity_filled" in str(log) and "no valid price available" in str(log)
+            if "quantity_filled" in str(log) and "due to missing price" in str(log)
         ]
         assert len(quantity_logs) > 0, (
             f"Expected quantity_filled warning logs, got: {captured_logs}"

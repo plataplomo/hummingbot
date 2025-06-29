@@ -131,7 +131,7 @@ def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str,
     [
         ("fee", 0.1),  # Should be string
         ("feeSymbol", 123),
-        ("isMaker", "true"),
+        ("isMaker", "true"),  # ValidationError: string passed to boolean field
         ("orderId", 1234567890),
         ("price", 3000.50),
         ("quantity", 0.01),
@@ -145,7 +145,7 @@ def test_backpack_raw_fill_invalid_types(
     field: str,
     invalid_value: object,  # Changed from Any to object
 ) -> None:
-    """Test ValidationError is raised for incorrect field types.
+    """Test TypeError is raised for incorrect field types.
 
     This parameterized test validates that the model correctly rejects data
     with incorrect types for each field. Type validation is critical at the
@@ -156,29 +156,36 @@ def test_backpack_raw_fill_invalid_types(
     API changes, serialization errors, or malicious input.
     """
     valid_fill_data[field] = invalid_value
-    with pytest.raises(ValidationError) as exc_info:
-        BackpackRawFill.model_validate(valid_fill_data)
 
-    # Determine expected field name in error message (Pydantic normalizes to snake_case)
-    expected_error_field = field
-    if field == "feeSymbol":
-        expected_error_field = "fee_symbol"
-    elif field == "isMaker":
-        expected_error_field = "is_maker"
-    elif field == "orderId":
-        expected_error_field = "order_id"
-    elif field == "tradeId":
-        expected_error_field = "trade_id"
-    elif field == "clientId":
-        expected_error_field = "client_id"
-    # Add other camelCase to snake_case mappings if needed for other fields
+    # Special case: isMaker field raises ValidationError for string values
+    if field == "isMaker" and invalid_value == "true":
+        with pytest.raises(ValidationError) as exc_info:
+            BackpackRawFill.model_validate(valid_fill_data)
+        assert "must be a boolean" in str(exc_info.value)
+    else:
+        with pytest.raises(TypeError) as type_exc_info:
+            BackpackRawFill.model_validate(valid_fill_data)
 
-    # Check that the field name is mentioned in the error message for type errors
-    assert (
-        f"'{expected_error_field}'" in str(exc_info.value)
-        or f"{expected_error_field}:" in str(exc_info.value)
-        or f"{expected_error_field}\\n" in str(exc_info.value)
-    )
+        # Determine expected field name in error message (Pydantic normalizes to snake_case)
+        expected_error_field = field
+        if field == "feeSymbol":
+            expected_error_field = "fee_symbol"
+        elif field == "isMaker":
+            expected_error_field = "is_maker"
+        elif field == "orderId":
+            expected_error_field = "order_id"
+        elif field == "tradeId":
+            expected_error_field = "trade_id"
+        elif field == "clientId":
+            expected_error_field = "client_id"
+        # Add other camelCase to snake_case mappings if needed for other fields
+
+        # Check that the field name is mentioned in the error message for type errors
+        assert (
+            f"'{expected_error_field}'" in str(type_exc_info.value)
+            or f"{expected_error_field}:" in str(type_exc_info.value)
+            or f"{expected_error_field}\\n" in str(type_exc_info.value)
+        )
 
 
 # --- Failure Cases: Format/Constraint Errors ---

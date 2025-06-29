@@ -112,7 +112,7 @@ def test_history_entry_valid_from_dict(valid_history_entry_dict_data: dict[int |
 )
 def test_history_entry_invalid_list_input(value_list: list[Any]) -> None:
     """Test history entry invalid list input."""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPortfolioHistoryEntry.model_validate(value_list)
 
 
@@ -123,7 +123,7 @@ def test_history_entry_invalid_dict_input(key_alias: int, value: str | int) -> N
     """Test history entry invalid dict input."""
     data: dict[int | str, Any] = {0: 1741886630493, 1: "0.0"}
     data[key_alias] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPortfolioHistoryEntry.model_validate(data)
 
 
@@ -173,7 +173,7 @@ def test_timeframe_data_invalid(
             del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPortfolioTimeframeData.model_validate(data_copy)
 
 
@@ -209,7 +209,7 @@ def test_portfolio_tuple_item_valid(valid_portfolio_tuple_item_data: list[Any]) 
 )
 def test_portfolio_tuple_item_invalid(value_list: list[Any]) -> None:
     """Test portfolio tuple item invalid."""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPortfolioTupleItem.model_validate(value_list)
 
 
@@ -236,7 +236,7 @@ def test_portfolio_response_valid() -> None:
 )
 def test_portfolio_response_invalid(invalid_root_data: str | int | list[Any] | None) -> None:
     """Test portfolio response invalid."""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawPortfolioResponse.model_validate(invalid_root_data)
 
 

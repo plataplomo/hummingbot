@@ -860,7 +860,6 @@ class WebSocketManager:
                         "ping_frame_sent",
                         action="keep_alive",
                         exchange=self._exchange_name,
-                        message=f"Sending ping frame for {self._exchange_name}",
                     )
                     await self._ws_connection.ping()
                 except ConnectionResetError:
@@ -892,7 +891,6 @@ class WebSocketManager:
                     "keep_alive_sleep_after_ping",
                     action="keep_alive",
                     sleep_duration=self._ping_interval,
-                    message=f"Keep-alive: sleeping for {self._ping_interval}s after ping.",
                 )
                 await asyncio.sleep(self._ping_interval)
 

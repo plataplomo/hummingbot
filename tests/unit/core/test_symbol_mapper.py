@@ -107,29 +107,37 @@ def test_symbol_mapper_init_skips_invalid_entries(caplog: LogCaptureFixture) -> 
     assert mapper.get_internal_symbol("456", "invalid_value_type") is None
 
     # Check for specific warning logs in structured logs
-    # The logger uses f-strings, so we need to check the exact message format
     warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
 
-    # Extract warning messages
-    warning_messages = [log.get("event", "") for log in warning_logs]
+    # Check for expected warning events
+    warning_events = [log.get("event", "") for log in warning_logs]
 
-    # Check for expected warnings
-    assert any(
-        "Skipping exchange 'missing_symbols': Missing 'symbols' configuration." in msg
-        for msg in warning_messages
+    # The business logic logs structured events, not formatted messages
+    assert "skipping_exchange_missing_symbols" in warning_events
+    assert "skipping_exchange_symbols_not_dict" in warning_events
+    assert "invalid_symbol_map_value" in warning_events
+
+    # Verify the warning logs contain the expected exchange names
+    missing_symbols_log = next(
+        (log for log in warning_logs if log.get("event") == "skipping_exchange_missing_symbols"),
+        None,
     )
-    assert any(
-        "Skipping exchange 'invalid_symbols_type': 'symbols' must be a dictionary." in msg
-        for msg in warning_messages
+    assert missing_symbols_log is not None
+    assert missing_symbols_log.get("exchange_id") == "missing_symbols"
+
+    invalid_symbols_log = next(
+        (log for log in warning_logs if log.get("event") == "skipping_exchange_symbols_not_dict"),
+        None,
     )
-    # The business logic doesn't validate symbol map keys, so no warning
-    # is generated for invalid_entry_type
-    # The integer key 123 is processed as-is without validation
-    assert any(
-        "Invalid symbol map value for ex 'invalid_value_type': Skip (ETH: 456). Value must be str."
-        in msg
-        for msg in warning_messages
+    assert invalid_symbols_log is not None
+    assert invalid_symbols_log.get("exchange_id") == "invalid_symbols_type"
+
+    invalid_value_log = next(
+        (log for log in warning_logs if log.get("event") == "invalid_symbol_map_value"),
+        None,
     )
+    assert invalid_value_log is not None
+    assert invalid_value_log.get("exchange_id") == "invalid_value_type"
 
 
 # --- Test Mapping Methods ---

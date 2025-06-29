@@ -122,7 +122,7 @@ def test_perf_history_item_invalid_fields(
             del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawVaultPerformanceHistoryItem.model_validate(data_copy)
 
 
@@ -167,7 +167,7 @@ def test_user_equity_invalid_fields(
             del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawVaultUserEquity.model_validate(data_copy)
 
 
@@ -294,7 +294,7 @@ def test_vault_details_invalid(
             del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawVaultDetailsResponse.model_validate(data_copy)
 
 

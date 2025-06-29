@@ -249,7 +249,7 @@ class ArbitrageOpportunity(BaseModel):
     integrated_funding_data: IntegratedFundingData | None = None
     adjusted_thresholds: dict[str, float] | None = None
     metadata: dict[str, Any] | None = None
-    expiration_timestamp: float | None = None
+    expiration_timestamp: float | None = Field(default=None)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, coerce_numbers_to_str=True)
@@ -300,14 +300,20 @@ class ArbitrageOpportunity(BaseModel):
             raise ValueError("timestamp cannot be None")
         return dt
 
-    @model_validator(mode="after")
-    def set_expiration(self) -> Self:
+    @model_validator(mode="before")
+    @classmethod
+    def set_expiration(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Set expiration_timestamp to 1 hour after timestamp (UTC)."""
-        if self.timestamp.tzinfo:
-            self.expiration_timestamp = self.timestamp.timestamp() + 3600
-        else:
-            self.expiration_timestamp = self.timestamp.replace(tzinfo=UTC).timestamp() + 3600
-        return self
+        if "timestamp" in values and values["timestamp"] is not None:
+            timestamp = values["timestamp"]
+            if hasattr(timestamp, "tzinfo") and hasattr(timestamp, "timestamp"):
+                if timestamp.tzinfo:
+                    values["expiration_timestamp"] = timestamp.timestamp() + 3600
+                else:
+                    values["expiration_timestamp"] = (
+                        timestamp.replace(tzinfo=UTC).timestamp() + 3600
+                    )
+        return values
 
     @model_validator(mode="after")
     def validate_required_fields(self) -> Self:

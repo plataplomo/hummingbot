@@ -533,7 +533,11 @@ class TestErrorRecoveryScenarios:
         assert len(warning_logs) > 0, "Expected at least one warning log"
 
         # Check for the specific warning about skipped trade
-        skip_logs = [log for log in warning_logs if "Skipping trade transformation" in str(log)]
+        skip_logs = [
+            log
+            for log in warning_logs
+            if log.get("event") in ["invalid_trade_data_skipped", "trade_transformation_skipped"]
+        ]
         assert len(skip_logs) > 0, f"Expected trade skipping logs, got: {captured_logs}"
 
     def test_empty_data_handling(

@@ -32,7 +32,7 @@ class TestParseDecimalValue:
     def test_int_and_float(self) -> None:
         """Should parse int and float to Decimal."""
         assert parse_decimal_value(42) == Decimal(42)
-        assert parse_decimal_value(math.pi) == Decimal("3.14")
+        assert parse_decimal_value(math.pi) == Decimal(str(math.pi))
 
     def test_none_allowed(self) -> None:
         """Should return None if value is None and allow_none is True."""

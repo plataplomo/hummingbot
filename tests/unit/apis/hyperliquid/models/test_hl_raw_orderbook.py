@@ -59,11 +59,11 @@ def test_book_level_type_errors() -> None:
     """Test book level type errors."""
     d = valid_book_level().copy()
     d["px"] = 123.45
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawBookLevel.model_validate(d)
     d = valid_book_level().copy()
     d["n"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawBookLevel.model_validate(d)
 
 
@@ -121,15 +121,15 @@ def test_l2book_type_errors() -> None:
     """Test l2book type errors."""
     d = valid_l2book().copy()
     d["coin"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2Book.model_validate(d)
     d = valid_l2book().copy()
     d["levels"] = "notalist"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2Book.model_validate(d)
     d = valid_l2book().copy()
     d["time"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2Book.model_validate(d)
 
 
@@ -184,11 +184,11 @@ def test_l2book_request_payload_type_errors() -> None:
     """Test l2book request payload type errors."""
     d = valid_l2book_request_payload().copy()
     d["coin"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2BookRequestPayload.model_validate(d)
     d = valid_l2book_request_payload().copy()
     d["type"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2BookRequestPayload.model_validate(d)
 
 
@@ -290,7 +290,7 @@ def test_l2book_time_field_edge_cases() -> None:
     obj = HyperliquidRawL2Book.model_validate(d)
     assert obj.time == 2**63 - 1
     d["time"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2Book.model_validate(d)
 
 

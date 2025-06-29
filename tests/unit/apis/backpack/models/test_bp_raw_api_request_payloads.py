@@ -195,7 +195,7 @@ class TestBackpackRawOrderExecuteRequest:
             "price": 50000,  # Should be string
             "clientId": 12345,
         }
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeError):
             BackpackRawOrderExecuteRequest(**invalid_data)
 
     def test_invalid_boolean_type(self) -> None:
@@ -209,7 +209,7 @@ class TestBackpackRawOrderExecuteRequest:
             "clientId": 12345,
             "reduceOnly": "true",  # Should be boolean
         }
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeError):
             BackpackRawOrderExecuteRequest(**invalid_data)
 
     def test_extra_fields_forbidden(self) -> None:
@@ -459,7 +459,7 @@ class TestBackpackRawUpdateAccountSettingsRequest:
         invalid_data: dict[str, Any] = {
             "autoLend": "true",  # Must be bool, not string
         }
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeError):
             BackpackRawUpdateAccountSettingsRequest(**invalid_data)
 
 

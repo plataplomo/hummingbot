@@ -84,11 +84,11 @@ def test_BackpackRawWithdrawal_wrong_type_fields() -> None:
     """
     p: dict[str, Any] = valid_withdrawal().copy()
     p["amount"] = 100.0
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
     p = valid_withdrawal().copy()
     p["status"] = ["pending"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -136,7 +136,7 @@ def test_BackpackRawWithdrawal_corruption_cases() -> None:
     # Null required
     p: dict[str, Any] = valid_withdrawal().copy()
     p["asset"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
     # Unicode/control chars
     p = valid_withdrawal().copy()
@@ -253,11 +253,11 @@ def test_BackpackRawDeposit_wrong_type_fields() -> None:
     """
     p: dict[str, Any] = valid_deposit().copy()
     p["amount"] = 0.5
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
     p = valid_deposit().copy()
     p["status"] = ["completed"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -305,7 +305,7 @@ def test_BackpackRawDeposit_corruption_cases() -> None:
     # Null required
     p: dict[str, Any] = valid_deposit().copy()
     p["asset"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
     # Unicode/control chars
     p = valid_deposit().copy()
@@ -422,11 +422,11 @@ def test_BackpackRawLiquidation_wrong_type_fields() -> None:
     """
     p: dict[str, Any] = valid_liquidation().copy()
     p["price"] = 45000.0
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["side"] = ["sell"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
 
 
@@ -482,7 +482,7 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     # Null required
     p: dict[str, Any] = valid_liquidation().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
     # Unicode/control chars
     p = valid_liquidation().copy()
@@ -571,7 +571,7 @@ def test_BackpackRawWithdrawal_corruption_null_id() -> None:
     """
     p = valid_withdrawal().copy()
     p["id"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -583,7 +583,7 @@ def test_BackpackRawWithdrawal_corruption_binary_asset() -> None:
     """
     p = valid_withdrawal().copy()
     p["asset"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -595,7 +595,7 @@ def test_BackpackRawWithdrawal_corruption_nested_amount() -> None:
     """
     p = valid_withdrawal().copy()
     p["amount"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -607,7 +607,7 @@ def test_BackpackRawWithdrawal_corruption_list_status() -> None:
     """
     p = valid_withdrawal().copy()
     p["status"] = ["pending"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -619,6 +619,7 @@ def test_BackpackRawWithdrawal_corruption_garbled_unicode_asset() -> None:
     """
     p = valid_withdrawal().copy()
     p["asset"] = "USDC\udce2\udc28\udc00"
+    # UTF-8 validation is format validation, not type validation
     with pytest.raises(ValidationError):
         BackpackRawWithdrawal.model_validate(p)
 
@@ -650,7 +651,7 @@ def test_BackpackRawDeposit_corruption_null_id() -> None:
     """
     p = valid_deposit().copy()
     p["id"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -662,7 +663,7 @@ def test_BackpackRawDeposit_corruption_binary_asset() -> None:
     """
     p = valid_deposit().copy()
     p["asset"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -674,7 +675,7 @@ def test_BackpackRawDeposit_corruption_nested_amount() -> None:
     """
     p = valid_deposit().copy()
     p["amount"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -686,7 +687,7 @@ def test_BackpackRawDeposit_corruption_list_status() -> None:
     """
     p = valid_deposit().copy()
     p["status"] = ["completed"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -698,6 +699,7 @@ def test_BackpackRawDeposit_corruption_garbled_unicode_asset() -> None:
     """
     p = valid_deposit().copy()
     p["asset"] = "BTC\udce2\udc28\udc00"
+    # UTF-8 validation is format validation, not type validation
     with pytest.raises(ValidationError):
         BackpackRawDeposit.model_validate(p)
 
@@ -730,7 +732,7 @@ def test_BackpackRawLiquidation_corruption_null_symbol() -> None:
     """
     p = valid_liquidation().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
 
 
@@ -742,7 +744,7 @@ def test_BackpackRawLiquidation_corruption_binary_price() -> None:
     """
     p = valid_liquidation().copy()
     p["price"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
 
 
@@ -754,7 +756,7 @@ def test_BackpackRawLiquidation_corruption_nested_quantity() -> None:
     """
     p = valid_liquidation().copy()
     p["quantity"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
 
 
@@ -766,7 +768,7 @@ def test_BackpackRawLiquidation_corruption_list_side() -> None:
     """
     p = valid_liquidation().copy()
     p["side"] = ["buy"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawLiquidation.model_validate(p)
 
 
@@ -778,5 +780,6 @@ def test_BackpackRawLiquidation_corruption_garbled_unicode_symbol() -> None:
     """
     p = valid_liquidation().copy()
     p["symbol"] = "BTC_USDC\udce2\udc28\udc00"
+    # UTF-8 validation is format validation, not type validation
     with pytest.raises(ValidationError):
         BackpackRawLiquidation.model_validate(p)

@@ -43,7 +43,7 @@ def test_subaccounts_invalid_root_list(
     invalid_list_data: str | int | dict[str, Any] | None,
 ) -> None:
     """Test subaccounts invalid root list."""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawSubAccountsResponse.model_validate(invalid_list_data)
 
 

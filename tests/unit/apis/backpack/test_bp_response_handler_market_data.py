@@ -486,7 +486,7 @@ class TestHandleGetHistoricalTradesResponse:
     def test_validation_error_missing_field(self, symbol_spot: str) -> None:
         """Test historical trades response with missing required field."""
         invalid_trade = {
-            "id": 1001,
+            "id": "1001",
             "isBuyerMaker": True,
             # Missing 'price' field
             "quantity": "2.0",
@@ -831,23 +831,22 @@ class TestHandleGetMarketResponse:
                 "price": {
                     "minPrice": "0.01",
                     "maxPrice": "1000000.0",
-                    "tickSize": 0.01,  # Should be string
+                    "tickSize": "0.01",
                 },
-                "quantity": {"minQuantity": "0.0001", "maxQuantity": "1000.0", "stepSize": "0.01"},
+                # minQuantity should be string
+                "quantity": {"minQuantity": 0.0001, "maxQuantity": "1000.0", "stepSize": "0.01"},
             },
             "orderBookState": "NORMAL",
             "createdAt": "2024-01-01T00:00:00.000Z",
         }
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             BackpackResponseHandler.handle_get_market_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
                 {},
             )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Invalid market for {symbol_spot}" in exc_info.value.message
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "min_quantity: Raw value must be a string" in str(exc_info.value)
 
     def test_market_with_all_optional_fields(self, symbol_spot: str) -> None:
         """Test market response with all optional fields populated."""

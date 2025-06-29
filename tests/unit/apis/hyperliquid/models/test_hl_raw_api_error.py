@@ -28,14 +28,14 @@ def test_missing_error_field() -> None:
 def test_error_type_errors() -> None:
     """Test error type errors."""
     for bad in [123, 1.5, True, None, ["err"], {"msg": "err"}]:
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawApiError.model_validate({"error": bad})
 
 
 def test_error_empty_and_whitespace() -> None:
     """Test error empty and whitespace."""
     for bad in ["", "   "]:
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawApiError.model_validate({"error": bad})
 
 

@@ -135,7 +135,7 @@ def test_delegations_response_valid() -> None:
 @pytest.mark.parametrize("data", ["not-list", [{"validator": "invalid"}]])
 def test_delegations_response_invalid(data: object) -> None:
     """Test delegations response invalid."""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawDelegationsResponse.model_validate(data)
 
 
@@ -162,7 +162,7 @@ def test_delegator_summary_invalid(
         del d[field]
     else:
         d[field] = val
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawDelegatorSummaryResponse.model_validate(d)
 
 
@@ -231,7 +231,7 @@ class TestHyperliquidRawDelegatorHistoryItem:
         else:
             d[field] = val
 
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawDelegatorHistoryItem.model_validate(d)
 
 

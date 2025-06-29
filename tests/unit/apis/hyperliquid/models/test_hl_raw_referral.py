@@ -147,7 +147,7 @@ def test_referral_state_item_invalid(
         del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawReferralState.model_validate(data_copy)
 
 
@@ -174,7 +174,7 @@ def test_referrer_data_invalid(
         del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawReferrerData.model_validate(data_copy)
 
 
@@ -246,7 +246,7 @@ def test_referral_response_invalid(
             del data_copy[field]
     else:
         data_copy[field] = value
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawReferralResponse.model_validate(data_copy)
 
 

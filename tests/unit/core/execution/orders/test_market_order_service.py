@@ -281,10 +281,10 @@ class TestMarketOrderService:
 
     def test_estimate_slippage_fallback(self, service: MarketOrderService) -> None:
         """Test slippage estimation fallback when signal generator fails."""
-        # Make signal generator raise exception
+        # Make signal generator raise a ValueError (one of the caught exceptions)
         if service._signal_generator:
             mock_estimate = cast("MagicMock", service._signal_generator.estimate_slippage)
-            mock_estimate.side_effect = Exception("Test error")
+            mock_estimate.side_effect = ValueError("Test error")
 
         # Should fall back to config default for BTC
         slippage = service._estimate_slippage("BTC", Decimal(10))
@@ -344,7 +344,7 @@ class TestMarketOrderService:
     ) -> None:
         """Test AllMids reference with error handling."""
         service._config = MarketOrderConfig(use_all_mids_for_reference=True)
-        mock_exchange_api.get_all_mids = AsyncMock(side_effect=Exception("API Error"))
+        mock_exchange_api.get_all_mids = AsyncMock(side_effect=ValueError("API Error"))
 
         price = await service.get_reference_price_all_mids("BTC")
         assert price is None  # Should return None on error

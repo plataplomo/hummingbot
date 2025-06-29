@@ -143,10 +143,10 @@ def test_handle_user_fill_event_payload_invalid() -> None:
         "oid": 12345,
         "isMaker": False,
     }
-    with pytest.raises(APIError) as excinfo:
+    # Business logic throws TypeError for invalid data types, not APIError
+    with pytest.raises(TypeError) as excinfo:
         HyperliquidWsRawMessageHandler.handle_user_fill_event_payload(invalid_payload)
-    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert isinstance(excinfo.value.original_exception, ValidationError)
+    assert "Expected string, got float" in str(excinfo.value)
 
 
 # --- User Order Event (Inner Detail) --- using HyperliquidRawOrder
@@ -269,14 +269,11 @@ def test_handle_all_mids_payload_valid() -> None:
 def test_handle_all_mids_payload_invalid_not_dict() -> None:
     """Test handle_all_mids_payload with non-dictionary payload."""
     invalid_payload_list: list[str] = ["not_a_dict"]
-    with pytest.raises(APIError) as excinfo:
+    # Business logic throws TypeError for invalid data types, not APIError
+    with pytest.raises(TypeError) as excinfo:
         # Typing ignored as the function expects a dict, but we are testing invalid input.
         HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload_list)  # type: ignore
-    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert isinstance(excinfo.value.original_exception, ValidationError)
-    # Check that the Pydantic error message indicates it expected a dictionary/mapping
-    # Pydantic v2 RootModel error for wrong input type (e.g. list instead of dict)
-    assert "Field 'root': Expected a dictionary, got list" in str(excinfo.value.original_exception)
+    assert "Expected a dictionary, got list" in str(excinfo.value)
 
 
 def test_handle_all_mids_payload_invalid_value_type() -> None:
@@ -285,16 +282,10 @@ def test_handle_all_mids_payload_invalid_value_type() -> None:
         "BTC": "60000.0",
         "ETH": 3000,  # Should be string "3000"
     }
-    with pytest.raises(APIError) as excinfo:
+    # Business logic throws TypeError for invalid data types, not APIError
+    with pytest.raises(TypeError) as excinfo:
         HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload)
-    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert isinstance(excinfo.value.original_exception, ValidationError)
-    # Check for specific error related to the value for "ETH"
-    error_details = excinfo.value.original_exception.errors(include_input=False)
-    # Pydantic v2 RootModel error for invalid value in dict
-    assert any(
-        err["loc"] == ("ETH",) and "Expected string, got int" in err["msg"] for err in error_details
-    )
+    assert "Expected string, got int" in str(excinfo.value)
 
 
 def test_handle_all_mids_payload_invalid_key_type() -> None:

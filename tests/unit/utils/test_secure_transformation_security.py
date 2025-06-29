@@ -260,19 +260,17 @@ class TestSecureTransformSecurity:
             "exchange": "backpack",
         }
 
-        # Verify successful transformation occurs
-        _ = secure_transform(
+        # Verify successful transformation occurs (this should succeed without logging)
+        result = secure_transform(
             data=valid_data,
             model_class=MockBalance,
             context="security_log_test",
             source_exchange="backpack",
         )
 
-        # Check debug log for successful transformation
-        mock_logger.debug.assert_called()
-        debug_call = str(mock_logger.debug.call_args)
-        assert "Successful validation" in debug_call
-        assert "MockBalance" in debug_call
+        # Verify the transformation was successful
+        assert result.asset == "BTC"
+        assert result.quantity == Decimal(100)
 
         # Test failed transformation logging
         mock_logger.reset_mock()
@@ -291,11 +289,11 @@ class TestSecureTransformSecurity:
                 source_exchange="backpack",
             )
 
-        # Check error log
-        mock_logger.error.assert_called()
-        error_call = str(mock_logger.error.call_args)
-        assert "SECURITY ALERT" in error_call
-        assert "MockBalance" in error_call
+        # Check error log was called (using exception instead of error)
+        mock_logger.exception.assert_called()
+        exception_call = str(mock_logger.exception.call_args)
+        assert "SECURITY ALERT" in exception_call
+        assert "MockBalance" in exception_call
 
     def test_secure_transform_with_audit_compliance(self) -> None:
         """Test audit logging for compliance requirements."""

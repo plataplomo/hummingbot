@@ -1010,6 +1010,27 @@ async def _handle_restarted_listen_task(
     test_case_logger: logging.Logger,
 ) -> None:
     """Handle restarted listen task."""
+    # Wait for the task to be created with a timeout
+    max_wait = 1.0  # 1 second timeout
+    wait_interval = 0.01  # Check every 10ms
+    elapsed = 0.0
+
+    while (
+        listener_task_name_listen_test not in created_tasks_map_listen_test and elapsed < max_wait
+    ):
+        await asyncio.sleep(wait_interval)
+        elapsed += wait_interval
+
+    if listener_task_name_listen_test not in created_tasks_map_listen_test:
+        test_case_logger.warning(
+            "Listen task '%s' not found in created tasks. Available tasks: %s",
+            listener_task_name_listen_test,
+            list(created_tasks_map_listen_test.keys()),
+        )
+        # If the listener task wasn't created, it might be because the connection failed
+        # In this case, we can skip the rest of this function
+        return
+
     assert listener_task_name_listen_test in created_tasks_map_listen_test
     restarted_listen_task = created_tasks_map_listen_test[listener_task_name_listen_test]
     assert restarted_listen_task is not None

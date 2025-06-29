@@ -29,7 +29,6 @@ VALID_KLINE_LIST = [
 # --- Test Cases ---
 
 
-@pytest.mark.asyncio
 def test_valid_kline_list_parsing() -> None:
     """Test successful parsing of a valid kline list."""
     kline = BackpackRawKline.model_validate(VALID_KLINE_LIST)
@@ -60,7 +59,6 @@ def test_valid_kline_list_parsing() -> None:
     assert "Instance is frozen" in str(exc_info.value)
 
 
-@pytest.mark.asyncio
 def test_invalid_structure_input_type() -> None:
     """Test failure when input is not a list or tuple."""
     # Catch ValidationError and check message
@@ -73,7 +71,6 @@ def test_invalid_structure_input_type() -> None:
     assert "Expected 12 elements in kline data list/tuple" in str(exc_info_str.value)
 
 
-@pytest.mark.asyncio
 def test_invalid_structure_list_length() -> None:
     """Test failure when input list has incorrect length."""
     invalid_list_short = VALID_KLINE_LIST[:-1]  # Length 11
@@ -141,7 +138,6 @@ def test_invalid_structure_list_length() -> None:
         (11, "ignored", "a" * 65, ValueError, "String value too long (max 64 chars)"),
     ],
 )
-@pytest.mark.asyncio
 def test_field_validation_failures(
     index: int,
     field_name: str,

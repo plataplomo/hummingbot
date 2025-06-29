@@ -125,7 +125,7 @@ def test_trigger_info_missing_required() -> None:
     for field in ["triggerPx", "isMarket", "tpsl"]:
         p = valid_trigger_info().copy()
         del p[field]
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawTriggerInfo.model_validate(p)
 
 
@@ -133,15 +133,15 @@ def test_trigger_info_type_errors() -> None:
     """Test trigger info type errors."""
     p = valid_trigger_info().copy()
     p["triggerPx"] = 123.45
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["isMarket"] = "true"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["tpsl"] = 1
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
 
 
@@ -149,19 +149,19 @@ def test_trigger_info_enum_and_format_errors() -> None:
     """Test trigger info enum and format errors."""
     p = valid_trigger_info().copy()
     p["tpsl"] = "notatp"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["triggerPx"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["triggerPx"] = "a" * 1000
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["triggerPx"] = "NaN"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
 
 
@@ -169,7 +169,7 @@ def test_trigger_info_extra_field() -> None:
     """Test trigger info extra field."""
     p = valid_trigger_info().copy()
     p["foo"] = 1
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawTriggerInfo.model_validate(p)
 
 

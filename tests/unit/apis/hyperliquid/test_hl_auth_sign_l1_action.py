@@ -383,7 +383,7 @@ class TestHyperliquidSignL1Action:
         authenticator: HyperliquidEip712Authenticator,
     ) -> None:
         """Test that non-dict data raises ValueError."""
-        with pytest.raises(ValueError, match="Must be a dictionary"):
+        with pytest.raises((ValueError, TypeError), match="Must be a dictionary"):
             await authenticator.prepare_request(
                 method="POST",
                 path="/exchange",

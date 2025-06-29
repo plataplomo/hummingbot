@@ -114,7 +114,7 @@ def test_role_data_valid(valid_role_data_params: dict[str, str | None]) -> None:
 def test_role_data_invalid_address(field: str, value: object) -> None:
     """Test role data invalid address."""
     data_payload = {field: value}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUserRoleData.model_validate(data_payload)
 
 

@@ -53,11 +53,11 @@ def test_BackpackRawTrade_wrong_type_fields() -> None:
     """Test BackpackRawPublicTrade wrong type fields."""
     p: dict[str, Any] = valid_trade().copy()
     p["price"] = [50000.0]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTrade.model_validate(p)
     p = valid_trade().copy()
     p["time"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError):  # This is format validation, not type validation
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -91,7 +91,7 @@ def test_BackpackRawTrade_corruption_cases() -> None:
     # Null required
     p = valid_trade().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTrade.model_validate(p)
     # Unicode/control chars
     p = valid_trade().copy()
@@ -176,12 +176,11 @@ def test_BackpackRawTrade_creative_corruption_cases() -> None:
             continue
         try:
             BackpackRawPublicTrade.model_validate(p)
-        except ValidationError:
-            pass  # Expected
+        except (ValidationError, TypeError):
+            pass
         else:
             pytest.fail(
-                f"Failed corruption case: {description} ("
-                f"{field}={value!r}) - ValidationError not raised",
+                f"Failed corruption case: {description} ({field}={value!r}) - Exception not raised",
             )
 
 
@@ -206,7 +205,7 @@ def test_BackpackRawTrade_corruption_null_id() -> None:
     """Should fail: null value for required 'id'."""
     p = valid_trade().copy()
     p["id"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -214,7 +213,7 @@ def test_BackpackRawTrade_corruption_binary_orderId() -> None:
     """Should fail: binary data for 'orderId'."""
     p = valid_trade().copy()
     p["orderId"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -222,7 +221,7 @@ def test_BackpackRawTrade_corruption_nested_symbol() -> None:
     """Should fail: nested object for 'symbol'."""
     p = valid_trade().copy()
     p["symbol"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -230,7 +229,7 @@ def test_BackpackRawTrade_corruption_list_price() -> None:
     """Should fail: list for 'price'."""
     p = valid_trade().copy()
     p["price"] = ["50000.0"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -319,7 +318,7 @@ def test_BackpackRawTradeEvent_corruption_cases() -> None:
     # Null required
     p = valid_trade_event().copy()
     p["s"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTradeEvent.model_validate(p)
     # Unicode/control chars
     p = valid_trade_event().copy()
@@ -373,7 +372,7 @@ def test_BackpackRawTradeEvent_corruption_binary_s() -> None:
     """Should fail: binary data for 's'."""
     p = valid_trade_event().copy()
     p["s"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
@@ -381,7 +380,7 @@ def test_BackpackRawTradeEvent_corruption_nested_p() -> None:
     """Should fail: nested object for 'p'."""
     p = valid_trade_event().copy()
     p["p"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
@@ -389,7 +388,7 @@ def test_BackpackRawTradeEvent_corruption_list_q() -> None:
     """Should fail: list for 'q'."""
     p = valid_trade_event().copy()
     p["q"] = ["0.01"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
@@ -469,24 +468,26 @@ def test_BackpackRawFill_missing_required_fields() -> None:
 
 
 def test_BackpackRawFill_invalid_types() -> None:
-    """Test that invalid types raise ValidationError."""
+    """Test that invalid types raise appropriate exceptions."""
+    # Test each invalid case individually to determine exact error type
     invalid_cases = [
-        ("fee", 123.45),  # Expect string
-        ("feeSymbol", 123),
-        ("isMaker", "true"),  # Expect boolean
-        ("orderId", None),
-        ("price", 10000),
-        ("quantity", 1.0),
-        ("side", ["Bid"]),  # Expect string, not list
-        ("symbol", None),
-        ("timestamp", 1234567890),  # Expect string
-        ("tradeId", "abc"),  # Expect int or int string
+        ("fee", 123.45, TypeError),  # Expect string
+        ("feeSymbol", 123, TypeError),
+        ("isMaker", "true", ValidationError),  # Expect boolean
+        ("orderId", None, TypeError),
+        ("price", 10000, TypeError),
+        ("quantity", 1.0, TypeError),
+        ("side", ["Bid"], TypeError),  # Expect string, not list
+        ("symbol", None, TypeError),
+        ("timestamp", 1234567890, TypeError),  # Expect string
+        ("tradeId", "abc", ValidationError),  # Expect int
         # Note: ("clientId", 123) is actually valid - clientId accepts integers
     ]
-    for field, value in invalid_cases:
+
+    for field, value, expected_error in invalid_cases:
         data = valid_fill_data().copy()
         data[field] = value
-        with pytest.raises(ValueError):  # Check for ValueError from validator or Pydantic
+        with pytest.raises(expected_error):
             BackpackRawFill.model_validate(data)
 
 
@@ -521,12 +522,11 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
     for field, value in invalid_cases:
         data = valid_fill_data().copy()
         data[field] = value
-        # Adjusted assertion strategy - expect ValidationError, but don't match specific field
         # This is less brittle when multiple fields might fail or the order changes.
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             try:
                 BackpackRawFill.model_validate(data)
-            except ValidationError as e:
+            except (ValidationError, TypeError) as e:
                 logger.debug(
                     "backpack_raw_fill_validation_error",
                     field=field,
@@ -535,7 +535,7 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
                     message=f"Field: {field}, Value: {value!r}, Error: {e}",
                 )
                 # Simple assertion that *an* error occurred is sufficient here
-                raise  # Re-raise the expected ValidationError
+                raise  # Re-raise the expected exception
 
 
 def test_BackpackRawFill_invalid_client_id_empty_string() -> None:

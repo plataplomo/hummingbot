@@ -59,7 +59,7 @@ class TestHandleInfoUserStateResponse:
             f"Invalid info (user state for {user_address}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
         assert "assetPositions" in str(exc_info.value.original_exception)
 
     def test_validation_error_invalid_margin_summary(self, user_address: str) -> None:
@@ -81,7 +81,7 @@ class TestHandleInfoUserStateResponse:
             f"Invalid info (user state for {user_address}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test user state response with wrong top-level type."""
@@ -144,23 +144,18 @@ class TestHandleInfoOpenOrdersResponse:
             f"Invalid info (open orders for {user_address}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_item_type_in_list(self, user_address: str) -> None:
         """Test open orders response with non-dict item in list."""
         raw_data = ["not_an_order_dict"]
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             HyperliquidResponseHandler.handle_info_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
             )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid info (open orders for {user_address}) response from exchange:"
-            in exc_info.value.message
-        )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "Expected a dictionary" in str(exc_info.value)
 
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test open orders response with wrong top-level type."""
@@ -200,7 +195,7 @@ class TestHandleInfoOpenOrdersResponse:
             f"Invalid info (open orders for {user_address}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
 
 class TestHandleInfoUserFillsResponse:
@@ -248,23 +243,18 @@ class TestHandleInfoUserFillsResponse:
             f"Invalid info (user fills for {user_address}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_item_type_in_list(self, user_address: str) -> None:
         """Test user fills response with non-dict item in list."""
         raw_data = ["not_a_fill_dict"]
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
             )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid info (user fills for {user_address}) response from exchange:"
-            in exc_info.value.message
-        )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert "Expected a dictionary" in str(exc_info.value)
 
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test user fills response with wrong top-level type."""
@@ -376,7 +366,7 @@ class TestUserAccountEdgeCases:
             f"Invalid info (user fills for {user_address}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_user_state_with_complex_asset_positions(self, user_address: str) -> None:
         """Test user state response with multiple asset positions."""

@@ -52,7 +52,7 @@ def test_BackpackRawFundingRate_wrong_type_fields() -> None:
     """Test BackpackRawFundingRate wrong type fields."""
     p: dict[str, Any] = valid_funding_rate().copy()
     p["rate"] = [0.0001]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawFundingRate.model_validate(p)
     p = valid_funding_rate().copy()
     p["time"] = "notanint"
@@ -95,7 +95,7 @@ def test_BackpackRawFundingRate_corruption_cases() -> None:
     # Null required
     p = valid_funding_rate().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawFundingRate.model_validate(p)
     # Unicode/control chars
     p = valid_funding_rate().copy()
@@ -126,7 +126,7 @@ def test_BackpackRawFundingRate_corruption_null_symbol() -> None:
     """Should fail: null value for required 'symbol'."""
     p = valid_funding_rate().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawFundingRate.model_validate(p)
 
 
@@ -134,7 +134,7 @@ def test_BackpackRawFundingRate_corruption_binary_rate() -> None:
     """Should fail: binary data for 'rate'."""
     p = valid_funding_rate().copy()
     p["rate"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawFundingRate.model_validate(p)
 
 
@@ -142,7 +142,7 @@ def test_BackpackRawFundingRate_corruption_nested_markPrice() -> None:
     """Should fail: nested object for 'markPrice'."""
     p = valid_funding_rate().copy()
     p["markPrice"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawFundingRate.model_validate(p)
 
 
@@ -150,7 +150,7 @@ def test_BackpackRawFundingRate_corruption_list_indexPrice() -> None:
     """Should fail: list for 'indexPrice'."""
     p = valid_funding_rate().copy()
     p["indexPrice"] = ["49999.0"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawFundingRate.model_validate(p)
 
 
@@ -193,7 +193,7 @@ def test_BackpackRawMarkPrice_wrong_type_fields() -> None:
     """Test BackpackRawMarkPrice wrong type fields."""
     p: dict[str, Any] = valid_mark_price().copy()
     p["markPrice"] = [50000.0]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawMarkPrice.model_validate(p)
 
 
@@ -227,7 +227,7 @@ def test_BackpackRawMarkPrice_corruption_cases() -> None:
     # Null required
     p = valid_mark_price().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawMarkPrice.model_validate(p)
     # Unicode/control chars
     p = valid_mark_price().copy()
@@ -260,7 +260,7 @@ def test_BackpackRawMarkPrice_corruption_null_symbol() -> None:
     """Should fail: null value for required 'symbol'."""
     p = valid_mark_price().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawMarkPrice.model_validate(p)
 
 
@@ -268,7 +268,7 @@ def test_BackpackRawMarkPrice_corruption_binary_markPrice() -> None:
     """Should fail: binary data for 'markPrice'."""
     p = valid_mark_price().copy()
     p["markPrice"] = b"\x00\x01"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawMarkPrice.model_validate(p)
 
 
@@ -276,7 +276,7 @@ def test_BackpackRawMarkPrice_corruption_nested_fundingRate() -> None:
     """Should fail: nested object for 'fundingRate'."""
     p = valid_mark_price().copy()
     p["fundingRate"] = {"foo": "bar"}
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawMarkPrice.model_validate(p)
 
 
@@ -284,7 +284,7 @@ def test_BackpackRawMarkPrice_corruption_list_markPrice() -> None:
     """Should fail: list for 'markPrice'."""
     p = valid_mark_price().copy()
     p["markPrice"] = ["50000.0"]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawMarkPrice.model_validate(p)
 
 

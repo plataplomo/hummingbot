@@ -188,15 +188,22 @@ class TestSecurityValidationScenarios:
         assert call_args[1]["context"] == "test_null"
         assert call_args[1]["security_alert"] is True
 
-        # Test type mismatch logging (old string format)
+        # Test type mismatch logging (structured format)
         mock_logger.reset_mock()
         with pytest.raises(APIError):
             ensure_dict_response("wrong_type", "test_type", 500)
 
         mock_logger.error.assert_called()
-        error_call = mock_logger.error.call_args[0][0]
-        assert "SECURITY: Type mismatch" in error_call
-        assert "test_type" in error_call
+        call_args = mock_logger.error.call_args
+        # Check event name (first positional arg)
+        assert call_args[0][0] == "response_validation_type_mismatch_dict"
+        # Check keyword arguments
+        assert call_args[1]["context"] == "test_type"
+        assert call_args[1]["expected_type"] == "dict"
+        assert call_args[1]["actual_type"] == "str"
+        assert call_args[1]["security_alert"] is True
+        assert "SECURITY: Type mismatch" in call_args[1]["message"]
+        assert "test_type" in call_args[1]["message"]
 
     def test_error_message_information_leakage(self) -> None:
         """Test that error messages don't leak sensitive information."""

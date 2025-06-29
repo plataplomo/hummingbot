@@ -164,7 +164,7 @@ class TestPlaceOrderArgs:
 
     def test_invalid_symbol_types(self) -> None:
         """Test invalid symbol types."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             PlaceOrderArgs(
                 symbol=123,  # type: ignore
                 side=OrderSide.BUY,
@@ -173,10 +173,8 @@ class TestPlaceOrderArgs:
                 time_in_force=TimeInForce.IOC,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("symbol",)
-        assert "Expected string" in errors[0]["msg"]
+        # The actual error message from validate_str_field is "Expected string, got {type}"
+        assert "symbol: Expected string, got int" in str(exc_info.value)
 
     def test_empty_symbol(self) -> None:
         """Test empty symbol validation."""
@@ -809,7 +807,7 @@ class TestTransferArgs:
 
     def test_invalid_string_types(self) -> None:
         """Test invalid types for string fields."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             TransferArgs(
                 asset=123,  # type: ignore
                 amount=Decimal("1.0"),
@@ -817,10 +815,7 @@ class TestTransferArgs:
                 to_account_type="futures",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("asset",)
-        assert "Expected string" in errors[0]["msg"]
+        assert "asset: Expected string, got int" in str(exc_info.value)
 
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are forbidden."""
@@ -1121,17 +1116,14 @@ class TestWithdrawArgs:
 
     def test_invalid_string_types(self) -> None:
         """Test invalid types for string fields."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             WithdrawArgs(
                 asset=123,  # type: ignore
                 amount=Decimal("1.0"),
                 address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("asset",)
-        assert "Expected string" in errors[0]["msg"]
+        assert "asset: Expected string, got int" in str(exc_info.value)
 
     def test_extra_fields_allowed(self) -> None:
         """Test that extra fields are allowed in WithdrawArgs."""
@@ -1457,13 +1449,15 @@ class TestGetMarketArgs:
 
     def test_symbol_wrong_type(self) -> None:
         """Test that non-string types are rejected."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeError) as exc_info:
             GetMarketArgs(symbol=123)  # type: ignore[arg-type]
 
-        with pytest.raises(ValidationError):
+        assert "symbol: Expected string, got int" in str(exc_info.value)
+
+        with pytest.raises(TypeError):
             GetMarketArgs(symbol=None)  # type: ignore[arg-type]
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeError):
             GetMarketArgs(symbol=["BTC-USDC"])  # type: ignore[arg-type]
 
     def test_extra_fields_forbidden(self) -> None:

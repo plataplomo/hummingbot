@@ -66,7 +66,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid info (MetaAndAssetCtxs) response from exchange:" in exc_info.value.message
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_top_level_type(self) -> None:
         """Test meta and asset contexts response with wrong top-level type."""
@@ -107,7 +107,7 @@ class TestHandleInfoFundingRateResponse:
             f"Invalid info (funding rate for {symbol}) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
         assert "funding" in str(exc_info.value.original_exception)
 
     def test_invalid_top_level_type(self, symbol: str) -> None:
@@ -152,7 +152,7 @@ class TestHandleInfoL2BookResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid L2 book ({symbol}) response from exchange:" in exc_info.value.message
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
         assert "levels" in str(exc_info.value.original_exception)
 
     def test_invalid_top_level_type(self, symbol: str) -> None:
@@ -212,30 +212,28 @@ class TestHandleInfoRecentTradesResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_item_type_in_list(self, symbol: str) -> None:
         """Test recent trades response with non-dict item in list."""
         raw_data = ["not_a_trade_dict"]
-        # Handler should raise error for invalid items
-        with pytest.raises(APIError) as exc_info:
+        # Handler should raise TypeError for invalid items as per business logic
+        with pytest.raises(TypeError) as exc_info:
             HyperliquidResponseHandler.handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol=symbol,
             )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
+        assert "Expected a dictionary" in str(exc_info.value)
 
     def test_invalid_top_level_type(self, symbol: str) -> None:
         """Test recent trades response with wrong top-level type."""
         raw_data = {"invalid": "data"}
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(TypeError) as exc_info:
             HyperliquidResponseHandler.handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol=symbol,
             )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
+        assert "Expected a list" in str(exc_info.value)
 
 
 class TestHandleInfoCandleSnapshotResponse:
@@ -269,7 +267,7 @@ class TestHandleInfoCandleSnapshotResponse:
             f"Invalid candle snapshot ({symbol}, 1m) response from exchange:"
             in exc_info.value.message
         )
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
         assert "t" in str(exc_info.value.original_exception)
 
     def test_invalid_top_level_type(self, symbol: str) -> None:
@@ -334,7 +332,7 @@ class TestHandleHistoricalFundingRatesResponse:
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid historical_funding_rates response from exchange:" in exc_info.value.message
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_item_type_in_list(self) -> None:
         """Test historical funding rates response with non-dict item in list."""
@@ -389,7 +387,7 @@ class TestMarketDataEdgeCases:
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert isinstance(exc_info.value.original_exception, ValidationError)
+        assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""

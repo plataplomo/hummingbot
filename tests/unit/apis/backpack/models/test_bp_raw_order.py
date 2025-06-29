@@ -129,7 +129,7 @@ def test_BackpackRawOrder_wrong_type_quantity() -> None:
     """Test BackpackRawOrder wrong type quantity."""
     p = valid_order()
     p["quantity"] = [1.0]
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrder.model_validate(p)
 
 
@@ -137,7 +137,7 @@ def test_BackpackRawOrder_wrong_type_side() -> None:
     """Test BackpackRawOrder wrong type side."""
     p = valid_order()
     p["side"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrder.model_validate(p)
 
 
@@ -279,7 +279,7 @@ def test_BackpackRawOrder_corruption_null_required_symbol() -> None:
     """Test BackpackRawOrder corruption null required symbol."""
     p = valid_order()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrder.model_validate(p)
 
 
@@ -349,7 +349,7 @@ def test_BackpackRawOrderBook_wrong_type_fields() -> None:
         BackpackRawOrderBook.model_validate(p)
     p = valid_orderbook().copy()
     p["symbol"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrderBook.model_validate(p)
 
 
@@ -390,7 +390,7 @@ def test_BackpackRawOrderBook_corruption_cases() -> None:
     # Null required
     p = valid_orderbook().copy()
     p["symbol"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrderBook.model_validate(p)
     # Truncated JSON
     bad_json = '{"symbol": "BTC_USDC", "bids": [["50000.0", "1.0"]]'
@@ -436,7 +436,7 @@ def test_BackpackRawOrderUpdate_wrong_type_fields() -> None:
         BackpackRawOrderUpdate.model_validate(p)
     p = valid_orderupdate().copy()
     p["S"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrderUpdate.model_validate(p)
 
 
@@ -484,7 +484,7 @@ def test_BackpackRawOrderUpdate_corruption_cases() -> None:
     # Null required
     p = valid_orderupdate().copy()
     p["s"] = None
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeError):
         BackpackRawOrderUpdate.model_validate(p)
     # Unicode/control chars
     p = valid_orderupdate().copy()

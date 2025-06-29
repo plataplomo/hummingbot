@@ -57,7 +57,7 @@ def test_ws_fill_event_type_errors() -> None:
         "cloid": 123,
         "isMaker": "yes",
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
@@ -174,7 +174,7 @@ def test_ws_book_update_type_errors() -> None:
         "levels": "notalist",
         "time": "now",
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsBookUpdate.model_validate(obj)
 
 
@@ -255,7 +255,7 @@ def test_ws_trade_event_type_errors() -> None:
         "tid": "invalid",
         "users": "not_a_list",
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsTradeEvent.model_validate(obj)
 
 
@@ -354,7 +354,7 @@ def test_ws_order_update_missing_required() -> None:
 def test_ws_order_update_type_errors() -> None:
     """Test ws order update type errors."""
     obj: dict[str, object] = {"eventType": 123, "data": "notadict"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsOrderUpdate.model_validate(obj)
 
 
@@ -413,7 +413,7 @@ def test_ws_position_update_event_missing_required() -> None:
 def test_ws_position_update_event_type_errors() -> None:
     """Test ws position update event type errors."""
     obj: dict[str, object] = {"asset": 123, "position": "notadict", "time": "now"}
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsPositionUpdateEvent.model_validate(obj)
 
 
@@ -498,7 +498,7 @@ def test_ws_position_update_all_zero_negative_large() -> None:
         },
         "time": -1,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsPositionUpdateEvent.model_validate(obj2)
     obj3: dict[str, object] = {
         "asset": "BTC",
@@ -516,7 +516,7 @@ def test_ws_position_update_all_zero_negative_large() -> None:
         },
         "time": 2**63 - 1,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsPositionUpdateEvent.model_validate(obj3)
 
 
@@ -605,7 +605,7 @@ def test_ws_event_fields_set_to_none() -> None:
         "cloid": None,
         "isMaker": None,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 

@@ -38,12 +38,9 @@ def test_bp_raw_imf_function_missing_field() -> None:
 
 def test_bp_raw_imf_function_invalid_type() -> None:
     """Test validation failure when fields have incorrect types."""
-    with pytest.raises(ValidationError, match="base: Validation failed - base: Expected string"):
+    with pytest.raises(TypeError):
         BackpackRawImfFunction.model_validate({"base": 1.0, "factor": "0.1"})
-    with pytest.raises(
-        ValidationError,
-        match="factor: Validation failed - factor: Expected string",
-    ):
+    with pytest.raises(TypeError):
         BackpackRawImfFunction.model_validate({"base": "0.1", "factor": None})
 
 
@@ -97,7 +94,7 @@ def test_bp_raw_mmf_function_missing_field() -> None:
 
 def test_bp_raw_mmf_function_invalid_type() -> None:
     """Test validation failure when fields have incorrect types."""
-    with pytest.raises(ValidationError, match="base: Validation failed - base: Expected string"):
+    with pytest.raises(TypeError):
         BackpackRawMmfFunction.model_validate({"base": True, "factor": "0.1"})
 
 

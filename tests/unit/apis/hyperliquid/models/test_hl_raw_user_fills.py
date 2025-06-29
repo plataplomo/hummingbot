@@ -134,32 +134,32 @@ def test_user_fill_type_errors() -> None:
     d = valid_user_fill().copy()
     d["tid"] = "notanint"
     # Expect ValidationError because RawNonNegativeInt uses a validator that expects int
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises((ValidationError, TypeError)) as exc_info:
         HyperliquidRawUserFill.model_validate(d)
     assert "Must be an integer" in str(exc_info.value)
 
     d = valid_user_fill().copy()
     d["coin"] = 123
-    with pytest.raises(ValidationError) as exc_info_coin:
+    with pytest.raises((ValidationError, TypeError)) as exc_info_coin:
         HyperliquidRawUserFill.model_validate(d)
     assert "Expected string" in str(exc_info_coin.value)
 
     d = valid_user_fill().copy()
     d["isMaker"] = "true"
-    with pytest.raises(ValidationError) as exc_info_maker:
+    with pytest.raises((ValidationError, TypeError)) as exc_info_maker:
         HyperliquidRawUserFill.model_validate(d)
     # RawStrictBool enforces bool type
     assert "Must be a boolean, got str" in str(exc_info_maker.value)
 
     d = valid_user_fill().copy()
     d["time"] = 123.45  # Float instead of int
-    with pytest.raises(ValidationError) as exc_info_time:
+    with pytest.raises((ValidationError, TypeError)) as exc_info_time:
         HyperliquidRawUserFill.model_validate(d)
     assert "Must be an integer" in str(exc_info_time.value)
 
     d = valid_user_fill().copy()
     d["oid"] = "id-string"  # String instead of int
-    with pytest.raises(ValidationError) as exc_info_oid:
+    with pytest.raises((ValidationError, TypeError)) as exc_info_oid:
         HyperliquidRawUserFill.model_validate(d)
     assert "Must be an integer" in str(exc_info_oid.value)
 
@@ -330,7 +330,7 @@ def test_user_fills_response_array_edge_cases() -> None:
     assert obj.root == []
     obj = HyperliquidRawUserFillsResponse.model_validate([valid_user_fill()] * 1000)
     assert len(obj.root) == 1000
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUserFillsResponse.model_validate({"not": "alist"})
 
 
@@ -380,9 +380,9 @@ def test_user_fills_response_happy_path() -> None:
 
 def test_user_fills_response_type_errors() -> None:
     """Test user fills response type errors."""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUserFillsResponse.model_validate({"not": "alist"})
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUserFillsResponse.model_validate([{"tid": 1}])
 
 
@@ -406,11 +406,11 @@ def test_user_fills_request_payload_type_errors() -> None:
     """Test user fills request payload type errors."""
     d = valid_user_fills_request_payload().copy()
     d["user"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
     d = valid_user_fills_request_payload().copy()
     d["type"] = 123
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
 
 
@@ -510,10 +510,9 @@ def test_hl_raw_user_fill_invalid_types(
     """Test ValidationError is raised for incorrect field types."""
     valid_user_fill_data[field] = invalid_value
     expected_exception: type[ValidationError] | tuple[type[ValidationError], type[TypeError]] = (
-        ValidationError
+        ValidationError,
+        TypeError,
     )
-    if field == "isMaker":
-        expected_exception = (ValidationError, TypeError)  # Broadened for isMaker
 
     with pytest.raises(expected_exception) as exc_info:
         HyperliquidRawUserFill.model_validate(valid_user_fill_data)

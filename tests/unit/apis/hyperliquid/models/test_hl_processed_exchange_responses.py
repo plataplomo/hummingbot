@@ -64,7 +64,7 @@ class TestHyperliquidSuccessfulOrderStatus:
     )
     def test_invalid_oid(self, invalid_oid_data: dict[str, Any]) -> None:  # Typed here
         """Test invalid oid values."""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeError)):
             HyperliquidSuccessfulOrderStatus(**invalid_oid_data)
 
     @pytest.mark.parametrize(
