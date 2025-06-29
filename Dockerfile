@@ -1,5 +1,5 @@
 # Multi-stage build for CyberDeltaEngine
-FROM python:3.13-slim AS builder
+FROM python:3.13-slim-bookworm AS builder
 
 # Set working directory
 WORKDIR /build
@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir build && \
     python -m build --wheel
 
 # Runtime stage
-FROM python:3.13-slim
+FROM python:3.13-slim-bookworm
 
 # Set working directory
 WORKDIR /app
@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     nano \
     neovim \
-    fc-cache -f -v && rm -rf /var/lib/apt/lists/*
+    && fc-cache -f -v && rm -rf /var/lib/apt/lists/*
 
 # <<< ADDED: Configure locale to support UTF-8 characters for themes
 RUN apt-get update && apt-get install -y locales && \
