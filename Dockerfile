@@ -40,8 +40,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zsh \
     git \
     fonts-powerline \
+    fonts-dejavu-core \
+    fonts-liberation \
+    fonts-noto \
+    fonts-noto-color-emoji \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    nano \
+    neovim \
+    fc-cache -f -v && rm -rf /var/lib/apt/lists/*
 
 # <<< ADDED: Configure locale to support UTF-8 characters for themes
 RUN apt-get update && apt-get install -y locales && \
