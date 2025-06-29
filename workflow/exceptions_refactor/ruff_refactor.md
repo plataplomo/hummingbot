@@ -2,12 +2,143 @@
 
 This document provides a comprehensive strategy for resolving the 975 Ruff linting errors in CyberDeltaEngine while maintaining and improving business logic consistency. This analysis includes detailed business logic flows, exception architecture, and implementation strategies for a cryptocurrency delta-neutral arbitrage trading engine.
 
+## Executive Summary: Enhancing Our Existing Exception System
+
+After deep analysis of the codebase, we've discovered that CyberDeltaEngine already has a sophisticated exception handling foundation:
+
+### Current Exception System Strengths
+1. **Robust Base Infrastructure**:
+   - `APIError` class with comprehensive context (HTTP status, retry_after, metadata)
+   - `APIErrorCode` enum with well-organized error categories
+   - `APIErrorResponse` Pydantic model for validation
+   - `TransformationError` for data mapping failures
+
+2. **Exchange-Specific Error Mapping**:
+   - `BackpackErrorMapper` and `HyperliquidErrorMapper` implement `IErrorMapper` interface
+   - Sophisticated error categorization and retry logic
+   - Exchange-specific error codes mapped to common `APIErrorCode` values
+
+3. **Architectural Alignment**:
+   - Error mappers handle rate limiting with retry_after values
+   - Authentication failures are properly categorized
+   - Market/business logic errors are distinct from network errors
+
+### The Real Problem: Message Construction Location
+The Ruff errors aren't about missing infrastructure - they're about WHERE error messages are constructed:
+- **TRY003**: 857 instances of f-strings/format in raise statements
+- **TRY301**: 116 instances of raise within try blocks
+
+### Our Strategy: Enhance, Don't Replace
+We will:
+1. **Extend** the existing exception hierarchy with specific business exceptions
+2. **Preserve** the sophisticated error mapping and retry logic
+3. **Integrate** new exceptions with existing `APIError` and mappers
+4. **Maintain** backward compatibility and existing error flows
+
+## Deep Dive: Current Exception System Analysis
+
+### What We Already Have (And It's Good!)
+
+Our investigation revealed a mature exception handling system:
+
+#### 1. **Core Exception Infrastructure** (`cyberdelta/apis/common/`)
+- **`APIError`**: A feature-rich exception class with:
+  - Comprehensive context (message, code, HTTP status, exchange details)
+  - Retry logic built-in (`is_retryable` property, `retry_after` field)
+  - Metadata support for extensibility
+  - Integration with `APIErrorResponse` Pydantic model for validation
+
+- **`APIErrorCode`**: Well-organized enum with 30+ error codes:
+  - Network/Transport errors (0-99)
+  - Market/Business Logic errors (100-199)
+  - Unknown/Miscellaneous errors (200-299)
+
+- **`TransformationError`**: Specialized for data transformation failures
+  - Field-level error tracking
+  - Source data preservation for debugging
+
+#### 2. **Exchange-Specific Error Mappers**
+- **`BackpackErrorMapper`**: Maps 30+ Backpack-specific error codes to `APIErrorCode`
+  - Handles rate limiting with retry_after parsing
+  - Maps HTTP status codes to appropriate error types
+  - Provides detailed logging for unmapped errors
+
+- **`HyperliquidErrorMapper`**: Sophisticated pattern matching for string-based errors
+  - Regex-based error categorization
+  - IP ban detection (403 + rate limit pattern)
+  - Funding rate and arbitrage-specific error handling
+
+#### 3. **Error Flow Architecture**
+```mermaid
+flowchart TD
+    subgraph "Current Error Flow"
+        A[Exchange Error] --> B{Error Mapper}
+        B --> C[APIError]
+        C --> D[Error Handler]
+        D --> E{Retryable?}
+        E -->|Yes| F[Retry Logic]
+        E -->|No| G[Log & Propagate]
+    end
+
+    subgraph "What's Missing"
+        H[Specific Exception Classes]
+        I[Message Construction at Definition]
+        J[Validation Extraction]
+    end
+```
+
+### The Gap: Where Ruff Errors Come From
+
+The Ruff violations aren't due to missing infrastructure but HOW we construct error messages:
+
+```python
+# Current pattern causing TRY003 (857 instances)
+raise ValueError(f"Order size {size} below minimum {min_size}")
+raise APIError(
+    f"Rate limit exceeded: {current}/min, max: {limit}/min",
+    code=APIErrorCode.RATE_LIMITED.value
+)
+
+# Current pattern causing TRY301 (116 instances)
+try:
+    if not valid_price(price):
+        raise ValueError("Invalid price")  # Raise within try
+except ValueError:
+    # Handle...
+```
+
+### Why This Matters for Business Logic
+
+1. **Debugging Complexity**: Generic error messages make production issues hard to trace
+2. **Error Context Loss**: f-strings at raise site don't preserve structured data
+3. **Code Duplication**: Same error messages constructed in multiple places
+4. **Testing Difficulty**: Can't easily test specific error scenarios
+
+### Our Approach: Surgical Enhancement
+
+Instead of a complete rewrite, we'll:
+1. Create specific exception classes that inherit from `APIError`/`TransformationError`
+2. Move message construction into exception `__init__` methods
+3. Preserve all existing error codes, retry logic, and mapper functionality
+4. Ensure 100% backward compatibility
+
 ## Current Error Analysis
 
-**Total Errors: 975**
-- TRY003: 857 errors (87.9%) - Long exception messages outside exception class
-- TRY301: 116 errors (11.9%) - Raise statements within try blocks
-- E501: 2 errors (0.2%) - Line length violations
+**Total Errors: 975** (Updated count: 1,410 total TRY errors found)
+- TRY003: 1,244 errors (88%) - Long exception messages outside exception class
+- TRY301: 166 errors (12%) - Raise statements within try blocks
+- E501: 2 errors - Line length violations
+
+### Error Distribution by Module
+```
+cyberdelta/apis/          ~800 errors  (56.7%)
+  ├── backpack/           ~450 errors  (31.9%)
+  ├── hyperliquid/        ~300 errors  (21.3%)
+  └── common/             ~50 errors   (3.5%)
+cyberdelta/core/          ~200 errors  (14.2%)
+cyberdelta/strategies/    ~50 errors   (3.5%)
+tests/                    ~360 errors  (25.5%)
+```
 
 ## Business Context & Impact
 
@@ -49,6 +180,81 @@ graph TD
     F1 --> I
     G1 --> I
     H1 --> I
+```
+
+## Current Exception Architecture Analysis
+
+### Existing Exception Classes and Their Usage
+
+```mermaid
+classDiagram
+    direction TB
+    class Exception {
+        <<Python Built-in>>
+    }
+    class ValueError {
+        <<Python Built-in>>
+    }
+    class APIError {
+        +message: str
+        +code: int|str
+        +http_status: int|None
+        +exchange_code: str|int|None
+        +exchange_message: str|None
+        +retry_after: float|None
+        +metadata: dict|None
+        +original_exception: Exception|None
+        +is_retryable: bool
+    }
+    class TransformationError {
+        +message: str
+        +field_name: str|None
+        +source_value: object
+        +source_data: dict|None
+        +code: str|None
+        +original_exception: Exception|None
+    }
+    class APIErrorCode {
+        <<enumeration>>
+        CONNECTION_ERROR = 0
+        TIMEOUT = 1
+        AUTHENTICATION_FAILED = 100
+        INSUFFICIENT_FUNDS = 101
+        RATE_LIMITED = 109
+        ... (20+ more codes)
+    }
+
+    Exception <|-- APIError
+    ValueError <|-- TransformationError
+    APIError ..> APIErrorCode : uses
+```
+
+### Error Mapping Architecture
+
+```mermaid
+flowchart LR
+    subgraph "Exchange Responses"
+        BP[Backpack Raw Error]
+        HL[Hyperliquid Raw Error]
+    end
+
+    subgraph "Error Mappers"
+        BPM[BackpackErrorMapper]
+        HLM[HyperliquidErrorMapper]
+    end
+
+    subgraph "Common Error Model"
+        AE[APIError]
+        AEC[APIErrorCode]
+    end
+
+    BP --> BPM
+    HL --> HLM
+    BPM --> AE
+    HLM --> AE
+    BPM --> AEC
+    HLM --> AEC
+    AE --> AEC
 ```
 
 ## Enhanced Strategic Approach
@@ -117,102 +323,144 @@ sequenceDiagram
 
 ### Enhanced Exception Architecture
 
-The refactored exception architecture is explicitly designed to mirror the 6-Layer system design. This provides clear, domain-specific errors at each layer, ensuring that exceptions are handled at the appropriate level and provide maximum context for debugging and automated recovery.
+The refactored exception architecture builds upon our existing foundation to create specific exception classes that eliminate TRY003 violations while preserving all current functionality. We'll extend the existing `APIError` and `TransformationError` classes rather than replacing them.
 
 ```mermaid
 classDiagram
-    direction LR
-    class CyberDeltaError {
-        <<abstract>>
-        +message: str
-        +context: dict
-    }
-    class TechnicalError {
-        <<Layer 1-3>>
-    }
-    class FinancialError {
-        <<Layer 4-6>>
-    }
-    class StrategyError {
-        <<Application Layer>>
-    }
+    direction TB
 
-    CyberDeltaError <|-- TechnicalError
-    CyberDeltaError <|-- FinancialError
-    CyberDeltaError <|-- StrategyError
-
-    class ConnectivityError {
-        +host: str
-        +port: int
-    }
+    %% Existing Classes (DO NOT MODIFY)
     class APIError {
-        +exchange: str
-        +http_status: int
-        +retry_after: int
+        <<existing>>
+        +message: str
+        +code: int|str
+        +http_status: int|None
+        +exchange_code: str|int|None
+        +exchange_message: str|None
+        +retry_after: float|None
+        +metadata: dict|None
+        +is_retryable: bool
     }
-    class AuthenticationError
-    class RateLimitError
-
-    TechnicalError <|-- ConnectivityError
-    TechnicalError <|-- APIError
-    APIError <|-- AuthenticationError
-    APIError <|-- RateLimitError
 
     class TransformationError {
-        +mapper: str
-        +direction: str
+        <<existing>>
+        +field_name: str|None
+        +source_value: object
+        +source_data: dict|None
     }
-    class ValidationError {
-        +model: str
-        +field: str
+
+    %% New Specific Exception Classes (EXTEND EXISTING)
+    class ConfigurationError {
+        <<new>>
+        +missing_config: str
+        +environment: str
+        +exchange: str|None
     }
-    class TradingError {
+
+    class AuthenticationError {
+        <<new>>
+        +auth_type: str
+        +operation: str
+        +exchange: str
+    }
+
+    class TradingOperationError {
+        <<new>>
+        +operation: str
         +symbol: str
-        +order_id: str
-    }
-    class RiskError {
-         +limit_type: str
-         +current_value: Decimal
-         +limit_value: Decimal
+        +order_id: str|None
+        +reason: str
     }
 
-    FinancialError <|-- TransformationError
-    FinancialError <|-- ValidationError
-    FinancialError <|-- TradingError
-    FinancialError <|-- RiskError
+    class RiskLimitError {
+        <<new>>
+        +limit_type: str
+        +current_value: Decimal
+        +limit_value: Decimal
+        +symbol: str|None
+    }
 
-    class OpportunityError {
+    class MarketDataError {
+        <<new>>
+        +data_type: str
+        +symbol: str
+        +reason: str
+    }
+
+    class PositionError {
+        <<new>>
+        +position_id: str
+        +symbol: str
+        +error_type: str
+    }
+
+    %% Strategy-Specific Exceptions
+    class ArbitrageError {
+        <<new>>
+        +opportunity_id: str
         +profitability: Decimal
-    }
-    class PositionImbalanceError {
-        +expected_delta: Decimal
-        +actual_delta: Decimal
+        +risk_score: float
+        +rejection_reason: str
     }
 
-    StrategyError <|-- OpportunityError
-    StrategyError <|-- PositionImbalanceError
+    class DeltaNeutralError {
+        <<new>>
+        +current_delta: Decimal
+        +target_delta: Decimal
+        +imbalance_ratio: float
+        +positions: dict
+    }
+
+    %% Inheritance (extends APIError)
+    APIError <|-- ConfigurationError
+    APIError <|-- AuthenticationError
+    APIError <|-- TradingOperationError
+    APIError <|-- RiskLimitError
+    APIError <|-- MarketDataError
+    APIError <|-- PositionError
+    APIError <|-- ArbitrageError
+    APIError <|-- DeltaNeutralError
+
+    %% TransformationError extensions
+    class FieldValidationError {
+        <<new>>
+        +validation_type: str
+        +expected_format: str
+    }
+
+    class ModelMappingError {
+        <<new>>
+        +source_model: str
+        +target_model: str
+        +mapping_stage: str
+    }
+
+    TransformationError <|-- FieldValidationError
+    TransformationError <|-- ModelMappingError
 ```
 
 ### Phase 1: Exception Class Architecture (TRY003 - 857 errors)
 
-#### 1.1 Business Logic Categories
+#### 1.1 Integration with Existing System
 
-Group exceptions by business domain for consistent error handling:
+Our approach leverages the existing exception infrastructure by creating specific exception classes that inherit from `APIError` and `TransformationError`. This maintains backward compatibility while fixing TRY003 violations.
+
+**Key Principles**:
+1. **Extend, Don't Replace**: All new exceptions inherit from existing base classes
+2. **Preserve Error Codes**: Use existing `APIErrorCode` enum values
+3. **Maintain Mapper Compatibility**: New exceptions work with existing error mappers
+4. **Keep Retry Logic**: Preserve `is_retryable` and `retry_after` functionality
 
 ```
 📁 cyberdelta/exceptions/
-├── financial/
-│   ├── trading_exceptions.py      # Order, position, trading errors
-│   ├── market_data_exceptions.py  # Price, ticker, market errors
-│   ├── balance_exceptions.py      # Funds, wallet, balance errors
-│   └── risk_exceptions.py         # Risk management, limits
-├── technical/
-│   ├── api_exceptions.py          # HTTP, authentication, rate limits
-│   ├── validation_exceptions.py   # Data validation, parsing
-│   └── connectivity_exceptions.py # Network, WebSocket, connectivity
-└── system/
-    ├── configuration_exceptions.py # Config, setup, initialization
-    └── transformation_exceptions.py # Data mapping, conversion
+├── __init__.py              # Re-export existing APIError, TransformationError
+├── trading.py               # Trading-specific exceptions (extend APIError)
+├── configuration.py         # Configuration exceptions (extend APIError)
+├── authentication.py        # Auth exceptions (extend APIError)
+├── market_data.py          # Market data exceptions (extend APIError)
+├── risk.py                 # Risk management exceptions (extend APIError)
+├── strategy.py             # Strategy exceptions (extend APIError)
+└── validation.py           # Validation exceptions (extend TransformationError)
 ```
 
 #### 1.2 Comprehensive Exception Coverage Analysis
@@ -283,47 +531,76 @@ graph TB
 
 #### 1.3 Exception Design Patterns
 
-**Pattern A: Domain-Specific Exceptions with Context**
+**Pattern A: Extending APIError for Domain-Specific Exceptions**
 ```python
 # Before (TRY003 violation)
 raise ValueError("Testnet API URL not configured but testnet environment requested")
 
-# After (Business-focused)
-class ConfigurationError(Exception):
+# After (Extending existing APIError)
+from cyberdelta.apis.common import APIError, APIErrorCode
+
+class ConfigurationError(APIError):
     """Configuration validation error for exchange setup."""
 
-    def __init__(self, missing_config: str, environment: str):
+    def __init__(self, missing_config: str, environment: str, exchange: str | None = None):
         self.missing_config = missing_config
         self.environment = environment
+
+        # Build detailed message
+        message = f"{missing_config} not configured for {environment} environment"
+        if exchange:
+            message = f"[{exchange}] {message}"
+
+        # Initialize parent APIError with proper error code
         super().__init__(
-            f"{missing_config} not configured for {environment} environment"
+            message=message,
+            code=APIErrorCode.INVALID_REQUEST.value,  # Use existing error code
+            metadata={
+                "missing_config": missing_config,
+                "environment": environment,
+                "exchange": exchange
+            }
         )
 
 # Usage
-raise ConfigurationError("Testnet API URL", "testnet")
+raise ConfigurationError("Testnet API URL", "testnet", "backpack")
 ```
 
-**Pattern B: Financial Safety Exceptions**
+**Pattern B: Preserving Error Mapper Compatibility**
 ```python
 # Before
 raise ValueError("rate_limit_per_minute is required for Backpack")
 
-# After
-class ExchangeConfigurationError(Exception):
+# After (Works with existing error mappers)
+class ExchangeConfigurationError(APIError):
     """Exchange-specific configuration validation error."""
 
-    def __init__(self, exchange: str, required_param: str):
+    def __init__(self, exchange: str, required_param: str,
+                 error_code: APIErrorCode = APIErrorCode.INVALID_REQUEST):
         self.exchange = exchange
         self.required_param = required_param
+
         super().__init__(
-            f"{required_param} is required for {exchange} exchange configuration"
+            message=f"{required_param} is required for {exchange} exchange configuration",
+            code=error_code.value,
+            exchange_code="CONFIG_ERROR",  # Exchange-specific code
+            metadata={
+                "exchange": exchange,
+                "required_param": required_param,
+                "error_type": "configuration"
+            }
         )
 
-# Usage
-raise ExchangeConfigurationError("Backpack", "rate_limit_per_minute")
+# Usage - maintains compatibility with error mappers
+try:
+    raise ExchangeConfigurationError("Backpack", "rate_limit_per_minute")
+except APIError as e:
+    # Existing error handling still works
+    if e.is_retryable:
+        # ...
 ```
 
-**Pattern C: API Operation Exceptions**
+**Pattern C: Authentication Exceptions with Retry Logic**
 ```python
 # Before
 raise APIError(
@@ -331,20 +608,34 @@ raise APIError(
     code=APIErrorCode.AUTHENTICATION_FAILED.value,
 )
 
-# After
+# After (Preserves retry logic and metadata)
 class AuthenticationRequiredError(APIError):
     """Authentication method required for private operations."""
 
-    def __init__(self, required_auth: str, operation: str):
+    def __init__(self, required_auth: str, operation: str, exchange: str):
         self.required_auth = required_auth
         self.operation = operation
-        super().__init__(
-            f"{required_auth} authenticator required for {operation}",
-            code=APIErrorCode.AUTHENTICATION_FAILED.value,
-        )
+        self.exchange = exchange
 
-# Usage
-raise AuthenticationRequiredError("ED25519", "private WebSocket subscriptions")
+        super().__init__(
+            message=f"{required_auth} authenticator required for {operation}",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,  # Proper HTTP status
+            exchange_code="AUTH_REQUIRED",
+            exchange_message=f"{exchange} requires {required_auth} authentication",
+            retry_after=None,  # Auth errors typically not retryable
+            metadata={
+                "auth_type": required_auth,
+                "operation": operation,
+                "exchange": exchange,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        # Explicitly set non-retryable for auth errors
+        self._is_retryable = False
+
+# Usage maintains all existing functionality
+raise AuthenticationRequiredError("ED25519", "private WebSocket subscriptions", "backpack")
 ```
 
 #### 1.3 Implementation Priority
@@ -363,13 +654,16 @@ raise AuthenticationRequiredError("ED25519", "private WebSocket subscriptions")
 
 #### 1.4 Advanced Exception Patterns for Trading Systems
 
-**Pattern D: Delta-Neutral Position Exceptions**
+**Pattern D: Delta-Neutral Strategy Exceptions**
 ```python
 # Before (TRY003 violation)
 raise ValueError(f"Delta imbalance detected: {delta_value} exceeds threshold {threshold}")
 
-# After (Business-focused)
-class DeltaNeutralityViolationError(TradingError):
+# After (Integrated with existing system)
+from decimal import Decimal
+from cyberdelta.apis.common import APIError, APIErrorCode
+
+class DeltaNeutralityViolationError(APIError):
     """Delta-neutral position has become imbalanced beyond acceptable limits."""
 
     def __init__(self, current_delta: Decimal, threshold: Decimal,
@@ -378,67 +672,125 @@ class DeltaNeutralityViolationError(TradingError):
         self.threshold = threshold
         self.position_id = position_id
         self.exchange_positions = exchange_positions
-        self.imbalance_ratio = abs(current_delta) / threshold
+        self.imbalance_ratio = float(abs(current_delta) / threshold)
+
+        # Determine severity for error code
+        if self.imbalance_ratio > 2.0:
+            error_code = APIErrorCode.LIQUIDATION_IN_PROGRESS  # Critical
+        elif self.imbalance_ratio > 1.5:
+            error_code = APIErrorCode.MAX_POSITION_EXCEEDED  # Warning
+        else:
+            error_code = APIErrorCode.EXCHANGE_SPECIFIC  # Monitor
 
         super().__init__(
-            f"Delta neutrality violated for position {position_id}: "
-            f"current delta {current_delta} exceeds threshold {threshold} "
-            f"(ratio: {self.imbalance_ratio:.2f})",
-            exchange="multi-exchange",
-            operation_type="position_monitoring"
+            message=(
+                f"Delta neutrality violated for position {position_id}: "
+                f"current delta {current_delta} exceeds threshold {threshold} "
+                f"(ratio: {self.imbalance_ratio:.2f})"
+            ),
+            code=error_code.value,
+            exchange_code="DELTA_IMBALANCE",
+            metadata={
+                "position_id": position_id,
+                "current_delta": str(current_delta),
+                "threshold": str(threshold),
+                "imbalance_ratio": self.imbalance_ratio,
+                "exchange_positions": {
+                    k: str(v) for k, v in exchange_positions.items()
+                },
+                "severity": "critical" if self.imbalance_ratio > 2.0 else "warning"
+            }
         )
 ```
 
-**Pattern E: Cross-Exchange Synchronization Exceptions**
+**Pattern E: Transformation Error Extensions**
 ```python
-# Before
-raise APIError("Position synchronization failed between exchanges")
+# Before (using generic TransformationError)
+raise TransformationError("Price and quantity are required for trade")
 
-# After
-class CrossExchangeSyncError(TradingError):
-    """Position synchronization failure between exchanges in delta-neutral strategy."""
+# After (Specific transformation exceptions)
+from cyberdelta.apis.common import TransformationError
 
-    def __init__(self, hyperliquid_position: Decimal, backpack_position: Decimal,
-                 symbol: str, sync_tolerance: Decimal):
-        self.hyperliquid_position = hyperliquid_position
-        self.backpack_position = backpack_position
-        self.symbol = symbol
-        self.sync_tolerance = sync_tolerance
-        self.position_diff = abs(hyperliquid_position - backpack_position)
+class TradeDataValidationError(TransformationError):
+    """Trade data validation failure during transformation."""
+
+    def __init__(self, missing_fields: list[str], trade_id: str | None = None):
+        self.missing_fields = missing_fields
+        self.trade_id = trade_id
+
+        fields_str = ", ".join(missing_fields)
+        message = f"Required fields missing for trade: {fields_str}"
+        if trade_id:
+            message = f"{message} (trade_id: {trade_id})"
 
         super().__init__(
-            f"Position sync failed for {symbol}: "
-            f"Hyperliquid {hyperliquid_position} vs Backpack {backpack_position} "
-            f"(diff: {self.position_diff}, tolerance: {sync_tolerance})",
-            exchange="cross-exchange",
-            operation_type="position_sync"
+            message=message,
+            field_name="trade_data",
+            source_value=None,
+            code="MISSING_REQUIRED_FIELDS"
+        )
+
+class OrderStatusMappingError(TransformationError):
+    """Order status cannot be mapped between exchange and internal format."""
+
+    def __init__(self, exchange_status: str, exchange: str, order_id: str | None = None):
+        self.exchange_status = exchange_status
+        self.exchange = exchange
+        self.order_id = order_id
+
+        super().__init__(
+            message=f"Unknown {exchange} order status: '{exchange_status}'",
+            field_name="order_status",
+            source_value=exchange_status,
+            code="UNMAPPED_STATUS",
+            source_data={"order_id": order_id, "exchange": exchange}
         )
 ```
 
-**Pattern F: Funding Rate Arbitrage Exceptions**
+**Pattern F: Rate Limit Exceptions with Retry Logic**
 ```python
 # Before
-raise ValueError("Funding rate calculation failed: insufficient data")
+raise APIError(
+    f"Rate limit exceeded: {current_rate}/min, limit: {rate_limit}/min",
+    code=APIErrorCode.RATE_LIMITED.value,
+)
 
-# After
-class FundingRateArbitrageError(TradingError):
-    """Funding rate arbitrage calculation or execution error."""
+# After (Preserves retry_after functionality)
+class RateLimitExceededError(APIError):
+    """Rate limit exceeded with automatic retry calculation."""
 
-    def __init__(self, symbol: str, current_rate: Optional[Decimal],
-                 required_rate: Decimal, error_type: str):
-        self.symbol = symbol
+    def __init__(self, current_rate: int, rate_limit: int, window: str = "minute",
+                 exchange: str | None = None, retry_after: float | None = None):
         self.current_rate = current_rate
-        self.required_rate = required_rate
-        self.error_type = error_type
+        self.rate_limit = rate_limit
+        self.window = window
+        self.exchange = exchange
 
-        rate_msg = str(current_rate) if current_rate else "unavailable"
+        # Calculate retry_after if not provided
+        if retry_after is None:
+            # Simple calculation: wait proportional to how much over limit
+            excess_ratio = current_rate / rate_limit
+            retry_after = min(60.0, 10.0 * (excess_ratio - 1.0))  # Max 60s
+
+        message = f"Rate limit exceeded: {current_rate}/{window}, limit: {rate_limit}/{window}"
+        if exchange:
+            message = f"[{exchange}] {message}"
+
         super().__init__(
-            f"Funding rate arbitrage failed for {symbol}: "
-            f"current rate {rate_msg}, required {required_rate} "
-            f"(error: {error_type})",
-            exchange="hyperliquid",
-            operation_type="funding_rate_arbitrage"
+            message=message,
+            code=APIErrorCode.RATE_LIMITED.value,
+            http_status=429,
+            exchange_code="RATE_LIMIT_EXCEEDED",
+            retry_after=retry_after,
+            metadata={
+                "current_rate": current_rate,
+                "rate_limit": rate_limit,
+                "window": window,
+                "exchange": exchange
+            }
         )
+        # Rate limit errors are always retryable
+        self._is_retryable = True
 ```
 
 ### Phase 2: Exception Control Flow (TRY301 - 116 errors)
@@ -795,41 +1147,54 @@ graph LR
     end
 ```
 
-### Comprehensive Exception Testing Strategy
+### Integration with Existing Error Mappers
 
-#### 5. **Exception Simulation Framework**
+Our new exception classes seamlessly integrate with the existing error mapping infrastructure:
+
 ```python
-class ExceptionSimulator:
-    """Simulate various exception scenarios for testing recovery mechanisms."""
+# Example: How new exceptions work with BackpackErrorMapper
+from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
+from cyberdelta.exceptions.configuration import ConfigurationError
 
-    def simulate_market_conditions(self) -> List[MarketConditionScenario]:
-        """Generate realistic market condition scenarios that trigger exceptions."""
-        return [
-            MarketConditionScenario.EXTREME_VOLATILITY,
-            MarketConditionScenario.LOW_LIQUIDITY,
-            MarketConditionScenario.EXCHANGE_OUTAGE,
-            MarketConditionScenario.RAPID_PRICE_MOVEMENT,
-            MarketConditionScenario.FUNDING_RATE_SPIKE
-        ]
+def handle_backpack_error(status_code: int, error_body: str):
+    # Existing mapper still works
+    mapper = BackpackErrorMapper()
 
-    def test_delta_neutral_resilience(self, scenarios: List[MarketConditionScenario]) -> TestResults:
-        """Test delta-neutral strategy resilience under various exception conditions."""
-        results = TestResults()
-
-        for scenario in scenarios:
-            try:
-                # Simulate scenario and measure recovery
-                test_result = self._run_scenario_test(scenario)
-                results.add_scenario_result(scenario, test_result)
-            except Exception as e:
-                results.add_failure(scenario, e)
-
-        return results
+    try:
+        # New exception can be mapped
+        if "configuration" in error_body.lower():
+            raise ConfigurationError("API_KEY", "production", "backpack")
+    except APIError as e:
+        # Mapper can process our new exception
+        mapped_error = mapper.map_exchange_error(
+            status_code=status_code,
+            error_body=error_body,
+            original_exception=e
+        )
+        return mapped_error
 ```
 
-## Architecturally-Aligned Implementation Plan
+### Backward Compatibility Guarantees
 
-This is a detailed, step-by-step implementation plan, ordered by architectural layer and business criticality.
+1. **All new exceptions inherit from `APIError` or `TransformationError`**
+   - Existing `except APIError` blocks continue to work
+   - Error mappers process new exceptions without modification
+
+2. **Error codes use existing `APIErrorCode` enum**
+   - No new error codes needed initially
+   - Existing error handling logic remains valid
+
+3. **Retry logic preserved**
+   - `is_retryable` property works on all new exceptions
+   - `retry_after` functionality maintained
+
+4. **Metadata structure compatible**
+   - New exceptions add to metadata, don't replace it
+   - Existing logging and monitoring continue to function
+
+## Implementation Plan: Enhancing the Existing System
+
+This implementation plan focuses on extending our robust exception infrastructure rather than replacing it. The goal is to fix TRY003/TRY301 violations while preserving all existing functionality.
 
 ```mermaid
 gantt
@@ -851,57 +1216,266 @@ gantt
     Integrate Logging & Final Tests : 2024-01-29, 7d
 ```
 
-### **Step 1: Create the New Exception Modules (Foundation)**
+### **Step 1: Create Exception Extensions (Foundation)**
 
-This step establishes the file structure for our new, organized exception hierarchy.
+Extend the existing exception system with specific classes that eliminate TRY003 violations.
 
-*   **Action:** Create the new directory structure and base exception files.
+*   **Action:** Create new exception modules that import and extend existing classes:
     *   `cyberdelta/exceptions/`
-        *   `__init__.py`
-        *   `base_exceptions.py` (Defines `CyberDeltaError`, `TechnicalError`, `FinancialError`, `StrategyError`)
-        *   `technical.py` (Defines `ConnectivityError`, `APIError`, `AuthenticationError`, `RateLimitError`)
-        *   `financial.py` (Defines `TransformationError`, `ValidationError`, `TradingError`, `RiskError`)
-        *   `strategy.py` (Defines `OpportunityError`, `PositionImbalanceError`, and other strategy-specific exceptions from the refactoring documents)
+        *   `__init__.py` (Re-export APIError, TransformationError, add new exceptions)
+        *   `configuration.py` (ConfigurationError extends APIError)
+        *   `authentication.py` (AuthenticationError, AuthenticationRequiredError extend APIError)
+        *   `trading.py` (TradingOperationError, OrderValidationError extend APIError)
+        *   `market_data.py` (MarketDataError, PriceValidationError extend APIError)
+        *   `risk.py` (RiskLimitError, PositionLimitError extend APIError)
+        *   `strategy.py` (ArbitrageError, DeltaNeutralError extend APIError)
+        *   `validation.py` (FieldValidationError, ModelMappingError extend TransformationError)
 
-### **Step 2: Harden the Core (Layers 1-3: Connectivity & Exchange Components)**
+**Example `__init__.py`:**
+```python
+# Re-export existing exceptions
+from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 
-This phase focuses on the lowest layers of the architecture, ensuring that fundamental interactions with exchanges are robust.
+# Import new specific exceptions
+from .configuration import ConfigurationError, ExchangeConfigurationError
+from .authentication import AuthenticationError, AuthenticationRequiredError
+from .trading import TradingOperationError, OrderValidationError
+# ... etc
 
-*   **Files:** `cyberdelta/apis/connectivity/http_client.py`, `cyberdelta/apis/{exchange}/bp_api.py`, `cyberdelta/apis/{exchange}/hl_api.py`, `cyberdelta/apis/{exchange}/bp_auth.py`, `cyberdelta/apis/{exchange}/hl_auth.py`
-*   **Task:**
-    1.  Replace generic `Exception` and `ValueError` catches with specific `ConnectivityError` and `AuthenticationError` types from `technical.py`.
-    2.  Refactor API client `__init__` methods to raise specific `ConfigurationError` (a subclass of `TechnicalError`) for missing API keys or URLs.
-    3.  Ensure `RateLimitError` is raised with `retry_after` context where applicable.
+__all__ = [
+    # Existing
+    "APIError", "APIErrorCode", "TransformationError",
+    # New
+    "ConfigurationError", "ExchangeConfigurationError",
+    "AuthenticationError", "AuthenticationRequiredError",
+    # ... etc
+]
+```
 
-### **Step 3: Fortify the Data Pipeline (Layers 4-5: Services & Mappers)**
+### **Step 2: Fix High-Priority TRY003 Violations**
 
-This is the largest phase, addressing the bulk of the `TRY003` and `TRY301` errors by introducing strong types into the data processing pipeline.
+Replace f-string raise statements with new specific exception classes.
 
-*   **Files:** All files within `cyberdelta/apis/**/mappers/`, `cyberdelta/apis/**/services/`, and `cyberdelta/apis/models/service_args_models.py`.
-*   **Task:**
-    1.  **Refactor Mappers:** In all `*Mapper` files, replace `ValueError` and generic `Exception` with `TransformationError`. The context should include the model and field that failed to transform.
-    2.  **Refactor Service Argument Models:** In `service_args_models.py`, replace all `ValueError`s in Pydantic validators with specific `ValidationError` subclasses (e.g., `MissingPriceError`, `InvalidQuantityError`).
-    3.  **Refactor Services (Resolve TRY301):** Apply the "Validation Chain Refactoring" pattern from the planning documents. Extract validation logic into private helper methods that raise specific exceptions, moving the `raise` statements out of the `try...except` blocks.
+**2.1 Authentication Modules** (`bp_auth.py`, `hl_auth.py`):
+```python
+# Before
+raise ValueError("API key (Base64 public ED25519 key) cannot be empty")
 
-### **Step 4: Enhance the Business Logic (Layer 6 & Application Layer)**
+# After
+from cyberdelta.exceptions import ConfigurationError
+raise ConfigurationError(
+    missing_config="API key (Base64 public ED25519 key)",
+    environment="production",
+    exchange="backpack"
+)
 
-This phase focuses on making the high-level business logic more explicit and observable.
+# Before
+raise APIError(
+    "ED25519 authenticator required for private WebSocket subscriptions",
+    code=APIErrorCode.AUTHENTICATION_FAILED.value,
+)
 
-*   **Files:** `cyberdelta/strategies/funding_rate_arbitrage.py`, `cyberdelta/core/portfolio_tracker.py`, `cyberdelta/core/risk_manager.py`
-*   **Task:**
-    1.  In the `FundingRateArbitrageStrategy`, replace silent `return None` flows with explicit `raise OpportunityError` for unprofitable (but valid) market conditions.
-    2.  Raise `DataUnavailableError` (a subclass of `StrategyError`) when required ticker or market data is missing.
-    3.  In the `RiskManager` and `PortfolioTracker`, introduce `raise RiskError` and `raise PositionImbalanceError` where appropriate, capturing the state that violated risk constraints.
+# After
+from cyberdelta.exceptions import AuthenticationRequiredError
+raise AuthenticationRequiredError(
+    required_auth="ED25519",
+    operation="private WebSocket subscriptions",
+    exchange="backpack"
+)
+```
 
-### **Step 5: Integrate with Observability (Logging & Monitoring)**
+**2.2 Configuration Validation** (`bp_api.py`, `hl_api.py`):
+```python
+# Before
+raise ValueError("Testnet API URL not configured but testnet environment requested")
 
-This step connects our new exception hierarchy to the existing monitoring tools, making the system truly observable.
+# After
+from cyberdelta.exceptions import ConfigurationError
+raise ConfigurationError(
+    missing_config="Testnet API URL",
+    environment="testnet",
+    exchange=self.exchange_name
+)
+```
 
-*   **Files:** `cyberdelta/logging/logging_helpers.py`, `cyberdelta/monitoring/performance_tracker.py`
-*   **Task:**
-    1.  **Create a new logging helper:** In `logging_helpers.py`, add a function `log_exception_event(logger, exception: CyberDeltaError)`. This function will serialize the custom exception's message and context into a structured log entry.
-    2.  **Create a new tracking method:** In `performance_tracker.py`, add a method `track_error_event(timestamp: datetime, error_type: str, severity: str, context: dict)`.
-    3.  **Implement a global exception handler (optional but recommended):** In the main application entry point, add a top-level `try...except CyberDeltaError` block that calls both `log_exception_event` and `track_error_event`.
+### **Step 3: Fix TRY301 Violations (Extract Validation)**
+
+Extract validation logic from try blocks to eliminate TRY301 violations.
+
+**3.1 Mapper Validation Extraction**:
+```python
+# Before (TRY301 violation)
+def transform_trade_data(self, raw_data):
+    try:
+        price = self._parse_price(raw_data.get("price"))
+        if price is None:
+            raise TransformationError("Price is required for trade")
+    except TransformationError:
+        logger.error("Trade transformation failed")
+        raise
+
+# After
+from cyberdelta.exceptions import TradeDataValidationError
+
+def _validate_trade_price(self, raw_price) -> Decimal:
+    """Validate and parse trade price."""
+    if raw_price is None:
+        raise TradeDataValidationError(
+            missing_fields=["price"],
+            trade_id=self.current_trade_id
+        )
+
+    price = self._parse_price(raw_price)
+    if price is None:
+        raise TradeDataValidationError(
+            missing_fields=["valid_price_format"],
+            trade_id=self.current_trade_id
+        )
+    return price
+
+def transform_trade_data(self, raw_data):
+    try:
+        price = self._validate_trade_price(raw_data.get("price"))
+        # Continue transformation
+    except TransformationError as e:
+        logger.error("Trade transformation failed", error=e)
+        raise
+```
+
+**3.2 Service Validation Extraction**:
+```python
+# Extract validation to dedicated methods
+def _validate_order_params(self, args: PlaceOrderArgs) -> None:
+    """Validate order parameters before submission."""
+    from cyberdelta.exceptions import OrderValidationError
+
+    if args.quantity <= 0:
+        raise OrderValidationError(
+            field="quantity",
+            value=args.quantity,
+            reason="Quantity must be positive",
+            order_type=args.order_type
+        )
+```
+
+### **Step 4: Enhance Strategy and Risk Exceptions**
+
+Add specific exceptions for strategy and risk management while maintaining integration with error mappers.
+
+**4.1 Strategy Exceptions**:
+```python
+# funding_rate_arbitrage.py
+from cyberdelta.exceptions import ArbitrageError, MarketDataError
+
+# Replace silent returns with explicit exceptions
+if funding_rate is None:
+    raise MarketDataError(
+        data_type="funding_rate",
+        symbol=symbol,
+        reason="Funding rate unavailable for arbitrage calculation"
+    )
+
+if profitability < self.min_profitability:
+    raise ArbitrageError(
+        opportunity_id=f"{symbol}_{timestamp}",
+        profitability=profitability,
+        risk_score=risk_score,
+        rejection_reason=f"Profitability {profitability} below minimum {self.min_profitability}"
+    )
+```
+
+**4.2 Risk Management Exceptions**:
+```python
+# risk_manager.py
+from cyberdelta.exceptions import RiskLimitError, DeltaNeutralError
+
+def check_position_limits(self, position: Position) -> None:
+    if position.size > self.max_position_size:
+        raise RiskLimitError(
+            limit_type="position_size",
+            current_value=position.size,
+            limit_value=self.max_position_size,
+            symbol=position.symbol
+        )
+
+def check_delta_neutrality(self, portfolio: Portfolio) -> None:
+    delta = portfolio.calculate_delta()
+    if abs(delta) > self.delta_threshold:
+        raise DeltaNeutralError(
+            current_delta=delta,
+            target_delta=Decimal("0"),
+            imbalance_ratio=float(abs(delta) / self.delta_threshold),
+            positions=portfolio.get_position_summary()
+        )
+```
+
+### **Step 5: Maintain Compatibility with Existing Infrastructure**
+
+Ensure all new exceptions work seamlessly with existing error handling, logging, and monitoring.
+
+**5.1 Error Mapper Compatibility Test**:
+```python
+# Verify new exceptions work with existing mappers
+def test_new_exceptions_with_mappers():
+    from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
+    from cyberdelta.exceptions import ConfigurationError
+
+    mapper = BackpackErrorMapper()
+    config_error = ConfigurationError("API_URL", "testnet", "backpack")
+
+    # Should map correctly without any mapper changes
+    mapped = mapper.map_exchange_error(
+        status_code=400,
+        error_body=str(config_error),
+        original_exception=config_error
+    )
+
+    assert isinstance(mapped, APIError)
+    assert mapped.code == APIErrorCode.INVALID_REQUEST.value
+    assert mapped.metadata["exchange"] == "backpack"
+```
+
+**5.2 Logging Integration** (no changes needed):
+```python
+# Existing logging works with new exceptions
+try:
+    # ... operation ...
+except APIError as e:  # Catches all new exceptions too
+    logger.error(
+        "operation_failed",
+        error_code=e.code,
+        error_message=e.message,
+        metadata=e.metadata,
+        retry_after=e.retry_after
+    )
+```
+
+## Key Implementation Principles
+
+### 1. Preserve Existing Functionality
+- **Don't modify** `APIError`, `APIErrorCode`, or `TransformationError` base classes
+- **Don't change** error mapper interfaces or logic
+- **Don't break** existing exception handling code
+- **Do extend** with new specific exception classes
+
+### 2. Maintain Error Mapper Compatibility
+```python
+# All new exceptions must work with existing mappers
+class NewSpecificError(APIError):
+    def __init__(self, ...specific_params...):
+        # Must call parent with compatible parameters
+        super().__init__(
+            message=constructed_message,
+            code=existing_error_code.value,  # Use existing codes
+            metadata={...},  # Extend, don't replace
+        )
+```
+
+### 3. Leverage Existing Infrastructure
+- Use existing `APIErrorCode` values - don't create new ones initially
+- Preserve `is_retryable` logic through proper error codes
+- Maintain `retry_after` functionality for rate limits
+- Keep metadata structure compatible with logging
 
 ## Business Logic Preservation Rules
 
@@ -1136,10 +1710,61 @@ Each file's priority is determined by:
 
 ## Implementation Timeline
 
-- **Week 1**: Exception architecture design and base classes
-- **Week 2**: Critical path TRY003 errors (authentication, trading, market data)
-- **Week 3**: Standard path TRY003 errors (configuration, validation)
-- **Week 4**: TRY301 control flow refactoring + E501 fixes
+- **Week 1**: Create exception extensions and update imports
+- **Week 2**: Fix critical path TRY003 errors (authentication, trading, market data)
+- **Week 3**: Fix standard path TRY003 errors (configuration, validation)
+- **Week 4**: Fix TRY301 control flow violations + E501 fixes
 - **Week 5**: Testing, validation, and quality assurance
 
-This workflow ensures that the Ruff error resolution improves code quality while maintaining the financial safety and business logic integrity that are critical for a trading system.
+## Migration Example: Step-by-Step
+
+Here's a complete example of migrating a typical TRY003 violation:
+
+```python
+# BEFORE: bp_auth.py line 171
+raise APIError(
+    f"Backpack instruction not found for {method_upper} {lookup_path}",
+    code=APIErrorCode.AUTHENTICATION_FAILED.value,
+)
+
+# STEP 1: Create specific exception (in cyberdelta/exceptions/authentication.py)
+from cyberdelta.apis.common import APIError, APIErrorCode
+
+class BackpackInstructionNotFoundError(APIError):
+    """Backpack API instruction lookup failed."""
+
+    def __init__(self, method: str, path: str):
+        super().__init__(
+            message=f"Backpack instruction not found for {method.upper()} {path}",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            exchange_code="INSTRUCTION_NOT_FOUND",
+            metadata={
+                "method": method.upper(),
+                "path": path,
+                "exchange": "backpack"
+            }
+        )
+
+# STEP 2: Update the raise statement
+from cyberdelta.exceptions import BackpackInstructionNotFoundError
+raise BackpackInstructionNotFoundError(method_upper, lookup_path)
+
+# STEP 3: Verify compatibility
+# Existing error handling still works:
+try:
+    # ... code that might raise BackpackInstructionNotFoundError
+except APIError as e:  # Still catches it!
+    if e.code == APIErrorCode.AUTHENTICATION_FAILED.value:
+        # Existing logic continues to work
+```
+
+## Summary
+
+This refactoring strategy:
+1. **Fixes all 1,244 TRY003 and 166 TRY301 Ruff violations**
+2. **Preserves 100% of existing functionality**
+3. **Enhances error context and debuggability**
+4. **Maintains backward compatibility**
+5. **Leverages our already-robust error infrastructure**
+
+The key insight: We don't need to rebuild our exception system - we just need to extend it with specific exception classes that construct their messages internally. This approach minimizes risk while maximizing the benefits of the refactoring.

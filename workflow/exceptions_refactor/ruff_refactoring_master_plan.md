@@ -2,12 +2,37 @@
 
 This document provides a comprehensive strategy for resolving the 975 Ruff linting errors in CyberDeltaEngine while maintaining and improving business logic consistency. This analysis includes detailed business logic flows, exception architecture, and implementation strategies for a cryptocurrency delta-neutral arbitrage trading engine.
 
+## Executive Summary: Building on Our Strong Foundation
+
+After thorough analysis, we've discovered that CyberDeltaEngine already has a sophisticated exception handling system:
+- **Robust `APIError` class** with retry logic, metadata, and comprehensive context
+- **Well-organized `APIErrorCode` enum** with 30+ standardized error codes
+- **Sophisticated error mappers** for both Backpack and Hyperliquid exchanges
+- **`TransformationError` class** for data mapping failures
+
+The Ruff violations (TRY003/TRY301) are about WHERE we construct error messages, not missing infrastructure. Our strategy is to **extend, not replace** this excellent foundation.
+
 ## 1. Current Error Analysis
 
-**Total Errors: 975**
-- TRY003: 857 errors (87.9%) - Long exception messages outside exception class
-- TRY301: 116 errors (11.9%) - Raise statements within try blocks
-- E501: 2 errors (0.2%) - Line length violations
+**Total Errors: 975** (Updated count: 1,410 total TRY errors)
+- TRY003: 1,244 errors (88%) - Long exception messages outside exception class
+- TRY301: 166 errors (12%) - Raise statements within try blocks
+- E501: 2 errors - Line length violations
+
+### Key Insight: We Have Infrastructure, Need Specific Classes
+The errors stem from constructing messages at the raise site:
+```python
+# Current pattern (TRY003)
+raise ValueError(f"Order size {size} below minimum {min_size}")
+
+# Should be
+class OrderSizeError(APIError):
+    def __init__(self, size: Decimal, min_size: Decimal):
+        super().__init__(
+            message=f"Order size {size} below minimum {min_size}",
+            code=APIErrorCode.INVALID_ORDER_SIZE.value
+        )
+```
 
 ## 2. Business Context & Impact
 
@@ -141,6 +166,43 @@ graph TD
 ```
 
 ### 3.3. Exception Architecture Deep Dive
+
+#### Existing Exception Infrastructure
+
+Our current system already provides:
+
+```mermaid
+classDiagram
+    class APIError {
+        <<existing>>
+        +message: str
+        +code: int|str
+        +http_status: int|None
+        +exchange_code: str|int|None
+        +exchange_message: str|None
+        +retry_after: float|None
+        +metadata: dict|None
+        +is_retryable: bool
+    }
+
+    class TransformationError {
+        <<existing>>
+        +field_name: str|None
+        +source_value: object
+        +source_data: dict|None
+    }
+
+    class APIErrorCode {
+        <<enumeration>>
+        CONNECTION_ERROR = 0
+        TIMEOUT = 1
+        AUTHENTICATION_FAILED = 100
+        INSUFFICIENT_FUNDS = 101
+        ... (30+ codes)
+    }
+```
+
+#### New Specific Exception Classes (Extend Existing)
 
 ```mermaid
 classDiagram
@@ -326,18 +388,28 @@ class AuthenticationRequiredError(APIError):
 
 #### **Enhanced, Code-Grounded Refactoring Patterns**
 
-**1. System Configuration Exceptions (Grounded in `bp_api.py`)**
+**1. System Configuration Exceptions (Extending APIError)**
 
-*   **Implementation of Pattern B.** Replaces `ValueError` during startup with specific, actionable configuration errors.
+*   **Key Change:** All new exceptions inherit from `APIError` to maintain compatibility
 *   **Code Example (`bp_api.py`):**
     ```python
-    # In cyberdelta/exceptions/system/configuration_exceptions.py
-    class ConfigurationError(Exception): ...
+    # In cyberdelta/exceptions/configuration.py
+    from cyberdelta.apis.common import APIError, APIErrorCode
+
+    class ConfigurationError(APIError):
+        """Base class for configuration errors."""
+        pass
+
     class MissingConfigValueError(ConfigurationError):
-        def __init__(self, exchange_name: str, parameter_name: str): ...
+        def __init__(self, exchange_name: str, parameter_name: str):
+            super().__init__(
+                message=f"{parameter_name} is required for {exchange_name} exchange",
+                code=APIErrorCode.INVALID_REQUEST.value,
+                metadata={"exchange": exchange_name, "parameter": parameter_name}
+            )
 
     # In bp_api.py
-    from cyberdelta.exceptions.system.configuration_exceptions import MissingConfigValueError
+    from cyberdelta.exceptions import MissingConfigValueError
 
     if exchange_config.rate_limit_per_minute is None:
         raise MissingConfigValueError(
@@ -346,40 +418,65 @@ class AuthenticationRequiredError(APIError):
         )
     ```
 
-**2. Financial Safety Validation Exceptions (Grounded in `service_args_models.py`)**
+**2. Financial Safety Validation Exceptions (Extending TransformationError)**
 
-*   **Implementation of Pattern B.** Provides precise, catchable errors for invalid order parameters.
+*   **Key Change:** Validation exceptions extend `TransformationError` for data validation
 *   **Code Example (`PlaceOrderArgs`):**
     ```python
-    # In cyberdelta/exceptions/technical/validation_exceptions.py
-    class ValidationError(ValueError): ...
-    class OrderValidationError(ValidationError): ...
+    # In cyberdelta/exceptions/validation.py
+    from cyberdelta.apis.common import TransformationError
+
+    class OrderValidationError(TransformationError):
+        """Base class for order validation errors."""
+        pass
+
     class MissingPriceError(OrderValidationError):
-        def __init__(self, order_type: OrderType): ...
+        def __init__(self, order_type: str):
+            super().__init__(
+                message=f"Price is required for {order_type} orders",
+                field_name="price",
+                code="MISSING_REQUIRED_PRICE",
+                source_data={"order_type": order_type}
+            )
 
     # In service_args_models.py
-    from cyberdelta.exceptions.technical.validation_exceptions import MissingPriceError
+    from cyberdelta.exceptions import MissingPriceError
 
     if self.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and self.price is None:
-        raise MissingPriceError(self.order_type)
+        raise MissingPriceError(self.order_type.value)
     ```
 
-**3. Strategy Logic & Observability Exceptions (Grounded in `funding_rate_arbitrage.py`)**
+**3. Strategy Logic & Observability Exceptions (Extending APIError)**
 
-*   **Goal:** Make strategy decision-making explicit. Differentiate between a broken system and an unprofitable market.
+*   **Goal:** Make strategy decision-making explicit while maintaining error mapper compatibility
 *   **Code Example (`_check_opportunity`):**
     ```python
-    # In cyberdelta/exceptions/financial/risk_exceptions.py
-    class StrategyError(Exception): ...
-    class DataUnavailableError(StrategyError): ...
+    # In cyberdelta/exceptions/strategy.py
+    from cyberdelta.apis.common import APIError, APIErrorCode
+
+    class StrategyError(APIError):
+        """Base class for strategy-related errors."""
+        pass
+
+    class DataUnavailableError(StrategyError):
+        def __init__(self, strategy_name: str, symbol: str, data_type: str):
+            super().__init__(
+                message=f"{data_type} unavailable for {symbol} in {strategy_name}",
+                code=APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
+                metadata={
+                    "strategy": strategy_name,
+                    "symbol": symbol,
+                    "data_type": data_type
+                }
+            )
 
     # In funding_rate_arbitrage.py
-    from cyberdelta.exceptions.financial.risk_exceptions import DataUnavailableError
+    from cyberdelta.exceptions import DataUnavailableError
 
     if perp_ticker is None or spot_ticker is None:
         raise DataUnavailableError(
             self.name, self.symbol,
-            f"Ticker data for perp ({self.symbol}) or spot ({spot_symbol}) is missing."
+            "Ticker data for perp or spot"
         )
     ```
 
@@ -407,8 +504,14 @@ This plan is ordered by business impact, addressing financial safety and system 
 
 **Phase 1: Critical Path - Financial Safety & Stability (Week 1-2)**
 
-1.  **Create Exception Modules:**
-    -   **Action:** `mkdir -p cyberdelta/exceptions/{financial,technical,system}` and create the new exception files (`configuration_exceptions.py`, `validation_exceptions.py`, etc.) with base classes, following the structure in section 4.1.
+1.  **Create Exception Modules (Extending Existing Classes):**
+    -   **Action:** Create `cyberdelta/exceptions/` with files that import and extend `APIError` and `TransformationError`:
+        ```bash
+        mkdir -p cyberdelta/exceptions/
+        touch cyberdelta/exceptions/__init__.py
+        touch cyberdelta/exceptions/{configuration,authentication,trading,validation,strategy}.py
+        ```
+    -   **Key Principle:** All new exceptions inherit from `APIError` or `TransformationError` - no new base classes
 
 2.  **Harden `service_args_models.py`:**
     -   **File:** `cyberdelta/apis/models/service_args_models.py`
@@ -446,13 +549,18 @@ This plan is ordered by business impact, addressing financial safety and system 
 
 ### 8.1. Enhanced Success Metrics
 
-1.  **Error Reduction**: 975 → 0 Ruff errors.
-2.  **No Regressions**: All existing tests pass after refactoring.
-3.  **Architectural Alignment**: The codebase strictly adheres to the error handling strategy defined in `API_ARCHITECTURE.md`.
-4.  **Enhanced Observability (NEW):** Monitoring dashboards can now trigger different alert levels for different exception categories:
-    -   **`StrategyError`**: `P3` - Log for analysis (e.g., market is not profitable).
-    -   **`DataUnavailableError`**: `P2` - An engineer should investigate a potentially stale data feed.
-    -   **`APIError` (5xx status)**: `P1` - Page the on-call engineer for a critical exchange outage.
-5.  **Financial Safety**: All order and transfer operations are protected by the new `ValidationError` hierarchy, provably preventing invalid requests from being sent.
+1.  **Error Reduction**: 1,410 → 0 Ruff TRY errors.
+2.  **100% Backward Compatibility**: All existing error handling continues to work
+    - Existing `except APIError` blocks catch new exceptions
+    - Error mappers process new exceptions without modification
+    - Retry logic and metadata preserved
+3.  **Architectural Alignment**: Exception hierarchy mirrors the 6-Layer Architecture while extending existing classes
+4.  **Enhanced Observability**: Specific exception types enable better monitoring:
+    -   **`StrategyError`** (extends APIError): `P3` - Log for analysis
+    -   **`DataUnavailableError`** (extends APIError): `P2` - Investigate data feed
+    -   **`RateLimitError`** (extends APIError): Auto-retry with backoff
+    -   **`AuthenticationError`** (extends APIError): `P1` - Critical auth failure
+5.  **Financial Safety**: All validation errors extend `TransformationError`, maintaining data integrity
+6.  **Zero Breaking Changes**: No modifications to `APIError`, `APIErrorCode`, or error mappers
 
 *(The original implementation timeline is preserved.)*
