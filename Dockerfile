@@ -64,6 +64,10 @@ RUN curl -fsSL https://bodo.run/yek.sh | bash
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
     sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' ~/.zshrc
 
+RUN npm install -g @anthropic-ai/claude-code
+
+RUN npm install -g @google/gemini-cli
+
 # Create necessary directories
 RUN mkdir -p /app/data/state_backups /app/logs /app/config
 

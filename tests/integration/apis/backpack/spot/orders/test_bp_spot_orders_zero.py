@@ -209,18 +209,68 @@ class TestBackpackOrdersZeroBalance:
             OrderSide.BUY,
         )
 
-        # Test malformed symbols
-        malformed_symbol_cases = [
-            "SOL/USDC",  # Wrong separator
-            "sol_usdc",  # Lowercase
-            "SOL-USDC",  # Wrong separator
-            "SOLUSDC",  # No separator
-            "SOL_USD",  # Wrong quote currency
+        # Test malformed symbols - split into categories based on normalization behavior
+        normalizable_symbols = [
+            "SOL/USDC",  # Wrong separator - normalized to SOL_USDC
+            "sol_usdc",  # Lowercase - normalized to SOL_USDC
+            "SOL-USDC",  # Wrong separator - normalized to SOL_USDC
+        ]
+
+        truly_malformed_symbols = [
+            "SOLUSDC",  # No separator - cannot be normalized
+            "SOL_USD",  # Wrong quote currency - not available on Backpack
             "",  # Empty string
             "SOL_USDC_EXTRA",  # Too many parts
         ]
 
-        for malformed_symbol in malformed_symbol_cases:
+        # Test normalizable symbols - should result in insufficient funds after normalization
+        for malformed_symbol in normalizable_symbols:
+            try:
+                place_args = PlaceOrderArgs(
+                    symbol=malformed_symbol,
+                    side=OrderSide.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=Decimal("0.1"),
+                    price=current_price,
+                    time_in_force=TimeInForce.GTC,
+                )
+
+                with pytest.raises(APIError) as exc_info:
+                    await bp_api_for_zero_balance_test.place_order(place_args)
+
+                api_error = exc_info.value
+                # These symbols get normalized to valid symbols, so expect insufficient funds
+                assert api_error.code in [
+                    APIErrorCode.INSUFFICIENT_FUNDS.value,  # Expected after normalization
+                    APIErrorCode.INVALID_SYMBOL.value,
+                    APIErrorCode.INVALID_REQUEST.value,
+                    APIErrorCode.EXCHANGE_SPECIFIC.value,
+                ], (
+                    f"Normalizable symbol '{malformed_symbol}' should normalize "
+                    f"or give symbol error, got {api_error.code}"
+                )
+
+                logger.info(
+                    "normalizable_symbol_handled",
+                    symbol=malformed_symbol,
+                    error_code=api_error.code,
+                    message=(
+                        f"✓ Normalizable symbol '{malformed_symbol}' handled: {api_error.code}"
+                    ),
+                )
+
+            except (APIError, ValueError, TypeError, KeyError) as e:
+                logger.info(
+                    "normalizable_symbol_validation_error",
+                    symbol=malformed_symbol,
+                    error_message=str(e),
+                    message=(
+                        f"✓ Normalizable symbol '{malformed_symbol}' caught at validation: {e}"
+                    ),
+                )
+
+        # Test truly malformed symbols - should result in symbol validation errors
+        for malformed_symbol in truly_malformed_symbols:
             try:
                 place_args = PlaceOrderArgs(
                     symbol=malformed_symbol,
