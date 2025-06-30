@@ -77,6 +77,9 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.exceptions import (
+    RequiredParameterError,
+)
 
 
 logger = get_logger(__name__)
@@ -185,11 +188,11 @@ class HyperliquidAPI(ExchangeAPI):
 
         # Check chain_id is present for Hyperliquid
         if exchange_config.chain_id is None:
-            chain_id_error_msg = (
-                "chain_id is required for Hyperliquid but was None in exchange_config. "
-                "Check AppSettings validator."
+            raise RequiredParameterError(
+                parameter="chain_id",
+                context="Hyperliquid initialization",
+                exchange="Hyperliquid",
             )
-            raise ValueError(chain_id_error_msg)
 
         # Create the factory to handle component instantiation
         factory = HyperliquidAPIComponentsFactory(
@@ -647,10 +650,11 @@ class HyperliquidAPI(ExchangeAPI):
         """Get historical funding rates for a specific symbol."""
         # Hyperliquid requires start_time
         if args.start_time is None:
-            start_time_required_msg = (
-                "start_time is required for Hyperliquid.get_historical_funding_rates()"
+            raise RequiredParameterError(
+                parameter="start_time",
+                context="get_historical_funding_rates",
+                exchange="Hyperliquid",
             )
-            raise ValueError(start_time_required_msg)
         return await self.market_data_service.get_historical_funding_rates(args=args)
 
     async def transfer(self, args: TransferArgs) -> Transfer:

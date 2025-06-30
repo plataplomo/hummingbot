@@ -150,7 +150,7 @@ class PrioritySignalQueue:
             utility_score = 0.0
         else:
             signal.metadata["utility_score"] = utility_score  # Store validated float back
-        
+
         signal.metadata["utility_score"] = utility_score  # Store default back
 
         return True

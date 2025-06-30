@@ -47,6 +47,12 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
     HyperliquidAgentTypes,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import (
+    InvalidFormatError,
+    InvalidPrivateKeyError,
+    PassphraseFieldError,
+    RequiredParameterError,
+)
 from cyberdelta.utils.typing import is_dict_str_any
 
 
@@ -156,7 +162,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 error_type="missing_credentials",
                 message=f"HyperliquidEip712Authenticator: {msg}",
             )
-            raise ValueError(msg)
+            raise RequiredParameterError(
+                parameter="wallet_private_key_secret or account_object",
+                context="authentication initialization",
+                exchange="Hyperliquid",
+            )
         if wallet_private_key_secret and account_object:
             msg = "Provide either wallet_private_key_secret or account_object, not both."
             self.logger.error(
@@ -165,7 +175,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 error_type="multiple_credentials",
                 message=f"HyperliquidEip712Authenticator: {msg}",
             )
-            raise ValueError(msg)
+            raise RequiredParameterError(
+                parameter="wallet_private_key_secret or account_object",
+                context="authentication initialization (only one allowed)",
+                exchange="Hyperliquid",
+            )
 
     def _setup_account(
         self,
@@ -227,10 +241,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             try:
                 account_obj: LocalAccount = Account.from_key(processed_pk_str)
             except Exception as e:
-                crypto_validation_error_msg = (
-                    f"Hyperliquid private_key is not cryptographically valid: {e}"
-                )
-                raise ValueError(crypto_validation_error_msg) from e
+                raise InvalidPrivateKeyError(
+                    reason=f"not cryptographically valid: {e}",
+                    original_error=e,
+                ) from e
 
         except ValueError as e:
             self.logger.exception(
@@ -238,8 +252,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 error_details=str(e),
                 message=f"HyperliquidEip712Authenticator: Invalid private key: {e!s}",
             )
-            invalid_private_key_msg = f"Invalid private key: {e}"
-            raise ValueError(invalid_private_key_msg) from e
+            raise InvalidPrivateKeyError(
+                reason=str(e),
+                original_error=e,
+            ) from e
         else:
             return account_obj
 
@@ -253,11 +269,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             len(processed_pk_str) == PRIVATE_KEY_HEX_LENGTH
             and all(c in string.hexdigits for c in processed_pk_str)
         ):
-            private_key_format_error_msg = (
-                "Hyperliquid private_key must be a 64-character hex string "
-                "(with or without '0x' prefix)."
+            raise InvalidPrivateKeyError(
+                reason="must be a 64-character hex string (with or without '0x' prefix)"
             )
-            raise ValueError(private_key_format_error_msg)
 
     def _validate_passphrase(self, passphrase_secret: SecretStr) -> None:
         """Validate the BIP-39 passphrase if provided."""
@@ -271,35 +285,35 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 error_details=str(e),
                 message=f"HyperliquidEip712Authenticator: Invalid passphrase: {e!s}",
             )
-            invalid_passphrase_msg = f"Invalid passphrase: {e}"
-            raise ValueError(invalid_passphrase_msg) from e
+            raise PassphraseFieldError(
+                reason=str(e),
+                original_error=e,
+            ) from e
 
     def _validate_passphrase_word_count(self, phrase_str: str) -> None:
         """Validate that passphrase has correct word count."""
         num_words = len(phrase_str.split())
         if num_words not in {12, 24}:
-            word_count_error_msg = (
-                f"Hyperliquid passphrase must consist of 12 or 24 words, got {num_words} words."
+            raise PassphraseFieldError(
+                reason="must consist of 12 or 24 words",
+                word_count=num_words,
             )
-            raise ValueError(word_count_error_msg)
 
     def _validate_passphrase_bip39(self, phrase_str: str) -> None:
         """Validate that passphrase is a valid BIP-39 mnemonic."""
         try:
             mnemonic_validator = Mnemonic("english")
             if not mnemonic_validator.check(phrase_str):
-                bip39_invalid_msg = (
-                    "Hyperliquid passphrase is not a valid BIP-39 mnemonic "
-                    "(checksum or wordlist error)."
+                raise PassphraseFieldError(
+                    reason="not a valid BIP-39 mnemonic (checksum or wordlist error)"
                 )
-                raise ValueError(bip39_invalid_msg)
         except Exception as e:
             # Handle any other exceptions from mnemonic validation
             if "not a valid BIP-39 mnemonic" not in str(e):
-                mnemonic_library_error_msg = (
-                    f"Error validating Hyperliquid passphrase with mnemonic library: {e}"
-                )
-                raise ValueError(mnemonic_library_error_msg) from e
+                raise PassphraseFieldError(
+                    reason=f"error validating with mnemonic library: {e}",
+                    original_error=e,
+                ) from e
             raise
 
     def _setup_wallet_properties(self) -> None:
@@ -709,11 +723,19 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
             # Validate hex format
             if not r_hex.startswith("0x") or len(r_hex) != SIGNATURE_HEX_LENGTH:
-                invalid_r_format_msg = f"Invalid r component format: {r_hex}"
-                raise ValueError(invalid_r_format_msg)
+                raise InvalidFormatError(
+                    field_name="r",
+                    expected_format="0x + 64 hex characters",
+                    actual_value=r_hex,
+                    reason=f"got length {len(r_hex)}",
+                )
             if not s_hex.startswith("0x") or len(s_hex) != SIGNATURE_HEX_LENGTH:
-                invalid_s_format_msg = f"Invalid s component format: {s_hex}"
-                raise ValueError(invalid_s_format_msg)
+                raise InvalidFormatError(
+                    field_name="s",
+                    expected_format="0x + 64 hex characters",
+                    actual_value=s_hex,
+                    reason=f"got length {len(s_hex)}",
+                )
 
             signature_dict = {
                 "r": r_hex,
@@ -769,8 +791,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         self._validate_exchange_request_data(data)
         # DEFENSIVE CHECK: Ensure data is not None after validation
         if data is None:
-            data_none_after_validation_msg = "Data cannot be None after validation"
-            raise ValueError(data_none_after_validation_msg)
+            raise RequiredParameterError(
+                parameter="data",
+                context="exchange request validation",
+                exchange="Hyperliquid",
+            )
 
         # Prepare core components
         action_payload_dict = self._prepare_action_payload(data)
@@ -929,14 +954,24 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         try:
             # Validate all required components are present
             if not action_payload_dict:
-                action_payload_empty_msg = "Action payload cannot be empty"
-                raise ValueError(action_payload_empty_msg)
+                raise RequiredParameterError(
+                    parameter="action_payload",
+                    context="HTTP body construction",
+                    exchange="Hyperliquid",
+                )
             if not signature_dict:
-                signature_empty_msg = "Signature cannot be empty"
-                raise ValueError(signature_empty_msg)
+                raise RequiredParameterError(
+                    parameter="signature",
+                    context="HTTP body construction",
+                    exchange="Hyperliquid",
+                )
             if current_nonce_ms <= 0:
-                nonce_positive_msg = "Nonce must be positive"
-                raise ValueError(nonce_positive_msg)
+                raise InvalidFormatError(
+                    field_name="nonce",
+                    expected_format="positive integer",
+                    actual_value=current_nonce_ms,
+                    reason="must be greater than 0",
+                )
 
             # The SDK always includes vaultAddress and expiresAfter, even when None
             # For standard user trades, these are None

@@ -25,7 +25,7 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseH
 # Preprocessing is now handled by Pydantic model validators
 # Internal Domain Models & Mappers
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
-from cyberdelta.apis.hyperliquid.models.common_raw_types import RawStatusStringHL
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawStatusStringHL
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
     HyperliquidApiPlaceOrderRequest,

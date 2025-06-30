@@ -7,7 +7,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 # cyberdelta.utils.parsing is no longer directly needed here, but common_raw_types needs it.
 from cyberdelta.utils.parsing import validate_str_field
 
-from .common_raw_types import RawLaxEthereumAddressStrHL, RawNonNegativeInt
+from .hl_common_raw_types import RawLaxEthereumAddressStrHL, RawNonNegativeInt
 
 
 class HyperliquidRawOrderStatusRequestPayload(BaseModel):

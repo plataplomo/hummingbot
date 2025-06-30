@@ -14,7 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from .common_raw_types import (
+from .hl_common_raw_types import (
     RawAssetString64HL,
     RawLaxEthereumAddressStrHL,
     RawTimeframeString,

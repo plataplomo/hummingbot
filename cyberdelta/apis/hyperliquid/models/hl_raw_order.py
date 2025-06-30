@@ -17,7 +17,7 @@ from pydantic import (
     model_serializer,
 )
 
-from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawFiniteDecimalStr,
     RawLaxEthereumAddressStrHL,
     RawNonNegativeInt,

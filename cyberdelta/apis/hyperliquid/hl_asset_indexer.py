@@ -183,7 +183,7 @@ class HyperliquidAssetIndexResolver:
                 code=APIErrorCode.NETWORK_ISSUE.value,
                 original_exception=e_req,
             ) from e_req
-        
+
         return raw_response_content, status_code
 
     def _process_response(
@@ -250,7 +250,7 @@ class HyperliquidAssetIndexResolver:
                 original_exception=e_parse,
                 http_status=status_code,
             ) from e_parse
-        
+
         return validated_response
 
     def _populate_cache(self, validated_response: HyperliquidRawMetaAndAssetCtxsResponse) -> None:

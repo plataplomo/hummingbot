@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawFiniteDecimalStr,
     RawNonNegativeInt,
     RawOptionalCloidHL,

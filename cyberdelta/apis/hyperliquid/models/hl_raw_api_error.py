@@ -32,7 +32,7 @@ It is a core part of CyberDeltaEngine's boundary validation layer for error hand
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.apis.hyperliquid.models.common_raw_types import RawApiErrorStringHL
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawApiErrorStringHL
 
 
 class HyperliquidRawApiError(BaseModel):

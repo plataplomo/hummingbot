@@ -16,7 +16,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 # Assuming common_raw_types and other necessary components are accessible
 # For simplicity, copying relevant parts of HyperliquidRawOrder here
 # and modifying the status field.
-from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawAssetString64HL,
     RawCloidString64HL,
     RawDefaultString,

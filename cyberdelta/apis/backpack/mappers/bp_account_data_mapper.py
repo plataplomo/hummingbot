@@ -75,6 +75,11 @@ from cyberdelta.core.models.operations import (
     Withdrawal,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.data_transformation import (
+    DataTransformationError,
+    MissingRequiredFieldError,
+    UnknownEnumError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -109,7 +114,11 @@ class BackpackAccountDataMapper:
         if side_lower in {"sell", "ask"}:
             return OrderSide.SELL
 
-        raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
+        raise UnknownEnumError(
+            enum_type="Backpack order side",
+            value=bp_side,
+            valid_values=["buy", "sell", "bid", "ask", "Buy", "Sell", "Bid", "Ask"],
+        )
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
@@ -276,7 +285,10 @@ class BackpackAccountDataMapper:
             )
 
             if price is None or quantity is None:
-                raise TransformationError("Price and quantity are required for trade")
+                raise MissingRequiredFieldError(
+                    field_names=["price", "quantity"],
+                    context="trade",
+                )
 
             # Check if price or quantity is zero - Trade model requires positive values
             if price <= Decimal(0) or quantity <= Decimal(0):
@@ -331,7 +343,13 @@ class BackpackAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(f"Failed to transform BackpackRawFill to Trade: {e}") from e
+            raise DataTransformationError(
+                source_model="BackpackRawFill",
+                target_model="Trade",
+                reason=str(e),
+                original_error=e,
+                source_data=fill.model_dump() if fill else None,
+            ) from e
 
     @staticmethod
     def transform_balance_data_to_spot_balance(
@@ -363,7 +381,10 @@ class BackpackAccountDataMapper:
             )
 
             if total is None or available is None:
-                raise TransformationError("Total and available balances are required")
+                raise MissingRequiredFieldError(
+                    field_names=["total", "available"],
+                    context="balance",
+                )
 
             # Create BP-specific details
             details = BackpackSpotBalanceDetails()
@@ -386,8 +407,11 @@ class BackpackAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform balance data to SpotBalance: {e}",
+            raise DataTransformationError(
+                source_model="balance_data",
+                target_model="SpotBalance",
+                reason=str(e),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -429,16 +453,22 @@ class BackpackAccountDataMapper:
             )
 
             if parsed_available is None:
-                raise TransformationError(
-                    f"Available quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
+                raise MissingRequiredFieldError(
+                    field_names="available",
+                    context=f"{asset_symbol} balance",
+                    source_data=raw.model_dump() if raw else None,
                 )
             if parsed_locked is None:
-                raise TransformationError(
-                    f"Locked quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
+                raise MissingRequiredFieldError(
+                    field_names="locked",
+                    context=f"{asset_symbol} balance",
+                    source_data=raw.model_dump() if raw else None,
                 )
             if parsed_staked is None:
-                raise TransformationError(
-                    f"Staked quantity missing/invalid for {asset_symbol} in BackpackRawBalance",
+                raise MissingRequiredFieldError(
+                    field_names="staked",
+                    context=f"{asset_symbol} balance",
+                    source_data=raw.model_dump() if raw else None,
                 )
 
             # Calculate total = available + locked + staked
@@ -463,7 +493,13 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw balance to internal: {e}") from e
+            raise DataTransformationError(
+                source_model="BackpackRawBalance",
+                target_model="SpotBalance",
+                reason=str(e),
+                original_error=e,
+                source_data=raw.model_dump() if raw else None,
+            ) from e
 
     @staticmethod
     def transform_raw_position_to_internal(raw: BackpackRawPosition) -> DerivativePosition:
@@ -487,7 +523,11 @@ class BackpackAccountDataMapper:
                 field_name="net_quantity",
             )
             if size_dec is None:
-                raise TransformationError("net_quantity missing/invalid in BackpackRawPosition")
+                raise MissingRequiredFieldError(
+                    field_names="net_quantity",
+                    context="BackpackRawPosition",
+                    source_data=raw.model_dump() if raw else None,
+                )
 
             entry_price_dec = parse_decimal_value(raw.entry_price)
             # Note: Entry prices are often calculated averages that may have higher precision
@@ -547,7 +587,13 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw position to internal: {e}") from e
+            raise DataTransformationError(
+                source_model="BackpackRawPosition",
+                target_model="DerivativePosition",
+                reason=str(e),
+                original_error=e,
+                source_data=raw.model_dump() if raw else None,
+            ) from e
 
     @staticmethod
     def transform_raw_account_summary_to_internal(
@@ -649,7 +695,13 @@ class BackpackAccountDataMapper:
                 error=str(e),
                 message="Error transforming raw account summary",
             )
-            raise TransformationError(f"Error transforming raw account summary: {e}") from e
+            raise DataTransformationError(
+                source_model="BackpackRawAccountSummary",
+                target_model="MarginAccountSummary",
+                reason=str(e),
+                original_error=e,
+                source_data=raw_settings.model_dump() if raw_settings else None,
+            ) from e
 
     @staticmethod
     def transform_enhanced_account_data_to_margin_summary(
@@ -681,7 +733,11 @@ class BackpackAccountDataMapper:
                 field_name="net_equity",
             )
             if total_equity is None:
-                raise TransformationError("net_equity missing/invalid in collateral response")
+                raise MissingRequiredFieldError(
+                    field_names="netEquity",
+                    context="collateral response",
+                    source_data=raw_data if "raw_data" in locals() else None,
+                )
 
             available_equity = parse_decimal_value(
                 raw_collateral.net_equity_available,
@@ -689,8 +745,10 @@ class BackpackAccountDataMapper:
                 field_name="net_equity_available",
             )
             if available_equity is None:
-                raise TransformationError(
-                    "net_equity_available missing/invalid in collateral response",
+                raise MissingRequiredFieldError(
+                    field_names="net_equity_available",
+                    context="collateral response",
+                    source_data=raw_data if "raw_data" in locals() else None,
                 )
 
             # Parse detailed collateral fields
@@ -799,7 +857,11 @@ class BackpackAccountDataMapper:
                 error=str(e),
                 message="Error transforming collateral data",
             )
-            raise TransformationError(f"Error transforming collateral data: {e}") from e
+            raise CollateralTransformationError(
+                collateral_type="Backpack",
+                reason=str(e),
+                source_data=raw_data if "raw_data" in locals() else None,
+            ) from e
 
     @staticmethod
     def transform_raw_transfer_to_internal(
@@ -839,8 +901,11 @@ class BackpackAccountDataMapper:
             )
 
             if not isinstance(raw_response, dict):
-                raise TransformationError(
-                    f"Raw transfer response is not a dict: {type(raw_response)}",
+                raise InvalidMappingError(
+                    field_name="raw_response",
+                    source_value=raw_response,
+                    reason=f"Expected dict, got {type(raw_response).__name__}",
+                    expected_format="dict",
                 )
 
             transfer_id = raw_response.get("id")
@@ -849,7 +914,11 @@ class BackpackAccountDataMapper:
             timestamp_ms_str = raw_response.get("timestamp")
 
             if not transfer_id:
-                raise TransformationError("Missing 'id' in raw transfer response")
+                raise MissingRequiredFieldError(
+                    field_names="id",
+                    context="raw transfer response",
+                    source_data=raw_response,
+                )
 
             # Ensure raw_status is str or None
             raw_status_str: str | None = None
@@ -912,7 +981,13 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw transfer to internal: {e}") from e
+            raise DataTransformationError(
+                source_model="raw_transfer_response",
+                target_model="Transfer",
+                reason=str(e),
+                original_error=e,
+                source_data=raw_response,
+            ) from e
 
     @staticmethod
     def transform_raw_withdrawal_response_to_internal(
@@ -1029,7 +1104,13 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw withdrawal to internal: {e}") from e
+            raise DataTransformationError(
+                source_model="BackpackRawWithdrawalResponse",
+                target_model="Withdrawal",
+                reason=str(e),
+                original_error=e,
+                source_data=raw.model_dump() if raw else None,
+            ) from e
 
     @staticmethod
     def _map_self_trade_prevention(raw_stp: str | None) -> SelfTradePrevention | None:
@@ -1109,11 +1190,19 @@ class BackpackAccountDataMapper:
         """
         parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
         if parsed_quantity is None:
-            raise TransformationError("quantity missing/invalid in BackpackRawOrder")
+            raise MissingRequiredFieldError(
+                field_names="quantity",
+                context="BackpackRawOrder",
+                source_data=order.model_dump() if order else None,
+            )
 
         parsed_created_at = parse_datetime_utc(raw.createdAt)
         if parsed_created_at is None:
-            raise TransformationError("createdAt missing/invalid in BackpackRawOrder")
+            raise MissingRequiredFieldError(
+                field_names="createdAt",
+                context="BackpackRawOrder",
+                source_data=order.model_dump() if order else None,
+            )
 
         return parsed_quantity, parsed_created_at
 
@@ -1230,7 +1319,12 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw order to internal: {e}") from e
+            raise OrderTransformationError(
+                order_id=order.id if order else None,
+                reason=str(e),
+                order_data=order.model_dump() if order else None,
+                original_error=e,
+            ) from e
 
     @staticmethod
     def transform_raw_trade_to_internal(raw: BackpackRawPublicTrade) -> Trade | None:
@@ -1260,11 +1354,20 @@ class BackpackAccountDataMapper:
             timestamp = parse_datetime_utc(raw.time, field_name="time")
 
             if price_dec is None:
-                raise TransformationError("price missing/invalid in BackpackRawPublicTrade")
+                raise MissingRequiredFieldError(
+                    field_names="price",
+                    context="BackpackRawPublicTrade",
+                )
             if quantity_dec is None:
-                raise TransformationError("quantity missing/invalid in BackpackRawPublicTrade")
+                raise MissingRequiredFieldError(
+                    field_names="quantity",
+                    context="BackpackRawPublicTrade",
+                )
             if timestamp is None:
-                raise TransformationError("time missing/invalid in BackpackRawPublicTrade")
+                raise MissingRequiredFieldError(
+                    field_names="time",
+                    context="BackpackRawPublicTrade",
+                )
 
             # Backpack REST API for recent trades doesn't provide side
             logger.warning(
@@ -1274,7 +1377,13 @@ class BackpackAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw trade to internal: {e}") from e
+            raise DataTransformationError(
+                source_model="BackpackRawPublicTrade",
+                target_model="PublicTrade",
+                reason=str(e),
+                original_error=e,
+                source_data=raw_trade.model_dump() if raw_trade else None,
+            ) from e
         else:
             return None
 
@@ -1451,8 +1560,12 @@ class BackpackAccountDataMapper:
                 source_exchange="backpack",
             )
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform WebSocket position update to internal: {e}",
+            raise DataTransformationError(
+                source_model="BackpackRawPositionUpdate",
+                target_model="DerivativePosition",
+                reason=str(e),
+                original_error=e,
+                source_data=raw_position_update.model_dump() if raw_position_update else None,
             ) from e
 
     @staticmethod
@@ -1501,6 +1614,10 @@ class BackpackAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform account settings update to internal: {e}",
+            raise DataTransformationError(
+                source_model="UpdateAccountSettingsArgs",
+                target_model="AccountSettings",
+                reason=str(e),
+                original_error=e,
+                source_data=args.model_dump() if args else None,
             ) from e

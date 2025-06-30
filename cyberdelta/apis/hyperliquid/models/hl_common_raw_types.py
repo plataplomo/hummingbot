@@ -26,6 +26,13 @@ from pydantic import (
 )
 from pydantic_core import core_schema
 
+from cyberdelta.exceptions.field_validation import (
+    DecimalFieldError,
+    InvalidFormatError,
+    RangeFieldError,
+    TimestampFieldError,
+    TypeFieldError,
+)
 from cyberdelta.utils.parsing import (
     check_str_parsable_to_finite_decimal,
     parse_decimal_value,
@@ -74,7 +81,11 @@ def _wrap_validate_finite_decimal_str(
     if d is None or not d.is_finite():
         # Align with test_hl_raw_user_fills.py for 'inf'/'NaN' messages
         # and test_hl_raw_candles.py for 'Invalid finite decimal string'
-        raise ValueError(f"{field_name}: Value '{s}' must be a parseable finite decimal string.")
+        raise DecimalFieldError(
+            field_name=field_name,
+            value=s,
+            reason="must be a parseable finite decimal string",
+        )
 
     # CRITICAL: Use SDK's exact float_to_wire algorithm for consistent signatures
     # From SDK: rounded = f"{x:.8f}"; normalized = Decimal(rounded).normalize();
@@ -109,12 +120,20 @@ def _wrap_validate_lax_eth_address_str(
     # Setting min_length=8 makes both "0x123" (len 5) and "0xshort" (len 7) fail.
     min_len = 8
     if len(s) < min_len:
-        raise ValueError(
-            f"{field_name}: String value too short (min {min_len} chars, got {len(s)}).",
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=min_len,
+            constraint=f"minimum {min_len} characters",
         )
 
     if not s.startswith("0x"):
-        raise ValueError(f"{field_name}: Must start with '0x'.")
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="hex string with 0x prefix",
+            actual_value=s,
+            reason="must start with '0x'",
+        )
     # No further hex check as per "lax" definition.
     return handler(s)
 
@@ -137,14 +156,28 @@ def _wrap_validate_strict_eth_address_str(
         allow_empty=False,
     )  # Max length check is okay here
     if not s.startswith("0x"):
-        raise ValueError(f"{field_name}: Must start with '0x'.")
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="hex string with 0x prefix",
+            actual_value=s,
+            reason="must start with '0x'",
+        )
     if len(s) != ETHEREUM_ADDRESS_LENGTH:
-        raise ValueError(f"{field_name}: Must be exactly 42 characters long.")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=ETHEREUM_ADDRESS_LENGTH,
+            max_value=ETHEREUM_ADDRESS_LENGTH,
+            constraint="must be exactly 42 characters long",
+        )
     try:
         int(s, 16)  # Check if it's a valid hex string
     except ValueError:
-        raise ValueError(
-            f"{field_name}: Must be a valid 0x-prefixed hexadecimal string of length 42.",
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="valid hex string",
+            actual_value=s,
+            reason="must be a valid 0x-prefixed hexadecimal string of length 42",
         ) from None
     return handler(s)
 
@@ -162,20 +195,31 @@ def _wrap_validate_tx_hash_str(
 
     # Step 2: Check for "0x" prefix
     if not s.startswith("0x"):
-        raise ValueError(f"{field_name}: Must start with '0x'. Value: '{s}'")
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="hex string with 0x prefix",
+            actual_value=s,
+            reason="must start with '0x'",
+        )
 
     # Step 3: Check for exact length 66
     if len(s) != SIGNATURE_HEX_LENGTH:
-        raise ValueError(
-            f"{field_name}: Must be exactly 66 characters long. "
-            f"Actual length: {len(s)}. Value: '{s}'",
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=SIGNATURE_HEX_LENGTH,
+            max_value=SIGNATURE_HEX_LENGTH,
+            constraint=f"must be exactly 66 characters long (got {len(s)})",
         )
 
     # Step 4: Check if the part after "0x" is valid hexadecimal
     hex_part = s[2:]
     if not all(c in string.hexdigits for c in hex_part):
-        raise ValueError(
-            f"{field_name}: Contains non-hexadecimal characters after '0x'. Value: '{s}'",
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="valid hex string",
+            actual_value=s,
+            reason="contains non-hexadecimal characters after '0x'",
         )
 
     return handler(s)
@@ -201,7 +245,12 @@ def _wrap_validate_raw_int(
         val_int = v
     else:
         # Align error message with test_hl_raw_user_fills.py
-        raise TypeError(f"{field_name}: Must be an integer, got {type(v).__name__}")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="integer",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     if not allow_negative and val_int < 0:
         # Check if the field name suggests it's a timestamp to use the specific message
@@ -211,9 +260,19 @@ def _wrap_validate_raw_int(
             lc_field_name == "time" and field_name_default == "timestamp_ms_field"
         )
         if is_timestamp_field:
-            raise ValueError(f"{field_name}: Timestamp {val_int} must be non-negative.")
+            raise RangeFieldError(
+                field_name=field_name,
+                value=val_int,
+                min_value=0,
+                constraint="timestamp must be non-negative",
+            )
         # Default message for other non-negative ints (matches user_fills test expectation)
-        raise ValueError(f"{field_name}: Value {val_int} cannot be negative.")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=val_int,
+            min_value=0,
+            constraint="value cannot be negative",
+        )
     return handler(val_int)
 
 
@@ -232,8 +291,18 @@ def _wrap_validate_strict_bool(
         type_name = type(v).__name__
         # Align message with test_hl_raw_user_fills.py for string input to boolean field
         if type_name == "str":
-            raise ValueError(f"{field_name}: Must be a boolean, got str.")
-        raise TypeError(f"{field_name}: Expected a boolean value (True/False), got {type_name}.")
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="boolean",
+                actual_type="str",
+                actual_value=v,
+            )
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="boolean (True/False)",
+            actual_type=type_name,
+            actual_value=v,
+        )
     return handler(v)
 
 
@@ -275,9 +344,18 @@ def _wrap_validate_positive_finite_decimal_str(
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
-        raise ValueError(f"{field_name}: Value '{s}' must be a parseable finite decimal string.")
+        raise DecimalFieldError(
+            field_name=field_name,
+            value=s,
+            reason="must be a parseable finite decimal string",
+        )
     if not d > type(d)(0):
-        raise ValueError(f"{field_name}: Value '{s}' must be positive.")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=0,
+            constraint="must be positive",
+        )
     return handler(s)
 
 
@@ -292,11 +370,20 @@ def _wrap_validate_non_negative_finite_decimal_str(
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
         # Align with user_fills test message part "must be a parseable finite decimal string"
-        raise ValueError(f"{field_name}: Value '{s}' must be a parseable finite decimal string.")
+        raise DecimalFieldError(
+            field_name=field_name,
+            value=s,
+            reason="must be a parseable finite decimal string",
+        )
     if d < type(d)(0):
         # Align with test_hl_raw_user_fills for fee: "Value must be non-negative"
         # and test_hl_raw_candles for volume: "Value 'X' must be non-negative"
-        raise ValueError(f"{field_name}: Value '{s}' must be non-negative.")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=0,
+            constraint="must be non-negative",
+        )
     return handler(s)
 
 
@@ -310,24 +397,32 @@ def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) ->
         try:
             val_int = int(raw_val)
         except ValueError:
-            err_msg = (
-                f"{field_name}: Expected int or int-like string, "
-                f"got {type(raw_val).__name__} ('{raw_val}')"
-            )
-            raise ValueError(err_msg) from None
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="int or int-like string",
+                actual_type=type(raw_val).__name__,
+                actual_value=raw_val,
+            ) from None
     elif isinstance(raw_val, int):
         val_int = raw_val
     elif isinstance(raw_val, float) and raw_val.is_integer():
         val_int = int(raw_val)
     else:
-        raise ValueError(
-            f"{field_name}: Expected an integer or an integer-like string, "
-            f"got {type(raw_val).__name__}",
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="integer or integer-like string",
+            actual_type=type(raw_val).__name__,
+            actual_value=raw_val,
         )
 
     if val_int < 0:
         # This matches "Value cannot be negative" from user_fills tests.
-        raise ValueError(f"{field_name}: Value {val_int} cannot be negative.")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=val_int,
+            min_value=0,
+            constraint="cannot be negative",
+        )
     return val_int
 
 
@@ -343,7 +438,11 @@ def validate_and_return_finite_decimal_str(
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
     if d is None or not d.is_finite():  # parse_decimal_value should raise, but defensive check.
         # Message adjusted for consistency
-        raise ValueError(f"{field_name}: Value '{s}' must be a parseable finite decimal string.")
+        raise DecimalFieldError(
+            field_name=field_name,
+            value=s,
+            reason="must be a parseable finite decimal string",
+        )
     return s  # Return the validated string itself
 
 
@@ -556,18 +655,38 @@ def _validate_optional_non_empty_str128(v: object, info: ValidationInfo) -> str 
         # DEFENSIVE CHECK: BeforeValidator input `v` can be non-str/non-None
         # despite `Annotated[str | None,...]`. Mypy=None Ruff=[RUF009?]
         field_name = info.field_name or "optional_non_empty_str128_field_hl"
-        raise TypeError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string or None",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     field_name = info.field_name or "optional_non_empty_str128_field_hl"
     if not v.strip():
-        raise ValueError(f"{field_name}: String cannot be empty or whitespace.")
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="non-empty string",
+            actual_value=v,
+            reason="String cannot be empty or whitespace",
+        )
     max_len = 128
     if len(v) > max_len:
-        raise ValueError(f"{field_name}: String value too long (max {max_len} chars)")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=len(v),
+            max_value=max_len,
+            constraint=f"String value too long (max {max_len} chars)",
+        )
     try:
         v.encode("utf-8", "strict")
     except UnicodeEncodeError as e:
-        raise ValueError(f"{field_name}: Invalid UTF-8 sequence: {e}") from e
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="valid UTF-8 string",
+            actual_value=v,
+            reason=f"Invalid UTF-8 sequence: {e}",
+        ) from e
     return v
 
 
@@ -592,14 +711,29 @@ def _str_only_validator(v: object) -> object:
 
     # Now we know v is a string, do string-specific validation
     if not v.strip():
-        raise ValueError("String cannot be empty or whitespace.")
+        raise InvalidFormatError(
+            field_name="string",
+            expected_format="non-empty string",
+            actual_value=v,
+            reason="String cannot be empty or whitespace",
+        )
     max_len = 1024
     if len(v) > max_len:
-        raise ValueError(f"String value too long (max {max_len} chars)")
+        raise RangeFieldError(
+            field_name="string",
+            value=len(v),
+            max_value=max_len,
+            constraint=f"String value too long (max {max_len} chars)",
+        )
     try:
         v.encode("utf-8", "strict")
     except UnicodeEncodeError as e:
-        raise ValueError(f"Invalid UTF-8 sequence: {e}") from e
+        raise InvalidFormatError(
+            field_name="string",
+            expected_format="valid UTF-8 string",
+            actual_value=v,
+            reason=f"Invalid UTF-8 sequence: {e}",
+        ) from e
     return v
 
 
@@ -621,11 +755,21 @@ def _validate_hl_candle_status_string(v: object, info: ValidationInfo) -> str:
     field_name_for_error = "s"
 
     if not isinstance(v, str):
-        raise TypeError(f"{field_name_for_error}: Expected string, got {type(v).__name__}")
+        raise TypeFieldError(
+            field_name=field_name_for_error,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     if not v.strip():
         # Test expects "s: String cannot be empty or whitespace"
-        raise ValueError(f"{field_name_for_error}: String cannot be empty or whitespace")
+        raise InvalidFormatError(
+            field_name=field_name_for_error,
+            expected_format="non-empty string",
+            actual_value=v,
+            reason="String cannot be empty or whitespace",
+        )
 
     # Use validate_str_field for other checks like max_length (e.g., 32 from model Field)
     # and UTF-8. allow_empty must be False here as we've handled the empty/whitespace case.
@@ -667,18 +811,32 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
 
     if not isinstance(v, str):
         field_name = info.field_name or "cloid"
-        raise TypeError(f"{field_name}: Expected string or None, got {type(v).__name__}")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string or None",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     field_name = info.field_name or "cloid"
 
     # Check for 0x prefix
     if not v.startswith("0x"):
-        raise ValueError(f"{field_name}: Must start with '0x' prefix")
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="hex string with 0x prefix",
+            actual_value=v,
+            reason="Must start with '0x' prefix",
+        )
 
     # Check exact length: 0x + 32 hex chars = 34 total
     if len(v) != HASH_HEX_LENGTH:
-        raise ValueError(
-            f"{field_name}: Must be exactly 34 characters (0x + 32 hex chars), got {len(v)}",
+        raise RangeFieldError(
+            field_name=field_name,
+            value=len(v),
+            min_value=HASH_HEX_LENGTH,
+            max_value=HASH_HEX_LENGTH,
+            constraint=f"Must be exactly 34 characters (0x + 32 hex chars), got {len(v)}",
         )
 
     # Check if the part after 0x is valid hex
@@ -686,7 +844,12 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
     try:
         int(hex_part, 16)
     except ValueError as err:
-        raise ValueError(f"{field_name}: Invalid hex string after '0x' prefix") from err
+        raise InvalidFormatError(
+            field_name=field_name,
+            expected_format="valid hex string",
+            actual_value=v,
+            reason="Invalid hex string after '0x' prefix",
+        ) from err
 
     return v
 
@@ -865,10 +1028,19 @@ RawStatusStringHL = Annotated[
 def _validate_timestamp_ms(value: str | float) -> int:
     """Validate if the value is an integer and a plausible millisecond timestamp."""
     if not isinstance(value, int):
-        raise TypeError(f"Timestamp must be an integer, got {type(value).__name__}")
+        raise TypeFieldError(
+            field_name="timestamp_ms",
+            expected_type="integer",
+            actual_type=type(value).__name__,
+            actual_value=value,
+        )
 
     if value <= 0:
-        raise ValueError("Millisecond timestamp must be positive for Hyperliquid funding history.")
+        raise TimestampFieldError(
+            field_name="timestamp_ms",
+            value=value,
+            reason="Millisecond timestamp must be positive for Hyperliquid funding history",
+        )
     return value
 
 
@@ -888,7 +1060,12 @@ class RawHlCoinName(UserString):
     @classmethod
     def _validate(cls, value: str, _: core_schema.ValidationInfo) -> RawHlCoinName:
         if not value or not value.strip():
-            raise ValueError("Coin name cannot be empty")
+            raise InvalidFormatError(
+                field_name="coin_name",
+                expected_format="non-empty string",
+                actual_value=value,
+                reason="Coin name cannot be empty",
+            )
         return cls(value)
 
     @classmethod

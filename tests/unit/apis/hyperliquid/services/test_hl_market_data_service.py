@@ -18,7 +18,7 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import (
     RawJsonResponse,
 )
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
-from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
     HyperliquidRawCandleSnapshotRequestPayload,

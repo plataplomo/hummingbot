@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.hyperliquid.models.common_raw_types import RawHlCoinName
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
 )

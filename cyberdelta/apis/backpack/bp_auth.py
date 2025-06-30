@@ -19,8 +19,15 @@ from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common import APIError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import (
+    AuthenticationPreparationError,
+    InvalidAPIKeyError,
+    InvalidPrivateKeyError,
+    UnknownEndpointError,
+    WebSocketSignatureError,
+)
 
 
 logger = get_logger(__name__)
@@ -46,9 +53,9 @@ class BackpackEd25519Authenticator(IAuthenticator):
         private_key_b64 = private_key_b64_secret.get_secret_value().strip()
 
         if not api_key_b64:
-            raise ValueError("API key (Base64 public ED25519 key) cannot be empty")
+            raise InvalidAPIKeyError()
         if not private_key_b64:
-            raise ValueError("Private key (Base64 private ED25519 key) cannot be empty")
+            raise InvalidPrivateKeyError("cannot be empty")
 
         self._api_key_b64 = api_key_b64  # Store the public key string
 
@@ -63,7 +70,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 error=str(e),
                 message=f"Failed to load ED25519 private key from Base64 string: {e}",
             )
-            raise ValueError(f"Invalid Base64 ED25519 private key: {e}") from e
+            raise InvalidPrivateKeyError(str(e), original_error=e) from e
 
         # Initialize instruction mapping for Backpack REST API endpoints
         self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
@@ -168,10 +175,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                     return instruction
 
         # If no match found, raise error
-        raise APIError(
-            f"Backpack instruction not found for {method_upper} {lookup_path}",
-            code=APIErrorCode.INVALID_REQUEST.value,
-        )
+        raise UnknownEndpointError(method_upper, lookup_path)
 
     def _build_content_part(
         self,
@@ -355,10 +359,10 @@ class BackpackEd25519Authenticator(IAuthenticator):
             )
             if isinstance(e, APIError):
                 raise
-            raise APIError(
-                f"Authentication preparation failed: {e}",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                original_exception=e,
+            raise AuthenticationPreparationError(
+                operation=f"{method} {path}",
+                reason=str(e),
+                original_error=e,
             ) from e
 
     def get_ws_subscription_signature_components(
@@ -409,8 +413,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 error=str(e),
                 message=f"WebSocket signature generation failed: {e}",
             )
-            raise APIError(
-                f"WebSocket signature generation failed: {e}",
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-                original_exception=e,
+            raise WebSocketSignatureError(
+                reason=str(e),
+                original_error=e,
             ) from e

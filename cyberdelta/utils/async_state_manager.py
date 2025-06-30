@@ -159,11 +159,11 @@ class AsyncStateManager:
                 result = True
             else:
                 logger.error(
-                "state_write_failed",
-                action="saving_state",
-                message=f"Failed to write state to {self.state_file}",
-                state_file=self.state_file,
-            )
+                    "state_write_failed",
+                    action="saving_state",
+                    message=f"Failed to write state to {self.state_file}",
+                    state_file=self.state_file,
+                )
                 result = False
         except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
             logger.exception(

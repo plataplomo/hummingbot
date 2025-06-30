@@ -10,6 +10,20 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.field_validation import (
+    DecimalFieldError,
+    RequiredFieldError,
+    TypeFieldError,
+)
+from cyberdelta.exceptions.service_validation import (
+    IntegerConversionError,
+    MissingPriceError,
+    MissingStopPriceError,
+    NegativeValueError,
+    PostOnlyLimitError,
+    TimeRangeError,
+    TransferAccountError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 from cyberdelta.utils.typing import PotentialDecimalInput, is_potential_decimal_input
 
@@ -72,16 +86,22 @@ class PlaceOrderArgs(BaseModel):
 
         # Use TypeGuard for better type safety
         if v is not None and not is_potential_decimal_input(v):
-            raise ValueError(
-                f"Field '{field_name}' must be a string, int, float, or Decimal, "
-                f"got {type(v).__name__}",
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="string, int, float, or Decimal",
+                actual_type=type(v).__name__,
+                actual_value=v,
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=not is_required)
         if parsed is None and is_required:
-            raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
+            raise RequiredFieldError(field_name=field_name, context="order placement")
         if parsed is not None and not parsed.is_finite():
-            raise ValueError(f"Field '{field_name}' must be a finite decimal, got {v}.")
+            raise DecimalFieldError(
+                field_name=field_name,
+                value=v,
+                reason="must be a finite decimal",
+            )
             # Positivity (gt=0) is handled by Field constraint AFTER this validator.
         return parsed
 
@@ -89,16 +109,14 @@ class PlaceOrderArgs(BaseModel):
     def check_parameter_dependencies(self) -> "PlaceOrderArgs":
         """Validate inter-parameter dependencies."""
         if self.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and self.price is None:
-            raise ValueError(f"A positive price is required for {self.order_type.value} orders.")
+            raise MissingPriceError(order_type=self.order_type.value)
         if (
             self.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
             and self.stop_price is None
         ):
-            raise ValueError(
-                f"A positive stop_price is required for {self.order_type.value} orders.",
-            )
+            raise MissingStopPriceError(order_type=self.order_type.value)
         if self.post_only and self.order_type != OrderType.LIMIT:
-            raise ValueError("Post-only (post_only=True) is only applicable to LIMIT orders.")
+            raise PostOnlyLimitError(order_type=self.order_type.value)
         # Note: Specific client_order_id format checks (e.g., Backpack int conversion)
         # should be handled within the exchange-specific RequestBuilder or service,
         # not in this generic Args model.
@@ -152,16 +170,22 @@ class TransferArgs(BaseModel):
 
         # Use TypeGuard for better type safety
         if not is_potential_decimal_input(v):
-            raise ValueError(
-                f"Field '{field_name}' must be a string, int, float, or Decimal, "
-                f"got {type(v).__name__}",
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="string, int, float, or Decimal",
+                actual_type=type(v).__name__,
+                actual_value=v,
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:  # Should be caught by parse_decimal_value
-            raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
+            raise RequiredFieldError(field_name=field_name, context="transfer")
         if not parsed.is_finite():
-            raise ValueError(f"Field '{field_name}' must be a finite decimal, got {v}.")
+            raise DecimalFieldError(
+                field_name=field_name,
+                value=v,
+                reason="must be a finite decimal",
+            )
         # Positivity (gt=0) is handled by Field constraint.
         return parsed
 
@@ -169,7 +193,10 @@ class TransferArgs(BaseModel):
     def check_account_types_differ(self) -> "TransferArgs":
         """Ensure from and to account types are different."""
         if self.from_account_type == self.to_account_type:
-            raise ValueError("from_account_type and to_account_type cannot be the same.")
+            raise TransferAccountError(
+                from_account=self.from_account_type,
+                to_account=self.to_account_type,
+            )
         # Note: Exchange-specific validation for from/to_account_type values would ideally
         # be handled by derived Args models or within the service implementation.
         return self
@@ -225,16 +252,22 @@ class WithdrawArgs(BaseModel):
 
         # Use TypeGuard for better type safety
         if not is_potential_decimal_input(v):
-            raise ValueError(
-                f"Field '{field_name}' must be a string, int, float, or Decimal, "
-                f"got {type(v).__name__}",
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="string, int, float, or Decimal",
+                actual_type=type(v).__name__,
+                actual_value=v,
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:  # Should be caught by parse_decimal_value
-            raise ValueError(f"Field '{field_name}' is required and cannot be None or invalid.")
+            raise RequiredFieldError(field_name=field_name, context="withdrawal")
         if not parsed.is_finite():
-            raise ValueError(f"Field '{field_name}' must be a finite decimal, got {v}.")
+            raise DecimalFieldError(
+                field_name=field_name,
+                value=v,
+                reason="must be a finite decimal",
+            )
         # Positivity (gt=0) is handled by Field constraint.
         return parsed
 
@@ -299,19 +332,29 @@ class GetOrderHistoryArgs(BaseModel):
             return None
         if not isinstance(v, int | str | float):  # Allow int, or str/float that can be int
             field_name = str(info.field_name)
-            raise TypeError(f"Field '{field_name}' must be an integer or convertible to one.")
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="integer or convertible to one",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
         try:
             return int(v)
             # Positivity (gt=0) is handled by Field constraint
         except ValueError as e:
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
+            raise IntegerConversionError(field_name=field_name, value=v) from e
 
     @model_validator(mode="after")
     def check_time_range(self) -> "GetOrderHistoryArgs":
         """Validate time range logic."""
         if self.start_time and self.end_time and self.start_time >= self.end_time:
-            raise ValueError("start_time must be before end_time.")
+            raise TimeRangeError(
+                start_field="start_time",
+                end_field="end_time",
+                start_value=self.start_time,
+                end_value=self.end_time,
+            )
         return self
 
 
@@ -347,13 +390,18 @@ class GetMarketDataArgs(BaseModel):
         """Parse limit field as positive integer."""
         if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
-            raise TypeError(f"Field '{field_name}' must be an integer or convertible to one.")
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="integer or convertible to one",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
         try:
             return int(v)
             # Positivity (gt=0) is handled by Field constraint
         except ValueError as e:
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
+            raise IntegerConversionError(field_name=field_name, value=v) from e
 
     @field_validator("start_time_ms", "end_time_ms", mode="before")
     @classmethod
@@ -363,15 +411,20 @@ class GetMarketDataArgs(BaseModel):
             return None
         if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
-            raise TypeError(f"Field '{field_name}' must be an integer or convertible to one.")
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="integer or convertible to one",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
         try:
             int_val = int(v)
             if int_val < 0:
                 field_name = str(info.field_name)
-                raise ValueError(f"Field '{field_name}' must be non-negative, got {int_val}.")
+                raise NegativeValueError(field_name=field_name, value=int_val)
         except ValueError as e:
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
+            raise IntegerConversionError(field_name=field_name, value=v) from e
         else:
             return int_val
 
@@ -383,7 +436,12 @@ class GetMarketDataArgs(BaseModel):
             and self.end_time_ms is not None
             and self.start_time_ms >= self.end_time_ms
         ):
-            raise ValueError("start_time_ms must be before end_time_ms.")
+            raise TimeRangeError(
+                start_field="start_time_ms",
+                end_field="end_time_ms",
+                start_value=self.start_time_ms,
+                end_value=self.end_time_ms,
+            )
         return self
 
 
@@ -410,7 +468,7 @@ class CancelOrderArgs(BaseModel):
 
         if v is None:
             if is_required:
-                raise ValueError(f"Field '{field_name}' is required.")
+                raise RequiredFieldError(field_name=field_name, context="order cancellation")
             return None  # For optional fields
 
         # Assuming generic string validation, max_length can be adjusted
@@ -505,13 +563,18 @@ class GetTradeHistoryArgs(BaseModel):
             return None
         if not isinstance(v, int | str | float):
             field_name = str(info.field_name)
-            raise TypeError(f"Field '{field_name}' must be an integer or convertible.")
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="integer or convertible",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
         try:
             return int(v)
             # Positivity (gt=0) is handled by Field constraint.
         except ValueError as e:
             field_name = str(info.field_name)
-            raise ValueError(f"Field '{field_name}' could not be converted to int: {v}") from e
+            raise IntegerConversionError(field_name=field_name, value=v) from e
 
 
 class GetAllOpenOrdersArgs(BaseModel):
@@ -562,7 +625,7 @@ class GetOrderArgs(BaseModel):
 
         if v is None:
             if is_required:
-                raise ValueError(f"Field '{field_name}' is required.")
+                raise RequiredFieldError(field_name=field_name, context="order query")
             return None  # For optional fields
 
         # Max length for order_id can be quite long for some exchanges (e.g. UUIDs)
@@ -642,18 +705,27 @@ class GetHistoricalFundingRatesArgs(BaseModel):
         if v is None:
             return None
         if not isinstance(v, int | str | float):
-            raise TypeError(f"Field '{info.field_name!s}' must be an integer or convertible.")
+            raise TypeFieldError(
+                field_name=str(info.field_name),
+                expected_type="integer or convertible",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
         try:
             return int(v)
         except ValueError as e:
-            msg = f"Field '{info.field_name!s}' could not be converted to int: {v}"
-            raise ValueError(msg) from e
+            raise IntegerConversionError(field_name=str(info.field_name), value=v) from e
 
     @model_validator(mode="after")
     def check_time_range_logic(self) -> "GetHistoricalFundingRatesArgs":
         """Validate time range logic."""
         if self.start_time and self.end_time and self.start_time >= self.end_time:
-            raise ValueError("start_time must be before end_time if both are provided.")
+            raise TimeRangeError(
+                start_field="start_time",
+                end_field="end_time",
+                start_value=self.start_time,
+                end_value=self.end_time,
+            )
         return self
 
 
@@ -826,7 +898,12 @@ class GetCandleSnapshotArgs(BaseModel):
     def check_time_range(self) -> "GetCandleSnapshotArgs":
         """Validate time range logic."""
         if self.start_time_ms >= self.end_time_ms:
-            raise ValueError("start_time_ms must be before end_time_ms")
+            raise TimeRangeError(
+                start_field="start_time_ms",
+                end_field="end_time_ms",
+                start_value=self.start_time_ms,
+                end_value=self.end_time_ms,
+            )
         return self
 
 
@@ -843,5 +920,10 @@ class GetOrderHistoryArgsHL(BaseModel):
     def check_time_range(self) -> "GetOrderHistoryArgsHL":
         """Validate time range logic."""
         if self.start_time_ms >= self.end_time_ms:
-            raise ValueError("start_time_ms must be before end_time_ms")
+            raise TimeRangeError(
+                start_field="start_time_ms",
+                end_field="end_time_ms",
+                start_value=self.start_time_ms,
+                end_value=self.end_time_ms,
+            )
         return self

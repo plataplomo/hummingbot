@@ -1766,5 +1766,25 @@ This refactoring strategy:
 3. **Enhances error context and debuggability**
 4. **Maintains backward compatibility**
 5. **Leverages our already-robust error infrastructure**
+6. **NEW: Avoids all naming conflicts with external libraries**
 
 The key insight: We don't need to rebuild our exception system - we just need to extend it with specific exception classes that construct their messages internally. This approach minimizes risk while maximizing the benefits of the refactoring.
+
+## Critical Update: Naming Strategy Change
+
+**IMPORTANT DECISION**: All "Validation" words have been removed from exception names to avoid conflicts with Pydantic's `ValidationError` and similar classes in other libraries.
+
+### Rationale
+- Since all our validation exceptions extend `TransformationError` (which is itself a `ValueError`), they are essentially field transformation errors
+- The word "Validation" creates namespace conflicts with Pydantic and other libraries
+- Clearer naming: `FieldError`, `PassphraseFieldError`, `RangeFieldError` better describe their purpose
+
+### Implementation
+- Renamed base class: `ValidationError` → `DataValidationError` → `FieldError`
+- Renamed specific classes:
+  - `PassphraseValidationError` → `PassphraseFieldError`
+  - `RangeValidationError` → `RangeFieldError`
+- Renamed module: `validation.py` → `field_validation.py`
+- `RequiredFieldError` and `InvalidFormatError` already had good names
+
+This change ensures clean integration with the existing codebase and prevents any future naming conflicts.

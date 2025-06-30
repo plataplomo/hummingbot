@@ -167,6 +167,42 @@ graph TD
 
 ### 3.3. Exception Architecture Deep Dive
 
+#### **CRITICAL ARCHITECTURAL INSIGHT: Three Distinct Exception Layers**
+
+After thorough analysis, we've identified that our exception architecture must respect **Python's semantic exception hierarchy** while maintaining **separation of concerns** across our data processing pipeline. **This is the foundation for all TRY003 refactoring.**
+
+```mermaid
+graph TD
+    subgraph "Layer 1: API Operations (HTTP, Network, Exchange)"
+        API[APIError - Exception]
+        API_DESC["• Network requests, HTTP responses<br/>• Exchange-specific errors<br/>• Retry logic, rate limits<br/>• Metadata: http_status, exchange_code"]
+    end
+    
+    subgraph "Layer 2: Input Validation (Pydantic Field Validators)"
+        FIELD[FieldError - Exception]
+        TYPE[TypeFieldError - TypeError + FieldError]
+        VALUE[ValueFieldError - ValueError + FieldError]
+        FIELD_DESC["• Input validation during Raw model creation<br/>• Wrong types, invalid formats<br/>• Metadata: field_name, expected vs actual"]
+    end
+    
+    subgraph "Layer 3: Data Transformation (Raw → Internal Models)"
+        TRANS[TransformationError - ValueError]
+        TRANS_DESC["• Raw model → Internal model mapping<br/>• Missing fields, incompatible structures<br/>• Metadata: field_name, source_data"]
+    end
+    
+    API --> FIELD
+    FIELD --> TRANS
+    TYPE -.-> FIELD
+    VALUE -.-> FIELD
+```
+
+**Key Architectural Principles:**
+
+1. **Semantic Correctness**: `TypeError` for type errors, `ValueError` for value errors
+2. **Separation of Concerns**: Each layer handles one responsibility
+3. **Multiple Inheritance**: Combine Python semantics + our metadata
+4. **Non-Breaking**: Existing `except TypeError`/`except ValueError` still works
+
 #### Existing Exception Infrastructure
 
 Our current system already provides:
@@ -186,10 +222,30 @@ classDiagram
     }
 
     class TransformationError {
-        <<existing>>
+        <<existing - ValueError>>
         +field_name: str|None
         +source_value: object
         +source_data: dict|None
+    }
+
+    class FieldError {
+        <<new - Exception>>
+        +field_name: str
+        +source_value: object
+        +metadata: dict
+    }
+
+    class TypeFieldError {
+        <<new - TypeError + FieldError>>
+        +expected_type: str
+        +actual_type: str
+    }
+
+    class ValueFieldError {
+        <<new - ValueError + FieldError>>
+        +constraint: str
+        +min_value: float|None
+        +max_value: float|None
     }
 
     class APIErrorCode {
@@ -200,6 +256,16 @@ classDiagram
         INSUFFICIENT_FUNDS = 101
         ... (30+ codes)
     }
+
+    APIError <|-- TradingError
+    APIError <|-- AuthenticationError
+    
+    FieldError <|-- TypeFieldError
+    FieldError <|-- ValueFieldError
+    TypeError <|-- TypeFieldError
+    ValueError <|-- ValueFieldError
+    
+    TransformationError <|-- MappingError
 ```
 
 #### New Specific Exception Classes (Extend Existing)
@@ -418,33 +484,57 @@ class AuthenticationRequiredError(APIError):
         )
     ```
 
-**2. Financial Safety Validation Exceptions (Extending TransformationError)**
+**2. Field Validation Exceptions (NEW ARCHITECTURE)**
 
-*   **Key Change:** Validation exceptions extend `TransformationError` for data validation
+*   **CRITICAL CHANGE:** Field exceptions now use **multiple inheritance** to preserve Python semantics
+*   **Key Insight:** Field validation is NOT transformation - it's input validation
+*   **Architecture:** Separate base class with proper semantic inheritance
 *   **Code Example (`PlaceOrderArgs`):**
     ```python
-    # In cyberdelta/exceptions/validation.py
-    from cyberdelta.apis.common import TransformationError
+    # In cyberdelta/exceptions/field_validation.py
+    
+    class FieldError(Exception):
+        """Base class for field validation errors with rich metadata."""
+        def __init__(self, field_name: str, message: str, **metadata):
+            super().__init__(message)
+            self.field_name = field_name
+            self.metadata = metadata
 
-    class OrderValidationError(TransformationError):
-        """Base class for order validation errors."""
-        pass
+    class TypeFieldError(TypeError, FieldError):
+        """Field type validation errors - inherits TypeError semantics."""
+        def __init__(self, field_name: str, expected_type: str, actual_type: str, actual_value=None):
+            message = f"Field '{field_name}' must be {expected_type}, got {actual_type}"
+            super().__init__(message)
+            FieldError.__init__(self, field_name, message, 
+                              expected_type=expected_type, 
+                              actual_type=actual_type,
+                              actual_value=actual_value)
 
-    class MissingPriceError(OrderValidationError):
-        def __init__(self, order_type: str):
-            super().__init__(
-                message=f"Price is required for {order_type} orders",
-                field_name="price",
-                code="MISSING_REQUIRED_PRICE",
-                source_data={"order_type": order_type}
-            )
+    class DecimalFieldError(ValueError, FieldError):
+        """Field decimal validation errors - inherits ValueError semantics."""
+        def __init__(self, field_name: str, value: object, reason: str):
+            message = f"Field '{field_name}' decimal validation failed: {reason}"
+            super().__init__(message)
+            FieldError.__init__(self, field_name, message, value=value, reason=reason)
 
     # In service_args_models.py
-    from cyberdelta.exceptions import MissingPriceError
+    from cyberdelta.exceptions.field_validation import TypeFieldError
 
-    if self.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and self.price is None:
-        raise MissingPriceError(self.order_type.value)
+    if not isinstance(self.price, (int, float, Decimal)) and self.price is not None:
+        raise TypeFieldError(
+            field_name="price",
+            expected_type="number",
+            actual_type=type(self.price).__name__,
+            actual_value=self.price
+        )
     ```
+
+**Benefits of New Architecture:**
+- ✅ `isinstance(error, TypeError)` works correctly
+- ✅ `isinstance(error, ValueError)` works correctly  
+- ✅ `isinstance(error, FieldError)` catches all field errors
+- ✅ Rich metadata for debugging
+- ✅ Non-breaking with existing exception handling
 
 **3. Strategy Logic & Observability Exceptions (Extending APIError)**
 
@@ -549,18 +639,33 @@ This plan is ordered by business impact, addressing financial safety and system 
 
 ### 8.1. Enhanced Success Metrics
 
-1.  **Error Reduction**: 1,410 → 0 Ruff TRY errors.
+1.  **Error Reduction**: 1,244 → 671 TRY003 errors (46% reduction achieved), targeting 0 errors
 2.  **100% Backward Compatibility**: All existing error handling continues to work
     - Existing `except APIError` blocks catch new exceptions
+    - Existing `except TypeError`/`except ValueError` catch field errors
     - Error mappers process new exceptions without modification
     - Retry logic and metadata preserved
-3.  **Architectural Alignment**: Exception hierarchy mirrors the 6-Layer Architecture while extending existing classes
+3.  **Semantic Correctness**: Exception hierarchy respects Python's built-in semantics
+    - `TypeFieldError` inherits from `TypeError` - semantically correct
+    - `DecimalFieldError` inherits from `ValueError` - semantically correct
+    - Multiple inheritance preserves both semantics AND our metadata
 4.  **Enhanced Observability**: Specific exception types enable better monitoring:
     -   **`StrategyError`** (extends APIError): `P3` - Log for analysis
     -   **`DataUnavailableError`** (extends APIError): `P2` - Investigate data feed
     -   **`RateLimitError`** (extends APIError): Auto-retry with backoff
     -   **`AuthenticationError`** (extends APIError): `P1` - Critical auth failure
-5.  **Financial Safety**: All validation errors extend `TransformationError`, maintaining data integrity
+    -   **`TypeFieldError`** (TypeError + FieldError): Input validation failure
+    -   **`DecimalFieldError`** (ValueError + FieldError): Numeric validation failure
+5.  **Separation of Concerns**: Three distinct exception layers
+    - **API Layer**: Network, HTTP, exchange operations → `APIError`
+    - **Validation Layer**: Input field validation → `FieldError` + semantics
+    - **Transformation Layer**: Model mapping → `TransformationError`
 6.  **Zero Breaking Changes**: No modifications to `APIError`, `APIErrorCode`, or error mappers
+7.  **Naming Clarity**: Removed all "Validation" words to avoid conflicts with Pydantic
+8.  **Progress Tracking**: 
+    - ✅ bp_common_raw_types.py: 97 → ~70 violations (30% reduction)
+    - ✅ Exception infrastructure: Complete and validated
+    - 🔄 Next: common_raw_types.py (37 violations)
+    - 📋 Remaining: service_args_models.py (30 violations)
 
 *(The original implementation timeline is preserved.)*

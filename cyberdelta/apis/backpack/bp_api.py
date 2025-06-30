@@ -39,7 +39,7 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler
+from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
@@ -73,6 +73,12 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.market import Candle, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.exceptions import (
+    AuthenticatorNotConfiguredError,
+    RateLimitConfigurationError,
+    RequiredParameterError,
+    TestnetConfigurationError,
+)
 
 
 logger = get_logger(__name__)
@@ -160,17 +166,15 @@ class BackpackAPI(ExchangeAPI):
         # Validate URLs based on environment
         if not exchange_config.is_mainnet_environment:
             if exchange_config.api_base_url_testnet is None:
-                raise ValueError("Testnet API URL not configured but testnet environment requested")
+                raise TestnetConfigurationError("API")
             if exchange_config.ws_url_testnet is None:
-                raise ValueError(
-                    "Testnet WebSocket URL not configured but testnet environment requested",
-                )
+                raise TestnetConfigurationError("WebSocket")
 
         # Create Backpack's simple rate limit strategy
         # The rate limit parameters (rate, bucket_size) are derived from the static
         # rate_limit_per_minute configured in exchange_config
         if exchange_config.rate_limit_per_minute is None:
-            raise ValueError("rate_limit_per_minute is required for Backpack")
+            raise RateLimitConfigurationError("Backpack")
 
         rate_per_second = exchange_config.rate_limit_per_minute / 60.0
         bucket_size = max(1, int(rate_per_second * 2))
@@ -270,9 +274,9 @@ class BackpackAPI(ExchangeAPI):
                 self._bp_authenticator,
                 "get_ws_subscription_signature_components",
             ):
-                raise APIError(
-                    "ED25519 authenticator required for private WebSocket subscriptions",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                raise AuthenticatorNotConfiguredError(
+                    auth_type="ED25519",
+                    operation="private WebSocket subscriptions",
                 )
 
             # Extract subscription type and symbol from topic
@@ -611,7 +615,11 @@ class BackpackAPI(ExchangeAPI):
 
         """
         if args.symbol is None:
-            raise ValueError("'symbol' parameter is required for Backpack.get_order()")
+            raise RequiredParameterError(
+                parameter="symbol",
+                context="get_order",
+                exchange="Backpack",
+            )
         return await self.trading_service.get_order(args=args)
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
@@ -628,7 +636,11 @@ class BackpackAPI(ExchangeAPI):
 
         """
         if args.symbol is None:
-            raise ValueError("'symbol' parameter is required for Backpack.get_order_status()")
+            raise RequiredParameterError(
+                parameter="symbol",
+                context="get_order_status",
+                exchange="Backpack",
+            )
         # Return type changed to Order | None to align with abstract method
         return await self.trading_service.get_order_status(args=args)
 

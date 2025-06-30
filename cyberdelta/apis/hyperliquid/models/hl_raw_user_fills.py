@@ -47,7 +47,7 @@ from pydantic import (
     field_validator,
 )
 
-from cyberdelta.apis.hyperliquid.models.common_raw_types import (
+from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawAssetString64HL,
     RawDefaultString,
     RawFiniteDecimalStr,

@@ -26,7 +26,7 @@ class InvalidConfigurationError(SymbolMappingError):
 
     def __init__(self, expected_type: str, actual_type: type) -> None:
         """Initialize with type validation error details.
-        
+
         Args:
             expected_type: The expected configuration type name.
             actual_type: The actual type that was provided.

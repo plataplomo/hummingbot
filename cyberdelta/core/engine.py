@@ -26,7 +26,7 @@ class DataFrameProcessingError(ValueError):
 
     def __init__(self, missing_columns: list[str]) -> None:
         """Initialize with missing column names.
-        
+
         Args:
             missing_columns: List of column names that are missing from the DataFrame.
         """
