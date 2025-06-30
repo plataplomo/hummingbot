@@ -29,6 +29,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimestampMsInt,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import StructureTypeError
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
@@ -277,7 +278,12 @@ class HyperliquidRawHistoricalOrdersResponse(
         - Ensuring all items are dictionaries for further validation
         """
         if not is_list_any(v):
-            raise ValueError(f"Expected a list of orders, got {type(v).__name__}")
+            raise StructureTypeError(
+                field_name="orders",
+                expected_structure="list",
+                actual_type=type(v).__name__,
+                element_info="historical orders"
+            )
 
         # v is now properly typed as list[Any] due to TypeGuard
         validated_items: list[dict[str, Any]] = []

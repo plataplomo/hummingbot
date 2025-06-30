@@ -16,6 +16,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawHlParsableFiniteDecimalString,
     RawHlTimestampMsInt,
 )
+from cyberdelta.exceptions import StructureTypeError
 from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
@@ -111,17 +112,21 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
         - Providing detailed error messages for malformed items
         """
         if not is_list_any(v):
-            raise ValueError(
-                f"Unexpected historical_funding_rates response format: expected list, "
-                f"got {type(v).__name__}",
+            raise StructureTypeError(
+                field_name="historical_funding_rates",
+                expected_structure="list",
+                actual_type=type(v).__name__,
+                element_info="response"
             )
 
         validated_items: list[dict[str, Any]] = []
         for i, item in enumerate(v):
             if not is_dict_str_any(item):
-                raise ValueError(
-                    f"Expected dict for historical funding rate item, "
-                    f"got {type(item).__name__} at index {i}",
+                raise StructureTypeError(
+                    field_name="historical_funding_rates",
+                    expected_structure="dict",
+                    actual_type=type(item).__name__,
+                    element_info=f"item at index {i}"
                 )
 
             # item is now properly typed as dict[str, Any] due to TypeGuard

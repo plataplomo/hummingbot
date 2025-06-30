@@ -30,6 +30,7 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     ProcessedResponseHeaders,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import AuthenticatorNotConfiguredError, UnreachableCodeError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -525,9 +526,9 @@ class HttpClient:
                         f"[{self.exchange_name}] Signed request to {full_url} needs authenticator."
                     ),
                 )
-                raise APIError(
-                    "Authenticator is required for signed requests.",
-                    code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                raise AuthenticatorNotConfiguredError(
+                    auth_type="API",
+                    operation="signed HTTP request"
                 )
 
             try:
@@ -621,9 +622,8 @@ class HttpClient:
                 await self._apply_retry_delay(current_attempt, full_url)
 
         # This should not be reached, but handle it defensively
-        raise APIError(
-            f"Request processing loop exited unexpectedly for {full_url}.",
-            code=APIErrorCode.UNKNOWN.value,
+        raise UnreachableCodeError(
+            reason=f"Request processing loop for {full_url} exited without exception or response"
         )
 
     async def _execute_single_request(
@@ -821,7 +821,12 @@ class HttpClient:
             raise last_exception
 
         if last_exception is None:
-            raise ValueError("DEFENSIVE: last_exception is None after all retries failed")
+            raise UnreachableCodeError(
+                reason=(
+                    "HTTP request retry handling: "
+                    "last_exception is None after all retries failed"
+                )
+            )
 
         # Wrap other exceptions
         if isinstance(last_exception, TimeoutError):

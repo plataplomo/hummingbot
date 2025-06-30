@@ -47,6 +47,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
 )
+from cyberdelta.exceptions import TypeFieldError
 from cyberdelta.utils.parsing import validate_str_field
 
 
@@ -95,7 +96,9 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
         """
         if not isinstance(v, dict):
             field_name = info.field_name or "all_mids_response"
-            raise TypeError(
-                f"Field '{field_name}': Expected a dictionary, got {type(v).__name__}.",
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="dict",
+                actual_type=type(v).__name__
             )
         return cast("dict[str, object]", v)

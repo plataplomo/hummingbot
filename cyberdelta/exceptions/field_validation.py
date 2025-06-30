@@ -615,3 +615,50 @@ class EnumFieldError(ValueError, FieldError):
         self.value = value
         self.valid_values = valid_values
         self.enum_name = enum_name
+
+
+class ListFieldError(TypeError, FieldError):
+    """List field validation errors - inherits TypeError semantics + our metadata."""
+
+    def __init__(
+        self,
+        field_name: str,
+        actual_type: str,
+        item_index: int | None = None,
+        expected_item_type: str | None = None,
+    ) -> None:
+        """Initialize list field error.
+
+        Args:
+            field_name: Name of the list field
+            actual_type: Actual type received
+            item_index: Index of invalid item (if validating list items)
+            expected_item_type: Expected type of list items (for item validation)
+        """
+        if item_index is not None and expected_item_type:
+            # Error for list item validation
+            message = (
+                f"Field '{field_name}', Item {item_index}: "
+                f"Expected {expected_item_type}, got {actual_type}"
+            )
+            code = "INVALID_LIST_ITEM_TYPE"
+        else:
+            # Error for field not being a list
+            message = f"Field '{field_name}': Expected list, got {actual_type}"
+            code = "FIELD_NOT_LIST"
+
+        # Initialize TypeError with the message
+        TypeError.__init__(self, message)
+
+        # Initialize FieldError with full metadata
+        FieldError.__init__(
+            self,
+            message=message,
+            field_name=field_name,
+            code=code,
+            source_data={
+                "actual_type": actual_type,
+                "item_index": item_index,
+                "expected_item_type": expected_item_type,
+            },
+        )

@@ -20,6 +20,8 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.exceptions import ModelDefinitionError, SequenceLengthError
+
 from .bp_common_raw_types import (
     RawBpKlineDecimalString,
     RawBpKlineIntStringField,
@@ -90,16 +92,20 @@ class BackpackRawKline(BaseModel):
         """
         if len(data) != BACKPACK_KLINE_FIELDS_COUNT:
             # Match test message for test_invalid_structure_list_length
-            raise ValueError(
-                f"Expected {BACKPACK_KLINE_FIELDS_COUNT} elements in kline data list/tuple, "
-                f"got {len(data)}"
+            raise SequenceLengthError(
+                field_name="kline data",
+                expected_length=BACKPACK_KLINE_FIELDS_COUNT,
+                actual_length=len(data)
             )
 
         field_names: list[str] = list(cls.model_fields.keys())
         if len(field_names) != BACKPACK_KLINE_FIELDS_COUNT:
-            raise RuntimeError(
-                "BackpackRawKline model definition has an incorrect number of fields "
-                "(should be 12).",
+            raise ModelDefinitionError(
+                model_name="BackpackRawKline",
+                issue=(
+                    f"incorrect number of fields "
+                    f"(should be {BACKPACK_KLINE_FIELDS_COUNT}, got {len(field_names)})"
+                )
             )
         return dict(zip(field_names, data, strict=True))
 

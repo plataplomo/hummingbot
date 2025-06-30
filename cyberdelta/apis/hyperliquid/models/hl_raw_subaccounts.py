@@ -17,6 +17,7 @@ from pydantic import (
 )
 
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawLaxEthereumAddressStrHL
+from cyberdelta.exceptions import TypeFieldError
 
 
 class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrHL]]):
@@ -34,6 +35,10 @@ class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrH
         """Ensure the root input is a list. Pydantic handles address validation."""
         field_name = info.field_name or "subaccounts_list"
         if not isinstance(v, list):
-            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="list",
+                actual_type=type(v).__name__
+            )
 
         return cast("list[object]", v)

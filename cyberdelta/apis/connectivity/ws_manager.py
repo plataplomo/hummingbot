@@ -22,6 +22,7 @@ from aiohttp.helpers import sentinel
 from pydantic import BaseModel
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.connectivity import WebSocketConnectionClosedError
 from cyberdelta.utils.logging_utilities import MessageStatsAggregator
 
 # Import the config model
@@ -645,10 +646,10 @@ class WebSocketManager:
             self._handle_binary_message(msg)
         elif msg.type == aiohttp.WSMsgType.ERROR:
             self._handle_error_message()
-            raise ConnectionError("WebSocket error received")
+            raise WebSocketConnectionClosedError(reason="error message received")
         elif msg.type in {aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING}:
             await self._handle_close_message(task_name, iteration)
-            raise ConnectionError("WebSocket closed")
+            raise WebSocketConnectionClosedError(reason="normal close or closing state")
 
     async def _handle_text_message(self, msg: aiohttp.WSMessage) -> None:
         """Handle TEXT type WebSocket messages."""

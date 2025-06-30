@@ -125,3 +125,52 @@ class RequiredParameterError(ConfigurationError):
             exchange_code="MISSING_PARAMETER",
             metadata={"parameter": parameter, "context": context, "exchange": exchange},
         )
+
+
+class HyperliquidRateLimitConfigError(ConfigurationError):
+    """Raised when Hyperliquid rate limit configuration is incomplete."""
+
+    def __init__(self, missing_fields: list[str]) -> None:
+        """Initialize Hyperliquid rate limit configuration error.
+
+        Args:
+            missing_fields: List of missing configuration fields
+        """
+        self.missing_fields = missing_fields
+
+        fields_str = " and ".join(missing_fields)
+        message = f"HyperliquidRateLimitStrategy requires {fields_str} configuration"
+
+        super().__init__(
+            message=message,
+            exchange_code="HL_RATE_LIMIT_CONFIG_ERROR",
+            metadata={
+                "exchange": "hyperliquid",
+                "missing_fields": missing_fields,
+                "error_type": "rate_limit_configuration",
+            },
+        )
+
+
+class ModelDefinitionError(RuntimeError, ConfigurationError):
+    """Raised when a model definition has incorrect structure."""
+
+    def __init__(self, model_name: str, issue: str) -> None:
+        """Initialize model definition error.
+
+        Args:
+            model_name: Name of the model with the issue
+            issue: Description of the structural issue
+        """
+        self.model_name = model_name
+        self.issue = issue
+        
+        message = f"{model_name} model definition error: {issue}"
+        
+        RuntimeError.__init__(self, message)
+        ConfigurationError.__init__(
+            self,
+            message=message,
+            exchange_code="MODEL_DEFINITION_ERROR",
+            metadata={"model_name": model_name, "issue": issue},
+        )

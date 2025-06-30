@@ -53,6 +53,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimestampMsInt,
     RawTradeHashStringHL,
 )
+from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.parsing import validate_str_field
 
 
@@ -120,7 +121,10 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
         field_name = info.field_name or "public_trades_list"
 
         if not isinstance(v, list):
-            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise ListFieldError(
+                field_name=field_name,
+                actual_type=type(v).__name__
+            )
 
         # CAST 1: For type checker, v is already confirmed list by runtime check above
         list_of_objects = cast("list[object]", v)
@@ -129,9 +133,11 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
-                raise TypeError(
-                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
-                    f"got {item_type}.",
+                raise ListFieldError(
+                    field_name=field_name,
+                    actual_type=item_type,
+                    item_index=item_idx,
+                    expected_item_type="dictionary"
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check above

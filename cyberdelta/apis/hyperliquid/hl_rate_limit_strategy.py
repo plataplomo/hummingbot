@@ -16,6 +16,7 @@ from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWe
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import HyperliquidRateLimitConfigError, RequiredParameterError
 
 
 logger = get_logger(__name__)
@@ -38,16 +39,14 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
 
         """
         # Validate we have required Hyperliquid configuration
-        if not all(
-            [
-                hl_exchange_config.ip_weight_limit_per_minute,
-                hl_exchange_config.address_action_safety_net,
-            ],
-        ):
-            raise ValueError(
-                "HyperliquidRateLimitStrategy requires ip_weight_limit_per_minute "
-                "and address_action_safety_net configuration",
-            )
+        missing_fields: list[str] = []
+        if not hl_exchange_config.ip_weight_limit_per_minute:
+            missing_fields.append("ip_weight_limit_per_minute")
+        if not hl_exchange_config.address_action_safety_net:
+            missing_fields.append("address_action_safety_net")
+            
+        if missing_fields:
+            raise HyperliquidRateLimitConfigError(missing_fields)
 
         # Initialize request weighter utility
         self._request_weighter = HyperliquidRequestWeighter(hl_exchange_config)
@@ -55,7 +54,11 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         # IP Weight Limiter
         ip_rate_rpm = hl_exchange_config.ip_weight_limit_per_minute
         if ip_rate_rpm is None:  # Already checked above, but mypy needs this
-            raise ValueError("ip_weight_limit_per_minute is required")
+            raise RequiredParameterError(
+                parameter="ip_weight_limit_per_minute",
+                context="HyperliquidRateLimitStrategy",
+                exchange="hyperliquid"
+            )
         ip_rate_rps = ip_rate_rpm / 60.0
         ip_bucket = max(1, int(ip_rate_rps * 2))  # 2-second bucket
         self._ip_weight_limiter = TokenBucketRateLimiterRuntime(
@@ -72,7 +75,11 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
         # Address Action Count Limiter (Safety Net)
         aa_config = hl_exchange_config.address_action_safety_net
         if aa_config is None:  # Already checked above, but mypy needs this
-            raise ValueError("address_action_safety_net is required")
+            raise RequiredParameterError(
+                parameter="address_action_safety_net",
+                context="HyperliquidRateLimitStrategy",
+                exchange="hyperliquid"
+            )
         aa_rate_rpm = aa_config.rate_per_minute
         aa_rate_rps = aa_rate_rpm / 60.0
         aa_bucket = max(1, int(aa_rate_rps * 2))  # 2-second bucket

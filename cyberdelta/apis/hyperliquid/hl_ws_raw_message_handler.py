@@ -28,6 +28,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     # HyperliquidRawWsUserEvent, # If a general user event wrapper exists
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import InvalidWebSocketDataError
 
 
 _BM = TypeVar("_BM", bound=BaseModel)
@@ -284,8 +285,9 @@ class HyperliquidWsRawMessageHandler:
                 payload=repr(payload),
                 message=f"Invalid Hyperliquid 'allMids' WS payload: {e}. Payload: {payload!r}",
             )
-            raise APIError(
-                f"Invalid Hyperliquid 'allMids' WS payload: {e}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                original_exception=e,
+            raise InvalidWebSocketDataError(
+                channel="allMids",
+                expected_type="HyperliquidRawAllMids",
+                actual_type=type(payload).__name__,
+                data=payload
             ) from e

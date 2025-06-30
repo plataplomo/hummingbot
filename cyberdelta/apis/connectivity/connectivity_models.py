@@ -10,6 +10,8 @@ import re
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+from cyberdelta.exceptions import InvalidContentTypeError, WhitespaceContentTypeError
+
 
 # Define a reasonable max length for content type strings
 MAX_CONTENT_TYPE_LENGTH = 256
@@ -41,9 +43,9 @@ class ProcessedResponseHeaders(BaseModel):
         Ensures string does not consist only of whitespace if not empty.
         """
         if not VALID_CONTENT_TYPE_CHARS_REGEX.fullmatch(v):
-            raise ValueError("Content-Type contains invalid characters.")
+            raise InvalidContentTypeError(v)
         if v and not v.strip():  # If not empty, it shouldn't be just whitespace
-            raise ValueError("Content-Type cannot be only whitespace.")
+            raise WhitespaceContentTypeError(v)
         return v
 
 

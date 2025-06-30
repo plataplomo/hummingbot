@@ -185,6 +185,10 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
         """
         field_name = info.field_name or "portfolio_response_list"
         if not isinstance(v, list):
-            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="list",
+                actual_type=type(v).__name__
+            )
 
         return cast("list[object]", v)

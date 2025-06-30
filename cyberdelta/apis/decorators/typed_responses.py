@@ -14,6 +14,7 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import MapperNotFoundError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -446,9 +447,8 @@ def mapped_response[T: BaseModel](
                     return await mapper_func(raw_result)
                 return mapper_func(raw_result)
 
-            raise AttributeError(
-                f"Mapper method '{mapper_method}' not found in any mapper "
-                f"(_market_data_mapper, _account_data_mapper, _trading_data_mapper)",
+            raise MapperNotFoundError(
+                mapper_method=mapper_method
             )
 
         return wrapper

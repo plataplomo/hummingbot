@@ -24,6 +24,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     # RawDefaultString might be used or specific Annotated as decided
     RawTimestampMsInt,
 )
+from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.parsing import validate_str_field
 
 
@@ -86,7 +87,10 @@ class HyperliquidRawReferrerData(BaseModel):
 
         """
         if not isinstance(v, list):
-            raise TypeError("referral_states: Expected list")
+            raise ListFieldError(
+                field_name="referral_states",
+                actual_type=type(v).__name__
+            )
         # Pydantic will validate each item in the list against HyperliquidRawReferralState.
         # The old check for `isinstance(item, dict)` is thus handled by Pydantic's parsing.
         return cast("list[object]", v)
@@ -144,6 +148,9 @@ class HyperliquidRawReferralResponse(BaseModel):
         """
         # Example shows empty list, structure unknown. Basic list validation.
         if not isinstance(v, list):
-            raise TypeError("reward_history: Expected list")
+            raise ListFieldError(
+                field_name="reward_history",
+                actual_type=type(v).__name__
+            )
         # Could add item validation if structure becomes known
         return cast("list[object]", v)
