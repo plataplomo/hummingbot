@@ -61,7 +61,7 @@ class UnknownEnumError(MappingError):
             message = f"Unknown {enum_type}: '{value}' (valid values: {', '.join(valid_values)})"
         else:
             message = f"Unknown {enum_type}: '{value}'"
-        
+
         super().__init__(
             message=message,
             source_value=value,
@@ -105,13 +105,13 @@ class MissingRequiredFieldError(MappingError):
             field_names = field
         elif field_names is None:
             field_names = "unknown field"
-            
+
         if isinstance(field_names, list):
             fields_str = ", ".join(field_names)
             message = f"{fields_str} are required"
         else:
             message = f"{field_names} is required"
-        
+
         # Build context from multiple sources
         context_parts: list[str] = []
         if operation:
@@ -120,13 +120,13 @@ class MissingRequiredFieldError(MappingError):
             context_parts.append(f"on {exchange}")
         if context:
             context_parts.append(context)
-        
+
         if context_parts:
             message = f"{message} for {' '.join(context_parts)}"
-            
+
         if reason:
             message = f"{message} ({reason})"
-        
+
         super().__init__(
             message=message,
             field_name=field_names if isinstance(field_names, str) else None,
@@ -169,7 +169,7 @@ class DataTransformationError(MappingError):
             source_data: The source data that failed
         """
         message = f"Failed to transform {source_model} to {target_model}: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type=source_model,
@@ -201,7 +201,7 @@ class InvalidMappingError(MappingError):
             expected_format: Expected format description
         """
         message = f"Invalid mapping for {field_name}: {reason}"
-        
+
         super().__init__(
             message=message,
             field_name=field_name,
@@ -232,7 +232,7 @@ class CollateralTransformationError(MappingError):
             source_data: The source collateral data
         """
         message = f"Failed to transform {collateral_type} collateral: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type=f"{collateral_type}_collateral",
@@ -266,7 +266,7 @@ class OrderTransformationError(MappingError):
             message = f"Failed to transform order {order_id}: {reason}"
         else:
             message = f"Failed to transform order: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type="BackpackRawOrder",
@@ -303,7 +303,7 @@ class TickerTransformationError(MappingError):
             message = f"Failed to transform {ticker_source} to Ticker for {symbol}: {reason}"
         else:
             message = f"Failed to transform {ticker_source} to Ticker: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type=ticker_source,
@@ -339,7 +339,7 @@ class MarketTransformationError(MappingError):
             message = f"Failed to transform BackpackRawMarket to Market for {symbol}: {reason}"
         else:
             message = f"Failed to transform BackpackRawMarket to Market: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type="BackpackRawMarket",
@@ -376,7 +376,7 @@ class OrderBookTransformationError(MappingError):
             message = f"Failed to transform {source_type} to OrderBook for {symbol}: {reason}"
         else:
             message = f"Failed to transform {source_type} to OrderBook: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type=source_type,
@@ -422,7 +422,7 @@ class TradeTransformationError(MappingError):
             message = f"Failed to transform {trade_source} to Trade (ID: {trade_id}): {reason}"
         else:
             message = f"Failed to transform {trade_source} to Trade: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type=trade_source,
@@ -464,7 +464,7 @@ class FundingRateTransformationError(MappingError):
             message = f"Failed to transform {source_type} to FundingRate for {symbol}: {reason}"
         else:
             message = f"Failed to transform {source_type} to FundingRate: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type=source_type,
@@ -506,7 +506,7 @@ class CandleTransformationError(MappingError):
             message = f"Failed to transform BackpackRawKline to Candle for {symbol}: {reason}"
         else:
             message = f"Failed to transform BackpackRawKline to Candle: {reason}"
-        
+
         super().__init__(
             message=message,
             source_type="BackpackRawKline",

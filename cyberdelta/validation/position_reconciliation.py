@@ -14,6 +14,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition, OrderSide
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.exceptions import NonFinitePositionValueError
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
@@ -1034,6 +1035,49 @@ class PositionReconciliationSystem:
                 positions[exchange_id] = result_item
         return positions
 
+    @staticmethod
+    def _validate_position_values(
+        exchange_id: str,
+        symbol: str,
+        pos_data: DerivativePosition,
+    ) -> None:
+        """Validate position decimal values are finite.
+
+        Args:
+            exchange_id: Exchange identifier
+            symbol: Trading symbol
+            pos_data: Position data to validate
+
+        Raises:
+            NonFinitePositionValueError: If any value is not finite
+        """
+        size = pos_data.size
+        if not size.is_finite():
+            raise NonFinitePositionValueError("size", size, exchange_id=exchange_id, symbol=symbol)
+
+        if pos_data.entry_price is not None and not pos_data.entry_price.is_finite():
+            raise NonFinitePositionValueError(
+                "entry_price", pos_data.entry_price, exchange_id=exchange_id, symbol=symbol
+            )
+
+        if pos_data.mark_price is not None and not pos_data.mark_price.is_finite():
+            raise NonFinitePositionValueError(
+                "mark_price", pos_data.mark_price, exchange_id=exchange_id, symbol=symbol
+            )
+
+        if pos_data.liquidation_price is not None and not pos_data.liquidation_price.is_finite():
+            raise NonFinitePositionValueError(
+                "liquidation_price",
+                pos_data.liquidation_price,
+                exchange_id=exchange_id,
+                symbol=symbol,
+            )
+
+        if pos_data.unrealized_pnl is not None and not pos_data.unrealized_pnl.is_finite():
+            raise NonFinitePositionValueError(
+                "unrealized_pnl", pos_data.unrealized_pnl, exchange_id=exchange_id, symbol=symbol
+            )
+
     def _parse_local_position(
         self,
         exchange_id: str,
@@ -1047,24 +1091,14 @@ class PositionReconciliationSystem:
         # Removed redundant isinstance check for pos_data here.
 
         try:
+            # Validate all position values
+            self._validate_position_values(exchange_id, symbol, pos_data)
+
             size = pos_data.size  # Assuming pos_data.size is Decimal, not Optional[Decimal]
             entry_price = pos_data.entry_price
             mark_price = pos_data.mark_price
             liquidation_price = pos_data.liquidation_price
             unrealized_pnl = pos_data.unrealized_pnl
-
-            # is_finite() implies it's a Decimal. Type hints on DerivativePosition
-            # should ensure these are Decimal or None.
-            if not size.is_finite():
-                raise ValueError(f"Invalid or non-finite size: {size}")
-            if entry_price is not None and not entry_price.is_finite():
-                raise ValueError(f"Invalid or non-finite entry_price: {entry_price}")
-            if mark_price is not None and not mark_price.is_finite():
-                raise ValueError(f"Invalid or non-finite mark_price: {mark_price}")
-            if liquidation_price is not None and not liquidation_price.is_finite():
-                raise ValueError(f"Invalid or non-finite liquidation_price: {liquidation_price}")
-            if unrealized_pnl is not None and not unrealized_pnl.is_finite():
-                raise ValueError(f"Invalid or non-finite unrealized_pnl: {unrealized_pnl}")
 
             return cast(
                 "ParsedPosition",
@@ -1131,24 +1165,14 @@ class PositionReconciliationSystem:
         #         ),
 
         try:
+            # Validate all position values
+            self._validate_position_values(exchange_id, symbol, pos_data)
+
             size = pos_data.size  # Assuming pos_data.size is Decimal, not Optional[Decimal]
             entry_price = pos_data.entry_price  # Can be None for flat positions
             mark_price = pos_data.mark_price
             liquidation_price = pos_data.liquidation_price
             unrealized_pnl = pos_data.unrealized_pnl
-
-            # is_finite() implies it's a Decimal. Type hints on DerivativePosition
-            # should ensure these are Decimal or None.
-            if not size.is_finite():
-                raise ValueError(f"Invalid or non-finite size: {size}")
-            if entry_price is not None and not entry_price.is_finite():
-                raise ValueError(f"Invalid or non-finite entry_price: {entry_price}")
-            if mark_price is not None and not mark_price.is_finite():
-                raise ValueError(f"Invalid or non-finite mark_price: {mark_price}")
-            if liquidation_price is not None and not liquidation_price.is_finite():
-                raise ValueError(f"Invalid or non-finite liquidation_price: {liquidation_price}")
-            if unrealized_pnl is not None and not unrealized_pnl.is_finite():
-                raise ValueError(f"Invalid or non-finite unrealized_pnl: {unrealized_pnl}")
 
             return cast(
                 "ParsedPosition",

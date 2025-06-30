@@ -30,7 +30,7 @@ class ServiceValidationError(ValueError, FieldError):
         """
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -71,7 +71,7 @@ class OrderParameterError(ServiceValidationError):
         """
         # Use parameter if provided, fallback to field_name
         actual_field_name = parameter or field_name
-        
+
         # Build message based on available information
         if valid_values and value:
             message = f"Invalid {actual_field_name}: '{value}'. Valid values: {valid_values}"
@@ -79,12 +79,12 @@ class OrderParameterError(ServiceValidationError):
             message = reason
         else:
             message = f"Invalid parameter: {actual_field_name}"
-            
+
         if context:
             message = f"{message} (context: {context})"
         if exchange:
             message = f"{message} for {exchange}"
-            
+
         super().__init__(
             message=message,
             field_name=actual_field_name,
@@ -170,11 +170,11 @@ class TimeRangeError(ServiceValidationError):
         self.end_field = end_field
         self.start_value = start_value
         self.end_value = end_value
-        
+
         message = f"{start_field} must be before {end_field}"
         if start_value is not None and end_value is not None:
             message = f"{message} ({start_value} >= {end_value})"
-            
+
         super().__init__(
             message=message,
             field_name=f"{start_field}/{end_field}",
@@ -201,7 +201,7 @@ class TransferAccountError(ServiceValidationError):
         """
         self.from_account = from_account
         self.to_account = to_account
-        
+
         super().__init__(
             message="from_account_type and to_account_type cannot be the same",
             field_name="account_types",
@@ -235,9 +235,9 @@ class IntegerConversionError(ServiceValidationError):
         """
         # Use field if provided, fallback to field_name
         actual_field_name = field or field_name
-        
+
         message = f"{actual_field_name} '{value}' {reason}"
-        
+
         super().__init__(
             message=message,
             field_name=actual_field_name,

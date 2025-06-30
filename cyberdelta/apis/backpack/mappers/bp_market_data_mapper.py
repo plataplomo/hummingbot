@@ -99,7 +99,7 @@ class BackpackMarketDataMapper:
         raise UnknownEnumError(
             enum_type="Backpack order side",
             value=bp_side,
-            valid_values=["Buy", "Sell", "Bid", "Ask"]
+            valid_values=["Buy", "Sell", "Bid", "Ask"],
         )
 
     @staticmethod
@@ -389,15 +389,15 @@ class BackpackMarketDataMapper:
         price: object, quantity: object, context: str
     ) -> tuple[object, object]:
         """Validate trade price and quantity data.
-        
+
         Args:
             price: Raw price value
             quantity: Raw quantity value
             context: Context for error messages
-            
+
         Returns:
             tuple[object, object]: Validated price and quantity
-            
+
         Raises:
             MissingRequiredFieldError: If required fields are missing
         """
@@ -408,7 +408,7 @@ class BackpackMarketDataMapper:
         parsed_price = parse_decimal_value(price, allow_none=False, field_name="price")
         if parsed_price is None:
             raise MissingRequiredFieldError("price", context)
-            
+
         # Type assertion: ensure quantity is compatible with parse_decimal_value
         if not isinstance(quantity, (str, float, int, type(None))):
             # Convert to string for parsing
@@ -420,7 +420,7 @@ class BackpackMarketDataMapper:
         )
         if parsed_quantity is None:
             raise MissingRequiredFieldError("quantity", context)
-            
+
         return parsed_price, parsed_quantity
 
     @staticmethod
@@ -433,7 +433,7 @@ class BackpackMarketDataMapper:
         symbol: str,
     ) -> None:
         """Validate candle OHLCV data.
-        
+
         Args:
             open_price: Open price value
             high_price: High price value
@@ -441,7 +441,7 @@ class BackpackMarketDataMapper:
             close_price: Close price value
             volume: Volume value
             symbol: Symbol for context
-            
+
         Raises:
             MissingRequiredFieldError: If any OHLCV value is None
         """
@@ -457,11 +457,8 @@ class BackpackMarketDataMapper:
                 missing_fields.append("close_price")
             if volume is None:
                 missing_fields.append("volume")
-            
-            raise MissingRequiredFieldError(
-                missing_fields,
-                f"candle for {symbol}"
-            )
+
+            raise MissingRequiredFieldError(missing_fields, f"candle for {symbol}")
 
     @staticmethod
     def transform_raw_trade_to_internal(raw_trade: BackpackRawPublicTrade) -> Trade:
@@ -480,9 +477,7 @@ class BackpackMarketDataMapper:
         try:
             # Validate trade fields
             price, quantity = BackpackMarketDataMapper._validate_trade_data(
-                raw_trade.price,
-                raw_trade.quantity,
-                "BackpackRawPublicTrade"
+                raw_trade.price, raw_trade.quantity, "BackpackRawPublicTrade"
             )
 
             # Parse timestamp
@@ -545,9 +540,7 @@ class BackpackMarketDataMapper:
         try:
             # Validate trade fields
             price, quantity = BackpackMarketDataMapper._validate_trade_data(
-                raw_trade.price,
-                raw_trade.quantity,
-                "BackpackRawRecentPublicTrade"
+                raw_trade.price, raw_trade.quantity, "BackpackRawRecentPublicTrade"
             )
 
             # Parse timestamp
@@ -596,14 +589,14 @@ class BackpackMarketDataMapper:
     @staticmethod
     def _validate_funding_rate_data(funding_rate: object, context: str) -> object:
         """Validate funding rate data.
-        
+
         Args:
             funding_rate: Raw funding rate value
             context: Context for error messages
-            
+
         Returns:
             object: Validated funding rate
-            
+
         Raises:
             MissingRequiredFieldError: If funding rate is missing
         """
@@ -614,20 +607,39 @@ class BackpackMarketDataMapper:
     @staticmethod
     def _validate_funding_timestamp(timestamp: object, context: str) -> object:
         """Validate funding rate timestamp.
-        
+
         Args:
             timestamp: Raw timestamp value
             context: Context for error messages
-            
+
         Returns:
             object: Validated timestamp
-            
+
         Raises:
             MissingRequiredFieldError: If timestamp is None
         """
         if timestamp is None:
             raise MissingRequiredFieldError("timestamp", context)
         return timestamp
+
+    @staticmethod
+    def _ensure_timestamp_not_none(timestamp: object, source_data: object) -> None:
+        """Ensure timestamp is not None after validation.
+
+        Args:
+            timestamp: Parsed timestamp
+            source_data: Source data for error context
+
+        Raises:
+            DataTransformationError: If timestamp is None
+        """
+        if timestamp is None:
+            raise DataTransformationError(
+                source_model="BackpackRawFundingRate.time",
+                target_model="datetime",
+                reason="timestamp should not be None after validation",
+                source_data=source_data,
+            )
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
@@ -734,14 +746,15 @@ class BackpackMarketDataMapper:
             BackpackMarketDataMapper._validate_funding_timestamp(
                 timestamp, "BackpackRawFundingIntervalRate"
             )
-            
+
             # Type assertion: timestamp should not be None after validation
+            BackpackMarketDataMapper._ensure_timestamp_not_none(timestamp, raw_funding.time)
             if timestamp is None:
                 raise DataTransformationError(
-                    source_model="BackpackRawFundingRate.time",
+                    source_model="BackpackRawFundingIntervalRate.time",
                     target_model="datetime",
                     reason="timestamp should not be None after validation",
-                    source_data=raw_funding.time
+                    source_data=raw_funding.time,
                 )
 
             # Create BP-specific details
@@ -998,9 +1011,7 @@ class BackpackMarketDataMapper:
         try:
             # Validate trade fields
             price, quantity = BackpackMarketDataMapper._validate_trade_data(
-                raw_trade.price,
-                raw_trade.quantity,
-                "BackpackRawPublicTradeEvent"
+                raw_trade.price, raw_trade.quantity, "BackpackRawPublicTradeEvent"
             )
 
             # BackpackRawPublicTradeEvent doesn't have side info, need to determine from order IDs

@@ -74,6 +74,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.exceptions import (
+    InvalidBatchResponseError,
     MissingRequiredFieldError,
     OrderError,
     SymbolNotFoundError,
@@ -157,6 +158,25 @@ class HyperliquidTradingService:
             raise APIError(
                 wallet_address_required_msg,
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+    @staticmethod
+    def _ensure_l2_book_data_not_none(data: object, symbol: str, status_code: int) -> None:
+        """Ensure L2 book response data is not None.
+
+        Args:
+            data: Response data to validate
+            symbol: Symbol for the request
+            status_code: HTTP status code
+
+        Raises:
+            APIError: If data is None
+        """
+        if data is None:
+            raise APIError(
+                message=f"No data received for L2 book request ({symbol})",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
             )
 
     async def _execute_exchange_action(
@@ -1282,7 +1302,7 @@ class HyperliquidTradingService:
         if status_count > order_count:
             raise OrderError(
                 message=f"Batch response has more statuses ({status_count}) "
-                       f"than orders sent ({order_count})",
+                f"than orders sent ({order_count})",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
         if status_count < order_count:
@@ -1376,8 +1396,8 @@ class HyperliquidTradingService:
             error_details = "; ".join([f"Order {i + 1}: {error}" for i, error in failed_orders])
             raise OrderError(
                 message=f"Batch order placement partially failed. "
-                       f"Successful: {len(placed_orders)}/{len(original_orders)}. "
-                       f"Failures: {error_details}",
+                f"Successful: {len(placed_orders)}/{len(original_orders)}. "
+                f"Failures: {error_details}",
                 code=APIErrorCode.EXCHANGE_SPECIFIC.value,
             )
 
@@ -1433,16 +1453,15 @@ class HyperliquidTradingService:
         response_data = raw_response.response_data
 
         if not response_data or not response_data.statuses:
-            raise APIError(
-                "Invalid batch cancel response: missing status data",
-                APIErrorCode.INVALID_RESPONSE.value,
+            raise InvalidBatchResponseError(
+                operation="batch cancel", expected_data="status data", response_data=response_data
             )
 
         # Validate status count matches cancel count
         if len(response_data.statuses) != len(original_cancel_args):
             raise OrderError(
                 message=f"Batch cancel response status count ({len(response_data.statuses)}) "
-                       f"doesn't match cancel count ({len(original_cancel_args)})",
+                f"doesn't match cancel count ({len(original_cancel_args)})",
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
@@ -2387,7 +2406,7 @@ class HyperliquidTradingService:
                 raise MarketClosedError(
                     symbol=args.symbol,
                     exchange="Hyperliquid",
-                    reason="No ask levels available for market buy"
+                    reason="No ask levels available for market buy",
                 )
             # Use the 3rd ask level (or best available) to ensure aggressive fill
             ask_index = min(2, len(order_book.asks) - 1)  # Index 2 = 3rd level
@@ -2397,7 +2416,7 @@ class HyperliquidTradingService:
                 raise MarketClosedError(
                     symbol=args.symbol,
                     exchange="Hyperliquid",
-                    reason="No bid levels available for market sell"
+                    reason="No bid levels available for market sell",
                 )
             # Use the 3rd bid level (or best available) to ensure aggressive fill
             bid_index = min(2, len(order_book.bids) - 1)  # Index 2 = 3rd level
@@ -2449,11 +2468,13 @@ class HyperliquidTradingService:
             )
 
             # Reuse existing response handler
+            HyperliquidTradingService._ensure_l2_book_data_not_none(
+                raw_response_content_parsed, symbol, status_code
+            )
             if raw_response_content_parsed is None:
                 raise APIError(
-                    message=f"No data received for L2 book request ({symbol})",
+                    message=f"L2 book data is None for {symbol} with status {status_code}",
                     code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
                 )
             validated_response = self._response_handler.handle_info_l2_book_response(
                 raw_response_content_parsed,

@@ -62,13 +62,13 @@ type RawJsonResponse = ParsedJsonResponse
 
 def _safe_json_repr(value: object) -> str:
     """Convert any value to a JSON string representation for logging.
-    
+
     This helper function ensures type safety when logging dynamic data
     from API responses while avoiding pyright strict mode issues.
-    
+
     Args:
         value: Any value to convert to JSON representation
-        
+
     Returns:
         JSON string representation or string fallback
     """
@@ -81,12 +81,12 @@ def _safe_json_repr(value: object) -> str:
 
 def _is_list_of_any(value: object) -> TypeGuard[list[Any]]:
     """Type guard to check if value is a list.
-    
+
     This helps pyright understand type narrowing in strict mode.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a list, False otherwise
     """

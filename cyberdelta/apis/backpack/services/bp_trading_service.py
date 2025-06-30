@@ -92,6 +92,20 @@ class BackpackTradingService:
             mapper or BackpackTradingDataMapper()
         )  # Instantiate or use static methods
 
+    @staticmethod
+    def _ensure_order_not_none(order: object) -> None:
+        """Ensure order is not None after validation.
+
+        Args:
+            order: Order object to validate
+
+        Raises:
+            RuntimeError: If order is None
+        """
+        if order is None:
+            msg = "Order should not be None after validation"
+            raise RuntimeError(msg)
+
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a new order on the Backpack exchange.
 
@@ -897,9 +911,12 @@ class BackpackTradingService:
             order = await self.get_order(args=args)
             self._validate_order_exists(order, args)
             # After validation, order is guaranteed to be not None
+            BackpackTradingService._ensure_order_not_none(order)
             if order is None:
-                msg = "Order should not be None after validation"
-                raise RuntimeError(msg)
+                raise APIError(
+                    message="Order is None after validation - this should not happen",
+                    code=APIErrorCode.UNKNOWN.value,
+                )
 
         except APIError:
             # Re-raise APIErrors from get_order method or self-raised
@@ -1030,9 +1047,7 @@ class BackpackTradingService:
         # Business Logic Pre-Validation (moved from RequestBuilder)
         if symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol",
-                exchange="Backpack",
-                operation="cancel all orders"
+                field="symbol", exchange="Backpack", operation="cancel all orders"
             )
 
         if not symbol.strip():
@@ -1040,7 +1055,7 @@ class BackpackTradingService:
                 field="symbol",
                 exchange="Backpack",
                 operation="cancel all orders",
-                reason="cannot be empty or whitespace only"
+                reason="cannot be empty or whitespace only",
             )
 
     async def _execute_cancel_all_orders_request(
@@ -1052,9 +1067,7 @@ class BackpackTradingService:
         # DEFENSIVE CHECK: Ensure symbol is not None before proceeding
         if symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol",
-                exchange="Backpack",
-                operation="cancel all orders"
+                field="symbol", exchange="Backpack", operation="cancel all orders"
             )
 
         endpoint = "/api/v1/orders"

@@ -75,18 +75,16 @@ class HyperliquidAccountDataMapper:
     @staticmethod
     def _validate_side_value(hl_side: str) -> None:
         """Validate order side value.
-        
+
         Args:
             hl_side: Raw side string from Hyperliquid
-            
+
         Raises:
             UnknownEnumError: If side cannot be mapped
         """
         if hl_side not in {"B", "A"}:
             raise UnknownEnumError(
-                enum_type="Hyperliquid order side",
-                value=hl_side,
-                valid_values=["B", "A"]
+                enum_type="Hyperliquid order side", value=hl_side, valid_values=["B", "A"]
             )
 
     @staticmethod
@@ -106,12 +104,12 @@ class HyperliquidAccountDataMapper:
         try:
             # Validate side value first
             HyperliquidAccountDataMapper._validate_side_value(hl_side)
-            
+
             if hl_side == "B":
                 return OrderSide.BUY
             if hl_side == "A":
                 return OrderSide.SELL
-            
+
         except Exception as e:
             if isinstance(e, TransformationError):
                 raise
@@ -348,9 +346,9 @@ class HyperliquidAccountDataMapper:
                 source_model="position_data",
                 target_model="position_size",
                 reason=f"Expected Decimal for size, got {type(size).__name__}",
-                source_data={"symbol": symbol, "size": size}
+                source_data={"symbol": symbol, "size": size},
             )
-        
+
         # Check if position is non-zero and validate entry price
         if size != Decimal(0):
             if entry_price is None:
@@ -360,7 +358,7 @@ class HyperliquidAccountDataMapper:
                     source_model="position_data",
                     target_model="entry_price",
                     reason=f"Expected Decimal for entry_price, got {type(entry_price).__name__}",
-                    source_data={"symbol": symbol, "entry_price": entry_price}
+                    source_data={"symbol": symbol, "entry_price": entry_price},
                 )
             if entry_price <= Decimal(0):
                 raise MissingRequiredFieldError("entry_price", f"non-zero position {symbol}")
@@ -535,15 +533,15 @@ class HyperliquidAccountDataMapper:
         """
         if not margin_summary:
             raise MissingRequiredFieldError("margin_summary", context)
-        
+
         if not isinstance(margin_summary, HyperliquidRawMarginSummary):
             raise DataTransformationError(
                 source_model="margin_summary",
                 target_model="HyperliquidRawMarginSummary",
                 reason=f"Expected HyperliquidRawMarginSummary, got {type(margin_summary).__name__}",
-                source_data=margin_summary
+                source_data=margin_summary,
             )
-        
+
         return margin_summary
 
     @staticmethod
@@ -601,6 +599,44 @@ class HyperliquidAccountDataMapper:
             raise MissingRequiredFieldError(missing_fields, context)
 
         return cross_mmr, withdrawable
+
+    @staticmethod
+    def _ensure_cross_mmr_not_none(cross_mmr: object, source_data: object) -> None:
+        """Ensure cross maintenance margin is not None after parsing.
+
+        Args:
+            cross_mmr: Parsed cross maintenance margin
+            source_data: Source data for error context
+
+        Raises:
+            DataTransformationError: If cross_mmr is None
+        """
+        if cross_mmr is None:
+            raise DataTransformationError(
+                source_model="cross_maintenance_margin_used",
+                target_model="Decimal",
+                reason="cross_mmr should not be None after parsing with allow_none=False",
+                source_data=source_data,
+            )
+
+    @staticmethod
+    def _ensure_position_size_not_none(size: object, position_info: object) -> None:
+        """Ensure position size is not None after parsing.
+
+        Args:
+            size: Parsed position size
+            position_info: Source position info for error context
+
+        Raises:
+            DataTransformationError: If size is None
+        """
+        if size is None:
+            raise DataTransformationError(
+                source_model="position.szi",
+                target_model="Decimal",
+                reason="size should not be None after parsing with allow_none=False",
+                source_data=getattr(position_info, "szi", "0"),
+            )
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_margin_summary(
@@ -672,14 +708,17 @@ class HyperliquidAccountDataMapper:
             # Calculate total maintenance margin
             # If isolated margin is not provided, use only cross margin
             # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
+            HyperliquidAccountDataMapper._ensure_cross_mmr_not_none(
+                cross_mmr, raw_state.cross_maintenance_margin_used
+            )
             if cross_mmr is None:
                 raise DataTransformationError(
                     source_model="cross_maintenance_margin_used",
                     target_model="Decimal",
                     reason="cross_mmr should not be None after parsing with allow_none=False",
-                    source_data=raw_state.cross_maintenance_margin_used
+                    source_data=raw_state.cross_maintenance_margin_used,
                 )
-            
+
             total_maintenance_margin = cross_mmr + (
                 isolated_mmr if isolated_mmr is not None else Decimal(0)
             )
@@ -1027,14 +1066,14 @@ class HyperliquidAccountDataMapper:
     @staticmethod
     def _validate_position_size(size: object, context: str) -> object:
         """Validate position size.
-        
+
         Args:
             size: Position size value
             context: Context for error messages
-            
+
         Returns:
             object: Validated size
-            
+
         Raises:
             MissingRequiredFieldError: If size is missing
         """
@@ -1134,14 +1173,15 @@ class HyperliquidAccountDataMapper:
 
             # Determine side based on position size
             # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
+            HyperliquidAccountDataMapper._ensure_position_size_not_none(size, position_info)
             if size is None:
                 raise DataTransformationError(
-                    source_model="position.szi",
+                    source_model="HyperliquidRawPositionInfo.szi",
                     target_model="Decimal",
                     reason="size should not be None after parsing with allow_none=False",
-                    source_data=getattr(position_info, "szi", "0")
+                    source_data=position_info,
                 )
-            
+
             if size > Decimal(0):
                 side = OrderSide.BUY
             elif size < Decimal(0):

@@ -91,7 +91,7 @@ class TimestampYearRangeError(ParsingError):
                 f"Field {field_name}: Timestamp '{value}' results in an implausible year "
                 f"({year}) for this context."
             )
-        
+
         super().__init__(
             message=message,
             field_name=field_name,
@@ -131,7 +131,7 @@ class TimestampFormatError(ParsingError):
                 f"Field {field_name}: Expected {expected_format} timestamp, "
                 f"got {type(value).__name__}."
             )
-        
+
         super().__init__(
             message=message,
             field_name=field_name,
@@ -173,7 +173,7 @@ class EmptyStringError(ParsingError):
             message = f"{field_name}: {context}"
         else:
             message = f"Field {field_name}: String cannot be empty"
-        
+
         super().__init__(
             message=message,
             field_name=field_name,
@@ -258,10 +258,10 @@ class KlineTypeError(TypeError, ParsingError):
             message = f"Field {field_alias}: Raw value must be a string, got {type_name}"
         else:
             message = f"Field {field_alias}: Raw value must be a string"
-        
+
         # Initialize TypeError with the message
         TypeError.__init__(self, message)
-        
+
         # Initialize ParsingError with full metadata
         ParsingError.__init__(
             self,
@@ -271,7 +271,7 @@ class KlineTypeError(TypeError, ParsingError):
             expected_type="string",
             actual_type=type_name,
         )
-        
+
         # Store attributes for direct access
         self.field_alias = field_alias
         self.type_name = type_name
@@ -304,10 +304,10 @@ class KlineValueError(ValueError, ParsingError):
             message = f"Cannot convert '{parsed_val}' to Decimal"
         else:
             message = f"Kline value error: {error_type}"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize ParsingError with full metadata
         ParsingError.__init__(
             self,
@@ -318,7 +318,7 @@ class KlineValueError(ValueError, ParsingError):
             error_type=error_type,
             parsed_val=parsed_val,
         )
-        
+
         # Store attributes for direct access
         self.error_type = error_type
         self.parsed_val = parsed_val

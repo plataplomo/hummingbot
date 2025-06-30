@@ -36,6 +36,12 @@ from cyberdelta.core.models.enums import (
     TriggerType,
 )
 from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.exceptions import (
+    DecimalFiniteError,
+    FieldNameMissingError,
+    OrderLogicError,
+    RequiredFieldNoneError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -159,13 +165,13 @@ class Order(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         # client_order_id is required by default factory, others are optional
         if v is None and field_name != "client_order_id":
             return None
         if v is None and field_name == "client_order_id":
             # Should not happen with default_factory, but defensive check
-            raise ValueError(f"{field_name}: Required string value cannot be None")
+            raise RequiredFieldNoneError(field_name, "Required string value cannot be None")
 
         return validate_str_field(v, field_name=field_name, max_length=128)
 
@@ -186,7 +192,7 @@ class Order(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("average_fill_price", mode="before")
@@ -202,7 +208,7 @@ class Order(BaseModel):
         if isinstance(v, Decimal):
             # Already a Decimal, just validate it
             if not v.is_finite():
-                raise ValueError("average_fill_price: Value must be finite")
+                raise DecimalFiniteError("average_fill_price", v)
             # Don't validate positive here, do it in model validator
             return v
         # Parse from string/int/float
@@ -210,7 +216,7 @@ class Order(BaseModel):
         if parsed is None:
             return None
         if not parsed.is_finite():
-            raise ValueError("average_fill_price: Value must be finite")
+            raise DecimalFiniteError("average_fill_price", parsed)
         # Don't validate positive here, do it in model validator
         return parsed
 
@@ -229,7 +235,7 @@ class Order(BaseModel):
         """Parse optional decimal, ensuring finite and positive if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
@@ -237,7 +243,7 @@ class Order(BaseModel):
             return None
         # Check finiteness and positive value
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(field_name, parsed, context="if provided")
         return parsed
 
     @field_validator("quantity_requested", mode="before")
@@ -250,13 +256,13 @@ class Order(BaseModel):
         """Parse required decimal, ensuring finite and positive (via Field)."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:
-            raise ValueError(f"{field_name}: Required value parsed as None or was invalid.")
+            raise RequiredFieldNoneError(field_name)
         # Check finiteness. gt=0 handled by Field.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite")
+            raise DecimalFiniteError(field_name, parsed)
         return parsed
 
     @field_validator("quantity_filled", mode="before")
@@ -269,13 +275,13 @@ class Order(BaseModel):
         """Parse required decimal, ensuring finite and non-negative (via Field)."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:
-            raise ValueError(f"{field_name}: Required value parsed as None or was invalid.")
+            raise RequiredFieldNoneError(field_name)
         # Check finiteness. ge=0 handled by Field.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite")
+            raise DecimalFiniteError(field_name, parsed)
         return parsed
 
     @field_validator("created_at", mode="before")
@@ -288,11 +294,11 @@ class Order(BaseModel):
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         # created_at has default factory, should not receive None, but check anyway
         dt = parse_datetime_utc(v, field_name=field_name)
         if dt is None:
-            raise ValueError(f"{field_name}: Required datetime parsed as None or invalid.")
+            raise RequiredFieldNoneError(field_name, "Required datetime parsed as None or invalid")
         return dt
 
     @field_validator("updated_at", "triggered_at", mode="before")
@@ -305,7 +311,7 @@ class Order(BaseModel):
         """Parse optional datetime, ensuring UTC if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         if v is None:
             return None
         return parse_datetime_utc(v, field_name=field_name)
@@ -323,29 +329,56 @@ class Order(BaseModel):
 
         # Price required for limit types
         if self.order_type in limit_types and (self.price is None or self.price <= 0):
-            raise ValueError(f"Order type {self.order_type.value} requires a positive price.")
+            raise OrderLogicError(
+                "price_required",
+                f"Order type {self.order_type.value} requires a positive price",
+                order_type=self.order_type.value,
+                fields={"price": self.price, "order_type": self.order_type.value},
+            )
 
         # Stop price required for stop types
         if self.order_type in stop_types and (self.stop_price is None or self.stop_price <= 0):
-            raise ValueError(f"Order type {self.order_type.value} requires a positive stop_price.")
+            raise OrderLogicError(
+                "stop_price_required",
+                f"Order type {self.order_type.value} requires a positive stop_price",
+                order_type=self.order_type.value,
+                fields={"stop_price": self.stop_price, "order_type": self.order_type.value},
+            )
 
         # Average fill price must be positive if quantity filled is positive
         avg_price: Decimal | None = self.average_fill_price
         if self.quantity_filled > 0 and (avg_price is None or avg_price <= 0):
-            raise ValueError("average_fill_price must be positive if quantity_filled > 0.")
+            raise OrderLogicError(
+                "average_fill_price_validation",
+                "average_fill_price must be positive if quantity_filled > 0",
+                fields={"quantity_filled": self.quantity_filled, "average_fill_price": avg_price},
+            )
 
         # Quantity filled cannot exceed quantity requested
         if self.quantity_filled > self.quantity_requested:
-            raise ValueError(
+            raise OrderLogicError(
+                "quantity_validation",
                 f"quantity_filled ({self.quantity_filled}) cannot exceed "
                 f"quantity_requested ({self.quantity_requested})",
+                fields={
+                    "quantity_filled": self.quantity_filled,
+                    "quantity_requested": self.quantity_requested,
+                },
             )
 
         # Check Extension Slot Consistency (Placeholder - can be more specific if needed)
         if self.exchange == "hyperliquid" and self.bp_details is not None:
-            raise ValueError("Backpack details (bp_details) must be None for a Hyperliquid order")
+            raise OrderLogicError(
+                "exchange_details_consistency",
+                "Backpack details (bp_details) must be None for a Hyperliquid order",
+                fields={"exchange": self.exchange, "bp_details": self.bp_details},
+            )
         if self.exchange == "backpack" and self.hl_details is not None:
-            raise ValueError("Hyperliquid details (hl_details) must be None for a Backpack order")
+            raise OrderLogicError(
+                "exchange_details_consistency",
+                "Hyperliquid details (hl_details) must be None for a Backpack order",
+                fields={"exchange": self.exchange, "hl_details": self.hl_details},
+            )
 
         return self
 
@@ -372,7 +405,7 @@ class HyperliquidOrderDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
@@ -380,7 +413,7 @@ class HyperliquidOrderDetails(BaseModel):
             return None
         # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(field_name, parsed, context="if provided")
         return parsed
 
 
@@ -420,7 +453,7 @@ class BackpackOrderDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
@@ -428,7 +461,7 @@ class BackpackOrderDetails(BaseModel):
             return None
         # Check finiteness if a valid Decimal was parsed. gt/ge=0 handled by Field.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(field_name, parsed, context="if provided")
         return parsed
 
     # Enum fields rely on Pydantic's default validation for Optional[EnumType]

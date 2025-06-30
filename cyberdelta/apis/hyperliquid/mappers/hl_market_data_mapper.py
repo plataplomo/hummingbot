@@ -94,25 +94,21 @@ class HyperliquidMarketDataMapper:
             return OrderSide.SELL
 
         raise UnknownEnumError(
-            enum_type="Hyperliquid order side",
-            value=hl_side,
-            valid_values=["B", "A"]
+            enum_type="Hyperliquid order side", value=hl_side, valid_values=["B", "A"]
         )
 
     @staticmethod
-    def _validate_asset_ctx_data(
-        mark_px: object, name: object, context: str
-    ) -> tuple[object, str]:
+    def _validate_asset_ctx_data(mark_px: object, name: object, context: str) -> tuple[object, str]:
         """Validate asset context data.
-        
+
         Args:
             mark_px: Raw mark price value
             name: Raw symbol name value
             context: Context for error messages
-            
+
         Returns:
             tuple[object, str]: Validated mark_px and name
-            
+
         Raises:
             MissingRequiredFieldError: If required fields are missing
         """
@@ -125,9 +121,49 @@ class HyperliquidMarketDataMapper:
                 source_model="asset_ctx",
                 target_model="ticker",
                 reason=f"Expected name to be str, got {type(name).__name__}",
-                source_data={"name": name}
+                source_data={"name": name},
             )
         return mark_px, name
+
+    @staticmethod
+    def _ensure_trade_values_not_none(price: object, quantity: object, raw_trade: object) -> None:
+        """Ensure trade price and quantity are not None after parsing.
+
+        Args:
+            price: Parsed price value
+            quantity: Parsed quantity value
+            raw_trade: Source trade data for error context
+
+        Raises:
+            DataTransformationError: If price or quantity is None
+        """
+        if price is None:
+            raise DataTransformationError(
+                source_model="public_trade.px",
+                target_model="Decimal",
+                reason="price should not be None after parsing with allow_none=False",
+                source_data=getattr(raw_trade, "px", None),
+            )
+        if quantity is None:
+            raise DataTransformationError(
+                source_model="public_trade.sz",
+                target_model="Decimal",
+                reason="quantity should not be None after parsing with allow_none=False",
+                source_data=getattr(raw_trade, "sz", None),
+            )
+
+    @staticmethod
+    def _ensure_funding_timestamp_not_none(timestamp: object) -> None:
+        """Ensure funding timestamp is not None after parsing.
+
+        Args:
+            timestamp: Parsed timestamp value
+
+        Raises:
+            MissingRequiredFieldError: If timestamp is None
+        """
+        if timestamp is None:
+            raise MissingRequiredFieldError("time", "HyperliquidRawFundingHistoryItem")
 
     @staticmethod
     def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
@@ -147,11 +183,9 @@ class HyperliquidMarketDataMapper:
             # Parse core ticker fields using parsing utilities
             # Validate asset context data
             HyperliquidMarketDataMapper._validate_asset_ctx_data(
-                raw_asset_ctx.mark_px,
-                raw_asset_ctx.name,
-                "HyperliquidRawAssetCtx"
+                raw_asset_ctx.mark_px, raw_asset_ctx.name, "HyperliquidRawAssetCtx"
             )
-            
+
             mark_px = parse_decimal_value(
                 raw_asset_ctx.mark_px,
                 allow_none=False,
@@ -331,15 +365,15 @@ class HyperliquidMarketDataMapper:
         price: object, quantity: object, context: str
     ) -> tuple[object, object]:
         """Validate trade price and quantity data.
-        
+
         Args:
             price: Raw price value
             quantity: Raw quantity value
             context: Context for error messages
-            
+
         Returns:
             tuple[object, object]: Validated price and quantity
-            
+
         Raises:
             MissingRequiredFieldError: If required fields are missing
         """
@@ -379,19 +413,20 @@ class HyperliquidMarketDataMapper:
             )
 
             # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
+            HyperliquidMarketDataMapper._ensure_trade_values_not_none(price, quantity, raw_trade)
             if price is None:
                 raise DataTransformationError(
-                    source_model="public_trade.px",
+                    source_model="HyperliquidRawPublicTrade.px",
                     target_model="Decimal",
                     reason="price should not be None after parsing with allow_none=False",
-                    source_data=raw_trade.px
+                    source_data=raw_trade.px,
                 )
             if quantity is None:
                 raise DataTransformationError(
-                    source_model="public_trade.sz",
-                    target_model="Decimal", 
+                    source_model="HyperliquidRawPublicTrade.sz",
+                    target_model="Decimal",
                     reason="quantity should not be None after parsing with allow_none=False",
-                    source_data=raw_trade.sz
+                    source_data=raw_trade.sz,
                 )
 
             # Check for zero or negative values - return None for invalid trades
@@ -565,15 +600,15 @@ class HyperliquidMarketDataMapper:
         funding_rate: object, timestamp: object, context: str
     ) -> tuple[object, object]:
         """Validate funding rate data.
-        
+
         Args:
             funding_rate: Raw funding rate value
             timestamp: Raw timestamp value
             context: Context for error messages
-            
+
         Returns:
             tuple[object, object]: Validated funding_rate and timestamp
-            
+
         Raises:
             MissingRequiredFieldError: If required fields are missing
         """
@@ -609,9 +644,15 @@ class HyperliquidMarketDataMapper:
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_item.time, field_name="time")
+            HyperliquidMarketDataMapper._ensure_funding_timestamp_not_none(timestamp)
             if timestamp is None:
-                raise MissingRequiredFieldError("time", "HyperliquidRawFundingHistoryItem")
-            
+                raise DataTransformationError(
+                    source_model="HyperliquidRawFundingHistoryItem.time",
+                    target_model="datetime",
+                    reason="timestamp should not be None after parsing",
+                    source_data=raw_item.time,
+                )
+
             # Validate funding data
             HyperliquidMarketDataMapper._validate_funding_data(
                 funding_rate, timestamp, "HyperliquidRawFundingHistoryItem"
@@ -810,12 +851,9 @@ class HyperliquidMarketDataMapper:
             missing_fields.append("close_price")
         if volume is None:
             missing_fields.append("volume")
-        
+
         if missing_fields:
-            raise MissingRequiredFieldError(
-                missing_fields,
-                "candle after validation"
-            )
+            raise MissingRequiredFieldError(missing_fields, "candle after validation")
 
     @staticmethod
     def _create_candle_from_data(
@@ -1088,33 +1126,28 @@ class HyperliquidMarketDataMapper:
             return markets
 
     @staticmethod
-    def _validate_asset_definition_data(
-        step_size_parsed: object, asset_name: str
-    ) -> Decimal:
+    def _validate_asset_definition_data(step_size_parsed: object, asset_name: str) -> Decimal:
         """Validate asset definition data.
-        
+
         Args:
             step_size_parsed: Parsed step size value
             asset_name: Asset name for context
-            
+
         Returns:
             Decimal: Validated step size
-            
+
         Raises:
             MissingRequiredFieldError: If step size is invalid
             DataTransformationError: If step size is not a Decimal
         """
         if step_size_parsed is None:
-            raise MissingRequiredFieldError(
-                "sz_decimals",
-                f"asset definition for {asset_name}"
-            )
+            raise MissingRequiredFieldError("sz_decimals", f"asset definition for {asset_name}")
         if not isinstance(step_size_parsed, Decimal):
             raise DataTransformationError(
                 source_model="asset_definition",
                 target_model="step_size",
                 reason=f"Expected Decimal, got {type(step_size_parsed).__name__}",
-                source_data={"step_size": step_size_parsed, "asset_name": asset_name}
+                source_data={"step_size": step_size_parsed, "asset_name": asset_name},
             )
         return step_size_parsed
 

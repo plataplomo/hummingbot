@@ -65,6 +65,17 @@ from cyberdelta.core.models.market import (
 
 # Internal domain models
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.exceptions.market_data_service import (
+    EmptySymbolError,
+    EmptySymbolInListError,
+    EmptySymbolListError,
+    InvalidLimitError,
+    InvalidTimeRangeError,
+    NoFundingDataError,
+    NotImplementedServiceError,
+    NullSymbolsError,
+    UnsupportedIntervalError,
+)
 from cyberdelta.utils.typing import ParsedJsonResponse  # Import ParsedJsonResponse
 
 
@@ -159,7 +170,7 @@ class BackpackMarketDataService:
         current_method = frame.f_code.co_name if frame is not None else "get_ticker"
 
         if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+            raise EmptySymbolError(current_method)
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -307,8 +318,9 @@ class BackpackMarketDataService:
                 "get_all_tickers_not_implemented: Method not implemented for Backpack",
                 exchange=self._exchange_name,
             )
-            raise NotImplementedError(
-                "get_all_tickers is not implemented for BackpackMarketDataService",
+            raise NotImplementedServiceError(
+                "BackpackMarketDataService",
+                "get_all_tickers",
             )
 
         except APIError:
@@ -378,9 +390,9 @@ class BackpackMarketDataService:
         current_method = frame.f_code.co_name if frame is not None else "get_order_book"
 
         if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+            raise EmptySymbolError(current_method)
         if limit is not None and limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
+            raise InvalidLimitError(current_method, limit)
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None
@@ -517,9 +529,9 @@ class BackpackMarketDataService:
     ) -> None:
         """Validate parameters for get_recent_trades."""
         if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+            raise EmptySymbolError(current_method)
         if limit is not None and limit <= 0:
-            raise ValueError(f"[{current_method}] 'limit' must be positive when provided.")
+            raise InvalidLimitError(current_method, limit)
 
     async def _execute_recent_trades_request(
         self,
@@ -731,7 +743,7 @@ class BackpackMarketDataService:
     def _validate_funding_rate_symbol(self, symbol: str) -> None:
         """Validate symbol for funding rate request."""
         if not symbol:
-            raise ValueError("'symbol' must be a non-empty string.")
+            raise EmptySymbolError("get_funding_rate")
 
     async def _fetch_funding_rate_data(self, symbol: str) -> list[BackpackRawFundingIntervalRate]:
         """Fetch funding rate data from the API."""
@@ -781,10 +793,7 @@ class BackpackMarketDataService:
     ) -> FundingRate:
         """Process funding rate response and return internal model."""
         if not raw_funding_interval_rates:
-            raise APIError(
-                f"No funding rate data available for {symbol}",
-                APIErrorCode.INVALID_RESPONSE.value,
-            )
+            raise NoFundingDataError(symbol)
 
         raw_funding_rate_model = raw_funding_interval_rates[0]
         internal_funding_rate = self._mapper.transform_raw_funding_interval_rate_to_internal(
@@ -836,12 +845,10 @@ class BackpackMarketDataService:
     def _validate_funding_rates_symbols(self, symbols: list[str], current_method: str) -> None:
         """Validate symbols for get_funding_rates."""
         if not symbols:
-            raise ValueError(f"[{current_method}] At least one symbol is required for Backpack.")
-        for symbol in symbols:
+            raise EmptySymbolListError(current_method)
+        for i, symbol in enumerate(symbols):
             if not symbol:
-                raise ValueError(
-                    f"[{current_method}] All symbols in list must be non-empty strings.",
-                )
+                raise EmptySymbolInListError(current_method, index=i)
 
     async def _fetch_individual_funding_rates(self, symbols: list[str]) -> list[FundingRate]:
         """Fetch funding rates for individual symbols."""
@@ -943,7 +950,7 @@ class BackpackMarketDataService:
 
         # DEFENSIVE CHECK: Ensure symbols is not None. Mypy=[arg-type]
         if args.symbols is None:
-            raise ValueError(f"[{current_method}] symbols cannot be None")
+            raise NullSymbolsError(current_method)
 
         self._validate_funding_rates_symbols(args.symbols, current_method)
 
@@ -1059,7 +1066,7 @@ class BackpackMarketDataService:
                 )
             start_time_ms = int(args.start_time.timestamp())
             if start_time_ms <= 0:
-                raise ValueError(f"[{current_method}] 'start_time' must be positive when provided.")
+                raise InvalidTimeRangeError(current_method, "start_time", start_time_ms)
 
         end_time_ms: int | None = None
         if args.end_time is not None:
@@ -1070,7 +1077,7 @@ class BackpackMarketDataService:
                 )
             end_time_ms = int(args.end_time.timestamp())
             if end_time_ms <= 0:
-                raise ValueError(f"[{current_method}] 'end_time' must be positive when provided.")
+                raise InvalidTimeRangeError(current_method, "end_time", end_time_ms)
 
         return start_time_ms, end_time_ms
 
@@ -1291,9 +1298,10 @@ class BackpackMarketDataService:
                 "3d",
                 "1w",
             }
-            raise ValueError(
-                f"[{current_method}] Unsupported interval '{timeframe}'. "
-                f"Supported intervals: {sorted(supported_intervals)}",
+            raise UnsupportedIntervalError(
+                current_method,
+                timeframe,
+                sorted(supported_intervals),
             )
 
         # TypeGuard ensures timeframe is now typed as BackpackTimeframe
@@ -1432,7 +1440,7 @@ class BackpackMarketDataService:
 
         # Service Input Parameter Validation
         if not symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+            raise EmptySymbolError(current_method)
 
         # Initialize context for error handling
         raw_data: ParsedJsonResponse | None = None

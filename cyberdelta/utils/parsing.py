@@ -9,6 +9,15 @@ greatly improving error traceability.
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
+from cyberdelta.exceptions import (
+    DateTimeParsingError,
+    DecimalFieldError,
+    EmptyStringError,
+    EnumFieldError,
+    TimestampFormatError,
+    TypeFieldError,
+)
+
 
 # Timestamp scale detection thresholds
 NANOSECONDS_THRESHOLD = 2e17  # Threshold for nanosecond timestamps
@@ -53,7 +62,12 @@ def parse_datetime_utc(
         return _parse_numeric_timestamp(value, prefix)
     if isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
         return _parse_string_datetime(value, prefix)
-    raise ValueError(f"{prefix}Unsupported datetime type: {type(value)}")
+    raise TimestampFormatError(
+        field_name=field_name or "timestamp",
+        value=value,
+        expected_format="datetime, int, float, or str",
+        details=f"Unsupported datetime type: {type(value)}",
+    )
 
 
 def _ensure_utc_timezone(dt: datetime) -> datetime:
@@ -85,7 +99,12 @@ def _parse_numeric_timestamp(value: float, prefix: str) -> datetime:
         timestamp_s = _determine_timestamp_scale(value)
         return datetime.fromtimestamp(timestamp_s, tz=UTC)
     except (TypeError, ValueError, OSError) as e:
-        raise ValueError(f"{prefix}Invalid timestamp value '{value}': {e}") from e
+        raise TimestampFormatError(
+            field_name=prefix.rstrip(": ") if prefix else "timestamp",
+            value=value,
+            expected_format="numeric timestamp",
+            details=f"Invalid timestamp value: {e}",
+        ) from e
 
 
 def _determine_timestamp_scale(value: float) -> float:
@@ -156,9 +175,10 @@ def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: Value
         timestamp_s = _determine_timestamp_scale(float_val)
         return datetime.fromtimestamp(timestamp_s, tz=UTC)
     except (ValueError, TypeError, OSError) as e_num:
-        raise ValueError(
-            f"{prefix}Cannot parse string '{value}' as ISO datetime ({iso_error}) "
-            f"or as numeric timestamp ({e_num})",
+        raise DateTimeParsingError(
+            field_name=prefix.rstrip(": ") if prefix else "datetime",
+            value=value,
+            reason=f"Cannot parse as ISO datetime ({iso_error}) or as numeric timestamp ({e_num})",
         ) from e_num
 
 
@@ -188,18 +208,25 @@ def parse_decimal_value(
             the field name if provided.
 
     """
-    prefix = f"{field_name}: " if field_name else ""
     if value is None:
         if allow_none:
             return None
-        raise ValueError(f"{prefix}Value cannot be None")
+        raise DecimalFieldError(
+            field_name=field_name or "decimal",
+            value=None,
+            reason="Value cannot be None",
+        )
     if isinstance(value, Decimal):
         return value
     try:
         str_val = str(value).strip().replace(",", "")
         return Decimal(str_val)
     except (InvalidOperation, TypeError) as e:
-        raise ValueError(f"{prefix}Cannot convert '{value}' to Decimal: {e}") from e
+        raise DecimalFieldError(
+            field_name=field_name or "decimal",
+            value=value,
+            reason=f"Cannot convert to Decimal: {e}",
+        ) from e
 
 
 def validate_str_field(
@@ -223,17 +250,28 @@ def validate_str_field(
         ValueError: If validation fails.
 
     """
-    prefix = f"{field_name}: " if field_name else ""
     if not isinstance(value, str):
-        raise TypeError(f"{prefix}Expected string, got {type(value).__name__}")
+        raise TypeFieldError(
+            field_name=field_name or "string",
+            expected_type="str",
+            actual_type=type(value).__name__,
+        )
     if not allow_empty and not value.strip():
-        raise ValueError(f"Field {field_name}: String cannot be empty")
+        raise EmptyStringError(field_name or "string")
     if max_length is not None and len(value) > max_length:
-        raise ValueError(f"{prefix}String value too long (max {max_length} chars)")
+        raise TypeFieldError(
+            field_name=field_name or "string",
+            expected_type=f"string with max length {max_length}",
+            actual_type=f"string with length {len(value)}",
+        )
     try:
         value.encode("utf-8", "strict")
     except UnicodeEncodeError as e:
-        raise ValueError(f"{prefix}Invalid UTF-8 sequence: {e}") from e
+        raise TypeFieldError(
+            field_name=field_name or "string",
+            expected_type="valid UTF-8 string",
+            actual_type=f"string with invalid UTF-8: {e}",
+        ) from e
     return value
 
 
@@ -260,10 +298,13 @@ def validate_enum_field(
     """
     s = validate_str_field(value, field_name=field_name, max_length=max_length, allow_empty=False)
 
-    prefix = f"{field_name}: " if field_name else ""
     if s not in allowed:
         allowed_sorted_list = sorted(allowed)
-        raise ValueError(f"{prefix}Invalid value '{s}'. Expected one of {allowed_sorted_list}")
+        raise EnumFieldError(
+            field_name=field_name or "enum",
+            value=s,
+            valid_values=allowed_sorted_list,
+        )
     return s
 
 
@@ -335,20 +376,27 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
         # parse_decimal_value raises if allow_none=False and input is None,
         # or if it can't convert. So parsed_decimal here should not be None.
         if parsed_decimal is None:  # Should not happen due to allow_none=False
-            raise ValueError(
-                f"Field {field_name or 'value'}: parsing unexpectedly returned None "
-                f"for '{validated_str}'.",
+            raise DecimalFieldError(
+                field_name=field_name or "decimal",
+                value=validated_str,
+                reason="parsing unexpectedly returned None",
             )
         if not parsed_decimal.is_finite():
-            raise ValueError(
-                f"Field {field_name or 'value'}: parsed decimal '{validated_str}' is not finite.",
+            raise DecimalFieldError(
+                field_name=field_name or "decimal",
+                value=validated_str,
+                reason="parsed decimal is not finite",
             )
     except ValueError as e:  # Catch errors from validate_str_field or parse_decimal_value
         # Re-raise to ensure the message includes field_name if passed down.
         # If parse_decimal_value or validate_str_field already prefixed, this might duplicate.
         # However, ensuring the check for finiteness is clear.
         if field_name and field_name not in str(e):
-            raise ValueError(f"Field {field_name}: {e}") from e
+            raise DecimalFieldError(
+                field_name=field_name,
+                value=validated_str,
+                reason=str(e),
+            ) from e
         raise  # Re-raise if field_name already in message or no field_name
 
     return validated_str  # Return the original string if all checks pass

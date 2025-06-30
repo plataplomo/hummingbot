@@ -48,6 +48,51 @@ class TradingError(APIError):
         )
 
 
+class InvalidBatchResponseError(TradingError):
+    """Batch operation response is invalid or missing expected data."""
+
+    def __init__(
+        self,
+        operation: str,
+        expected_data: str,
+        *,
+        response_data: object = None,
+        http_status: int | None = None,
+        exchange_code: str | int | None = None,
+        exchange_message: str | None = None,
+        retry_after: float | None = None,
+        original_exception: Exception | None = None,
+    ) -> None:
+        """Initialize invalid batch response error.
+
+        Args:
+            operation: The batch operation that failed
+            expected_data: Description of expected data that was missing
+            response_data: The actual response data received
+            http_status: HTTP status code
+            exchange_code: Exchange-specific error code
+            exchange_message: Exchange-specific error message
+            retry_after: Seconds to wait before retry
+            original_exception: The underlying exception
+        """
+        message = f"Invalid {operation} response: missing {expected_data}"
+
+        super().__init__(
+            message=message,
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=http_status,
+            exchange_code=exchange_code,
+            exchange_message=exchange_message,
+            retry_after=retry_after,
+            metadata={
+                "operation": operation,
+                "expected_data": expected_data,
+                "response_data": response_data,
+            },
+            original_exception=original_exception,
+        )
+
+
 class OrderError(TradingError):
     """Base class for order-related errors."""
 
@@ -87,7 +132,7 @@ class OrderError(TradingError):
         self.order_type = order_type
 
         # Build metadata
-        metadata = {
+        metadata: dict[str, Any] = {
             "order_id": order_id,
             "symbol": symbol,
             "side": side,
@@ -245,7 +290,7 @@ class MarketClosedError(TradingError):
             message = f"Market operation failed for {symbol}: {reason}"
         else:
             message = f"Market closed for {symbol}"
-            
+
         if market_state:
             message = f"{message} (state: {market_state})"
         if next_open:

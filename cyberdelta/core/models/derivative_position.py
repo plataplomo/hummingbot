@@ -22,6 +22,13 @@ from pydantic_core.core_schema import ValidationInfo
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
 from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.exceptions import (
+    DecimalFiniteError,
+    FieldNameMissingError,
+    PositionLogicError,
+    RequiredFieldNoneError,
+    TypeFieldError,
+)
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
     parse_decimal_value,
@@ -110,7 +117,7 @@ class DerivativePosition(BaseModel):
         field_name = info.field_name
         if field_name is None:
             # This should be practically unreachable due to Pydantic's validation flow
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         # Assuming validate_str_field internally handles None check if required
         return validate_str_field(v, field_name=field_name, max_length=64)
 
@@ -132,14 +139,14 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         # Allow None, but if a string is passed, validate it
         if v is None:
             return None
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         return validate_str_field(v, field_name=field_name, max_length=128)
 
     @field_validator("size", mode="before")
@@ -153,14 +160,14 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         parsed = parse_decimal_value(v, field_name=field_name)
         # DEFENSIVE CHECK: Explicitly require non-None and finite values post-parse.
         if parsed is None:
-            raise ValueError(f"{field_name}: Value cannot be None")
+            raise RequiredFieldNoneError(field_name)
         # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite")
+            raise DecimalFiniteError(field_name, parsed)
         return parsed
 
     @field_validator(
@@ -181,11 +188,11 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         parsed = parse_decimal_value(v, field_name=field_name)
         # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
         if parsed is not None and not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(field_name, parsed, context="if provided")
         return parsed
 
     @field_validator("timestamp", mode="before")
@@ -199,11 +206,11 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         dt = parse_datetime_utc(v, field_name=field_name)
         # DEFENSIVE CHECK: Explicitly require non-None. Mypy=[unreachable]
         if dt is None:
-            raise ValueError(f"{field_name}: Value cannot be None")
+            raise RequiredFieldNoneError(field_name, "Required datetime parsed as None or invalid")
         return dt
 
     # --- Instance Methods ---
@@ -226,38 +233,76 @@ class DerivativePosition(BaseModel):
         """Validate entry price consistency with position size."""
         if self.size != Decimal(0):
             if self.entry_price is None:
-                raise ValueError("entry_price must be provided if size is non-zero")
+                raise PositionLogicError(
+                    "entry_price_required",
+                    "entry_price must be provided if size is non-zero",
+                    exchange=self.exchange,
+                    fields={"size": self.size, "entry_price": self.entry_price},
+                )
             if self.entry_price <= Decimal(0):
-                raise ValueError("entry_price must be positive (> 0) if size is non-zero")
+                raise PositionLogicError(
+                    "entry_price_positive",
+                    "entry_price must be positive (> 0) if size is non-zero",
+                    exchange=self.exchange,
+                    fields={"size": self.size, "entry_price": self.entry_price},
+                )
         elif self.entry_price is not None:
-            raise ValueError("entry_price must be None if size is zero")
+            raise PositionLogicError(
+                "entry_price_none_when_flat",
+                "entry_price must be None if size is zero",
+                exchange=self.exchange,
+                fields={"size": self.size, "entry_price": self.entry_price},
+            )
 
     def _validate_side_size_logic(self) -> None:
         """Validate side consistency with position size."""
         if self.size > Decimal(0) and self.side != OrderSide.BUY:
-            raise ValueError("side must be BUY if size is positive")
+            raise PositionLogicError(
+                "side_size_consistency",
+                "side must be BUY if size is positive",
+                exchange=self.exchange,
+                fields={"size": self.size, "side": self.side.value},
+            )
         if self.size < Decimal(0) and self.side != OrderSide.SELL:
-            raise ValueError("side must be SELL if size is negative")
+            raise PositionLogicError(
+                "side_size_consistency",
+                "side must be SELL if size is negative",
+                exchange=self.exchange,
+                fields={"size": self.size, "side": self.side.value},
+            )
 
     def _validate_extension_slot_consistency(self) -> None:
         """Validate exchange-specific details consistency (Idea 5)."""
         known_exchanges_with_details = {"hyperliquid", "backpack"}
 
         if self.exchange == "hyperliquid" and self.bp_details is not None:
-            raise ValueError(
+            raise PositionLogicError(
+                "exchange_details_consistency",
                 "Backpack details (bp_details) must be None for a Hyperliquid position",
+                exchange=self.exchange,
+                fields={"exchange": self.exchange, "bp_details": self.bp_details},
             )
         if self.exchange == "backpack" and self.hl_details is not None:
-            raise ValueError(
+            raise PositionLogicError(
+                "exchange_details_consistency",
                 "Hyperliquid details (hl_details) must be None for a Backpack position",
+                exchange=self.exchange,
+                fields={"exchange": self.exchange, "hl_details": self.hl_details},
             )
 
         # Add check for unrecognized exchanges having details
         if (self.exchange not in known_exchanges_with_details) and (
             self.hl_details is not None or self.bp_details is not None
         ):
-            raise ValueError(
+            raise PositionLogicError(
+                "unrecognized_exchange_details",
                 f"Exchange-specific details provided for unrecognized exchange: {self.exchange}",
+                exchange=self.exchange,
+                fields={
+                    "exchange": self.exchange,
+                    "hl_details": self.hl_details,
+                    "bp_details": self.bp_details,
+                },
             )
 
 
@@ -286,7 +331,7 @@ class HyperliquidPositionDetails(BaseModel):
             # Use helper for enum check
             return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
         except Exception as e:
-            raise ValueError(f"{field_name}: Validation failed - {e}") from e
+            raise FieldNameMissingError() from e
 
     @field_validator("leverage_value", "max_leverage", mode="before")
     @classmethod
@@ -294,11 +339,11 @@ class HyperliquidPositionDetails(BaseModel):
         """Validate leverage values are non-negative integers."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         if not isinstance(v, int):
-            raise TypeError(f"{field_name}: Expected int, got {type(v).__name__}")
+            raise TypeFieldError(field_name, "int", type(v).__name__, actual_value=v)
         if v < 0:
-            raise ValueError(f"{field_name}: Must be non-negative")
+            raise RequiredFieldNoneError(field_name, "Must be non-negative")
         return v
 
     @field_validator("margin_used", mode="before")
@@ -311,11 +356,11 @@ class HyperliquidPositionDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
         # Check finiteness if not None. ge=0 handled by Field constraint.
         if parsed is not None and not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(field_name, parsed, context="if provided")
         return parsed
 
 
@@ -349,9 +394,9 @@ class BackpackPositionDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError()
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
         # Check finiteness if not None
         if parsed is not None and not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(field_name, parsed, context="if provided")
         return parsed

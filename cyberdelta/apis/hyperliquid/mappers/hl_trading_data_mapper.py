@@ -41,6 +41,11 @@ from cyberdelta.core.models.enums import (
     TriggerType,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import (
+    MissingRequiredFieldError,
+    OrderTransformationError,
+    UnknownEnumError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -78,6 +83,79 @@ class HyperliquidTradingDataMapper:
     """
 
     @staticmethod
+    def _ensure_quantity_not_none(
+        quantity: Decimal | None,
+        field_name: str,
+        context: str,
+        raw_data: dict[str, Any],
+    ) -> None:
+        """Ensure quantity is not None, raise if it is.
+
+        Args:
+            quantity: The quantity value to check
+            field_name: Name of the field
+            context: Context for the error (e.g., "HyperliquidRawOrder")
+            raw_data: Raw data for debugging
+
+        Raises:
+            MissingRequiredFieldError: If quantity is None
+        """
+        if quantity is None:
+            raise MissingRequiredFieldError(
+                field_names=field_name,
+                context=context,
+                source_data=raw_data,
+            )
+
+    @staticmethod
+    def _ensure_timestamp_not_none(
+        timestamp: datetime | None,
+        field_name: str,
+        context: str,
+        raw_timestamp: object,
+    ) -> None:
+        """Ensure timestamp is not None, raise if it is.
+
+        Args:
+            timestamp: The parsed timestamp to check
+            field_name: Name of the field
+            context: Context for the error
+            raw_timestamp: Raw timestamp value for debugging
+
+        Raises:
+            MissingRequiredFieldError: If timestamp is None
+        """
+        if timestamp is None:
+            raise MissingRequiredFieldError(
+                field_names=field_name,
+                context=context,
+                source_data={field_name: raw_timestamp},
+            )
+
+    """Domain-focused mapper for Hyperliquid trading data transformations.
+
+    This class contains static methods for transforming validated Hyperliquid Raw models
+    related to trading operations into CyberDeltaEngine Internal Domain Models.
+    """
+
+    @staticmethod
+    def _validate_order_side(hl_side: str) -> None:
+        """Validate order side is a known value.
+
+        Args:
+            hl_side: The side value to validate
+
+        Raises:
+            UnknownEnumError: If side is not B or A
+        """
+        if hl_side not in {"B", "A"}:
+            raise UnknownEnumError(
+                enum_type="OrderSide",
+                value=hl_side,
+                valid_values=["B", "A"],
+            )
+
+    @staticmethod
     def _map_side_to_internal(hl_side: str) -> OrderSide:
         """Maps a Hyperliquid order side string to internal OrderSide enum.
 
@@ -92,26 +170,23 @@ class HyperliquidTradingDataMapper:
 
         """
         try:
-            if hl_side == "B":
-                return OrderSide.BUY
-            if hl_side == "A":
-                return OrderSide.SELL
-
-            raise TransformationError(
-                f"Unknown Hyperliquid order side: '{hl_side}'",
-                field_name="side",
-                source_value=hl_side,
-            )
+            # Validate the side value
+            HyperliquidTradingDataMapper._validate_order_side(hl_side)
         except TransformationError:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            raise TransformationError(
-                f"Failed to map order side: {e}",
-                field_name="side",
-                source_value=hl_side,
-                original_exception=e,
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to map order side: {e}",
+                order_data={"hl_side": hl_side, "exception": str(e)},
+                original_error=e,
             ) from e
+        else:
+            if hl_side == "B":
+                return OrderSide.BUY
+            # hl_side == "A" due to validation
+            return OrderSide.SELL
 
     @staticmethod
     def _map_status_to_internal(hl_status: str) -> OrderStatus:
@@ -155,11 +230,11 @@ class HyperliquidTradingDataMapper:
                 hl_status=hl_status,
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to map order status: {e}",
-                field_name="status",
-                source_value=hl_status,
-                original_exception=e,
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to map order status: {e}",
+                order_data={"hl_status": hl_status, "exception": str(e)},
+                original_error=e,
             ) from e
         else:
             return mapped_status
@@ -232,11 +307,11 @@ class HyperliquidTradingDataMapper:
                 message="Failed to map order type",
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to map order type: {e}",
-                field_name="order_type",
-                source_value=str(order_type),
-                original_exception=e,
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to map order type: {e}",
+                order_data={"order_type": str(order_type), "exception": str(e)},
+                original_error=e,
             ) from e
         else:
             return OrderType.LIMIT
@@ -317,12 +392,14 @@ class HyperliquidTradingDataMapper:
                 allow_none=False,
                 field_name="sz",
             )
-            if quantity_requested is None:
-                raise TransformationError(
-                    "quantity_requested (sz) is required",
-                    field_name="sz",
-                    source_value=raw_order.sz,
-                )
+            HyperliquidTradingDataMapper._ensure_quantity_not_none(
+                quantity_requested,
+                field_name="sz",
+                context="HyperliquidRawOrder",
+                raw_data=raw_order.model_dump(),
+            )
+            # Type narrowing - quantity_requested is not None after validation
+            assert quantity_requested is not None  # noqa: S101
 
             remaining_sz = parse_decimal_value(
                 str(raw_order.remaining_sz),
@@ -354,9 +431,11 @@ class HyperliquidTradingDataMapper:
                 message="Failed to parse order quantities and price",
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to parse order quantities and price: {e}",
-                source_data={"sz": raw_order.sz, "remaining_sz": raw_order.remaining_sz},
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to parse order quantities and price: {e}",
+                order_data=raw_order.model_dump(),
+                original_error=e,
             ) from e
         else:
             return quantity_requested, quantity_filled, price
@@ -403,9 +482,11 @@ class HyperliquidTradingDataMapper:
                 error=str(e),
                 raw_order=raw_order.model_dump_json(),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawOrder to Order: {e}",
-                source_data=raw_order.model_dump(),
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to transform HyperliquidRawOrder to Order: {e}",
+                order_data=raw_order.model_dump(),
+                original_error=e,
             ) from e
 
     def transform_raw_simple_open_order_to_internal(
@@ -506,9 +587,11 @@ class HyperliquidTradingDataMapper:
                 error=str(e),
                 raw_order=raw_simple_order.model_dump_json(),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawSimpleOpenOrder to Order: {e}",
-                source_data=raw_simple_order.model_dump(),
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to transform HyperliquidRawSimpleOpenOrder to Order: {e}",
+                order_data=raw_simple_order.model_dump(),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -565,12 +648,14 @@ class HyperliquidTradingDataMapper:
         """Parse order timestamps."""
         try:
             created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
-            if created_at is None:
-                raise TransformationError(
-                    "created_at (timestamp) is required",
-                    field_name="timestamp",
-                    source_value=raw_order.timestamp,
-                )
+            HyperliquidTradingDataMapper._ensure_timestamp_not_none(
+                created_at,
+                field_name="timestamp",
+                context="HyperliquidRawOrder",
+                raw_timestamp=raw_order.timestamp,
+            )
+            # Type narrowing - created_at is not None after validation
+            assert created_at is not None  # noqa: S101
 
             updated_at = parse_datetime_utc(
                 raw_order.status_timestamp,
@@ -588,12 +673,11 @@ class HyperliquidTradingDataMapper:
                 message="Failed to parse order timestamps",
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to parse order timestamps: {e}",
-                source_data={
-                    "timestamp": raw_order.timestamp,
-                    "status_timestamp": raw_order.status_timestamp,
-                },
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to parse order timestamps: {e}",
+                order_data=raw_order.model_dump(),
+                original_error=e,
             ) from e
         else:
             return created_at, updated_at
@@ -747,9 +831,11 @@ class HyperliquidTradingDataMapper:
                 error=str(e),
                 raw_order=raw_historical_order.model_dump_json(),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
-                source_data=raw_historical_order.model_dump(),
+            raise OrderTransformationError(
+                order_id=None,
+                reason=f"Failed to transform HyperliquidRawHistoricalOrder to Order: {e}",
+                order_data=raw_historical_order.model_dump(),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -838,7 +924,11 @@ class HyperliquidTradingDataMapper:
             field_name="orig_sz",
         )
         if quantity_requested is None:
-            raise TransformationError("quantity_requested (orig_sz) is required")
+            raise MissingRequiredFieldError(
+                field_names="orig_sz",
+                context="HyperliquidRawHistoricalOrder",
+                source_data={"orig_sz": raw_historical_order.orig_sz},
+            )
 
         # For historical orders, calculate filled quantity from original size and remaining
         remaining_sz = parse_decimal_value(
@@ -871,7 +961,11 @@ class HyperliquidTradingDataMapper:
         """Parse timestamps for historical orders."""
         created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
         if created_at is None:
-            raise TransformationError("created_at (timestamp) is required")
+            raise MissingRequiredFieldError(
+                field_names="timestamp",
+                context="HyperliquidRawHistoricalOrder",
+                source_data={"timestamp": raw_historical_order.timestamp},
+            )
 
         # Historical orders might not have separate status timestamp
         updated_at = (

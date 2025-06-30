@@ -3,7 +3,7 @@
 These exceptions handle field validation errors during input validation (Pydantic layer).
 Uses our three-layer exception architecture:
 - Layer 1: API Operations → APIError
-- Layer 2: Input Validation → FieldError + TypeError/ValueError (Multiple inheritance)  
+- Layer 2: Input Validation → FieldError + TypeError/ValueError (Multiple inheritance)
 - Layer 3: Data Transformation → TransformationError
 
 Key design: Field validation ≠ Transformation. These are separate concerns.
@@ -43,6 +43,185 @@ class FieldError(Exception):
         self.original_exception = original_exception
 
 
+class OrderFieldError(ValueError, FieldError):
+    """Order field validation errors - inherits ValueError semantics + our metadata."""
+
+    def __init__(
+        self,
+        field_name: str,
+        reason: str,
+        *,
+        field_value: object = None,
+        order_context: str | None = None,
+        original_error: Exception | None = None,
+    ) -> None:
+        """Initialize order field error.
+
+        Args:
+            field_name: Name of the order field that failed validation
+            reason: Human-readable reason for the validation failure
+            field_value: The value that failed validation
+            order_context: Additional context about the order
+            original_error: The underlying exception
+        """
+        message = f"Order field '{field_name}' validation failed: {reason}"
+        if order_context:
+            message = f"{message} (context: {order_context})"
+
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            source_value=field_value,
+            code="ORDER_FIELD_VALIDATION",
+            original_exception=original_error,
+        )
+        self.reason = reason
+        self.order_context = order_context
+
+
+class FieldNameMissingError(ValueError, FieldError):
+    """Raised when field name is unexpectedly None during validation."""
+
+    def __init__(self, context: str = "validation") -> None:
+        """Initialize field name missing error.
+
+        Args:
+            context: The context where the field name is missing (default: "validation")
+        """
+        message = f"Field name is unexpectedly None during {context}"
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=None,
+            source_value=None,
+            code="FIELD_NAME_MISSING",
+        )
+
+
+class DecimalFiniteError(ValueError, FieldError):
+    """Raised when decimal value is not finite."""
+
+    def __init__(
+        self,
+        field_name: str,
+        value: object,
+        *,
+        context: str | None = None,
+    ) -> None:
+        """Initialize decimal finite error.
+
+        Args:
+            field_name: Name of the field with non-finite value
+            value: The non-finite value
+            context: Additional context about when the value must be finite
+        """
+        message = f"Field '{field_name}' must be finite"
+        if context:
+            message = f"{message} {context}"
+
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            source_value=value,
+            code="DECIMAL_NOT_FINITE",
+        )
+
+
+class RequiredFieldNoneError(ValueError, FieldError):
+    """Raised when required field is None or invalid after parsing."""
+
+    def __init__(
+        self,
+        field_name: str,
+        reason: str = "Required value parsed as None or was invalid",
+    ) -> None:
+        """Initialize required field none error.
+
+        Args:
+            field_name: Name of the required field that is None
+            reason: Reason why the field is None
+                (default: "Required value parsed as None or was invalid")
+        """
+        message = f"{field_name}: {reason}"
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            source_value=None,
+            code="REQUIRED_FIELD_NONE",
+        )
+
+
+class OrderLogicError(ValueError, FieldError):
+    """Raised when order cross-field logic validation fails."""
+
+    def __init__(
+        self,
+        validation_type: str,
+        message: str,
+        *,
+        order_type: str | None = None,
+        fields: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize order logic error.
+
+        Args:
+            validation_type: Type of validation that failed
+            message: Human-readable error message
+            order_type: Type of order that failed validation
+            fields: Dictionary of field names and values involved in the validation
+        """
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=validation_type,
+            source_value=fields,
+            code="ORDER_LOGIC_VALIDATION",
+        )
+        self.validation_type = validation_type
+        self.order_type = order_type
+        self.fields = fields or {}
+
+
+class PositionLogicError(ValueError, FieldError):
+    """Raised when position cross-field logic validation fails."""
+
+    def __init__(
+        self,
+        validation_type: str,
+        message: str,
+        *,
+        exchange: str | None = None,
+        fields: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize position logic error.
+
+        Args:
+            validation_type: Type of validation that failed
+            message: Human-readable error message
+            exchange: Exchange where the position validation failed
+            fields: Dictionary of field names and values involved in the validation
+        """
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=validation_type,
+            source_value=fields,
+            code="POSITION_LOGIC_VALIDATION",
+        )
+        self.validation_type = validation_type
+        self.exchange = exchange
+        self.fields = fields or {}
+
+
 class PassphraseFieldError(ValueError, FieldError):
     """Raised when passphrase field check fails - inherits ValueError semantics + our metadata."""
 
@@ -66,7 +245,7 @@ class PassphraseFieldError(ValueError, FieldError):
 
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -98,7 +277,7 @@ class RequiredFieldError(ValueError, FieldError):
 
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -127,10 +306,10 @@ class InvalidFormatError(ValueError, FieldError):
             message = f"Field '{field_name}' has invalid format: {reason}"
         else:
             message = f"Field '{field_name}' must be {expected_format}"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -140,7 +319,7 @@ class InvalidFormatError(ValueError, FieldError):
             code="INVALID_FORMAT",
             source_data={"field": field_name, "expected_format": expected_format, "reason": reason},
         )
-        
+
         # Store attributes for direct access
         self.expected_format = expected_format
         self.actual_value = actual_value
@@ -179,10 +358,10 @@ class RangeFieldError(ValueError, FieldError):
             message = f"Field '{field_name}' value {value} must be <= {max_value}"
         else:
             message = f"Field '{field_name}' value {value} is out of range"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -198,7 +377,7 @@ class RangeFieldError(ValueError, FieldError):
                 "constraint": constraint,
             },
         )
-        
+
         # Store attributes for direct access
         self.value = value
         self.min_value = min_value
@@ -225,10 +404,10 @@ class TypeFieldError(TypeError, FieldError):
             actual_value: The actual value (optional)
         """
         message = f"Field '{field_name}' must be {expected_type}, got {actual_type}"
-        
+
         # Initialize TypeError with the message
         TypeError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -242,7 +421,7 @@ class TypeFieldError(TypeError, FieldError):
                 "actual_type": actual_type,
             },
         )
-        
+
         # Store attributes for direct access
         self.expected_type = expected_type
         self.actual_type = actual_type
@@ -272,10 +451,10 @@ class DecimalFieldError(ValueError, FieldError):
             )
         else:
             message = f"Field '{field_name}' decimal validation failed: {reason}"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -290,7 +469,7 @@ class DecimalFieldError(ValueError, FieldError):
                 "constraint": decimal_constraint,
             },
         )
-        
+
         # Store attributes for direct access
         self.value = value
         self.reason = reason
@@ -321,10 +500,10 @@ class TimestampFieldError(ValueError, FieldError):
             message = f"Field '{field_name}' must be a valid timestamp in format: {expected_format}"
         else:
             message = f"Field '{field_name}' must be a valid timestamp"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -339,7 +518,7 @@ class TimestampFieldError(ValueError, FieldError):
                 "reason": reason,
             },
         )
-        
+
         # Store attributes for direct access
         self.value = value
         self.expected_format = expected_format
@@ -365,10 +544,10 @@ class BooleanFieldError(ValueError, FieldError):
             message = f"Field '{field_name}' must be one of {valid_values}, got '{value}'"
         else:
             message = f"Field '{field_name}' must be a valid boolean, got '{value}'"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -382,7 +561,7 @@ class BooleanFieldError(ValueError, FieldError):
                 "valid_values": valid_values,
             },
         )
-        
+
         # Store attributes for direct access
         self.value = value
         self.valid_values = valid_values
@@ -413,10 +592,10 @@ class EnumFieldError(ValueError, FieldError):
             )
         else:
             message = f"Field '{field_name}' must be one of {valid_values}, got '{value}'"
-        
+
         # Initialize ValueError with the message
         ValueError.__init__(self, message)
-        
+
         # Initialize FieldError with full metadata
         FieldError.__init__(
             self,
@@ -431,7 +610,7 @@ class EnumFieldError(ValueError, FieldError):
                 "enum_name": enum_name,
             },
         )
-        
+
         # Store attributes for direct access
         self.value = value
         self.valid_values = valid_values

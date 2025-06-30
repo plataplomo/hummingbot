@@ -129,7 +129,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that invalid Ed25519 authentication fails during API initialization.
-        
+
         This validates proper error handling for authentication failures,
         demonstrating enhanced security through early credential validation.
         """
