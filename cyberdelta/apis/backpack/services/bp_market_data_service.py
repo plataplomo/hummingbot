@@ -65,6 +65,7 @@ from cyberdelta.core.models.market import (
 
 # Internal domain models
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.exceptions import UnreachableCodeError
 from cyberdelta.exceptions.market_data_service import (
     EmptySymbolError,
     EmptySymbolInListError,
@@ -296,6 +297,18 @@ class BackpackMarketDataService:
         else:
             return internal_ticker
 
+    @staticmethod
+    def _validate_get_all_tickers_implementation() -> None:
+        """Validate that get_all_tickers is implemented.
+
+        Raises:
+            NotImplementedServiceError: Always, as this method is not yet implemented.
+        """
+        raise NotImplementedServiceError(
+            "BackpackMarketDataService",
+            "get_all_tickers",
+        )
+
     async def get_all_tickers(self) -> dict[str, Ticker]:
         """Retrieves tickers for all available markets."""
         # Service Input Parameter Validation
@@ -318,10 +331,7 @@ class BackpackMarketDataService:
                 "get_all_tickers_not_implemented: Method not implemented for Backpack",
                 exchange=self._exchange_name,
             )
-            raise NotImplementedServiceError(
-                "BackpackMarketDataService",
-                "get_all_tickers",
-            )
+            self._validate_get_all_tickers_implementation()
 
         except APIError:
             # Re-raise APIErrors from any future implementation
@@ -382,6 +392,14 @@ class BackpackMarketDataService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e_unexpected
+        # This code is unreachable because _validate_get_all_tickers_implementation always raises
+        # But we need this to satisfy mypy's return type checking
+        raise UnreachableCodeError(
+            reason=(
+                "This code should never be reached - "
+                "_validate_get_all_tickers_implementation always raises"
+            )
+        )
 
     async def get_order_book(self, symbol: str, limit: int | None = 20) -> OrderBook:
         """Retrieves the order book for a specific symbol."""

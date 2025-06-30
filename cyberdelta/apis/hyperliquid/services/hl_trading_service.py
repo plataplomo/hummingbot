@@ -161,13 +161,18 @@ class HyperliquidTradingService:
             )
 
     @staticmethod
-    def _ensure_l2_book_data_not_none(data: object, symbol: str, status_code: int) -> None:
+    def _ensure_l2_book_data_not_none(
+        data: dict[str, Any] | list[Any] | str | None, symbol: str, status_code: int
+    ) -> dict[str, Any] | list[Any] | str:
         """Ensure L2 book response data is not None.
 
         Args:
             data: Response data to validate
             symbol: Symbol for the request
             status_code: HTTP status code
+
+        Returns:
+            The validated non-None data
 
         Raises:
             APIError: If data is None
@@ -178,6 +183,7 @@ class HyperliquidTradingService:
                 code=APIErrorCode.INVALID_RESPONSE.value,
                 http_status=status_code,
             )
+        return data
 
     async def _execute_exchange_action(
         self,
@@ -2467,15 +2473,10 @@ class HyperliquidTradingService:
                 is_signed=False,
             )
 
-            # Reuse existing response handler
-            HyperliquidTradingService._ensure_l2_book_data_not_none(
+            # Ensure L2 book data is not None and get validated value
+            raw_response_content_parsed = HyperliquidTradingService._ensure_l2_book_data_not_none(
                 raw_response_content_parsed, symbol, status_code
             )
-            if raw_response_content_parsed is None:
-                raise APIError(
-                    message=f"L2 book data is None for {symbol} with status {status_code}",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
             validated_response = self._response_handler.handle_info_l2_book_response(
                 raw_response_content_parsed,
                 symbol,

@@ -126,13 +126,18 @@ class HyperliquidMarketDataMapper:
         return mark_px, name
 
     @staticmethod
-    def _ensure_trade_values_not_none(price: object, quantity: object, raw_trade: object) -> None:
+    def _ensure_trade_values_not_none(
+        price: Decimal | None, quantity: Decimal | None, raw_trade: object
+    ) -> tuple[Decimal, Decimal]:
         """Ensure trade price and quantity are not None after parsing.
 
         Args:
             price: Parsed price value
             quantity: Parsed quantity value
             raw_trade: Source trade data for error context
+
+        Returns:
+            Tuple of validated non-None price and quantity
 
         Raises:
             DataTransformationError: If price or quantity is None
@@ -151,19 +156,24 @@ class HyperliquidMarketDataMapper:
                 reason="quantity should not be None after parsing with allow_none=False",
                 source_data=getattr(raw_trade, "sz", None),
             )
+        return price, quantity
 
     @staticmethod
-    def _ensure_funding_timestamp_not_none(timestamp: object) -> None:
+    def _ensure_funding_timestamp_not_none(timestamp: datetime | None) -> datetime:
         """Ensure funding timestamp is not None after parsing.
 
         Args:
             timestamp: Parsed timestamp value
+
+        Returns:
+            The validated non-None timestamp
 
         Raises:
             MissingRequiredFieldError: If timestamp is None
         """
         if timestamp is None:
             raise MissingRequiredFieldError("time", "HyperliquidRawFundingHistoryItem")
+        return timestamp
 
     @staticmethod
     def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
@@ -412,22 +422,10 @@ class HyperliquidMarketDataMapper:
                 price, quantity, "HyperliquidRawPublicTrade"
             )
 
-            # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
-            HyperliquidMarketDataMapper._ensure_trade_values_not_none(price, quantity, raw_trade)
-            if price is None:
-                raise DataTransformationError(
-                    source_model="HyperliquidRawPublicTrade.px",
-                    target_model="Decimal",
-                    reason="price should not be None after parsing with allow_none=False",
-                    source_data=raw_trade.px,
-                )
-            if quantity is None:
-                raise DataTransformationError(
-                    source_model="HyperliquidRawPublicTrade.sz",
-                    target_model="Decimal",
-                    reason="quantity should not be None after parsing with allow_none=False",
-                    source_data=raw_trade.sz,
-                )
+            # Ensure trade values are not None after parsing and get validated values
+            price, quantity = HyperliquidMarketDataMapper._ensure_trade_values_not_none(
+                price, quantity, raw_trade
+            )
 
             # Check for zero or negative values - return None for invalid trades
             # Also filter out extremely small quantities that are not meaningful for trading
@@ -644,14 +642,7 @@ class HyperliquidMarketDataMapper:
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_item.time, field_name="time")
-            HyperliquidMarketDataMapper._ensure_funding_timestamp_not_none(timestamp)
-            if timestamp is None:
-                raise DataTransformationError(
-                    source_model="HyperliquidRawFundingHistoryItem.time",
-                    target_model="datetime",
-                    reason="timestamp should not be None after parsing",
-                    source_data=raw_item.time,
-                )
+            timestamp = HyperliquidMarketDataMapper._ensure_funding_timestamp_not_none(timestamp)
 
             # Validate funding data
             HyperliquidMarketDataMapper._validate_funding_data(

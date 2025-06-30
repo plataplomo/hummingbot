@@ -623,12 +623,15 @@ class BackpackMarketDataMapper:
         return timestamp
 
     @staticmethod
-    def _ensure_timestamp_not_none(timestamp: object, source_data: object) -> None:
+    def _ensure_timestamp_not_none(timestamp: datetime | None, source_data: object) -> datetime:
         """Ensure timestamp is not None after validation.
 
         Args:
             timestamp: Parsed timestamp
             source_data: Source data for error context
+
+        Returns:
+            The validated non-None timestamp
 
         Raises:
             DataTransformationError: If timestamp is None
@@ -640,6 +643,7 @@ class BackpackMarketDataMapper:
                 reason="timestamp should not be None after validation",
                 source_data=source_data,
             )
+        return timestamp
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
@@ -747,15 +751,10 @@ class BackpackMarketDataMapper:
                 timestamp, "BackpackRawFundingIntervalRate"
             )
 
-            # Type assertion: timestamp should not be None after validation
-            BackpackMarketDataMapper._ensure_timestamp_not_none(timestamp, raw_funding.time)
-            if timestamp is None:
-                raise DataTransformationError(
-                    source_model="BackpackRawFundingIntervalRate.time",
-                    target_model="datetime",
-                    reason="timestamp should not be None after validation",
-                    source_data=raw_funding.time,
-                )
+            # Ensure timestamp is not None after validation and get the validated value
+            timestamp = BackpackMarketDataMapper._ensure_timestamp_not_none(
+                timestamp, raw_funding.time
+            )
 
             # Create BP-specific details
             details = BackpackFundingDetails()

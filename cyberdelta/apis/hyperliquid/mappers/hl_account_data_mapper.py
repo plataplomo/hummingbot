@@ -601,12 +601,15 @@ class HyperliquidAccountDataMapper:
         return cross_mmr, withdrawable
 
     @staticmethod
-    def _ensure_cross_mmr_not_none(cross_mmr: object, source_data: object) -> None:
+    def _ensure_cross_mmr_not_none(cross_mmr: Decimal | None, source_data: object) -> Decimal:
         """Ensure cross maintenance margin is not None after parsing.
 
         Args:
             cross_mmr: Parsed cross maintenance margin
             source_data: Source data for error context
+
+        Returns:
+            The validated non-None cross_mmr
 
         Raises:
             DataTransformationError: If cross_mmr is None
@@ -618,14 +621,18 @@ class HyperliquidAccountDataMapper:
                 reason="cross_mmr should not be None after parsing with allow_none=False",
                 source_data=source_data,
             )
+        return cross_mmr
 
     @staticmethod
-    def _ensure_position_size_not_none(size: object, position_info: object) -> None:
+    def _ensure_position_size_not_none(size: Decimal | None, position_info: object) -> Decimal:
         """Ensure position size is not None after parsing.
 
         Args:
             size: Parsed position size
             position_info: Source position info for error context
+
+        Returns:
+            The validated non-None size
 
         Raises:
             DataTransformationError: If size is None
@@ -637,6 +644,7 @@ class HyperliquidAccountDataMapper:
                 reason="size should not be None after parsing with allow_none=False",
                 source_data=getattr(position_info, "szi", "0"),
             )
+        return size
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_margin_summary(
@@ -707,17 +715,10 @@ class HyperliquidAccountDataMapper:
 
             # Calculate total maintenance margin
             # If isolated margin is not provided, use only cross margin
-            # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
-            HyperliquidAccountDataMapper._ensure_cross_mmr_not_none(
+            # Ensure cross_mmr is not None after parsing and get validated value
+            cross_mmr = HyperliquidAccountDataMapper._ensure_cross_mmr_not_none(
                 cross_mmr, raw_state.cross_maintenance_margin_used
             )
-            if cross_mmr is None:
-                raise DataTransformationError(
-                    source_model="cross_maintenance_margin_used",
-                    target_model="Decimal",
-                    reason="cross_mmr should not be None after parsing with allow_none=False",
-                    source_data=raw_state.cross_maintenance_margin_used,
-                )
 
             total_maintenance_margin = cross_mmr + (
                 isolated_mmr if isolated_mmr is not None else Decimal(0)
@@ -1172,15 +1173,8 @@ class HyperliquidAccountDataMapper:
             )
 
             # Determine side based on position size
-            # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
-            HyperliquidAccountDataMapper._ensure_position_size_not_none(size, position_info)
-            if size is None:
-                raise DataTransformationError(
-                    source_model="HyperliquidRawPositionInfo.szi",
-                    target_model="Decimal",
-                    reason="size should not be None after parsing with allow_none=False",
-                    source_data=position_info,
-                )
+            # Ensure position size is not None after parsing and get validated value
+            size = HyperliquidAccountDataMapper._ensure_position_size_not_none(size, position_info)
 
             if size > Decimal(0):
                 side = OrderSide.BUY

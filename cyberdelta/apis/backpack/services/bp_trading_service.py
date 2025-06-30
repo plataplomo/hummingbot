@@ -42,6 +42,7 @@ from cyberdelta.core.models.enums import (
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.exceptions import (
     MissingRequiredFieldError,
+    UnreachableCodeError,
 )
 from cyberdelta.exceptions.service_validation import (
     IntegerConversionError,
@@ -912,11 +913,6 @@ class BackpackTradingService:
             self._validate_order_exists(order, args)
             # After validation, order is guaranteed to be not None
             BackpackTradingService._ensure_order_not_none(order)
-            if order is None:
-                raise APIError(
-                    message="Order is None after validation - this should not happen",
-                    code=APIErrorCode.UNKNOWN.value,
-                )
 
         except APIError:
             # Re-raise APIErrors from get_order method or self-raised
@@ -986,6 +982,15 @@ class BackpackTradingService:
                 exchange_message=raw_response_content,
             ) from e_unexpected
         else:
+            # After validation, order cannot be None, but we need explicit check for mypy
+            if order is None:
+                # This should never happen after _validate_order_exists and _ensure_order_not_none
+                raise UnreachableCodeError(
+                    reason=(
+                        "Order is None after validation - "
+                        "this indicates a bug in validation logic"
+                    )
+                )
             return order
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
