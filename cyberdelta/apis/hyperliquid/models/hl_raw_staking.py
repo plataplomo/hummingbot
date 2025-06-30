@@ -18,6 +18,7 @@ from pydantic import (
     ConfigDict,
     Field,
     RootModel,
+    ValidationInfo,
     field_validator,
 )
 
@@ -30,6 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimestampMsInt,
     RawTxHashStr,
 )
+from cyberdelta.exceptions.parsing import StructureTypeError
 
 
 # --- Delegations --- #
@@ -53,7 +55,7 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_delegations_list(cls, v: object) -> list[dict[str, object]]:
+    def validate_delegations_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
         """Validate that the root input is a list of delegation dictionaries.
 
         Ensures each delegation item is a dictionary with the expected structure
@@ -61,24 +63,33 @@ class HyperliquidRawDelegationsResponse(RootModel[list[HyperliquidRawDelegationI
 
         Args:
             v: Raw input value that should be a list of delegation objects.
+            info: Pydantic validation info.
 
         Returns:
             Validated list of delegation dictionaries.
 
         Raises:
-            ValueError: If input is not a list or contains invalid delegation items.
+            StructureTypeError: If input is not a list or contains invalid delegation items.
 
         """
+        field_name = info.field_name or "delegations"
         if not isinstance(v, list):
-            raise TypeError("Expected a list of delegations")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a list of delegations",
+                actual_type=type(v).__name__,
+            )
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise TypeError(
-                    f"Item {item_idx}: Expected dict delegation, got {type(item_obj).__name__}",
+                raise StructureTypeError(
+                    field_name=f"{field_name}[{item_idx}]",
+                    expected_structure="dict delegation",
+                    actual_type=type(item_obj).__name__,
+                    element_info=f"Item {item_idx}",
                 )
 
             item_dict = cast("dict[str, object]", item_obj)
@@ -138,7 +149,7 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_history_list(cls, v: object) -> list[dict[str, object]]:
+    def validate_history_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
         """Validate that the root input is a list of delegator history dictionaries.
 
         Ensures each history item is a dictionary with the expected structure
@@ -146,24 +157,33 @@ class HyperliquidRawDelegatorHistoryResponse(RootModel[list[HyperliquidRawDelega
 
         Args:
             v: Raw input value that should be a list of history objects.
+            info: Pydantic validation info.
 
         Returns:
             Validated list of history dictionaries.
 
         Raises:
-            ValueError: If input is not a list or contains invalid history items.
+            StructureTypeError: If input is not a list or contains invalid history items.
 
         """
+        field_name = info.field_name or "delegatorHistory"
         if not isinstance(v, list):
-            raise TypeError("Expected a list of history items")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a list of history items",
+                actual_type=type(v).__name__,
+            )
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise TypeError(
-                    f"Item {item_idx}: Expected dict history item, got {type(item_obj).__name__}",
+                raise StructureTypeError(
+                    field_name=f"{field_name}[{item_idx}]",
+                    expected_structure="dict history item",
+                    actual_type=type(item_obj).__name__,
+                    element_info=f"Item {item_idx}",
                 )
 
             item_dict = cast("dict[str, object]", item_obj)
@@ -192,7 +212,7 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
 
     @field_validator("root", mode="before")
     @classmethod
-    def validate_rewards_list(cls, v: object) -> list[dict[str, object]]:
+    def validate_rewards_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
         """Validate that the root input is a list of delegator reward dictionaries.
 
         Ensures each reward item is a dictionary with the expected structure
@@ -200,24 +220,33 @@ class HyperliquidRawDelegatorRewardsResponse(RootModel[list[HyperliquidRawDelega
 
         Args:
             v: Raw input value that should be a list of reward objects.
+            info: Pydantic validation info.
 
         Returns:
             Validated list of reward dictionaries.
 
         Raises:
-            ValueError: If input is not a list or contains invalid reward items.
+            StructureTypeError: If input is not a list or contains invalid reward items.
 
         """
+        field_name = info.field_name or "delegatorRewards"
         if not isinstance(v, list):
-            raise TypeError("Expected a list of reward items")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a list of reward items",
+                actual_type=type(v).__name__,
+            )
 
         list_of_objects = cast("list[object]", v)
 
         validated_items: list[dict[str, object]] = []
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
-                raise TypeError(
-                    f"Item {item_idx}: Expected dict reward item, got {type(item_obj).__name__}",
+                raise StructureTypeError(
+                    field_name=f"{field_name}[{item_idx}]",
+                    expected_structure="dict reward item",
+                    actual_type=type(item_obj).__name__,
+                    element_info=f"Item {item_idx}",
                 )
 
             item_dict = cast("dict[str, object]", item_obj)

@@ -182,6 +182,31 @@ class EmptyStringError(ParsingError):
         )
 
 
+class EmptyDictionaryError(ValueError, ParsingError):
+    """Raised when an empty dictionary is provided where non-empty is required."""
+
+    def __init__(self, field_name: str, context: str | None = None) -> None:
+        """Initialize empty dictionary error.
+
+        Args:
+            field_name: Name of the field
+            context: Optional context message
+        """
+        if context:
+            message = f"Field '{field_name}': {context}"
+        else:
+            message = f"Field '{field_name}': Dictionary cannot be empty"
+
+        super().__init__(message)
+        ParsingError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            value={},
+            expected_type="non-empty dictionary",
+        )
+
+
 class ClientIdFormatError(ParsingError):
     """Raised when clientId has invalid format."""
 
@@ -201,7 +226,120 @@ class ClientIdFormatError(ParsingError):
             message=message,
             field_name=field_name,
             expected_type="string or integer",
-            reason=reason,
+        )
+
+
+class DictStructureError(ValueError, ParsingError):
+    """Raised when a dictionary doesn't have the expected structure."""
+
+    def __init__(
+        self,
+        field_name: str,
+        expected_keys: list[int] | list[str],
+        actual_keys: list[int] | list[str],
+        exact_match: bool = True,
+    ) -> None:
+        """Initialize dictionary structure error.
+
+        Args:
+            field_name: Name of the field
+            expected_keys: Expected dictionary keys
+            actual_keys: Actual dictionary keys found
+            exact_match: Whether keys must match exactly
+        """
+        if exact_match:
+            message = (
+                f"Field '{field_name}': Dictionary input must contain "
+                f"exactly keys {sorted(expected_keys)}, got keys {sorted(actual_keys)}."
+            )
+        else:
+            message = (
+                f"Field '{field_name}': Dictionary input must have keys {sorted(expected_keys)}, "
+                f"got keys {sorted(actual_keys)}."
+            )
+
+        super().__init__(message)
+        ParsingError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            value=f"dict with keys {sorted(actual_keys)}",
+            expected_type=f"dict with keys {sorted(expected_keys)}",
+            expected_keys=expected_keys,
+            actual_keys=actual_keys,
+            exact_match=exact_match,
+        )
+
+
+class SequenceLengthError(ValueError, ParsingError):
+    """Raised when a sequence (list/tuple) has incorrect length."""
+
+    def __init__(
+        self,
+        field_name: str,
+        expected_length: int,
+        actual_length: int,
+        sequence_type: str = "list/tuple",
+    ) -> None:
+        """Initialize sequence length error.
+
+        Args:
+            field_name: Name of the field
+            expected_length: Expected sequence length
+            actual_length: Actual sequence length
+            sequence_type: Type description (default: "list/tuple")
+        """
+        message = (
+            f"Field '{field_name}': Expected {expected_length}-element {sequence_type}, "
+            f"got length {actual_length}."
+        )
+
+        super().__init__(message)
+        ParsingError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            expected_type=f"{expected_length}-element {sequence_type}",
+            expected_length=expected_length,
+            actual_length=actual_length,
+            sequence_type=sequence_type,
+        )
+
+
+class StructureTypeError(TypeError, ParsingError):
+    """Raised when a value has wrong type for expected structure."""
+
+    def __init__(
+        self,
+        field_name: str,
+        expected_structure: str,
+        actual_type: str,
+        element_info: str | None = None,
+    ) -> None:
+        """Initialize structure type error.
+
+        Args:
+            field_name: Name of the field
+            expected_structure: Expected structure description
+            actual_type: Actual type name
+            element_info: Optional info about element (e.g., "element 1")
+        """
+        if element_info:
+            message = (
+                f"Field '{field_name}', {element_info}: Expected {expected_structure}, "
+                f"got {actual_type}."
+            )
+        else:
+            message = f"Field '{field_name}': Expected {expected_structure}, got {actual_type}."
+
+        super().__init__(message)
+        ParsingError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            expected_type=expected_structure,
+            actual_type=actual_type,
+            element_info=element_info,
         )
 
 

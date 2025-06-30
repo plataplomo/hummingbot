@@ -299,22 +299,30 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 word_count=num_words,
             )
 
+    def _check_bip39_mnemonic(self, phrase_str: str, mnemonic_validator: Mnemonic) -> bool:
+        """Check if passphrase is a valid BIP-39 mnemonic.
+
+        Returns:
+            True if valid, False otherwise.
+        """
+        return mnemonic_validator.check(phrase_str)
+
     def _validate_passphrase_bip39(self, phrase_str: str) -> None:
         """Validate that passphrase is a valid BIP-39 mnemonic."""
         try:
             mnemonic_validator = Mnemonic("english")
-            if not mnemonic_validator.check(phrase_str):
-                raise PassphraseFieldError(
-                    reason="not a valid BIP-39 mnemonic (checksum or wordlist error)"
-                )
+            is_valid = self._check_bip39_mnemonic(phrase_str, mnemonic_validator)
         except Exception as e:
             # Handle any other exceptions from mnemonic validation
-            if "not a valid BIP-39 mnemonic" not in str(e):
-                raise PassphraseFieldError(
-                    reason=f"error validating with mnemonic library: {e}",
-                    original_error=e,
-                ) from e
-            raise
+            raise PassphraseFieldError(
+                reason=f"error validating with mnemonic library: {e}",
+                original_error=e,
+            ) from e
+
+        if not is_valid:
+            raise PassphraseFieldError(
+                reason="not a valid BIP-39 mnemonic (checksum or wordlist error)"
+            )
 
     def _setup_wallet_properties(self) -> None:
         """Setup wallet address properties."""
@@ -694,6 +702,16 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         )
         return phantom_agent_message
 
+    def _validate_hex_format(self, hex_value: str, field_name: str) -> None:
+        """Validate hex format for signature component."""
+        if not hex_value.startswith("0x") or len(hex_value) != SIGNATURE_HEX_LENGTH:
+            raise InvalidFormatError(
+                field_name=field_name,
+                expected_format="0x + 64 hex characters",
+                actual_value=hex_value,
+                reason=f"got length {len(hex_value)}",
+            )
+
     def _format_signature_components(self, signed_message_obj: SignatureObject) -> dict[str, Any]:
         """Format signature components with proper validation and padding."""
         # Validate signature components
@@ -721,21 +739,9 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             if len(s_hex) < SIGNATURE_HEX_LENGTH:
                 s_hex = "0x" + s_hex[2:].zfill(64)
 
-            # Validate hex format
-            if not r_hex.startswith("0x") or len(r_hex) != SIGNATURE_HEX_LENGTH:
-                raise InvalidFormatError(
-                    field_name="r",
-                    expected_format="0x + 64 hex characters",
-                    actual_value=r_hex,
-                    reason=f"got length {len(r_hex)}",
-                )
-            if not s_hex.startswith("0x") or len(s_hex) != SIGNATURE_HEX_LENGTH:
-                raise InvalidFormatError(
-                    field_name="s",
-                    expected_format="0x + 64 hex characters",
-                    actual_value=s_hex,
-                    reason=f"got length {len(s_hex)}",
-                )
+            # Validate hex format outside try block
+            self._validate_hex_format(r_hex, "r")
+            self._validate_hex_format(s_hex, "s")
 
             signature_dict = {
                 "r": r_hex,
@@ -944,6 +950,33 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         else:
             return signed_msg
 
+    def _validate_http_body_components(
+        self,
+        action_payload_dict: dict[str, Any],
+        current_nonce_ms: int,
+        signature_dict: dict[str, Any],
+    ) -> None:
+        """Validate components for HTTP body construction."""
+        if not action_payload_dict:
+            raise RequiredParameterError(
+                parameter="action_payload",
+                context="HTTP body construction",
+                exchange="Hyperliquid",
+            )
+        if not signature_dict:
+            raise RequiredParameterError(
+                parameter="signature",
+                context="HTTP body construction",
+                exchange="Hyperliquid",
+            )
+        if current_nonce_ms <= 0:
+            raise InvalidFormatError(
+                field_name="nonce",
+                expected_format="positive integer",
+                actual_value=current_nonce_ms,
+                reason="must be greater than 0",
+            )
+
     def _construct_http_body(
         self,
         action_payload_dict: dict[str, Any],
@@ -951,28 +984,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         signature_dict: dict[str, Any],
     ) -> dict[str, Any]:
         """Construct the final HTTP request body."""
-        try:
-            # Validate all required components are present
-            if not action_payload_dict:
-                raise RequiredParameterError(
-                    parameter="action_payload",
-                    context="HTTP body construction",
-                    exchange="Hyperliquid",
-                )
-            if not signature_dict:
-                raise RequiredParameterError(
-                    parameter="signature",
-                    context="HTTP body construction",
-                    exchange="Hyperliquid",
-                )
-            if current_nonce_ms <= 0:
-                raise InvalidFormatError(
-                    field_name="nonce",
-                    expected_format="positive integer",
-                    actual_value=current_nonce_ms,
-                    reason="must be greater than 0",
-                )
+        # Validate all required components are present
+        self._validate_http_body_components(action_payload_dict, current_nonce_ms, signature_dict)
 
+        try:
             # The SDK always includes vaultAddress and expiresAfter, even when None
             # For standard user trades, these are None
             vault_address_for_hash: str | None = None

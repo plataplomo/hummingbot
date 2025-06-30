@@ -24,6 +24,11 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimeframeString,
     RawTimestampMsInt,
 )
+from cyberdelta.exceptions.parsing import (
+    DictStructureError,
+    SequenceLengthError,
+    StructureTypeError,
+)
 
 
 # Portfolio data structure constants
@@ -60,20 +65,25 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
                 if len(v_dict) == PORTFOLIO_PAIR_COUNT:  # Ensure only keys 0 and 1 are present
                     return [v_dict[0], v_dict[1]]
                 # Handles cases like {0: val0, 1: val1, 2: val2}
-                raise ValueError(
-                    f"Field '{field_name}': Dictionary input must contain "
-                    f"exactly keys 0 and 1, got keys {sorted(v_dict.keys())}.",
+                raise DictStructureError(
+                    field_name=field_name,
+                    expected_keys=[0, 1],
+                    actual_keys=list(v_dict.keys()),
+                    exact_match=True,
                 )
-            raise ValueError(
-                f"Field '{field_name}': Dictionary input must have keys 0 and 1, "
-                f"got keys {sorted(v_dict.keys())}.",
+            raise DictStructureError(
+                field_name=field_name,
+                expected_keys=[0, 1],
+                actual_keys=list(v_dict.keys()),
+                exact_match=False,
             )
         if isinstance(v, list | tuple):
             v_sequence = cast("list[object] | tuple[object, ...]", v)
             if len(v_sequence) != PORTFOLIO_PAIR_COUNT:
-                raise ValueError(
-                    f"Field '{field_name}': Expected 2-element list/tuple, "
-                    f"got length {len(v_sequence)}.",
+                raise SequenceLengthError(
+                    field_name=field_name,
+                    expected_length=PORTFOLIO_PAIR_COUNT,
+                    actual_length=len(v_sequence),
                 )
             # Ensure it's a list of [int | str] for Pydantic to process for the tuple
             # This involves casting elements from object to int | str.
@@ -84,9 +94,10 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
             elem0 = cast("int | str", v_sequence[0])
             elem1 = cast("int | str", v_sequence[1])
             return [elem0, elem1]
-        raise ValueError(
-            f"Field '{field_name}': Expected 2-element list/tuple or dict {{0: ts, 1: val}}, "
-            f"got {type(v).__name__}.",
+        raise StructureTypeError(
+            field_name=field_name,
+            expected_structure="2-element list/tuple or dict {0: ts, 1: val}",
+            actual_type=type(v).__name__,
         )
 
 
@@ -123,15 +134,19 @@ class HyperliquidRawPortfolioTupleItem(
         """
         field_name = info.field_name or "portfolio_tuple_item"
         if not isinstance(v, list | tuple):
-            raise TypeError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got {type(v).__name__}.",
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="2-element list/tuple",
+                actual_type=type(v).__name__,
             )
 
         v_casted = cast("list[object] | tuple[object, ...]", v)
 
         if len(v_casted) != PORTFOLIO_PAIR_COUNT:
-            raise ValueError(
-                f"Field '{field_name}': Expected 2-element list/tuple, got length {len(v_casted)}.",
+            raise SequenceLengthError(
+                field_name=field_name,
+                expected_length=PORTFOLIO_PAIR_COUNT,
+                actual_length=len(v_casted),
             )
 
         element_0_value = v_casted[0]
@@ -139,9 +154,11 @@ class HyperliquidRawPortfolioTupleItem(
 
         if not isinstance(element_1_value, dict):
             actual_type_name = type(element_1_value).__name__
-            raise TypeError(
-                f"Field '{field_name}', element 1: Expected data object to be a dictionary, "
-                f"got {actual_type_name}.",
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="data object to be a dictionary",
+                actual_type=actual_type_name,
+                element_info="element 1",
             )
 
         element_1_dict = cast("dict[str, object]", element_1_value)

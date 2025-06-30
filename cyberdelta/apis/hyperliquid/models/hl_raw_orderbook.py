@@ -50,6 +50,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawNonNegativeInt,
     RawPositiveFiniteDecimalStr,
 )
+from cyberdelta.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_sequence_of_any
 
@@ -124,7 +125,11 @@ class HyperliquidRawL2Book(BaseModel):
             }
 
         if not is_dict_str_any(values):
-            raise ValueError(f"Order book response must be a dict, got {type(values).__name__}")
+            raise StructureTypeError(
+                field_name="order_book_response",
+                expected_structure="a dict",
+                actual_type=type(values).__name__,
+            )
 
         # values is now properly typed as dict[str, Any] due to TypeGuard
         return values
@@ -147,21 +152,37 @@ class HyperliquidRawL2Book(BaseModel):
             ValueError: If the input is not a valid structure for order book levels.
 
         """
+        field_name = info.field_name or "levels"
         if not is_sequence_of_any(v):
-            raise ValueError("levels: Must be a sequence (list or tuple).")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a sequence (list or tuple)",
+                actual_type=type(v).__name__,
+            )
 
         if not has_exact_length(list(v), 2):
-            raise ValueError(
-                "levels: Must be a sequence of two sequences (bids, asks), length != 2.",
+            raise SequenceLengthError(
+                field_name=field_name,
+                expected_length=2,
+                actual_length=len(list(v)),
+                sequence_type="sequence of two sequences (bids, asks)",
             )
 
         # v is now known to be a sequence of length 2
         bids_raw, asks_raw = v[0], v[1]
 
         if not is_sequence_of_any(bids_raw):
-            raise ValueError("levels[0] (bids): Must be a sequence.")
+            raise StructureTypeError(
+                field_name=f"{field_name}[0] (bids)",
+                expected_structure="a sequence",
+                actual_type=type(bids_raw).__name__,
+            )
         if not is_sequence_of_any(asks_raw):
-            raise ValueError("levels[1] (asks): Must be a sequence.")
+            raise StructureTypeError(
+                field_name=f"{field_name}[1] (asks)",
+                expected_structure="a sequence",
+                actual_type=type(asks_raw).__name__,
+            )
 
         # Further validation of individual level items (e.g. dicts with px, sz, n)
         # will be handled by Pydantic when it parses into list[list[HyperliquidRawBookLevel]].

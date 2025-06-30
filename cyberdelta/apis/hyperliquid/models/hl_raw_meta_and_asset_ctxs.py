@@ -47,6 +47,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawNonNegativeInt,
     RawStrictBool,
 )
+from cyberdelta.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
@@ -177,11 +178,20 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
     def _validate_input_structure(cls, obj: object) -> list[Any]:
         """Validate that input is a 2-element list."""
         if not is_list_any(obj):
-            raise ValueError("Invalid MetaAndAssetCtxs response: not a list")
+            raise StructureTypeError(
+                field_name="MetaAndAssetCtxs response",
+                expected_structure="a list",
+                actual_type=type(obj).__name__,
+            )
 
         # obj is now properly typed as list[Any] due to TypeGuard
         if len(obj) != META_AND_ASSET_CTXS_RESPONSE_LENGTH:
-            raise ValueError("Invalid MetaAndAssetCtxs response: not a 2-element list")
+            raise SequenceLengthError(
+                field_name="MetaAndAssetCtxs response",
+                expected_length=META_AND_ASSET_CTXS_RESPONSE_LENGTH,
+                actual_length=len(obj),
+                sequence_type="list",
+            )
 
         return obj
 
@@ -192,10 +202,16 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         asset_ctxs_list_raw = list_obj[1]
 
         if not is_dict_str_any(meta_obj_raw):
-            raise ValueError("Invalid MetaAndAssetCtxs response: first element (meta) must be dict")
+            raise StructureTypeError(
+                field_name="MetaAndAssetCtxs response[0] (meta)",
+                expected_structure="a dict",
+                actual_type=type(meta_obj_raw).__name__,
+            )
         if not is_list_any(asset_ctxs_list_raw):
-            raise ValueError(
-                "Invalid MetaAndAssetCtxs response: second element (asset_ctxs) must be list",
+            raise StructureTypeError(
+                field_name="MetaAndAssetCtxs response[1] (asset_ctxs)",
+                expected_structure="a list",
+                actual_type=type(asset_ctxs_list_raw).__name__,
             )
 
         # Both are now properly typed due to TypeGuards
@@ -242,7 +258,11 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
             universe = []
         for i, item_obj in enumerate(asset_ctxs_list):
             if not is_dict_str_any(item_obj):
-                raise ValueError(f"Invalid MetaAndAssetCtxs: asset_ctxs[{i}] must be a dictionary")
+                raise StructureTypeError(
+                    field_name=f"asset_ctxs[{i}]",
+                    expected_structure="a dictionary",
+                    actual_type=type(item_obj).__name__,
+                )
 
             # item_obj is now properly typed as dict[str, Any] due to TypeGuard
             # Create a copy to avoid modifying original

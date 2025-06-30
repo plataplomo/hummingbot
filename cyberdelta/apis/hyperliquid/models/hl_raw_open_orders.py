@@ -58,6 +58,10 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimestampMsInt,
     RawTpslStr,
 )
+from cyberdelta.exceptions.parsing import (
+    EmptyDictionaryError,
+    StructureTypeError,
+)
 from cyberdelta.utils.parsing import validate_str_field
 
 
@@ -219,7 +223,11 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
         field_name = info.field_name or "open_orders_list"
 
         if not isinstance(v, list):
-            raise TypeError(f"Field '{field_name}': Expected a list, got {type(v).__name__}.")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a list",
+                actual_type=type(v).__name__,
+            )
 
         # CAST 1: For type checker, v is already confirmed list by runtime check above
         list_of_objects = cast("list[object]", v)
@@ -228,9 +236,11 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
         for item_idx, item_obj in enumerate(list_of_objects):
             if not isinstance(item_obj, dict):
                 item_type = type(item_obj).__name__
-                raise TypeError(
-                    f"Field '{field_name}', Item {item_idx}: Expected a dictionary, "
-                    f"got {item_type}.",
+                raise StructureTypeError(
+                    field_name=f"{field_name}[{item_idx}]",
+                    expected_structure="a dictionary",
+                    actual_type=item_type,
+                    element_info=f"Item {item_idx}",
                 )
 
             # CAST 2: For type checker, item_obj is already confirmed dict by runtime check above
@@ -283,21 +293,34 @@ class HyperliquidRawOrderSpec(BaseModel):
 
     @field_validator("order_type")
     @classmethod
-    def _validate_order_type_non_empty(cls, value: dict[str, object]) -> dict[str, object]:
+    def _validate_order_type_non_empty(
+        cls, value: dict[str, object], info: ValidationInfo
+    ) -> dict[str, object]:
         if not value:
-            raise ValueError("order_type dictionary cannot be empty.")
+            field_name = info.field_name or "order_type"
+            raise EmptyDictionaryError(field_name=field_name)
         return value
 
     @field_validator("trigger", mode="before")
     @classmethod
-    def _validate_trigger_details_non_empty(cls, value: object) -> dict[str, object] | None:
+    def _validate_trigger_details_non_empty(
+        cls, value: object, info: ValidationInfo
+    ) -> dict[str, object] | None:
         if value is None:
             return None
+        field_name = info.field_name or "trigger"
         if not isinstance(value, dict):
-            raise TypeError("trigger details must be a dictionary if provided.")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a dictionary if provided",
+                actual_type=type(value).__name__,
+            )
 
         if not value:
-            raise ValueError("trigger details dictionary cannot be empty if provided.")
+            raise EmptyDictionaryError(
+                field_name=field_name,
+                context="dictionary cannot be empty if provided",
+            )
 
         return cast("dict[str, object]", value)
 

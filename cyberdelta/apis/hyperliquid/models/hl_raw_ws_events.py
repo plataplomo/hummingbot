@@ -62,6 +62,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawBo
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawPositionInfo,
 )
+from cyberdelta.exceptions.parsing import (
+    EmptyDictionaryError,
+    SequenceLengthError,
+    StructureTypeError,
+)
 
 
 # Type variables for TypeGuard functions
@@ -184,15 +189,33 @@ class HyperliquidRawWsBookUpdate(BaseModel):
             ValueError: If structure is invalid or has wrong length
 
         """
+        field_name = info.field_name or "levels"
         if not is_list(v):
-            raise ValueError("levels: Must be a list.")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a list",
+                actual_type=type(v).__name__,
+            )
         if not has_exact_length(v, 2):
-            raise ValueError("levels: Must be a list of two lists (bids, asks), length != 2.")
+            raise SequenceLengthError(
+                field_name=field_name,
+                expected_length=2,
+                actual_length=len(v),
+                sequence_type="list of two lists (bids, asks)",
+            )
         bids_raw, asks_raw = v[0], v[1]
         if not is_list(bids_raw):
-            raise ValueError("levels[0] (bids): Must be a list.")
+            raise StructureTypeError(
+                field_name=f"{field_name}[0] (bids)",
+                expected_structure="a list",
+                actual_type=type(bids_raw).__name__,
+            )
         if not is_list(asks_raw):
-            raise ValueError("levels[1] (asks): Must be a list.")
+            raise StructureTypeError(
+                field_name=f"{field_name}[1] (asks)",
+                expected_structure="a list",
+                actual_type=type(asks_raw).__name__,
+            )
         return cast("list[list[object]]", v)
 
 
@@ -243,10 +266,15 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     @classmethod
     def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, object]:
         """Ensure data is a non-empty dictionary."""
+        field_name = info.field_name or "data"
         if not isinstance(v, dict):
-            raise TypeError("data: Must be a dictionary")
+            raise StructureTypeError(
+                field_name=field_name,
+                expected_structure="a dictionary",
+                actual_type=type(v).__name__,
+            )
         if not v:  # Test expects empty dict to fail
-            raise ValueError("data: Dictionary cannot be empty")
+            raise EmptyDictionaryError(field_name=field_name)
         return cast("dict[str, object]", v)
 
 
