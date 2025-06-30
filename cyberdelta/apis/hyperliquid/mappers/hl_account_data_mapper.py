@@ -29,6 +29,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawU
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
+    HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
@@ -51,6 +52,12 @@ from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDe
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import (
+    DataTransformationError,
+    MissingRequiredFieldError,
+    TradeTransformationError,
+    UnknownEnumError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -64,6 +71,23 @@ class HyperliquidAccountDataMapper:
     This class contains static methods for transforming validated Hyperliquid Raw models
     related to account data into CyberDeltaEngine Internal Domain Models.
     """
+
+    @staticmethod
+    def _validate_side_value(hl_side: str) -> None:
+        """Validate order side value.
+        
+        Args:
+            hl_side: Raw side string from Hyperliquid
+            
+        Raises:
+            UnknownEnumError: If side cannot be mapped
+        """
+        if hl_side not in {"B", "A"}:
+            raise UnknownEnumError(
+                enum_type="Hyperliquid order side",
+                value=hl_side,
+                valid_values=["B", "A"]
+            )
 
     @staticmethod
     def _map_side_to_internal(hl_side: str) -> OrderSide:
@@ -80,24 +104,23 @@ class HyperliquidAccountDataMapper:
 
         """
         try:
+            # Validate side value first
+            HyperliquidAccountDataMapper._validate_side_value(hl_side)
+            
             if hl_side == "B":
                 return OrderSide.BUY
             if hl_side == "A":
                 return OrderSide.SELL
-
-            raise TransformationError(
-                f"Unknown Hyperliquid order side: '{hl_side}'",
-                field_name="side",
-                source_value=hl_side,
-            )
+            
         except Exception as e:
             if isinstance(e, TransformationError):
                 raise
-            raise TransformationError(
-                f"Failed to map order side: {e}",
-                field_name="side",
-                source_value=hl_side,
+            raise UnknownEnumError(
+                enum_type="Hyperliquid order side", value=hl_side, valid_values=["B", "A"]
             ) from e
+        else:
+            # This should not be reached due to validation above, but for type safety
+            return OrderSide.BUY
 
     @staticmethod
     def transform_raw_clearinghouse_state_to_spot_balances(
@@ -134,9 +157,11 @@ class HyperliquidAccountDataMapper:
                 action="transform_clearinghouse_state_to_spot_balances",
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState to SpotBalance: {e}",
-                source_data={"has_margin_summary": hasattr(raw_state, "margin_summary")},
+            raise DataTransformationError(
+                source_model="HyperliquidRawClearinghouseState",
+                target_model="SpotBalance",
+                reason=str(e),
+                original_error=e,
             ) from e
         else:
             return spot_balances
@@ -295,12 +320,50 @@ class HyperliquidAccountDataMapper:
                 action="transform_clearinghouse_state_to_derivative_positions",
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState to DerivativePosition: {e}",
-                source_data={"has_asset_positions": hasattr(raw_state, "asset_positions")},
+            raise DataTransformationError(
+                source_model="HyperliquidRawClearinghouseState",
+                target_model="DerivativePosition",
+                reason=str(e),
+                original_error=e,
             ) from e
         else:
             return positions
+
+    @staticmethod
+    def _validate_position_data(symbol: str, size: object, entry_price: object) -> None:
+        """Validate position data for consistency.
+
+        Args:
+            symbol: Position symbol
+            size: Position size
+            entry_price: Entry price
+
+        Raises:
+            MissingRequiredFieldError: If entry price is invalid for non-zero position
+            DataTransformationError: If types are invalid
+        """
+        # Ensure size is a Decimal
+        if not isinstance(size, Decimal):
+            raise DataTransformationError(
+                source_model="position_data",
+                target_model="position_size",
+                reason=f"Expected Decimal for size, got {type(size).__name__}",
+                source_data={"symbol": symbol, "size": size}
+            )
+        
+        # Check if position is non-zero and validate entry price
+        if size != Decimal(0):
+            if entry_price is None:
+                raise MissingRequiredFieldError("entry_price", f"non-zero position {symbol}")
+            if not isinstance(entry_price, Decimal):
+                raise DataTransformationError(
+                    source_model="position_data",
+                    target_model="entry_price",
+                    reason=f"Expected Decimal for entry_price, got {type(entry_price).__name__}",
+                    source_data={"symbol": symbol, "entry_price": entry_price}
+                )
+            if entry_price <= Decimal(0):
+                raise MissingRequiredFieldError("entry_price", f"non-zero position {symbol}")
 
     @staticmethod
     def _process_single_derivative_position(
@@ -323,14 +386,8 @@ class HyperliquidAccountDataMapper:
         if size is None:
             return  # Skip positions with no size data
 
-        # For non-zero positions, entry price must be valid and positive
-        if size != Decimal(0) and (entry_price is None or entry_price <= Decimal(0)):
-            raise TransformationError(
-                f"Invalid or zero entry price for non-zero position {symbol}: "
-                f"{getattr(pos, 'entry_px', None)}",
-                field_name="entry_px",
-                source_value=getattr(pos, "entry_px", None),
-            )
+        # Validate position data consistency
+        HyperliquidAccountDataMapper._validate_position_data(symbol, size, entry_price)
 
         # For zero positions, entry price must be None per domain model rules
         if size == Decimal(0):
@@ -460,6 +517,92 @@ class HyperliquidAccountDataMapper:
         )
 
     @staticmethod
+    def _validate_margin_summary_data(
+        margin_summary: object, context: str
+    ) -> HyperliquidRawMarginSummary:
+        """Validate margin summary data.
+
+        Args:
+            margin_summary: Margin summary object
+            context: Context for error messages
+
+        Returns:
+            HyperliquidRawMarginSummary: Validated margin summary
+
+        Raises:
+            MissingRequiredFieldError: If margin summary is missing
+            DataTransformationError: If margin summary is not the expected type
+        """
+        if not margin_summary:
+            raise MissingRequiredFieldError("margin_summary", context)
+        
+        if not isinstance(margin_summary, HyperliquidRawMarginSummary):
+            raise DataTransformationError(
+                source_model="margin_summary",
+                target_model="HyperliquidRawMarginSummary",
+                reason=f"Expected HyperliquidRawMarginSummary, got {type(margin_summary).__name__}",
+                source_data=margin_summary
+            )
+        
+        return margin_summary
+
+    @staticmethod
+    def _validate_required_margin_fields(
+        account_value: object, total_margin_used: object, context: str
+    ) -> tuple[object, object]:
+        """Validate required margin fields.
+
+        Args:
+            account_value: Account value
+            total_margin_used: Total margin used
+            context: Context for error messages
+
+        Returns:
+            tuple[object, object]: Validated values
+
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        missing_fields: list[str] = []
+        if account_value is None:
+            missing_fields.append("account_value")
+        if total_margin_used is None:
+            missing_fields.append("total_margin_used")
+
+        if missing_fields:
+            raise MissingRequiredFieldError(missing_fields, context)
+
+        return account_value, total_margin_used
+
+    @staticmethod
+    def _validate_maintenance_margin_fields(
+        cross_mmr: object, withdrawable: object, context: str
+    ) -> tuple[object, object]:
+        """Validate maintenance margin fields.
+
+        Args:
+            cross_mmr: Cross maintenance margin
+            withdrawable: Withdrawable amount
+            context: Context for error messages
+
+        Returns:
+            tuple[object, object]: Validated values
+
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        missing_fields: list[str] = []
+        if cross_mmr is None:
+            missing_fields.append("cross_maintenance_margin_used")
+        if withdrawable is None:
+            missing_fields.append("withdrawable")
+
+        if missing_fields:
+            raise MissingRequiredFieldError(missing_fields, context)
+
+        return cross_mmr, withdrawable
+
+    @staticmethod
     def transform_raw_clearinghouse_state_to_margin_summary(
         raw_state: HyperliquidRawClearinghouseState,
     ) -> MarginAccountSummary:
@@ -479,8 +622,10 @@ class HyperliquidAccountDataMapper:
             # Parse margin summary data
             margin_summary = getattr(raw_state, "margin_summary", None)
 
-            if not margin_summary:
-                raise TransformationError("No margin summary data found in clearinghouse state")
+            # Validate margin summary data
+            margin_summary = HyperliquidAccountDataMapper._validate_margin_summary_data(
+                margin_summary, "clearinghouse state"
+            )
 
             # Parse core margin fields
             account_value = parse_decimal_value(
@@ -504,8 +649,10 @@ class HyperliquidAccountDataMapper:
 
             # total_raw_usd not needed for MarginAccountSummary
 
-            if account_value is None or total_margin_used is None:
-                raise TransformationError("Required margin summary fields are missing")
+            # Validate required margin fields
+            HyperliquidAccountDataMapper._validate_required_margin_fields(
+                account_value, total_margin_used, "margin summary"
+            )
 
             # Parse maintenance margin fields from the clearinghouse state
             cross_mmr = parse_decimal_value(
@@ -520,11 +667,19 @@ class HyperliquidAccountDataMapper:
                 field_name="isolated_maintenance_margin_used",
             )
 
-            if cross_mmr is None:
-                raise TransformationError("Required cross maintenance margin field is missing")
+            # Skip individual cross_mmr validation here since we'll validate together
 
             # Calculate total maintenance margin
             # If isolated margin is not provided, use only cross margin
+            # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
+            if cross_mmr is None:
+                raise DataTransformationError(
+                    source_model="cross_maintenance_margin_used",
+                    target_model="Decimal",
+                    reason="cross_mmr should not be None after parsing with allow_none=False",
+                    source_data=raw_state.cross_maintenance_margin_used
+                )
+            
             total_maintenance_margin = cross_mmr + (
                 isolated_mmr if isolated_mmr is not None else Decimal(0)
             )
@@ -536,8 +691,10 @@ class HyperliquidAccountDataMapper:
                 field_name="withdrawable",
             )
 
-            if withdrawable is None:
-                raise TransformationError("Withdrawable field is required")
+            # Validate maintenance margin fields
+            HyperliquidAccountDataMapper._validate_maintenance_margin_fields(
+                cross_mmr, withdrawable, "margin summary"
+            )
 
             # Calculate total unrealized PnL from derivative positions
             mapper = HyperliquidAccountDataMapper
@@ -581,9 +738,11 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawClearinghouseState "
-                f"to MarginAccountSummary: {e}",
+            raise DataTransformationError(
+                source_model="HyperliquidRawClearinghouseState",
+                target_model="MarginAccountSummary",
+                reason=str(e),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -608,8 +767,10 @@ class HyperliquidAccountDataMapper:
             price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
             quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
 
-            if price is None or quantity is None:
-                raise TransformationError("Price and quantity are required for trade")
+            # Validate trade data
+            HyperliquidAccountDataMapper._validate_trade_data(
+                price, quantity, "HyperliquidRawUserFill"
+            )
 
             # Parse timestamp
             executed_at = parse_datetime_utc(raw_fill.time, field_name="time")
@@ -669,9 +830,40 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawUserFill to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="HyperliquidRawUserFill",
+                reason=str(e),
+                symbol=raw_fill.coin,
+                original_error=e,
             ) from e
+
+    @staticmethod
+    def _validate_trade_data(
+        price: object, quantity: object, context: str
+    ) -> tuple[object, object]:
+        """Validate trade price and quantity data.
+
+        Args:
+            price: Raw price value
+            quantity: Raw quantity value
+            context: Context for error messages
+
+        Returns:
+            tuple[object, object]: Validated price and quantity
+
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        missing_fields: list[str] = []
+        if price is None:
+            missing_fields.append("price")
+        if quantity is None:
+            missing_fields.append("quantity")
+
+        if missing_fields:
+            raise MissingRequiredFieldError(missing_fields, context)
+
+        return price, quantity
 
     @staticmethod
     def transform_raw_fill_to_internal(raw_fill: HyperliquidRawFill) -> Trade:
@@ -695,8 +887,8 @@ class HyperliquidAccountDataMapper:
             price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
             quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
 
-            if price is None or quantity is None:
-                raise TransformationError("Price and quantity are required for trade")
+            # Validate trade data
+            HyperliquidAccountDataMapper._validate_trade_data(price, quantity, "HyperliquidRawFill")
 
             # Parse timestamp
             executed_at = parse_datetime_utc(raw_fill.time, field_name="time")
@@ -752,8 +944,12 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawFill to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="HyperliquidRawFill",
+                reason=str(e),
+                symbol=raw_fill.coin,
+                trade_id=str(raw_fill.tid),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -778,8 +974,10 @@ class HyperliquidAccountDataMapper:
             price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
             quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
 
-            if price is None or quantity is None:
-                raise TransformationError("Price and quantity are required for trade")
+            # Validate trade data
+            HyperliquidAccountDataMapper._validate_trade_data(
+                price, quantity, "HyperliquidRawWsFillEvent"
+            )
 
             # Parse timestamp (convert from milliseconds)
             executed_at = datetime.fromtimestamp(raw_fill.time / 1000, tz=UTC)
@@ -818,9 +1016,31 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawWsFillEvent to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="HyperliquidRawWsFillEvent",
+                reason=str(e),
+                symbol=raw_fill.coin,
+                trade_id=raw_fill.hash,
+                original_error=e,
             ) from e
+
+    @staticmethod
+    def _validate_position_size(size: object, context: str) -> object:
+        """Validate position size.
+        
+        Args:
+            size: Position size value
+            context: Context for error messages
+            
+        Returns:
+            object: Validated size
+            
+        Raises:
+            MissingRequiredFieldError: If size is missing
+        """
+        if size is None:
+            raise MissingRequiredFieldError("size", context)
+        return size
 
     @staticmethod
     def transform_raw_position_to_internal(
@@ -847,8 +1067,8 @@ class HyperliquidAccountDataMapper:
             size_str = getattr(position_info, "szi", "0")
             size = parse_decimal_value(size_str, allow_none=False, field_name="position.szi")
 
-            if size is None:
-                raise TransformationError("Position size is required")
+            # Validate position size
+            HyperliquidAccountDataMapper._validate_position_size(size, "position transformation")
 
             # Parse entry price
             entry_price_str = getattr(position_info, "entry_px", None)
@@ -868,12 +1088,8 @@ class HyperliquidAccountDataMapper:
                         error=str(e),
                     )
 
-            # For non-zero positions, entry price must be valid and positive
-            if size != Decimal(0) and (entry_price is None or entry_price <= Decimal(0)):
-                raise TransformationError(
-                    f"Invalid or zero entry price for non-zero position {symbol}: "
-                    f"{entry_price_str}",
-                )
+            # Validate position data consistency
+            HyperliquidAccountDataMapper._validate_position_data(symbol, size, entry_price)
 
             # For zero positions, entry price must be None per domain model rules
             if size == Decimal(0):
@@ -917,6 +1133,15 @@ class HyperliquidAccountDataMapper:
             )
 
             # Determine side based on position size
+            # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
+            if size is None:
+                raise DataTransformationError(
+                    source_model="position.szi",
+                    target_model="Decimal",
+                    reason="size should not be None after parsing with allow_none=False",
+                    source_data=getattr(position_info, "szi", "0")
+                )
+            
             if size > Decimal(0):
                 side = OrderSide.BUY
             elif size < Decimal(0):
@@ -949,7 +1174,12 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(f"Failed to transform raw position to internal: {e}") from e
+            raise DataTransformationError(
+                source_model="raw position",
+                target_model="DerivativePosition",
+                reason=str(e),
+                original_error=e,
+            ) from e
 
     @staticmethod
     def transform_ws_position_update_to_internal_position(
@@ -983,8 +1213,11 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform WebSocket position update to internal: {e}",
+            raise DataTransformationError(
+                source_model="HyperliquidRawWsPositionUpdateEvent",
+                target_model="DerivativePosition",
+                reason=str(e),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -1036,6 +1269,9 @@ class HyperliquidAccountDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform account settings update to internal: {e}",
+            raise DataTransformationError(
+                source_model="UpdateAccountSettingsArgs",
+                target_model="AccountSettings",
+                reason=str(e),
+                original_error=e,
             ) from e

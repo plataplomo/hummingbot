@@ -12,7 +12,6 @@ from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
@@ -21,6 +20,7 @@ from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.authentication import InvalidPrivateKeyError
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_market_constraints,
     get_minimal_order_size,

@@ -73,6 +73,12 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.market.order_book import OrderBook
+from cyberdelta.exceptions import (
+    MissingRequiredFieldError,
+    OrderError,
+    SymbolNotFoundError,
+)
+from cyberdelta.exceptions.trading import MarketClosedError
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
@@ -715,10 +721,7 @@ class HyperliquidTradingService:
         for order_args in orders:
             asset_index = await self._get_asset_index_callable(order_args.symbol)
             if asset_index is None:
-                raise APIError(
-                    f"Asset index for {order_args.symbol} not found.",
-                    APIErrorCode.INVALID_SYMBOL.value,
-                )
+                raise SymbolNotFoundError(symbol=order_args.symbol, exchange="Hyperliquid")
 
             orders_with_indices.append((order_args, asset_index))
 
@@ -867,9 +870,9 @@ class HyperliquidTradingService:
             return {"filled": status_raw.filled}
         if status_raw.error:
             return {"error": status_raw.error}
-        raise APIError(
-            f"Unknown status structure for {action_description}",
-            APIErrorCode.INVALID_RESPONSE.value,
+        raise OrderError(
+            message=f"Unknown status structure for {action_description}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     def _process_dict_resting_status(
@@ -884,10 +887,9 @@ class HyperliquidTradingService:
         """
         oid = status_raw["resting"].get("oid")
         if not isinstance(oid, int):
-            raise APIError(
-                f"Invalid or missing 'oid' in resting status for {action_description}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                metadata={"raw_status": status_raw},
+            raise OrderError(
+                message=f"Invalid or missing 'oid' in resting status for {action_description}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
         return {"resting": HyperliquidRawExchangeStatusResting(oid=oid)}
 
@@ -907,17 +909,15 @@ class HyperliquidTradingService:
         avg_px = filled_details.get("avgPx")
 
         if not isinstance(oid, int):
-            raise APIError(
-                f"Invalid or missing 'oid' in filled status for {action_description}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                metadata={"raw_status": status_raw},
+            raise OrderError(
+                message=f"Invalid or missing 'oid' in filled status for {action_description}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
         if not isinstance(total_sz, str) or not isinstance(avg_px, str):
-            raise APIError(
-                f"Invalid filled status data for {action_description}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                metadata={"raw_status": status_raw},
+            raise OrderError(
+                message=f"Invalid filled status data for {action_description}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
         return {
@@ -940,10 +940,9 @@ class HyperliquidTradingService:
         """
         oid = status_raw["canceled"].get("oid")
         if not isinstance(oid, int):
-            raise APIError(
-                f"Invalid or missing 'oid' in canceled status for {action_description}",
-                APIErrorCode.INVALID_RESPONSE.value,
-                metadata={"raw_status": status_raw},
+            raise OrderError(
+                message=f"Invalid or missing 'oid' in canceled status for {action_description}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
         return {"canceled": {"oid": oid}}
 
@@ -1027,9 +1026,9 @@ class HyperliquidTradingService:
             return self._process_string_status(status_raw, action_description)
 
         # Unknown status type
-        raise APIError(
-            f"Unknown status structure for {action_description}: {status_raw!r}",
-            APIErrorCode.INVALID_RESPONSE.value,
+        raise OrderError(
+            message=f"Unknown status structure for {action_description}: {status_raw!r}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     def _check_error_response(
@@ -1085,9 +1084,9 @@ class HyperliquidTradingService:
             if "filled" in processed_status:
                 return await self._handle_filled_order(processed_status["filled"], args)
             if "canceled" in processed_status:
-                raise APIError(
-                    f"Order was canceled unexpectedly: {processed_status}",
-                    APIErrorCode.UNKNOWN.value,
+                raise OrderError(
+                    message=f"Order was canceled unexpectedly: {processed_status}",
+                    code=APIErrorCode.UNKNOWN.value,
                 )
 
         error_msg_place_order_failed = "Failed to place order or parse response."
@@ -1197,9 +1196,10 @@ class HyperliquidTradingService:
                 field_name="avgPx",
             )
             return internal_order
-        raise APIError(
-            f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
-            APIErrorCode.UNKNOWN.value,
+        raise OrderError(
+            message=f"Order filled (OID {filled_oid}) but failed to re-fetch details.",
+            code=APIErrorCode.UNKNOWN.value,
+            order_id=str(filled_oid),
         )
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
@@ -1248,9 +1248,9 @@ class HyperliquidTradingService:
         response_data = raw_exchange_response.response_data
 
         if not response_data or not response_data.statuses:
-            raise APIError(
-                "Invalid batch order response: missing status data",
-                APIErrorCode.INVALID_RESPONSE.value,
+            raise OrderError(
+                message="Invalid batch order response: missing status data",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
         self._validate_batch_response_counts(response_data, original_orders)
@@ -1280,10 +1280,10 @@ class HyperliquidTradingService:
         order_count = len(original_orders)
 
         if status_count > order_count:
-            raise APIError(
-                f"Batch response has more statuses ({status_count}) "
-                f"than orders sent ({order_count})",
-                APIErrorCode.INVALID_RESPONSE.value,
+            raise OrderError(
+                message=f"Batch response has more statuses ({status_count}) "
+                       f"than orders sent ({order_count})",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
         if status_count < order_count:
             logger.warning(
@@ -1374,16 +1374,11 @@ class HyperliquidTradingService:
         """Handle batch order failures by raising appropriate error."""
         if failed_orders:
             error_details = "; ".join([f"Order {i + 1}: {error}" for i, error in failed_orders])
-            raise APIError(
-                f"Batch order placement partially failed. "
-                f"Successful: {len(placed_orders)}/{len(original_orders)}. "
-                f"Failures: {error_details}",
-                APIErrorCode.EXCHANGE_SPECIFIC.value,
-                metadata={
-                    "successful_orders": len(placed_orders),
-                    "total_orders": len(original_orders),
-                    "failed_orders": failed_orders,
-                },
+            raise OrderError(
+                message=f"Batch order placement partially failed. "
+                       f"Successful: {len(placed_orders)}/{len(original_orders)}. "
+                       f"Failures: {error_details}",
+                code=APIErrorCode.EXCHANGE_SPECIFIC.value,
             )
 
     async def cancel_batch_orders(
@@ -1445,10 +1440,10 @@ class HyperliquidTradingService:
 
         # Validate status count matches cancel count
         if len(response_data.statuses) != len(original_cancel_args):
-            raise APIError(
-                f"Batch cancel response status count ({len(response_data.statuses)}) "
-                f"doesn't match cancel count ({len(original_cancel_args)})",
-                APIErrorCode.INVALID_RESPONSE.value,
+            raise OrderError(
+                message=f"Batch cancel response status count ({len(response_data.statuses)}) "
+                       f"doesn't match cancel count ({len(original_cancel_args)})",
+                code=APIErrorCode.INVALID_RESPONSE.value,
             )
 
         # Process each cancellation status individually
@@ -1778,10 +1773,7 @@ class HyperliquidTradingService:
 
             asset_index = await self._get_asset_index_callable(symbol)
             if asset_index is None:
-                raise APIError(
-                    f"Asset index for {symbol} not found for cancellation.",
-                    APIErrorCode.INVALID_SYMBOL.value,
-                )
+                raise SymbolNotFoundError(symbol=symbol, exchange="Hyperliquid")
 
             cancel_items.append((asset_index, order_id_int))
 
@@ -1794,17 +1786,15 @@ class HyperliquidTradingService:
             Tuple of (symbol, order_id as int).
         """
         if args.symbol is None:
-            raise APIError(
-                "Symbol is required for order cancellation",
-                APIErrorCode.INVALID_PARAMS.value,
-            )
+            raise MissingRequiredFieldError("symbol", "order cancellation")
         symbol = args.symbol
         try:
             order_id_int = int(args.order_id)
         except ValueError as e:
-            raise APIError(
-                f"Invalid order ID format: {args.order_id}",
-                APIErrorCode.INVALID_PARAMS.value,
+            raise OrderError(
+                message=f"Invalid order ID format: {args.order_id}",
+                code=APIErrorCode.INVALID_PARAMS.value,
+                order_id=args.order_id,
             ) from e
         return symbol, order_id_int
 
@@ -2384,10 +2374,7 @@ class HyperliquidTradingService:
         # Validate symbol before proceeding (same validation as regular orders)
         asset_index = await self._get_asset_index_callable(args.symbol)
         if asset_index is None:
-            raise APIError(
-                f"Asset index for {args.symbol} not found.",
-                APIErrorCode.INVALID_SYMBOL.value,
-            )
+            raise SymbolNotFoundError(symbol=args.symbol, exchange="Hyperliquid")
 
         # Get order book using existing infrastructure
         order_book = await self._get_order_book_for_thin_market_order(args.symbol)
@@ -2397,18 +2384,20 @@ class HyperliquidTradingService:
 
         if args.side == OrderSide.BUY:
             if not order_book.asks:
-                raise APIError(
-                    f"No ask levels available for market buy of {args.symbol}",
-                    APIErrorCode.ORDER_REJECTED.value,
+                raise MarketClosedError(
+                    symbol=args.symbol,
+                    exchange="Hyperliquid",
+                    reason="No ask levels available for market buy"
                 )
             # Use the 3rd ask level (or best available) to ensure aggressive fill
             ask_index = min(2, len(order_book.asks) - 1)  # Index 2 = 3rd level
             aggressive_price = order_book.asks[ask_index][0]
         else:  # SELL
             if not order_book.bids:
-                raise APIError(
-                    f"No bid levels available for market sell of {args.symbol}",
-                    APIErrorCode.ORDER_REJECTED.value,
+                raise MarketClosedError(
+                    symbol=args.symbol,
+                    exchange="Hyperliquid",
+                    reason="No bid levels available for market sell"
                 )
             # Use the 3rd bid level (or best available) to ensure aggressive fill
             bid_index = min(2, len(order_book.bids) - 1)  # Index 2 = 3rd level

@@ -53,6 +53,7 @@ from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
     CandleTransformationError,
+    DataTransformationError,
     FundingRateTransformationError,
     MarketTransformationError,
     MissingRequiredFieldError,
@@ -119,6 +120,7 @@ class BackpackMarketDataMapper:
             TransformationError: If transformation fails
 
         """
+        symbol = symbol_override  # Initialize for exception handling
         try:
             # Use symbol override if provided, otherwise use raw ticker symbol
             symbol = symbol_override or raw_ticker.symbol
@@ -399,10 +401,18 @@ class BackpackMarketDataMapper:
         Raises:
             MissingRequiredFieldError: If required fields are missing
         """
+        # Type assertion: ensure price is compatible with parse_decimal_value
+        if not isinstance(price, (str, float, int, type(None))):
+            # Convert to string for parsing
+            price = str(price) if price is not None else None
         parsed_price = parse_decimal_value(price, allow_none=False, field_name="price")
         if parsed_price is None:
             raise MissingRequiredFieldError("price", context)
             
+        # Type assertion: ensure quantity is compatible with parse_decimal_value
+        if not isinstance(quantity, (str, float, int, type(None))):
+            # Convert to string for parsing
+            quantity = str(quantity) if quantity is not None else None
         parsed_quantity = parse_decimal_value(
             quantity,
             allow_none=False,
@@ -436,7 +446,7 @@ class BackpackMarketDataMapper:
             MissingRequiredFieldError: If any OHLCV value is None
         """
         if any(val is None for val in [open_price, high_price, low_price, close_price, volume]):
-            missing_fields = []
+            missing_fields: list[str] = []
             if open_price is None:
                 missing_fields.append("open_price")
             if high_price is None:
@@ -724,6 +734,15 @@ class BackpackMarketDataMapper:
             BackpackMarketDataMapper._validate_funding_timestamp(
                 timestamp, "BackpackRawFundingIntervalRate"
             )
+            
+            # Type assertion: timestamp should not be None after validation
+            if timestamp is None:
+                raise DataTransformationError(
+                    source_model="BackpackRawFundingRate.time",
+                    target_model="datetime",
+                    reason="timestamp should not be None after validation",
+                    source_data=raw_funding.time
+                )
 
             # Create BP-specific details
             details = BackpackFundingDetails()

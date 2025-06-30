@@ -51,6 +51,7 @@ from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
     CandleTransformationError,
+    DataTransformationError,
     FundingRateTransformationError,
     MarketTransformationError,
     MissingRequiredFieldError,
@@ -119,6 +120,13 @@ class HyperliquidMarketDataMapper:
             raise MissingRequiredFieldError("mark_px", context)
         if name is None:
             raise MissingRequiredFieldError("name", context)
+        if not isinstance(name, str):
+            raise DataTransformationError(
+                source_model="asset_ctx",
+                target_model="ticker",
+                reason=f"Expected name to be str, got {type(name).__name__}",
+                source_data={"name": name}
+            )
         return mark_px, name
 
     @staticmethod
@@ -370,6 +378,22 @@ class HyperliquidMarketDataMapper:
                 price, quantity, "HyperliquidRawPublicTrade"
             )
 
+            # Type assertion: parse_decimal_value with allow_none=False guarantees non-None result
+            if price is None:
+                raise DataTransformationError(
+                    source_model="public_trade.px",
+                    target_model="Decimal",
+                    reason="price should not be None after parsing with allow_none=False",
+                    source_data=raw_trade.px
+                )
+            if quantity is None:
+                raise DataTransformationError(
+                    source_model="public_trade.sz",
+                    target_model="Decimal", 
+                    reason="quantity should not be None after parsing with allow_none=False",
+                    source_data=raw_trade.sz
+                )
+
             # Check for zero or negative values - return None for invalid trades
             # Also filter out extremely small quantities that are not meaningful for trading
             min_quantity_threshold = Decimal("0.000001")  # 1 micro unit minimum
@@ -585,6 +609,8 @@ class HyperliquidMarketDataMapper:
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_item.time, field_name="time")
+            if timestamp is None:
+                raise MissingRequiredFieldError("time", "HyperliquidRawFundingHistoryItem")
             
             # Validate funding data
             HyperliquidMarketDataMapper._validate_funding_data(
@@ -773,7 +799,7 @@ class HyperliquidMarketDataMapper:
         volume: Decimal | None,
     ) -> None:
         """Validate that all candle prices are non-None after parsing."""
-        missing_fields = []
+        missing_fields: list[str] = []
         if open_price is None:
             missing_fields.append("open_price")
         if high_price is None:
@@ -1064,7 +1090,7 @@ class HyperliquidMarketDataMapper:
     @staticmethod
     def _validate_asset_definition_data(
         step_size_parsed: object, asset_name: str
-    ) -> object:
+    ) -> Decimal:
         """Validate asset definition data.
         
         Args:
@@ -1072,15 +1098,23 @@ class HyperliquidMarketDataMapper:
             asset_name: Asset name for context
             
         Returns:
-            object: Validated step size
+            Decimal: Validated step size
             
         Raises:
             MissingRequiredFieldError: If step size is invalid
+            DataTransformationError: If step size is not a Decimal
         """
         if step_size_parsed is None:
             raise MissingRequiredFieldError(
                 "sz_decimals",
                 f"asset definition for {asset_name}"
+            )
+        if not isinstance(step_size_parsed, Decimal):
+            raise DataTransformationError(
+                source_model="asset_definition",
+                target_model="step_size",
+                reason=f"Expected Decimal, got {type(step_size_parsed).__name__}",
+                source_data={"step_size": step_size_parsed, "asset_name": asset_name}
             )
         return step_size_parsed
 

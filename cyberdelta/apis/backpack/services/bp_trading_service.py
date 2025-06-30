@@ -40,6 +40,14 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.exceptions import (
+    MissingRequiredFieldError,
+)
+from cyberdelta.exceptions.service_validation import (
+    IntegerConversionError,
+    OrderParameterError,
+)
+from cyberdelta.exceptions.trading import OrderNotFoundError
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 
@@ -176,8 +184,11 @@ class BackpackTradingService:
             OrderType.TAKE_PROFIT_LIMIT,
         ]
         if args.order_type not in supported_order_types:
-            raise ValueError(
-                f"[{current_method}] Unsupported order type for Backpack: {args.order_type.value}",
+            raise OrderParameterError(
+                parameter="order_type",
+                value=args.order_type.value,
+                valid_values=[ot.value for ot in supported_order_types],
+                exchange="Backpack",
             )
 
         # Validate time in force for limit orders
@@ -185,9 +196,12 @@ class BackpackTradingService:
             supported_tif = [TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK]
             if args.time_in_force not in supported_tif:
                 supported_values = [tif.value for tif in supported_tif]
-                raise ValueError(
-                    f"[{current_method}] Unsupported time in force for limit orders: "
-                    f"{args.time_in_force.value}. Supported: {supported_values}",
+                raise OrderParameterError(
+                    parameter="time_in_force",
+                    value=args.time_in_force.value,
+                    valid_values=supported_values,
+                    exchange="Backpack",
+                    context="limit orders",
                 )
 
         # Validate client_order_id can be converted to int if provided
@@ -195,9 +209,8 @@ class BackpackTradingService:
             try:
                 int(args.client_order_id)
             except ValueError as e:
-                raise ValueError(
-                    f"[{current_method}] client_order_id must be convertible to integer, "
-                    f"got: {args.client_order_id}",
+                raise IntegerConversionError(
+                    field="client_order_id", value=args.client_order_id, original_exception=e
                 ) from e
 
         # Validate reduce_only is not supported (log warning)
@@ -398,13 +411,20 @@ class BackpackTradingService:
 
         # For Backpack, symbol is required
         if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' is required for Backpack.")
+            raise MissingRequiredFieldError(
+                field="symbol", exchange="Backpack", operation="cancel order"
+            )
 
         # Business Logic Pre-Validation (moved from RequestBuilder)
         # For Backpack, either order_id or client_order_id must be provided, but not both
         # Since this method only accepts order_id, we validate it's provided and non-empty
         if not order_id.strip():
-            raise ValueError(f"[{current_method}] 'order_id' cannot be empty or whitespace only.")
+            raise MissingRequiredFieldError(
+                field="order_id",
+                exchange="Backpack",
+                operation="cancel order",
+                reason="cannot be empty or whitespace only",
+            )
 
     async def _execute_cancel_order_request(
         self,
@@ -414,7 +434,9 @@ class BackpackTradingService:
         """Execute the cancel order API request and process the response."""
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to request builder
         if args.symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' is required for Backpack.")
+            raise MissingRequiredFieldError(
+                field="symbol", exchange="Backpack", operation="cancel order"
+            )
 
         endpoint = "/api/v1/order"
         payload = self._request_builder.build_cancel_order_payload(
@@ -457,7 +479,9 @@ class BackpackTradingService:
 
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to response handler
         if symbol is None:
-            raise ValueError("Symbol is required for cancel order response processing.")
+            raise MissingRequiredFieldError(
+                field="symbol", exchange="Backpack", operation="cancel order response processing"
+            )
 
         return self._response_handler.handle_cancel_order_response(
             raw_response_content=validated_data,
@@ -501,8 +525,11 @@ class BackpackTradingService:
         current_method = frame.f_code.co_name if frame is not None else "get_open_orders"
 
         if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
+            raise MissingRequiredFieldError(
+                field="symbol",
+                exchange="Backpack",
+                operation="get all open orders",
+                reason="must be a non-empty string when provided",
             )
 
         # Initialize context for error handling
@@ -678,16 +705,40 @@ class BackpackTradingService:
         """Validate get order parameters for Backpack exchange."""
         # Backpack requires symbol for its GET /order/{id} endpoint
         if args.symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' parameter is required for Backpack.")
+            raise MissingRequiredFieldError(
+                field="symbol", exchange="Backpack", operation="get order"
+            )
         if not args.symbol:
-            raise ValueError(f"[{current_method}] 'symbol' must be a non-empty string.")
+            raise MissingRequiredFieldError(
+                field="symbol",
+                exchange="Backpack",
+                operation="get order",
+                reason="must be a non-empty string",
+            )
+
+    def _validate_order_exists(self, order: Order | None, args: GetOrderArgs) -> None:
+        """Validate that an order was found, raise OrderNotFoundError if not."""
+        if order is None:
+            identifier = (
+                args.client_order_id
+                if not args.order_id and args.client_order_id
+                else args.order_id
+            )
+            raise OrderNotFoundError(
+                order_id=identifier, symbol=args.symbol, exchange=self._exchange_name
+            )
 
     def _determine_order_identifier(self, args: GetOrderArgs) -> str:
         """Determine which identifier to use for the order lookup."""
         if not args.order_id and args.client_order_id:
             return args.client_order_id
         if not args.order_id and not args.client_order_id:
-            raise ValueError("Either order_id or client_order_id must be provided.")
+            raise MissingRequiredFieldError(
+                field="order_id or client_order_id",
+                exchange="Backpack",
+                operation="get order",
+                reason="at least one identifier must be provided",
+            )
         return args.order_id
 
     async def _execute_get_order_request(
@@ -700,7 +751,9 @@ class BackpackTradingService:
 
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to request builder
         if args.symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' is required for Backpack.")
+            raise MissingRequiredFieldError(
+                field="symbol", exchange="Backpack", operation="cancel order"
+            )
 
         endpoint = f"/api/v1/order/{identifier}"
         params = self._request_builder.build_get_order_params(
@@ -831,7 +884,9 @@ class BackpackTradingService:
         current_method = frame.f_code.co_name if frame is not None else "get_order_status"
 
         if args.symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' parameter is required for Backpack.")
+            raise MissingRequiredFieldError(
+                field="symbol", exchange="Backpack", operation="get order"
+            )
 
         # Initialize context for error handling
         status_code: int = 0
@@ -840,17 +895,11 @@ class BackpackTradingService:
         try:
             # Core operational logic
             order = await self.get_order(args=args)
+            self._validate_order_exists(order, args)
+            # After validation, order is guaranteed to be not None
             if order is None:
-                identifier = (
-                    args.client_order_id
-                    if not args.order_id and args.client_order_id
-                    else args.order_id
-                )
-                raise APIError(
-                    f"Order {identifier} for symbol {args.symbol} not found on "
-                    f"{self._exchange_name}.",
-                    code=APIErrorCode.ORDER_NOT_FOUND.value,
-                )
+                msg = "Order should not be None after validation"
+                raise RuntimeError(msg)
 
         except APIError:
             # Re-raise APIErrors from get_order method or self-raised
@@ -980,10 +1029,19 @@ class BackpackTradingService:
         """Validate cancel all orders parameters for Backpack exchange."""
         # Business Logic Pre-Validation (moved from RequestBuilder)
         if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' is required for cancel all orders.")
+            raise MissingRequiredFieldError(
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel all orders"
+            )
 
         if not symbol.strip():
-            raise ValueError(f"[{current_method}] 'symbol' cannot be empty or whitespace only.")
+            raise MissingRequiredFieldError(
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel all orders",
+                reason="cannot be empty or whitespace only"
+            )
 
     async def _execute_cancel_all_orders_request(
         self,
@@ -993,7 +1051,11 @@ class BackpackTradingService:
         """Execute the cancel all orders API request and process the response."""
         # DEFENSIVE CHECK: Ensure symbol is not None before proceeding
         if symbol is None:
-            raise ValueError(f"[{current_method}] 'symbol' is required for cancel all orders.")
+            raise MissingRequiredFieldError(
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel all orders"
+            )
 
         endpoint = "/api/v1/orders"
         # Backpack's Cancel All Orders: DELETE /api/v1/orders with symbol query parameter

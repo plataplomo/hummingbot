@@ -78,9 +78,15 @@ class MissingRequiredFieldError(MappingError):
 
     def __init__(
         self,
-        field_names: str | list[str],
+        field_names: str | list[str] | None = None,
         context: str | None = None,
         source_data: dict[str, object] | None = None,
+        *,
+        field: str | None = None,
+        exchange: str | None = None,
+        operation: str | None = None,
+        reason: str | None = None,
+        **kwargs: object,
     ) -> None:
         """Initialize missing required field error.
 
@@ -88,15 +94,38 @@ class MissingRequiredFieldError(MappingError):
             field_names: Name(s) of missing field(s)
             context: Context where fields are required
             source_data: The source data being transformed
+            field: Single field name (alias for field_names)
+            exchange: Exchange name
+            operation: Operation being performed
+            reason: Additional reason
+            **kwargs: Additional context
         """
+        # Use field if provided and field_names is not
+        if field_names is None and field:
+            field_names = field
+        elif field_names is None:
+            field_names = "unknown field"
+            
         if isinstance(field_names, list):
             fields_str = ", ".join(field_names)
             message = f"{fields_str} are required"
         else:
             message = f"{field_names} is required"
         
+        # Build context from multiple sources
+        context_parts: list[str] = []
+        if operation:
+            context_parts.append(operation)
+        if exchange:
+            context_parts.append(f"on {exchange}")
         if context:
-            message = f"{message} for {context}"
+            context_parts.append(context)
+        
+        if context_parts:
+            message = f"{message} for {' '.join(context_parts)}"
+            
+        if reason:
+            message = f"{message} ({reason})"
         
         super().__init__(
             message=message,
@@ -105,10 +134,18 @@ class MissingRequiredFieldError(MappingError):
             details={
                 "missing_fields": field_names if isinstance(field_names, list) else [field_names],
                 "context": context,
+                "exchange": exchange,
+                "operation": operation,
+                "reason": reason,
+                **kwargs,
             },
         )
         self.field_names = field_names
         self.context = context
+        self.field = field
+        self.exchange = exchange
+        self.operation = operation
+        self.reason = reason
 
 
 class DataTransformationError(MappingError):
@@ -375,7 +412,10 @@ class TradeTransformationError(MappingError):
             source_data: The source trade data
         """
         if symbol and trade_id:
-            message = f"Failed to transform {trade_source} to Trade for {symbol} (ID: {trade_id}): {reason}"
+            message = (
+                f"Failed to transform {trade_source} to Trade for {symbol} "
+                f"(ID: {trade_id}): {reason}"
+            )
         elif symbol:
             message = f"Failed to transform {trade_source} to Trade for {symbol}: {reason}"
         elif trade_id:
@@ -458,7 +498,10 @@ class CandleTransformationError(MappingError):
             source_data: The source kline data
         """
         if symbol and interval:
-            message = f"Failed to transform BackpackRawKline to Candle for {symbol} ({interval}): {reason}"
+            message = (
+                f"Failed to transform BackpackRawKline to Candle for {symbol} "
+                f"({interval}): {reason}"
+            )
         elif symbol:
             message = f"Failed to transform BackpackRawKline to Candle for {symbol}: {reason}"
         else:

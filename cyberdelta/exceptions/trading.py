@@ -222,6 +222,8 @@ class MarketClosedError(TradingError):
         symbol: str,
         market_state: str | None = None,
         next_open: str | None = None,
+        exchange: str | None = None,
+        reason: str | None = None,
     ) -> None:
         """Initialize market closed error.
 
@@ -229,16 +231,27 @@ class MarketClosedError(TradingError):
             symbol: Trading symbol
             market_state: Current market state
             next_open: When market will open next
+            exchange: Optional exchange name
+            reason: Optional specific reason for market being closed
         """
         self.symbol = symbol
         self.market_state = market_state
         self.next_open = next_open
+        self.exchange = exchange
+        self.reason = reason
 
-        message = f"Market closed for {symbol}"
+        # Build message based on available information
+        if reason:
+            message = f"Market operation failed for {symbol}: {reason}"
+        else:
+            message = f"Market closed for {symbol}"
+            
         if market_state:
             message = f"{message} (state: {market_state})"
         if next_open:
             message = f"{message}, opens at {next_open}"
+        if exchange:
+            message = f"{message} on {exchange}"
 
         super().__init__(
             message=message,
@@ -247,6 +260,8 @@ class MarketClosedError(TradingError):
                 "symbol": symbol,
                 "market_state": market_state,
                 "next_open": next_open,
+                "exchange": exchange,
+                "reason": reason,
             },
         )
 

@@ -47,27 +47,53 @@ class OrderParameterError(ServiceValidationError):
 
     def __init__(
         self,
-        field_name: str,
-        reason: str,
-        order_type: str | None = None,
+        *,
+        parameter: str | None = None,
+        field_name: str | None = None,
+        value: object = None,
+        valid_values: list[str] | None = None,
+        exchange: str | None = None,
+        context: str | None = None,
+        reason: str | None = None,
         **kwargs: object,
     ) -> None:
         """Initialize order parameter error.
 
         Args:
+            parameter: Name of the invalid parameter (alias for field_name)
             field_name: Name of the invalid parameter
+            value: The invalid value
+            valid_values: List of valid values
+            exchange: Exchange name
+            context: Additional context
             reason: Why the parameter is invalid
-            order_type: Type of order being placed
             **kwargs: Additional context
         """
-        self.order_type = order_type
+        # Use parameter if provided, fallback to field_name
+        actual_field_name = parameter or field_name
         
-        message = f"{reason} for {order_type} orders" if order_type else reason
+        # Build message based on available information
+        if valid_values and value:
+            message = f"Invalid {actual_field_name}: '{value}'. Valid values: {valid_values}"
+        elif reason:
+            message = reason
+        else:
+            message = f"Invalid parameter: {actual_field_name}"
+            
+        if context:
+            message = f"{message} (context: {context})"
+        if exchange:
+            message = f"{message} for {exchange}"
             
         super().__init__(
             message=message,
-            field_name=field_name,
-            order_type=order_type,
+            field_name=actual_field_name,
+            field_value=value,
+            parameter=parameter,
+            value=value,
+            valid_values=valid_values,
+            exchange=exchange,
+            context=context,
             reason=reason,
             **kwargs,
         )
@@ -189,22 +215,38 @@ class IntegerConversionError(ServiceValidationError):
 
     def __init__(
         self,
-        field_name: str,
-        value: object,
+        *,
+        field: str | None = None,
+        field_name: str | None = None,
+        value: object = None,
         reason: str = "could not be converted to int",
+        original_exception: Exception | None = None,
+        **kwargs: object,
     ) -> None:
         """Initialize integer conversion error.
 
         Args:
+            field: Name of the field (alias for field_name)
             field_name: Name of the field
             value: The value that failed conversion
             reason: Optional specific reason
+            original_exception: The original exception that caused the conversion failure
+            **kwargs: Additional context
         """
+        # Use field if provided, fallback to field_name
+        actual_field_name = field or field_name
+        
+        message = f"{actual_field_name} '{value}' {reason}"
+        
         super().__init__(
-            message=f"Field '{field_name}' {reason}: {value}",
-            field_name=field_name,
+            message=message,
+            field_name=actual_field_name,
             field_value=value,
+            field=field,
+            original_exception=original_exception,
             attempted_type="integer",
+            reason=reason,
+            **kwargs,
         )
 
 
