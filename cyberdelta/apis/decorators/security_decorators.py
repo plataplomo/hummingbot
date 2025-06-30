@@ -170,7 +170,7 @@ def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]
                     raise FieldTypeError(
                         field_name=field,
                         expected_type="numeric",
-                        actual_type=type(raw_value),
+                        actual_type=type(raw_value).__name__,
                     )
                 value = parse_decimal_value(raw_value, allow_none=False, field_name=field)
                 if value is not None and value < 0:
@@ -559,14 +559,14 @@ def secure_mapped_response(
                     return result
                 raise InvalidMapperResultError(
                     expected_type="BaseModel",
-                    actual_type=type(result),
+                    actual_type=type(result).__name__,
                 )
             result = await mapper_func(validated_raw)
             if isinstance(result, BaseModel):
                 return result
             raise InvalidMapperResultError(
                 expected_type="BaseModel",
-                actual_type=type(result),
+                actual_type=type(result).__name__,
             )
 
         return wrapper

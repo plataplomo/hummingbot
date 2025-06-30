@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from pydantic import ValidationError
 
@@ -73,6 +73,16 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.account_settings import AccountSettings
 from cyberdelta.core.models.operations import Transfer, Withdrawal  # If HL supports these
+from cyberdelta.exceptions import (
+    EmptyResponseError,
+    EmptyStringParameterError,
+    RequiredParameterError,
+    UnreachableCodeError,
+)
+from cyberdelta.exceptions.response_validation import (
+    InvalidLeverageError,
+    NotImplementedOperationError,
+)
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -215,15 +225,8 @@ class HyperliquidAccountService:
                     ) from None
                 raw_data = validated_list
 
-            # The response handler will validate the structure, but we need to ensure
-            # we're passing the right part of the response. Hyperliquid returns user state
-            # as a list with one dict element.
-            if len(raw_data) == 0:
-                raise APIError(
-                    message="Empty list received for user state response",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            # Validate the response data
+            self._validate_user_state_response(raw_data, status_code)
 
             # Pass the first element directly to the handler
             # The handler will validate it's a dict and has the correct structure
@@ -374,8 +377,9 @@ class HyperliquidAccountService:
         current_method = frame.f_code.co_name if frame is not None else "get_positions"
 
         if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{current_method}] 'symbol' must be a non-empty string when provided.",
+            raise EmptyStringParameterError(
+                parameter_name="symbol",
+                method_name=current_method,
             )
 
         # Initialize context for error handling
@@ -694,14 +698,43 @@ class HyperliquidAccountService:
             )
 
         # DEFENSIVE CHECK: This should never be reached as all error handlers raise exceptions
-        raise AssertionError("Unreachable code: all error handlers should raise exceptions")
+        raise UnreachableCodeError()
+
+    def _validate_user_state_response(self, raw_data: list[Any], status_code: int) -> None:
+        """Validate user state response data.
+
+        Args:
+            raw_data: The raw response data
+            status_code: HTTP status code
+
+        Raises:
+            EmptyResponseError: If the response is empty
+        """
+        # The response handler will validate the structure, but we need to ensure
+        # we're passing the right part of the response. Hyperliquid returns user state
+        # as a list with one dict element.
+        if len(raw_data) == 0:
+            raise EmptyResponseError(
+                response_type="list",
+                operation="user state response",
+                http_status=status_code,
+                exchange=self._exchange_name,
+            )
 
     def _validate_order_history_args(self, args: GetOrderHistoryArgs) -> None:
         """Validate order history arguments."""
         if not args.start_time:
-            raise ValueError("'start_time' is required for Hyperliquid.")
+            raise RequiredParameterError(
+                parameter="start_time",
+                context="order history",
+                exchange="Hyperliquid",
+            )
         if not args.end_time:
-            raise ValueError("'end_time' is required for Hyperliquid.")
+            raise RequiredParameterError(
+                parameter="end_time",
+                context="order history",
+                exchange="Hyperliquid",
+            )
 
     async def _fetch_order_history_data(
         self,
@@ -1146,15 +1179,12 @@ class HyperliquidAccountService:
                 raw_response_content,
             ) = await self._fetch_trade_history_data()
 
-            if raw_response_list is None:
-                raise APIError(
-                    message="No data received for trade history",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-
-            validated_fills_response = self._process_trade_history_response(
+            validated_response = self._validate_trade_history_response(
                 raw_response_list,
+                status_code,
+            )
+            validated_fills_response = self._process_trade_history_response(
+                validated_response,
                 status_code,
             )
             internal_trades = self._map_fills_to_internal_trades(
@@ -1214,12 +1244,7 @@ class HyperliquidAccountService:
 
         try:
             # Core operational logic
-            logger.warning(
-                "transfer_not_implemented",
-                message="[%s] transfer functionality may be limited or different for Hyperliquid.",
-                message_args=(self._exchange_name,),
-            )
-            raise NotImplementedError("transfer not yet implemented in HyperliquidAccountService")
+            self._check_transfer_implementation()
 
         except APIError:
             # Re-raise APIErrors from any future implementation
@@ -1299,12 +1324,7 @@ class HyperliquidAccountService:
 
         try:
             # Core operational logic
-            logger.warning(
-                "withdraw_not_implemented",
-                message="[%s] withdraw functionality is complex for Hyperliquid (L1 interaction).",
-                message_args=(self._exchange_name,),
-            )
-            raise NotImplementedError("withdraw not yet implemented in HyperliquidAccountService")
+            self._check_withdraw_implementation()
 
         except APIError:
             # Re-raise APIErrors from any future implementation
@@ -1453,16 +1473,12 @@ class HyperliquidAccountService:
         raw_response_content: str | None = None
 
         try:
-            # Convert Decimal to int for leverage
-            leverage_int = int(args.leverage_limit)
-            if leverage_int < 1 or leverage_int > MAX_LEVERAGE_VALUE:
-                raise APIError(
-                    message=(
-                        f"Invalid leverage value: {leverage_int}. "
-                        f"Must be between 1 and {MAX_LEVERAGE_VALUE}."
-                    ),
-                    code=APIErrorCode.INVALID_REQUEST.value,
-                )
+            # Validate leverage
+            # Convert Decimal to int for leverage validation
+            leverage_int = int(args.leverage_limit) if args.leverage_limit else 0
+            # Validate leverage (use empty string for symbol since
+            # UpdateAccountSettingsArgs doesn't have symbol field)
+            leverage_int = self._validate_leverage(leverage_int, "")
 
             # Get current positions to update leverage for all active assets
             positions: list[DerivativePosition] = []
@@ -1555,3 +1571,67 @@ class HyperliquidAccountService:
                 http_status=status_code if status_code != 0 else None,
                 exchange_message=raw_response_content,
             ) from e
+
+    def _validate_trade_history_response(
+        self,
+        raw_response_list: ParsedJsonResponse | None,
+        status_code: int,
+    ) -> ParsedJsonResponse:
+        """Validate trade history response is not empty.
+
+        Args:
+            raw_response_list: The response from API
+            status_code: HTTP status code
+
+        Returns:
+            Validated response
+
+        Raises:
+            EmptyResponseError: If response is None
+        """
+        if raw_response_list is None:
+            raise EmptyResponseError(
+                response_type="data",
+                operation="trade history",
+                http_status=status_code,
+                exchange=self._exchange_name,
+            )
+        return raw_response_list
+
+    def _check_transfer_implementation(self) -> NoReturn:
+        """Check if transfer is implemented - raises NotImplementedError."""
+        raise NotImplementedOperationError(
+            operation="transfer",
+            service="HyperliquidAccountService",
+            exchange=self._exchange_name,
+        )
+
+    def _check_withdraw_implementation(self) -> NoReturn:
+        """Check if withdraw is implemented - raises NotImplementedError."""
+        raise NotImplementedOperationError(
+            operation="withdraw",
+            service="HyperliquidAccountService",
+            exchange=self._exchange_name,
+        )
+
+    def _validate_leverage(self, leverage: int, symbol: str) -> int:
+        """Validate leverage value is within acceptable range.
+
+        Args:
+            leverage: The leverage value to validate
+            symbol: The symbol for context in error messages
+
+        Returns:
+            The validated leverage value
+
+        Raises:
+            InvalidLeverageError: If leverage is out of range
+        """
+        if leverage < 1 or leverage > MAX_LEVERAGE_VALUE:
+            raise InvalidLeverageError(
+                leverage=leverage,
+                min_leverage=1,
+                max_leverage=MAX_LEVERAGE_VALUE,
+                symbol=symbol,
+            )
+        return leverage

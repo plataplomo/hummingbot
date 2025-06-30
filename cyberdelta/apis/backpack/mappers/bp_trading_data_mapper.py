@@ -23,7 +23,6 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
-from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -34,6 +33,13 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import (
+    InvalidQuantityError,
+    MissingQuantityError,
+    MissingTimestampError,
+    OrderTransformationFailedError,
+    UnknownOrderSideError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -68,7 +74,7 @@ class BackpackTradingDataMapper:
         if side_lower in {"sell", "ask"}:
             return OrderSide.SELL
 
-        raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
+        raise UnknownOrderSideError(bp_side, exchange="Backpack")
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
@@ -205,8 +211,7 @@ class BackpackTradingDataMapper:
                 allow_none=False,
                 field_name="quantity",
             )
-            if quantity_requested is None:
-                raise TransformationError("quantity_requested is required")
+            BackpackTradingDataMapper._validate_quantity_requested(quantity_requested)
 
             # For now, assume no filled quantity available in basic order data
             quantity_filled = Decimal(0)
@@ -255,8 +260,10 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform Backpack order data to Order: {e}",
+            raise OrderTransformationFailedError(
+                source_type="Backpack order data",
+                reason=e,
+                exchange="Backpack",
             ) from e
 
     @staticmethod
@@ -284,7 +291,10 @@ class BackpackTradingDataMapper:
             )
 
         if quantity_requested is None or quantity_requested <= Decimal(0):
-            raise TransformationError("quantity_requested is required and must be > 0")
+            raise InvalidQuantityError(
+                field_name="quantity_requested",
+                value=quantity_requested,
+            )
 
         quantity_filled = parse_decimal_value(
             raw_order.executedQuantity,
@@ -378,7 +388,10 @@ class BackpackTradingDataMapper:
         """
         created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")
         if created_timestamp is None:
-            raise TransformationError("createdAt is required")
+            raise MissingTimestampError(
+                field_name="createdAt",
+                order_id=raw_order.id,
+            )
 
         updated_timestamp = None
         if raw_order.updatedAt:
@@ -536,7 +549,12 @@ class BackpackTradingDataMapper:
                 error=str(e),
                 message=f"Failed to transform order {raw_order.id}: {e}",
             )
-            raise TransformationError(f"Failed to transform BackpackRawOrder to Order: {e}") from e
+            raise OrderTransformationFailedError(
+                source_type="BackpackRawOrder",
+                reason=e,
+                order_id=raw_order.id,
+                exchange="Backpack",
+            ) from e
 
     @staticmethod
     def transform_ws_order_update_to_internal_order(
@@ -643,6 +661,22 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawOrderUpdate to Order: {e}",
+            raise OrderTransformationFailedError(
+                source_type="BackpackRawOrderUpdate",
+                reason=e,
+                order_id=raw_order_update.client_order_id,
+                exchange="Backpack",
             ) from e
+
+    @staticmethod
+    def _validate_quantity_requested(quantity_requested: Decimal | None) -> None:
+        """Validate quantity_requested is not None.
+
+        Args:
+            quantity_requested: The quantity to validate
+
+        Raises:
+            MissingQuantityError: If quantity is None
+        """
+        if quantity_requested is None:
+            raise MissingQuantityError()

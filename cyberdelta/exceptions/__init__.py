@@ -112,6 +112,15 @@ from .request_validation import (
     RequestValidationError,
 )
 
+# Response validation exceptions
+from .response_validation import (
+    EmptyResponseError,
+    InvalidLeverageError,
+    NotImplementedOperationError,
+    ResponseValidationError,
+    UnreachableCodeError,
+)
+
 # Security exceptions
 from .security import (
     FieldConstraintError,
@@ -162,6 +171,24 @@ from .trading import (
     TradingError,
 )
 
+# Trading transformation exceptions
+from .trading_transformation import (
+    InvalidQuantityError,
+    MissingQuantityError,
+    MissingTimestampError,
+    OrderTransformationFailedError,
+    UnknownOrderSideError,
+)
+
+# WebSocket exceptions
+from .websocket import (
+    InvalidWebSocketDataError,
+    UnsupportedWebSocketTopicError,
+    UserEventsSubscriptionError,
+    WebSocketError,
+    WebSocketSubscriptionError,
+)
+
 
 __all__ = [
     # Re-exported existing classes
@@ -185,6 +212,7 @@ __all__ = [
     "DecimalFormatError",
     "DecimalRangeError",
     "DeltaNeutralError",
+    "EmptyResponseError",
     "EmptyStringError",
     "EmptyStringParameterError",
     "EnumFieldError",
@@ -203,10 +231,13 @@ __all__ = [
     "InvalidBatchResponseError",
     "InvalidEnumValueError",
     "InvalidFormatError",
+    "InvalidLeverageError",
     "InvalidMapperResultError",
     "InvalidMappingError",
     "InvalidParameterTypeError",
     "InvalidPrivateKeyError",
+    "InvalidQuantityError",
+    "InvalidWebSocketDataError",
     "KlineTypeError",
     "KlineValueError",
     "MapperNotFoundError",
@@ -215,14 +246,17 @@ __all__ = [
     "MarketDataError",
     "MarketTransformationError",
     "MissingPriceError",
+    "MissingQuantityError",
     "MissingRequiredFieldError",
     "MissingRequiredParameterError",
     "MissingStopPriceError",
+    "MissingTimestampError",
     "MsgpackSerializationError",
     "NegativeValueError",
     "NetworkRequiredError",
     "NonFinitePositionValueError",
     "NonNullableFieldError",
+    "NotImplementedOperationError",
     "OrderBookError",
     "OrderBookTransformationError",
     "OrderError",
@@ -232,6 +266,7 @@ __all__ = [
     "OrderParameterError",
     "OrderSizeError",
     "OrderTransformationError",
+    "OrderTransformationFailedError",
     "ParsingError",
     "PassphraseFieldError",
     "PositionDiscrepancyError",
@@ -249,6 +284,7 @@ __all__ = [
     "RequiredFieldError",
     "RequiredFieldNoneError",
     "RequiredParameterError",
+    "ResponseValidationError",
     "RiskLimitError",
     "SecurityValidationError",
     "ServiceValidationError",
@@ -268,6 +304,12 @@ __all__ = [
     "TypeFieldError",
     "UnknownEndpointError",
     "UnknownEnumError",
+    "UnknownOrderSideError",
+    "UnreachableCodeError",
     "UnsupportedNetworkError",
+    "UnsupportedWebSocketTopicError",
+    "UserEventsSubscriptionError",
+    "WebSocketError",
     "WebSocketSignatureError",
+    "WebSocketSubscriptionError",
 ]

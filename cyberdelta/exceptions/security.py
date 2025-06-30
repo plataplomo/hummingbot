@@ -36,19 +36,20 @@ class FieldTypeError(TypeError):
         self,
         field_name: str,
         expected_type: str,
-        actual_type: type,
+        actual_type: type | str,
     ) -> None:
         """Initialize field type error.
 
         Args:
             field_name: Name of the field with wrong type
             expected_type: Expected type description
-            actual_type: Actual type received
+            actual_type: Actual type received or type name as string
         """
         self.field_name = field_name
         self.expected_type = expected_type
         self.actual_type = actual_type
-        message = f"Field {field_name} must be {expected_type}, got {actual_type.__name__}"
+        type_name = actual_type if isinstance(actual_type, str) else actual_type.__name__
+        message = f"Field {field_name} must be {expected_type}, got {type_name}"
         super().__init__(message)
 
 
@@ -131,15 +132,16 @@ class InvalidMapperResultError(TypeError):
     def __init__(
         self,
         expected_type: str,
-        actual_type: type,
+        actual_type: type | str,
     ) -> None:
         """Initialize invalid mapper result error.
 
         Args:
             expected_type: Expected result type
-            actual_type: Actual result type received
+            actual_type: Actual result type received or type name as string
         """
         self.expected_type = expected_type
         self.actual_type = actual_type
-        message = f"Mapper returned non-{expected_type} type: {actual_type.__name__}"
+        type_name = actual_type if isinstance(actual_type, str) else actual_type.__name__
+        message = f"Mapper returned non-{expected_type} type: {type_name}"
         super().__init__(message)

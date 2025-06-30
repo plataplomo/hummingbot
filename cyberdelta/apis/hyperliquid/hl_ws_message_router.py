@@ -17,7 +17,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler, TransformationError
+from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
 from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
@@ -31,6 +31,12 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import (
+    InvalidWebSocketDataError,
+    UnsupportedWebSocketTopicError,
+    UserEventsSubscriptionError,
+    WebSocketSubscriptionError,
+)
 
 
 # WebSocket subscription parsing constants
@@ -96,53 +102,8 @@ class HyperliquidWsMessageRouter:
             APIError: If topic is not supported by the exchange
 
         """
-        # Parse the topic to determine subscription type and parameters
-        # Hyperliquid topics: "l2Book:ETH", "trades:BTC", "userEvents", "candle:BTC:1m", "allMids"
-        parts = topic.split(":", 2)  # Split into at most 3 parts
-        sub_type = parts[0]
-
-        inner_payload: (
-            HyperliquidRawWsL2BookSubscriptionPayload
-            | HyperliquidRawWsTradesSubscriptionPayload
-            | HyperliquidRawWsUserEventsSubscriptionPayload
-            | HyperliquidRawWsCandleSubscriptionPayload
-            | HyperliquidRawWsAllMidsSubscriptionPayload
-        )
-
         try:
-            if sub_type == "l2Book" and len(parts) >= MIN_PARTS_FOR_COIN_SUBSCRIPTION:
-                coin = parts[1]
-                inner_payload = HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin=coin)
-            elif sub_type == "trades" and len(parts) >= MIN_PARTS_FOR_COIN_SUBSCRIPTION:
-                coin = parts[1]
-                inner_payload = HyperliquidRawWsTradesSubscriptionPayload(type="trades", coin=coin)
-            elif sub_type == "userEvents":
-                if wallet_address is None:
-                    raise ValueError(
-                        "Cannot subscribe to userEvents without wallet address. "
-                        "Ensure private_key is configured in secrets.",
-                    )
-                inner_payload = HyperliquidRawWsUserEventsSubscriptionPayload(
-                    type="userEvents",
-                    user=wallet_address,
-                )
-            elif sub_type == "candle" and len(parts) >= MIN_PARTS_FOR_CANDLE_SUBSCRIPTION:
-                coin = parts[1]
-                interval = parts[2]
-                inner_payload = HyperliquidRawWsCandleSubscriptionPayload(
-                    type="candle",
-                    coin=coin,
-                    interval=interval,
-                )
-            elif sub_type == "allMids":
-                inner_payload = HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
-            else:
-                raise APIError(
-                    f"Unsupported WebSocket topic: {topic}. "
-                    f"Supported formats: 'l2Book:COIN', 'trades:COIN', 'userEvents', "
-                    f"'candle:COIN:INTERVAL', 'allMids'",
-                    code=APIErrorCode.INVALID_PARAMS.value,
-                )
+            inner_payload = self._create_subscription_payload(topic, wallet_address)
 
             # Create the top-level subscription request
             return HyperliquidRawWsSubscribeRequest(
@@ -155,9 +116,59 @@ class HyperliquidWsMessageRouter:
             raise
         except Exception as e:
             # Wrap unexpected exceptions
-            raise ValueError(
-                f"Failed to construct subscription payload for topic '{topic}': {e}",
-            ) from e
+            raise WebSocketSubscriptionError(topic, e) from e
+
+    def _create_subscription_payload(
+        self,
+        topic: str,
+        wallet_address: str | None,
+    ) -> (
+        HyperliquidRawWsL2BookSubscriptionPayload
+        | HyperliquidRawWsTradesSubscriptionPayload
+        | HyperliquidRawWsUserEventsSubscriptionPayload
+        | HyperliquidRawWsCandleSubscriptionPayload
+        | HyperliquidRawWsAllMidsSubscriptionPayload
+    ):
+        """Create the inner subscription payload based on topic.
+
+        Args:
+            topic: The WebSocket topic to subscribe to
+            wallet_address: User's wallet address (required for userEvents)
+
+        Returns:
+            The appropriate subscription payload model
+
+        Raises:
+            UnsupportedWebSocketTopicError: If topic is not supported
+        """
+        # Parse the topic to determine subscription type and parameters
+        # Hyperliquid topics: "l2Book:ETH", "trades:BTC", "userEvents", "candle:BTC:1m", "allMids"
+        parts = topic.split(":", 2)  # Split into at most 3 parts
+        sub_type = parts[0]
+
+        if sub_type == "l2Book" and len(parts) >= MIN_PARTS_FOR_COIN_SUBSCRIPTION:
+            coin = parts[1]
+            return HyperliquidRawWsL2BookSubscriptionPayload(type="l2Book", coin=coin)
+        if sub_type == "trades" and len(parts) >= MIN_PARTS_FOR_COIN_SUBSCRIPTION:
+            coin = parts[1]
+            return HyperliquidRawWsTradesSubscriptionPayload(type="trades", coin=coin)
+        if sub_type == "userEvents":
+            validated_wallet = self._validate_wallet_address(wallet_address)
+            return HyperliquidRawWsUserEventsSubscriptionPayload(
+                type="userEvents",
+                user=validated_wallet,
+            )
+        if sub_type == "candle" and len(parts) >= MIN_PARTS_FOR_CANDLE_SUBSCRIPTION:
+            coin = parts[1]
+            interval = parts[2]
+            return HyperliquidRawWsCandleSubscriptionPayload(
+                type="candle",
+                coin=coin,
+                interval=interval,
+            )
+        if sub_type == "allMids":
+            return HyperliquidRawWsAllMidsSubscriptionPayload(type="allMids")
+        raise UnsupportedWebSocketTopicError(topic)
 
     async def route_message(
         self,
@@ -373,9 +384,10 @@ class HyperliquidWsMessageRouter:
     ) -> None:
         """Process l2Book channel data."""
         if not isinstance(raw_data_any, dict):
-            raise APIError(
-                "l2Book data not dict",
-                code=APIErrorCode.INVALID_RESPONSE.value,
+            raise InvalidWebSocketDataError(
+                channel="l2Book",
+                expected_type="dict",
+                data=raw_data_any,
             )
         validated_book_model = self._raw_ws_handler.handle_l2book_payload(
             cast("dict[str, Any]", raw_data_any),
@@ -407,9 +419,10 @@ class HyperliquidWsMessageRouter:
     ) -> None:
         """Process trades channel data."""
         if not isinstance(raw_data_any, list):
-            raise APIError(
-                "trades data not list",
-                code=APIErrorCode.INVALID_RESPONSE.value,
+            raise InvalidWebSocketDataError(
+                channel="trades",
+                expected_type="list",
+                data=raw_data_any,
             )
 
         # Convert list items to dict format for validation
@@ -456,9 +469,10 @@ class HyperliquidWsMessageRouter:
     ) -> None:
         """Process userEvents channel data."""
         if not isinstance(raw_data_any, list):
-            raise APIError(
-                "userEvents data not list",
-                code=APIErrorCode.INVALID_RESPONSE.value,
+            raise InvalidWebSocketDataError(
+                channel="userEvents",
+                expected_type="list",
+                data=raw_data_any,
             )
         # Explicitly type the list after check, elements are still Any
         # After isinstance check, we know it's a list
@@ -637,9 +651,10 @@ class HyperliquidWsMessageRouter:
                 message="[%s] 'allMids' channel data is not a dict or is None. Data: %r. Skipping.",
                 message_args=(self._exchange_name, raw_data_any),
             )
-            raise APIError(
-                "allMids data not dict or is None",
-                code=APIErrorCode.INVALID_RESPONSE.value,
+            raise InvalidWebSocketDataError(
+                channel="allMids",
+                expected_type="dict",
+                data=raw_data_any,
             )
 
         raw_data_dict_all_mids = cast("dict[str, Any]", raw_data_any)
@@ -696,3 +711,19 @@ class HyperliquidWsMessageRouter:
             cast("dict[str, Any]", raw_data_any) if isinstance(raw_data_any, dict) else {}
         )
         await app_handler(payload_for_handler, message)
+
+    def _validate_wallet_address(self, wallet_address: str | None) -> str:
+        """Validate wallet address is provided for userEvents subscription.
+
+        Args:
+            wallet_address: The wallet address to validate
+
+        Returns:
+            The validated non-None wallet address
+
+        Raises:
+            UserEventsSubscriptionError: If wallet address is None
+        """
+        if wallet_address is None:
+            raise UserEventsSubscriptionError()
+        return wallet_address
