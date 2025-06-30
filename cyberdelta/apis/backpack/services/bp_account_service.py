@@ -55,6 +55,7 @@ from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
+    EmptyResponseError,
     EmptyStringParameterError,
     InvalidAccountTypeError,
     NetworkRequiredError,
@@ -702,7 +703,7 @@ class BackpackAccountService:
         raw_data: ParsedJsonResponse | None,
         operation: str,
         status_code: int,
-    ) -> None:
+    ) -> ParsedJsonResponse:
         """Validate that response data is not None.
 
         Args:
@@ -710,15 +711,20 @@ class BackpackAccountService:
             operation: Name of the operation (e.g., "collateral request")
             status_code: HTTP status code
 
+        Returns:
+            The validated non-None response data for type narrowing
+
         Raises:
             APIError: If data is None
         """
         if raw_data is None:
-            raise APIError(
-                message=f"No data received for {operation}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
+            raise EmptyResponseError(
+                response_type="data",
+                operation=operation,
                 http_status=status_code,
+                exchange=self._exchange_name,
             )
+        return raw_data
 
     def _validate_max_quantity_response(
         self,
@@ -1207,15 +1213,11 @@ class BackpackAccountService:
             )
 
             # Validate response
-            self._validate_response_data(raw_data, "collateral request", status_code)
-            # Type narrowing: validation ensures raw_data is not None
-            if raw_data is None:
-                raise APIError(
-                    message="Unexpected None after validation",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            validated_data = self._validate_response_data(
+                raw_data, "collateral request", status_code
+            )
             return self._response_handler.handle_get_collateral_response(
-                raw_response_content=raw_data,
+                raw_response_content=validated_data,
                 subaccount_id=subaccount_id,
                 status_code=status_code,
                 headers=headers,
@@ -1268,15 +1270,11 @@ class BackpackAccountService:
             )
 
             # Validate response
-            self._validate_response_data(raw_data, "max borrow quantity request", status_code)
-            # Type narrowing: validation ensures raw_data is not None
-            if raw_data is None:
-                raise APIError(
-                    message="Unexpected None after validation",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            validated_data = self._validate_response_data(
+                raw_data, "max borrow quantity request", status_code
+            )
             raw_response = self._response_handler.handle_max_borrow_quantity_response(
-                raw_response_content=raw_data,
+                raw_response_content=validated_data,
                 symbol=symbol,
                 status_code=status_code,
                 headers=headers,
@@ -1343,15 +1341,11 @@ class BackpackAccountService:
 
             # Validate response
             side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
-            self._validate_response_data(raw_data, "max order quantity request", status_code)
-            # Type narrowing: validation ensures raw_data is not None
-            if raw_data is None:
-                raise APIError(
-                    message="Unexpected None after validation",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            validated_data = self._validate_response_data(
+                raw_data, "max order quantity request", status_code
+            )
             raw_response = self._response_handler.handle_max_order_quantity_response(
-                raw_response_content=raw_data,
+                raw_response_content=validated_data,
                 symbol=args.symbol,
                 side=side_str,
                 status_code=status_code,
@@ -1421,15 +1415,11 @@ class BackpackAccountService:
             )
 
             # Validate response
-            self._validate_response_data(raw_data, "max withdrawal quantity request", status_code)
-            # Type narrowing: validation ensures raw_data is not None
-            if raw_data is None:
-                raise APIError(
-                    message="Unexpected None after validation",
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                )
+            validated_data = self._validate_response_data(
+                raw_data, "max withdrawal quantity request", status_code
+            )
             raw_response = self._response_handler.handle_max_withdrawal_quantity_response(
-                raw_response_content=raw_data,
+                raw_response_content=validated_data,
                 symbol=args.symbol,
                 status_code=status_code,
                 headers=headers,

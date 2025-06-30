@@ -53,6 +53,10 @@ from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.exceptions import (
+    InvalidParameterTypeError,
+    RequiredParameterError,
+)
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -214,7 +218,11 @@ class ExchangeAPI(ABC):
         """Create a default rate limiting strategy."""
         # DEFENSIVE CHECK: exchange_config.rate_limit_per_minute is confirmed not None by caller.
         if exchange_config.rate_limit_per_minute is None:
-            raise ValueError("rate_limit_per_minute cannot be None")
+            raise RequiredParameterError(
+                parameter="rate_limit_per_minute",
+                context="rate limiting configuration",
+                exchange=self.exchange_name,
+            )
 
         rate_per_second: float = exchange_config.rate_limit_per_minute / 60.0
         bucket_size: int = max(1, int(rate_per_second * 2))
@@ -240,8 +248,10 @@ class ExchangeAPI(ABC):
             # Extract endpoint from config model
             rest_endpoint = str(self._config.api_base_url_mainnet)
             if not rest_endpoint:
-                raise ValueError(
-                    f"[{self.exchange_name}] Missing 'api_base_url_mainnet' in config",
+                raise RequiredParameterError(
+                    parameter="api_base_url_mainnet",
+                    context="HTTP client configuration",
+                    exchange=self.exchange_name,
                 )
             return rest_endpoint, http_client
 
@@ -251,8 +261,10 @@ class ExchangeAPI(ABC):
 
         rest_endpoint = str(http_client_config.rest_endpoint)
         if not rest_endpoint:
-            raise ValueError(
-                f"[{self.exchange_name}] Missing or invalid 'rest_endpoint' in config",
+            raise RequiredParameterError(
+                parameter="rest_endpoint",
+                context="HTTP client configuration",
+                exchange=self.exchange_name,
             )
 
         new_http_client = HttpClient(
@@ -485,8 +497,11 @@ class ExchangeAPI(ABC):
             return self._serialization_strategy.serialize_model(data, serialize_none_as_null)
         if isinstance(data, dict) or data is None:
             return data
-        raise TypeError(
-            f"ExchangeAPI._request 'data' param must be BaseModel, dict, or None. Got {type(data)}",
+        raise InvalidParameterTypeError(
+            parameter_name="data",
+            expected_type="BaseModel, dict, or None",
+            actual_type=type(data).__name__,
+            value=data,
         )
 
     async def _apply_rate_limiting(

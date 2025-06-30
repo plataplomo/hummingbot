@@ -48,6 +48,13 @@ from .data_transformation import (
     UnknownEnumError,
 )
 
+# Decorator exceptions
+from .decorators import (
+    AsyncDecoratorError,
+    DecoratorError,
+    NoExceptionCapturedError,
+)
+
 # Field exceptions
 from .field_validation import (
     BooleanFieldError,
@@ -83,12 +90,16 @@ from .parsing import (
     ActionHashError,
     ClientIdFormatError,
     DateTimeParsingError,
+    DictStructureError,
+    EmptyDictionaryError,
     EmptyStringError,
     KlineTypeError,
     KlineValueError,
     MsgpackSerializationError,
     NonNullableFieldError,
     ParsingError,
+    SequenceLengthError,
+    StructureTypeError,
     TimestampFormatError,
     TimestampYearRangeError,
 )
@@ -196,6 +207,7 @@ __all__ = [
     "APIErrorCode",
     "ActionHashError",
     "ArbitrageError",
+    "AsyncDecoratorError",
     "AuthenticationError",
     "AuthenticationPreparationError",
     "AuthenticatorNotConfiguredError",
@@ -211,7 +223,10 @@ __all__ = [
     "DecimalFiniteError",
     "DecimalFormatError",
     "DecimalRangeError",
+    "DecoratorError",
     "DeltaNeutralError",
+    "DictStructureError",
+    "EmptyDictionaryError",
     "EmptyResponseError",
     "EmptyStringError",
     "EmptyStringParameterError",
@@ -254,6 +269,7 @@ __all__ = [
     "MsgpackSerializationError",
     "NegativeValueError",
     "NetworkRequiredError",
+    "NoExceptionCapturedError",
     "NonFinitePositionValueError",
     "NonNullableFieldError",
     "NotImplementedOperationError",
@@ -287,8 +303,10 @@ __all__ = [
     "ResponseValidationError",
     "RiskLimitError",
     "SecurityValidationError",
+    "SequenceLengthError",
     "ServiceValidationError",
     "StrategyError",
+    "StructureTypeError",
     "SymbolNotFoundError",
     "TestnetConfigurationError",
     "TickerError",

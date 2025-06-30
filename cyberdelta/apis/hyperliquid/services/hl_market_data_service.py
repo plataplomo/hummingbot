@@ -60,6 +60,7 @@ from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.mid_prices import MidPrices
+from cyberdelta.exceptions import EmptyResponseError, SymbolNotFoundError
 
 # Project-specific imports for connectivity and base types
 from cyberdelta.utils.parsing import timeframe_to_ms
@@ -116,6 +117,64 @@ class HyperliquidMarketDataService:
         self._response_handler = response_handler
         self._mapper = mapper
         self._exchange_name = exchange_name
+
+    def _validate_response_not_none(
+        self,
+        response: ParsedJsonResponse | None,
+        response_type: str,
+        operation: str,
+        status_code: int,
+    ) -> ParsedJsonResponse:
+        """Validate that response is not None.
+
+        Args:
+            response: The response to validate
+            response_type: Type of response expected
+            operation: Operation that returned the response
+            status_code: HTTP status code
+
+        Returns:
+            The validated non-None response for type narrowing
+
+        Raises:
+            EmptyResponseError: If response is None
+        """
+        if response is None:
+            raise EmptyResponseError(
+                response_type=response_type,
+                operation=operation,
+                http_status=status_code,
+                exchange=self._exchange_name,
+            )
+        return response
+
+    def _find_market_or_raise(
+        self,
+        symbol: str,
+        all_markets: list[Market],
+    ) -> Market:
+        """Find market by symbol in the markets list or raise error.
+
+        Args:
+            symbol: Symbol to find
+            all_markets: List of available markets
+
+        Returns:
+            Market if found
+
+        Raises:
+            SymbolNotFoundError: If symbol not found
+        """
+        for market in all_markets:
+            if market.symbol == symbol:
+                return market
+
+        # Symbol not found
+        raise SymbolNotFoundError(
+            symbol=symbol,
+            available_symbols=[m.symbol for m in all_markets],
+            exchange=self._exchange_name,
+        )
 
     async def get_all_asset_contexts_raw(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """Retrieve the metadata for all listed assets and their current context.
@@ -516,19 +575,15 @@ class HyperliquidMarketDataService:
                 ),
             )
 
-            if raw_response_content_parsed is None:
-                error_msg = (
-                    f"No content received from HTTP client for l2Book for {symbol}, "
-                    f"status: {status_code}"
-                )
-                raise APIError(
-                    message=error_msg,
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
+            validated_response = self._validate_response_not_none(
+                raw_response_content_parsed,
+                "l2Book data",
+                f"l2Book for {symbol}",
+                status_code,
+            )
 
             validated_raw_book = self._response_handler.handle_info_l2_book_response(
-                raw_response_content_parsed,
+                validated_response,
                 symbol=symbol,
                 status_code=status_code,
                 headers=headers,
@@ -629,18 +684,15 @@ class HyperliquidMarketDataService:
                 status_code,
                 headers,
             ) = await self._fetch_recent_trades_data(symbol)
-            if raw_response_content_parsed is None:
-                error_msg = (
-                    f"No content received from HTTP client for recentTrades for {symbol}. "
-                    f"Status: {status_code}"
-                )
-                raise APIError(
-                    message=error_msg,
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
-                )
-            validated_raw_trades = self._process_recent_trades_response(
+            validated_response = self._validate_response_not_none(
                 raw_response_content_parsed,
+                "recent trades data",
+                f"recent trades for {symbol}",
+                status_code,
+            )
+
+            validated_raw_trades = self._process_recent_trades_response(
+                validated_response,
                 symbol,
                 status_code,
                 headers,
@@ -1809,25 +1861,8 @@ class HyperliquidMarketDataService:
             # Get all markets and filter for the requested symbol
             all_markets = await self.get_markets(GetMarketsArgs())
 
-            # Find the specific market
-            for market in all_markets:
-                if market.symbol == symbol:
-                    logger.debug(
-                        "market_metadata_found",
-                        action="get_market_metadata",
-                        exchange=self._exchange_name,
-                        symbol=symbol,
-                        message=f"[{self._exchange_name}] Found market metadata for {symbol}",
-                    )
-                    return market
-
-            # Symbol not found
-            error_msg = f"Market {symbol} not found in available markets"
-            raise APIError(
-                message=error_msg,
-                code=APIErrorCode.SYMBOL_NOT_FOUND.value,
-            )
-
+            # Find the specific market (will raise if not found)
+            market = self._find_market_or_raise(symbol, all_markets)
         except APIError:
             # Re-raise APIErrors (including SYMBOL_NOT_FOUND)
             raise
@@ -1842,6 +1877,15 @@ class HyperliquidMarketDataService:
                 message="Unexpected error occurred.",
                 original_exception=e_unhandled,
             ) from e_unhandled
+        else:
+            logger.debug(
+                "market_metadata_found",
+                action="get_market_metadata",
+                exchange=self._exchange_name,
+                symbol=symbol,
+                message=f"[{self._exchange_name}] Found market metadata for {symbol}",
+            )
+            return market
 
     async def get_all_mids(self) -> MidPrices:
         """Fetch all mid prices efficiently for market order pricing.

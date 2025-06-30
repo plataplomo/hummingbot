@@ -36,6 +36,7 @@ from pydantic import (
 )
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import SequenceLengthError, StructureTypeError
 from cyberdelta.utils.typing import is_sequence_of_any
 
 from .bp_common_raw_types import (
@@ -191,7 +192,11 @@ class BackpackRawOrderBook(BaseModel):
         info: ValidationInfo,
     ) -> list[tuple[str, str]]:
         if not is_sequence_of_any(v):
-            raise ValueError("Must be a sequence (list or tuple)")
+            raise StructureTypeError(
+                field_name=info.field_name if info and info.field_name else "bids/asks",
+                expected_structure="sequence (list or tuple)",
+                actual_type=type(v).__name__,
+            )
 
         # Justification for cast:
         # The input `v` is `object`. After `isinstance(v, list)`, `v` is a `list`.
@@ -265,19 +270,34 @@ class BackpackRawDepthUpdateEvent(BaseModel):
     ) -> list[tuple[object, object]]:
         # Combined validator: First, ensure v is a sequence.
         if not is_sequence_of_any(v):
-            raise TypeError("Must be a sequence (list or tuple)")
+            raise StructureTypeError(
+                field_name=info.field_name if info and info.field_name else "levels",
+                expected_structure="sequence (list or tuple)",
+                actual_type=type(v).__name__,
+            )
 
         v_seq = cast("Sequence[object]", v)
 
         processed_levels: list[tuple[object, object]] = []
         for level_item_raw_obj in v_seq:
             if not is_sequence_of_any(level_item_raw_obj):
-                raise TypeError("Each item must be a sequence (list or tuple)")
+                raise StructureTypeError(
+                    field_name=info.field_name if info and info.field_name else "level_item",
+                    expected_structure="sequence (list or tuple)",
+                    actual_type=type(level_item_raw_obj).__name__,
+                    element_info="level item",
+                )
 
             level_item_seq = cast("Sequence[object]", level_item_raw_obj)
 
             if len(level_item_seq) != PAIR_ELEMENT_COUNT:
-                raise ValueError("length 2")
+                raise SequenceLengthError(
+                    expected_length=PAIR_ELEMENT_COUNT,
+                    actual_length=len(level_item_seq),
+                    field_name=(
+                        info.field_name if info and info.field_name else "price/quantity pair"
+                    ),
+                )
 
             level_item_as_tuple = tuple(level_item_seq)
             item1_raw = level_item_as_tuple[0]

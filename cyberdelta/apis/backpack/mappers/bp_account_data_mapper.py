@@ -97,13 +97,19 @@ class BackpackAccountDataMapper:
     """
 
     @staticmethod
-    def _ensure_trade_values_not_none(price: Decimal | None, quantity: Decimal | None) -> None:
-        """Ensure trade price and quantity are not None after parsing."""
+    def _ensure_trade_values_not_none(
+        price: Decimal | None, quantity: Decimal | None
+    ) -> tuple[Decimal, Decimal]:
+        """Ensure trade price and quantity are not None after parsing.
+
+        Returns the validated non-None values for type narrowing.
+        """
         if price is None or quantity is None:
             raise MissingRequiredFieldError(
                 field_names=["price", "quantity"],
                 context="trade",
             )
+        return price, quantity
 
     @staticmethod
     def _ensure_balance_values_not_none(total: Decimal | None, available: Decimal | None) -> None:
@@ -120,28 +126,41 @@ class BackpackAccountDataMapper:
         field_name: str,
         context: str,
         source_data: dict[str, Any] | None = None,
-    ) -> None:
-        """Ensure balance field value is not None after parsing."""
+    ) -> Decimal:
+        """Ensure balance field value is not None after parsing.
+
+        Returns the validated non-None value for type narrowing.
+        """
         if value is None:
             raise MissingRequiredFieldError(
                 field_names=field_name,
                 context=context,
                 source_data=source_data,
             )
+        return value
 
     @staticmethod
-    def _ensure_position_size_not_none(size_dec: Decimal | None, raw: BackpackRawPosition) -> None:
-        """Ensure position size is not None after parsing."""
+    def _ensure_position_size_not_none(
+        size_dec: Decimal | None, raw: BackpackRawPosition
+    ) -> Decimal:
+        """Ensure position size is not None after parsing.
+
+        Returns the validated non-None value for type narrowing.
+        """
         if size_dec is None:
             raise MissingRequiredFieldError(
                 field_names="net_quantity",
                 context="BackpackRawPosition",
                 source_data=raw.model_dump() if raw else None,
             )
+        return size_dec
 
     @staticmethod
-    def _ensure_response_is_dict(raw_response: dict[str, Any] | list[Any] | str) -> None:
-        """Ensure raw response is a dictionary."""
+    def _ensure_response_is_dict(raw_response: dict[str, Any] | list[Any] | str) -> dict[str, Any]:
+        """Ensure raw response is a dictionary.
+
+        Returns the validated dict for type narrowing.
+        """
         if not isinstance(raw_response, dict):
             raise InvalidMappingError(
                 field_name="raw_response",
@@ -149,6 +168,7 @@ class BackpackAccountDataMapper:
                 reason=f"Expected dict, got {type(raw_response).__name__}",
                 expected_format="dict",
             )
+        return raw_response
 
     @staticmethod
     def _ensure_transfer_id_not_empty(
@@ -373,12 +393,9 @@ class BackpackAccountDataMapper:
                 field_name="quantity",
             )
 
-            BackpackAccountDataMapper._ensure_trade_values_not_none(price, quantity)
-            # Type narrowing - validation ensures values are not None
-            if price is None or quantity is None:
-                raise MissingRequiredFieldError(field_names=["price", "quantity"], context="trade")
-            price_typed: Decimal = price
-            quantity_typed: Decimal = quantity
+            price_typed, quantity_typed = BackpackAccountDataMapper._ensure_trade_values_not_none(
+                price, quantity
+            )
 
             # Check if price or quantity is zero - Trade model requires positive values
             if price_typed <= Decimal(0) or quantity_typed <= Decimal(0):
@@ -538,32 +555,24 @@ class BackpackAccountDataMapper:
                 field_name=f"{asset_symbol}_staked",
             )
 
-            BackpackAccountDataMapper._ensure_balance_field_not_none(
+            available_typed = BackpackAccountDataMapper._ensure_balance_field_not_none(
                 parsed_available,
                 "available",
                 f"{asset_symbol} balance",
                 raw.model_dump() if raw else None,
             )
-            BackpackAccountDataMapper._ensure_balance_field_not_none(
+            locked_typed = BackpackAccountDataMapper._ensure_balance_field_not_none(
                 parsed_locked,
                 "locked",
                 f"{asset_symbol} balance",
                 raw.model_dump() if raw else None,
             )
-            BackpackAccountDataMapper._ensure_balance_field_not_none(
+            staked_typed = BackpackAccountDataMapper._ensure_balance_field_not_none(
                 parsed_staked,
                 "staked",
                 f"{asset_symbol} balance",
                 raw.model_dump() if raw else None,
             )
-            # Type narrowing - validation ensures values are not None
-            if parsed_available is None or parsed_locked is None or parsed_staked is None:
-                raise MissingRequiredFieldError(
-                    field_names=["available", "locked", "staked"], context=f"{asset_symbol} balance"
-                )
-            available_typed: Decimal = parsed_available
-            locked_typed: Decimal = parsed_locked
-            staked_typed: Decimal = parsed_staked
 
             # Calculate total = available + locked + staked
             parsed_total = available_typed + locked_typed + staked_typed
@@ -616,13 +625,7 @@ class BackpackAccountDataMapper:
                 allow_none=False,
                 field_name="net_quantity",
             )
-            BackpackAccountDataMapper._ensure_position_size_not_none(size_dec, raw)
-            # Type narrowing - validation ensures value is not None
-            if size_dec is None:
-                raise MissingRequiredFieldError(
-                    field_names="net_quantity", context="BackpackRawPosition"
-                )
-            size_typed: Decimal = size_dec
+            size_typed = BackpackAccountDataMapper._ensure_position_size_not_none(size_dec, raw)
 
             entry_price_dec = parse_decimal_value(raw.entry_price)
             # Note: Entry prices are often calculated averages that may have higher precision
@@ -995,16 +998,7 @@ class BackpackAccountDataMapper:
                 message="Transforming raw transfer",
             )
 
-            BackpackAccountDataMapper._ensure_response_is_dict(raw_response)
-            # Type narrowing - validation ensures response is a dict
-            if not isinstance(raw_response, dict):
-                raise InvalidMappingError(
-                    field_name="raw_response",
-                    source_value=raw_response,
-                    reason=f"Expected dict, got {type(raw_response).__name__}",
-                    expected_format="dict",
-                )
-            response_dict: dict[str, Any] = raw_response
+            response_dict = BackpackAccountDataMapper._ensure_response_is_dict(raw_response)
 
             transfer_id = response_dict.get("id")
             raw_status_val = response_dict.get("status")

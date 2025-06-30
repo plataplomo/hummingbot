@@ -50,6 +50,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawNonNegativeFiniteDecimalStr,
     RawTimestampMsInt,
 )
+from cyberdelta.exceptions import ParsingError, StructureTypeError
 from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
@@ -115,11 +116,17 @@ class HyperliquidRawCandleSnapshot(BaseModel):
                     "s": "ok",  # status
                 }
             # If it's a non-empty list, something is wrong
-            raise ValueError("Candle snapshot response must be a dict, not a list")
+            raise StructureTypeError(
+                field_name="candle_snapshot_response",
+                expected_structure="dict",
+                actual_type="non-empty list",
+            )
 
         if not is_dict_str_any(values):
-            raise ValueError(
-                f"Candle snapshot response must be a dict, got {type(values).__name__}",
+            raise StructureTypeError(
+                field_name="candle_snapshot_response",
+                expected_structure="dict",
+                actual_type=type(values).__name__,
             )
 
         # values is now properly typed as dict[str, Any] due to TypeGuard
@@ -136,10 +143,16 @@ class HyperliquidRawCandleSnapshot(BaseModel):
             and len(self.c) == list_len
             and len(self.v) == list_len
         ):
-            raise ValueError(
-                "Data lists (t, o, h, l, c, v) must all have the same length. "
-                f"Got lengths: t({len(self.t)}), o({len(self.o)}), h({len(self.h)}), "
-                f"l({len(self.l)}), c({len(self.c)}), v({len(self.v)})",
+            # Create a detailed error message for multiple length mismatches
+            lengths_info = (
+                f"t({len(self.t)}), o({len(self.o)}), h({len(self.h)}), "
+                f"l({len(self.l)}), c({len(self.c)}), v({len(self.v)})"
+            )
+            raise ParsingError(
+                message=f"OHLCV data lists must all have the same length. Got: {lengths_info}",
+                field_name="OHLCV_lists",
+                expected_type="equal-length lists",
+                actual_lengths=lengths_info,
             )
         return self
 

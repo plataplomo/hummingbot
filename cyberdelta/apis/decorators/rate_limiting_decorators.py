@@ -13,6 +13,7 @@ from typing import ParamSpec, TypeVar, cast
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import AsyncDecoratorError, NoExceptionCapturedError
 
 
 logger = get_logger(__name__)
@@ -52,7 +53,7 @@ class RateLimited:
                 return await async_func(*args, **kwargs)
 
             return cast("Callable[P, T]", async_wrapper)
-        raise TypeError("RateLimited decorator can only be applied to async functions")
+        raise AsyncDecoratorError("RateLimited")
 
 
 class RetryOnFailure:
@@ -123,10 +124,10 @@ class RetryOnFailure:
 
                 if last_exception is not None:
                     raise last_exception
-                raise RuntimeError("No exception captured")
+                raise NoExceptionCapturedError()
 
             return cast("Callable[P, T]", async_wrapper)
-        raise TypeError("RetryOnFailure decorator can only be applied to async functions")
+        raise AsyncDecoratorError("RetryOnFailure")
 
 
 class CircuitBreaker:
@@ -204,7 +205,7 @@ class CircuitBreaker:
                     return result
 
             return cast("Callable[P, T]", async_wrapper)
-        raise TypeError("CircuitBreaker decorator can only be applied to async functions")
+        raise AsyncDecoratorError("CircuitBreaker")
 
 
 class Timeout:
@@ -233,7 +234,7 @@ class Timeout:
                     ) from e
 
             return cast("Callable[P, T]", async_wrapper)
-        raise TypeError("Timeout decorator can only be applied to async functions")
+        raise AsyncDecoratorError("Timeout")
 
 
 # Legacy function interfaces for backward compatibility
