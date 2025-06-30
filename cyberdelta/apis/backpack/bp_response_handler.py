@@ -5,7 +5,9 @@ Validates raw JSON data against Pydantic models specific to Backpack's API endpo
 
 from __future__ import annotations  # Ensure this is at the top if not already
 
+import json
 from collections.abc import Mapping
+from typing import Any, TypeGuard
 
 from pydantic import ValidationError
 
@@ -56,6 +58,39 @@ logger = get_logger(__name__)
 # Type alias for raw JSON response from HTTP client
 # Aligned with ParsedJsonResponse from http_client.py
 type RawJsonResponse = ParsedJsonResponse
+
+
+def _safe_json_repr(value: object) -> str:
+    """Convert any value to a JSON string representation for logging.
+    
+    This helper function ensures type safety when logging dynamic data
+    from API responses while avoiding pyright strict mode issues.
+    
+    Args:
+        value: Any value to convert to JSON representation
+        
+    Returns:
+        JSON string representation or string fallback
+    """
+    try:
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        # Fallback for non-JSON-serializable objects
+        return repr(value)
+
+
+def _is_list_of_any(value: object) -> TypeGuard[list[Any]]:
+    """Type guard to check if value is a list.
+    
+    This helps pyright understand type narrowing in strict mode.
+    
+    Args:
+        value: Value to check
+        
+    Returns:
+        True if value is a list, False otherwise
+    """
+    return isinstance(value, list)
 
 
 class BackpackResponseHandler:
@@ -717,25 +752,32 @@ class BackpackResponseHandler:
 
         validated_klines: list[BackpackRawKline] = []
         for item_raw in validated_list:
-            if not isinstance(item_raw, list):  # Backpack klines are lists of values
+            if not _is_list_of_any(item_raw):  # Backpack klines are lists of values
+                # Convert item_raw to string representation for logging
+                item_str = str(item_raw) if item_raw is not None else "None"
                 logger.warning(
                     "backpack_non_list_kline_item",
                     context=context,
-                    item_raw=item_raw,
+                    item_raw=item_str,
                     module_name=__name__,
                     message="Skipping non-list kline item",
                 )
                 continue
+            # Now item_raw is known to be list[Any] thanks to the type guard
+            # Backpack klines are lists of values (typically 12 elements)
+            # For logging, we'll convert the entire list to string at once
+            # This avoids iterating over unknown types
             try:
                 # BackpackRawKline is now imported at module level
                 validated_klines.append(BackpackRawKline.model_validate(item_raw))
             except ValidationError as e:
                 # Log the specific item that failed validation
+                # Use JSON-style formatting for better readability of kline data
                 logger.exception(
                     "backpack_kline_validation_failed",
                     context=context,
                     validation_error=str(e),
-                    item_raw=item_raw,
+                    item_raw=_safe_json_repr(item_raw),
                     module_name=__name__,
                     message="Pydantic validation failed for single kline item",
                 )
@@ -747,11 +789,12 @@ class BackpackResponseHandler:
                     validated_list,
                 ) from e
             except Exception as e_unk_item:
+                # Format the list for logging
                 logger.exception(
                     "backpack_kline_unexpected_error",
                     context=context,
                     error=str(e_unk_item),
-                    item_raw=str(item_raw),
+                    item_raw=_safe_json_repr(item_raw),
                     module_name=__name__,
                     message="Unexpected error validating single kline item",
                 )

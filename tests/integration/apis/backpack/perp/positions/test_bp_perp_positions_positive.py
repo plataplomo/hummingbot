@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
@@ -266,28 +267,23 @@ class TestBackpackPerpPositionsPrivate:
         active_bp_config: ExchangeSpecificConfig,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_positions() with invalid Ed25519 authentication."""
+        """Test that invalid Ed25519 authentication fails during API initialization."""
         invalid_secrets = ApiKeyAuthSecrets(
             api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
 
-        bad_api = BackpackAPI(
-            exchange_config=active_bp_config,
-            exchange_secrets=invalid_secrets,
-        )
-
-        with pytest.raises((APIError, AttributeError)) as exc_info:
-            await bad_api.get_positions()
+        # Authentication validation now happens during API initialization
+        # This provides better security by failing fast with invalid credentials
+        with pytest.raises(InvalidPrivateKeyError) as exc_info:
+            BackpackAPI(
+                exchange_config=active_bp_config,
+                exchange_secrets=invalid_secrets,
+            )
 
         error = exc_info.value
-        if isinstance(error, APIError):
-            assert error.code in [
-                APIErrorCode.AUTHENTICATION_FAILED.value,
-                APIErrorCode.INVALID_REQUEST.value,
-            ]
-        else:
-            assert "authenticator" in str(error).lower() or "NoneType" in str(error)
+        assert "Invalid Base64 ED25519 private key" in str(error)
+        assert "Incorrect padding" in str(error)
 
     def _validate_pnl_fields(self, position: DerivativePosition) -> None:
         """Validate PnL fields are finite."""

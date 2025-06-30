@@ -42,7 +42,6 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTradeEvent,
     BackpackRawRecentPublicTrade,
 )
-from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.enums import OrderSide
@@ -52,6 +51,16 @@ from cyberdelta.core.models.market.market import BackpackMarketDetails
 from cyberdelta.core.models.market.ticker import BackpackTickerDetails
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import (
+    CandleTransformationError,
+    FundingRateTransformationError,
+    MarketTransformationError,
+    MissingRequiredFieldError,
+    OrderBookTransformationError,
+    TickerTransformationError,
+    TradeTransformationError,
+    UnknownEnumError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -86,7 +95,11 @@ class BackpackMarketDataMapper:
         if side_lower in {"sell", "ask"}:
             return OrderSide.SELL
 
-        raise TransformationError(f"Unknown Backpack order side: '{bp_side}'")
+        raise UnknownEnumError(
+            enum_type="Backpack order side",
+            value=bp_side,
+            valid_values=["Buy", "Sell", "Bid", "Ask"]
+        )
 
     @staticmethod
     def transform_raw_ticker_to_internal(
@@ -192,8 +205,11 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawTicker to Ticker: {e}",
+            raise TickerTransformationError(
+                ticker_source="BackpackRawTicker",
+                reason=str(e),
+                symbol=symbol,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -290,8 +306,10 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawMarket to Market: {e}",
+            raise MarketTransformationError(
+                reason=str(e),
+                symbol=raw_market.symbol,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -357,9 +375,83 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawOrderBook to OrderBook: {e}",
+            raise OrderBookTransformationError(
+                source_type="BackpackRawOrderBook",
+                reason=str(e),
+                symbol=symbol,
+                original_error=e,
             ) from e
+
+    @staticmethod
+    def _validate_trade_data(
+        price: object, quantity: object, context: str
+    ) -> tuple[object, object]:
+        """Validate trade price and quantity data.
+        
+        Args:
+            price: Raw price value
+            quantity: Raw quantity value
+            context: Context for error messages
+            
+        Returns:
+            tuple[object, object]: Validated price and quantity
+            
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        parsed_price = parse_decimal_value(price, allow_none=False, field_name="price")
+        if parsed_price is None:
+            raise MissingRequiredFieldError("price", context)
+            
+        parsed_quantity = parse_decimal_value(
+            quantity,
+            allow_none=False,
+            field_name="quantity",
+        )
+        if parsed_quantity is None:
+            raise MissingRequiredFieldError("quantity", context)
+            
+        return parsed_price, parsed_quantity
+
+    @staticmethod
+    def _validate_candle_data(
+        open_price: object,
+        high_price: object,
+        low_price: object,
+        close_price: object,
+        volume: object,
+        symbol: str,
+    ) -> None:
+        """Validate candle OHLCV data.
+        
+        Args:
+            open_price: Open price value
+            high_price: High price value
+            low_price: Low price value
+            close_price: Close price value
+            volume: Volume value
+            symbol: Symbol for context
+            
+        Raises:
+            MissingRequiredFieldError: If any OHLCV value is None
+        """
+        if any(val is None for val in [open_price, high_price, low_price, close_price, volume]):
+            missing_fields = []
+            if open_price is None:
+                missing_fields.append("open_price")
+            if high_price is None:
+                missing_fields.append("high_price")
+            if low_price is None:
+                missing_fields.append("low_price")
+            if close_price is None:
+                missing_fields.append("close_price")
+            if volume is None:
+                missing_fields.append("volume")
+            
+            raise MissingRequiredFieldError(
+                missing_fields,
+                f"candle for {symbol}"
+            )
 
     @staticmethod
     def transform_raw_trade_to_internal(raw_trade: BackpackRawPublicTrade) -> Trade:
@@ -372,22 +464,16 @@ class BackpackMarketDataMapper:
             Trade: Internal domain model with populated fields and BP details
 
         Raises:
-            TransformationError: If transformation fails
+            TradeTransformationError: If transformation fails
 
         """
         try:
-            # Parse trade fields
-            price = parse_decimal_value(raw_trade.price, allow_none=False, field_name="price")
-            if price is None:
-                raise TransformationError("price is required for trade")
-
-            quantity = parse_decimal_value(
+            # Validate trade fields
+            price, quantity = BackpackMarketDataMapper._validate_trade_data(
+                raw_trade.price,
                 raw_trade.quantity,
-                allow_none=False,
-                field_name="quantity",
+                "BackpackRawPublicTrade"
             )
-            if quantity is None:
-                raise TransformationError("quantity is required for trade")
 
             # Parse timestamp
             executed_at = parse_datetime_utc(raw_trade.time, field_name="time")
@@ -420,8 +506,12 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawPublicTrade to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="BackpackRawPublicTrade",
+                reason=str(e),
+                symbol=raw_trade.symbol,
+                trade_id=raw_trade.id,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -443,18 +533,12 @@ class BackpackMarketDataMapper:
 
         """
         try:
-            # Parse trade fields
-            price = parse_decimal_value(raw_trade.price, allow_none=False, field_name="price")
-            if price is None:
-                raise TransformationError("price is required for trade")
-
-            quantity = parse_decimal_value(
+            # Validate trade fields
+            price, quantity = BackpackMarketDataMapper._validate_trade_data(
+                raw_trade.price,
                 raw_trade.quantity,
-                allow_none=False,
-                field_name="quantity",
+                "BackpackRawRecentPublicTrade"
             )
-            if quantity is None:
-                raise TransformationError("quantity is required for trade")
 
             # Parse timestamp
             executed_at = parse_datetime_utc(raw_trade.timestamp, field_name="timestamp")
@@ -491,9 +575,49 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawRecentPublicTrade to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="BackpackRawRecentPublicTrade",
+                reason=str(e),
+                symbol=symbol,
+                trade_id=str(raw_trade.id),
+                original_error=e,
             ) from e
+
+    @staticmethod
+    def _validate_funding_rate_data(funding_rate: object, context: str) -> object:
+        """Validate funding rate data.
+        
+        Args:
+            funding_rate: Raw funding rate value
+            context: Context for error messages
+            
+        Returns:
+            object: Validated funding rate
+            
+        Raises:
+            MissingRequiredFieldError: If funding rate is missing
+        """
+        if funding_rate is None:
+            raise MissingRequiredFieldError("funding_rate", context)
+        return funding_rate
+
+    @staticmethod
+    def _validate_funding_timestamp(timestamp: object, context: str) -> object:
+        """Validate funding rate timestamp.
+        
+        Args:
+            timestamp: Raw timestamp value
+            context: Context for error messages
+            
+        Returns:
+            object: Validated timestamp
+            
+        Raises:
+            MissingRequiredFieldError: If timestamp is None
+        """
+        if timestamp is None:
+            raise MissingRequiredFieldError("timestamp", context)
+        return timestamp
 
     @staticmethod
     def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
@@ -516,8 +640,9 @@ class BackpackMarketDataMapper:
                 allow_none=False,
                 field_name="fundingRate",
             )
-            if funding_rate is None:
-                raise TransformationError("funding_rate is required")
+            BackpackMarketDataMapper._validate_funding_rate_data(
+                funding_rate, "BackpackRawFundingRate"
+            )
 
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
@@ -558,8 +683,11 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawFundingRate to FundingRate: {e}",
+            raise FundingRateTransformationError(
+                source_type="BackpackRawFundingRate",
+                reason=str(e),
+                symbol=raw_funding.symbol,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -587,13 +715,15 @@ class BackpackMarketDataMapper:
                 allow_none=False,
                 field_name="rate",
             )
-            if funding_rate is None:
-                raise TransformationError("funding_rate is required")
+            BackpackMarketDataMapper._validate_funding_rate_data(
+                funding_rate, "BackpackRawFundingIntervalRate"
+            )
 
             # Parse timestamp (time is now an ISO datetime string)
             timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
-            if timestamp is None:
-                raise ValueError("Funding rate timestamp cannot be None")
+            BackpackMarketDataMapper._validate_funding_timestamp(
+                timestamp, "BackpackRawFundingIntervalRate"
+            )
 
             # Create BP-specific details
             details = BackpackFundingDetails()
@@ -617,8 +747,11 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawFundingIntervalRate to FundingRate: {e}",
+            raise FundingRateTransformationError(
+                source_type="BackpackRawFundingIntervalRate",
+                reason=str(e),
+                symbol=symbol,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -665,23 +798,13 @@ class BackpackMarketDataMapper:
             )
             volume = parse_decimal_value(raw_kline.volume, allow_none=False, field_name="volume")
 
-            if any(val is None for val in [open_price, high_price, low_price, close_price, volume]):
-                raise TransformationError("All OHLCV values are required for candle")
+            # Validate all OHLCV values are present
+            BackpackMarketDataMapper._validate_candle_data(
+                open_price, high_price, low_price, close_price, volume, symbol
+            )
 
             # Parse timestamp from start_time_ms (convert milliseconds to datetime)
             open_time = datetime.fromtimestamp(raw_kline.start_time_ms / 1000, tz=UTC)
-
-            # Type checks since we already validated None values above
-            if open_price is None:
-                raise ValueError(f"open_price is None for symbol {symbol}")
-            if high_price is None:
-                raise ValueError(f"high_price is None for symbol {symbol}")
-            if low_price is None:
-                raise ValueError(f"low_price is None for symbol {symbol}")
-            if close_price is None:
-                raise ValueError(f"close_price is None for symbol {symbol}")
-            if volume is None:
-                raise ValueError(f"volume is None for symbol {symbol}")
 
             # SECURITY FIX: Use secure_transform instead of direct instantiation
             candle_data: dict[str, Any] = {
@@ -703,7 +826,12 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(f"Failed to transform BackpackRawKline to Candle: {e}") from e
+            raise CandleTransformationError(
+                reason=str(e),
+                symbol=symbol,
+                interval=interval,
+                original_error=e,
+            ) from e
 
     @staticmethod
     def transform_ws_ticker_event_to_internal(raw_ticker: BackpackRawTickerEvent) -> Ticker:
@@ -757,8 +885,11 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawTickerEvent to Ticker: {e}",
+            raise TickerTransformationError(
+                ticker_source="BackpackRawTickerEvent",
+                reason=str(e),
+                symbol=raw_ticker.symbol,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -824,8 +955,11 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawDepthUpdateEvent to OrderBook: {e}",
+            raise OrderBookTransformationError(
+                source_type="BackpackRawDepthUpdateEvent",
+                reason=str(e),
+                symbol=symbol,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -843,18 +977,12 @@ class BackpackMarketDataMapper:
 
         """
         try:
-            # Parse trade fields
-            price = parse_decimal_value(raw_trade.price, allow_none=False, field_name="price")
-            if price is None:
-                raise TransformationError("price is required for trade")
-
-            quantity = parse_decimal_value(
+            # Validate trade fields
+            price, quantity = BackpackMarketDataMapper._validate_trade_data(
+                raw_trade.price,
                 raw_trade.quantity,
-                allow_none=False,
-                field_name="quantity",
+                "BackpackRawPublicTradeEvent"
             )
-            if quantity is None:
-                raise TransformationError("quantity is required for trade")
 
             # BackpackRawPublicTradeEvent doesn't have side info, need to determine from order IDs
             # For now, default to BUY (this would need to be enhanced based on maker/taker info)
@@ -890,6 +1018,10 @@ class BackpackMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform BackpackRawPublicTradeEvent to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="BackpackRawPublicTradeEvent",
+                reason=str(e),
+                symbol=raw_trade.symbol,
+                trade_id=raw_trade.trade_id,
+                original_error=e,
             ) from e

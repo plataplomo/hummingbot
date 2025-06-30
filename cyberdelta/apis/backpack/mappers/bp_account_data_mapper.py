@@ -39,7 +39,6 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
@@ -76,8 +75,11 @@ from cyberdelta.core.models.operations import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.data_transformation import (
+    CollateralTransformationError,
     DataTransformationError,
+    InvalidMappingError,
     MissingRequiredFieldError,
+    OrderTransformationError,
     UnknownEnumError,
 )
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -348,7 +350,7 @@ class BackpackAccountDataMapper:
                 target_model="Trade",
                 reason=str(e),
                 original_error=e,
-                source_data=fill.model_dump() if fill else None,
+                source_data=raw_fill.model_dump() if raw_fill else None,
             ) from e
 
     @staticmethod
@@ -736,7 +738,7 @@ class BackpackAccountDataMapper:
                 raise MissingRequiredFieldError(
                     field_names="netEquity",
                     context="collateral response",
-                    source_data=raw_data if "raw_data" in locals() else None,
+                    source_data=raw_collateral.model_dump() if raw_collateral else None,
                 )
 
             available_equity = parse_decimal_value(
@@ -748,7 +750,7 @@ class BackpackAccountDataMapper:
                 raise MissingRequiredFieldError(
                     field_names="net_equity_available",
                     context="collateral response",
-                    source_data=raw_data if "raw_data" in locals() else None,
+                    source_data=raw_collateral.model_dump() if raw_collateral else None,
                 )
 
             # Parse detailed collateral fields
@@ -860,7 +862,7 @@ class BackpackAccountDataMapper:
             raise CollateralTransformationError(
                 collateral_type="Backpack",
                 reason=str(e),
-                source_data=raw_data if "raw_data" in locals() else None,
+                source_data=raw_collateral.model_dump() if raw_collateral else None,
             ) from e
 
     @staticmethod
@@ -931,7 +933,7 @@ class BackpackAccountDataMapper:
                     "bp_account_mapper_unexpected_status_type",
                     action="transform_raw_transfer_to_internal",
                     message="Unexpected type for raw transfer status",
-                    status_type=str(type(raw_status_val)),
+                    status_type=type(raw_status_val).__name__,
                 )
                 raw_status_str = None
 
@@ -1109,7 +1111,7 @@ class BackpackAccountDataMapper:
                 target_model="Withdrawal",
                 reason=str(e),
                 original_error=e,
-                source_data=raw.model_dump() if raw else None,
+                source_data=raw_response.model_dump() if raw_response else None,
             ) from e
 
     @staticmethod
@@ -1193,7 +1195,7 @@ class BackpackAccountDataMapper:
             raise MissingRequiredFieldError(
                 field_names="quantity",
                 context="BackpackRawOrder",
-                source_data=order.model_dump() if order else None,
+                source_data=raw.model_dump() if raw else None,
             )
 
         parsed_created_at = parse_datetime_utc(raw.createdAt)
@@ -1201,7 +1203,7 @@ class BackpackAccountDataMapper:
             raise MissingRequiredFieldError(
                 field_names="createdAt",
                 context="BackpackRawOrder",
-                source_data=order.model_dump() if order else None,
+                source_data=raw.model_dump() if raw else None,
             )
 
         return parsed_quantity, parsed_created_at
@@ -1320,9 +1322,9 @@ class BackpackAccountDataMapper:
             )
         except Exception as e:
             raise OrderTransformationError(
-                order_id=order.id if order else None,
+                order_id=raw.id if raw else None,
                 reason=str(e),
-                order_data=order.model_dump() if order else None,
+                order_data=raw.model_dump() if raw else None,
                 original_error=e,
             ) from e
 
@@ -1382,7 +1384,7 @@ class BackpackAccountDataMapper:
                 target_model="PublicTrade",
                 reason=str(e),
                 original_error=e,
-                source_data=raw_trade.model_dump() if raw_trade else None,
+                source_data=raw.model_dump() if raw else None,
             ) from e
         else:
             return None

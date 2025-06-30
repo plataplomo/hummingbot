@@ -4,8 +4,6 @@ These exceptions handle errors that occur during data transformation
 in mapper classes. They extend TransformationError (Layer 3).
 """
 
-from typing import Any
-
 from cyberdelta.apis.common import TransformationError
 
 
@@ -19,8 +17,8 @@ class MappingError(TransformationError):
         source_type: str | None = None,
         target_type: str | None = None,
         field_name: str | None = None,
-        source_value: Any = None,
-        details: dict[str, Any] | None = None,
+        source_value: object = None,
+        details: dict[str, object] | None = None,
         original_exception: Exception | None = None,
     ) -> None:
         """Initialize mapping error.
@@ -49,7 +47,7 @@ class UnknownEnumError(MappingError):
     def __init__(
         self,
         enum_type: str,
-        value: str | Any,
+        value: str | object,
         valid_values: list[str] | None = None,
     ) -> None:
         """Initialize unknown enum error.
@@ -82,7 +80,7 @@ class MissingRequiredFieldError(MappingError):
         self,
         field_names: str | list[str],
         context: str | None = None,
-        source_data: dict[str, Any] | None = None,
+        source_data: dict[str, object] | None = None,
     ) -> None:
         """Initialize missing required field error.
 
@@ -122,7 +120,7 @@ class DataTransformationError(MappingError):
         target_model: str,
         reason: str,
         original_error: Exception | None = None,
-        source_data: Any = None,
+        source_data: object = None,
     ) -> None:
         """Initialize data transformation error.
 
@@ -153,7 +151,7 @@ class InvalidMappingError(MappingError):
     def __init__(
         self,
         field_name: str,
-        source_value: Any,
+        source_value: object,
         reason: str,
         expected_format: str | None = None,
     ) -> None:
@@ -187,7 +185,7 @@ class CollateralTransformationError(MappingError):
         self,
         collateral_type: str,
         reason: str,
-        source_data: dict[str, Any] | None = None,
+        source_data: dict[str, object] | None = None,
     ) -> None:
         """Initialize collateral transformation error.
 
@@ -216,7 +214,7 @@ class OrderTransformationError(MappingError):
         self,
         order_id: str | None,
         reason: str,
-        order_data: dict[str, Any] | None = None,
+        order_data: dict[str, object] | None = None,
         original_error: Exception | None = None,
     ) -> None:
         """Initialize order transformation error.
@@ -241,4 +239,242 @@ class OrderTransformationError(MappingError):
             original_exception=original_error,
         )
         self.order_id = order_id
+        self.reason = reason
+
+
+class TickerTransformationError(MappingError):
+    """Raised when ticker data transformation fails."""
+
+    def __init__(
+        self,
+        ticker_source: str,
+        reason: str,
+        symbol: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize ticker transformation error.
+
+        Args:
+            ticker_source: Source of ticker data (e.g., 'BackpackRawTicker')
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            original_error: The original exception
+            source_data: The source ticker data
+        """
+        if symbol:
+            message = f"Failed to transform {ticker_source} to Ticker for {symbol}: {reason}"
+        else:
+            message = f"Failed to transform {ticker_source} to Ticker: {reason}"
+        
+        super().__init__(
+            message=message,
+            source_type=ticker_source,
+            target_type="Ticker",
+            source_value=source_data,
+            details={"symbol": symbol} if symbol else {},
+            original_exception=original_error,
+        )
+        self.ticker_source = ticker_source
+        self.symbol = symbol
+        self.reason = reason
+
+
+class MarketTransformationError(MappingError):
+    """Raised when market data transformation fails."""
+
+    def __init__(
+        self,
+        reason: str,
+        symbol: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize market transformation error.
+
+        Args:
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            original_error: The original exception
+            source_data: The source market data
+        """
+        if symbol:
+            message = f"Failed to transform BackpackRawMarket to Market for {symbol}: {reason}"
+        else:
+            message = f"Failed to transform BackpackRawMarket to Market: {reason}"
+        
+        super().__init__(
+            message=message,
+            source_type="BackpackRawMarket",
+            target_type="Market",
+            source_value=source_data,
+            details={"symbol": symbol} if symbol else {},
+            original_exception=original_error,
+        )
+        self.symbol = symbol
+        self.reason = reason
+
+
+class OrderBookTransformationError(MappingError):
+    """Raised when order book data transformation fails."""
+
+    def __init__(
+        self,
+        source_type: str,
+        reason: str,
+        symbol: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize order book transformation error.
+
+        Args:
+            source_type: Source type (e.g., 'BackpackRawOrderBook')
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            original_error: The original exception
+            source_data: The source order book data
+        """
+        if symbol:
+            message = f"Failed to transform {source_type} to OrderBook for {symbol}: {reason}"
+        else:
+            message = f"Failed to transform {source_type} to OrderBook: {reason}"
+        
+        super().__init__(
+            message=message,
+            source_type=source_type,
+            target_type="OrderBook",
+            source_value=source_data,
+            details={"symbol": symbol} if symbol else {},
+            original_exception=original_error,
+        )
+        self.symbol = symbol
+        self.reason = reason
+
+
+class TradeTransformationError(MappingError):
+    """Raised when trade data transformation fails."""
+
+    def __init__(
+        self,
+        trade_source: str,
+        reason: str,
+        symbol: str | None = None,
+        trade_id: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize trade transformation error.
+
+        Args:
+            trade_source: Source of trade data (e.g., 'BackpackRawPublicTrade')
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            trade_id: Trade ID if available
+            original_error: The original exception
+            source_data: The source trade data
+        """
+        if symbol and trade_id:
+            message = f"Failed to transform {trade_source} to Trade for {symbol} (ID: {trade_id}): {reason}"
+        elif symbol:
+            message = f"Failed to transform {trade_source} to Trade for {symbol}: {reason}"
+        elif trade_id:
+            message = f"Failed to transform {trade_source} to Trade (ID: {trade_id}): {reason}"
+        else:
+            message = f"Failed to transform {trade_source} to Trade: {reason}"
+        
+        super().__init__(
+            message=message,
+            source_type=trade_source,
+            target_type="Trade",
+            source_value=source_data,
+            details={
+                "symbol": symbol,
+                "trade_id": trade_id,
+            },
+            original_exception=original_error,
+        )
+        self.trade_source = trade_source
+        self.symbol = symbol
+        self.trade_id = trade_id
+        self.reason = reason
+
+
+class FundingRateTransformationError(MappingError):
+    """Raised when funding rate data transformation fails."""
+
+    def __init__(
+        self,
+        source_type: str,
+        reason: str,
+        symbol: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize funding rate transformation error.
+
+        Args:
+            source_type: Source type (e.g., 'BackpackRawFundingRate')
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            original_error: The original exception
+            source_data: The source funding rate data
+        """
+        if symbol:
+            message = f"Failed to transform {source_type} to FundingRate for {symbol}: {reason}"
+        else:
+            message = f"Failed to transform {source_type} to FundingRate: {reason}"
+        
+        super().__init__(
+            message=message,
+            source_type=source_type,
+            target_type="FundingRate",
+            source_value=source_data,
+            details={"symbol": symbol} if symbol else {},
+            original_exception=original_error,
+        )
+        self.symbol = symbol
+        self.reason = reason
+
+
+class CandleTransformationError(MappingError):
+    """Raised when candle/kline data transformation fails."""
+
+    def __init__(
+        self,
+        reason: str,
+        symbol: str | None = None,
+        interval: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize candle transformation error.
+
+        Args:
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            interval: Interval being transformed if available
+            original_error: The original exception
+            source_data: The source kline data
+        """
+        if symbol and interval:
+            message = f"Failed to transform BackpackRawKline to Candle for {symbol} ({interval}): {reason}"
+        elif symbol:
+            message = f"Failed to transform BackpackRawKline to Candle for {symbol}: {reason}"
+        else:
+            message = f"Failed to transform BackpackRawKline to Candle: {reason}"
+        
+        super().__init__(
+            message=message,
+            source_type="BackpackRawKline",
+            target_type="Candle",
+            source_value=source_data,
+            details={
+                "symbol": symbol,
+                "interval": interval,
+            },
+            original_exception=original_error,
+        )
+        self.symbol = symbol
+        self.interval = interval
         self.reason = reason

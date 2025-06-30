@@ -4,10 +4,8 @@ These exceptions handle errors that occur during parsing and conversion
 of raw data values, particularly in validators for raw types.
 """
 
-from typing import Any
 
-
-class ParsingError(ValueError):
+class ParsingError(Exception):
     """Base class for parsing-related errors."""
 
     def __init__(
@@ -15,9 +13,9 @@ class ParsingError(ValueError):
         message: str,
         *,
         field_name: str | None = None,
-        value: Any = None,
+        value: object = None,
         expected_type: str | None = None,
-        **metadata: Any,
+        **metadata: object,
     ) -> None:
         """Initialize parsing error.
 
@@ -41,7 +39,7 @@ class DateTimeParsingError(ParsingError):
     def __init__(
         self,
         field_name: str,
-        value: Any,
+        value: object,
         reason: str = "parse_datetime_utc returned None",
     ) -> None:
         """Initialize datetime parsing error.
@@ -67,7 +65,7 @@ class TimestampYearRangeError(ParsingError):
     def __init__(
         self,
         field_name: str,
-        value: Any,
+        value: object,
         year: int,
         min_year: int,
         max_year: int,
@@ -111,7 +109,7 @@ class TimestampFormatError(ParsingError):
     def __init__(
         self,
         field_name: str,
-        value: Any,
+        value: object,
         expected_format: str,
         details: str | None = None,
     ) -> None:
@@ -124,9 +122,15 @@ class TimestampFormatError(ParsingError):
             details: Optional error details
         """
         if details:
-            message = f"Field {field_name}: Invalid {expected_format} timestamp value '{value}'. Details: {details}"
+            message = (
+                f"Field {field_name}: Invalid {expected_format} timestamp value '{value}'. "
+                f"Details: {details}"
+            )
         else:
-            message = f"Field {field_name}: Expected {expected_format} timestamp, got {type(value).__name__}."
+            message = (
+                f"Field {field_name}: Expected {expected_format} timestamp, "
+                f"got {type(value).__name__}."
+            )
         
         super().__init__(
             message=message,
@@ -181,7 +185,11 @@ class EmptyStringError(ParsingError):
 class ClientIdFormatError(ParsingError):
     """Raised when clientId has invalid format."""
 
-    def __init__(self, field_name: str = "clientId", reason: str = "raw value must be a string or integer") -> None:
+    def __init__(
+        self,
+        field_name: str = "clientId",
+        reason: str = "raw value must be a string or integer",
+    ) -> None:
         """Initialize client ID format error.
 
         Args:
@@ -233,3 +241,84 @@ class ActionHashError(ParsingError):
             details=details,
             original_error=original_error,
         )
+
+
+class KlineTypeError(TypeError, ParsingError):
+    """Raised when kline field has wrong type - inherits TypeError semantics + parsing metadata."""
+
+    def __init__(self, field_alias: str, type_name: str, value: object = None) -> None:
+        """Initialize kline type error.
+
+        Args:
+            field_alias: Name of the kline field
+            type_name: Name of the actual type
+            value: The value that failed validation
+        """
+        if value is None:
+            message = f"Field {field_alias}: Raw value must be a string, got {type_name}"
+        else:
+            message = f"Field {field_alias}: Raw value must be a string"
+        
+        # Initialize TypeError with the message
+        TypeError.__init__(self, message)
+        
+        # Initialize ParsingError with full metadata
+        ParsingError.__init__(
+            self,
+            message=message,
+            field_name=field_alias,
+            value=value,
+            expected_type="string",
+            actual_type=type_name,
+        )
+        
+        # Store attributes for direct access
+        self.field_alias = field_alias
+        self.type_name = type_name
+
+
+class KlineValueError(ValueError, ParsingError):
+    """Raised when kline field has invalid value - ValueError semantics + parsing metadata."""
+
+    def __init__(
+        self,
+        error_type: str,
+        field_alias: str | None = None,
+        value: object = None,
+        parsed_val: str | None = None,
+    ) -> None:
+        """Initialize kline value error.
+
+        Args:
+            error_type: Type of error ('empty_string', 'not_finite', 'cannot_convert')
+            field_alias: Name of the kline field (optional)
+            value: The value that failed validation (optional)
+            parsed_val: The parsed value for conversion errors (optional)
+        """
+        # Construct the exact message based on error type
+        if error_type == "empty_string":
+            message = "String cannot be empty or whitespace"
+        elif error_type == "not_finite":
+            message = "must represent a finite decimal"
+        elif error_type == "cannot_convert" and parsed_val is not None:
+            message = f"Cannot convert '{parsed_val}' to Decimal"
+        else:
+            message = f"Kline value error: {error_type}"
+        
+        # Initialize ValueError with the message
+        ValueError.__init__(self, message)
+        
+        # Initialize ParsingError with full metadata
+        ParsingError.__init__(
+            self,
+            message,
+            field_name=field_alias,
+            value=value,
+            expected_type="valid_value",
+            error_type=error_type,
+            parsed_val=parsed_val,
+        )
+        
+        # Store attributes for direct access
+        self.error_type = error_type
+        self.parsed_val = parsed_val

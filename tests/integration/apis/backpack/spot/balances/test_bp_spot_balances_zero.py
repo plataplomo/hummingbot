@@ -16,6 +16,7 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.exceptions.authentication import InvalidPrivateKeyError
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
 
@@ -63,27 +64,27 @@ class TestBackpackSpotBalancesZero:
         active_bp_config: ExchangeSpecificConfig,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_balances() with invalid Ed25519 authentication."""
+        """Test that invalid Ed25519 authentication fails during API initialization."""
         invalid_secrets = ApiKeyAuthSecrets(
             api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
             api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
 
-        bp_api_invalid_auth = BackpackAPI(
-            exchange_config=active_bp_config,
-            exchange_secrets=invalid_secrets,
-        )
+        # Authentication validation now happens during API initialization
+        # This provides better security by failing fast with invalid credentials
+        with pytest.raises(InvalidPrivateKeyError) as exc_info:
+            BackpackAPI(
+                exchange_config=active_bp_config,
+                exchange_secrets=invalid_secrets,
+            )
 
-        with pytest.raises(APIError) as exc_info:
-            await bp_api_invalid_auth.get_balances()
-
-        api_error = exc_info.value
-        assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
-        assert "unauthorized" in str(api_error).lower() or "auth" in str(api_error).lower()
+        error = exc_info.value
+        assert "Invalid Base64 ED25519 private key" in str(error)
+        assert "Incorrect padding" in str(error)
         logger.info(
             "authentication_failure_detected",
-            error_message=api_error.message,
-            message=f"✓ Authentication failure properly detected: {api_error.message}",
+            error_message=str(error),
+            message=f"✓ Authentication failure properly detected during initialization: {error}",
         )
 
     @pytest.mark.vcr

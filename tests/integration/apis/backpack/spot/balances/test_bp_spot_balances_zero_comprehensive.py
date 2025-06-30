@@ -27,6 +27,7 @@ from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
@@ -127,44 +128,27 @@ class TestBackpackSpotBalancesZeroComprehensive:
         active_bp_config: ExchangeSpecificConfig,
         custom_vcr_config: dict[str, Any],
     ) -> None:
-        """Test get_balances() with invalid authentication credentials.
-
-        This validates proper error handling and mapping for authentication failures.
+        """Test that invalid Ed25519 authentication fails during API initialization.
+        
+        This validates proper error handling for authentication failures,
+        demonstrating enhanced security through early credential validation.
         """
         invalid_secrets = ApiKeyAuthSecrets(
-            api_key=SecretStr("invalid_api_key"),
-            api_secret=SecretStr("invalid_api_secret"),
+            api_key=SecretStr("fake_api_key_for_testing_auth_failure"),
+            api_secret=SecretStr("fake_api_secret_for_testing_auth_failure"),
         )
 
-        bad_api = BackpackAPI(
-            exchange_config=active_bp_config,
-            exchange_secrets=invalid_secrets,
-        )
+        # Authentication validation now happens during API initialization
+        # This provides better security by failing fast with invalid credentials
+        with pytest.raises(InvalidPrivateKeyError) as exc_info:
+            BackpackAPI(
+                exchange_config=active_bp_config,
+                exchange_secrets=invalid_secrets,
+            )
 
-        # Try to get balances with invalid credentials
-        try:
-            result = await bad_api.get_balances()
-            # If we get here, the call succeeded (possibly due to VCR playback)
-            # Validate that we got a proper response structure
-            assert isinstance(result, dict), "Response should be a dict of balances"
-            # This is acceptable for VCR playback scenarios
-        except APIError as api_error:
-            # This is the expected behavior for real API calls with invalid credentials
-            if api_error.code not in [
-                APIErrorCode.AUTHENTICATION_FAILED.value,
-                APIErrorCode.INVALID_REQUEST.value,
-                APIErrorCode.INVALID_PARAMS.value,
-            ]:
-                pytest.fail(f"Expected authentication error, got: {api_error.code}")
-            msg = api_error.message.lower()
-            if "auth" not in msg and "invalid" not in msg:
-                pytest.fail(
-                    f"Expected 'auth' or 'invalid' in error message, got: {api_error.message}"
-                )
-        except (ValueError, TypeError, KeyError) as e:
-            pytest.fail(f"Unexpected exception type: {type(e).__name__}: {e}")
-        finally:
-            await bad_api.close()
+        error = exc_info.value
+        assert "Invalid Base64 ED25519 private key" in str(error)
+        assert "Incorrect padding" in str(error)
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

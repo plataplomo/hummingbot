@@ -5,7 +5,6 @@ particularly for the service_args_models.py validators.
 """
 
 from decimal import Decimal
-from typing import Any
 
 from cyberdelta.exceptions.field_validation import FieldError
 
@@ -18,8 +17,8 @@ class ServiceValidationError(ValueError, FieldError):
         message: str,
         *,
         field_name: str | None = None,
-        field_value: Any = None,
-        **metadata: Any,
+        field_value: object = None,
+        **metadata: object,
     ) -> None:
         """Initialize service validation error.
 
@@ -51,7 +50,7 @@ class OrderParameterError(ServiceValidationError):
         field_name: str,
         reason: str,
         order_type: str | None = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> None:
         """Initialize order parameter error.
 
@@ -63,10 +62,7 @@ class OrderParameterError(ServiceValidationError):
         """
         self.order_type = order_type
         
-        if order_type:
-            message = f"{reason} for {order_type} orders"
-        else:
-            message = reason
+        message = f"{reason} for {order_type} orders" if order_type else reason
             
         super().__init__(
             message=message,
@@ -133,8 +129,8 @@ class TimeRangeError(ServiceValidationError):
         self,
         start_field: str,
         end_field: str,
-        start_value: Any = None,
-        end_value: Any = None,
+        start_value: object = None,
+        end_value: object = None,
     ) -> None:
         """Initialize time range error.
 
@@ -194,7 +190,7 @@ class IntegerConversionError(ServiceValidationError):
     def __init__(
         self,
         field_name: str,
-        value: Any,
+        value: object,
         reason: str = "could not be converted to int",
     ) -> None:
         """Initialize integer conversion error.
@@ -218,7 +214,7 @@ class NegativeValueError(ServiceValidationError):
     def __init__(
         self,
         field_name: str,
-        value: int | float | Decimal,
+        value: float | Decimal,
         constraint: str = "must be non-negative",
     ) -> None:
         """Initialize negative value error.

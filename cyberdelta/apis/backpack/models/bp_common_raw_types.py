@@ -23,6 +23,8 @@ from cyberdelta.exceptions.parsing import (
     ClientIdFormatError,
     DateTimeParsingError,
     EmptyStringError,
+    KlineTypeError,
+    KlineValueError,
     NonNullableFieldError,
     TimestampFormatError,
     TimestampYearRangeError,
@@ -454,6 +456,56 @@ def _validate_funding_rate_iso_string_timestamp(s_val: str, field_name: str) -> 
     return s_val
 
 
+def _handle_funding_rate_numeric_timestamp(v: float, field_name: str) -> int | float:
+    """Handle validation of numeric timestamp for funding rate."""
+    try:
+        return _validate_funding_rate_numeric_timestamp(v, field_name)
+    except (DateTimeParsingError, TimestampYearRangeError):
+        raise
+    except ValueError as e:
+        raise TimestampFormatError(
+            field_name=field_name,
+            value=v,
+            expected_format="numeric",
+            details=str(e),
+        ) from e
+
+
+def _handle_funding_rate_string_timestamp(v: str, field_name: str) -> int | float | str:
+    """Handle validation of string timestamp for funding rate."""
+    s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
+    is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
+
+    if is_numeric_string and numeric_value is not None:
+        try:
+            return _validate_funding_rate_numeric_string_timestamp(
+                s_val,
+                numeric_value,
+                field_name,
+            )
+        except (DateTimeParsingError, TimestampYearRangeError):
+            raise
+        except ValueError as e:
+            raise TimestampFormatError(
+                field_name=field_name,
+                value=s_val,
+                expected_format="numeric string",
+                details=str(e),
+            ) from e
+    else:
+        try:
+            return _validate_funding_rate_iso_string_timestamp(s_val, field_name)
+        except (DateTimeParsingError, TimestampYearRangeError):
+            raise
+        except ValueError as e_orig:
+            raise TimestampFormatError(
+                field_name=field_name,
+                value=s_val,
+                expected_format="ISO string",
+                details=str(e_orig),
+            ) from e_orig
+
+
 def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int | float | str:
     """Validate timestamp for FundingRate: int, float, or ISO string. Year 1970-2070.
 
@@ -471,50 +523,10 @@ def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int
         raise NonNullableFieldError(field_name=field_name)
 
     if isinstance(v, int | float):
-        try:
-            return _validate_funding_rate_numeric_timestamp(v, field_name)
-        except (DateTimeParsingError, TimestampYearRangeError):
-            raise
-        except ValueError as e:
-            raise TimestampFormatError(
-                field_name=field_name,
-                value=v,
-                expected_format="numeric",
-                details=str(e),
-            ) from e
+        return _handle_funding_rate_numeric_timestamp(v, field_name)
 
     if isinstance(v, str):
-        s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
-        is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
-
-        if is_numeric_string and numeric_value is not None:
-            try:
-                return _validate_funding_rate_numeric_string_timestamp(
-                    s_val,
-                    numeric_value,
-                    field_name,
-                )
-            except (DateTimeParsingError, TimestampYearRangeError):
-                raise
-            except ValueError as e:
-                raise TimestampFormatError(
-                    field_name=field_name,
-                    value=s_val,
-                    expected_format="numeric string",
-                    details=str(e),
-                ) from e
-        else:
-            try:
-                return _validate_funding_rate_iso_string_timestamp(s_val, field_name)
-            except (DateTimeParsingError, TimestampYearRangeError):
-                raise
-            except ValueError as e_orig:
-                raise TimestampFormatError(
-                    field_name=field_name,
-                    value=s_val,
-                    expected_format="ISO string",
-                    details=str(e_orig),
-                ) from e_orig
+        return _handle_funding_rate_string_timestamp(v, field_name)
 
     raise TimestampFormatError(
         field_name=field_name,
@@ -633,6 +645,65 @@ def _handle_validation_error(e: ValueError, field_name: str, s_val: str) -> None
     ) from e
 
 
+def _handle_flexible_numeric_timestamp(v: float, field_name: str) -> int | float:
+    """Handle validation of numeric timestamp for flexible timestamp."""
+    try:
+        return _validate_numeric_timestamp(v, field_name)
+    except ValueError as e:
+        raise TimestampFormatError(
+            field_name=field_name,
+            value=v,
+            expected_format="numeric",
+            details=f"Invalid numeric timestamp value '{v}'. Details: {e}",
+        ) from e
+
+
+def _handle_flexible_iso_string_timestamp(s_val: str, field_name: str) -> str:
+    """Handle validation of ISO string timestamp for flexible timestamp."""
+    try:
+        return _validate_iso_string_timestamp(s_val, field_name)
+    except (DateTimeParsingError, TimestampYearRangeError):
+        raise
+    except ValueError:
+        if field_name == "event_time":
+            raise TimestampFieldError(
+                field_name=field_name,
+                value=s_val,
+                reason="Invalid timestamp format",
+            ) from None
+        try:
+            parse_datetime_utc(s_val, field_name=field_name)
+        except ValueError as e_orig:
+            raise TimestampFormatError(
+                field_name=field_name,
+                value=s_val,
+                expected_format="ISO string",
+                details=str(e_orig),
+            ) from e_orig
+        raise TimestampFormatError(
+            field_name=field_name,
+            value=s_val,
+            expected_format="ISO string",
+            details=None,
+        ) from None
+
+
+def _handle_flexible_string_timestamp(v: str, field_name: str) -> int | float | str:
+    """Handle validation of string timestamp for flexible timestamp."""
+    s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
+    is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
+
+    if is_numeric_string and numeric_value is not None:
+        try:
+            return _validate_numeric_string_timestamp(s_val, numeric_value, field_name)
+        except ValueError as e:
+            _handle_validation_error(e, field_name, s_val)
+            # _handle_validation_error raises an exception, so this is unreachable
+            raise  # pragma: no cover
+    else:
+        return _handle_flexible_iso_string_timestamp(s_val, field_name)
+
+
 def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | float | str:
     """Validate timestamp that can be int, float, or ISO string. CANNOT be None. Year 1970-2300.
 
@@ -647,52 +718,10 @@ def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | f
         raise NonNullableFieldError(field_name=field_name)
 
     if isinstance(v, int | float):
-        try:
-            return _validate_numeric_timestamp(v, field_name)
-        except ValueError as e:
-            raise TimestampFormatError(
-                field_name=field_name,
-                value=v,
-                expected_format="numeric",
-                details=f"Invalid numeric timestamp value '{v}'. Details: {e}",
-            ) from e
+        return _handle_flexible_numeric_timestamp(v, field_name)
 
     if isinstance(v, str):
-        s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
-        is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
-
-        if is_numeric_string and numeric_value is not None:
-            try:
-                return _validate_numeric_string_timestamp(s_val, numeric_value, field_name)
-            except ValueError as e:
-                _handle_validation_error(e, field_name, s_val)
-        else:
-            try:
-                return _validate_iso_string_timestamp(s_val, field_name)
-            except (DateTimeParsingError, TimestampYearRangeError):
-                raise
-            except ValueError:
-                if field_name == "event_time":
-                    raise TimestampFieldError(
-                        field_name=field_name,
-                        value=s_val,
-                        reason="Invalid timestamp format",
-                    ) from None
-                try:
-                    parse_datetime_utc(s_val, field_name=field_name)
-                except ValueError as e_orig:
-                    raise TimestampFormatError(
-                        field_name=field_name,
-                        value=s_val,
-                        expected_format="ISO string",
-                        details=str(e_orig),
-                    ) from e_orig
-                raise TimestampFormatError(
-                    field_name=field_name,
-                    value=s_val,
-                    expected_format="ISO string",
-                    details=None,
-                ) from None
+        return _handle_flexible_string_timestamp(v, field_name)
 
     raise TimestampFormatError(
         field_name=field_name,
@@ -735,7 +764,9 @@ def _validate_optional_non_empty_string_max_len(
         if field_name in {"clientId", "client_id"}:
             raise EmptyStringError(
                 field_name=field_name,
-                context="Value error, clientId cannot be an empty or whitespace-only string if provided",
+                context=(
+                    "Value error, clientId cannot be an empty or whitespace-only string if provided"
+                ),
             )
         # Align with test_bp_raw_market.py for field 'e' ('event_type')
         raise EmptyStringError(field_name=field_name)
@@ -1053,19 +1084,32 @@ def _validate_raw_depth_price_string(v: object, info: ValidationInfo) -> str:
     if not isinstance(v, str):
         # Error for this case should be just 'Expected string'
         # Pydantic will prefix it with the field path.
-        raise TypeError("Expected string")
+        raise TypeFieldError(
+            field_name=info.field_name or "price",
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     if not v.strip():
         # Error for this case should be just 'String cannot be empty'
-        raise ValueError("String cannot be empty")
+        raise EmptyStringError(field_name=info.field_name or "price")
 
     try:
         d = Decimal(v)
         if not d.is_finite():
             # Error for this case should be just 'Price must be finite'
-            raise ValueError("Price must be finite")
+            raise DecimalFieldError(
+                field_name=info.field_name or "price",
+                value=str(v),
+                reason="Price must be finite",
+            )
     except InvalidOperation as e_orig:
-        raise ValueError("Invalid price value") from e_orig
+        raise DecimalFieldError(
+            field_name=info.field_name or "price",
+            value=str(v),
+            reason="Invalid price value",
+        ) from e_orig
 
     return v  # Return str
 
@@ -1086,21 +1130,39 @@ def _validate_raw_depth_quantity_string(v: object, info: ValidationInfo) -> str:
         str: Validated quantity string.
     """
     if not isinstance(v, str):
-        raise TypeError("Expected string")
+        raise TypeFieldError(
+            field_name=info.field_name or "quantity",
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
     if not v.strip():
-        raise ValueError("String cannot be empty")
+        raise EmptyStringError(field_name=info.field_name or "quantity")
     try:
         d = Decimal(v)
         if not d.is_finite():
-            raise ValueError("Quantity must be finite")
+            raise DecimalFieldError(
+                field_name=info.field_name or "quantity",
+                value=str(v),
+                reason="Quantity must be finite",
+            )
         if d < Decimal(0):
-            raise ValueError("Quantity cannot be negative")
+            raise RangeFieldError(
+                field_name=info.field_name or "quantity",
+                value=str(v),
+                min_value=0,
+                constraint="Quantity cannot be negative",
+            )
     except InvalidOperation:
         # Consistent with price, if not parsable, treat as not finite for test message purposes.
         # However, the error message for quantity should be specific if unparseable.
         # Let's assume for now the test expects "Quantity must be finite" for unparseable too,
         # based on the previous structure. If not, this needs to be "Invalid quantity value".
-        raise ValueError("Quantity must be finite") from None  # Added from None for B904
+        raise DecimalFieldError(
+            field_name=info.field_name or "quantity",
+            value=str(v),
+            reason="Quantity must be finite",
+        ) from None  # Added from None for B904
     return v  # Return str
 
 
@@ -1122,19 +1184,39 @@ def _validate_kline_int_field(v: object, info: ValidationInfo, field_alias: str)
     if isinstance(v, str):
         # Test expects TypeError for any string input, even if parsable as an int.
         # This aligns with test_bp_raw_kline.py::test_field_validation_failures:
-        raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
+        raise TypeFieldError(
+            field_name=field_name_for_msg,
+            expected_type="integer",
+            actual_type="string",
+            actual_value=v,
+        )
     if isinstance(v, int):
         val_int = v
     elif isinstance(
         v,
         float,
     ):  # Handles: (0, "start_time_ms", 1700000000000.5, TypeError, "Raw value must be an integer")
-        raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
+        raise TypeFieldError(
+            field_name=field_name_for_msg,
+            expected_type="integer",
+            actual_type="float",
+            actual_value=v,
+        )
     else:  # Handles other types like bool, list, None
-        raise TypeError(f"Field {field_name_for_msg}: Raw value must be an integer")
+        raise TypeFieldError(
+            field_name=field_name_for_msg,
+            expected_type="integer",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     if val_int < 0:  # Handles: (0, "start_time_ms", -1, ValueError, "Value must be non-negative")
-        raise ValueError(f"Field {field_name_for_msg}: Value must be non-negative, got {val_int}.")
+        raise RangeFieldError(
+            field_name=field_name_for_msg,
+            value=val_int,
+            min_value=0,
+            constraint=f"Value must be non-negative, got {val_int}",
+        )
     return val_int
 
 
@@ -1163,25 +1245,25 @@ def _validate_kline_decimal_str_field(v: object, info: ValidationInfo, field_ali
         type_name = type(v).__name__
         # Test for high_price = None expects "..., got NoneType"
         if v is None:
-            raise TypeError(f"Field {field_alias}: Raw value must be a string, got {type_name}")
+            raise KlineTypeError(field_alias, type_name, v)
         # Other type errors (e.g. int/float for a string field) expect this message
-        raise TypeError(f"Field {field_alias}: Raw value must be a string")
+        raise KlineTypeError(field_alias, type_name)
 
     try:
         parsed_val = validate_str_field(v, field_name=field_alias, max_length=64, allow_empty=False)
     except ValueError as e:
         if (not v.strip()) and (f"Field {field_alias}: String cannot be empty" == str(e)):
-            raise ValueError("String cannot be empty or whitespace") from e
+            raise KlineValueError("empty_string", field_alias, v) from e
         raise
 
     try:
         d = Decimal(parsed_val)
         if not d.is_finite():
             # Test expects "must represent a finite decimal" (no field prefix for this error)
-            raise ValueError("must represent a finite decimal")
+            raise KlineValueError("not_finite", field_alias, parsed_val)
     except InvalidOperation as e:
         # Test expects "Cannot convert '{value}' to Decimal" (no field prefix for this error)
-        raise ValueError(f"Cannot convert '{parsed_val}' to Decimal") from e
+        raise KlineValueError("cannot_convert", field_alias, parsed_val, parsed_val) from e
 
     return parsed_val  # Return the validated string, Pydantic will make it Decimal
 
@@ -1215,7 +1297,7 @@ def _validate_kline_string_field(
     """
     # Ensure the input is a string first, as per test expectations for TypeError
     if not isinstance(v, str):
-        raise TypeError("Raw value must be a string")
+        raise KlineTypeError(field_alias, type(v).__name__)
 
     # Use field_alias as the field_name for validate_str_field
     # This ensures errors from validate_str_field directly reference the kline field name.
@@ -1233,7 +1315,7 @@ def _validate_kline_string_field(
             and f"Field {field_alias}: String cannot be empty" == str(e)
         ):
             # Check original `v` for emptiness and original error message from validate_str_field
-            raise ValueError("String cannot be empty or whitespace") from e
+            raise KlineValueError("empty_string", field_alias, v) from e
         # For all other ValueErrors (e.g. too long, invalid UTF-8),
         # re-raise the original error which already includes the field_alias.
         raise
@@ -1450,19 +1532,31 @@ def _validate_raw_imf_base_decimal_string(v: object, info: ValidationInfo) -> st
     """Validate IMF 'base' field. Error messages use 'base'."""
     actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
-        raise TypeError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
+        raise TypeFieldError(
+            field_name=actual_field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
         )
     if not v.strip():
-        raise ValueError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty",
+        raise EmptyStringError(
+            field_name=actual_field_name,
+            context=f"Validation failed - {actual_field_name}: String cannot be empty",
         )
     try:
         d = Decimal(v)
         if not d.is_finite():
-            raise ValueError("Value must be a finite decimal")  # Generic message as per test
+            raise DecimalFieldError(
+                field_name=actual_field_name,
+                value=v,
+                reason="Value must be a finite decimal",
+            )
     except InvalidOperation:
-        raise ValueError(f"Cannot convert '{v}' to Decimal") from None  # Generic as per test
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=v,
+            reason=f"Cannot convert '{v}' to Decimal",
+        ) from None
     return v
 
 
@@ -1476,19 +1570,31 @@ def _validate_raw_imf_factor_decimal_string(v: object, info: ValidationInfo) -> 
     """Validate IMF 'factor' field. Error messages use 'factor'."""
     actual_field_name = info.field_name or "factor"  # Should be 'factor'
     if not isinstance(v, str):
-        raise TypeError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
+        raise TypeFieldError(
+            field_name=actual_field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
         )
     if not v.strip():
-        raise ValueError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty",
+        raise EmptyStringError(
+            field_name=actual_field_name,
+            context=f"Validation failed - {actual_field_name}: String cannot be empty",
         )
     try:
         d = Decimal(v)
         if not d.is_finite():
-            raise ValueError("Value must be a finite decimal")
+            raise DecimalFieldError(
+                field_name=actual_field_name,
+                value=v,
+                reason="Value must be a finite decimal",
+            )
     except InvalidOperation:
-        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=v,
+            reason=f"Cannot convert '{v}' to Decimal",
+        ) from None
     return v
 
 
@@ -1502,19 +1608,31 @@ def _validate_raw_mmf_base_decimal_string(v: object, info: ValidationInfo) -> st
     """Validate MMF 'base' field. Error messages use 'base'."""
     actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
-        raise TypeError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
+        raise TypeFieldError(
+            field_name=actual_field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
         )
     if not v.strip():
-        raise ValueError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty",
+        raise EmptyStringError(
+            field_name=actual_field_name,
+            context=f"Validation failed - {actual_field_name}: String cannot be empty",
         )
     try:
         d = Decimal(v)
         if not d.is_finite():
-            raise ValueError("Value must be a finite decimal")
+            raise DecimalFieldError(
+                field_name=actual_field_name,
+                value=v,
+                reason="Value must be a finite decimal",
+            )
     except InvalidOperation:
-        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=v,
+            reason=f"Cannot convert '{v}' to Decimal",
+        ) from None
     return v
 
 
@@ -1528,19 +1646,31 @@ def _validate_raw_mmf_factor_decimal_string(v: object, info: ValidationInfo) -> 
     """Validate MMF 'factor' field. Error messages use 'factor'."""
     actual_field_name = info.field_name or "factor"  # Should be 'factor'
     if not isinstance(v, str):
-        raise TypeError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: Expected string",
+        raise TypeFieldError(
+            field_name=actual_field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
         )
     if not v.strip():
-        raise ValueError(
-            f"{actual_field_name}: Validation failed - {actual_field_name}: String cannot be empty",
+        raise EmptyStringError(
+            field_name=actual_field_name,
+            context=f"Validation failed - {actual_field_name}: String cannot be empty",
         )
     try:
         d = Decimal(v)
         if not d.is_finite():
-            raise ValueError("Value must be a finite decimal")
+            raise DecimalFieldError(
+                field_name=actual_field_name,
+                value=v,
+                reason="Value must be a finite decimal",
+            )
     except InvalidOperation:
-        raise ValueError(f"Cannot convert '{v}' to Decimal") from None
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=v,
+            reason=f"Cannot convert '{v}' to Decimal",
+        ) from None
     return v
 
 
@@ -1563,7 +1693,12 @@ def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -
     """
     field_name = info.field_name or "quantity"  # Default to quantity
     if not isinstance(v, str):
-        raise TypeError("Input should be a valid string")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     # parse_decimal_value will raise appropriate error for non-parsable strings
@@ -1578,9 +1713,18 @@ def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -
         )
 
     if not d.is_finite():
-        raise ValueError("Value must be a finite decimal")  # Specific error message for test
+        raise DecimalFieldError(
+            field_name=field_name,
+            value=s,
+            reason="Value must be a finite decimal",
+        )
     if d < Decimal(0):
-        raise ValueError("Liquidation quantity cannot be negative")  # Changed message
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=0,
+            constraint="Liquidation quantity cannot be negative",
+        )
     return s
 
 
@@ -1601,7 +1745,12 @@ def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> s
     """
     field_name = info.field_name or "price"
     if not isinstance(v, str):
-        raise TypeError("Input should be a valid string")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -1613,11 +1762,18 @@ def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> s
         )
 
     if not d.is_finite():
-        raise ValueError("Value must be a finite decimal")
+        raise DecimalFieldError(
+            field_name=field_name,
+            value=s,
+            reason="Value must be a finite decimal",
+        )
     if d <= Decimal(0):  # Price must be positive, not just non-negative
-        raise ValueError(
-            "Liquidation price cannot be negative",
-        )  # Test expects this for negative values
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=0,
+            constraint="Liquidation price cannot be negative",
+        )
     return s
 
 
@@ -1638,7 +1794,12 @@ def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> s
     """
     field_name = info.field_name or "amount"
     if not isinstance(v, str):
-        raise TypeError("Input should be a valid string")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -1658,7 +1819,12 @@ def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> s
             reason="must be a finite decimal",
         )
     if d < Decimal(0):
-        raise ValueError("Withdrawal amount cannot be negative")  # Specific error for test
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=0,
+            constraint="Withdrawal amount cannot be negative",
+        )
     return s
 
 
@@ -1679,7 +1845,12 @@ def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
     """
     field_name = info.field_name or "amount"
     if not isinstance(v, str):
-        raise TypeError("Input should be a valid string")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
@@ -1699,7 +1870,12 @@ def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
             reason="must be a finite decimal",
         )
     if d < Decimal(0):
-        raise ValueError("Deposit amount cannot be negative")  # Specific error for test
+        raise RangeFieldError(
+            field_name=field_name,
+            value=s,
+            min_value=0,
+            constraint="Deposit amount cannot be negative",
+        )
     return s
 
 
@@ -1736,7 +1912,11 @@ def _validate_raw_fill_fee_string(v: object, info: ValidationInfo) -> str:
             ),
         )
     if not d.is_finite():
-        raise ValueError("Value must be a finite decimal")  # Matches test expectation
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=s,
+            reason="Value must be a finite decimal",
+        )
     return s
 
 
@@ -1769,7 +1949,11 @@ def _validate_raw_fill_price_string(v: object, info: ValidationInfo) -> str:
             ),
         )
     if not d.is_finite():
-        raise ValueError("Value must be a finite decimal")  # Matches test expectation
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=s,
+            reason="Value must be a finite decimal",
+        )
     return s
 
 
@@ -1802,7 +1986,11 @@ def _validate_raw_fill_quantity_string(v: object, info: ValidationInfo) -> str:
             ),
         )
     if not d.is_finite():
-        raise ValueError("Value must be a finite decimal")  # Matches test expectation
+        raise DecimalFieldError(
+            field_name=actual_field_name,
+            value=s,
+            reason="Value must be a finite decimal",
+        )
     return s
 
 

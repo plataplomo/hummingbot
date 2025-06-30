@@ -49,6 +49,16 @@ from cyberdelta.core.models.market.market import HyperliquidMarketDetails
 from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import (
+    CandleTransformationError,
+    FundingRateTransformationError,
+    MarketTransformationError,
+    MissingRequiredFieldError,
+    OrderBookTransformationError,
+    TickerTransformationError,
+    TradeTransformationError,
+    UnknownEnumError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -77,27 +87,39 @@ class HyperliquidMarketDataMapper:
             TransformationError: If side cannot be mapped
 
         """
-        try:
-            if hl_side == "B":
-                return OrderSide.BUY
-            if hl_side == "A":
-                return OrderSide.SELL
+        if hl_side == "B":
+            return OrderSide.BUY
+        if hl_side == "A":
+            return OrderSide.SELL
 
-            raise TransformationError(
-                f"Unknown Hyperliquid order side: '{hl_side}'",
-                field_name="side",
-                source_value=hl_side,
-            )
-        except TransformationError:
-            # Re-raise TransformationError as-is per ERROR_HANDLING.md
-            raise
-        except Exception as e:
-            raise TransformationError(
-                f"Failed to map order side: {e}",
-                field_name="side",
-                source_value=hl_side,
-                original_exception=e,
-            ) from e
+        raise UnknownEnumError(
+            enum_type="Hyperliquid order side",
+            value=hl_side,
+            valid_values=["B", "A"]
+        )
+
+    @staticmethod
+    def _validate_asset_ctx_data(
+        mark_px: object, name: object, context: str
+    ) -> tuple[object, str]:
+        """Validate asset context data.
+        
+        Args:
+            mark_px: Raw mark price value
+            name: Raw symbol name value
+            context: Context for error messages
+            
+        Returns:
+            tuple[object, str]: Validated mark_px and name
+            
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        if mark_px is None:
+            raise MissingRequiredFieldError("mark_px", context)
+        if name is None:
+            raise MissingRequiredFieldError("name", context)
+        return mark_px, name
 
     @staticmethod
     def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
@@ -115,17 +137,18 @@ class HyperliquidMarketDataMapper:
         """
         try:
             # Parse core ticker fields using parsing utilities
+            # Validate asset context data
+            HyperliquidMarketDataMapper._validate_asset_ctx_data(
+                raw_asset_ctx.mark_px,
+                raw_asset_ctx.name,
+                "HyperliquidRawAssetCtx"
+            )
+            
             mark_px = parse_decimal_value(
                 raw_asset_ctx.mark_px,
                 allow_none=False,
                 field_name="markPx",
             )
-            if mark_px is None:
-                raise TransformationError(
-                    "mark_px is required for ticker",
-                    field_name="mark_px",
-                    source_value=raw_asset_ctx.mark_px,
-                )
 
             # Extract volume data from day_ntl_vlm (daily notional volume)
             volume_24h = None
@@ -139,13 +162,7 @@ class HyperliquidMarketDataMapper:
             # Get current timestamp for ticker timestamp
             timestamp = datetime.now(UTC)
 
-            # Ensure symbol is not None
-            if raw_asset_ctx.name is None:
-                raise TransformationError(
-                    "Asset context name is required for ticker",
-                    field_name="name",
-                    source_value=None,
-                )
+            # Symbol already validated above
 
             # SECURITY FIX: Use secure_transform instead of direct instantiation
             ticker_data = {
@@ -177,9 +194,11 @@ class HyperliquidMarketDataMapper:
                 symbol=raw_asset_ctx.name,
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawAssetCtx to Ticker: {e}",
-                source_data={"symbol": raw_asset_ctx.name, "mark_px": raw_asset_ctx.mark_px},
+            raise TickerTransformationError(
+                ticker_source="HyperliquidRawAssetCtx",
+                reason=str(e),
+                symbol=raw_asset_ctx.name,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -244,9 +263,11 @@ class HyperliquidMarketDataMapper:
                 symbol=str(raw_book.coin),
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawL2Book to OrderBook: {e}",
-                source_data={"symbol": str(raw_book.coin), "levels_count": len(raw_book.levels)},
+            raise OrderBookTransformationError(
+                source_type="HyperliquidRawL2Book",
+                reason=str(e),
+                symbol=str(raw_book.coin),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -289,14 +310,36 @@ class HyperliquidMarketDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            raise TransformationError(
-                f"Failed to parse order book levels: {e}",
-                field_name="levels",
-                source_value=level_index,
-                original_exception=e,
+            raise OrderBookTransformationError(
+                source_type="HyperliquidRawL2Book",
+                reason=f"Failed to parse order book levels: {e}",
+                original_error=e,
             ) from e
         else:
             return levels
+
+    @staticmethod
+    def _validate_trade_data(
+        price: object, quantity: object, context: str
+    ) -> tuple[object, object]:
+        """Validate trade price and quantity data.
+        
+        Args:
+            price: Raw price value
+            quantity: Raw quantity value
+            context: Context for error messages
+            
+        Returns:
+            tuple[object, object]: Validated price and quantity
+            
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        if price is None:
+            raise MissingRequiredFieldError("price", context)
+        if quantity is None:
+            raise MissingRequiredFieldError("quantity", context)
+        return price, quantity
 
     @staticmethod
     def transform_raw_public_trade_to_internal(
@@ -322,11 +365,10 @@ class HyperliquidMarketDataMapper:
             price = parse_decimal_value(raw_trade.px, allow_none=False, field_name="px")
             quantity = parse_decimal_value(raw_trade.sz, allow_none=False, field_name="sz")
 
-            if price is None or quantity is None:
-                raise TransformationError(
-                    "Price and quantity are required for trade",
-                    source_data={"px": raw_trade.px, "sz": raw_trade.sz},
-                )
+            # Validate trade data
+            HyperliquidMarketDataMapper._validate_trade_data(
+                price, quantity, "HyperliquidRawPublicTrade"
+            )
 
             # Check for zero or negative values - return None for invalid trades
             # Also filter out extremely small quantities that are not meaningful for trading
@@ -391,9 +433,12 @@ class HyperliquidMarketDataMapper:
                 trade_hash=raw_trade.hash,
                 error=str(e),
             )
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawPublicTrade to Trade: {e}",
-                source_data={"symbol": str(raw_trade.coin), "hash": raw_trade.hash},
+            raise TradeTransformationError(
+                trade_source="HyperliquidRawPublicTrade",
+                reason=str(e),
+                symbol=str(raw_trade.coin),
+                trade_id=raw_trade.hash,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -492,6 +537,29 @@ class HyperliquidMarketDataMapper:
             return None
 
     @staticmethod
+    def _validate_funding_data(
+        funding_rate: object, timestamp: object, context: str
+    ) -> tuple[object, object]:
+        """Validate funding rate data.
+        
+        Args:
+            funding_rate: Raw funding rate value
+            timestamp: Raw timestamp value
+            context: Context for error messages
+            
+        Returns:
+            tuple[object, object]: Validated funding_rate and timestamp
+            
+        Raises:
+            MissingRequiredFieldError: If required fields are missing
+        """
+        if funding_rate is None:
+            raise MissingRequiredFieldError("funding_rate", context)
+        if timestamp is None:
+            raise MissingRequiredFieldError("timestamp", context)
+        return funding_rate, timestamp
+
+    @staticmethod
     def transform_raw_funding_history_item_to_internal(
         raw_item: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
@@ -515,13 +583,13 @@ class HyperliquidMarketDataMapper:
                 field_name="fundingRate",
             )
 
-            if funding_rate is None:
-                raise TransformationError("Funding rate is required")
-
             # Parse timestamp
             timestamp = parse_datetime_utc(raw_item.time, field_name="time")
-            if timestamp is None:
-                raise TransformationError("Timestamp is required for funding history")
+            
+            # Validate funding data
+            HyperliquidMarketDataMapper._validate_funding_data(
+                funding_rate, timestamp, "HyperliquidRawFundingHistoryItem"
+            )
 
             # Create HL-specific details
             details = HyperliquidFundingDetails(
@@ -549,8 +617,11 @@ class HyperliquidMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawFundingHistoryItem to FundingRate: {e}",
+            raise FundingRateTransformationError(
+                source_type="HyperliquidRawFundingHistoryItem",
+                reason=str(e),
+                symbol=str(raw_item.coin),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -589,8 +660,11 @@ class HyperliquidMarketDataMapper:
                     candles.append(candle)
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawCandleSnapshot to Candle list: {e}",
+            raise CandleTransformationError(
+                reason=str(e),
+                symbol=symbol,
+                interval=interval,
+                original_error=e,
             ) from e
         else:
             return candles
@@ -699,16 +773,23 @@ class HyperliquidMarketDataMapper:
         volume: Decimal | None,
     ) -> None:
         """Validate that all candle prices are non-None after parsing."""
+        missing_fields = []
         if open_price is None:
-            raise ValueError("Open price unexpectedly None after validation")
+            missing_fields.append("open_price")
         if high_price is None:
-            raise ValueError("High price unexpectedly None after validation")
+            missing_fields.append("high_price")
         if low_price is None:
-            raise ValueError("Low price unexpectedly None after validation")
+            missing_fields.append("low_price")
         if close_price is None:
-            raise ValueError("Close price unexpectedly None after validation")
+            missing_fields.append("close_price")
         if volume is None:
-            raise ValueError("Volume unexpectedly None after validation")
+            missing_fields.append("volume")
+        
+        if missing_fields:
+            raise MissingRequiredFieldError(
+                missing_fields,
+                "candle after validation"
+            )
 
     @staticmethod
     def _create_candle_from_data(
@@ -762,8 +843,10 @@ class HyperliquidMarketDataMapper:
             price = parse_decimal_value(raw.px, allow_none=False, field_name="px")
             quantity = parse_decimal_value(raw.sz, allow_none=False, field_name="sz")
 
-            if price is None or quantity is None:
-                raise TransformationError("Price and quantity are required for trade")
+            # Validate trade data
+            HyperliquidMarketDataMapper._validate_trade_data(
+                price, quantity, "HyperliquidRawWsTradeEvent"
+            )
 
             # Parse timestamp (convert from milliseconds)
             executed_at = datetime.fromtimestamp(raw.time / 1000, tz=UTC)
@@ -802,8 +885,12 @@ class HyperliquidMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawWsTradeEvent to Trade: {e}",
+            raise TradeTransformationError(
+                trade_source="HyperliquidRawWsTradeEvent",
+                reason=str(e),
+                symbol=str(raw.coin),
+                trade_id=raw.hash,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -860,8 +947,11 @@ class HyperliquidMarketDataMapper:
             )
 
         except Exception as e:
-            raise TransformationError(
-                f"Failed to transform HyperliquidRawWsBookUpdate to OrderBook: {e}",
+            raise OrderBookTransformationError(
+                source_type="HyperliquidRawWsBookUpdate",
+                reason=str(e),
+                symbol=str(raw.coin),
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -964,9 +1054,35 @@ class HyperliquidMarketDataMapper:
                 error=str(e),
                 message=f"Failed to transform meta and asset contexts to markets: {e}",
             )
-            raise TransformationError(f"Failed to transform meta and asset contexts: {e}") from e
+            raise MarketTransformationError(
+                reason=str(e),
+                original_error=e,
+            ) from e
         else:
             return markets
+
+    @staticmethod
+    def _validate_asset_definition_data(
+        step_size_parsed: object, asset_name: str
+    ) -> object:
+        """Validate asset definition data.
+        
+        Args:
+            step_size_parsed: Parsed step size value
+            asset_name: Asset name for context
+            
+        Returns:
+            object: Validated step size
+            
+        Raises:
+            MissingRequiredFieldError: If step size is invalid
+        """
+        if step_size_parsed is None:
+            raise MissingRequiredFieldError(
+                "sz_decimals",
+                f"asset definition for {asset_name}"
+            )
+        return step_size_parsed
 
     @staticmethod
     def _create_market_from_asset_definition(
@@ -988,13 +1104,9 @@ class HyperliquidMarketDataMapper:
         try:
             # Calculate step_size from sz_decimals
             step_size_parsed = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
-            if step_size_parsed is None:
-                raise TransformationError(
-                    f"Failed to parse step size for {asset_def.name}",
-                    field_name="sz_decimals",
-                    source_value=asset_def.sz_decimals,
-                )
-            step_size = step_size_parsed
+            step_size = HyperliquidMarketDataMapper._validate_asset_definition_data(
+                step_size_parsed, asset_def.name
+            )
 
             # For Hyperliquid perpetuals, determine tick size from actual market prices
             # since it's not explicitly provided in their meta response
@@ -1055,11 +1167,10 @@ class HyperliquidMarketDataMapper:
             # Re-raise TransformationError as-is per ERROR_HANDLING.md
             raise
         except Exception as e:
-            raise TransformationError(
-                f"Failed to create market from asset definition: {e}",
-                field_name="asset_def",
-                source_value=asset_def.name if hasattr(asset_def, "name") else str(asset_def),
-                original_exception=e,
+            raise MarketTransformationError(
+                reason=str(e),
+                symbol=asset_def.name if hasattr(asset_def, "name") else None,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -1127,4 +1238,7 @@ class HyperliquidMarketDataMapper:
                 source_exchange="hyperliquid",
             )
         except Exception as e:
-            raise TransformationError(f"Failed to transform AllMids response: {e}") from e
+            raise MarketTransformationError(
+                reason=str(e),
+                original_error=e,
+            ) from e
