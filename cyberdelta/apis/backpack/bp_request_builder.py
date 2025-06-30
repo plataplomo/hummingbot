@@ -54,6 +54,7 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions import TestnetConfigurationError
 
 
 logger = get_logger(__name__)
@@ -83,7 +84,10 @@ class BackpackRequestBuilder:
             self.base_url = str(self._exchange_config.api_base_url_mainnet)
         else:
             if self._exchange_config.api_base_url_testnet is None:
-                raise ValueError("Testnet API URL not configured but testnet environment requested")
+                raise TestnetConfigurationError(
+                    missing_config="api_base_url_testnet",
+                    config_type="API URL",
+                )
             self.base_url = str(self._exchange_config.api_base_url_testnet)
 
     def _get_endpoint_url(self, path: str) -> str:

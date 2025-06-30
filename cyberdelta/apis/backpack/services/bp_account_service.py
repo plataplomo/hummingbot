@@ -54,6 +54,12 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import (
+    EmptyStringParameterError,
+    InvalidAccountTypeError,
+    NetworkRequiredError,
+    UnsupportedNetworkError,
+)
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response, is_list_response
@@ -221,6 +227,12 @@ class BackpackAccountService:
             # The response_handler.handle_get_positions_response now correctly handles
             # dict for single symbol or list for all symbols.
             # Check the actual type of the response, not whether symbol was provided
+            if raw_data is None:
+                return []
+
+            self._validate_response_type(raw_data, ["dict", "list"], "positions", status_code)
+
+            # Now handle based on type
             if is_dict_response(raw_data):
                 # raw_data is now typed as dict[str, Any]
                 return self._response_handler.handle_get_positions_response(
@@ -228,18 +240,12 @@ class BackpackAccountService:
                     symbol,
                     status_code,
                 )
-            if is_list_response(raw_data):
-                # raw_data is now typed as list[Any]
-                return self._response_handler.handle_get_positions_response(
-                    raw_data,
-                    symbol,
-                    status_code,
-                )
-            # Handle unexpected response type
-            raise APIError(
-                message=f"Unexpected response type for positions: {type(raw_data).__name__}",
-                code=APIErrorCode.INVALID_RESPONSE.value,
-                http_status=status_code,
+            # Must be list type after validation
+            # raw_data is now typed as list[Any]
+            return self._response_handler.handle_get_positions_response(
+                raw_data,
+                symbol,
+                status_code,
             )
         except APIError as e:
             # Handle 404 for positions endpoint - Backpack may not support this endpoint
@@ -691,11 +697,84 @@ class BackpackAccountService:
 
         return internal_positions
 
+    def _validate_response_data(
+        self,
+        raw_data: ParsedJsonResponse | None,
+        operation: str,
+        status_code: int,
+    ) -> None:
+        """Validate that response data is not None.
+
+        Args:
+            raw_data: The response data to validate
+            operation: Name of the operation (e.g., "collateral request")
+            status_code: HTTP status code
+
+        Raises:
+            APIError: If data is None
+        """
+        if raw_data is None:
+            raise APIError(
+                message=f"No data received for {operation}",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=status_code,
+            )
+
+    def _validate_max_quantity_response(
+        self,
+        max_quantity: Decimal | None,
+        operation: str,
+    ) -> None:
+        """Validate max quantity response value.
+
+        Args:
+            max_quantity: The max quantity value from response
+            operation: Name of the operation
+
+        Raises:
+            APIError: If max quantity is None
+        """
+        if max_quantity is None:
+            raise APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"Missing {operation} in response",
+            )
+
+    def _validate_response_type(
+        self,
+        raw_data: ParsedJsonResponse,
+        expected_types: list[str],
+        operation: str,
+        status_code: int,
+    ) -> None:
+        """Validate response has expected type.
+
+        Args:
+            raw_data: The response data to validate
+            expected_types: List of expected type names (e.g., ["dict", "list"])
+            operation: Name of the operation
+            status_code: HTTP status code
+
+        Raises:
+            APIError: If response type is unexpected
+        """
+        if "dict" in expected_types and is_dict_response(raw_data):
+            return
+        if "list" in expected_types and is_list_response(raw_data):
+            return
+
+        raise APIError(
+            message=f"Unexpected response type for {operation}: {type(raw_data).__name__}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+            http_status=status_code,
+        )
+
     def _validate_position_symbol(self, symbol: str | None, method_name: str) -> None:
         """Validate the symbol parameter for position queries."""
         if symbol is not None and not symbol:
-            raise ValueError(
-                f"[{method_name}] 'symbol' must be a non-empty string when provided.",
+            raise EmptyStringParameterError(
+                parameter_name="symbol",
+                method_name=method_name,
             )
 
     async def _transform_raw_positions(self, symbol: str | None) -> list[DerivativePosition]:
@@ -1128,11 +1207,12 @@ class BackpackAccountService:
             )
 
             # Validate response
+            self._validate_response_data(raw_data, "collateral request", status_code)
+            # Type narrowing: validation ensures raw_data is not None
             if raw_data is None:
                 raise APIError(
-                    message="No data received for collateral request",
+                    message="Unexpected None after validation",
                     code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
                 )
             return self._response_handler.handle_get_collateral_response(
                 raw_response_content=raw_data,
@@ -1188,11 +1268,12 @@ class BackpackAccountService:
             )
 
             # Validate response
+            self._validate_response_data(raw_data, "max borrow quantity request", status_code)
+            # Type narrowing: validation ensures raw_data is not None
             if raw_data is None:
                 raise APIError(
-                    message="No data received for max borrow quantity request",
+                    message="Unexpected None after validation",
                     code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
                 )
             raw_response = self._response_handler.handle_max_borrow_quantity_response(
                 raw_response_content=raw_data,
@@ -1207,11 +1288,7 @@ class BackpackAccountService:
                 field_name="max_borrow_quantity",
                 allow_none=False,
             )
-            if max_quantity is None:
-                raise APIError(
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    message="Missing max_borrow_quantity in response",
-                )
+            self._validate_max_quantity_response(max_quantity, "max_borrow_quantity")
 
         except Exception as e:
             logger.exception(
@@ -1222,6 +1299,12 @@ class BackpackAccountService:
             )
             raise
         else:
+            # Type narrowing: validation ensures max_quantity is not None
+            if max_quantity is None:
+                raise APIError(
+                    message="Unexpected None after validation",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
             return max_quantity
 
     async def _get_exchange_max_order_quantity(self, args: GetMaxOrderQuantityArgs) -> Decimal:
@@ -1260,11 +1343,12 @@ class BackpackAccountService:
 
             # Validate response
             side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
+            self._validate_response_data(raw_data, "max order quantity request", status_code)
+            # Type narrowing: validation ensures raw_data is not None
             if raw_data is None:
                 raise APIError(
-                    message="No data received for max order quantity request",
+                    message="Unexpected None after validation",
                     code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
                 )
             raw_response = self._response_handler.handle_max_order_quantity_response(
                 raw_response_content=raw_data,
@@ -1280,11 +1364,7 @@ class BackpackAccountService:
                 field_name="max_order_quantity",
                 allow_none=False,
             )
-            if max_quantity is None:
-                raise APIError(
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    message="Missing max_order_quantity in response",
-                )
+            self._validate_max_quantity_response(max_quantity, "max_order_quantity")
 
         except Exception as e:
             logger.exception(
@@ -1295,6 +1375,12 @@ class BackpackAccountService:
             )
             raise
         else:
+            # Type narrowing: validation ensures max_quantity is not None
+            if max_quantity is None:
+                raise APIError(
+                    message="Unexpected None after validation",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
             return max_quantity
 
     async def _get_exchange_max_withdrawal_quantity(
@@ -1335,11 +1421,12 @@ class BackpackAccountService:
             )
 
             # Validate response
+            self._validate_response_data(raw_data, "max withdrawal quantity request", status_code)
+            # Type narrowing: validation ensures raw_data is not None
             if raw_data is None:
                 raise APIError(
-                    message="No data received for max withdrawal quantity request",
+                    message="Unexpected None after validation",
                     code=APIErrorCode.INVALID_RESPONSE.value,
-                    http_status=status_code,
                 )
             raw_response = self._response_handler.handle_max_withdrawal_quantity_response(
                 raw_response_content=raw_data,
@@ -1354,11 +1441,7 @@ class BackpackAccountService:
                 field_name="max_withdrawal_quantity",
                 allow_none=False,
             )
-            if max_quantity is None:
-                raise APIError(
-                    code=APIErrorCode.INVALID_RESPONSE.value,
-                    message="Missing max_withdrawal_quantity in response",
-                )
+            self._validate_max_quantity_response(max_quantity, "max_withdrawal_quantity")
 
         except Exception as e:
             logger.exception(
@@ -1369,20 +1452,30 @@ class BackpackAccountService:
             )
             raise
         else:
+            # Type narrowing: validation ensures max_quantity is not None
+            if max_quantity is None:
+                raise APIError(
+                    message="Unexpected None after validation",
+                    code=APIErrorCode.INVALID_RESPONSE.value,
+                )
             return max_quantity
 
     def _validate_account_types(self, args: TransferArgs, current_method: str) -> None:
         """Validate account types for transfer."""
         valid_accounts = {"SPOT", "MARGIN", "FUTURES"}
         if args.from_account_type not in valid_accounts:
-            raise ValueError(
-                f"[{current_method}] Invalid from_account_type: {args.from_account_type}. "
-                f"Must be one of {valid_accounts}",
+            raise InvalidAccountTypeError(
+                account_type=args.from_account_type,
+                parameter_name="from_account_type",
+                valid_types=valid_accounts,
+                method_name=current_method,
             )
         if args.to_account_type not in valid_accounts:
-            raise ValueError(
-                f"[{current_method}] Invalid to_account_type: {args.to_account_type}. "
-                f"Must be one of {valid_accounts}",
+            raise InvalidAccountTypeError(
+                account_type=args.to_account_type,
+                parameter_name="to_account_type",
+                valid_types=valid_accounts,
+                method_name=current_method,
             )
 
     async def _execute_transfer_request(self, args: TransferArgs) -> tuple[ParsedJsonResponse, int]:
@@ -1566,7 +1659,10 @@ class BackpackAccountService:
     def _validate_withdrawal_network(self, args: WithdrawArgs, current_method: str) -> None:
         """Validate withdrawal network support."""
         if args.network is None:
-            raise ValueError(f"[{current_method}] 'network' is required for withdrawal.")
+            raise NetworkRequiredError(
+                operation="withdrawal",
+                method_name=current_method,
+            )
 
         blockchain_mapping = {
             "Arbitrum": "Arbitrum",
@@ -1586,9 +1682,10 @@ class BackpackAccountService:
         }
 
         if args.network not in blockchain_mapping:
-            raise ValueError(
-                f"[{current_method}] Unsupported network: {args.network}. "
-                f"Supported networks: {list(blockchain_mapping.keys())}",
+            raise UnsupportedNetworkError(
+                network=args.network,
+                supported_networks=list(blockchain_mapping.keys()),
+                method_name=current_method,
             )
 
     async def _execute_withdrawal_request(
@@ -1600,7 +1697,9 @@ class BackpackAccountService:
 
         # DEFENSIVE CHECK: Ensure network is not None. Mypy=[arg-type]
         if args.network is None:
-            raise ValueError("Network is required for withdrawal")
+            raise NetworkRequiredError(
+                operation="withdrawal",
+            )
 
         payload = self._request_builder.build_withdraw_payload(
             asset=args.asset,

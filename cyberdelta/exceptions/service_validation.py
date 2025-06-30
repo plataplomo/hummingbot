@@ -272,3 +272,116 @@ class NegativeValueError(ServiceValidationError):
             field_value=value,
             constraint=constraint,
         )
+
+
+class EmptyStringParameterError(ServiceValidationError):
+    """Raised when a string parameter is empty when it should have a value."""
+
+    def __init__(
+        self,
+        parameter_name: str,
+        method_name: str | None = None,
+    ) -> None:
+        """Initialize empty string parameter error.
+
+        Args:
+            parameter_name: Name of the parameter that is empty
+            method_name: Optional method name for context
+        """
+        message = f"'{parameter_name}' must be a non-empty string when provided"
+        if method_name:
+            message = f"[{method_name}] {message}"
+
+        super().__init__(
+            message=message,
+            field_name=parameter_name,
+            field_value="",
+            method_name=method_name,
+        )
+
+
+class InvalidAccountTypeError(ServiceValidationError):
+    """Raised when an invalid account type is provided."""
+
+    def __init__(
+        self,
+        account_type: str,
+        parameter_name: str,
+        valid_types: set[str],
+        method_name: str | None = None,
+    ) -> None:
+        """Initialize invalid account type error.
+
+        Args:
+            account_type: The invalid account type provided
+            parameter_name: Name of the parameter (e.g., 'from_account_type')
+            valid_types: Set of valid account types
+            method_name: Optional method name for context
+        """
+        message = f"Invalid {parameter_name}: {account_type}. Must be one of {valid_types}"
+        if method_name:
+            message = f"[{method_name}] {message}"
+
+        super().__init__(
+            message=message,
+            field_name=parameter_name,
+            field_value=account_type,
+            valid_types=list(valid_types),
+            method_name=method_name,
+        )
+
+
+class NetworkRequiredError(ServiceValidationError):
+    """Raised when network parameter is required but not provided."""
+
+    def __init__(
+        self,
+        operation: str,
+        method_name: str | None = None,
+    ) -> None:
+        """Initialize network required error.
+
+        Args:
+            operation: The operation requiring network (e.g., 'withdrawal')
+            method_name: Optional method name for context
+        """
+        message = f"'network' is required for {operation}"
+        if method_name:
+            message = f"[{method_name}] {message}"
+
+        super().__init__(
+            message=message,
+            field_name="network",
+            field_value=None,
+            operation=operation,
+            method_name=method_name,
+        )
+
+
+class UnsupportedNetworkError(ServiceValidationError):
+    """Raised when an unsupported network is specified."""
+
+    def __init__(
+        self,
+        network: str,
+        supported_networks: list[str],
+        method_name: str | None = None,
+    ) -> None:
+        """Initialize unsupported network error.
+
+        Args:
+            network: The unsupported network provided
+            supported_networks: List of supported networks
+            method_name: Optional method name for context
+        """
+        message = f"Unsupported network: {network}. Supported networks: {supported_networks}"
+        if method_name:
+            message = f"[{method_name}] {message}"
+
+        super().__init__(
+            message=message,
+            field_name="network",
+            field_value=network,
+            supported_networks=supported_networks,
+            method_name=method_name,
+        )

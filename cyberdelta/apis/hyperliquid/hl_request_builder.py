@@ -81,6 +81,13 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawL1Args,
 )
 from cyberdelta.core.models import OrderSide, OrderType
+from cyberdelta.exceptions import (
+    DecimalFormatError,
+    DecimalRangeError,
+    InvalidEnumValueError,
+    MissingRequiredParameterError,
+    PrecisionLossError,
+)
 
 
 # Precision and batch size constants
@@ -106,13 +113,21 @@ class HyperliquidRequestBuilder:
     def _validate_decimal_input(value: Decimal) -> None:
         """Validate decimal input for wire format conversion."""
         if not value.is_finite():
-            raise ValueError(f"Value must be finite, got {value}")
+            raise DecimalFormatError(value, "must be finite")
 
         if abs(value) > Decimal("1e18"):
-            raise ValueError(f"Value too large for wire format: {value}")
+            raise DecimalRangeError(
+                value,
+                "too large for wire format",
+                max_value=Decimal("1e18"),
+            )
 
         if value != 0 and abs(value) < Decimal("1e-8"):
-            raise ValueError(f"Value too small for wire format precision: {value}")
+            raise DecimalRangeError(
+                value,
+                "too small for wire format precision",
+                min_value=Decimal("1e-8"),
+            )
 
     @staticmethod
     def _format_and_validate_precision(value: Decimal) -> str:
@@ -120,16 +135,17 @@ class HyperliquidRequestBuilder:
         try:
             x = float(value)
         except (ValueError, OverflowError) as e:
-            raise ValueError(f"Cannot convert {value} to float: {e}") from e
+            raise DecimalFormatError(value, f"cannot convert to float: {e}") from e
 
         rounded = f"{x:.8f}"
 
         # Check for rounding errors
         precision_loss = abs(float(rounded) - x)
         if precision_loss >= PRECISION_TOLERANCE:
-            raise ValueError(
-                f"Wire format conversion causes precision loss for {value}. "
-                f"Loss: {precision_loss:.2e}",
+            raise PrecisionLossError(
+                value=Decimal(str(value)),
+                precision_loss=precision_loss,
+                tolerance=PRECISION_TOLERANCE,
             )
 
         return rounded
@@ -152,7 +168,10 @@ class HyperliquidRequestBuilder:
             # Final validation - ensure result is parseable
             _ = Decimal(result)
         except Exception as e:
-            raise ValueError(f"Failed to normalize wire format for {original_value}: {e}") from e
+            raise DecimalFormatError(
+                original_value,
+                f"failed to normalize wire format: {e}",
+            ) from e
         else:
             return result
 
@@ -379,9 +398,9 @@ class HyperliquidRequestBuilder:
             # Market orders require a price to be passed from the service layer
             # The service layer should calculate aggressive pricing based on current market data
             if args.price is None:
-                raise ValueError(
-                    "Market orders require a calculated aggressive price. "
-                    "The service layer must provide the price based on current market data.",
+                raise MissingRequiredParameterError(
+                    parameter_name="price",
+                    operation="market order placement",
                 )
             limit_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.price)
         else:
@@ -406,7 +425,10 @@ class HyperliquidRequestBuilder:
         elif args.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}:
             # Construct trigger information for stop orders
             if args.stop_price is None:
-                raise ValueError(f"Stop orders require stop_price, got None for {args.order_type}")
+                raise MissingRequiredParameterError(
+                    parameter_name="stop_price",
+                    operation=f"{args.order_type.value} order placement",
+                )
 
             trigger_px_wire = HyperliquidRequestBuilder._decimal_to_wire_format(args.stop_price)
             is_market = args.order_type == OrderType.STOP_MARKET
@@ -419,7 +441,12 @@ class HyperliquidRequestBuilder:
 
             order_type_model = HyperliquidRawOrderType(trigger=trigger_info)
         else:
-            raise ValueError(f"Unsupported order type: {args.order_type}")
+            raise InvalidEnumValueError(
+                parameter_name="order_type",
+                value=args.order_type.value,
+                valid_values=[ot.value for ot in OrderType],
+                enum_type="OrderType",
+            )
 
         # Build and return the order specification
         return HyperliquidRawOrderItemSpec(
@@ -640,12 +667,17 @@ class HyperliquidRequestBuilder:
             ValueError: If any order has invalid parameters or batch is empty
         """
         if not orders_with_indices:
-            raise ValueError("Cannot create batch order payload with empty order list")
+            raise MissingRequiredParameterError(
+                parameter_name="orders",
+                operation="batch order placement",
+            )
 
         if len(orders_with_indices) > MAX_BATCH_SIZE:  # Conservative batch size limit
-            raise ValueError(
-                f"Batch size {len(orders_with_indices)} exceeds maximum of {MAX_BATCH_SIZE} "
-                "orders. Consider splitting into smaller batches."
+            raise DecimalRangeError(
+                value=Decimal(len(orders_with_indices)),
+                constraint="batch size exceeds maximum",
+                max_value=Decimal(MAX_BATCH_SIZE),
+                parameter_name="batch_size",
             )
 
         # Build order specs for all orders in the batch
@@ -685,12 +717,17 @@ class HyperliquidRequestBuilder:
             ValueError: If cancel list is empty or exceeds batch limits
         """
         if not cancel_items:
-            raise ValueError("Cannot create batch cancel payload with empty cancel list")
+            raise MissingRequiredParameterError(
+                parameter_name="cancel_items",
+                operation="batch order cancellation",
+            )
 
         if len(cancel_items) > MAX_BATCH_SIZE:  # Conservative batch size limit
-            raise ValueError(
-                f"Batch size {len(cancel_items)} exceeds maximum of {MAX_BATCH_SIZE} "
-                "cancellations. Consider splitting into smaller batches."
+            raise DecimalRangeError(
+                value=Decimal(len(cancel_items)),
+                constraint="batch size exceeds maximum",
+                max_value=Decimal(MAX_BATCH_SIZE),
+                parameter_name="batch_size",
             )
 
         # Build cancel item specs for all cancellations in the batch

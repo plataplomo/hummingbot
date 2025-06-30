@@ -34,7 +34,6 @@ from .rate_limiting_decorators import (
     retry_on_failure,
 )
 from .security_decorators import (
-    TransformationError,
     business_logic_validated,
     secure_mapped_response,
     secure_transform,
@@ -58,7 +57,6 @@ __all__ = [
     "RateLimited",
     "RetryOnFailure",
     "Timeout",
-    "TransformationError",
     "TypedResponseError",
     "auto_typed",
     "business_logic_validated",

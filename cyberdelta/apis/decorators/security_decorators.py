@@ -16,6 +16,14 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import (
+    FieldConstraintError,
+    FieldTypeError,
+    FinancialFieldError,
+    InvalidMapperResultError,
+    MapperNotFoundError,
+    SecurityValidationError,
+)
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
@@ -27,10 +35,6 @@ logger = get_logger(__name__)
 T = TypeVar("T", bound=BaseModel)
 P = ParamSpec("P")
 R = TypeVar("R")
-
-
-class TransformationError(Exception):
-    """Critical security error in data transformation requiring immediate attention."""
 
 
 class SecureTransform[T: BaseModel]:
@@ -148,8 +152,9 @@ class SecureTransform[T: BaseModel]:
                     f"from {exchange_context}: {e}"
                 ),
             )
-            raise TransformationError(
-                f"Security validation failed for {self.target_model.__name__}: {e}",
+            raise SecurityValidationError(
+                model_name=self.target_model.__name__,
+                validation_error=e,
             ) from e
         else:
             return validated_model
@@ -162,14 +167,24 @@ def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]
             try:
                 raw_value = data[field]
                 if not isinstance(raw_value, str | int | float | Decimal):
-                    raise TypeError(f"Field {field} must be numeric, got {type(raw_value)}")
+                    raise FieldTypeError(
+                        field_name=field,
+                        expected_type="numeric",
+                        actual_type=type(raw_value),
+                    )
                 value = parse_decimal_value(raw_value, allow_none=False, field_name=field)
                 if value is not None and value < 0:
-                    raise ValueError(f"Financial field {field} cannot be negative: {value}")
+                    raise FinancialFieldError(
+                        field_name=field,
+                        value=value,
+                        constraint="cannot be negative",
+                    )
             except (ValueError, TypeError) as e:
                 if "cannot be negative" not in str(e):
-                    raise ValueError(
-                        f"Financial field {field} must be numeric: {data[field]}",
+                    raise FinancialFieldError(
+                        field_name=field,
+                        value=data[field],
+                        constraint="must be numeric",
                     ) from e
                 raise
 
@@ -187,9 +202,19 @@ def _validate_custom_constraints(
             value = parse_decimal_value(raw_value, allow_none=True, field_name=field)
             if value is not None:
                 if "min" in rules and value < Decimal(str(rules["min"])):
-                    raise ValueError(f"Field {field} below minimum {rules['min']}: {value}")
+                    raise FieldConstraintError(
+                        field_name=field,
+                        value=value,
+                        constraint_type="min",
+                        constraint_value=rules["min"],
+                    )
                 if "max" in rules and value > Decimal(str(rules["max"])):
-                    raise ValueError(f"Field {field} exceeds maximum {rules['max']}: {value}")
+                    raise FieldConstraintError(
+                        field_name=field,
+                        value=value,
+                        constraint_type="max",
+                        constraint_value=rules["max"],
+                    )
 
 
 class BusinessLogicValidator[**P, R]:
@@ -502,7 +527,7 @@ def secure_mapped_response(
             # Step 3: Get mapper and apply security validation
             mapper = _find_mapper(self)
             if not mapper or not hasattr(mapper, mapper_method):
-                raise AttributeError(f"Mapper method {mapper_method} not found")
+                raise MapperNotFoundError(mapper_method=mapper_method)
 
             # Step 4: Execute mapper with security decorators
             mapper_func = getattr(mapper, mapper_method)
@@ -532,11 +557,17 @@ def secure_mapped_response(
                 result = await mapper_func(validated_raw)
                 if isinstance(result, BaseModel):
                     return result
-                raise TypeError(f"Mapper returned non-BaseModel type: {type(result)}")
+                raise InvalidMapperResultError(
+                    expected_type="BaseModel",
+                    actual_type=type(result),
+                )
             result = await mapper_func(validated_raw)
             if isinstance(result, BaseModel):
                 return result
-            raise TypeError(f"Mapper returned non-BaseModel type: {type(result)}")
+            raise InvalidMapperResultError(
+                expected_type="BaseModel",
+                actual_type=type(result),
+            )
 
         return wrapper
 

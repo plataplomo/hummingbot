@@ -26,6 +26,7 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
 )
 from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions import DataTransformationError, EmptyStringParameterError
 
 
 class BackpackWsMessageRouter:
@@ -96,7 +97,10 @@ class BackpackWsMessageRouter:
         """
         # Basic topic validation
         if not topic or not topic.strip():
-            raise ValueError("Topic cannot be empty for Backpack subscription.")
+            raise EmptyStringParameterError(
+                parameter_name="topic",
+                method_name="construct_subscription_payload",
+            )
 
         # For Backpack, the standard subscription format is used
         method_val: Literal["SUBSCRIBE", "UNSUBSCRIBE"] = "SUBSCRIBE"
@@ -123,8 +127,11 @@ class BackpackWsMessageRouter:
             )
         except Exception as e:
             # Wrap unexpected exceptions
-            raise ValueError(
-                f"Failed to construct subscription payload for topic '{topic}': {e}",
+            raise DataTransformationError(
+                source_model="subscription_params",
+                target_model="BackpackRawWsSubscriptionRequest",
+                reason=str(e),
+                original_error=e,
             ) from e
 
     def _extract_topic_and_data(
