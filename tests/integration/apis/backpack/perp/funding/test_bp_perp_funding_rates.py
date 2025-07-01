@@ -19,6 +19,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
+from cyberdelta.apis.exceptions.market_data_service import EmptySymbolListError
 from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 from cyberdelta.core.models import FundingRate
 
@@ -463,7 +464,7 @@ async def test_bp_get_funding_rates_empty_symbols_error(
         symbols=[],  # Empty list should cause error
     )
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(EmptySymbolListError) as exc_info:
         await bp_api_for_test_env.get_funding_rates(args)
 
     # Validate error details

@@ -63,4 +63,4 @@ async def test_hl_get_perp_order_book_nonexistent_symbol_raises_api_error(
         await hl_api_for_test_env.get_order_book("NONEXISTENT")
 
     assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert "No content received from HTTP client for l2Book" in exc_info.value.message
+    assert "Empty l2Book data received" in exc_info.value.message

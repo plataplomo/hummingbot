@@ -36,6 +36,7 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.exceptions.parsing import EmptyStringError
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     TEST_SYMBOL_BTC_USDC,
     TEST_SYMBOL_SOL_USDC,
@@ -271,7 +272,20 @@ class TestBackpackOrdersZeroBalance:
 
         # Test truly malformed symbols - should result in symbol validation errors
         for malformed_symbol in truly_malformed_symbols:
-            try:
+            if not malformed_symbol:
+                # Empty string is validated at Pydantic level
+                with pytest.raises(EmptyStringError):
+                    PlaceOrderArgs(
+                        symbol=malformed_symbol,
+                        side=OrderSide.BUY,
+                        order_type=OrderType.LIMIT,
+                        quantity=Decimal("0.1"),
+                        price=current_price,
+                        time_in_force=TimeInForce.GTC,
+                    )
+                # EmptyStringError is expected for empty string validation
+            else:
+                # Other malformed symbols might pass Pydantic but fail at API level
                 place_args = PlaceOrderArgs(
                     symbol=malformed_symbol,
                     side=OrderSide.BUY,
@@ -293,27 +307,6 @@ class TestBackpackOrdersZeroBalance:
                 ], (
                     f"Malformed symbol '{malformed_symbol}' should give symbol error, "
                     f"got {api_error.code}"
-                )
-
-                logger.info(
-                    "malformed_symbol_rejected",
-                    symbol=malformed_symbol,
-                    error_code=api_error.code,
-                    message=(
-                        f"✓ Malformed symbol '{malformed_symbol}' properly rejected: "
-                        f"{api_error.code}"
-                    ),
-                )
-
-            except (APIError, ValueError, TypeError, KeyError) as e:
-                # Some malformed symbols might fail at Pydantic validation level
-                logger.info(
-                    "malformed_symbol_validation_error",
-                    symbol=malformed_symbol,
-                    error_message=str(e),
-                    message=(
-                        f"✓ Malformed symbol '{malformed_symbol}' caught at validation level: {e}"
-                    ),
                 )
 
     @pytest.mark.vcr

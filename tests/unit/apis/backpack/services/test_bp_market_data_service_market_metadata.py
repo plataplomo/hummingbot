@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market import Market
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Import fixtures from the shared conftest
@@ -109,7 +110,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         empty_symbol = ""
 
         # The validation error should occur when creating GetMarketArgs, not in the service
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             GetMarketArgs(symbol=empty_symbol)
 
         assert "String cannot be empty" in str(exc_info.value)

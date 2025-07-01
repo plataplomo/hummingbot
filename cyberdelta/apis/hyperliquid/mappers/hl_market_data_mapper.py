@@ -1110,8 +1110,9 @@ class HyperliquidMarketDataMapper:
                 message=f"Failed to transform meta and asset contexts to markets: {e}",
             )
             raise MarketTransformationError(
-                reason=str(e),
+                reason=f"Failed to transform meta and asset contexts to markets: {e}",
                 original_error=e,
+                source_type="HyperliquidRawMetaAndAssetCtxs",
             ) from e
         else:
             return markets

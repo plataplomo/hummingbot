@@ -32,6 +32,19 @@ class ParsingError(Exception):
         self.expected_type = expected_type
         self.metadata = metadata
 
+    def __repr__(self) -> str:
+        """Return a detailed representation of the error."""
+        parts = [f"{self.__class__.__name__}({self!s})"]
+        if self.field_name:
+            parts.append(f"field_name={self.field_name!r}")
+        if self.value is not None:
+            parts.append(f"value={self.value!r}")
+        if self.expected_type:
+            parts.append(f"expected_type={self.expected_type!r}")
+        if self.metadata:
+            parts.append(f"metadata={self.metadata!r}")
+        return f"<{', '.join(parts)}>"
+
 
 class DateTimeParsingError(ParsingError):
     """Raised when datetime parsing returns None or fails."""

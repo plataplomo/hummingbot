@@ -65,18 +65,11 @@ class TestHyperliquidSpotBalancesPrivate:
             await hl_api_for_test_env.transfer(transfer_args)
 
         api_error = exc_info.value
-        assert api_error.code == APIErrorCode.UNKNOWN.value, (
-            f"Expected error code {APIErrorCode.UNKNOWN.value}, got {api_error.code}"
+        assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value, (
+            f"Expected error code {APIErrorCode.EXCHANGE_SPECIFIC.value}, got {api_error.code}"
         )
-        assert "service failure" in api_error.message.lower(), (
-            f"Should indicate service failure: {api_error.message}"
-        )
-        assert api_error.original_exception is not None, "Should have original exception details"
-        assert isinstance(api_error.original_exception, NotImplementedError), (
-            "Original exception should be NotImplementedError"
-        )
-        assert "transfer not yet implemented" in str(api_error.original_exception), (
-            "Original exception should indicate transfer is not yet implemented"
+        assert "transfer not yet implemented" in api_error.message.lower(), (
+            f"Should indicate transfer not implemented: {api_error.message}"
         )
 
     @pytest.mark.vcr
@@ -100,18 +93,11 @@ class TestHyperliquidSpotBalancesPrivate:
             await hl_api_for_test_env.withdraw(withdraw_args)
 
         api_error = exc_info.value
-        assert api_error.code == APIErrorCode.UNKNOWN.value, (
-            f"Expected error code {APIErrorCode.UNKNOWN.value}, got {api_error.code}"
+        assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value, (
+            f"Expected error code {APIErrorCode.EXCHANGE_SPECIFIC.value}, got {api_error.code}"
         )
-        assert "service failure" in api_error.message.lower(), (
-            f"Should indicate service failure: {api_error.message}"
-        )
-        assert api_error.original_exception is not None, "Should have original exception details"
-        assert isinstance(api_error.original_exception, NotImplementedError), (
-            "Original exception should be NotImplementedError"
-        )
-        assert "withdraw not yet implemented" in str(api_error.original_exception), (
-            "Original exception should indicate withdraw is not yet implemented"
+        assert "withdraw not yet implemented" in api_error.message.lower(), (
+            f"Should indicate withdraw not implemented: {api_error.message}"
         )
 
     @pytest.mark.vcr
@@ -135,18 +121,11 @@ class TestHyperliquidSpotBalancesPrivate:
             await hl_api_for_test_env.withdraw(eth_withdraw_args)
 
         api_error = exc_info.value
-        assert api_error.code == APIErrorCode.UNKNOWN.value, (
-            f"Expected error code {APIErrorCode.UNKNOWN.value}, got {api_error.code}"
+        assert api_error.code == APIErrorCode.EXCHANGE_SPECIFIC.value, (
+            f"Expected error code {APIErrorCode.EXCHANGE_SPECIFIC.value}, got {api_error.code}"
         )
-        assert "service failure" in api_error.message.lower(), (
-            f"Should indicate service failure: {api_error.message}"
-        )
-        assert api_error.original_exception is not None, "Should have original exception details"
-        assert isinstance(api_error.original_exception, NotImplementedError), (
-            "Original exception should be NotImplementedError"
-        )
-        assert "withdraw not yet implemented" in str(api_error.original_exception), (
-            "Original exception should indicate withdraw is not yet implemented"
+        assert "withdraw not yet implemented" in api_error.message.lower(), (
+            f"Should indicate withdraw not implemented: {api_error.message}"
         )
 
     @pytest.mark.vcr

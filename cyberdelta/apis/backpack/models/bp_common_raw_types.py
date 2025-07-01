@@ -14,12 +14,9 @@ from pydantic import BeforeValidator, ValidationInfo
 from cyberdelta.apis.backpack.bp_api_errors import BackpackAPIErrorCode
 from cyberdelta.apis.exceptions.parsing import (
     ClientIdFormatError,
-    DateTimeParsingError,
-    EmptyStringError,
     KlineTypeError,
     KlineValueError,
     NonNullableFieldError,
-    TimestampFormatError,
     TimestampYearRangeError,
 )
 from cyberdelta.exceptions.field_validation import (
@@ -28,6 +25,11 @@ from cyberdelta.exceptions.field_validation import (
     RangeFieldError,
     TimestampFieldError,
     TypeFieldError,
+)
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    TimestampFormatError,
 )
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,

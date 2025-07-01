@@ -5,6 +5,14 @@ and are used exclusively within the API layer.
 """
 
 # Authentication exceptions
+# Parsing exceptions - import base ones from core
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    ParsingError,
+    TimestampFormatError,
+)
+
 from .authentication import (
     AuthenticationError,
     AuthenticationPreparationError,
@@ -62,22 +70,18 @@ from .market_data_service import (
     MarketDataServiceError,
 )
 
-# Parsing exceptions
+# Import API-specific parsing exceptions from local module
 from .parsing import (
     ActionHashError,
     ClientIdFormatError,
-    DateTimeParsingError,
     DictStructureError,
     EmptyDictionaryError,
-    EmptyStringError,
     KlineTypeError,
     KlineValueError,
     MsgpackSerializationError,
     NonNullableFieldError,
-    ParsingError,
     SequenceLengthError,
     StructureTypeError,
-    TimestampFormatError,
     TimestampYearRangeError,
 )
 

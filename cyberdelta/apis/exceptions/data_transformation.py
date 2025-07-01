@@ -326,6 +326,7 @@ class MarketTransformationError(MappingError):
         symbol: str | None = None,
         original_error: Exception | None = None,
         source_data: dict[str, object] | None = None,
+        source_type: str = "RawMarket",
     ) -> None:
         """Initialize market transformation error.
 
@@ -334,15 +335,16 @@ class MarketTransformationError(MappingError):
             symbol: Symbol being transformed if available
             original_error: The original exception
             source_data: The source market data
+            source_type: Type of source data (default: RawMarket)
         """
         if symbol:
-            message = f"Failed to transform BackpackRawMarket to Market for {symbol}: {reason}"
+            message = f"Failed to transform {source_type} to Market for {symbol}: {reason}"
         else:
-            message = f"Failed to transform BackpackRawMarket to Market: {reason}"
+            message = f"Failed to transform {source_type} to Market: {reason}"
 
         super().__init__(
             message=message,
-            source_type="BackpackRawMarket",
+            source_type=source_type,
             target_type="Market",
             source_value=source_data,
             details={"symbol": symbol} if symbol else {},

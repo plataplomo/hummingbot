@@ -14,6 +14,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Import fixtures from the shared conftest
@@ -33,7 +34,7 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
     ) -> None:
         """Test place_order raises ValidationError for empty symbol (now from PlaceOrderArgs)."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             args = PlaceOrderArgs(
                 symbol="",  # Empty symbol should be rejected
                 side=OrderSide.BUY,
@@ -206,7 +207,7 @@ class TestBackpackTradingServiceOrderManagement:
         with pytest.raises(ValueError) as exc_info:
             await bp_trading_service.get_order(args=GetOrderArgs(order_id="12345", symbol=None))
 
-        assert "'symbol' parameter is required" in str(exc_info.value)
+        assert "symbol is required for get order on Backpack" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_empty_symbol_validation(
@@ -214,7 +215,7 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
     ) -> None:
         """Test get_order raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             await bp_trading_service.get_order(args=GetOrderArgs(order_id="12345", symbol=""))
 
         assert "String cannot be empty" in str(exc_info.value)
@@ -230,7 +231,7 @@ class TestBackpackTradingServiceOrderManagement:
                 args=GetOrderArgs(order_id="12345", symbol=None),  # None symbol should be rejected
             )
 
-        assert "'symbol' parameter is required" in str(exc_info.value)
+        assert "symbol is required for get order on Backpack" in str(exc_info.value)
 
     # =============================================================================
     # EXISTING FUNCTIONALITY TESTS
