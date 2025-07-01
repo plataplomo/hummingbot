@@ -189,13 +189,14 @@ def test_BackpackRawPosition_invalid_fields(
 
     # Some cases raise TypeError (type validation in business logic),
     # others raise ValidationError (pydantic validation)
-    if (
-        (field == "positionId" and value is None)
-        or (field == "userId" and value == 1.0)
-        or (field == "markPrice" and value is None)
-        or (field == "netExposureNotional" and value is True)
-        or (field == "cumulativeFundingPayment" and value is None)
-    ):
+    type_error_cases = [
+        field == "positionId" and value is None,
+        field == "userId" and value == 1.0,
+        field == "markPrice" and value is None,
+        field == "netExposureNotional" and value is True,
+        field == "cumulativeFundingPayment" and value is None,
+    ]
+    if any(type_error_cases):
         with pytest.raises(TypeError) as type_exc_info:
             BackpackRawPosition.model_validate(data)
         # For TypeError cases, just verify we got the expected exception type
@@ -344,11 +345,12 @@ def test_BackpackRawPositionUpdate_invalid_fields(
 
     # Some cases raise TypeError (type validation in business logic),
     # others raise ValidationError (pydantic validation)
-    if (
-        (field == "s" and value is None)
-        or (field == "m" and value is True)
-        or (field == "q" and value == [])
-    ):
+    type_error_cases = [
+        field == "s" and value is None,
+        field == "m" and value is True,
+        field == "q" and value == [],
+    ]
+    if any(type_error_cases):
         with pytest.raises(TypeError) as type_exc_info:
             BackpackRawPositionUpdate.model_validate(data)
         # For TypeError cases, just verify we got the expected exception type

@@ -681,6 +681,26 @@ class HyperliquidTestHelpers:
             ) from e
 
     @staticmethod
+    async def _check_orders_cancelled(
+        api: HyperliquidAPI,
+        symbol: str | None = None,
+    ) -> bool:
+        """Check if orders are cancelled.
+
+        Returns:
+            True if all orders (or symbol-specific orders) are cancelled
+        """
+        try:
+            open_orders = await api.get_open_orders()
+        except (APIError, ValueError, TypeError, KeyError) as e:
+            raise RuntimeError(f"Failed to verify order cancellation: {e}") from e
+        else:
+            if symbol:
+                symbol_orders = [order for order in open_orders if order.symbol == symbol]
+                return not symbol_orders
+            return not open_orders
+
+    @staticmethod
     async def wait_for_order_cancellation(
         api: HyperliquidAPI,
         symbol: str | None = None,
@@ -696,30 +716,20 @@ class HyperliquidTestHelpers:
         try:
             async with asyncio.timeout(timeout_seconds):
                 while True:
-                    try:
-                        open_orders = await api.get_open_orders()
-                        if symbol:
-                            symbol_orders = [
-                                order for order in open_orders if order.symbol == symbol
-                            ]
-                            if not symbol_orders:
-                                return  # All orders for symbol cancelled
-                        elif not open_orders:
-                            return  # All orders cancelled
+                    if await HyperliquidTestHelpers._check_orders_cancelled(api, symbol):
+                        return
 
-                        # Adaptive polling interval: shorter intervals initially,
-                        # longer as time passes
-                        attempt += 1
-                        if attempt <= 3:
-                            interval = 0.5  # 0.5s for first 3 attempts (fast initial checks)
-                        elif attempt <= 10:
-                            interval = 1.0  # 1s for next 7 attempts (standard polling)
-                        else:
-                            interval = 2.0  # 2s for remaining attempts (slower polling)
+                    # Adaptive polling interval: shorter intervals initially,
+                    # longer as time passes
+                    attempt += 1
+                    if attempt <= 3:
+                        interval = 0.5  # 0.5s for first 3 attempts (fast initial checks)
+                    elif attempt <= 10:
+                        interval = 1.0  # 1s for next 7 attempts (standard polling)
+                    else:
+                        interval = 2.0  # 2s for remaining attempts (slower polling)
 
-                        await asyncio.sleep(interval)
-                    except (APIError, ValueError, TypeError, KeyError) as e:
-                        raise RuntimeError(f"Failed to verify order cancellation: {e}") from e
+                    await asyncio.sleep(interval)
         except TimeoutError:
             raise RuntimeError(
                 f"Order cancellation not completed within {timeout_seconds} seconds"

@@ -39,15 +39,15 @@ graph TB
         A[ExchangeAPI] --> B[TradingService<br/>2,578 lines<br/>66 methods]
         A --> C[AccountService<br/>2,254 lines<br/>40 methods]
         A --> D[MarketDataService<br/>1,985 lines<br/>44 methods]
-        
+
         B --> E[RequestBuilder<br/>1,167 lines]
         B --> F[ResponseHandler<br/>1,195 lines]
         B --> G[TradingMapper<br/>900+ lines]
-        
+
         C --> H[AccountMapper<br/>1,698 lines]
         D --> I[MarketDataMapper<br/>1,311 lines]
     end
-    
+
     style B fill:#ff6b6b
     style C fill:#ff6b6b
     style D fill:#ff6b6b
@@ -86,7 +86,7 @@ Large files create frequent merge conflicts when multiple developers work on dif
 graph TB
     subgraph "Refactored Service Architecture"
         A[ExchangeAPI Facade]
-        
+
         subgraph "Trading Domain"
             A --> B[Trading Service Facade<br/>~200 lines]
             B --> B1[OrderPlacementService<br/>~400 lines]
@@ -95,7 +95,7 @@ graph TB
             B --> B4[BatchOrderService<br/>~400 lines]
             B --> B5[OrderStatusProcessor<br/>~350 lines]
         end
-        
+
         subgraph "Account Domain"
             A --> C[Account Service Facade<br/>~200 lines]
             C --> C1[BalanceService<br/>~400 lines]
@@ -104,7 +104,7 @@ graph TB
             C --> C4[TransferService<br/>~400 lines]
             C --> C5[TransactionHistoryService<br/>~350 lines]
         end
-        
+
         subgraph "Market Data Domain"
             A --> D[Market Data Facade<br/>~200 lines]
             D --> D1[PriceTickerService<br/>~400 lines]
@@ -112,14 +112,14 @@ graph TB
             D --> D3[HistoricalDataService<br/>~400 lines]
             D --> D4[MarketMetadataService<br/>~300 lines]
         end
-        
+
         subgraph "Shared Components"
             E[RequestBuilderRegistry]
             F[ResponseHandlerRegistry]
             G[ValidationUtilities]
             H[StatusProcessingUtilities]
         end
-        
+
         B1 --> E
         B1 --> F
         B1 --> G
@@ -127,7 +127,7 @@ graph TB
         B2 --> F
         B2 --> G
     end
-    
+
     style B fill:#4ecdc4
     style C fill:#4ecdc4
     style D fill:#4ecdc4
@@ -238,23 +238,23 @@ sequenceDiagram
 
     User->>TradingFacade: place_order(args)
     TradingFacade->>OrderPlacementService: place_order(args)
-    
+
     OrderPlacementService->>OrderPlacementService: validate_order_params(args)
     OrderPlacementService->>RequestBuilder: build_order_request(args)
     RequestBuilder-->>OrderPlacementService: request_payload
-    
+
     OrderPlacementService->>HttpClient: execute_request(payload)
     HttpClient-->>OrderPlacementService: raw_response
-    
+
     OrderPlacementService->>ResponseHandler: handle_order_response(raw_response)
     ResponseHandler-->>OrderPlacementService: validated_response
-    
+
     OrderPlacementService->>StatusProcessor: process_order_status(validated_response)
     StatusProcessor-->>OrderPlacementService: processed_status
-    
+
     OrderPlacementService->>Mapper: transform_to_internal(processed_status)
     Mapper-->>OrderPlacementService: Order
-    
+
     OrderPlacementService-->>TradingFacade: Order
     TradingFacade-->>User: Order
 ```
@@ -284,7 +284,7 @@ sequenceDiagram
 # Example: Order Placement Service
 class HyperliquidOrderPlacementService:
     """Focused service for order placement operations."""
-    
+
     def __init__(
         self,
         http_requester: HttpClientRequesterSig,
@@ -300,12 +300,12 @@ class HyperliquidOrderPlacementService:
         self._status_processor = status_processor
         self._mapper = mapper
         self._validator = validator
-    
+
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a single order with full validation and processing."""
         # Focused implementation
         pass
-    
+
     async def place_thin_market_order(self, args: PlaceOrderArgs) -> Order:
         """Handle thin market order placement."""
         # Specialized logic
@@ -328,17 +328,17 @@ class HyperliquidOrderPlacementService:
 ```python
 class HyperliquidTradingService:
     """Facade maintaining backward compatibility."""
-    
+
     def __init__(self, components_factory: HyperliquidComponentsFactory):
         self._order_placement = components_factory.create_order_placement_service()
         self._order_cancellation = components_factory.create_order_cancellation_service()
         self._order_query = components_factory.create_order_query_service()
         self._batch_orders = components_factory.create_batch_order_service()
-    
+
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Delegate to specialized service."""
         return await self._order_placement.place_order(args)
-    
+
     async def cancel_order(self, args: CancelOrderArgs) -> bool:
         """Delegate to specialized service."""
         return await self._order_cancellation.cancel_order(args)
@@ -348,7 +348,7 @@ class HyperliquidTradingService:
 ```python
 class HyperliquidAPIComponentsFactory:
     """Enhanced factory for creating decomposed components."""
-    
+
     def create_order_placement_service(self) -> HyperliquidOrderPlacementService:
         return HyperliquidOrderPlacementService(
             http_requester=self._create_http_requester(),
@@ -435,7 +435,7 @@ graph LR
         B --> C[Contract Tests<br/>Facade Layer]
         C --> D[E2E Tests<br/>Full Flow]
     end
-    
+
     subgraph "Test Coverage"
         E[OrderPlacementService: 95%]
         F[OrderCancellationService: 95%]
@@ -477,7 +477,7 @@ This refactoring investment will pay dividends in reduced maintenance costs, fas
 
 The current mapper files are monolithic with multiple responsibilities:
 - `bp_account_data_mapper.py`: 1,698 lines
-- `hl_account_data_mapper.py`: 1,317 lines  
+- `hl_account_data_mapper.py`: 1,317 lines
 - `hl_market_data_mapper.py`: 1,311 lines
 
 ### Proposed Mapper Decomposition
@@ -491,7 +491,7 @@ graph TB
         A --> A4[Transaction Mapping]
         A --> A5[Transfer Mapping]
     end
-    
+
     subgraph "Refactored Mapper Architecture"
         B[MapperRegistry]
         B --> C[BalanceMapper<br/>~300 lines]
@@ -499,19 +499,19 @@ graph TB
         B --> E[AccountSummaryMapper<br/>~200 lines]
         B --> F[TransactionMapper<br/>~300 lines]
         B --> G[TransferMapper<br/>~200 lines]
-        
+
         H[Shared Utilities]
         H --> I[DecimalParser]
         H --> J[DateTimeParser]
         H --> K[EnumMapper]
-        
+
         C --> H
         D --> H
         E --> H
         F --> H
         G --> H
     end
-    
+
     style A fill:#ff6b6b
     style B fill:#4ecdc4
     style H fill:#95e1d3
@@ -523,13 +523,13 @@ graph TB
 # File: cyberdelta/apis/backpack/mappers/balance_mapper.py
 class BackpackBalanceMapper:
     """Focused mapper for balance-related transformations."""
-    
+
     def __init__(self, decimal_parser: DecimalParser, enum_mapper: EnumMapper):
         self._decimal_parser = decimal_parser
         self._enum_mapper = enum_mapper
-    
+
     def map_raw_balance_to_internal(
-        self, 
+        self,
         raw_balance: BackpackRawBalance
     ) -> SpotBalance:
         """Transform raw balance to internal model."""
@@ -540,7 +540,7 @@ class BackpackBalanceMapper:
             total=self._decimal_parser.parse(raw_balance.total),
             bp_details=self._create_balance_details(raw_balance)
         )
-    
+
     def map_balances_dict(
         self,
         raw_balances: dict[str, BackpackRawBalance]
@@ -560,14 +560,14 @@ sequenceDiagram
     participant HandlerRegistry
     participant SpecificHandler
     participant ValidationUtils
-    
+
     Service->>HandlerRegistry: get_handler("order_response")
     HandlerRegistry-->>Service: OrderResponseHandler
-    
+
     Service->>SpecificHandler: handle_response(raw_data)
     SpecificHandler->>ValidationUtils: validate_structure(raw_data)
     ValidationUtils-->>SpecificHandler: validation_result
-    
+
     SpecificHandler->>SpecificHandler: parse_response_data()
     SpecificHandler->>SpecificHandler: create_pydantic_model()
     SpecificHandler-->>Service: BackpackRawOrder
@@ -580,19 +580,19 @@ sequenceDiagram
 ```python
 class TradingServiceFacade:
     """Facade with lazy loading of sub-services."""
-    
+
     def __init__(self, components_factory: ComponentsFactory):
         self._factory = components_factory
         self._order_placement: OrderPlacementService | None = None
         self._order_cancellation: OrderCancellationService | None = None
-    
+
     @property
     def order_placement(self) -> OrderPlacementService:
         """Lazy load order placement service."""
         if self._order_placement is None:
             self._order_placement = self._factory.create_order_placement_service()
         return self._order_placement
-    
+
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Delegate to lazily loaded service."""
         return await self.order_placement.place_order(args)
@@ -603,11 +603,11 @@ class TradingServiceFacade:
 ```python
 class MapperCache:
     """Shared cache for frequently mapped objects."""
-    
+
     def __init__(self, ttl_seconds: int = 300):
         self._cache: dict[str, tuple[Any, datetime]] = {}
         self._ttl = timedelta(seconds=ttl_seconds)
-    
+
     def get_or_compute(
         self,
         key: str,
@@ -618,7 +618,7 @@ class MapperCache:
             value, timestamp = self._cache[key]
             if datetime.now() - timestamp < self._ttl:
                 return value
-        
+
         value = compute_func()
         self._cache[key] = (value, datetime.now())
         return value
@@ -679,29 +679,29 @@ graph TB
         B --> C[Route All Messages]
         C --> D[Process All Types]
     end
-    
+
     subgraph "Refactored WebSocket Architecture"
         E[WebSocketConnectionManager<br/>~300 lines]
         E --> F[MessageRouter<br/>~200 lines]
-        
+
         F --> G[OrderUpdateHandler<br/>~150 lines]
         F --> H[BalanceUpdateHandler<br/>~150 lines]
         F --> I[PositionUpdateHandler<br/>~150 lines]
         F --> J[MarketDataHandler<br/>~200 lines]
-        
+
         K[HandlerRegistry]
         K --> G
         K --> H
         K --> I
         K --> J
-        
+
         L[ReconnectionManager<br/>~200 lines]
         M[HeartbeatManager<br/>~100 lines]
-        
+
         E --> L
         E --> M
     end
-    
+
     style A fill:#ff6b6b
     style E fill:#4ecdc4
     style K fill:#95e1d3
@@ -713,7 +713,7 @@ graph TB
 # File: cyberdelta/apis/hyperliquid/ws/handlers/order_update_handler.py
 class HyperliquidOrderUpdateHandler:
     """Focused handler for order-related WebSocket messages."""
-    
+
     def __init__(
         self,
         order_mapper: OrderMapper,
@@ -721,16 +721,16 @@ class HyperliquidOrderUpdateHandler:
     ):
         self._order_mapper = order_mapper
         self._event_dispatcher = event_dispatcher
-    
+
     async def handle_order_update(self, message: dict[str, Any]) -> None:
         """Process order update message."""
         try:
             # Parse and validate message
             raw_order = HyperliquidRawOrderUpdate.model_validate(message['data'])
-            
+
             # Transform to internal model
             order = self._order_mapper.map_ws_order_update(raw_order)
-            
+
             # Dispatch to subscribers
             await self._event_dispatcher.dispatch(
                 event_type=EventType.ORDER_UPDATE,
@@ -752,30 +752,30 @@ gantt
     Directory Structure     :a1, 2024-01-01, 3d
     Utility Extraction      :a2, after a1, 4d
     Registry Implementation :a3, after a2, 3d
-    
+
     section Service Layer
     Trading Services        :b1, after a3, 7d
     Account Services        :b2, after b1, 7d
     Market Data Services    :b3, after b2, 5d
-    
+
     section Handlers/Mappers
     Request Builders        :c1, after a3, 5d
     Response Handlers       :c2, after c1, 5d
     Data Mappers           :c3, after c2, 7d
-    
+
     section WebSocket
     Connection Management   :d1, after b3, 3d
     Message Handlers        :d2, after d1, 5d
-    
+
     section Integration
     Facade Implementation   :e1, after d2, 5d
     Factory Updates         :e2, after e1, 3d
-    
+
     section Testing
     Unit Tests             :f1, after b1, 21d
     Integration Tests      :f2, after e2, 7d
     Performance Tests      :f3, after f2, 3d
-    
+
     section Deployment
     Feature Flags          :g1, after f2, 2d
     Gradual Rollout        :g2, after f3, 5d
@@ -833,13 +833,13 @@ graph LR
         C[Complexity Monitor] --> G[Alert if CC >10]
         D[Test Coverage Monitor] --> H[Alert if <90%]
     end
-    
+
     subgraph "Quality Gates"
         I[Pre-commit Hooks]
         J[CI/CD Checks]
         K[Code Review Rules]
     end
-    
+
     E --> I
     F --> I
     G --> J

@@ -592,14 +592,22 @@ async def test_position_reconciler_detects_discrepancy(
     for disc in discrepancies_reverse:
         assert isinstance(disc, HistoricalDiscrepancyRecord)
         # Check for size discrepancy where exchange is 0 and local matches mock
-        if (
-            disc.detail.symbol == symbol
-            and disc.detail.discrepancy_type == "size"
+        is_symbol_match = disc.detail.symbol == symbol
+        is_size_discrepancy = disc.detail.discrepancy_type == "size"
+        has_exchange_value = disc.detail.exchange_value is not None
+        exchange_is_zero = (
+            has_exchange_value
             and disc.detail.exchange_value is not None
             and Decimal(disc.detail.exchange_value) == Decimal(0)
+        )
+        has_local_value = disc.detail.local_value is not None
+        local_matches_mock = (
+            has_local_value
             and disc.detail.local_value is not None
             and Decimal(disc.detail.local_value) == mock_position.size
-        ):
+        )
+
+        if is_symbol_match and is_size_discrepancy and exchange_is_zero and local_matches_mock:
             found_missing_on_exchange = True
             break  # Mypy struggles with complex conditional, break is intentional.
 

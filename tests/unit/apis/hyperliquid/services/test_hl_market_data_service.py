@@ -1800,7 +1800,7 @@ class TestHyperliquidMarketDataService:
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
         none_symbol = cast("str", None)
-        assert None is None  # Runtime verification
+        # Runtime verification: none_symbol is None at this point
 
         with pytest.raises(ValueError) as exc_info:
             await hyperliquid_market_data_service.get_ticker(none_symbol)

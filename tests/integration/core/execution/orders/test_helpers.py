@@ -234,6 +234,31 @@ class MarketOrderTestHelpers:
             return minimal_quantity
 
     @staticmethod
+    async def _check_order_status(
+        exchange_api: ExchangeAPI,
+        order: Order,
+    ) -> Order | None:
+        """Check current order status.
+
+        Returns:
+            Updated order if found, None otherwise
+        """
+        try:
+            # Try to get order by ID - Backpack requires symbol parameter
+            args = GetOrderArgs(
+                order_id=order.exchange_order_id or order.client_order_id,
+                symbol=order.symbol,
+            )
+            return await exchange_api.get_order(args)
+        except (APIError, ValueError, TypeError, KeyError) as e:
+            logger.debug(
+                "error_checking_order_status",
+                error=str(e),
+                message="Error checking order status",
+            )
+            return None
+
+    @staticmethod
     async def wait_for_order_fill(
         exchange_api: ExchangeAPI,
         order: Order,
@@ -252,42 +277,29 @@ class MarketOrderTestHelpers:
         Raises:
             TimeoutError: If order doesn't reach terminal state in time
         """
+        terminal_states = {
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.REJECTED,
+            OrderStatus.EXPIRED,
+        }
+
         try:
             async with asyncio.timeout(timeout_seconds):
                 while True:
-                    # Get updated order status
-                    try:
-                        # Try to get order by ID - Backpack requires symbol parameter
-                        args = GetOrderArgs(
-                            order_id=order.exchange_order_id or order.client_order_id,
-                            symbol=order.symbol,
-                        )
-                        updated_order = await exchange_api.get_order(args)
+                    updated_order = await MarketOrderTestHelpers._check_order_status(
+                        exchange_api, order
+                    )
 
-                        if updated_order:
-                            # Check if order is in terminal state
-                            terminal_states = {
-                                OrderStatus.FILLED,
-                                OrderStatus.CANCELED,
-                                OrderStatus.REJECTED,
-                                OrderStatus.EXPIRED,
-                            }
+                    if updated_order:
+                        if updated_order.status in terminal_states:
+                            return updated_order
 
-                            if updated_order.status in terminal_states:
-                                return updated_order
-
-                            # For market orders, partial fill is also acceptable
-                            if updated_order.status == OrderStatus.PARTIALLY_FILLED:
-                                # Wait a bit more to see if it fills completely
-                                await asyncio.sleep(0.5)
-                                continue
-
-                    except (APIError, ValueError, TypeError, KeyError) as e:
-                        logger.debug(
-                            "error_checking_order_status",
-                            error=str(e),
-                            message="Error checking order status",
-                        )
+                        # For market orders, partial fill is also acceptable
+                        if updated_order.status == OrderStatus.PARTIALLY_FILLED:
+                            # Wait a bit more to see if it fills completely
+                            await asyncio.sleep(0.5)
+                            continue
 
                     await asyncio.sleep(0.1)
         except TimeoutError:

@@ -43,6 +43,56 @@ from tests.integration.apis.hyperliquid.shared.hl_test_helpers import Hyperliqui
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
 
 
+def _validate_funding_rate(
+    funding_rate: FundingRate,
+    symbol: str,
+    funding_rate_bounds: dict[str, Decimal],
+) -> None:
+    """Validate a single funding rate entry.
+
+    Args:
+        funding_rate: The funding rate to validate
+        symbol: The expected symbol
+        funding_rate_bounds: Min/max bounds from exchange
+
+    Raises:
+        AssertionError: If validation fails
+        pytest.Failed: If critical validation errors occur
+    """
+    assert isinstance(funding_rate, FundingRate), f"Should be FundingRate model for {symbol}"
+    assert funding_rate.symbol == symbol, (
+        f"Symbol mismatch: expected {symbol}, got {funding_rate.symbol}"
+    )
+
+    # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
+    if funding_rate.funding_rate is None:
+        pytest.fail(
+            f"Funding rate is None for {symbol} - exchange must provide rate",
+        )
+
+    # Validate rate precision
+    assert isinstance(funding_rate.funding_rate, Decimal), (
+        f"Funding rate must be Decimal for {symbol}"
+    )
+
+    # Validate rate is finite
+    if not funding_rate.funding_rate.is_finite():
+        pytest.fail(
+            f"{symbol} funding rate {funding_rate.funding_rate} is not finite",
+        )
+
+    # Validate exchange-specific bounds
+    assert (
+        funding_rate_bounds["min_rate"]
+        <= funding_rate.funding_rate
+        <= funding_rate_bounds["max_rate"]
+    ), (
+        f"{symbol} funding rate {funding_rate.funding_rate} outside bounds "
+        f"[{funding_rate_bounds['min_rate']}, "
+        f"{funding_rate_bounds['max_rate']}]"
+    )
+
+
 @pytest.mark.parametrize(
     "custom_vcr_cassette_dir",
     ["apis/hyperliquid/perp/funding"],
@@ -228,40 +278,7 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
                 )
 
                 for funding_rate in funding_rates:
-                    assert isinstance(funding_rate, FundingRate), (
-                        f"Should be FundingRate model for {symbol}"
-                    )
-                    assert funding_rate.symbol == symbol, (
-                        f"Symbol mismatch: expected {symbol}, got {funding_rate.symbol}"
-                    )
-
-                    # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
-                    if funding_rate.funding_rate is not None:
-                        # Validate rate precision
-                        assert isinstance(funding_rate.funding_rate, Decimal), (
-                            f"Funding rate must be Decimal for {symbol}"
-                        )
-
-                        # Validate rate is finite
-                        if not funding_rate.funding_rate.is_finite():
-                            pytest.fail(
-                                f"{symbol} funding rate {funding_rate.funding_rate} is not finite",
-                            )
-
-                        # Validate exchange-specific bounds
-                        assert (
-                            funding_rate_bounds["min_rate"]
-                            <= funding_rate.funding_rate
-                            <= funding_rate_bounds["max_rate"]
-                        ), (
-                            f"{symbol} funding rate {funding_rate.funding_rate} outside bounds "
-                            f"[{funding_rate_bounds['min_rate']}, "
-                            f"{funding_rate_bounds['max_rate']}]"
-                        )
-                    else:
-                        pytest.fail(
-                            f"Funding rate is None for {symbol} - exchange must provide rate",
-                        )
+                    _validate_funding_rate(funding_rate, symbol, funding_rate_bounds)
 
         except APIError as e:
             # NO GRACEFUL ERROR HANDLING - All API errors are test failures

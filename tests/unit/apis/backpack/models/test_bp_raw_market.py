@@ -715,13 +715,14 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
     # Determine expected exception type based on field and value
     expected_exception: type[Exception] = ValidationError
     # The field validator raises TypeError for these specific cases
-    if (
-        (field == "lastUpdateId" and value is None)
-        or (field == "b" and value is None)
-        or (field == "a" and value == "not-a-list")
-        or (field == "a" and value == ["1", "2"])
-        or (field == "a" and value == [["1", 2]])
-    ):
+    type_error_cases = [
+        field == "lastUpdateId" and value is None,
+        field == "b" and value is None,
+        field == "a" and value == "not-a-list",
+        field == "a" and value == ["1", "2"],
+        field == "a" and value == [["1", 2]],
+    ]
+    if any(type_error_cases):
         expected_exception = TypeError
 
     with pytest.raises(expected_exception) as exc_info:
