@@ -53,7 +53,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         private_key_b64 = private_key_b64_secret.get_secret_value().strip()
 
         if not api_key_b64:
-            raise InvalidAPIKeyError()
+            raise InvalidAPIKeyError
         if not private_key_b64:
             raise InvalidPrivateKeyError(reason="cannot be empty")
 

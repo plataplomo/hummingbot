@@ -31,6 +31,12 @@ from cyberdelta.config.models.config_types import (
 # Import strategy models from separate module
 from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.configuration import (
+    ConfigurationError,
+    RequiredParameterError,
+    TestnetConfigurationError,
+)
+from cyberdelta.exceptions.field_validation import RangeFieldError
 from cyberdelta.utils.parsing import (
     validate_enum_field,
     validate_str_field,
@@ -302,16 +308,18 @@ class ExchangeSpecificConfig(BaseModel):
             for field_name in required_fields:
                 field_value = getattr(self, field_name)
                 if field_value is None:
-                    raise ValueError(
-                        f"ExchangeSpecificConfig for Hyperliquid: '{field_name}' is required "
-                        f"but not provided.",
+                    raise RequiredParameterError(
+                        parameter=field_name,
+                        context="ExchangeSpecificConfig for Hyperliquid",
+                        exchange="hyperliquid",
                     )
         elif self.exchange_name == ExchangeName.BACKPACK:
             # Backpack requires the simple rate_limit_per_minute
             if self.rate_limit_per_minute is None:
-                raise ValueError(
-                    "ExchangeSpecificConfig for Backpack: 'rate_limit_per_minute' is required "
-                    "but not provided.",
+                raise RequiredParameterError(
+                    parameter="rate_limit_per_minute",
+                    context="ExchangeSpecificConfig for Backpack",
+                    exchange="backpack",
                 )
 
         return self
@@ -321,14 +329,14 @@ class ExchangeSpecificConfig(BaseModel):
         """Validate that testnet URLs are provided when is_mainnet_environment is False."""
         if not self.is_mainnet_environment:
             if self.api_base_url_testnet is None:
-                raise ValueError(
-                    f"ExchangeSpecificConfig for {self.exchange_name.value}: "
-                    f"'api_base_url_testnet' is required when 'is_mainnet_environment' is False.",
+                raise TestnetConfigurationError(
+                    missing_config="api_base_url_testnet",
+                    config_type="API URL",
                 )
             if self.ws_url_testnet is None:
-                raise ValueError(
-                    f"ExchangeSpecificConfig for {self.exchange_name.value}: "
-                    f"'ws_url_testnet' is required when 'is_mainnet_environment' is False.",
+                raise TestnetConfigurationError(
+                    missing_config="ws_url_testnet",
+                    config_type="WebSocket URL",
                 )
         return self
 
@@ -338,9 +346,9 @@ class ExchangeSpecificConfig(BaseModel):
         if self.is_mainnet_environment:
             return self.api_base_url_mainnet
         if self.api_base_url_testnet is None:
-            raise ValueError(
-                f"Cannot get active_api_base_url for {self.exchange_name.value}: "
-                f"testnet environment requested but api_base_url_testnet is None",
+            raise TestnetConfigurationError(
+                missing_config="api_base_url_testnet",
+                config_type="API URL",
             )
         return self.api_base_url_testnet
 
@@ -350,9 +358,9 @@ class ExchangeSpecificConfig(BaseModel):
         if self.is_mainnet_environment:
             return self.ws_url_mainnet
         if self.ws_url_testnet is None:
-            raise ValueError(
-                f"Cannot get active_ws_url for {self.exchange_name.value}: "
-                f"testnet environment requested but ws_url_testnet is None",
+            raise TestnetConfigurationError(
+                missing_config="ws_url_testnet",
+                config_type="WebSocket URL",
             )
         return self.ws_url_testnet
 
@@ -473,9 +481,11 @@ class BalanceMonitoringSettings(BaseModel):
         """Validate that all Decimal values are positive after ConfigDecimal parsing."""
         for key, value in v.items():
             if value <= Decimal(0):
-                raise ValueError(
-                    f"Field '{info.field_name or 'min_balance_thresholds_usd'}.{key}': "
-                    f"Balance threshold must be positive, got {value}.",
+                raise RangeFieldError(
+                    field_name=f"{info.field_name or 'min_balance_thresholds_usd'}.{key}",
+                    value=value,
+                    min_value=0.0,
+                    constraint="Balance threshold must be positive",
                 )
         return v
 
@@ -597,14 +607,20 @@ class AppSettings(BaseModel):
         # Ensure strategy exchanges exist in exchanges config
         strategy = self.strategies.hl_perp_bp_spot
         if strategy.long_exchange not in self.exchanges:
-            raise ValueError(
-                f"Strategy long_exchange '{strategy.long_exchange}' "
-                f"not found in exchanges configuration",
+            raise ConfigurationError(
+                message=(
+                    f"Strategy long_exchange '{strategy.long_exchange}' "
+                    f"not found in exchanges configuration"
+                ),
+                metadata={"exchange": strategy.long_exchange, "context": "strategy_configuration"},
             )
         if strategy.short_exchange not in self.exchanges:
-            raise ValueError(
-                f"Strategy short_exchange '{strategy.short_exchange}' "
-                f"not found in exchanges configuration",
+            raise ConfigurationError(
+                message=(
+                    f"Strategy short_exchange '{strategy.short_exchange}' "
+                    f"not found in exchanges configuration"
+                ),
+                metadata={"exchange": strategy.short_exchange, "context": "strategy_configuration"},
             )
 
         # Ensure balance monitoring thresholds reference valid exchanges
@@ -614,8 +630,14 @@ class AppSettings(BaseModel):
         configured_exchanges = set(self.exchanges.keys())
         invalid_exchanges = balance_exchanges - configured_exchanges
         if invalid_exchanges:
-            raise ValueError(
-                f"Balance monitoring references unknown exchanges: {sorted(invalid_exchanges)}",
+            raise ConfigurationError(
+                message=(
+                    f"Balance monitoring references unknown exchanges: {sorted(invalid_exchanges)}"
+                ),
+                metadata={
+                    "invalid_exchanges": list(invalid_exchanges),
+                    "context": "balance_monitoring",
+                },
             )
 
         return self
@@ -627,12 +649,19 @@ class AppSettings(BaseModel):
             for key, exchange_cfg_instance in self.exchanges.items():
                 # Compare the string key with the string value of the ExchangeName enum member
                 if exchange_cfg_instance.exchange_name.value != key:
-                    raise ValueError(
-                        f"Exchange configuration key-name mismatch for '{key}': "
-                        f"dictionary key is '{key}', but 'exchange_name' field "
-                        f"is '{exchange_cfg_instance.exchange_name.value}'. "
-                        f"These must be identical (e.g., 'hyperliquid' key must have "
-                        f"'hyperliquid' as exchange_name).",
+                    raise ConfigurationError(
+                        message=(
+                            f"Exchange configuration key-name mismatch for '{key}': "
+                            f"dictionary key is '{key}', but 'exchange_name' field "
+                            f"is '{exchange_cfg_instance.exchange_name.value}'. "
+                            f"These must be identical (e.g., 'hyperliquid' key must have "
+                            f"'hyperliquid' as exchange_name)."
+                        ),
+                        metadata={
+                            "dict_key": key,
+                            "exchange_name_field": exchange_cfg_instance.exchange_name.value,
+                            "context": "exchange_config_validation",
+                        },
                     )
         return self
 
@@ -643,16 +672,21 @@ class AppSettings(BaseModel):
             hyperliquid_config = self.exchanges.get("hyperliquid")
             if hyperliquid_config and hyperliquid_config.enabled:
                 if hyperliquid_config.chain_id is None:
-                    raise ValueError(
-                        "AppSettings: 'chain_id' must be specified in config.yaml for "
-                        "enabled 'hyperliquid' exchange.",
+                    raise RequiredParameterError(
+                        parameter="chain_id",
+                        context="AppSettings for enabled 'hyperliquid' exchange",
+                        exchange="hyperliquid",
                     )
                 # DEFENSIVE CHECK: Verify chain_id is positive after Field validation.
                 # Since chain_id is validated as int | None with gt=0, we just need
                 # to check it's positive (redundant but kept as defensive programming)
                 if hyperliquid_config.chain_id <= 0:
-                    raise ValueError(
-                        "AppSettings: 'chain_id' for 'hyperliquid' exchange must be a "
-                        "positive integer.",
+                    raise RangeFieldError(
+                        field_name="chain_id",
+                        value=hyperliquid_config.chain_id,
+                        min_value=1,
+                        constraint=(
+                            "'chain_id' for 'hyperliquid' exchange must be a positive integer"
+                        ),
                     )
         return self

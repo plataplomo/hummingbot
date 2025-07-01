@@ -165,7 +165,7 @@ class Order(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         # client_order_id is required by default factory, others are optional
         if v is None and field_name != "client_order_id":
             return None
@@ -192,7 +192,7 @@ class Order(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("average_fill_price", mode="before")
@@ -235,7 +235,7 @@ class Order(BaseModel):
         """Parse optional decimal, ensuring finite and positive if present."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
@@ -256,7 +256,7 @@ class Order(BaseModel):
         """Parse required decimal, ensuring finite and positive (via Field)."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:
             raise RequiredFieldNoneError(field_name)
@@ -275,7 +275,7 @@ class Order(BaseModel):
         """Parse required decimal, ensuring finite and non-negative (via Field)."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:
             raise RequiredFieldNoneError(field_name)
@@ -294,7 +294,7 @@ class Order(BaseModel):
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         # created_at has default factory, should not receive None, but check anyway
         dt = parse_datetime_utc(v, field_name=field_name)
         if dt is None:
@@ -311,7 +311,7 @@ class Order(BaseModel):
         """Parse optional datetime, ensuring UTC if present."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         if v is None:
             return None
         return parse_datetime_utc(v, field_name=field_name)
@@ -405,7 +405,7 @@ class HyperliquidOrderDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
@@ -453,7 +453,7 @@ class BackpackOrderDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)

@@ -24,6 +24,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.exceptions.configuration import EmptySecretError, InvalidAuthTypeError
 from cyberdelta.utils.parsing import validate_str_field
 
 
@@ -170,14 +171,17 @@ class SecretsConfig(BaseModel):
         for exchange_name, secrets_config_item in self.exchanges.items():
             if exchange_name == "hyperliquid":
                 if not isinstance(secrets_config_item, PrivateKeyAuthSecrets):
-                    raise ValueError(
-                        "Hyperliquid configuration in secrets must have auth_type 'private_key' "
-                        "and corresponding fields.",
+                    raise InvalidAuthTypeError(
+                        exchange="Hyperliquid",
+                        expected_auth_type="private_key",
                     )
                 # Basic presence check for private_key
                 pk_val = secrets_config_item.private_key.get_secret_value()
                 if not pk_val or not pk_val.strip():
-                    raise ValueError("Hyperliquid 'private_key' cannot be empty in secrets.")
+                    raise EmptySecretError(
+                        exchange="Hyperliquid",
+                        field_name="private_key",
+                    )
 
                 # Note: Cryptographic validation (valid hex, BIP-39) is moved to
                 # HyperliquidAPIComponentsFactory or HyperliquidEip712Authenticator constructor
@@ -185,17 +189,25 @@ class SecretsConfig(BaseModel):
 
             elif exchange_name == "backpack":
                 if not isinstance(secrets_config_item, ApiKeyAuthSecrets):
-                    raise ValueError(
-                        "Backpack configuration in secrets must have auth_type 'api_key' "
-                        "and corresponding fields.",
+                    raise InvalidAuthTypeError(
+                        exchange="Backpack",
+                        expected_auth_type="api_key",
                     )
                 # Basic presence checks for Backpack (ED25519 keys)
                 api_key_val = secrets_config_item.api_key.get_secret_value()
                 api_secret_val = secrets_config_item.api_secret.get_secret_value()
                 if not (api_key_val and api_key_val.strip()):
-                    raise ValueError("Backpack 'api_key' (ED25519 Public Key) cannot be empty.")
+                    raise EmptySecretError(
+                        exchange="Backpack",
+                        field_name="api_key",
+                        field_description="ED25519 Public Key",
+                    )
                 if not (api_secret_val and api_secret_val.strip()):
-                    raise ValueError("Backpack 'api_secret' (ED25519 Private Key) cannot be empty.")
+                    raise EmptySecretError(
+                        exchange="Backpack",
+                        field_name="api_secret",
+                        field_description="ED25519 Private Key",
+                    )
                 # Note: Deeper crypto validation (is it valid base64 ED25519) is performed
                 # in BackpackAPIComponentsFactory.
 

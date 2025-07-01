@@ -14,6 +14,11 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.exceptions.field_validation import (
+    DecimalFiniteError,
+    FieldNameMissingError,
+    RequiredFieldNoneError,
+)
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
     parse_decimal_value,
@@ -73,7 +78,7 @@ class MarginAccountSummary(BaseModel):
         """Validate required string fields are non-empty, reasonable length."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("timestamp", mode="before")
@@ -86,13 +91,14 @@ class MarginAccountSummary(BaseModel):
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
         # parse_datetime_utc helper already raises error if v is None or invalid format
         dt = parse_datetime_utc(v, field_name=field_name)  # Removed allow_none
         # Additional check just in case helper behavior changes (unlikely)
         if dt is None:
-            raise ValueError(
-                f"{field_name}: Required datetime value parsed as None or was invalid.",
+            raise RequiredFieldNoneError(
+                field_name=field_name,
+                reason="Required datetime value parsed as None or was invalid",
             )
         return dt
 
@@ -106,15 +112,18 @@ class MarginAccountSummary(BaseModel):
         """Parse required decimal, ensuring finite and non-negative."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
         # Parse, explicitly handling None return from parser for required field
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:  # Should ideally be caught by allow_none=False in helper
-            raise ValueError(f"{field_name}: Required decimal value parsed as None or was invalid.")
+            raise RequiredFieldNoneError(
+                field_name=field_name,
+                reason="Required decimal value parsed as None or was invalid",
+            )
 
         # Check finiteness. ge=0 handled by Field constraint.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite")
+            raise DecimalFiniteError(field_name=field_name, value=parsed)
         return parsed
 
     @field_validator(
@@ -133,7 +142,7 @@ class MarginAccountSummary(BaseModel):
         """Parse optional decimals, allowing None but ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
         if v is None:
             return None
         # Parse, allow None from parser if input format is bad
@@ -143,7 +152,11 @@ class MarginAccountSummary(BaseModel):
 
         # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field where applicable.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed,
+                context="if provided",
+            )
         return parsed
 
     # --- Model Validators ---
@@ -180,16 +193,19 @@ class HyperliquidMarginDetails(BaseModel):
         """Parse required decimal, ensuring finite and non-negative."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
 
         # Parse, explicitly handling None return from parser for required field
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:  # Should ideally be caught by allow_none=False in helper
-            raise ValueError(f"{field_name}: Required decimal value parsed as None or was invalid.")
+            raise RequiredFieldNoneError(
+                field_name=field_name,
+                reason="Required decimal value parsed as None or was invalid",
+            )
 
         # Check finiteness. ge=0 handled by Field constraint.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite")
+            raise DecimalFiniteError(field_name=field_name, value=parsed)
         return parsed
 
 
@@ -306,7 +322,7 @@ class BackpackMarginDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
         if v is None:  # Explicitly allow None input
             return None
 
@@ -317,7 +333,11 @@ class BackpackMarginDetails(BaseModel):
 
         # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field constraint.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed,
+                context="if provided",
+            )
         return parsed
 
     @field_validator("imf_raw", "mmf_raw", mode="before")
@@ -326,7 +346,7 @@ class BackpackMarginDetails(BaseModel):
         """Validate optional string field if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError("validation")
         if v is None:
             return None
         # Basic string validation, adjust max_length if needed

@@ -15,7 +15,13 @@ from typing import Any, TypeVar
 import structlog
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.common import TransformationError as BaseTransformationError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
+from cyberdelta.exceptions.field_validation import (
+    DecimalFiniteError,
+    RangeFieldError,
+    TypeFieldError,
+)
 
 
 # Configure security logger
@@ -100,8 +106,62 @@ class SecurityValidationAggregator:
 _validation_aggregator = SecurityValidationAggregator()
 
 
-class TransformationError(Exception):
-    """Raised when secure transformation fails, indicating potential security issue."""
+class SecurityValidationError(BaseTransformationError):
+    """Raised when security validation fails during transformation."""
+
+    def __init__(
+        self,
+        model_class: str,
+        context: str,
+        error_count: int,
+        validation_errors: list[dict[str, Any]] | None = None,
+    ) -> None:
+        """Initialize security validation error.
+
+        Args:
+            model_class: Name of the model class that failed validation
+            context: Context where validation failed
+            error_count: Number of validation errors
+            validation_errors: List of validation error details
+        """
+        message = (
+            f"Security validation failed for {model_class} in {context}: "
+            f"{error_count} validation errors"
+        )
+        super().__init__(message)
+        self.model_class = model_class
+        self.context = context
+        self.error_count = error_count
+        self.validation_errors = validation_errors or []
+
+
+class UnexpectedTransformationError(BaseTransformationError):
+    """Raised when an unexpected error occurs during transformation."""
+
+    def __init__(
+        self,
+        error_type: str,
+        context: str | None = None,
+        original_error: Exception | None = None,
+    ) -> None:
+        """Initialize unexpected transformation error.
+
+        Args:
+            error_type: Type of the unexpected error
+            context: Optional context information
+            original_error: The original exception
+        """
+        message = f"Unexpected error during secure transformation: {error_type}"
+        if context:
+            message = f"{message} (context: {context})"
+        super().__init__(message)
+        self.error_type = error_type
+        self.context = context
+        self.original_error = original_error
+
+
+class TransformationError(BaseTransformationError):
+    """Alias for backward compatibility."""
 
 
 def secure_transform[T: BaseModel](
@@ -168,9 +228,13 @@ def secure_transform[T: BaseModel](
         )
 
         # Raise transformation error with sanitized message
-        raise TransformationError(
-            f"Security validation failed for {model_class.__name__} in {context}: "
-            f"{len(e.errors())} validation errors",
+        # Convert ErrorDetails to dict for type compatibility
+        validation_errors_list = [dict(err) for err in e.errors()]
+        raise SecurityValidationError(
+            model_class=model_class.__name__,
+            context=context,
+            error_count=len(e.errors()),
+            validation_errors=validation_errors_list,
         ) from e
     except Exception as e:
         # Catch any other unexpected errors
@@ -187,8 +251,10 @@ def secure_transform[T: BaseModel](
                 f"error={type(e).__name__}: {e!s}"
             ),
         )
-        raise TransformationError(
-            f"Unexpected error during secure transformation: {type(e).__name__}",
+        raise UnexpectedTransformationError(
+            error_type=type(e).__name__,
+            context=context,
+            original_error=e,
         ) from e
     else:
         return result
@@ -303,17 +369,41 @@ def validate_financial_constraints(
     try:
         numeric_value = float(value)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"{field_name} must be a numeric value") from exc
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="numeric",
+            actual_type=type(value).__name__,
+            actual_value=value,
+        ) from exc
 
     if not allow_negative and numeric_value < 0:
-        raise ValueError(f"{field_name} cannot be negative")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=numeric_value,
+            min_value=0,
+            constraint="cannot be negative",
+        )
 
     if not allow_zero and numeric_value == 0:
-        raise ValueError(f"{field_name} cannot be zero")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=numeric_value,
+            min_value=0,
+            constraint="cannot be zero",
+        )
 
     if max_value is not None and numeric_value > max_value:
-        raise ValueError(f"{field_name} exceeds maximum allowed value of {max_value}")
+        raise RangeFieldError(
+            field_name=field_name,
+            value=numeric_value,
+            max_value=max_value,
+            constraint=f"exceeds maximum allowed value of {max_value}",
+        )
 
     # Check for infinity or NaN
     if not (-float("inf") < numeric_value < float("inf")):
-        raise ValueError(f"{field_name} must be a finite number")
+        raise DecimalFiniteError(
+            field_name=field_name,
+            value=numeric_value,
+            context="(must be a finite number)",
+        )

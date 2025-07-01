@@ -124,7 +124,7 @@ class RetryOnFailure:
 
                 if last_exception is not None:
                     raise last_exception
-                raise NoExceptionCapturedError()
+                raise NoExceptionCapturedError
 
             return cast("Callable[P, T]", async_wrapper)
         raise AsyncDecoratorError("RetryOnFailure")

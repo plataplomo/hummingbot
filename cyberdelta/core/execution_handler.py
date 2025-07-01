@@ -1143,7 +1143,7 @@ class ExecutionHandler:
             # which is guaranteed by the elif condition.
             # DEFENSIVE CHECK: Mypy=[arg-type] Ruff=[none]
             if order.average_fill_price is None:
-                raise AverageFillPriceError()
+                raise AverageFillPriceError
 
             synthetic_trade = Trade(
                 id=f"synth_{order.exchange_order_id or order.client_order_id}_"

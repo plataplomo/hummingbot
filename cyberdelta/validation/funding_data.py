@@ -14,6 +14,12 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from cyberdelta.exceptions.funding import (
+    NegativeLongPriceError,
+    NegativeShortPriceError,
+    NegativeSizeError,
+    NullTimestampError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
@@ -66,6 +72,11 @@ class FundingData:
         return age > max_age_seconds
 
 
+def _create_source_data_dict() -> dict[SourceType, FundingData]:
+    """Create a properly typed empty dict for source data field defaults."""
+    return {}
+
+
 @dataclass
 class IntegratedFundingData:
     """Integrated funding rate data from multiple sources."""
@@ -80,8 +91,8 @@ class IntegratedFundingData:
     secondary_available: bool
     tertiary_available: bool
     confidence_score: float
-    source_data: dict[SourceType, FundingData] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    source_data: dict[SourceType, FundingData] = field(default_factory=_create_source_data_dict)
+    metadata: dict[str, Any] = field(default_factory=_create_typed_dict)
 
     def get_age(self) -> float:
         """Get the age of the integrated data in seconds.
@@ -297,7 +308,7 @@ class ArbitrageOpportunity(BaseModel):
         """
         dt = parse_datetime_utc(v)
         if dt is None:
-            raise ValueError("timestamp cannot be None")
+            raise NullTimestampError
         return dt
 
     @model_validator(mode="before")
@@ -330,10 +341,10 @@ class ArbitrageOpportunity(BaseModel):
     def check_arbitrage_logic(self) -> Self:
         """Ensure all required financial fields are positive where appropriate."""
         if self.long_price <= 0:
-            raise ValueError("Long price must be positive.")
+            raise NegativeLongPriceError(float(self.long_price))
         if self.short_price <= 0:
-            raise ValueError("Short price must be positive.")
+            raise NegativeShortPriceError(float(self.short_price))
         if self.optimal_size is not None and self.optimal_size <= 0:
-            raise ValueError("Optimal size must be positive if present.")
+            raise NegativeSizeError(float(self.optimal_size))
         # No need to check for None or always-true conditions on required fields
         return self

@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
-from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
+from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.models.config_models import AppSettings
 
 

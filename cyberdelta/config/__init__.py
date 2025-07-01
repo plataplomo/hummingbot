@@ -7,7 +7,15 @@ All configuration access is now through validated Pydantic models.
 import os
 from pathlib import Path
 
-from .config_manager import ConfigManager, ConfigurationError
+from cyberdelta.exceptions.configuration import (
+    AppSettingsNotLoadedError,
+    ConfigurationError,
+    ConfigurationInitializationError,
+    ConfigurationNotInitializedError,
+    SecretsNotLoadedError,
+)
+
+from .config_manager import ConfigManager
 from .models.config_models import AppSettings
 from .secrets_manager import SecretsManager
 from .secrets_models import SecretsConfig
@@ -89,7 +97,7 @@ def _initialize_config() -> None:
             action="raising_runtime_error",
             message=f"CRITICAL: Configuration system initialization failed: {e}",
         )
-        raise RuntimeError(f"Configuration system initialization failed: {e}") from e
+        raise ConfigurationInitializationError(str(e), e) from e
 
     # Validate that configuration loaded successfully
     if _config_manager.settings is None:
@@ -104,7 +112,10 @@ def _initialize_config() -> None:
                 f"without configuration."
             ),
         )
-        raise RuntimeError("AppSettings failed to load. Check logs for details from ConfigManager.")
+        raise AppSettingsNotLoadedError(
+            config_path=str(_config_manager.config_path),
+            config_loaded=_config_manager.loaded,
+        )
 
     # Validate that secrets loaded successfully
     if _secrets_manager.secrets_data is None:
@@ -120,9 +131,10 @@ def _initialize_config() -> None:
                 "Application cannot proceed without secrets."
             ),
         )
-        raise RuntimeError(
-            f"SecretsConfig failed to load. Check logs. "
-            f"Path used by manager: {_secrets_manager.secrets_path}",
+        raise SecretsNotLoadedError(
+            secrets_path=str(_secrets_manager.secrets_path),
+            secrets_loaded=_secrets_manager.secrets_loaded,
+            env_path_set=os.environ.get("CYBERDELTA_SECRETS_PATH") is not None,
         )
 
     _app_settings = _config_manager.settings
@@ -133,7 +145,7 @@ def get_app_settings() -> AppSettings:
     """Get the application settings, initializing if necessary."""
     _initialize_config()
     if _app_settings is None:
-        raise RuntimeError("Configuration not initialized. Call _initialize_config() first.")
+        raise ConfigurationNotInitializedError("Configuration")
     return _app_settings
 
 
@@ -141,7 +153,7 @@ def get_secrets_config() -> SecretsConfig:
     """Get the secrets configuration, initializing if necessary."""
     _initialize_config()
     if _secrets_config is None:
-        raise RuntimeError("Secrets not initialized. Call _initialize_config() first.")
+        raise ConfigurationNotInitializedError("Secrets")
     return _secrets_config
 
 
@@ -149,7 +161,7 @@ def get_config_manager() -> ConfigManager:
     """Get the configuration manager, initializing if necessary."""
     _initialize_config()
     if _config_manager is None:
-        raise RuntimeError("Configuration not initialized. Call _initialize_config() first.")
+        raise ConfigurationNotInitializedError("Configuration")
     return _config_manager
 
 
@@ -157,7 +169,7 @@ def get_secrets_manager() -> SecretsManager:
     """Get the secrets manager, initializing if necessary."""
     _initialize_config()
     if _secrets_manager is None:
-        raise RuntimeError("Secrets not initialized. Call _initialize_config() first.")
+        raise ConfigurationNotInitializedError("Secrets")
     return _secrets_manager
 
 

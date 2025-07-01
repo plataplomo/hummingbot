@@ -7,15 +7,18 @@ from typing import Any, cast
 import yaml
 from pydantic import ValidationError
 
+from cyberdelta.exceptions.configuration import (
+    ConfigFileInvalidError,
+    ConfigFileNotFoundError,
+    ConfigFileReadError,
+    ConfigValidationError,
+)
+
 from .models.config_models import AppSettings
 from .structlog_config import get_logger
 
 
 logger = get_logger(__name__)
-
-
-class ConfigurationError(Exception):
-    """Raised when configuration loading or validation fails."""
 
 
 class ConfigManager:
@@ -60,7 +63,7 @@ class ConfigManager:
                 action="raising_configuration_error",
                 message=f"Config file not found: {self.config_path}",
             )
-            raise ConfigurationError(f"Config file not found: {self.config_path}")
+            raise ConfigFileNotFoundError(str(self.config_path))
 
         try:
             # Read and parse YAML file
@@ -78,8 +81,9 @@ class ConfigManager:
                     action="raising_configuration_error",
                     message=f"Invalid or empty content in config file: {self.config_path}",
                 )
-                raise ConfigurationError(
-                    f"Invalid or empty content in config file: {self.config_path}",
+                raise ConfigFileInvalidError(
+                    str(self.config_path),
+                    type(config_data_dict).__name__ if config_data_dict is not None else "None",
                 )
 
         except (yaml.YAMLError, OSError) as e:
@@ -92,7 +96,7 @@ class ConfigManager:
                 message=f"Error reading config file {self.config_path}: {e}",
                 exc_info=True,
             )
-            raise ConfigurationError(f"Error reading config file {self.config_path}: {e}") from e
+            raise ConfigFileReadError(str(self.config_path), e) from e
 
         # Validate configuration against Pydantic model
         try:
@@ -119,9 +123,7 @@ class ConfigManager:
             )
             self.settings = None
             self.loaded = False
-            raise ConfigurationError(
-                f"Invalid application configuration in {self.config_path}: {e}",
-            ) from e
+            raise ConfigValidationError(str(self.config_path), e) from e
 
     def _get_default_config_path(self) -> Path:
         """Get default configuration path.

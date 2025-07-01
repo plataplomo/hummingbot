@@ -24,6 +24,23 @@ logger = get_logger(__name__)
 class StrategyCreationError(Exception):
     """Raised when strategy creation fails."""
 
+    def __init__(self, reason: str, strategy_type: str | None = None) -> None:
+        """Initialize strategy creation error.
+
+        Args:
+            reason: The reason for strategy creation failure
+            strategy_type: The type of strategy that failed to create
+        """
+        self.reason = reason
+        self.strategy_type = strategy_type
+
+        if strategy_type:
+            message = f"Failed to create {strategy_type} strategy: {reason}"
+        else:
+            message = f"Strategy creation failed: {reason}"
+
+        super().__init__(message)
+
 
 class StrategyFactory:
     """Factory for creating trading strategies with validated configuration."""
@@ -35,6 +52,22 @@ class StrategyFactory:
             config: Application configuration with validated parameters
         """
         self.config = config
+
+    def _validate_strategy_enabled(self, strategy_type: str, enabled: bool) -> None:
+        """Validate that a strategy is enabled.
+
+        Args:
+            strategy_type: Type of strategy
+            enabled: Whether the strategy is enabled
+
+        Raises:
+            StrategyCreationError: If strategy is disabled
+        """
+        if not enabled:
+            raise StrategyCreationError(
+                reason="strategy is disabled in configuration",
+                strategy_type=strategy_type,
+            )
 
     def create_hl_perp_bp_spot_strategy(
         self,
@@ -64,8 +97,7 @@ class StrategyFactory:
             strategy_config = self.config.strategies.hl_perp_bp_spot
 
             # Validate the configuration is enabled
-            if not strategy_config.enabled:
-                raise StrategyCreationError("HL Perp BP Spot strategy is disabled in configuration")
+            self._validate_strategy_enabled("hl_perp_bp_spot", strategy_config.enabled)
 
             # Convert Pydantic model to parameters dict
             params = self._convert_strategy_params_to_dict(strategy_config.params)
@@ -138,7 +170,10 @@ class StrategyFactory:
                 portfolio_tracker=portfolio_tracker,
                 risk_manager=risk_manager,
             )
-        raise StrategyCreationError(f"Unknown strategy type: {strategy_type}")
+        raise StrategyCreationError(
+            reason="Unknown strategy type",
+            strategy_type=strategy_type,
+        )
 
     def _convert_strategy_params_to_dict(
         self,

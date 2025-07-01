@@ -679,4 +679,4 @@ class BackpackTradingDataMapper:
             MissingQuantityError: If quantity is None
         """
         if quantity_requested is None:
-            raise MissingQuantityError()
+            raise MissingQuantityError

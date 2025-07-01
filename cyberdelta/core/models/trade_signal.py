@@ -14,6 +14,15 @@ from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.exceptions.field_validation import (
+    DecimalFieldError,
+    DecimalFiniteError,
+    FieldNameMissingError,
+    ListFieldError,
+    RequiredFieldError,
+    RequiredFieldNoneError,
+    TypeFieldError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 from .enums import OrderSide, SignalType
@@ -97,12 +106,12 @@ class TradeSignal(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError
 
         # symbol is required (will fail if v is None), source_strategy is optional
         if v is None:
             if field_name == "symbol":
-                raise ValueError(f"{field_name} cannot be None.")
+                raise RequiredFieldError(field_name=field_name)
             return None  # Allow None for optional fields like source_strategy
 
         return validate_str_field(v, field_name=field_name, max_length=64)
@@ -133,13 +142,21 @@ class TradeSignal(BaseModel):
             return validate_str_field(v, field_name=field_name, max_length=64)
         if _is_list_of_any(v):
             if not v:
-                raise ValueError(f"{field_name} list cannot be empty.")
+                raise RequiredFieldError(
+                    field_name=field_name,
+                    context="list cannot be empty",
+                )
             validated_list: list[str] = []
             # After type guard, v is known to be list[Any]
             for idx, item in enumerate(v):
                 # DEFENSIVE CHECK: List items could be any type in raw input
                 if type(item) is not str:
-                    raise TypeError(f"{field_name} list item {idx} must be a string.")
+                    raise ListFieldError(
+                        field_name=field_name,
+                        actual_type=type(item).__name__,
+                        item_index=idx,
+                        expected_item_type="string",
+                    )
                 validated_item = validate_str_field(
                     item,
                     field_name=f"{field_name}[{idx}]",
@@ -147,7 +164,11 @@ class TradeSignal(BaseModel):
                 )
                 validated_list.append(validated_item)
             return validated_list
-        raise TypeError(f"{field_name} must be a string or a list of strings.")
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string or list of strings",
+            actual_type=type(v).__name__,
+        )
 
     @field_validator("price", mode="before")
     @classmethod
@@ -170,12 +191,15 @@ class TradeSignal(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name missing.")
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:
-            raise ValueError(f"{field_name}: Required value invalid.")
+            raise RequiredFieldNoneError(
+                field_name=field_name,
+                reason="Required value invalid",
+            )
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Must be finite.")
+            raise DecimalFiniteError(field_name=field_name, value=parsed)
         return parsed
 
     @field_validator("quantity", "stop_loss", "take_profit", mode="before")
@@ -199,14 +223,18 @@ class TradeSignal(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name missing.")
+            raise FieldNameMissingError
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
         if parsed is None:
             return None  # Invalid format for optional field
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Must be finite if provided.")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed,
+                context="if provided",
+            )
         return parsed
 
     @field_validator("confidence", mode="before")
@@ -230,14 +258,18 @@ class TradeSignal(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name missing.")
+            raise FieldNameMissingError
         if v is None:
             return None
         try:
             return float(v)
             # Optional: Add range check e.g., if 0.0 <= float_val <= 1.0:
         except (ValueError, TypeError) as e:
-            raise ValueError(f"{field_name}: Invalid float value: {v!r}. Error: {e}") from e
+            raise DecimalFieldError(
+                field_name=field_name,
+                value=v,
+                reason=f"Invalid float value: {v!r}. Error: {e}",
+            ) from e
 
     @field_validator("expiration", mode="before")
     @classmethod
@@ -260,7 +292,7 @@ class TradeSignal(BaseModel):
         """
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name missing.")
+            raise FieldNameMissingError
         if v is None:
             return None
         return parse_datetime_utc(v, field_name=field_name)

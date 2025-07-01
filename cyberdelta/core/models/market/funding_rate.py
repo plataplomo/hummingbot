@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -56,7 +57,12 @@ class HyperliquidFundingDetails(BaseModel):
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
         value = parse_decimal_value(raw_value)
         if value is not None and not value.is_finite():
-            raise ValueError(f"Value must be a finite decimal, got {value}")
+            field_name = getattr(info, "field_name", "funding_details")
+            raise DecimalFiniteError(
+                field_name=str(field_name),
+                value=value,
+                context="for Hyperliquid funding details",
+            )
         return value
 
 
@@ -121,7 +127,12 @@ class FundingRate(BaseModel):
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
         value = parse_decimal_value(raw_value)
         if value is not None and not value.is_finite():
-            raise ValueError(f"Value must be a finite decimal, got {value}")
+            field_name = getattr(info, "field_name", "funding_field")
+            raise DecimalFiniteError(
+                field_name=str(field_name),
+                value=value,
+                context="for funding rate calculations",
+            )
         # The Field(gt=0) constraint will handle ensuring positive values for prices
         return value
 
@@ -135,7 +146,10 @@ class FundingRate(BaseModel):
         """Parse and validate timestamp to ensure it is a UTC-aware datetime object."""
         value = parse_datetime_utc(raw_value, field_name="timestamp")
         if value is None:
-            raise ValueError("timestamp must not be None")
+            raise RequiredFieldNoneError(
+                field_name="timestamp",
+                reason="Funding rate timestamp is required and must be a valid format",
+            )
         return value
 
     @field_validator("next_funding_time", mode="before")

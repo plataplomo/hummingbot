@@ -698,7 +698,7 @@ class HyperliquidAccountService:
             )
 
         # DEFENSIVE CHECK: This should never be reached as all error handlers raise exceptions
-        raise UnreachableCodeError()
+        raise UnreachableCodeError
 
     def _validate_user_state_response(self, raw_data: list[Any], status_code: int) -> None:
         """Validate user state response data.

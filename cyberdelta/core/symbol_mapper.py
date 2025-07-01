@@ -81,7 +81,10 @@ class SymbolMapper:
             SymbolMappingError: If the configuration structure is invalid.
         """
         if not isinstance(exchanges_config, dict):  # pyright: ignore [reportUnnecessaryIsInstance]
-            raise InvalidConfigurationError("a dictionary of exchanges", type(exchanges_config))
+            raise InvalidConfigurationError(
+                expected_type="a dictionary of exchanges",
+                actual_type=type(exchanges_config),
+            )
 
     def _process_exchanges_config(self, exchanges_config: dict[str, Any]) -> None:
         """Process the exchanges configuration and build symbol mappings."""

@@ -18,6 +18,12 @@ from pydantic import (
 )
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.exceptions.field_validation import (
+    DateTimeFieldError,
+    DecimalFiniteError,
+    FieldNameMissingError,
+    RequiredFieldNoneError,
+)
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
     parse_decimal_value,
@@ -55,7 +61,7 @@ class BackpackSpotBalanceDetails(BaseModel):
         """Parse optional decimal, allowing None but ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError
         if v is None:
             return None
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
@@ -63,7 +69,10 @@ class BackpackSpotBalanceDetails(BaseModel):
             return None
         # Check finiteness if a valid Decimal was parsed. ge=0 handled by Field.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite if provided")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed,
+            )
         return parsed
 
 
@@ -112,7 +121,7 @@ class SpotBalance(BaseModel):
         """Validate required string fields are non-empty, reasonable length."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError
         return validate_str_field(v, field_name=field_name, max_length=64)
 
     @field_validator("timestamp", mode="before")
@@ -125,11 +134,13 @@ class SpotBalance(BaseModel):
         """Parse required datetime, ensuring UTC."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError
         dt = parse_datetime_utc(v, field_name=field_name)
         if dt is None:
-            raise ValueError(
-                f"{field_name}: Required datetime value parsed as None or was invalid.",
+            raise DateTimeFieldError(
+                field_name=field_name,
+                value=v,
+                reason="Required datetime value parsed as None or was invalid",
             )
         return dt
 
@@ -143,11 +154,17 @@ class SpotBalance(BaseModel):
         """Parse required decimal, ensuring finite and non-negative via Field."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
         if parsed is None:
-            raise ValueError(f"{field_name}: Required value parsed as None or was invalid.")
+            raise RequiredFieldNoneError(
+                field_name=field_name,
+                reason="Required value parsed as None or was invalid",
+            )
         # Check finiteness. ge=0 handled by Field constraint.
         if not parsed.is_finite():
-            raise ValueError(f"{field_name}: Value must be finite")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed,
+            )
         return parsed

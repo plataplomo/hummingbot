@@ -26,7 +26,7 @@ import yaml
 # Add parent directory to path to import from cyberdelta
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
+from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets
 

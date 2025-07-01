@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 import pytest
 from pydantic import AnyUrl, HttpUrl
 
-from cyberdelta.config.config_manager import ConfigManager, ConfigurationError
+from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
     AppSettings,

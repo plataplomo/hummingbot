@@ -26,6 +26,13 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.exceptions.field_validation import (
+    DateTimeFieldError,
+    DecimalFieldError,
+    DecimalFiniteError,
+    OHLCConsistencyError,
+    RequiredFieldNoneError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -86,7 +93,11 @@ class Candle(BaseModel):
         """Validate and parse the 'open_time' field to a required UTC datetime object."""
         dt = parse_datetime_utc(v, field_name="open_time")
         if dt is None:
-            raise ValueError("open_time must not be None and must be a valid format")
+            raise DateTimeFieldError(
+                field_name="open_time",
+                value=v,
+                reason="must not be None and must be a valid format",
+            )
         return dt
 
     @field_validator("open", "high", "low", "close", "volume", mode="before")
@@ -115,18 +126,29 @@ class Candle(BaseModel):
         field_name = info.field_name if info.field_name is not None else "unknown_decimal_field"
         # Ensure value is not None
         if v is None:
-            raise ValueError(f"Field '{field_name}' cannot be None.")
+            raise RequiredFieldNoneError(
+                field_name=field_name,
+                reason="Required OHLCV field cannot be None",
+            )
 
         parsed_decimal = parse_decimal_value(v, allow_none=False, field_name=field_name)
 
         # Redundant check as parse_decimal_value(allow_none=False) should handle this,
         # but provides extra safety.
         if parsed_decimal is None:
-            raise ValueError(f"Field '{field_name}' parsing returned None unexpectedly.")
+            raise DecimalFieldError(
+                field_name=field_name,
+                value=v,
+                reason="parsing returned None unexpectedly",
+            )
 
         # Ensure non-None results are finite. NaN/Infinity are invalid for candle data.
         if not parsed_decimal.is_finite():
-            raise ValueError(f"Field '{field_name}' must be a finite Decimal, got {parsed_decimal}")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed_decimal,
+                context="(NaN/Infinity are invalid for candle data)",
+            )
 
         return parsed_decimal
 
@@ -134,13 +156,33 @@ class Candle(BaseModel):
     def check_ohlc_consistency(self) -> Self:
         """Validate the logical consistency of OHLC prices (high >= low, etc.)."""
         if self.high < self.low:
-            raise ValueError(f"high ({self.high}) must be >= low ({self.low})")
+            raise OHLCConsistencyError(
+                constraint="high must be >= low",
+                high=self.high,
+                low=self.low,
+            )
         if self.high < self.open:
-            raise ValueError(f"high ({self.high}) must be >= open ({self.open})")
+            raise OHLCConsistencyError(
+                constraint="high must be >= open",
+                high=self.high,
+                open_price=self.open,
+            )
         if self.high < self.close:
-            raise ValueError(f"high ({self.high}) must be >= close ({self.close})")
+            raise OHLCConsistencyError(
+                constraint="high must be >= close",
+                high=self.high,
+                close=self.close,
+            )
         if self.low > self.open:
-            raise ValueError(f"low ({self.low}) must be <= open ({self.open})")
+            raise OHLCConsistencyError(
+                constraint="low must be <= open",
+                low=self.low,
+                open_price=self.open,
+            )
         if self.low > self.close:
-            raise ValueError(f"low ({self.low}) must be <= close ({self.close})")
+            raise OHLCConsistencyError(
+                constraint="low must be <= close",
+                low=self.low,
+                close=self.close,
+            )
         return self

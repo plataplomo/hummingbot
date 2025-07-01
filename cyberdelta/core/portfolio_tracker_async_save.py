@@ -13,9 +13,28 @@ from typing import Any, cast
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.exceptions.configuration import StateFilePathError
 
 
 logger = get_logger(__name__)
+
+
+def _validate_state_file_path(state_file_path: str | None, operation: str) -> str:
+    """Validate that state file path is not None.
+
+    Args:
+        state_file_path: The state file path to validate
+        operation: The operation being performed (save/load)
+
+    Returns:
+        The validated state file path
+
+    Raises:
+        StateFilePathError: If the state file path is None
+    """
+    if state_file_path is None:
+        raise StateFilePathError(operation=operation)
+    return state_file_path
 
 
 async def save_state(self: PortfolioTracker, state_file_path: str | None = None) -> None:
@@ -45,9 +64,8 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
                 "data/portfolio_state.json",
             )
 
-        # Ensure state_file_path is not None for type checker
-        if state_file_path is None:
-            raise ValueError("State file path cannot be None")
+        # Validate state file path
+        state_file_path = _validate_state_file_path(state_file_path, "save")
 
         # Ensure directory exists
         save_dir = Path(state_file_path).parent
@@ -116,9 +134,8 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
                 "data/portfolio_state.json",
             )
 
-        # Ensure state_file_path is not None for type checker
-        if state_file_path is None:
-            raise ValueError("State file path cannot be None")
+        # Validate state file path
+        state_file_path = _validate_state_file_path(state_file_path, "load")
 
         # Check if file exists
         if not Path(state_file_path).exists():

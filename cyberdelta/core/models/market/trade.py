@@ -21,6 +21,11 @@ from pydantic import (
 )
 
 from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.exceptions.field_validation import (
+    DecimalFiniteError,
+    RequiredFieldNoneError,
+    TradeLogicError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -104,7 +109,10 @@ class Trade(BaseModel):
         """
         dt = parse_datetime_utc(raw_value, field_name="executed_at")
         if dt is None:
-            raise ValueError("executed_at cannot be None")
+            raise RequiredFieldNoneError(
+                field_name="executed_at",
+                reason="Trade execution timestamp is required and cannot be None",
+            )
         return dt
 
     @field_validator("price", "quantity", "fee", mode="before")
@@ -132,8 +140,17 @@ class Trade(BaseModel):
         """
         field_name = getattr(info, "field_name", None)
         d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
-        if d is None or not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal.")
+        if d is None:
+            raise RequiredFieldNoneError(
+                field_name=str(field_name),
+                reason=f"Trade {field_name} is required and cannot be None",
+            )
+        if not d.is_finite():
+            raise DecimalFiniteError(
+                field_name=str(field_name),
+                value=d,
+                context="for trade financial calculations",
+            )
         return d
 
     @field_validator("client_order_id", "fee_asset", mode="before")
@@ -175,7 +192,12 @@ class Trade(BaseModel):
 
         """
         if self.fee != Decimal(0) and not self.fee_asset:
-            raise ValueError("fee_asset must be provided if fee is nonzero.")
+            raise TradeLogicError(
+                validation_type="fee_asset_required",
+                message="fee_asset must be provided if fee is nonzero",
+                trade_id=self.id,
+                fields={"fee": self.fee, "fee_asset": self.fee_asset},
+            )
         return self
 
     @computed_field
@@ -290,7 +312,11 @@ class HyperliquidTradeDetails(BaseModel):
         field_name = getattr(info, "field_name", "unknown")
         d = parse_decimal_value(v, allow_none=False, field_name=field_name)
         if d is not None and not d.is_finite():
-            raise ValueError(f"{field_name}: Value must be a finite decimal.")
+            raise DecimalFiniteError(
+                field_name=str(field_name),
+                value=d,
+                context="for Hyperliquid trade details",
+            )
         return d
 
 

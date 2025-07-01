@@ -19,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -74,7 +75,10 @@ class Ticker(BaseModel):
         """Validate and parse the 'timestamp' field to a required UTC datetime object."""
         dt = parse_datetime_utc(v, field_name="timestamp")
         if dt is None:
-            raise ValueError("timestamp must not be None and must be a valid format")
+            raise RequiredFieldNoneError(
+                field_name="timestamp",
+                reason="Ticker timestamp is required and must be a valid format",
+            )
         return dt
 
     @field_validator("price", "bid", "ask", "volume", mode="before")
@@ -110,7 +114,11 @@ class Ticker(BaseModel):
 
         # Ensure non-None results are finite. NaN/Infinity are invalid for ticker data.
         if parsed_decimal is not None and not parsed_decimal.is_finite():
-            raise ValueError(f"Field '{field_name}' must be a finite Decimal, got {parsed_decimal}")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed_decimal,
+                context="for ticker price data",
+            )
 
         return parsed_decimal
 

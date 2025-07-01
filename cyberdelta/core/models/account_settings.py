@@ -17,6 +17,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.exceptions.field_validation import DecimalFiniteError, FieldNameMissingError
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
@@ -77,8 +78,24 @@ class AccountSettings(BaseModel):
         """
         if new_limit is not None:
             parsed = parse_decimal_value(new_limit, field_name="leverage_limit", allow_none=False)
-            if parsed is None or not parsed.is_finite() or parsed < Decimal(1):
-                raise ValueError("Leverage limit must be finite and >= 1")
+            if parsed is None:
+                raise DecimalFiniteError(
+                    field_name="leverage_limit",
+                    value=new_limit,
+                    context="and must be >= 1",
+                )
+            if not parsed.is_finite():
+                raise DecimalFiniteError(
+                    field_name="leverage_limit",
+                    value=parsed,
+                    context="and must be >= 1",
+                )
+            if parsed < Decimal(1):
+                raise DecimalFiniteError(
+                    field_name="leverage_limit",
+                    value=parsed,
+                    context="(must be >= 1)",
+                )
         self.leverage_limit = new_limit
 
         self.timestamp = datetime.now(UTC)
@@ -165,7 +182,7 @@ class BackpackAccountSettingsDetails(BaseModel):
         """Validate optional string field if present."""
         field_name = info.field_name
         if field_name is None:
-            raise ValueError("Field name is unexpectedly None during validation.")
+            raise FieldNameMissingError(context="BackpackAccountSettingsDetails validation")
         if v is None:
             return None
         return validate_str_field(v, field_name=field_name, max_length=256)

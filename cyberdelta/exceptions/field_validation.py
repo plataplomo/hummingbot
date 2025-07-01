@@ -190,6 +190,38 @@ class OrderLogicError(ValueError, FieldError):
         self.fields = fields or {}
 
 
+class TradeLogicError(ValueError, FieldError):
+    """Raised when trade cross-field logic validation fails."""
+
+    def __init__(
+        self,
+        validation_type: str,
+        message: str,
+        *,
+        trade_id: str | None = None,
+        fields: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize trade logic error.
+
+        Args:
+            validation_type: Type of validation that failed
+            message: Human-readable error message
+            trade_id: ID of the trade that failed validation
+            fields: Dictionary of field names and values involved in the validation
+        """
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=validation_type,
+            source_value=fields,
+            code="TRADE_LOGIC_VALIDATION",
+        )
+        self.validation_type = validation_type
+        self.trade_id = trade_id
+        self.fields = fields or {}
+
+
 class PositionLogicError(ValueError, FieldError):
     """Raised when position cross-field logic validation fails."""
 
@@ -662,3 +694,113 @@ class ListFieldError(TypeError, FieldError):
                 "expected_item_type": expected_item_type,
             },
         )
+
+
+class DateTimeFieldError(ValueError, FieldError):
+    """DateTime field validation errors - inherits ValueError semantics + our metadata."""
+
+    def __init__(
+        self,
+        field_name: str,
+        value: object,
+        expected_format: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        """Initialize datetime field error.
+
+        Args:
+            field_name: Name of the datetime field
+            value: The value that failed datetime validation
+            expected_format: Expected datetime format
+            reason: Specific reason for failure
+        """
+        if reason:
+            message = f"Field '{field_name}' datetime validation failed: {reason}"
+        elif expected_format:
+            message = f"Field '{field_name}' must be a valid datetime in format: {expected_format}"
+        else:
+            message = f"Field '{field_name}' must be a valid datetime"
+
+        # Initialize ValueError with the message
+        ValueError.__init__(self, message)
+
+        # Initialize FieldError with full metadata
+        FieldError.__init__(
+            self,
+            message=message,
+            field_name=field_name,
+            source_value=value,
+            code="INVALID_DATETIME",
+            source_data={
+                "field": field_name,
+                "value": str(value),
+                "expected_format": expected_format,
+                "reason": reason,
+            },
+        )
+
+        # Store attributes for direct access
+        self.value = value
+        self.expected_format = expected_format
+        self.reason = reason
+
+
+class OHLCConsistencyError(ValueError, FieldError):
+    """OHLC data consistency validation errors - inherits ValueError semantics + our metadata."""
+
+    def __init__(
+        self,
+        constraint: str,
+        high: object | None = None,
+        low: object | None = None,
+        open_price: object | None = None,
+        close: object | None = None,
+    ) -> None:
+        """Initialize OHLC consistency error.
+
+        Args:
+            constraint: Description of the consistency constraint violated
+            high: High price value
+            low: Low price value
+            open_price: Open price value
+            close: Close price value
+        """
+        # Build message based on which values are provided
+        values_str: list[str] = []
+        if high is not None:
+            values_str.append(f"high={high}")
+        if low is not None:
+            values_str.append(f"low={low}")
+        if open_price is not None:
+            values_str.append(f"open={open_price}")
+        if close is not None:
+            values_str.append(f"close={close}")
+
+        message = f"OHLC consistency validation failed: {constraint}"
+        if values_str:
+            message = f"{message} ({', '.join(values_str)})"
+
+        # Initialize ValueError with the message
+        ValueError.__init__(self, message)
+
+        # Initialize FieldError with full metadata
+        FieldError.__init__(
+            self,
+            message=message,
+            field_name="ohlc_consistency",
+            code="OHLC_CONSISTENCY_ERROR",
+            source_data={
+                "constraint": constraint,
+                "high": high,
+                "low": low,
+                "open": open_price,
+                "close": close,
+            },
+        )
+
+        # Store attributes for direct access
+        self.constraint = constraint
+        self.high = high
+        self.low = low
+        self.open = open_price
+        self.close = close

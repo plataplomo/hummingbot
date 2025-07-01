@@ -17,6 +17,20 @@ from pydantic import BaseModel
 JSONValue = str | int | float | bool | dict[str, "JSONValue"] | list["JSONValue"] | None
 
 
+class JSONSerializationError(TypeError):
+    """Raised when an object cannot be serialized to JSON."""
+
+    def __init__(self, obj_type: type) -> None:
+        """Initialize JSON serialization error.
+
+        Args:
+            obj_type: The type of object that failed serialization
+        """
+        self.obj_type = obj_type
+        message = f"Object of type {obj_type.__name__} is not JSON serializable"
+        super().__init__(message)
+
+
 class CyberDeltaJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for CyberDeltaEngine data types.
 
@@ -56,7 +70,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
         # Let the base class default method raise the TypeError for other types
         # Note: super().default(o) returns Any but we need to handle this
         # Since this is a fallback for unknown types, we'll raise TypeError explicitly
-        raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+        raise JSONSerializationError(type(o))
 
 
 # Helper function to easily dump JSON with the custom encoder

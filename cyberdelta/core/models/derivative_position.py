@@ -117,7 +117,7 @@ class DerivativePosition(BaseModel):
         field_name = info.field_name
         if field_name is None:
             # This should be practically unreachable due to Pydantic's validation flow
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         # Assuming validate_str_field internally handles None check if required
         return validate_str_field(v, field_name=field_name, max_length=64)
 
@@ -139,14 +139,14 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         # Allow None, but if a string is passed, validate it
         if v is None:
             return None
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         return validate_str_field(v, field_name=field_name, max_length=128)
 
     @field_validator("size", mode="before")
@@ -160,7 +160,7 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name)
         # DEFENSIVE CHECK: Explicitly require non-None and finite values post-parse.
         if parsed is None:
@@ -188,7 +188,7 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name)
         # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
         if parsed is not None and not parsed.is_finite():
@@ -206,7 +206,7 @@ class DerivativePosition(BaseModel):
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         dt = parse_datetime_utc(v, field_name=field_name)
         # DEFENSIVE CHECK: Explicitly require non-None. Mypy=[unreachable]
         if dt is None:
@@ -331,7 +331,7 @@ class HyperliquidPositionDetails(BaseModel):
             # Use helper for enum check
             return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
         except Exception as e:
-            raise FieldNameMissingError() from e
+            raise FieldNameMissingError from e
 
     @field_validator("leverage_value", "max_leverage", mode="before")
     @classmethod
@@ -339,7 +339,7 @@ class HyperliquidPositionDetails(BaseModel):
         """Validate leverage values are non-negative integers."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         if not isinstance(v, int):
             raise TypeFieldError(field_name, "int", type(v).__name__, actual_value=v)
         if v < 0:
@@ -356,7 +356,7 @@ class HyperliquidPositionDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
         # Check finiteness if not None. ge=0 handled by Field constraint.
         if parsed is not None and not parsed.is_finite():
@@ -394,7 +394,7 @@ class BackpackPositionDetails(BaseModel):
         """Parse optional decimal, ensuring finite if present."""
         field_name = info.field_name
         if field_name is None:
-            raise FieldNameMissingError()
+            raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
         # Check finiteness if not None
         if parsed is not None and not parsed.is_finite():

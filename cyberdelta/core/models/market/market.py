@@ -19,6 +19,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.field_validation import DecimalFiniteError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -132,7 +133,11 @@ class Market(BaseModel):
 
         # Ensure non-None results are finite
         if parsed_decimal is not None and not parsed_decimal.is_finite():
-            raise ValueError(f"Field '{field_name}' must be a finite Decimal, got {parsed_decimal}")
+            raise DecimalFiniteError(
+                field_name=field_name,
+                value=parsed_decimal,
+                context="for market configuration",
+            )
 
         return parsed_decimal
 

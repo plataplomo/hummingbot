@@ -10,6 +10,14 @@ from typing import Any, cast
 import yaml
 from pydantic import ValidationError
 
+from cyberdelta.exceptions.configuration import (
+    ConfigFileInvalidError,
+    ConfigFileNotFoundError,
+    ConfigFileReadError,
+    ConfigurationError,  # For backward compatibility
+    ConfigValidationError,
+)
+
 from .secrets_models import SecretsConfig
 from .structlog_config import get_logger
 
@@ -17,8 +25,8 @@ from .structlog_config import get_logger
 logger = get_logger(__name__)
 
 
-class ConfigurationError(Exception):
-    """Raised when configuration or secrets loading/validation fails."""
+# Alias for backward compatibility - external code may import ConfigurationError from here
+__all__ = ["ConfigurationError", "SecretsManager"]
 
 
 class SecretsManager:
@@ -64,7 +72,7 @@ class SecretsManager:
                 action="raising_configuration_error",
                 message=f"Secrets file not found: {self.secrets_path}",
             )
-            raise ConfigurationError(f"Secrets file not found: {self.secrets_path}")
+            raise ConfigFileNotFoundError(str(self.secrets_path))
 
         try:
             # Read and parse YAML file
@@ -82,8 +90,9 @@ class SecretsManager:
                     action="raising_configuration_error",
                     message=f"Invalid or empty content in secrets file: {self.secrets_path}",
                 )
-                raise ConfigurationError(
-                    f"Invalid or empty content in secrets file: {self.secrets_path}",
+                raise ConfigFileInvalidError(
+                    str(self.secrets_path),
+                    type(secrets_data_dict).__name__ if secrets_data_dict is not None else "None",
                 )
 
         except (yaml.YAMLError, OSError) as e:
@@ -96,7 +105,7 @@ class SecretsManager:
                 message=f"Error reading secrets file {self.secrets_path}: {e}",
                 exc_info=True,
             )
-            raise ConfigurationError(f"Error reading secrets file {self.secrets_path}: {e}") from e
+            raise ConfigFileReadError(str(self.secrets_path), e) from e
 
         # Validate secrets against Pydantic model
         try:
@@ -123,9 +132,7 @@ class SecretsManager:
             )
             self.secrets_data = None
             self.secrets_loaded = False
-            raise ConfigurationError(
-                f"Invalid secrets configuration in {self.secrets_path}: {e}",
-            ) from e
+            raise ConfigValidationError(str(self.secrets_path), e) from e
 
     def _get_secrets_path(self) -> Path:
         """Get the path to the secrets file from environment variable or default location.

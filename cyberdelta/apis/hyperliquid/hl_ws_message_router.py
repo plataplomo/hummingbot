@@ -725,5 +725,5 @@ class HyperliquidWsMessageRouter:
             UserEventsSubscriptionError: If wallet address is None
         """
         if wallet_address is None:
-            raise UserEventsSubscriptionError()
+            raise UserEventsSubscriptionError
         return wallet_address

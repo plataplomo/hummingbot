@@ -20,6 +20,14 @@ from typing import TypeGuard, cast
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.exceptions.field_validation import (
+    DecimalFieldError,
+    DecimalFiniteError,
+    ListFieldError,
+    RangeFieldError,
+    RequiredFieldNoneError,
+    TypeFieldError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -103,7 +111,7 @@ class OrderBook(BaseModel):
         if dt is None:
             # This path should ideally not be hit if the field is required by Pydantic's schema
             # validation for non-optional fields, but this check provides explicit runtime safety.
-            raise ValueError("timestamp must not be None")
+            raise RequiredFieldNoneError("timestamp")
         return dt
 
     @field_validator("bids", "asks", mode="before")
@@ -145,7 +153,10 @@ class OrderBook(BaseModel):
         """
         field_name = info.field_name or "unknown_field"
         if not isinstance(v, list):
-            raise TypeError(f"{field_name} must be a list, got {type(v).__name__}")
+            raise ListFieldError(
+                field_name=field_name,
+                actual_type=type(v).__name__,
+            )
 
         validated_levels: list[tuple[Decimal, Decimal]] = []
 
@@ -177,7 +188,11 @@ class OrderBook(BaseModel):
         # Use type guard for safe access
         if not cls._is_valid_level_sequence(level_raw):
             # This should never happen due to _validate_level_structure
-            raise TypeError(f"Unexpected type for level_raw: {type(level_raw).__name__}")
+            raise TypeFieldError(
+                field_name=f"{field_name}[{index}]",
+                expected_type="list or tuple",
+                actual_type=type(level_raw).__name__,
+            )
 
         price_raw = level_raw[0]
         quantity_raw = level_raw[1]
@@ -199,17 +214,20 @@ class OrderBook(BaseModel):
         if not cls._is_valid_level_sequence(level_raw):
             # Get type name without type-checking issues
             type_name = type(level_raw).__name__ if level_raw is not None else "None"
-            raise TypeError(
-                f"Level item in {field_name} at index {index} must be a list or tuple, "
-                f"got {type_name}",
+            raise ListFieldError(
+                field_name=field_name,
+                actual_type=type_name,
+                item_index=index,
+                expected_item_type="list or tuple",
             )
         # DEFENSIVE CHECK: Runtime length check.
         # After type guard check, we know level_raw is a Sequence
         level_len = len(level_raw)
         if level_len != LEVEL_PAIR_LENGTH:
-            raise ValueError(
-                f"Level item in {field_name} at index {index} must have length 2, "
-                f"got length {level_len}",
+            raise RangeFieldError(
+                field_name=f"{field_name}[{index}]",
+                value=level_len,
+                constraint=f"Level item must have exactly {LEVEL_PAIR_LENGTH} elements",
             )
 
     @classmethod
@@ -219,26 +237,34 @@ class OrderBook(BaseModel):
         if not isinstance(price_raw, Decimal | str | int | float):
             # Get type name without type-checking issues
             type_name = type(price_raw).__name__ if price_raw is not None else "None"
-            raise TypeError(
-                f"Invalid price type in {field_name} at index {index}: "
-                f"Expected Decimal, str, int, or float, got {type_name}",
+            raise TypeFieldError(
+                field_name=f"{field_name}[{index}].price",
+                expected_type="Decimal, str, int, or float",
+                actual_type=type_name,
+                actual_value=price_raw,
             )
         try:
             price = parse_decimal_value(price_raw)
         except ValueError as e:
-            raise ValueError(
-                f"Invalid price value in {field_name} at index {index}: {e}",
+            raise DecimalFieldError(
+                field_name=f"{field_name}[{index}].price",
+                value=price_raw,
+                reason=str(e),
             ) from e
 
         # DEFENSIVE CHECK: Runtime check post-parsing.
         if price is None:
-            raise ValueError(f"Price unexpectedly None after parsing at {field_name}[{index}]")
+            raise RequiredFieldNoneError(
+                field_name=f"{field_name}[{index}].price",
+                reason="Price unexpectedly None after parsing",
+            )
 
         # 4. Post-parse Validation (Finite)
         if not price.is_finite():
-            raise ValueError(
-                f"Invalid price value in {field_name} at index {index}: "
-                f"Expected finite Decimal, got {price}",
+            raise DecimalFiniteError(
+                field_name=f"{field_name}[{index}].price",
+                value=price,
+                context=f"(got {price})",
             )
 
         return price
@@ -255,33 +281,41 @@ class OrderBook(BaseModel):
         if not isinstance(quantity_raw, Decimal | str | int | float):
             # Get type name without type-checking issues
             type_name = type(quantity_raw).__name__ if quantity_raw is not None else "None"
-            raise TypeError(
-                f"Invalid quantity type in {field_name} at index {index}: "
-                f"Expected Decimal, str, int, or float, got {type_name}",
+            raise TypeFieldError(
+                field_name=f"{field_name}[{index}].quantity",
+                expected_type="Decimal, str, int, or float",
+                actual_type=type_name,
+                actual_value=quantity_raw,
             )
         try:
             quantity = parse_decimal_value(quantity_raw)
         except ValueError as e:
-            raise ValueError(
-                f"Invalid quantity value in {field_name} at index {index}: {e}",
+            raise DecimalFieldError(
+                field_name=f"{field_name}[{index}].quantity",
+                value=quantity_raw,
+                reason=str(e),
             ) from e
 
         # DEFENSIVE CHECK: Runtime check post-parsing.
         if quantity is None:
-            raise ValueError(
-                f"Quantity unexpectedly None after parsing at {field_name}[{index}]",
+            raise RequiredFieldNoneError(
+                field_name=f"{field_name}[{index}].quantity",
+                reason="Quantity unexpectedly None after parsing",
             )
 
         # 4. Post-parse Validation (Finite, Non-negative Quantity)
         if not quantity.is_finite():
-            raise ValueError(
-                f"Invalid quantity value in {field_name} at index {index}: "
-                f"Expected finite Decimal, got {quantity}",
+            raise DecimalFiniteError(
+                field_name=f"{field_name}[{index}].quantity",
+                value=quantity,
+                context=f"(got {quantity})",
             )
         if quantity < Decimal(0):
-            raise ValueError(
-                f"Invalid quantity value in {field_name} at index {index}: "
-                f"Must be non-negative, got {quantity}",
+            raise RangeFieldError(
+                field_name=f"{field_name}[{index}].quantity",
+                value=quantity,
+                min_value=0.0,
+                constraint="Quantity must be non-negative",
             )
 
         return quantity

@@ -31,6 +31,9 @@ from cyberdelta.core.models import (
     TimeInForce,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.exceptions.field_validation import RequiredFieldError
+from cyberdelta.exceptions.service_validation import OrderParameterError
+from cyberdelta.exceptions.trading import OrderError
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -643,8 +646,9 @@ class OrderVerifier:
             message="API client missing both get_order_status and get_order methods",
             exchange=exchange,
         )
-        raise AttributeError(
-            f"API client for {exchange} missing get_order_status and get_order methods.",
+        raise RequiredFieldError(
+            field_name="api_methods",
+            context=f"API client for {exchange} missing get_order_status and get_order methods",
         )
 
     def _verify_order_statuses(
@@ -1428,8 +1432,7 @@ class SynchronizedOrderSubmissionService:
                 # TODO: Handle post_only, reduce_only if needed via config/adapter
             )
             placed_order: Order = await first_api.place_order(first_place_order_args)
-            if not (hasattr(placed_order, "client_order_id") and hasattr(placed_order, "to_dict")):
-                raise ValueError("placed_order missing required attributes")
+            self._ensure_valid_placed_order(placed_order, "First")
             result.first_order_id = placed_order.client_order_id  # Use client_order_id
 
             # Checkpoint: first order placed
@@ -1562,11 +1565,7 @@ class SynchronizedOrderSubmissionService:
             second_placed_order: Order = await second_api.place_order(
                 second_place_order_args,
             )
-            if not (
-                hasattr(second_placed_order, "client_order_id")
-                and hasattr(second_placed_order, "to_dict")
-            ):
-                raise ValueError("second_placed_order missing required attributes")
+            self._ensure_valid_placed_order(second_placed_order, "Second")
             result.second_order_id = second_placed_order.client_order_id  # Use client_order_id
 
             # Checkpoint: second order placed
@@ -1664,7 +1663,11 @@ class SynchronizedOrderSubmissionService:
                 else str(opportunity),
                 leg_type=leg_type,
             )
-            raise ValueError("Invalid opportunity data: quantity missing for order preparation")
+            raise OrderParameterError(
+                parameter="quantity",
+                reason="Invalid opportunity data: quantity missing for order preparation",
+                field_value=quantity_val,
+            )
 
         # Convert quantity and price to Decimal if they are not None
         try:
@@ -1679,10 +1682,18 @@ class SynchronizedOrderSubmissionService:
                 quantity=str(quantity_val),
                 price=str(price_val),
             )
-            raise ValueError("Invalid numeric data in opportunity for order preparation") from e
+            raise OrderParameterError(
+                parameter="quantity/price",
+                reason="Invalid numeric data in opportunity for order preparation",
+                field_value=f"quantity={quantity_val}, price={price_val}",
+            ) from e
 
         if quantity_dec is None:
-            raise ValueError("Quantity cannot be None for order preparation")
+            raise OrderParameterError(
+                parameter="quantity",
+                reason="Quantity cannot be None for order preparation",
+                field_value=quantity_dec,
+            )
 
         # Determine order type (assuming MARKET for now, could be configurable)
         order_type = OrderType.MARKET
@@ -1998,3 +2009,33 @@ class SynchronizedOrderSubmissionService:
             timestamp=timestamp,
         )
         return exec_id
+
+    def _validate_placed_order(self, placed_order: Order) -> bool:
+        """Validate that a placed order has required attributes.
+
+        Args:
+            placed_order: The order object to validate
+
+        Returns:
+            True if order has required attributes, False otherwise
+        """
+        return hasattr(placed_order, "client_order_id") and hasattr(placed_order, "to_dict")
+
+    def _ensure_valid_placed_order(self, placed_order: Order, order_position: str) -> None:
+        """Ensure a placed order has required attributes or raise an error.
+
+        Args:
+            placed_order: The order object to validate
+            order_position: Position of the order ("First" or "Second")
+
+        Raises:
+            OrderError: If the order is missing required attributes
+        """
+        if not self._validate_placed_order(placed_order):
+            raise OrderError(
+                message=(
+                    f"{order_position} order response missing required attributes "
+                    f"(client_order_id, to_dict)"
+                ),
+                exchange_code="INVALID_ORDER_RESPONSE",
+            )

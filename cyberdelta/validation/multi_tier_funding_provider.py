@@ -11,6 +11,13 @@ from decimal import Decimal
 from typing import Any, Protocol, cast
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.funding import (
+    AllSourcesFailedError,
+    FundingRateSourceError,
+    NoFallbackSourceError,
+    NoFundingDataError,
+    NoValidWeightedDataError,
+)
 
 from .funding_data import (
     ConfidenceFactors,
@@ -22,10 +29,6 @@ from .funding_data import (
 
 
 logger = get_logger(__name__)
-
-
-class FundingRateSourceError(Exception):
-    """Exception raised when a funding rate source fails."""
 
 
 class FundingRateValidatorProtocol(Protocol):
@@ -334,9 +337,7 @@ class MultiTierFundingProvider:
                     ),
                 )
                 # Re-raise with proper chaining
-                raise FundingRateSourceError(
-                    f"No funding rate data available for {exchange}:{symbol}",
-                ) from fallback_error
+                raise NoFundingDataError(exchange, symbol) from fallback_error
             else:
                 return fallback_rate, fallback_confidence
         else:
@@ -526,7 +527,7 @@ class MultiTierFundingProvider:
 
         """
         if exchange not in self.fallback_sources:
-            raise FundingRateSourceError(f"No fallback source registered for {exchange}")
+            raise NoFallbackSourceError(exchange)
 
         try:
             source_func = self.fallback_sources[exchange]
@@ -592,7 +593,7 @@ class MultiTierFundingProvider:
                 action="fallback_failure",
                 message=f"Fallback source for {exchange}:{symbol} failed: {e}",
             )
-            raise FundingRateSourceError(f"All sources failed for {exchange}:{symbol}") from e
+            raise AllSourcesFailedError(exchange, symbol, e) from e
 
     def _integrate_funding_data(
         self,
@@ -660,9 +661,7 @@ class MultiTierFundingProvider:
                     timestamps.append(ts)
 
         if not available_sources_data or not actual_weights or sum(actual_weights) <= Decimal(0):
-            raise FundingRateSourceError(
-                f"No valid, weighted funding rate data available for {exchange}:{symbol}",
-            )
+            raise NoValidWeightedDataError(exchange, symbol)
 
         # Calculate weighted average rate
         total_actual_weight = sum(actual_weights, Decimal(0))

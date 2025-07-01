@@ -17,6 +17,10 @@ from typing import Any, Protocol
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance
+from cyberdelta.exceptions.risk import (
+    RiskCheckError,
+    RiskConfigError,
+)
 
 # This line should be commented out or removed
 # from cyberdelta.core.models import (
@@ -138,20 +142,6 @@ class SizedOpportunity:
 
 
 # --- Custom Exception Hierarchy ---
-class RiskManagerError(Exception):
-    """Base exception for all RiskManager errors."""
-
-
-class ConfigError(RiskManagerError):
-    """Raised when configuration is missing or invalid."""
-
-
-class ValidationError(RiskManagerError):
-    """Raised when an opportunity or action fails validation checks."""
-
-
-class ConstraintViolationError(RiskManagerError):
-    """Raised when a portfolio constraint is violated."""
 
 
 # --- Data Structures for Protocols ---
@@ -305,9 +295,7 @@ class RiskManager:
                     f"RM_INIT: Critical error during initial config parsing or _load_config: {e}"
                 ),
             )
-            raise ConfigError(
-                (f"Invalid or missing configuration value during RiskManager initialization: {e}"),
-            ) from e
+            raise RiskConfigError(str(e), e) from e
 
     def _load_config(self) -> None:
         """Load and validate all configuration values, storing them as attributes.
@@ -372,7 +360,7 @@ class RiskManager:
                 phase="load_config",
                 message=f"RM_INIT: Error loading configuration in _load_config: {e}",
             )
-            raise ConfigError(f"Invalid or missing configuration value in RiskManager: {e}") from e
+            raise RiskConfigError(str(e), e) from e
 
     def _calculate_kelly_size(
         self,
@@ -1435,14 +1423,16 @@ class RiskManager:
 
         # Perform checks that don't depend on proposed size first
         if not self._check_exchange_balances(opportunity):
-            raise ValueError(
-                f"Validation failed at _check_exchange_balances for {opportunity.symbol}",
+            raise RiskCheckError(
+                opportunity.symbol,
+                "_check_exchange_balances",
             )
 
         # Add the missing circuit breaker check
         if not self._check_circuit_breaker(opportunity):
-            raise ValueError(
-                f"Validation failed at _check_circuit_breaker for {opportunity.symbol}",
+            raise RiskCheckError(
+                opportunity.symbol,
+                "_check_circuit_breaker",
             )
 
         # if not self._check_funding_rate_stability(opportunity): # COMMENTED OUT -
@@ -1456,7 +1446,7 @@ class RiskManager:
         #                       f"for {opportunity.symbol}")
 
         if not await self._check_leverage(opportunity):
-            raise ValueError(f"Validation failed at _check_leverage for {opportunity.symbol}")
+            raise RiskCheckError(opportunity.symbol, "_check_leverage")
 
         # if not self._check_market_liquidity(opportunity): # COMMENTED OUT -
         # POTENTIALLY MISSING METHOD
