@@ -18,6 +18,8 @@ from typing import Any
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+from cyberdelta.apis.exceptions.market_data import SymbolNotFoundError
+from cyberdelta.apis.exceptions.response_validation import EmptyResponseError
 
 # Hyperliquid-specific imports
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
@@ -60,7 +62,6 @@ from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.mid_prices import MidPrices
-from cyberdelta.exceptions import EmptyResponseError, SymbolNotFoundError
 
 # Project-specific imports for connectivity and base types
 from cyberdelta.utils.parsing import timeframe_to_ms

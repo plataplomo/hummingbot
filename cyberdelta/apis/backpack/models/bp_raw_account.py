@@ -22,7 +22,7 @@ ensuring robustness and security at the data ingestion boundary.
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.exceptions import DecimalFiniteError
+from cyberdelta.apis.exceptions.field_validation import DecimalFiniteError
 from cyberdelta.utils.parsing import parse_decimal_value, validate_enum_field, validate_str_field
 
 
@@ -131,8 +131,5 @@ class BackpackRawBalance(BaseModel):
         s = validate_str_field(v, field_name=field_name, max_length=64)
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
         if d is None or not d.is_finite():
-            raise DecimalFiniteError(
-                field_name=field_name,
-                value=str(v)
-            )
+            raise DecimalFiniteError(field_name=field_name, value=str(v))
         return s

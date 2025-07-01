@@ -40,6 +40,11 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import MessageHandler
+from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError
+from cyberdelta.apis.exceptions.configuration import (
+    RateLimitConfigurationError,
+    TestnetConfigurationError,
+)
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
@@ -73,12 +78,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.market import Candle, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.exceptions import (
-    AuthenticatorNotConfiguredError,
-    RateLimitConfigurationError,
-    RequiredParameterError,
-    TestnetConfigurationError,
-)
+from cyberdelta.exceptions.base import RequiredParameterError
 
 
 logger = get_logger(__name__)

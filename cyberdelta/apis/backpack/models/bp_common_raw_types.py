@@ -12,14 +12,7 @@ from typing import Annotated
 from pydantic import BeforeValidator, ValidationInfo
 
 from cyberdelta.apis.backpack.bp_api_errors import BackpackAPIErrorCode
-from cyberdelta.exceptions.field_validation import (
-    BooleanFieldError,
-    DecimalFieldError,
-    RangeFieldError,
-    TimestampFieldError,
-    TypeFieldError,
-)
-from cyberdelta.exceptions.parsing import (
+from cyberdelta.apis.exceptions.parsing import (
     ClientIdFormatError,
     DateTimeParsingError,
     EmptyStringError,
@@ -28,6 +21,13 @@ from cyberdelta.exceptions.parsing import (
     NonNullableFieldError,
     TimestampFormatError,
     TimestampYearRangeError,
+)
+from cyberdelta.exceptions.field_validation import (
+    BooleanFieldError,
+    DecimalFieldError,
+    RangeFieldError,
+    TimestampFieldError,
+    TypeFieldError,
 )
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,

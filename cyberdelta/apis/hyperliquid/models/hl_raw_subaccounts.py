@@ -16,8 +16,8 @@ from pydantic import (
     field_validator,
 )
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawLaxEthereumAddressStrHL
-from cyberdelta.exceptions import TypeFieldError
 
 
 class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrHL]]):
@@ -36,9 +36,7 @@ class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrH
         field_name = info.field_name or "subaccounts_list"
         if not isinstance(v, list):
             raise TypeFieldError(
-                field_name=field_name,
-                expected_type="list",
-                actual_type=type(v).__name__
+                field_name=field_name, expected_type="list", actual_type=type(v).__name__
             )
 
         return cast("list[object]", v)

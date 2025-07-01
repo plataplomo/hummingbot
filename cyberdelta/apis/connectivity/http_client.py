@@ -29,8 +29,8 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     ProcessedResponseHeaders,
 )
+from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError, UnreachableCodeError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import AuthenticatorNotConfiguredError, UnreachableCodeError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -527,8 +527,7 @@ class HttpClient:
                     ),
                 )
                 raise AuthenticatorNotConfiguredError(
-                    auth_type="API",
-                    operation="signed HTTP request"
+                    auth_type="API", operation="signed HTTP request"
                 )
 
             try:
@@ -823,8 +822,7 @@ class HttpClient:
         if last_exception is None:
             raise UnreachableCodeError(
                 reason=(
-                    "HTTP request retry handling: "
-                    "last_exception is None after all retries failed"
+                    "HTTP request retry handling: last_exception is None after all retries failed"
                 )
             )
 

@@ -26,7 +26,7 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawStrictBool,
     RawTimestampMsInt,
 )
-from cyberdelta.exceptions import ListFieldError
+from cyberdelta.exceptions.field_validation import ListFieldError
 
 
 class HyperliquidRawVaultPerformanceHistoryItem(BaseModel):
@@ -122,10 +122,7 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
         """
         field_name = info.field_name or "list_field"
         if not isinstance(v, list):
-            raise ListFieldError(
-                field_name=field_name,
-                actual_type=type(v).__name__
-            )
+            raise ListFieldError(field_name=field_name, actual_type=type(v).__name__)
 
         list_of_objects = cast("list[object]", v)
 
@@ -136,7 +133,7 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
                     field_name=field_name,
                     actual_type=type(item_obj).__name__,
                     item_index=item_idx,
-                    expected_item_type="dict"
+                    expected_item_type="dict",
                 )
             item_dict = cast("dict[str, object]", item_obj)
             validated_items.append(item_dict)

@@ -46,6 +46,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawMaxOrderQuantityParams,
     BackpackRawMaxWithdrawalQuantityParams,
 )
+from cyberdelta.apis.exceptions.configuration import TestnetConfigurationError
 from cyberdelta.apis.models.service_args_models import (
     GetMaxBorrowQuantityArgs,
     GetMaxOrderQuantityArgs,
@@ -54,7 +55,6 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.exceptions import TestnetConfigurationError
 
 
 logger = get_logger(__name__)

@@ -43,6 +43,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.apis.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
@@ -50,7 +51,6 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawNonNegativeInt,
     RawPositiveFiniteDecimalStr,
 )
-from cyberdelta.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_sequence_of_any
 

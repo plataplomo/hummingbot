@@ -17,6 +17,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions.websocket import InvalidWebSocketDataError
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
@@ -28,7 +29,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     # HyperliquidRawWsUserEvent, # If a general user event wrapper exists
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import InvalidWebSocketDataError
 
 
 _BM = TypeVar("_BM", bound=BaseModel)
@@ -289,5 +289,5 @@ class HyperliquidWsRawMessageHandler:
                 channel="allMids",
                 expected_type="HyperliquidRawAllMids",
                 actual_type=type(payload).__name__,
-                data=payload
+                data=payload,
             ) from e

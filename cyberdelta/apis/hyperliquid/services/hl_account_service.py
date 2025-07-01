@@ -17,6 +17,14 @@ from typing import TYPE_CHECKING, Any, NoReturn
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+from cyberdelta.apis.exceptions import (
+    EmptyResponseError,
+    UnreachableCodeError,
+)
+from cyberdelta.apis.exceptions.response_validation import (
+    InvalidLeverageError,
+    NotImplementedOperationError,
+)
 
 # Mappers
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
@@ -73,16 +81,8 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.account_settings import AccountSettings
 from cyberdelta.core.models.operations import Transfer, Withdrawal  # If HL supports these
-from cyberdelta.exceptions import (
-    EmptyResponseError,
-    EmptyStringParameterError,
-    RequiredParameterError,
-    UnreachableCodeError,
-)
-from cyberdelta.exceptions.response_validation import (
-    InvalidLeverageError,
-    NotImplementedOperationError,
-)
+from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

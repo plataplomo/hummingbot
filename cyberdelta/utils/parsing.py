@@ -9,13 +9,15 @@ greatly improving error traceability.
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 
-from cyberdelta.exceptions import (
-    DateTimeParsingError,
+from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
-    EmptyStringError,
     EnumFieldError,
-    TimestampFormatError,
     TypeFieldError,
+)
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    TimestampFormatError,
 )
 
 

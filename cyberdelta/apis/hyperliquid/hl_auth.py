@@ -41,18 +41,15 @@ from cyberdelta.apis.base.authenticator_interface import (
     IAuthenticator,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions import InvalidPrivateKeyError
 from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
     EIP712TypeField,
     HyperliquidAgentDomainData,
     HyperliquidAgentTypes,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import (
-    InvalidFormatError,
-    InvalidPrivateKeyError,
-    PassphraseFieldError,
-    RequiredParameterError,
-)
+from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.exceptions.field_validation import InvalidFormatError, PassphraseFieldError
 from cyberdelta.utils.typing import is_dict_str_any
 
 

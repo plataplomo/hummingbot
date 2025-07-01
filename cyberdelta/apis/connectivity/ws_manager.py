@@ -21,8 +21,8 @@ from aiohttp import ClientTimeout, ClientWebSocketResponse
 from aiohttp.helpers import sentinel
 from pydantic import BaseModel
 
+from cyberdelta.apis.exceptions.connectivity import WebSocketConnectionClosedError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions.connectivity import WebSocketConnectionClosedError
 from cyberdelta.utils.logging_utilities import MessageStatsAggregator
 
 # Import the config model

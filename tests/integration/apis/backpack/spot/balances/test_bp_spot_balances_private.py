@@ -12,10 +12,10 @@ from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.models.spot_balance import SpotBalance
-from cyberdelta.exceptions.authentication import InvalidPrivateKeyError
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
 

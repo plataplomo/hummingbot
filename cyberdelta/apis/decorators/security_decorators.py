@@ -15,8 +15,7 @@ from typing import Any, ParamSpec, TypeVar, cast, overload
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import (
+from cyberdelta.apis.exceptions import (
     FieldConstraintError,
     FieldTypeError,
     FinancialFieldError,
@@ -24,6 +23,7 @@ from cyberdelta.exceptions import (
     MapperNotFoundError,
     SecurityValidationError,
 )
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.parsing import parse_decimal_value
 
 

@@ -23,6 +23,11 @@ from decimal import Decimal
 from typing import Any, TypedDict, TypeGuard
 
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions import (
+    MissingRequiredFieldError,
+    OrderTransformationError,
+    UnknownEnumError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
 )
@@ -41,11 +46,6 @@ from cyberdelta.core.models.enums import (
     TriggerType,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions import (
-    MissingRequiredFieldError,
-    OrderTransformationError,
-    UnknownEnumError,
-)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 

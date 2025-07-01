@@ -77,9 +77,7 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.exceptions import (
-    RequiredParameterError,
-)
+from cyberdelta.exceptions.base import RequiredParameterError
 
 
 logger = get_logger(__name__)

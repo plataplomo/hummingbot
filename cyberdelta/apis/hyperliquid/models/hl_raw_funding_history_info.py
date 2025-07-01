@@ -11,12 +11,12 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, RootModel, field_validator
 
+from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawHlCoinName,
     RawHlParsableFiniteDecimalString,
     RawHlTimestampMsInt,
 )
-from cyberdelta.exceptions import StructureTypeError
 from cyberdelta.utils.parsing import validate_str_field
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
@@ -116,7 +116,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
                 field_name="historical_funding_rates",
                 expected_structure="list",
                 actual_type=type(v).__name__,
-                element_info="response"
+                element_info="response",
             )
 
         validated_items: list[dict[str, Any]] = []
@@ -126,7 +126,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
                     field_name="historical_funding_rates",
                     expected_structure="dict",
                     actual_type=type(item).__name__,
-                    element_info=f"item at index {i}"
+                    element_info=f"item at index {i}",
                 )
 
             # item is now properly typed as dict[str, Any] due to TypeGuard

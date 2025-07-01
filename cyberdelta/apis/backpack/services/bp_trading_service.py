@@ -22,6 +22,11 @@ from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTrad
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+from cyberdelta.apis.exceptions import (
+    MissingRequiredFieldError,
+    UnreachableCodeError,
+)
+from cyberdelta.apis.exceptions.trading import OrderNotFoundError
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
@@ -40,15 +45,10 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.exceptions import (
-    MissingRequiredFieldError,
-    UnreachableCodeError,
-)
 from cyberdelta.exceptions.service_validation import (
     IntegerConversionError,
     OrderParameterError,
 )
-from cyberdelta.exceptions.trading import OrderNotFoundError
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 
@@ -987,8 +987,7 @@ class BackpackTradingService:
                 # This should never happen after _validate_order_exists and _ensure_order_not_none
                 raise UnreachableCodeError(
                     reason=(
-                        "Order is None after validation - "
-                        "this indicates a bug in validation logic"
+                        "Order is None after validation - this indicates a bug in validation logic"
                     )
                 )
             return order

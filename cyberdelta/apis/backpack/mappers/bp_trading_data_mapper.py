@@ -23,6 +23,13 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
+from cyberdelta.apis.exceptions import (
+    InvalidQuantityError,
+    MissingQuantityError,
+    MissingTimestampError,
+    OrderTransformationFailedError,
+)
+from cyberdelta.apis.exceptions.trading_transformation import UnknownOrderSideError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
@@ -33,13 +40,6 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions import (
-    InvalidQuantityError,
-    MissingQuantityError,
-    MissingTimestampError,
-    OrderTransformationFailedError,
-    UnknownOrderSideError,
-)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 

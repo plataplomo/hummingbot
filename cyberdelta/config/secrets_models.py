@@ -24,7 +24,7 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.exceptions.configuration import EmptySecretError, InvalidAuthTypeError
+from cyberdelta.exceptions.base import EmptySecretError, InvalidAuthTypeError
 from cyberdelta.utils.parsing import validate_str_field
 
 

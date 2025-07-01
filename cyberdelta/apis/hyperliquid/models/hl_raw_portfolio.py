@@ -18,16 +18,16 @@ from pydantic import (
     field_validator,
 )
 
+from cyberdelta.apis.exceptions.parsing import (
+    DictStructureError,
+    SequenceLengthError,
+    StructureTypeError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawFiniteDecimalStr,
     RawNonNegativeFiniteDecimalStr,
     RawTimeframeString,
     RawTimestampMsInt,
-)
-from cyberdelta.exceptions.parsing import (
-    DictStructureError,
-    SequenceLengthError,
-    StructureTypeError,
 )
 
 
@@ -186,9 +186,7 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
         field_name = info.field_name or "portfolio_response_list"
         if not isinstance(v, list):
             raise StructureTypeError(
-                field_name=field_name,
-                expected_structure="list",
-                actual_type=type(v).__name__
+                field_name=field_name, expected_structure="list", actual_type=type(v).__name__
             )
 
         return cast("list[object]", v)

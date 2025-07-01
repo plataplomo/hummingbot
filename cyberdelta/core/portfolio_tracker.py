@@ -16,11 +16,13 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.exchange_api import ExchangeAPI
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.config.models.config_models import AppSettings, PortfolioTrackerConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (

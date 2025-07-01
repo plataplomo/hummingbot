@@ -25,8 +25,9 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackWsSignatureComponents,
 )
 from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
+from cyberdelta.apis.exceptions import DataTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import DataTransformationError, EmptyStringParameterError
+from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
 
 class BackpackWsMessageRouter:

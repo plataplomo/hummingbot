@@ -17,6 +17,7 @@ from typing import Any, Protocol
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError
+from cyberdelta.apis.exceptions.trading import OrderError
 from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     GetTradeHistoryArgs,
@@ -33,7 +34,6 @@ from cyberdelta.core.models import (
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.exceptions.field_validation import RequiredFieldError
 from cyberdelta.exceptions.service_validation import OrderParameterError
-from cyberdelta.exceptions.trading import OrderError
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 

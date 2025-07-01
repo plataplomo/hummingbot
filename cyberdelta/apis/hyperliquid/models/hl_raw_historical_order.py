@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator, model_validator
 
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions.parsing import StructureTypeError
 
 # Assuming common_raw_types and other necessary components are accessible
 # For simplicity, copying relevant parts of HyperliquidRawOrder here
@@ -29,7 +30,6 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimestampMsInt,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import StructureTypeError
 from cyberdelta.utils.typing import is_dict_str_any, is_list_any
 
 
@@ -282,7 +282,7 @@ class HyperliquidRawHistoricalOrdersResponse(
                 field_name="orders",
                 expected_structure="list",
                 actual_type=type(v).__name__,
-                element_info="historical orders"
+                element_info="historical orders",
             )
 
         # v is now properly typed as list[Any] due to TypeGuard

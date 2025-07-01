@@ -34,6 +34,7 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpRequestFailedError,
 )
 from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
+from cyberdelta.apis.exceptions import InvalidParameterTypeError
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
@@ -53,10 +54,7 @@ from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.exceptions import (
-    InvalidParameterTypeError,
-    RequiredParameterError,
-)
+from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

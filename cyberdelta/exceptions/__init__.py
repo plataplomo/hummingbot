@@ -8,69 +8,19 @@ All new exceptions inherit from either APIError or TransformationError,
 preserving existing functionality like retry logic, error mapping, and metadata.
 """
 
-# Re-export existing base exceptions for convenience
-from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+# Note: APIError, APIErrorCode, and TransformationError are not imported here
+# to avoid circular imports. Import them directly from cyberdelta.apis.common when needed.
 
-# Authentication exceptions
-from .authentication import (
-    AuthenticationError,
-    AuthenticationPreparationError,
-    AuthenticatorNotConfiguredError,
-    InvalidAPIKeyError,
-    InvalidPrivateKeyError,
-    UnknownEndpointError,
-    WebSocketSignatureError,
-)
+# Authentication exceptions moved to cyberdelta.apis.exceptions
 
 # Import new specific exception classes as we create them
-# Configuration exceptions
-from .configuration import (
-    ConfigurationError,
-    HyperliquidRateLimitConfigError,
-    ModelDefinitionError,
-    RateLimitConfigurationError,
-    RequiredParameterError,
-    TestnetConfigurationError,
-)
+# Configuration exceptions - core config exceptions moved to .base
+# API-specific configuration exceptions remain in .configuration
 
-# Connectivity exceptions
-from .connectivity import (
-    ConnectivityError,
-    ContentTypeValidationError,
-    EmptyResponseError as ConnectivityEmptyResponseError,
-    HttpClientError,
-    HttpTimeoutError,
-    InvalidContentTypeError,
-    ResponseParsingError,
-    WebSocketConnectionClosedError,
-    WebSocketError as ConnectivityWebSocketError,
-    WebSocketNotConnectedError,
-    WhitespaceContentTypeError,
-)
+# Connectivity exceptions moved to cyberdelta.apis.exceptions
 
-# Data transformation exceptions
-from .data_transformation import (
-    CandleTransformationError,
-    CollateralTransformationError,
-    DataTransformationError,
-    FundingRateTransformationError,
-    InvalidMappingError,
-    MappingError,
-    MarketTransformationError,
-    MissingRequiredFieldError,
-    OrderBookTransformationError,
-    OrderTransformationError,
-    TickerTransformationError,
-    TradeTransformationError,
-    UnknownEnumError,
-)
-
-# Decorator exceptions
-from .decorators import (
-    AsyncDecoratorError,
-    DecoratorError,
-    NoExceptionCapturedError,
-)
+# Data transformation exceptions moved to cyberdelta.apis.exceptions
+# Decorator exceptions moved to cyberdelta.apis.exceptions
 
 # Field exceptions
 from .field_validation import (
@@ -93,33 +43,13 @@ from .field_validation import (
     TypeFieldError,
 )
 
-# Market data exceptions
-from .market_data import (
-    DataUnavailableError,
-    FundingRateUnavailableError,
-    MarketDataError,
-    OrderBookError,
-    SymbolNotFoundError,
-    TickerError,
-)
-
-# Parsing exceptions
+# Market data exceptions moved to cyberdelta.apis.exceptions
+# Parsing exceptions (core utilities only)
 from .parsing import (
-    ActionHashError,
-    ClientIdFormatError,
     DateTimeParsingError,
-    DictStructureError,
-    EmptyDictionaryError,
     EmptyStringError,
-    KlineTypeError,
-    KlineValueError,
-    MsgpackSerializationError,
-    NonNullableFieldError,
     ParsingError,
-    SequenceLengthError,
-    StructureTypeError,
     TimestampFormatError,
-    TimestampYearRangeError,
 )
 
 # Reconciliation exceptions
@@ -130,36 +60,9 @@ from .reconciliation import (
     ReconciliationError,
 )
 
-# Request validation exceptions
-from .request_validation import (
-    DecimalFormatError,
-    DecimalRangeError,
-    InvalidEnumValueError,
-    InvalidParameterTypeError,
-    MissingRequiredParameterError,
-    PrecisionLossError,
-    RequestValidationError,
-)
-
-# Response validation exceptions
-from .response_validation import (
-    EmptyResponseError,
-    InvalidLeverageError,
-    NotImplementedOperationError,
-    ResponseValidationError,
-    UnreachableCodeError,
-)
-
-# Security exceptions
-from .security import (
-    FieldConstraintError,
-    FieldTypeError,
-    FinancialFieldError,
-    InvalidMapperResultError,
-    MapperNotFoundError,
-    SecurityValidationError,
-)
-
+# Request validation exceptions moved to cyberdelta.apis.exceptions
+# Response validation exceptions moved to cyberdelta.apis.exceptions
+# Security exceptions moved to cyberdelta.apis.exceptions
 # Service validation exceptions
 from .service_validation import (
     EmptyStringParameterError,
@@ -177,189 +80,55 @@ from .service_validation import (
     UnsupportedNetworkError,
 )
 
-# Strategy exceptions
-from .strategy import (
-    ArbitrageError,
-    DeltaNeutralError,
-    FundingRateArbitrageError,
-    PositionSyncError,
-    RebalanceError,
-    RiskLimitError,
-    StrategyError,
-)
 
-# Trading exceptions
-from .trading import (
-    InsufficientBalanceError,
-    InvalidBatchResponseError,
-    MarketClosedError,
-    OrderError,
-    OrderNotFoundError,
-    OrderSizeError,
-    PositionNotFoundError,
-    TradingError,
-)
+# Strategy exceptions moved to cyberdelta.apis.exceptions
 
-# Trading transformation exceptions
-from .trading_transformation import (
-    InvalidQuantityError,
-    MissingQuantityError,
-    MissingTimestampError,
-    OrderTransformationFailedError,
-    UnknownOrderSideError,
-)
+# Trading exceptions moved to cyberdelta.apis.exceptions
 
-# WebSocket exceptions
-from .websocket import (
-    InvalidWebSocketDataError,
-    UnsupportedWebSocketTopicError,
-    UserEventsSubscriptionError,
-    WebSocketError,
-    WebSocketSubscriptionError,
-)
+# Trading transformation exceptions moved to cyberdelta.apis.exceptions
+
+# WebSocket exceptions moved to cyberdelta.apis.exceptions
 
 
 __all__ = [
-    # Re-exported existing classes
-    "APIError",
-    "APIErrorCode",
-    "ActionHashError",
-    "ArbitrageError",
-    "AsyncDecoratorError",
-    "AuthenticationError",
-    "AuthenticationPreparationError",
-    "AuthenticatorNotConfiguredError",
+    # Note: APIError, APIErrorCode, TransformationError are not exported here
+    # Import them directly from cyberdelta.apis.common when needed
     "BooleanFieldError",
-    "CandleTransformationError",
-    "ClientIdFormatError",
-    "CollateralTransformationError",
-    "ConfigurationError",
-    "ConnectivityEmptyResponseError",
-    "ConnectivityError",
-    "ConnectivityWebSocketError",
-    "ContentTypeValidationError",
-    "DataTransformationError",
-    "DataUnavailableError",
     "DateTimeParsingError",
     "DecimalFieldError",
     "DecimalFiniteError",
-    "DecimalFormatError",
-    "DecimalRangeError",
-    "DecoratorError",
-    "DeltaNeutralError",
-    "DictStructureError",
-    "EmptyDictionaryError",
-    "EmptyResponseError",
     "EmptyStringError",
     "EmptyStringParameterError",
     "EnumFieldError",
-    "FieldConstraintError",
     "FieldError",
     "FieldNameMissingError",
-    "FieldTypeError",
-    "FinancialFieldError",
-    "FundingRateArbitrageError",
-    "FundingRateTransformationError",
-    "FundingRateUnavailableError",
-    "HttpClientError",
-    "HttpTimeoutError",
-    "HyperliquidRateLimitConfigError",
-    "InsufficientBalanceError",
     "IntegerConversionError",
-    "InvalidAPIKeyError",
     "InvalidAccountTypeError",
-    "InvalidBatchResponseError",
-    "InvalidContentTypeError",
-    "InvalidEnumValueError",
     "InvalidFormatError",
-    "InvalidLeverageError",
-    "InvalidMapperResultError",
-    "InvalidMappingError",
-    "InvalidParameterTypeError",
-    "InvalidPrivateKeyError",
-    "InvalidQuantityError",
-    "InvalidWebSocketDataError",
-    "KlineTypeError",
-    "KlineValueError",
     "ListFieldError",
-    "MapperNotFoundError",
-    "MappingError",
-    "MarketClosedError",
-    "MarketDataError",
-    "MarketTransformationError",
     "MissingPriceError",
-    "MissingQuantityError",
-    "MissingRequiredFieldError",
-    "MissingRequiredParameterError",
     "MissingStopPriceError",
-    "MissingTimestampError",
-    "ModelDefinitionError",
-    "MsgpackSerializationError",
     "NegativeValueError",
     "NetworkRequiredError",
-    "NoExceptionCapturedError",
     "NonFinitePositionValueError",
-    "NonNullableFieldError",
-    "NotImplementedOperationError",
-    "OrderBookError",
-    "OrderBookTransformationError",
-    "OrderError",
     "OrderFieldError",
     "OrderLogicError",
-    "OrderNotFoundError",
     "OrderParameterError",
-    "OrderSizeError",
-    "OrderTransformationError",
-    "OrderTransformationFailedError",
     "ParsingError",
     "PassphraseFieldError",
     "PositionDiscrepancyError",
     "PositionFieldError",
     "PositionLogicError",
-    "PositionNotFoundError",
-    "PositionSyncError",
     "PostOnlyLimitError",
-    "PrecisionLossError",
     "RangeFieldError",
-    "RateLimitConfigurationError",
-    "RebalanceError",
     "ReconciliationError",
-    "RequestValidationError",
     "RequiredFieldError",
     "RequiredFieldNoneError",
-    "RequiredParameterError",
-    "ResponseParsingError",
-    "ResponseValidationError",
-    "RiskLimitError",
-    "SecurityValidationError",
-    "SequenceLengthError",
     "ServiceValidationError",
-    "StrategyError",
-    "StructureTypeError",
-    "SymbolNotFoundError",
-    "TestnetConfigurationError",
-    "TickerError",
-    "TickerTransformationError",
     "TimeRangeError",
     "TimestampFieldError",
     "TimestampFormatError",
-    "TimestampYearRangeError",
-    "TradeTransformationError",
-    "TradingError",
     "TransferAccountError",
-    "TransformationError",
     "TypeFieldError",
-    "UnknownEndpointError",
-    "UnknownEnumError",
-    "UnknownOrderSideError",
-    "UnreachableCodeError",
     "UnsupportedNetworkError",
-    "UnsupportedWebSocketTopicError",
-    "UserEventsSubscriptionError",
-    "WebSocketConnectionClosedError",
-    "WebSocketError",
-    "WebSocketNotConnectedError",
-    "WebSocketSignatureError",
-    "WebSocketSubscriptionError",
-    "WhitespaceContentTypeError",
 ]

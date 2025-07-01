@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from cyberdelta.apis.base.exchange_api import ExchangeAPI
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args_models import GetFundingRatesArgs
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade

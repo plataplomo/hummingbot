@@ -31,7 +31,7 @@ from cyberdelta.config.models.config_types import (
 # Import strategy models from separate module
 from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.configuration import (
+from cyberdelta.exceptions.base import (
     ConfigurationError,
     RequiredParameterError,
     TestnetConfigurationError,

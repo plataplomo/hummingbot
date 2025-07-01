@@ -10,7 +10,7 @@ from typing import Any, cast
 import yaml
 from pydantic import ValidationError
 
-from cyberdelta.exceptions.configuration import (
+from cyberdelta.exceptions.base import (
     ConfigFileInvalidError,
     ConfigFileNotFoundError,
     ConfigFileReadError,

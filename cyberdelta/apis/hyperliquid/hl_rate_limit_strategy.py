@@ -12,11 +12,12 @@ from __future__ import annotations
 
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
+from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import HyperliquidRateLimitConfigError, RequiredParameterError
+from cyberdelta.exceptions.base import RequiredParameterError
 
 
 logger = get_logger(__name__)
@@ -44,7 +45,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             missing_fields.append("ip_weight_limit_per_minute")
         if not hl_exchange_config.address_action_safety_net:
             missing_fields.append("address_action_safety_net")
-            
+
         if missing_fields:
             raise HyperliquidRateLimitConfigError(missing_fields)
 
@@ -57,7 +58,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             raise RequiredParameterError(
                 parameter="ip_weight_limit_per_minute",
                 context="HyperliquidRateLimitStrategy",
-                exchange="hyperliquid"
+                exchange="hyperliquid",
             )
         ip_rate_rps = ip_rate_rpm / 60.0
         ip_bucket = max(1, int(ip_rate_rps * 2))  # 2-second bucket
@@ -78,7 +79,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             raise RequiredParameterError(
                 parameter="address_action_safety_net",
                 context="HyperliquidRateLimitStrategy",
-                exchange="hyperliquid"
+                exchange="hyperliquid",
             )
         aa_rate_rpm = aa_config.rate_per_minute
         aa_rate_rps = aa_rate_rpm / 60.0

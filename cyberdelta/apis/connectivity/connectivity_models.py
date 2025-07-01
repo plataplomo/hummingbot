@@ -10,7 +10,10 @@ import re
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-from cyberdelta.exceptions import InvalidContentTypeError, WhitespaceContentTypeError
+from cyberdelta.apis.exceptions.connectivity import (
+    InvalidContentTypeError,
+    WhitespaceContentTypeError,
+)
 
 
 # Define a reasonable max length for content type strings

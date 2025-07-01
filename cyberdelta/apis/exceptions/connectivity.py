@@ -29,8 +29,8 @@ class ContentTypeValidationError(APIError):
             metadata={
                 "content_type": content_type,
                 "reason": reason,
-                "error_type": "content_type_validation"
-            }
+                "error_type": "content_type_validation",
+            },
         )
 
 
@@ -44,8 +44,7 @@ class InvalidContentTypeError(ContentTypeValidationError):
             content_type: The content-type string with invalid characters
         """
         super().__init__(
-            content_type=content_type,
-            reason="Content-Type contains invalid characters"
+            content_type=content_type, reason="Content-Type contains invalid characters"
         )
 
 
@@ -58,10 +57,7 @@ class WhitespaceContentTypeError(ContentTypeValidationError):
         Args:
             content_type: The content-type string that is only whitespace
         """
-        super().__init__(
-            content_type=content_type,
-            reason="Content-Type cannot be only whitespace"
-        )
+        super().__init__(content_type=content_type, reason="Content-Type cannot be only whitespace")
 
 
 class HttpClientError(APIError):
@@ -95,8 +91,8 @@ class ResponseParsingError(HttpClientError):
                 "url": url,
                 "status_code": status_code,
                 "reason": reason,
-                "response_preview": response_text[:200] if response_text else None
-            }
+                "response_preview": response_text[:200] if response_text else None,
+            },
         )
 
 
@@ -117,11 +113,7 @@ class EmptyResponseError(HttpClientError):
             message=f"Received empty response from {url} (status {status_code})",
             code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=status_code,
-            metadata={
-                "url": url,
-                "status_code": status_code,
-                "error_type": "empty_response"
-            }
+            metadata={"url": url, "status_code": status_code, "error_type": "empty_response"},
         )
 
 
@@ -143,10 +135,7 @@ class WebSocketNotConnectedError(WebSocketError):
         super().__init__(
             message=f"WebSocket not connected for operation: {operation}",
             code=APIErrorCode.CONNECTION_ERROR.value,
-            metadata={
-                "operation": operation,
-                "error_type": "websocket_not_connected"
-            }
+            metadata={"operation": operation, "error_type": "websocket_not_connected"},
         )
 
 
@@ -168,10 +157,7 @@ class WebSocketConnectionClosedError(WebSocketError):
         super().__init__(
             message=message,
             code=APIErrorCode.CONNECTION_ERROR.value,
-            metadata={
-                "reason": reason,
-                "error_type": "websocket_closed"
-            }
+            metadata={"reason": reason, "error_type": "websocket_closed"},
         )
 
 
@@ -201,6 +187,6 @@ class HttpTimeoutError(HttpClientError):
                 "url": url,
                 "timeout": timeout,
                 "operation": operation,
-                "error_type": "http_timeout"
-            }
+                "error_type": "http_timeout",
+            },
         )

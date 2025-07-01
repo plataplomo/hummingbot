@@ -8,6 +8,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from cyberdelta.apis.exceptions import (
+    DecimalFormatError,
+    DecimalRangeError,
+    InvalidEnumValueError,
+    MissingRequiredParameterError,
+    PrecisionLossError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMidsRequestPayload,
@@ -81,13 +88,6 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawL1Args,
 )
 from cyberdelta.core.models import OrderSide, OrderType
-from cyberdelta.exceptions import (
-    DecimalFormatError,
-    DecimalRangeError,
-    InvalidEnumValueError,
-    MissingRequiredParameterError,
-    PrecisionLossError,
-)
 
 
 # Precision and batch size constants

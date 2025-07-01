@@ -13,7 +13,7 @@ from typing import Any, cast
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.exceptions.configuration import StateFilePathError
+from cyberdelta.exceptions.base import StateFilePathError
 
 
 logger = get_logger(__name__)

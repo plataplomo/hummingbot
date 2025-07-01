@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import HyperliquidRateLimitConfigError
 
 
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ class HyperliquidRequestWeighter:
         self.hl_exchange_config = hl_exchange_config
 
         # Validate that we have the required Hyperliquid-specific fields
-        
+
         missing_fields: list[str] = []
         if self.hl_exchange_config.info_request_type_ip_weights is None:
             missing_fields.append("info_request_type_ip_weights")
@@ -46,7 +46,7 @@ class HyperliquidRequestWeighter:
             missing_fields.append("default_info_weight")
         if self.hl_exchange_config.exchange_action_base_ip_weight is None:
             missing_fields.append("exchange_action_base_ip_weight")
-            
+
         if missing_fields:
             raise HyperliquidRateLimitConfigError(missing_fields)
 

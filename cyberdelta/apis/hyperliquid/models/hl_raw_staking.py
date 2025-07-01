@@ -22,6 +22,7 @@ from pydantic import (
     field_validator,
 )
 
+from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawDefaultString,
     RawFiniteDecimalStr,
@@ -31,7 +32,6 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTimestampMsInt,
     RawTxHashStr,
 )
-from cyberdelta.exceptions.parsing import StructureTypeError
 
 
 # --- Delegations --- #

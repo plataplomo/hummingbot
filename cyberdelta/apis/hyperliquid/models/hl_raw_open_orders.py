@@ -43,6 +43,10 @@ from pydantic import (
     field_validator,
 )
 
+from cyberdelta.apis.exceptions.parsing import (
+    EmptyDictionaryError,
+    StructureTypeError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawAssetString64HL,
     RawFiniteDecimalStr,
@@ -57,10 +61,6 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawTifStr,
     RawTimestampMsInt,
     RawTpslStr,
-)
-from cyberdelta.exceptions.parsing import (
-    EmptyDictionaryError,
-    StructureTypeError,
 )
 from cyberdelta.utils.parsing import validate_str_field
 

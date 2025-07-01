@@ -39,6 +39,11 @@ from typing import TypeGuard, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.apis.exceptions.parsing import (
+    EmptyDictionaryError,
+    SequenceLengthError,
+    StructureTypeError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
     RawAssetString64HL,
     RawDefaultString,
@@ -61,11 +66,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawBo
 # source of truth for validation logic.
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawPositionInfo,
-)
-from cyberdelta.exceptions.parsing import (
-    EmptyDictionaryError,
-    SequenceLengthError,
-    StructureTypeError,
 )
 
 

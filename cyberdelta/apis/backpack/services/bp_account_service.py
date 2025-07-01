@@ -30,6 +30,9 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+from cyberdelta.apis.exceptions import (
+    EmptyResponseError,
+)
 from cyberdelta.apis.models.service_args_models import (
     GetMaxBorrowQuantityArgs,
     GetMaxOrderQuantityArgs,
@@ -54,8 +57,7 @@ from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions import (
-    EmptyResponseError,
+from cyberdelta.exceptions.service_validation import (
     EmptyStringParameterError,
     InvalidAccountTypeError,
     NetworkRequiredError,

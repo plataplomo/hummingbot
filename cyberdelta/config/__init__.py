@@ -7,7 +7,7 @@ All configuration access is now through validated Pydantic models.
 import os
 from pathlib import Path
 
-from cyberdelta.exceptions.configuration import (
+from cyberdelta.exceptions.base import (
     AppSettingsNotLoadedError,
     ConfigurationError,
     ConfigurationInitializationError,

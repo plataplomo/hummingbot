@@ -20,14 +20,14 @@ from cyberdelta.apis.base.authenticator_interface import (
     IAuthenticator,
 )
 from cyberdelta.apis.common import APIError
-from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import (
+from cyberdelta.apis.exceptions import (
     AuthenticationPreparationError,
     InvalidAPIKeyError,
     InvalidPrivateKeyError,
     UnknownEndpointError,
     WebSocketSignatureError,
 )
+from cyberdelta.config.structlog_config import get_logger
 
 
 logger = get_logger(__name__)

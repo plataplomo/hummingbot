@@ -35,8 +35,8 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.apis.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions import SequenceLengthError, StructureTypeError
 from cyberdelta.utils.typing import is_sequence_of_any
 
 from .bp_common_raw_types import (

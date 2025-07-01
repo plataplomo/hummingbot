@@ -43,6 +43,18 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentPublic
 
 # Base API error models
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+from cyberdelta.apis.exceptions.market_data_service import (
+    EmptySymbolError,
+    EmptySymbolInListError,
+    EmptySymbolListError,
+    InvalidLimitError,
+    InvalidTimeRangeError,
+    NoFundingDataError,
+    NotImplementedServiceError,
+    NullSymbolsError,
+    UnsupportedIntervalError,
+)
+from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.models.service_args_models import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
@@ -65,18 +77,6 @@ from cyberdelta.core.models.market import (
 
 # Internal domain models
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.exceptions import UnreachableCodeError
-from cyberdelta.exceptions.market_data_service import (
-    EmptySymbolError,
-    EmptySymbolInListError,
-    EmptySymbolListError,
-    InvalidLimitError,
-    InvalidTimeRangeError,
-    NoFundingDataError,
-    NotImplementedServiceError,
-    NullSymbolsError,
-    UnsupportedIntervalError,
-)
 from cyberdelta.utils.typing import ParsedJsonResponse  # Import ParsedJsonResponse
 
 
