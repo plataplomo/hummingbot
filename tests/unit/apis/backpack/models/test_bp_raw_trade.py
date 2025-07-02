@@ -12,6 +12,8 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTradeEvent,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 logger = get_logger(__name__)
@@ -57,7 +59,7 @@ def test_BackpackRawTrade_wrong_type_fields() -> None:
         BackpackRawPublicTrade.model_validate(p)
     p = valid_trade().copy()
     p["time"] = "notanint"
-    with pytest.raises(ValidationError):  # This is format validation, not type validation
+    with pytest.raises(DateTimeParsingError):  # This is datetime parsing validation
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -69,7 +71,7 @@ def test_BackpackRawTrade_invalid_format_fields() -> None:
         BackpackRawPublicTrade.model_validate(p)
     p = valid_trade().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -237,7 +239,7 @@ def test_BackpackRawTrade_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 'symbol'."""
     p = valid_trade().copy()
     p["symbol"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawPublicTrade.model_validate(p)
 
 
@@ -284,7 +286,7 @@ def test_BackpackRawTradeEvent_wrong_type_fields() -> None:
         BackpackRawPublicTradeEvent.model_validate(p)
     p = valid_trade_event().copy()
     p["E"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises(DateTimeParsingError):
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
@@ -296,7 +298,7 @@ def test_BackpackRawTradeEvent_invalid_format_fields() -> None:
         BackpackRawPublicTradeEvent.model_validate(p)
     p = valid_trade_event().copy()
     p["s"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
@@ -396,7 +398,7 @@ def test_BackpackRawTradeEvent_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 's' (symbol)."""
     p = valid_trade_event().copy()
     p["s"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
@@ -523,10 +525,22 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
         data = valid_fill_data().copy()
         data[field] = value
         # This is less brittle when multiple fields might fail or the order changes.
-        with pytest.raises((ValidationError, TypeError)):
+        with pytest.raises((
+            ValidationError,
+            TypeError,
+            EmptyStringError,
+            DateTimeParsingError,
+            TypeFieldError,
+        )):
             try:
                 BackpackRawFill.model_validate(data)
-            except (ValidationError, TypeError) as e:
+            except (
+                ValidationError,
+                TypeError,
+                EmptyStringError,
+                DateTimeParsingError,
+                TypeFieldError,
+            ) as e:
                 logger.debug(
                     "backpack_raw_fill_validation_error",
                     field=field,
@@ -542,7 +556,7 @@ def test_BackpackRawFill_invalid_client_id_empty_string() -> None:
     """Test failure when clientId is an empty string."""
     p = valid_fill_data().copy()
     p["clientId"] = ""
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises(EmptyStringError) as exc_info:
         BackpackRawFill.model_validate(p)
     # Check for the specific error message from the mode='after' validator
     assert "clientId cannot be an empty or whitespace-only string if provided" in str(

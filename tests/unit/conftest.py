@@ -598,8 +598,12 @@ def active_bp_secrets() -> ApiKeyAuthSecrets:
     """
     return ApiKeyAuthSecrets(
         auth_type="api_key",
-        api_key=SecretStr("test_active_api_key"),
-        api_secret=SecretStr("test_active_api_secret"),
+        api_key=SecretStr(
+            "W7nnRtBOJOydhB7ktLj2y4i5qVZlT2M3LjvggCWKGg0="
+        ),  # 32-byte key for ED25519
+        api_secret=SecretStr(
+            "RUAL60zhWO5KW1gME231COWGVEOap4h1k+yftJuP5pk="
+        ),  # 32-byte key for ED25519
     )
 
 

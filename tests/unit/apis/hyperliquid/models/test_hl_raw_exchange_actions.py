@@ -15,6 +15,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
 )
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # --- Test Data ---
@@ -150,12 +151,18 @@ def test_eth_withdrawal_payload_invalid_fields(
         del data[field]
     else:
         data[field] = value
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises((ValidationError, EmptyStringError)) as exc_info:
         HyperliquidRawEthWithdrawalActionPayload.model_validate(data)
-    assert any(
-        expected_error_part.lower() in err_detail["msg"].lower()
-        for err_detail in exc_info.value.errors()
-    )
+
+    # Handle both ValidationError and EmptyStringError
+    if isinstance(exc_info.value, ValidationError):
+        assert any(
+            expected_error_part.lower() in err_detail["msg"].lower()
+            for err_detail in exc_info.value.errors()
+        )
+    else:
+        # For EmptyStringError, check the exception message directly
+        assert expected_error_part.lower() in str(exc_info.value).lower()
 
 
 def test_eth_withdrawal_payload_extra_field() -> None:
@@ -219,19 +226,19 @@ def test_order_item_spec_valid_market_no_cloid() -> None:
     ("field_alias", "value", "expected_error_part"),
     [
         ("asset_index", -1, "cannot be negative"),
-        ("asset_index", "not-an-int", "Must be an integer"),
-        ("is_buy", "not-a-bool", "Must be a boolean"),
+        ("asset_index", "not-an-int", "must be integer"),
+        ("is_buy", "not-a-bool", "must be boolean"),
         ("is_buy", None, "Field required"),
         ("limit_px", INVALID_DECIMAL_STR_NON_FINITE, "finite decimal string"),
         ("limit_px", None, "Field required"),
         ("size", INVALID_DECIMAL_STR_EMPTY, "String cannot be empty"),
         ("size", None, "Field required"),
-        ("reduce_only", "True", "Must be a boolean"),  # String "True" is not bool True
+        ("reduce_only", "True", "must be boolean"),  # String "True" is not bool True
         ("reduce_only", None, "Field required"),
         (
             "order_type_details",
             {"limit": {"tif": "InvalidTIF"}},
-            "value error, tif: invalid value",
+            "must be one of",
         ),
         # Removed test for both None - raw models no longer validate business logic
         ("order_type_details", None, "Field required"),
@@ -263,13 +270,16 @@ def test_order_item_spec_invalid_fields(
     else:
         base_data[field_alias] = cast("Any", value)  # Cast for test compatibility
 
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
+    with pytest.raises((ValidationError, TypeError, EmptyStringError)) as exc_info:
         HyperliquidRawOrderItemSpec.model_validate(base_data)
     if isinstance(exc_info.value, ValidationError):
         assert any(
             expected_error_part.lower() in err_detail["msg"].lower()
             for err_detail in exc_info.value.errors()
         )
+    elif isinstance(exc_info.value, EmptyStringError):
+        # EmptyStringError from business logic
+        assert expected_error_part.lower() in str(exc_info.value).lower()
     else:
         # TypeError from business logic
         assert expected_error_part.lower() in str(exc_info.value).lower()

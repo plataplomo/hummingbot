@@ -35,6 +35,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)
@@ -59,7 +60,7 @@ class TestHyperliquidTradingServiceOrders:
         """Test place_order raises ValueError for empty symbol."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises((ValueError, EmptyStringError)) as exc_info:
             args = PlaceOrderArgs(
                 symbol="",  # Empty symbol should be rejected
                 side=OrderSide.BUY,
@@ -117,7 +118,7 @@ class TestHyperliquidTradingServiceOrders:
                 time_in_force=TimeInForce.GTC,
             )
             await hl_trading_service.place_order(args)
-        assert "Field 'quantity' must be a finite decimal" in str(exc_info.value)
+        assert "must be a finite decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_price_validation(
@@ -176,7 +177,7 @@ class TestHyperliquidTradingServiceOrders:
                 time_in_force=TimeInForce.GTC,
             )
             await hl_trading_service.place_order(args)
-        assert "Field 'price' must be a finite decimal" in str(exc_info.value)
+        assert "must be a finite decimal" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_stop_price_validation(
@@ -208,7 +209,7 @@ class TestHyperliquidTradingServiceOrders:
         """Test get_order raises ValueError for empty order_id."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises((ValueError, EmptyStringError)) as exc_info:
             await hl_trading_service.get_order(args=GetOrderArgs(symbol="ETH", order_id=""))
 
         assert "String cannot be empty" in str(exc_info.value)
@@ -238,10 +239,10 @@ class TestHyperliquidTradingServiceOrders:
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
     ) -> None:
-        """Test get_order raises ValueError for empty symbol when provided."""
+        """Test get_order raises EmptyStringError for empty symbol when provided."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             await hl_trading_service.get_order(args=GetOrderArgs(symbol="", order_id="12345"))
 
         assert "String cannot be empty" in str(exc_info.value)
@@ -283,10 +284,10 @@ class TestHyperliquidTradingServiceOrders:
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
     ) -> None:
-        """Test cancel_order raises ValueError for empty symbol."""
+        """Test cancel_order raises EmptyStringError for empty symbol."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             args = CancelOrderArgs(
                 order_id="12345",
                 symbol="",  # Empty symbol should be rejected

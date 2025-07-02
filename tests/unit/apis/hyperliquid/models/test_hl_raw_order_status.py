@@ -61,7 +61,7 @@ def test_invalid_order_structure() -> None:
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data)
     assert "order.limitPx" in str(exc_info.value)  # Check nested error path
-    assert "Cannot convert 'invalid-price' to Decimal" in str(exc_info.value)
+    assert "Cannot convert to Decimal" in str(exc_info.value)
 
 
 def test_extra_field_forbidden() -> None:

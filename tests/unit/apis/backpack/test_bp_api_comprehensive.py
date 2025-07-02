@@ -49,6 +49,7 @@ from cyberdelta.core.models.enums import (
 )
 from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.exceptions.base import RequiredParameterError
 
 
 pytestmark = pytest.mark.unit
@@ -634,7 +635,7 @@ class TestBackpackAPIPublicBehavior:
         # Create API instance from factory
         backpack_api = bp_api_with_di()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(RequiredParameterError) as exc_info:
             await backpack_api.get_order(GetOrderArgs(order_id="order123", symbol=None))
 
         assert "'symbol' parameter is required" in str(exc_info.value)
@@ -674,7 +675,7 @@ class TestBackpackAPIPublicBehavior:
         # Create API instance from factory
         backpack_api = bp_api_with_di()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(RequiredParameterError) as exc_info:
             await backpack_api.get_order_status(GetOrderArgs(order_id="order123", symbol=None))
 
         assert "'symbol' parameter is required" in str(exc_info.value)

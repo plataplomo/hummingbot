@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
 )
+from cyberdelta.exceptions.parsing import ParsingError
 
 
 # --- Test Data ---
@@ -106,8 +107,8 @@ def test_extra_field_forbidden() -> None:
         ("t", "not_a_list", "Input should be a valid list"),
         ("o", False, "Input should be a valid list"),
         ("h", 123, "Input should be a valid list"),
-        ("s", 123, "s: Expected string, got int"),
-        ("s", "", "s: String cannot be empty or whitespace"),
+        ("s", 123, "Field 's' must be string, got int"),
+        ("s", "", "String cannot be empty"),
     ],
 )
 def test_invalid_field_type_or_missing(
@@ -145,13 +146,13 @@ def test_missing_field() -> None:
     [
         ("t", 0, "not_an_int", ("integer", "got str")),
         ("t", 0, -1, ("value", "-1", "cannot be negative")),
-        ("o", 0, 123.45, ("expected string", "got float")),
-        ("h", 0, True, ("expected string", "got bool")),
-        ("l", 0, "", ("string", "cannot be empty")),
+        ("o", 0, 123.45, ("must be str", "got float")),
+        ("h", 0, True, ("must be str", "got bool")),
+        ("l", 0, "", ("cannot be empty",)),
         ("c", 0, "not_finite_enough", ("cannot convert", "not_finite_enough")),
         ("v", 0, "not_a_number", ("cannot convert", "not_a_number")),
-        ("v", 0, "-10.0", ("value '-10.0'", "non-negative")),
-        ("o", 0, "1" * 65, ("string", "too long", "max 64")),
+        ("v", 0, "-10.0", ("value -10.0", "non-negative")),
+        ("o", 0, "1" * 65, ("string with max length 64", "string with length 65")),
     ],
 )
 def test_invalid_list_item_type_or_format(
@@ -169,15 +170,16 @@ def test_invalid_list_item_type_or_format(
     else:
         data[list_field] = [invalid_item]
 
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
+    with pytest.raises((ValidationError, TypeError, ParsingError)) as exc_info:
         HyperliquidRawCandleSnapshot.model_validate(data)
 
     error_str = str(exc_info.value).lower()
-    # Check for field index indication flexibly, but allow for TypeError without index info
+    # Check for field index indication flexibly, but allow for TypeError/ParsingError
+    # without index info
     has_index = f".{item_index}" in error_str or f"[{item_index}]" in error_str
-    is_type_error = isinstance(exc_info.value, TypeError)
-    # If it's a TypeError from business logic, it may not have index info
-    if not has_index and not is_type_error:
+    is_type_or_parsing_error = isinstance(exc_info.value, (TypeError, ParsingError))
+    # If it's a TypeError or ParsingError from business logic, it may not have index info
+    if not has_index and not is_type_or_parsing_error:
         # Only require index for ValidationError
         assert has_index, f"Expected index {item_index} in error: {error_str}"
 
@@ -196,7 +198,7 @@ def test_mismatched_list_lengths() -> None:
         "v": ["1000.0", "1200.0"],
         "s": "ok",
     }
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
+    with pytest.raises((ValidationError, TypeError, ParsingError)) as exc_info:
         HyperliquidRawCandleSnapshot.model_validate(data)
     # Use simpler substring check
     assert "must all have the same length" in str(exc_info.value)

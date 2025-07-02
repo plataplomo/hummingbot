@@ -24,7 +24,9 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawMmfFunction,
 )
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import (
+    DataTransformationError,
+)
 from cyberdelta.core.models import DerivativePosition, MarginAccountSummary, SpotBalance
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -204,15 +206,17 @@ class TestBalanceTransformation:
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
-            with pytest.raises(
-                TransformationError,
-                match="Failed to transform balance data to SpotBalance",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_balance_data_to_spot_balance(
                     asset="USDC",
                     total_balance="invalid",
                     available_balance="900.0",
                 )
+
+            # Verify the error details
+            assert "balance_data" in str(exc_info.value)
+            assert "SpotBalance" in str(exc_info.value)
+            assert "Invalid decimal value" in str(exc_info.value)
 
     def test_transform_raw_balance_to_internal_happy_path(
         self,
@@ -270,11 +274,13 @@ class TestBalanceTransformation:
 
             mock_parse.side_effect = side_effect
 
-            with pytest.raises(
-                TransformationError,
-                match="Locked quantity missing/invalid for USDC in BackpackRawBalance",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+
+            # Verify the error details
+            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "SpotBalance" in str(exc_info.value)
+            assert "locked is required for USDC balance" in str(exc_info.value)
 
     def test_transform_raw_balance_missing_available_raises_error(
         self,
@@ -301,11 +307,13 @@ class TestBalanceTransformation:
 
             mock_parse.side_effect = side_effect
 
-            with pytest.raises(
-                TransformationError,
-                match="Available quantity missing/invalid for USDC in BackpackRawBalance",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+
+            # Verify the error details
+            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "SpotBalance" in str(exc_info.value)
+            assert "available is required for USDC balance" in str(exc_info.value)
 
     def test_transform_raw_balance_missing_staked_raises_error(
         self,
@@ -332,11 +340,13 @@ class TestBalanceTransformation:
 
             mock_parse.side_effect = side_effect
 
-            with pytest.raises(
-                TransformationError,
-                match="Staked quantity missing/invalid for USDC in BackpackRawBalance",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+
+            # Verify the error details
+            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "SpotBalance" in str(exc_info.value)
+            assert "staked is required for USDC balance" in str(exc_info.value)
 
     def test_transform_raw_balance_boundary_values(self, mapper: BackpackAccountDataMapper) -> None:
         """Test balance transformation with boundary decimal values."""
@@ -469,11 +479,13 @@ class TestPositionTransformation:
 
             mock_parse.side_effect = side_effect
 
-            with pytest.raises(
-                TransformationError,
-                match="net_quantity missing/invalid in BackpackRawPosition",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_raw_position_to_internal(raw_position)
+
+            # Verify the error details
+            assert "BackpackRawPosition" in str(exc_info.value)
+            assert "DerivativePosition" in str(exc_info.value)
+            assert "net_quantity is required for BackpackRawPosition" in str(exc_info.value)
 
     def test_transform_raw_position_transformation_error(
         self,
@@ -488,11 +500,13 @@ class TestPositionTransformation:
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
-            with pytest.raises(
-                TransformationError,
-                match="Failed to transform raw position to internal",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_raw_position_to_internal(raw_position)
+
+            # Verify the error details
+            assert "BackpackRawPosition" in str(exc_info.value)
+            assert "DerivativePosition" in str(exc_info.value)
+            assert "Invalid decimal value" in str(exc_info.value)
 
     def test_transform_raw_position_negative_values(
         self,
@@ -800,15 +814,17 @@ class TestErrorHandling:
 
             mock_parse.side_effect = side_effect
 
-            with pytest.raises(
-                TransformationError,
-                match="Total and available balances are required",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_balance_data_to_spot_balance(
                     asset="USDC",
                     total_balance="invalid",
                     available_balance="900.0",
                 )
+
+            # Verify the error details
+            assert "balance_data" in str(exc_info.value)
+            assert "SpotBalance" in str(exc_info.value)
+            assert "total, available are required for balance" in str(exc_info.value)
 
     def test_balance_data_none_available_raises_error(
         self,
@@ -832,12 +848,14 @@ class TestErrorHandling:
 
             mock_parse.side_effect = side_effect
 
-            with pytest.raises(
-                TransformationError,
-                match="Total and available balances are required",
-            ):
+            with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_balance_data_to_spot_balance(
                     asset="USDC",
                     total_balance="1000.0",
                     available_balance="invalid",
                 )
+
+            # Verify the error details
+            assert "balance_data" in str(exc_info.value)
+            assert "SpotBalance" in str(exc_info.value)
+            assert "total, available are required for balance" in str(exc_info.value)

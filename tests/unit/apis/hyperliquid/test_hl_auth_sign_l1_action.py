@@ -11,8 +11,8 @@ import msgpack
 import pytest
 from pydantic import SecretStr
 
-from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator, address_to_bytes
+from cyberdelta.exceptions.base import RequiredParameterError
 
 
 # Test constants
@@ -247,8 +247,8 @@ class TestHyperliquidSignL1Action:
         """Test handling of empty action payload."""
         # Business logic prevents empty action payloads
         with pytest.raises(
-            APIError,
-            match="Failed to construct request body: Action payload cannot be empty",
+            RequiredParameterError,
+            match="parameter is required for HTTP body construction",
         ):
             await authenticator.prepare_request(
                 method="POST",

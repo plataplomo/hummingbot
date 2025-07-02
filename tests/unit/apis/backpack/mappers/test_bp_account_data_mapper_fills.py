@@ -17,16 +17,20 @@ from typing import Literal
 from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import (
+    DataTransformationError,
+)
 from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
@@ -264,7 +268,7 @@ class TestFillTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError,
+                DataTransformationError,
                 match="Failed to transform BackpackRawFill to Trade",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
@@ -367,8 +371,8 @@ class TestTradeTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError,
-                match="price missing/invalid in BackpackRawPublicTrade",
+                DataTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -400,8 +404,8 @@ class TestTradeTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError,
-                match="quantity missing/invalid in BackpackRawPublicTrade",
+                DataTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -539,9 +543,9 @@ class TestErrorHandling:
         test_timestamp: str,
     ) -> None:
         """Test that invalid side values are handled by raw model validation."""
-        # This test checks that Pydantic validation catches invalid sides
-        # before they reach the mapper
-        with pytest.raises(ValidationError):  # Pydantic ValidationError
+        # This test checks that field validation catches invalid sides
+        # before they reach the mapper - the side field has a max length of 3 chars
+        with pytest.raises(TypeFieldError):  # Field validation error for length
             create_raw_fill(side="InvalidSide", timestamp=test_timestamp)
 
     def test_malformed_timestamp_handled_gracefully(
@@ -549,9 +553,9 @@ class TestErrorHandling:
         mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that malformed timestamps are handled by raw model validation."""
-        # This test checks that Pydantic validation catches invalid timestamps
+        # This test checks that field validation catches invalid timestamps
         # before they reach the mapper
-        with pytest.raises(ValidationError):  # Pydantic ValidationError
+        with pytest.raises(DateTimeParsingError):  # DateTimeParsingError from datetime parsing
             create_raw_fill(timestamp="not-a-timestamp")
 
     def test_edge_case_unicode_symbols(

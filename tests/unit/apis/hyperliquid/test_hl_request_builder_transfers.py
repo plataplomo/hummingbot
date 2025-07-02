@@ -22,6 +22,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawWithdrawalToL1ActionPayload,
 )
 from cyberdelta.apis.models.service_args_models import TransferL2UsdArgs, WithdrawL1Args
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Import fixtures from the shared conftest
@@ -92,7 +93,7 @@ class TestHyperliquidRequestBuilderTransfers:
 
     def test_build_l2_usd_transfer_payload_invalid_whitespace_address(self) -> None:
         """Test build_l2_usd_transfer_payload with whitespace-only address."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             args_whitespace = TransferL2UsdArgs(
                 destination_address="   ",
                 amount=Decimal(100),
@@ -193,7 +194,7 @@ class TestHyperliquidRequestBuilderTransfers:
 
     def test_build_withdrawal_payload_invalid_whitespace_address(self) -> None:
         """Test build_withdrawal_payload with whitespace-only address."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             args_whitespace = WithdrawL1Args(
                 asset="USDC",
                 amount=Decimal(100),

@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def test_all_mids_happy_path() -> None:
@@ -154,10 +155,10 @@ def test_all_mids_empty_string_symbol_or_price() -> None:
     """Test all mids empty string symbol or price."""
     # Empty string as symbol or price (should be rejected)
     obj: dict[str, str] = {"": "3000.0"}
-    with pytest.raises((ValidationError, TypeError)):
+    with pytest.raises(EmptyStringError):
         HyperliquidRawAllMids.model_validate(obj)
     obj2: dict[str, str] = {"ETH": ""}
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         HyperliquidRawAllMids.model_validate(obj2)
 
 

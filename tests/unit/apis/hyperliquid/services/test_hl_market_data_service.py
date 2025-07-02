@@ -485,7 +485,7 @@ class TestHyperliquidMarketDataService:
             await hyperliquid_market_data_service.get_order_book(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No content received from HTTP client for l2Book" in exc_info.value.message
+        assert "Empty l2Book data received" in exc_info.value.message
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once()
         mock_http_client_requester.assert_called_once_with(
             method="POST",
@@ -2245,7 +2245,7 @@ class TestHyperliquidMarketDataServiceGetMarket:
                 await hyperliquid_market_data_service.get_market(args)
 
             assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-            assert f"Market {symbol} not found in available markets" in exc_info.value.message
+            assert f"Symbol '{symbol}' not found" in exc_info.value.message
             mock_get_markets.assert_called_once_with(GetMarketsArgs())
 
     @pytest.mark.asyncio
@@ -2311,7 +2311,7 @@ class TestHyperliquidMarketDataServiceGetMarket:
                 await hyperliquid_market_data_service.get_market(args)
 
             assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-            assert f"Market {symbol} not found in available markets" in exc_info.value.message
+            assert f"Symbol '{symbol}' not found" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_market_empty_markets_list(
@@ -2339,5 +2339,5 @@ class TestHyperliquidMarketDataServiceGetMarket:
                 await hyperliquid_market_data_service.get_market(args)
 
             assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-            assert f"Market {symbol} not found in available markets" in exc_info.value.message
+            assert f"Symbol '{symbol}' not found" in exc_info.value.message
             mock_get_markets.assert_called_once_with(GetMarketsArgs())

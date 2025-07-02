@@ -44,6 +44,8 @@ from cyberdelta.apis.backpack.models import (
     BackpackRawOrderBook,
     BackpackRawOrderUpdate,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 # --- BackpackRawOrder ---
@@ -166,7 +168,7 @@ def test_BackpackRawOrder_invalid_timestamp_createdAt() -> None:
     """Test BackpackRawOrder invalid timestamp createdAt."""
     p = valid_order()
     p["createdAt"] = "not-a-timestamp"
-    with pytest.raises(ValidationError):
+    with pytest.raises(DateTimeParsingError):
         BackpackRawOrder.model_validate(p)
 
 
@@ -361,7 +363,7 @@ def test_BackpackRawOrderBook_invalid_format_validators() -> None:
         BackpackRawOrderBook.model_validate(p)
     p = valid_orderbook().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawOrderBook.model_validate(p)
 
 
@@ -432,7 +434,7 @@ def test_BackpackRawOrderUpdate_wrong_type_fields() -> None:
     """Test BackpackRawOrderUpdate wrong type fields."""
     p = valid_orderupdate().copy()
     p["E"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises(DateTimeParsingError):
         BackpackRawOrderUpdate.model_validate(p)
     p = valid_orderupdate().copy()
     p["S"] = 123
@@ -444,7 +446,7 @@ def test_BackpackRawOrderUpdate_invalid_format_validators() -> None:
     """Test BackpackRawOrderUpdate invalid format validators."""
     p = valid_orderupdate().copy()
     p["S"] = "Diagonal"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawOrderUpdate.model_validate(p)
     p = valid_orderupdate().copy()
     p["X"] = "BADSTATUS"

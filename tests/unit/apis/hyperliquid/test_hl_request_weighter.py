@@ -8,6 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
 from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
@@ -63,7 +64,9 @@ class TestHyperliquidRequestWeighter:
         config.default_info_weight = 20
         config.exchange_action_base_ip_weight = 1
 
-        with pytest.raises(ValueError, match="HyperliquidRequestWeighter requires"):
+        with pytest.raises(
+            HyperliquidRateLimitConfigError, match="HyperliquidRateLimitStrategy requires"
+        ):
             HyperliquidRequestWeighter(config)
 
 
@@ -338,10 +341,10 @@ class TestHyperliquidRequestWeighterEdgeCases:
         config.address_action_safety_net = Mock(spec=AddressActionSafetyNetConfig)
         config.address_action_safety_net.rate_per_minute = 300
 
-        # This should raise ValueError due to validation
+        # This should raise HyperliquidRateLimitConfigError due to validation
         with pytest.raises(
-            ValueError,
-            match="HyperliquidRequestWeighter requires Hyperliquid-specific",
+            HyperliquidRateLimitConfigError,
+            match="HyperliquidRateLimitStrategy requires",
         ):
             HyperliquidRequestWeighter(config)
 

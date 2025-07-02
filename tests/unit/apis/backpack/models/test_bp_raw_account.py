@@ -10,6 +10,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawAccount, BackpackRawBalance
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def valid_account() -> dict[str, Any]:
@@ -68,8 +70,13 @@ def test_BackpackRawAccount_status_enum_invalid(status: str) -> None:
     """Test BackpackRawAccount status enum invalid."""
     p = valid_account().copy()
     p["status"] = status
-    with pytest.raises(ValidationError):
-        BackpackRawAccount.model_validate(p)
+    # Empty string raises EmptyStringError, others raise ValidationError
+    if not status:
+        with pytest.raises(EmptyStringError):
+            BackpackRawAccount.model_validate(p)
+    else:
+        with pytest.raises(ValidationError):
+            BackpackRawAccount.model_validate(p)
 
 
 # Adversarial: Wrong types
@@ -111,8 +118,17 @@ def test_BackpackRawAccount_adversarial_strings(field: str, value: object) -> No
         or not isinstance(value, str)
         or (field == "email" and len(value) > 254)
     ):
-        with pytest.raises(ValidationError):
-            BackpackRawAccount.model_validate(p)
+        # Empty strings raise EmptyStringError
+        if isinstance(value, str) and not value.strip():
+            with pytest.raises(EmptyStringError):
+                BackpackRawAccount.model_validate(p)
+        # Long emails (>254 chars) raise TypeFieldError
+        elif field == "email" and isinstance(value, str) and len(value) > 254:
+            with pytest.raises(TypeFieldError):
+                BackpackRawAccount.model_validate(p)
+        else:
+            with pytest.raises(ValidationError):
+                BackpackRawAccount.model_validate(p)
     else:
         obj = BackpackRawAccount.model_validate(p)
         assert isinstance(getattr(obj, field), str)
@@ -194,10 +210,15 @@ def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> No
     """Test BackpackRawBalance adversarial strings."""
     p = valid_balance().copy()
     p[field] = value
-    # All adversarial strings should raise ValidationError because
-    # decimal fields must be parseable as numbers
-    with pytest.raises(ValidationError):
-        BackpackRawBalance.model_validate(p)
+    # Empty strings raise EmptyStringError, others raise ValidationError
+    if isinstance(value, str) and not value.strip():
+        with pytest.raises(EmptyStringError):
+            BackpackRawBalance.model_validate(p)
+    else:
+        # All other adversarial strings should raise ValidationError because
+        # decimal fields must be parseable as numbers
+        with pytest.raises(ValidationError):
+            BackpackRawBalance.model_validate(p)
 
 
 # Schema-driven: Extra field
@@ -301,7 +322,8 @@ def test_BackpackRawAccount_corruption_garbled_unicode_email() -> None:
     """Should fail: garbled unicode in 'email'."""
     p = valid_account().copy()
     p["email"] = "user\udce2\udc28\udc00@example.com"
-    with pytest.raises(ValidationError):
+    # Garbled unicode raises TypeFieldError
+    with pytest.raises(TypeFieldError):
         BackpackRawAccount.model_validate(p)
 
 
@@ -354,5 +376,6 @@ def test_BackpackRawBalance_corruption_garbled_unicode_available() -> None:
     """Should fail: garbled unicode in 'available'."""
     p = valid_balance().copy()
     p["available"] = "1000.0\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    # Garbled unicode raises TypeFieldError
+    with pytest.raises(TypeFieldError):
         BackpackRawBalance.model_validate(p)

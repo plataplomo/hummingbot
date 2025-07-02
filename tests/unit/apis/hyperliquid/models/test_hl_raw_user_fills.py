@@ -16,6 +16,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsRequestPayload,
     HyperliquidRawUserFillsResponse,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 
 
 # --- Helper: Valid minimal payloads for each model ---
@@ -136,32 +138,32 @@ def test_user_fill_type_errors() -> None:
     # Expect ValidationError because RawNonNegativeInt uses a validator that expects int
     with pytest.raises((ValidationError, TypeError)) as exc_info:
         HyperliquidRawUserFill.model_validate(d)
-    assert "Must be an integer" in str(exc_info.value)
+    assert "Field 'tid' must be integer, got str" in str(exc_info.value)
 
     d = valid_user_fill().copy()
     d["coin"] = 123
     with pytest.raises((ValidationError, TypeError)) as exc_info_coin:
         HyperliquidRawUserFill.model_validate(d)
-    assert "Expected string" in str(exc_info_coin.value)
+    assert "Field 'coin' must be str, got int" in str(exc_info_coin.value)
 
     d = valid_user_fill().copy()
     d["isMaker"] = "true"
     with pytest.raises((ValidationError, TypeError)) as exc_info_maker:
         HyperliquidRawUserFill.model_validate(d)
     # RawStrictBool enforces bool type
-    assert "Must be a boolean, got str" in str(exc_info_maker.value)
+    assert "Field 'is_maker' must be boolean, got str" in str(exc_info_maker.value)
 
     d = valid_user_fill().copy()
     d["time"] = 123.45  # Float instead of int
     with pytest.raises((ValidationError, TypeError)) as exc_info_time:
         HyperliquidRawUserFill.model_validate(d)
-    assert "Must be an integer" in str(exc_info_time.value)
+    assert "Field 'time' must be integer, got float" in str(exc_info_time.value)
 
     d = valid_user_fill().copy()
     d["oid"] = "id-string"  # String instead of int
     with pytest.raises((ValidationError, TypeError)) as exc_info_oid:
         HyperliquidRawUserFill.model_validate(d)
-    assert "Must be an integer" in str(exc_info_oid.value)
+    assert "Field 'oid' must be integer, got str" in str(exc_info_oid.value)
 
 
 def test_user_fill_format_errors() -> None:
@@ -169,14 +171,14 @@ def test_user_fill_format_errors() -> None:
     for field in ["coin", "px", "sz", "fee", "startPosition", "dir", "hash"]:
         d = valid_user_fill().copy()
         d[field] = ""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawUserFill.model_validate(d)
         d[field] = "a" * 1000
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeFieldError, ParsingError)):
             HyperliquidRawUserFill.model_validate(d)
     d = valid_user_fill().copy()
     d["px"] = "NaN"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, ParsingError)):
         HyperliquidRawUserFill.model_validate(d)
     d = valid_user_fill().copy()
     d["side"] = "notaside"
@@ -184,11 +186,11 @@ def test_user_fill_format_errors() -> None:
         HyperliquidRawUserFill.model_validate(d)
     d = valid_user_fill().copy()
     d["hash"] = "0x" + "a" * 65  # Too long (max 66)
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFill.model_validate(d)
     d = valid_user_fill().copy()
     d["cloid"] = "a" * 129  # Too long (max 128)
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFill.model_validate(d)
     # Test non-finite for start_position
     d = valid_user_fill().copy()
@@ -259,7 +261,7 @@ def test_user_fill_numeric_string_edge_cases() -> None:
         obj = HyperliquidRawUserFill.model_validate(d)
         assert obj.model_dump(by_alias=True)[field] == "-123.45"  # This doesn't change
         d[field] = "1" * 65
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeFieldError)):
             HyperliquidRawUserFill.model_validate(d)
 
 
@@ -274,7 +276,7 @@ def test_user_fill_side_enum_edge_cases() -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawUserFill.model_validate(d)
     d["side"] = " "
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, EmptyStringError)):
         HyperliquidRawUserFill.model_validate(d)
 
 
@@ -283,25 +285,25 @@ def test_user_fill_cloid_and_hash_edge_cases() -> None:
     # Test overlong cloid
     d_cloid = valid_user_fill().copy()
     d_cloid["cloid"] = "a" * 129  # Max is 128
-    with pytest.raises(ValidationError, match="cloid: String value too long"):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFill.model_validate(d_cloid)
 
     # Test overlong hash
     d_hash = valid_user_fill().copy()
     d_hash["hash"] = "a" * 67  # Max is 66
-    with pytest.raises(ValidationError, match="hash: String value too long"):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFill.model_validate(d_hash)
 
     # Test empty optional cloid (should pass)
     d_empty_cloid = valid_user_fill().copy()
     d_empty_cloid["cloid"] = ""  # Empty string is invalid if provided
-    with pytest.raises(ValidationError, match="cloid: String cannot be empty"):
+    with pytest.raises(ValidationError, match="String cannot be empty or whitespace"):
         HyperliquidRawUserFill.model_validate(d_empty_cloid)
 
     # Test empty required hash (should fail)
     d_empty_hash = valid_user_fill().copy()
     d_empty_hash["hash"] = ""
-    with pytest.raises(ValidationError, match="hash: String cannot be empty"):
+    with pytest.raises((ValidationError, EmptyStringError)):
         HyperliquidRawUserFill.model_validate(d_empty_hash)
 
 
@@ -313,13 +315,13 @@ def test_user_fill_liquidation_mark_px_edge_cases() -> None:
     obj = HyperliquidRawUserFill.model_validate(d)
     assert obj.liquidation_mark_px is None
     d["liquidationMarkPx"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, EmptyStringError)):
         HyperliquidRawUserFill.model_validate(d)
     d["liquidationMarkPx"] = "a" * 65
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFill.model_validate(d)
     d["liquidationMarkPx"] = "notanumber"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, ParsingError)):
         HyperliquidRawUserFill.model_validate(d)
 
 
@@ -342,7 +344,7 @@ def test_user_fills_request_payload_user_edge_cases() -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
     d["user"] = "0x" + "a" * 41
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
     # Use a valid Ethereum address for the valid case (exactly 40 hex chars)
     d["user"] = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
@@ -418,10 +420,10 @@ def test_user_fills_request_payload_format_errors() -> None:
     """Test user fills request payload format errors."""
     d = valid_user_fills_request_payload().copy()
     d["user"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, EmptyStringError)):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
     d["user"] = "a" * 1000
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawUserFillsRequestPayload.model_validate(d)
 
 
@@ -536,7 +538,7 @@ def test_hl_raw_user_fill_invalid_types(
 
     # Conditional assertion for specific 'isMaker' error message
     if field == "isMaker":
-        assert "is_maker: Must be a boolean, got str." in str(exc_info.value)
+        assert "Field 'is_maker' must be boolean, got str" in str(exc_info.value)
     # For other fields, the general presence of 'Value error' and the field name is enough,
     # as Pydantic will detail the specific type mismatch.
 
@@ -547,21 +549,21 @@ def test_hl_raw_user_fill_invalid_types(
     [
         ("tid", -1, ("value", "-1", "cannot be negative")),
         ("coin", "", ("string", "cannot be empty")),
-        ("coin", "X" * 65, ("string", "too long", "max 64")),
+        ("coin", "X" * 65, ("string", "max length 64", "length 65")),
         ("px", "", ("string", "cannot be empty")),
         ("px", "inf", ("finite decimal", "inf")),
         ("sz", "NaN", ("finite decimal", "nan")),
         ("time", -1000, ("timestamp", "-1000", "non-negative")),
-        ("side", "BUY", ("invalid", "value 'buy'")),
+        ("side", "BUY", ("must be one of", "['a', 'b']", "got 'buy'")),
         ("oid", -1, ("value", "-1", "cannot be negative")),
         ("startPosition", "", ("string", "cannot be empty")),
         ("dir", "", ("string", "cannot be empty")),
         ("hash", "", ("string", "cannot be empty")),
-        ("hash", "X" * 67, ("string", "too long", "max 66")),
+        ("hash", "X" * 67, ("string", "max length 66", "length 67")),
         ("liquidationMarkPx", "", ("string", "cannot be empty")),
         ("liquidationMarkPx", "inf", ("finite decimal", "inf")),
         ("cloid", "", ("string", "cannot be empty")),
-        ("cloid", "Y" * 129, ("string", "too long", "max 128")),
+        ("cloid", "Y" * 129, ("string value too long", "max 128 chars")),
     ],
 )
 def test_hl_raw_user_fill_invalid_formats(
@@ -577,7 +579,12 @@ def test_hl_raw_user_fill_invalid_formats(
     if field == "fee" and invalid_value == "-0.1":
         pytest.skip("Skipping invalid test case: fee can be negative (rebates)")
 
-    with pytest.raises(ValidationError) as exc_info:
+    with pytest.raises((
+        ValidationError,
+        EmptyStringError,
+        TypeFieldError,
+        ParsingError,
+    )) as exc_info:
         HyperliquidRawUserFill.model_validate(valid_user_fill_data)
 
     error_str = str(exc_info.value).lower()

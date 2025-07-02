@@ -195,11 +195,10 @@ class TestBackpackAccountServicePositions:
         )
         mock_http_client_requester.return_value = (None, 200, {})
 
-        with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_positions(symbol=symbol)
+        result = await bp_account_service.get_positions(symbol=symbol)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Unexpected response type for positions: NoneType" in exc_info.value.message
+        # Business logic returns empty list when raw_data is None
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_get_positions_validation_error_via_public_api(

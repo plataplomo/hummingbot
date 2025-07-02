@@ -31,12 +31,20 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTicker,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import (
+    CandleTransformationError,
+    FundingRateTransformationError,
+    MarketTransformationError,
+    OrderBookTransformationError,
+    TickerTransformationError,
+    TradeTransformationError,
+)
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.market import BackpackMarketDetails
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.field_validation import DecimalFieldError
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 
@@ -414,11 +422,15 @@ class TestMarketTransformation:
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal value")
+            mock_parse.side_effect = DecimalFieldError(
+                field_name="tickSize",
+                value="0.01",
+                reason="Invalid decimal value",
+            )
 
             with pytest.raises(
-                TransformationError,
-                match="Failed to transform BackpackRawMarket to Market",
+                MarketTransformationError,
+                match="Failed to transform RawMarket to Market",
             ):
                 mapper.transform_raw_market_to_internal(raw_market)
 
@@ -566,10 +578,14 @@ class TestTickerTransformation:
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal")
+            mock_parse.side_effect = DecimalFieldError(
+                field_name="lastPrice",
+                value="100.50",
+                reason="Invalid decimal",
+            )
 
             with pytest.raises(
-                TransformationError,
+                TickerTransformationError,
                 match="Failed to transform BackpackRawTicker to Ticker",
             ):
                 mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -709,10 +725,14 @@ class TestOrderBookTransformation:
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal")
+            mock_parse.side_effect = DecimalFieldError(
+                field_name="price",
+                value="100.25",
+                reason="Invalid decimal",
+            )
 
             with pytest.raises(
-                TransformationError,
+                OrderBookTransformationError,
                 match="Failed to transform BackpackRawOrderBook to OrderBook",
             ):
                 mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
@@ -795,7 +815,10 @@ class TestTradeTransformation:
         ) as mock_parse:
             mock_parse.return_value = None
 
-            with pytest.raises(TransformationError, match="price is required for trade"):
+            with pytest.raises(
+                TradeTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to Trade",
+            ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
     def test_transform_raw_trade_missing_quantity(
@@ -823,7 +846,10 @@ class TestTradeTransformation:
 
             mock_parse.side_effect = mock_parse_side_effect
 
-            with pytest.raises(TransformationError, match="quantity is required for trade"):
+            with pytest.raises(
+                TradeTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to Trade",
+            ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
     def test_transform_raw_trade_with_none_timestamp(
@@ -865,10 +891,14 @@ class TestTradeTransformation:
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal")
+            mock_parse.side_effect = DecimalFieldError(
+                field_name="price",
+                value="100.25",
+                reason="Invalid decimal",
+            )
 
             with pytest.raises(
-                TransformationError,
+                TradeTransformationError,
                 match="Failed to transform BackpackRawPublicTrade to Trade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
@@ -982,11 +1012,15 @@ class TestFundingRateTransformation:
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal")
+            mock_parse.side_effect = DecimalFieldError(
+                field_name="price",
+                value="100.25",
+                reason="Invalid decimal",
+            )
 
             with pytest.raises(
-                TransformationError,
-                match="Failed to transform BackpackRawFundingRate",
+                FundingRateTransformationError,
+                match="Failed to transform BackpackRawFundingRate to FundingRate",
             ):
                 mapper.transform_raw_funding_rate_to_internal(raw_funding)
 
@@ -1033,10 +1067,14 @@ class TestKlineTransformation:
         with patch(
             "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal value")
+            mock_parse.side_effect = DecimalFieldError(
+                field_name="open_price",
+                value="100.00",
+                reason="Invalid decimal value",
+            )
 
             with pytest.raises(
-                TransformationError,
+                CandleTransformationError,
                 match="Failed to transform BackpackRawKline to Candle",
             ):
                 mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)

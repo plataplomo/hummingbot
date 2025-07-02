@@ -25,6 +25,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 )
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
 
 
@@ -44,8 +45,8 @@ class TestBackpackMarketDataServicePublicData:
         self,
         backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
-        """Test get_ticker raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
+        """Test get_ticker raises EmptySymbolError for empty symbol."""
+        with pytest.raises(EmptySymbolError) as exc_info:
             await backpack_market_data_service.get_ticker("")  # Empty symbol should be rejected
 
         assert "'symbol' must be a non-empty string" in str(exc_info.value)
@@ -55,8 +56,8 @@ class TestBackpackMarketDataServicePublicData:
         self,
         backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
-        """Test get_order_book raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
+        """Test get_order_book raises EmptySymbolError for empty symbol."""
+        with pytest.raises(EmptySymbolError) as exc_info:
             await backpack_market_data_service.get_order_book("")  # Empty symbol should be rejected
 
         assert "'symbol' must be a non-empty string" in str(exc_info.value)
@@ -66,9 +67,9 @@ class TestBackpackMarketDataServicePublicData:
         self,
         backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
-        """Test get_order_book raises ValueError for invalid limit values."""
+        """Test get_order_book raises InvalidLimitError for invalid limit values."""
         # Test zero limit
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_order_book(
                 symbol="SOL_USDC",
                 limit=0,  # Invalid: zero limit
@@ -76,7 +77,7 @@ class TestBackpackMarketDataServicePublicData:
         assert "'limit' must be positive when provided" in str(exc_info.value)
 
         # Test negative limit
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_order_book(
                 symbol="SOL_USDC",
                 limit=-5,  # Invalid: negative limit
@@ -88,8 +89,8 @@ class TestBackpackMarketDataServicePublicData:
         self,
         backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
-        """Test get_recent_trades raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
+        """Test get_recent_trades raises EmptySymbolError for empty symbol."""
+        with pytest.raises(EmptySymbolError) as exc_info:
             await backpack_market_data_service.get_recent_trades(
                 "",
             )  # Empty symbol should be rejected
@@ -101,9 +102,9 @@ class TestBackpackMarketDataServicePublicData:
         self,
         backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
-        """Test get_recent_trades raises ValueError for invalid limit values."""
+        """Test get_recent_trades raises InvalidLimitError for invalid limit values."""
         # Test zero limit
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_recent_trades(
                 symbol="SOL_USDC",
                 limit=0,  # Invalid: zero limit
@@ -111,7 +112,7 @@ class TestBackpackMarketDataServicePublicData:
         assert "'limit' must be positive when provided" in str(exc_info.value)
 
         # Test negative limit
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_recent_trades(
                 symbol="SOL_USDC",
                 limit=-10,  # Invalid: negative limit

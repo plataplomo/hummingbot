@@ -35,6 +35,7 @@ from cyberdelta.core.models.enums import (
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 logger = get_logger(__name__)
@@ -193,16 +194,24 @@ class TestOrderSideMapping:
 
 
 @pytest.mark.parametrize(
-    "invalid_side",
-    ["X", "", "b", "buy", "sell", "invalid"],
+    ("invalid_side", "expected_exception"),
+    [
+        ("X", ValidationError),
+        ("", EmptyStringError),
+        ("b", ValidationError),
+        ("buy", ValidationError),
+        ("sell", ValidationError),
+        ("invalid", ValidationError),
+    ],
 )
 def test_invalid_order_side_raises_error(
     trading_data_mapper: HyperliquidTradingDataMapper,
     invalid_side: str,
+    expected_exception: type,
 ) -> None:
-    """Test that invalid order sides raise ValidationError at the Raw model level."""
+    """Test that invalid order sides raise appropriate validation errors at the Raw model level."""
     # Raw model validation should catch invalid sides before they reach the mapper
-    with pytest.raises(ValidationError):
+    with pytest.raises(expected_exception):
         create_raw_order(side=invalid_side)
 
 

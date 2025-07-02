@@ -21,7 +21,9 @@ from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAcco
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import (
+    DataTransformationError,
+)
 from cyberdelta.core.models import Order, Trade
 from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -220,7 +222,7 @@ class TestFillTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError,
+                DataTransformationError,
                 match="Failed to transform BackpackRawFill to Trade",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
@@ -530,8 +532,8 @@ class TestTradeTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError,
-                match="price missing/invalid in BackpackRawPublicTrade",
+                DataTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -563,8 +565,8 @@ class TestTradeTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
-                TransformationError,
-                match="quantity missing/invalid in BackpackRawPublicTrade",
+                DataTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 

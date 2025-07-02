@@ -9,6 +9,8 @@ from cyberdelta.apis.hyperliquid.models.hl_processed_exchange_responses import (
     HyperliquidErrorStatus,
     HyperliquidSuccessfulOrderStatus,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 class TestHyperliquidSuccessfulOrderStatus:
@@ -162,15 +164,22 @@ class TestHyperliquidErrorStatus:
         assert model.message == "This is a valid error message."
 
     @pytest.mark.parametrize(
-        "invalid_message_data",
+        ("invalid_message_data", "expected_exception"),
         [
-            ({"message": ""}),  # Empty message
-            ({"message": "a" * 2000}),  # Message too long (RawApiErrorStringHL default is 1024)
+            ({"message": ""}, EmptyStringError),  # Empty message
+            (
+                {"message": "a" * 2000},
+                TypeFieldError,
+            ),  # Message too long (RawApiErrorStringHL default is 1024)
         ],
     )
-    def test_invalid_message(self, invalid_message_data: dict[str, Any]) -> None:  # Typed here
+    def test_invalid_message(
+        self,
+        invalid_message_data: dict[str, Any],
+        expected_exception: type,
+    ) -> None:  # Typed here
         """Test invalid message values."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(expected_exception):
             HyperliquidErrorStatus(**invalid_message_data)
 
     def test_missing_message(self) -> None:

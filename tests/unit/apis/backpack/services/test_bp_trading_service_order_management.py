@@ -162,38 +162,38 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test cancel_order raises ValidationError for empty order_id."""
-        with pytest.raises(ValidationError) as exc_info:
+        """Test cancel_order raises EmptyStringError for empty order_id."""
+        with pytest.raises(EmptyStringError) as exc_info:
             args = CancelOrderArgs(
                 order_id="",  # Empty order_id should be rejected
                 symbol="SOL_USDC",
             )
             await bp_trading_service.cancel_order(args=args)
 
-        assert "order_id" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_cancel_order_empty_symbol_validation(
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test cancel_order raises ValidationError for empty symbol."""
-        with pytest.raises(ValidationError) as exc_info:
+        """Test cancel_order raises EmptyStringError for empty symbol."""
+        with pytest.raises(EmptyStringError) as exc_info:
             args = CancelOrderArgs(
                 order_id="12345",
                 symbol="",  # Empty symbol should be rejected
             )
             await bp_trading_service.cancel_order(args=args)
 
-        assert "symbol" in str(exc_info.value)
+        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_empty_order_id_validation(
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test get_order raises ValueError for empty order_id."""
-        with pytest.raises(ValueError) as exc_info:
+        """Test get_order raises EmptyStringError for empty order_id."""
+        with pytest.raises(EmptyStringError) as exc_info:
             await bp_trading_service.get_order(args=GetOrderArgs(order_id="", symbol="SOL_USDC"))
 
         assert "String cannot be empty" in str(exc_info.value)

@@ -17,6 +17,12 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPosition,
     BackpackRawPositionUpdate,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    TimestampFormatError,
+)
 
 
 """
@@ -146,7 +152,7 @@ def test_BackpackRawPosition_valid_int_user_id_str(
     ("field", "value", "expected_msg_part"),
     [
         ("symbol", "", "String cannot be empty"),
-        ("symbol", "A" * 65, "String value too long"),
+        ("symbol", "A" * 65, "must be string with max length 64, got string with length 65"),
         ("positionId", None, "Expected string, got NoneType"),  # positionId is required
         ("userId", -1, "Must be non-negative"),
         ("userId", "abc", "Must be an integer"),
@@ -187,8 +193,7 @@ def test_BackpackRawPosition_invalid_fields(
     else:
         data[field] = value
 
-    # Some cases raise TypeError (type validation in business logic),
-    # others raise ValidationError (pydantic validation)
+    # Different exceptions are raised based on the specific validation failure
     type_error_cases = [
         field == "positionId" and value is None,
         field == "userId" and value == 1.0,
@@ -196,12 +201,36 @@ def test_BackpackRawPosition_invalid_fields(
         field == "netExposureNotional" and value is True,
         field == "cumulativeFundingPayment" and value is None,
     ]
+    empty_string_cases = [
+        field == "symbol" and not value,
+        field == "estLiquidationPrice" and not value,
+        field == "mmf" and value == "   ",
+        field == "pnlRealized" and not value,
+    ]
+    type_field_error_cases = [
+        field == "symbol" and value == "A" * 65,  # String too long
+    ]
+
     if any(type_error_cases):
         with pytest.raises(TypeError) as type_exc_info:
             BackpackRawPosition.model_validate(data)
         # For TypeError cases, just verify we got the expected exception type
         # since field validation order may vary
         assert isinstance(type_exc_info.value, TypeError)
+    elif any(empty_string_cases):
+        with pytest.raises(EmptyStringError) as empty_exc_info:
+            BackpackRawPosition.model_validate(data)
+        # Check if the expected message part is present
+        assert expected_msg_part in str(empty_exc_info.value), (
+            f"Field: {field}, Value: {value!r}, Error: {empty_exc_info.value}"
+        )
+    elif any(type_field_error_cases):
+        with pytest.raises(TypeFieldError) as type_field_exc_info:
+            BackpackRawPosition.model_validate(data)
+        # Check if the expected message part is present
+        assert expected_msg_part in str(type_field_exc_info.value), (
+            f"Field: {field}, Value: {value!r}, Error: {type_field_exc_info.value}"
+        )
     else:
         with pytest.raises(ValidationError) as validation_exc_info:
             BackpackRawPosition.model_validate(data)
@@ -318,8 +347,8 @@ def test_BackpackRawPositionUpdate_valid_timestamp_formats(
     [
         ("e", "wrongUpdate", "Invalid value"),  # Wrong event type
         ("e", "", "String cannot be empty"),
-        ("E", "not-a-date", "Invalid timestamp string"),
-        ("E", [], "Invalid type"),
+        ("E", "not-a-date", "Cannot parse as ISO datetime"),
+        ("E", [], "Invalid int/float/str timestamp value"),
         ("s", "", "String cannot be empty"),
         ("s", None, "Field required"),
         ("b", "inf", "finite decimal"),  # break_event_price
@@ -343,19 +372,53 @@ def test_BackpackRawPositionUpdate_invalid_fields(
     data = valid_position_update_data  # Use the injected fixture directly
     data[field] = value
 
-    # Some cases raise TypeError (type validation in business logic),
-    # others raise ValidationError (pydantic validation)
+    # Different exceptions are raised based on the specific validation failure
     type_error_cases = [
         field == "s" and value is None,
         field == "m" and value is True,
         field == "q" and value == [],
     ]
+    empty_string_cases = [
+        # Note: field 'e' has Literal constraint, so empty string raises ValidationError
+        # not EmptyStringError
+        field == "s" and not value,
+        field == "l" and not value,
+        field == "f" and value == "  ",
+    ]
+    datetime_error_cases = [
+        field == "E" and value == "not-a-date",
+    ]
+    timestamp_format_error_cases = [
+        field == "E" and value == [],
+    ]
+
     if any(type_error_cases):
         with pytest.raises(TypeError) as type_exc_info:
             BackpackRawPositionUpdate.model_validate(data)
         # For TypeError cases, just verify we got the expected exception type
         # since field validation order may vary
         assert isinstance(type_exc_info.value, TypeError)
+    elif any(empty_string_cases):
+        with pytest.raises(EmptyStringError) as empty_exc_info:
+            BackpackRawPositionUpdate.model_validate(data)
+        # Check if the expected message part is present
+        assert expected_msg_part in str(empty_exc_info.value), (
+            f"Field: {field}, Value: {value!r}, Error: {empty_exc_info.value}"
+        )
+    elif any(datetime_error_cases):
+        with pytest.raises(DateTimeParsingError) as datetime_exc_info:
+            BackpackRawPositionUpdate.model_validate(data)
+        # Check if the expected message part is present
+        assert expected_msg_part in str(datetime_exc_info.value), (
+            f"Field: {field}, Value: {value!r}, Error: {datetime_exc_info.value}"
+        )
+    elif any(timestamp_format_error_cases):
+        with pytest.raises(TimestampFormatError) as timestamp_exc_info:
+            BackpackRawPositionUpdate.model_validate(data)
+        # Check if the expected message part is present
+        assert expected_msg_part in str(timestamp_exc_info.value), (
+            f"Field: {field}, Value: {value!r}, Error: {timestamp_exc_info.value}"
+        )
     else:
         with pytest.raises(ValidationError) as validation_exc_info:
             BackpackRawPositionUpdate.model_validate(data)

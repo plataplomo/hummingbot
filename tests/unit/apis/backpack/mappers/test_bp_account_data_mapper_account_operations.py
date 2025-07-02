@@ -26,6 +26,9 @@ from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import (
+    DataTransformationError,
+)
 from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.models.enums import InternalTransferStatus, InternalWithdrawalStatus, OrderSide
 from cyberdelta.core.models.operations import (
@@ -307,7 +310,7 @@ class TestTransferTransformation:
             },
         )
 
-        with pytest.raises(TransformationError, match="Missing 'id' in raw transfer response"):
+        with pytest.raises(DataTransformationError) as exc_info:
             mapper.transform_raw_transfer_to_internal(
                 raw_response=raw_response,
                 exchange_name="backpack",
@@ -318,12 +321,17 @@ class TestTransferTransformation:
                 client_transfer_id=None,
             )
 
+        # Verify the error details
+        assert "raw_transfer_response" in str(exc_info.value)
+        assert "Transfer" in str(exc_info.value)
+        assert "Missing 'id' in raw transfer response" in str(exc_info.value)
+
     def test_transform_raw_transfer_invalid_response_type_raises_error(
         self,
         mapper: BackpackAccountDataMapper,
     ) -> None:
         """Test that non-dict response type raises TransformationError."""
-        with pytest.raises(TransformationError, match="Raw transfer response is not a dict"):
+        with pytest.raises(DataTransformationError) as exc_info:
             mapper.transform_raw_transfer_to_internal(
                 raw_response=cast("RawJsonResponse", "invalid_response"),
                 exchange_name="backpack",
@@ -333,6 +341,11 @@ class TestTransferTransformation:
                 to_account_type_raw="margin",
                 client_transfer_id=None,
             )
+
+        # Verify the error details
+        assert "raw_transfer_response" in str(exc_info.value)
+        assert "Transfer" in str(exc_info.value)
+        assert "Raw transfer response is not a dict" in str(exc_info.value)
 
     def test_transform_raw_transfer_none_status_handled_gracefully(
         self,
@@ -871,11 +884,13 @@ class TestWebSocketPositionUpdateTransformation:
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
-            with pytest.raises(
-                TransformationError,
-                match="Failed to transform WebSocket position update to internal",
-            ):
+            with pytest.raises(TransformationError) as exc_info:
                 mapper.transform_ws_position_update_to_internal_position(raw_position_update)
+
+            # Verify the error details
+            assert "Failed to transform WebSocket position update to internal" in str(
+                exc_info.value
+            )
 
     def test_transform_ws_position_update_high_precision_values(
         self,

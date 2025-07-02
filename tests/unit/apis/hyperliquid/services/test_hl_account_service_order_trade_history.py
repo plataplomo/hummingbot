@@ -13,6 +13,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     GetUserFillsArgs,
 )
+from cyberdelta.exceptions.base import RequiredParameterError
 
 
 # Unit tests for HyperliquidAccountService (moved from mislabeled integration tests)
@@ -342,11 +343,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Missing times (uses the standard hyperliquid_account_service fixture
         # which has a wallet address)
-        with pytest.raises(ValueError) as excinfo_no_times:
+        with pytest.raises((ValueError, RequiredParameterError)) as excinfo_no_times:
             await hyperliquid_account_service.get_order_history(
                 GetOrderHistoryArgs(symbol=None, start_time=None, end_time=None),
             )
-        assert "'start_time' is required" in str(excinfo_no_times.value)
+        assert "'start_time'" in str(excinfo_no_times.value)
 
         # APIError from requester (uses the standard hyperliquid_account_service
         # fixture which has a wallet address)

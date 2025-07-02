@@ -525,7 +525,7 @@ class TestHyperliquidMarketDataServicePublicData:
             await hyperliquid_market_data_service.get_order_book(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No content received from HTTP client for l2Book" in exc_info.value.message
+        assert "Empty l2Book data received" in exc_info.value.message
         mock_hl_request_builder.build_l2_book_request_payload.assert_called_once_with(
             GetL2BookArgs(symbol=symbol),
         )

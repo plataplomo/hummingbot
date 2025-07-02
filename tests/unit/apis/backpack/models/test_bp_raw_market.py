@@ -17,6 +17,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTicker,
     BackpackRawTickerEvent,
 )
+from cyberdelta.apis.exceptions.parsing import StructureTypeError
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 # --- BackpackRawMarket ---
@@ -78,11 +81,11 @@ def test_BackpackRawMarket_invalid_format_fields() -> None:
     """Test BackpackRawMarket invalid format fields."""
     p: dict[str, Any] = valid_market().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawMarket.model_validate(p)
     p = valid_market().copy()
     p["baseSymbol"] = "   "
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawMarket.model_validate(p)
 
 
@@ -112,7 +115,7 @@ def test_BackpackRawMarket_corruption_cases() -> None:
     # Excessive length
     p = valid_market().copy()
     p["symbol"] = "BTC_USDC" * 1000
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawMarket.model_validate(p)
     # Truncated JSON
     bad_json = '{"symbol": "BTC_USDC", "baseSymbol": "BTC"'
@@ -190,7 +193,7 @@ def test_BackpackRawMarket_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 'symbol'."""
     p = valid_market().copy()
     p["symbol"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawMarket.model_validate(p)
 
 
@@ -252,7 +255,7 @@ def test_BackpackRawTicker_invalid_format_fields() -> None:
         BackpackRawTicker.model_validate(p)
     p = valid_ticker().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawTicker.model_validate(p)
     # Scientific notation is allowed (project policy)
     p = valid_ticker().copy()
@@ -374,7 +377,7 @@ def test_BackpackRawTicker_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 'symbol'."""
     p = valid_ticker().copy()
     p["symbol"] = "ETH_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawTicker.model_validate(p)
 
 
@@ -419,7 +422,7 @@ def test_BackpackRawOpenInterest_invalid_format_fields() -> None:
         BackpackRawOpenInterest.model_validate(p)
     p = valid_open_interest().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawOpenInterest.model_validate(p)
 
 
@@ -504,7 +507,7 @@ def test_BackpackRawOpenInterest_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 'symbol'."""
     p = valid_open_interest().copy()
     p["symbol"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawOpenInterest.model_validate(p)
 
 
@@ -591,16 +594,16 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
 @pytest.mark.parametrize(
     ("field", "value", "expected_msg_part", "expected_exception"),
     [
-        ("s", "", "String cannot be empty", ValidationError),
+        ("s", "", "String cannot be empty", EmptyStringError),
         ("s", None, "Expected string", TypeError),
         ("lastPrice", "inf", "finite decimal", ValidationError),
         ("high", "nan", "finite decimal", ValidationError),
-        ("low", "", "String cannot be empty", ValidationError),
+        ("low", "", "String cannot be empty", EmptyStringError),
         ("quoteVolume", True, "Expected string", TypeError),
         ("priceChangePercent", [], "Expected string", TypeError),
-        ("e", "", "String cannot be empty", ValidationError),
-        ("e", "A" * 33, "String value too long", ValidationError),
-        ("E", "not-an-int", "Expected an integer", ValidationError),
+        ("e", "", "String cannot be empty", EmptyStringError),
+        ("e", "A" * 33, "String value too long", TypeFieldError),
+        ("E", "not-an-int", "Cannot parse as ISO datetime", DateTimeParsingError),
     ],
 )
 def test_BackpackRawTickerEvent_invalid_fields(
@@ -685,21 +688,21 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
     ("field", "value", "expected_msg_part"),
     [
         ("lastUpdateId", "", "String cannot be empty"),
-        ("lastUpdateId", None, "Expected string, got NoneType"),
-        ("b", None, "Must be a sequence"),
-        ("a", "not-a-list", "Must be a sequence"),
-        ("b", [[], ["1", "2"]], "length 2"),
-        ("a", [["1"]], "length 2"),
-        ("b", [["1", "2", "3"]], "length 2"),
-        ("a", ["1", "2"], "Each item must be a sequence"),
-        ("a", [["1", 2]], "Expected string"),
+        ("lastUpdateId", None, "must be str, got NoneType"),
+        ("b", None, "Expected sequence"),
+        ("a", "not-a-list", "Expected sequence"),
+        ("b", [[], ["1", "2"]], "Expected 2-element list/tuple, got length 0"),
+        ("a", [["1"]], "Expected 2-element list/tuple, got length 1"),
+        ("b", [["1", "2", "3"]], "Expected 2-element list/tuple, got length 3"),
+        ("a", ["1", "2"], "Expected sequence (list or tuple), got str"),
+        ("a", [["1", 2]], "must be string, got int"),
         ("b", [["inf", "1"]], "Price must be finite"),
         ("a", [["1", "nan"]], "Quantity must be finite"),
         ("b", [["", "1"]], "String cannot be empty"),
         ("a", [["1", ""]], "String cannot be empty"),
         ("b", [["1", "-1"]], "Quantity cannot be negative"),
         ("e", "", "String cannot be empty"),
-        ("E", "abc", "Invalid timestamp format"),
+        ("E", "abc", "Cannot parse as ISO datetime"),
     ],
 )
 def test_BackpackRawDepthUpdateEvent_invalid_fields(
@@ -714,25 +717,64 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
 
     # Determine expected exception type based on field and value
     expected_exception: type[Exception] = ValidationError
-    # The field validator raises TypeError for these specific cases
-    type_error_cases = [
+    # The field validator raises TypeFieldError for these specific cases
+    type_field_error_cases = [
         field == "lastUpdateId" and value is None,
-        field == "b" and value is None,
-        field == "a" and value == "not-a-list",
-        field == "a" and value == ["1", "2"],
         field == "a" and value == [["1", 2]],
     ]
-    if any(type_error_cases):
+    # StructureTypeError cases
+    structure_type_error_cases = [
+        field == "b" and value is None,
+        field == "a" and value == "not-a-list",
+    ]
+    # Other TypeError cases
+    type_error_cases = [
+        field == "a" and value == ["1", "2"],
+    ]
+    # The field validator raises EmptyStringError for empty string cases
+    empty_string_cases = [
+        field == "lastUpdateId" and not value,
+        field == "e" and not value,
+        field == "b"
+        and isinstance(value, list)
+        and len(value) > 0
+        and isinstance(value[0], list)
+        and len(value[0]) > 0
+        and not value[0][0],
+        field == "a"
+        and isinstance(value, list)
+        and len(value) > 0
+        and isinstance(value[0], list)
+        and len(value[0]) > 1
+        and not value[0][1],
+    ]
+    # DateTimeParsingError for timestamp parsing
+    datetime_error_cases = [
+        field == "E" and value == "abc",
+    ]
+
+    if any(type_field_error_cases):
+        expected_exception = TypeFieldError
+    elif any(structure_type_error_cases):
+        expected_exception = StructureTypeError
+    elif any(type_error_cases):
         expected_exception = TypeError
+    elif any(empty_string_cases):
+        expected_exception = EmptyStringError
+    elif any(datetime_error_cases):
+        expected_exception = DateTimeParsingError
 
     with pytest.raises(expected_exception) as exc_info:
         BackpackRawDepthUpdateEvent.model_validate(data)
 
     # Check the string representation of the caught exception for the expected message
-    if isinstance(exc_info.value, TypeError):
+    if isinstance(
+        exc_info.value,
+        (TypeError, TypeFieldError, StructureTypeError, EmptyStringError, DateTimeParsingError),
+    ):
         assert expected_msg_part in str(exc_info.value), (
             f"Failed for field '{field}' with value {value!r}. "
-            f"Expected '{expected_msg_part}' in TypeError: {exc_info.value!s}"
+            f"Expected '{expected_msg_part}' in {type(exc_info.value).__name__}: {exc_info.value!s}"
         )
     # DEFENSIVE CHECK: Distinguish exception types for assertion. Mypy=[misc]
     elif isinstance(exc_info.value, ValidationError):  # pyright: ignore[reportUnnecessaryIsInstance]

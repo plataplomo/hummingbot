@@ -11,6 +11,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def valid_api_error() -> dict[str, Any]:
@@ -53,11 +55,11 @@ def test_BackpackRawApiError_invalid_format_fields() -> None:
     """Test BackpackRawApiError invalid format fields."""
     p: dict[str, Any] = valid_api_error().copy()
     p["code"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawApiError.model_validate(p)
     p = valid_api_error().copy()
     p["message"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawApiError.model_validate(p)
     p = valid_api_error().copy()
     p["code"] = "NOT_A_REAL_CODE"
@@ -88,7 +90,7 @@ def test_BackpackRawApiError_corruption_cases() -> None:
     # Excessive length
     p = valid_api_error().copy()
     p["message"] = "A" * 10000
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawApiError.model_validate(p)
     # Truncated JSON
     bad_json = '{"code": "INVALID_SIGNATURE"'
@@ -144,5 +146,5 @@ def test_BackpackRawApiError_corruption_garbled_unicode_code() -> None:
     p = valid_api_error().copy()
     garbled = b"INVALID_SIGNATURE\\udce2\\udc28\\udc00".decode("unicode-escape")
     p["code"] = garbled
-    with pytest.raises((ValidationError, UnicodeEncodeError)):
+    with pytest.raises(TypeFieldError):
         BackpackRawApiError.model_validate(p)

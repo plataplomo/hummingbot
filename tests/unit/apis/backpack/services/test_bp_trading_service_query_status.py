@@ -455,7 +455,7 @@ class TestBackpackTradingServiceQueryStatus:
             )
 
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
-        assert f"Order {order_id} for symbol {symbol} not found" in exc_info.value.message
+        assert f"Order {order_id} not found on backpack_test_trading" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_order_success(

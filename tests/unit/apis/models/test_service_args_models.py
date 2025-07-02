@@ -22,6 +22,8 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawArgs,
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 class TestPlaceOrderArgs:
@@ -173,12 +175,12 @@ class TestPlaceOrderArgs:
                 time_in_force=TimeInForce.IOC,
             )
 
-        # The actual error message from validate_str_field is "Expected string, got {type}"
-        assert "symbol: Expected string, got int" in str(exc_info.value)
+        # The actual error message from validate_str_field is "Field 'symbol' must be str, got int"
+        assert "Field 'symbol' must be str, got int" in str(exc_info.value)
 
     def test_empty_symbol(self) -> None:
         """Test empty symbol validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             PlaceOrderArgs(
                 symbol="",
                 side=OrderSide.BUY,
@@ -187,16 +189,13 @@ class TestPlaceOrderArgs:
                 time_in_force=TimeInForce.IOC,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("symbol",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "Field symbol: String cannot be empty" in str(exc_info.value)
 
     def test_symbol_max_length(self) -> None:
         """Test symbol maximum length validation."""
         long_symbol = "A" * 65  # Exceeds 64 character limit
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             PlaceOrderArgs(
                 symbol=long_symbol,
                 side=OrderSide.BUY,
@@ -205,10 +204,9 @@ class TestPlaceOrderArgs:
                 time_in_force=TimeInForce.IOC,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("symbol",)
-        assert "too long" in errors[0]["msg"]
+        assert "Field 'symbol' must be string with max length 64, got string with length 65" in str(
+            exc_info.value
+        )
 
     def test_client_order_id_validation(self) -> None:
         """Test client_order_id validation."""
@@ -237,7 +235,7 @@ class TestPlaceOrderArgs:
     def test_invalid_client_order_id(self) -> None:
         """Test invalid client_order_id validation."""
         # Empty string
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info_empty:
             PlaceOrderArgs(
                 symbol="BTC-USD",
                 side=OrderSide.BUY,
@@ -247,14 +245,11 @@ class TestPlaceOrderArgs:
                 client_order_id="",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("client_order_id",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "Field client_order_id: String cannot be empty" in str(exc_info_empty.value)
 
         # Too long
         long_id = "A" * 65
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info_long:
             PlaceOrderArgs(
                 symbol="BTC-USD",
                 side=OrderSide.BUY,
@@ -264,10 +259,10 @@ class TestPlaceOrderArgs:
                 client_order_id=long_id,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("client_order_id",)
-        assert "too long" in errors[0]["msg"]
+        assert (
+            "Field 'client_order_id' must be string with max length 64, got string with length 65"
+            in str(exc_info_long.value)
+        )
 
     def test_negative_quantity(self) -> None:
         """Test negative quantity validation."""
@@ -384,7 +379,7 @@ class TestPlaceOrderArgs:
         errors = exc_info.value.errors()
         assert len(errors) == 1
         assert errors[0]["type"] == "value_error"
-        assert "positive price is required for LIMIT orders" in errors[0]["msg"]
+        assert "A positive price is required" in errors[0]["msg"]
 
     def test_stop_limit_order_requires_price_and_stop_price(self) -> None:
         """Test that stop limit orders require both price and stop_price."""
@@ -402,7 +397,7 @@ class TestPlaceOrderArgs:
 
         errors = exc_info.value.errors()
         assert len(errors) == 1
-        assert "positive price is required for STOP_LIMIT orders" in errors[0]["msg"]
+        assert "A positive price is required" in errors[0]["msg"]
 
         # Missing stop_price
         with pytest.raises(ValidationError) as exc_info:
@@ -418,7 +413,7 @@ class TestPlaceOrderArgs:
 
         errors = exc_info.value.errors()
         assert len(errors) == 1
-        assert "positive stop_price is required for STOP_LIMIT orders" in errors[0]["msg"]
+        assert "A positive stop_price is required" in errors[0]["msg"]
 
     def test_stop_market_order_requires_stop_price(self) -> None:
         """Test that stop market orders require stop_price."""
@@ -434,7 +429,7 @@ class TestPlaceOrderArgs:
 
         errors = exc_info.value.errors()
         assert len(errors) == 1
-        assert "positive stop_price is required for STOP_MARKET orders" in errors[0]["msg"]
+        assert "A positive stop_price is required" in errors[0]["msg"]
 
     def test_post_only_only_for_limit_orders(self) -> None:
         """Test that post_only=True is only allowed for LIMIT orders."""
@@ -601,7 +596,7 @@ class TestTransferArgs:
 
     def test_empty_asset(self) -> None:
         """Test empty asset validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             TransferArgs(
                 asset="",
                 amount=Decimal("1.0"),
@@ -609,14 +604,11 @@ class TestTransferArgs:
                 to_account_type="futures",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("asset",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "Field asset: String cannot be empty" in str(exc_info.value)
 
     def test_empty_from_account_type(self) -> None:
         """Test empty from_account_type validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             TransferArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
@@ -624,14 +616,11 @@ class TestTransferArgs:
                 to_account_type="futures",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("from_account_type",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "Field from_account_type: String cannot be empty" in str(exc_info.value)
 
     def test_empty_to_account_type(self) -> None:
         """Test empty to_account_type validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             TransferArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
@@ -639,16 +628,13 @@ class TestTransferArgs:
                 to_account_type="",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("to_account_type",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "Field to_account_type: String cannot be empty" in str(exc_info.value)
 
     def test_string_max_length(self) -> None:
         """Test string maximum length validation."""
         long_asset = "A" * 65  # Exceeds 64 character limit
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             TransferArgs(
                 asset=long_asset,
                 amount=Decimal("1.0"),
@@ -656,16 +642,15 @@ class TestTransferArgs:
                 to_account_type="futures",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("asset",)
-        assert "too long" in errors[0]["msg"]
+        assert "Field 'asset' must be string with max length 64, got string with length 65" in str(
+            exc_info.value
+        )
 
     def test_client_transfer_id_max_length(self) -> None:
         """Test client_transfer_id maximum length validation."""
         long_id = "A" * 129  # Exceeds 128 character limit
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             TransferArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
@@ -674,14 +659,14 @@ class TestTransferArgs:
                 client_transfer_id=long_id,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("client_transfer_id",)
-        assert "too long" in errors[0]["msg"]
+        assert (
+            "Field 'client_transfer_id' must be string with max length 128, "
+            "got string with length 129" in str(exc_info.value)
+        )
 
     def test_empty_client_transfer_id(self) -> None:
         """Test empty client_transfer_id validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             TransferArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
@@ -690,10 +675,7 @@ class TestTransferArgs:
                 client_transfer_id="",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("client_transfer_id",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "Field client_transfer_id: String cannot be empty" in str(exc_info.value)
 
     def test_negative_amount(self) -> None:
         """Test negative amount validation."""
@@ -757,7 +739,7 @@ class TestTransferArgs:
 
     def test_none_amount(self) -> None:
         """Test None amount validation (should fail as it's required)."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             TransferArgs(
                 asset="BTC",
                 amount=None,  # type: ignore
@@ -765,14 +747,8 @@ class TestTransferArgs:
                 to_account_type="futures",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("amount",)
-        # Pydantic might give different error messages for None values
-        assert (
-            "cannot be None" in errors[0]["msg"]
-            or "none is not an allowed value" in errors[0]["msg"].lower()
-            or "got NoneType" in errors[0]["msg"]
+        assert "Field 'amount' must be string, int, float, or Decimal, got NoneType" in str(
+            exc_info.value
         )
 
     def test_unparseable_amount(self) -> None:
@@ -815,7 +791,7 @@ class TestTransferArgs:
                 to_account_type="futures",
             )
 
-        assert "asset: Expected string, got int" in str(exc_info.value)
+        assert "Field 'asset' must be str, got int" in str(exc_info.value)
 
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are forbidden."""
@@ -911,63 +887,57 @@ class TestWithdrawArgs:
 
     def test_empty_asset(self) -> None:
         """Test empty asset validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             WithdrawArgs(
                 asset="",
                 amount=Decimal("1.0"),
                 address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("asset",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "String cannot be empty" in str(exc_info.value)
 
     def test_empty_address(self) -> None:
         """Test empty address validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             WithdrawArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
                 address="",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("address",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "String cannot be empty" in str(exc_info.value)
 
     def test_asset_max_length(self) -> None:
         """Test asset maximum length validation."""
         long_asset = "A" * 129  # Exceeds 128 character limit
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             WithdrawArgs(
                 asset=long_asset,
                 amount=Decimal("1.0"),
                 address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("asset",)
-        assert "too long" in errors[0]["msg"]
+        assert (
+            "Field 'asset' must be string with max length 128, got string with length 129"
+            in str(exc_info.value)
+        )
 
     def test_address_max_length(self) -> None:
         """Test address maximum length validation."""
         long_address = "A" * 129  # Exceeds 128 character limit
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             WithdrawArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
                 address=long_address,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("address",)
-        assert "too long" in errors[0]["msg"]
+        assert (
+            "Field 'address' must be string with max length 128, got string with length 129"
+            in str(exc_info.value)
+        )
 
     def test_optional_string_field_validation(self) -> None:
         """Test optional string field validation."""
@@ -995,7 +965,7 @@ class TestWithdrawArgs:
 
     def test_empty_optional_strings(self) -> None:
         """Test empty optional string validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             WithdrawArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
@@ -1003,16 +973,13 @@ class TestWithdrawArgs:
                 network="",  # Empty string not allowed
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("network",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "String cannot be empty" in str(exc_info.value)
 
     def test_optional_string_max_length(self) -> None:
         """Test optional string maximum length validation."""
         long_network = "A" * 65  # Exceeds 64 character limit
 
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             WithdrawArgs(
                 asset="BTC",
                 amount=Decimal("1.0"),
@@ -1020,10 +987,10 @@ class TestWithdrawArgs:
                 network=long_network,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("network",)
-        assert "too long" in errors[0]["msg"]
+        assert (
+            "Field 'network' must be string with max length 64, got string with length 65"
+            in str(exc_info.value)
+        )
 
     def test_negative_amount(self) -> None:
         """Test negative amount validation."""
@@ -1083,21 +1050,15 @@ class TestWithdrawArgs:
 
     def test_none_amount(self) -> None:
         """Test None amount validation (should fail as it's required)."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             WithdrawArgs(
                 asset="BTC",
                 amount=None,  # type: ignore
                 address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("amount",)
-        # Pydantic might give different error messages for None values
-        assert (
-            "cannot be None" in errors[0]["msg"]
-            or "none is not an allowed value" in errors[0]["msg"].lower()
-            or "got NoneType" in errors[0]["msg"]
+        assert "Field 'amount' must be string, int, float, or Decimal, got NoneType" in str(
+            exc_info.value
         )
 
     def test_unparseable_amount(self) -> None:
@@ -1123,7 +1084,7 @@ class TestWithdrawArgs:
                 address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
             )
 
-        assert "asset: Expected string, got int" in str(exc_info.value)
+        assert "Field 'asset' must be str, got int" in str(exc_info.value)
 
     def test_extra_fields_allowed(self) -> None:
         """Test that extra fields are allowed in WithdrawArgs."""
@@ -1256,7 +1217,7 @@ class TestEdgeCasesAndBoundaryConditions:
         # But we need to test what actually happens rather than assume
 
         # Whitespace-only strings should fail
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             PlaceOrderArgs(
                 symbol="   ",  # Only whitespace
                 side=OrderSide.BUY,
@@ -1265,10 +1226,7 @@ class TestEdgeCasesAndBoundaryConditions:
                 time_in_force=TimeInForce.IOC,
             )
 
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert errors[0]["loc"] == ("symbol",)
-        assert "String cannot be empty" in errors[0]["msg"]
+        assert "String cannot be empty" in str(exc_info.value)
 
     def test_decimal_precision_preservation(self) -> None:
         """Test that decimal precision is preserved."""
@@ -1403,18 +1361,20 @@ class TestGetMarketArgs:
 
     def test_symbol_validation_empty_string(self) -> None:
         """Test that empty string is rejected."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             GetMarketArgs(symbol="")
 
     def test_symbol_validation_whitespace_only(self) -> None:
         """Test that whitespace-only string is rejected."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             GetMarketArgs(symbol="   ")
 
     def test_symbol_validation_too_long(self) -> None:
         """Test that string longer than 64 characters is rejected."""
         long_symbol = "A" * 65
-        with pytest.raises(ValidationError, match="String value too long"):
+        with pytest.raises(
+            TypeFieldError, match="string with max length 64, got string with length 65"
+        ):
             GetMarketArgs(symbol=long_symbol)
 
     def test_symbol_validation_maximum_length(self) -> None:

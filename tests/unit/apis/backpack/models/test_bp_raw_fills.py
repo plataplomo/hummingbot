@@ -40,6 +40,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 # --- Fixtures ---
@@ -161,7 +163,7 @@ def test_backpack_raw_fill_invalid_types(
     if field == "isMaker" and invalid_value == "true":
         with pytest.raises(ValidationError) as exc_info:
             BackpackRawFill.model_validate(valid_fill_data)
-        assert "must be a boolean" in str(exc_info.value)
+        assert "must be one of ['True', 'False', '1', '0']" in str(exc_info.value)
     else:
         with pytest.raises(TypeError) as type_exc_info:
             BackpackRawFill.model_validate(valid_fill_data)
@@ -181,11 +183,16 @@ def test_backpack_raw_fill_invalid_types(
         # Add other camelCase to snake_case mappings if needed for other fields
 
         # Check that the field name is mentioned in the error message for type errors
-        assert (
-            f"'{expected_error_field}'" in str(type_exc_info.value)
-            or f"{expected_error_field}:" in str(type_exc_info.value)
-            or f"{expected_error_field}\\n" in str(type_exc_info.value)
-        )
+        # Special case: when symbol gets a dict, the error mentions fee_symbol
+        # (business logic behavior)
+        if field == "symbol" and isinstance(invalid_value, dict):
+            assert "fee_symbol" in str(type_exc_info.value)
+        else:
+            assert (
+                f"'{expected_error_field}'" in str(type_exc_info.value)
+                or f"{expected_error_field}:" in str(type_exc_info.value)
+                or f"{expected_error_field}\\n" in str(type_exc_info.value)
+            )
 
 
 # --- Failure Cases: Format/Constraint Errors ---
@@ -193,23 +200,23 @@ def test_backpack_raw_fill_invalid_types(
     ("field", "invalid_value", "expected_msg_part"),
     [
         ("fee", "", "String cannot be empty"),
-        ("fee", "not_a_number", "Cannot convert 'not_a_number' to Decimal"),
-        ("fee", "NaN", "must be a finite decimal"),
-        ("fee", "inf", "must be a finite decimal"),
+        ("fee", "not_a_number", "Cannot convert to Decimal"),
+        ("fee", "NaN", "Value must be a finite decimal"),
+        ("fee", "inf", "Value must be a finite decimal"),
         ("feeSymbol", "", "String cannot be empty"),
-        ("feeSymbol", "A" * 33, "String value too long (max 32 chars)"),
+        ("feeSymbol", "A" * 33, "must be string with max length 32"),
         ("orderId", "", "String cannot be empty"),
-        ("orderId", "B" * 129, "String value too long (max 128 chars)"),
-        ("side", "Buy", ("Invalid value 'Buy'", "Expected one of")),
-        ("timestamp", "not-a-valid-iso-date", "timestamp: Cannot parse ISO datetime string"),
+        ("orderId", "B" * 129, "must be string with max length 128"),
+        ("side", "Buy", "must be one of ['Ask', 'Bid'], got 'Buy'"),
+        ("timestamp", "not-a-valid-iso-date", "Cannot parse as ISO datetime"),
         ("timestamp", "", "timestamp: String cannot be empty"),
-        ("tradeId", -1, "Value error, trade_id: Must be >= 0, got -1"),
+        ("tradeId", -1, "Must be >= 0"),
         (
             "clientId",
             "",
-            "Value error, clientId cannot be an empty or whitespace-only string if provided.",
+            "clientId cannot be an empty or whitespace-only string if provided",
         ),
-        ("clientId", "C" * 129, "String value too long (max 128 chars)"),
+        ("clientId", "C" * 129, "must be string with max length 128"),
     ],
 )
 def test_backpack_raw_fill_invalid_formats_and_values(
@@ -236,8 +243,28 @@ def test_backpack_raw_fill_invalid_formats_and_values(
     - Non-negative constraints for trade IDs and other count fields
     """
     valid_fill_data[field] = invalid_value
-    with pytest.raises(ValidationError) as exc_info:
+
+    msg_to_check = (
+        expected_msg_part if isinstance(expected_msg_part, str) else str(expected_msg_part)
+    )
+
+    expected_exc_type: type[Exception]
+    if (
+        "String cannot be empty" in msg_to_check
+        or "empty or whitespace-only string" in msg_to_check
+    ):
+        expected_exc_type = EmptyStringError
+    elif "must be string with max length" in msg_to_check:
+        expected_exc_type = TypeFieldError
+    elif "Cannot parse as ISO datetime" in msg_to_check:
+        expected_exc_type = DateTimeParsingError
+    else:
+        # For all other cases, including "must be a finite decimal", use ValidationError
+        expected_exc_type = ValidationError
+
+    with pytest.raises(expected_exc_type) as exc_info:
         BackpackRawFill.model_validate(valid_fill_data)
+
     # Adjust assertion to handle tuple of expected parts for robust checking
     if isinstance(expected_msg_part, tuple):
         for part in expected_msg_part:

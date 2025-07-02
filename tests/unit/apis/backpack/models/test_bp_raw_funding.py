@@ -15,6 +15,9 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingRate,
     BackpackRawMarkPrice,
 )
+from cyberdelta.apis.exceptions.parsing import TimestampYearRangeError
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 # --- BackpackRawFundingRate ---
@@ -56,7 +59,7 @@ def test_BackpackRawFundingRate_wrong_type_fields() -> None:
         BackpackRawFundingRate.model_validate(p)
     p = valid_funding_rate().copy()
     p["time"] = "notanint"
-    with pytest.raises(ValidationError):
+    with pytest.raises(DateTimeParsingError):
         BackpackRawFundingRate.model_validate(p)
 
 
@@ -68,7 +71,7 @@ def test_BackpackRawFundingRate_invalid_format_fields() -> None:
         BackpackRawFundingRate.model_validate(p)
     p = valid_funding_rate().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawFundingRate.model_validate(p)
     # Scientific notation is allowed (project policy)
     p = valid_funding_rate().copy()
@@ -118,7 +121,7 @@ def test_BackpackRawFundingRate_real_json_example() -> None:
         "time": 9223372036854775807,
     }
     # The raw model should reject this timestamp as out of range
-    with pytest.raises(ValidationError):
+    with pytest.raises(TimestampYearRangeError):
         BackpackRawFundingRate.model_validate(payload)
 
 
@@ -158,7 +161,7 @@ def test_BackpackRawFundingRate_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 'symbol'."""
     p = valid_funding_rate().copy()
     p["symbol"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawFundingRate.model_validate(p)
 
 
@@ -205,7 +208,7 @@ def test_BackpackRawMarkPrice_invalid_format_fields() -> None:
         BackpackRawMarkPrice.model_validate(p)
     p = valid_mark_price().copy()
     p["symbol"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises(EmptyStringError):
         BackpackRawMarkPrice.model_validate(p)
 
 
@@ -292,5 +295,5 @@ def test_BackpackRawMarkPrice_corruption_garbled_unicode_symbol() -> None:
     """Should fail: garbled unicode in 'symbol'."""
     p = valid_mark_price().copy()
     p["symbol"] = "ETH_\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawMarkPrice.model_validate(p)

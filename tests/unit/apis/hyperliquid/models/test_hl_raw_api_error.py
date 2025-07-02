@@ -4,6 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_error import HyperliquidRawApiError
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # --- Helpers ---
@@ -28,21 +30,21 @@ def test_missing_error_field() -> None:
 def test_error_type_errors() -> None:
     """Test error type errors."""
     for bad in [123, 1.5, True, None, ["err"], {"msg": "err"}]:
-        with pytest.raises((ValidationError, TypeError)):
+        with pytest.raises(TypeFieldError):
             HyperliquidRawApiError.model_validate({"error": bad})
 
 
 def test_error_empty_and_whitespace() -> None:
     """Test error empty and whitespace."""
     for bad in ["", "   "]:
-        with pytest.raises((ValidationError, TypeError)):
+        with pytest.raises(EmptyStringError):
             HyperliquidRawApiError.model_validate({"error": bad})
 
 
 def test_error_too_long() -> None:
     """Test error too long."""
     msg = "a" * 1025
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         HyperliquidRawApiError.model_validate({"error": msg})
 
 
@@ -50,7 +52,7 @@ def test_error_invalid_utf8() -> None:
     """Test error invalid utf8."""
     # Simulate a string with invalid UTF-8 by using surrogates (which are not valid in UTF-8)
     bad = "bad\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         HyperliquidRawApiError.model_validate({"error": bad})
 
 

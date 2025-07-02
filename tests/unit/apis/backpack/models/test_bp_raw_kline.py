@@ -6,6 +6,9 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.exceptions.parsing import KlineTypeError
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # --- Test Data ---
@@ -64,11 +67,11 @@ def test_invalid_structure_input_type() -> None:
     # Catch ValidationError and check message
     with pytest.raises(ValidationError) as exc_info:
         BackpackRawKline.model_validate({"key": "value"})  # Dict input
-    assert "Expected 12 elements in kline data list/tuple" in str(exc_info.value)
+    assert "Expected 12-element list/tuple" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info_str:  # Use different var name
         BackpackRawKline.model_validate("not_a_list")  # String input
-    assert "Expected 12 elements in kline data list/tuple" in str(exc_info_str.value)
+    assert "Expected 12-element list/tuple" in str(exc_info_str.value)
 
 
 def test_invalid_structure_list_length() -> None:
@@ -77,65 +80,87 @@ def test_invalid_structure_list_length() -> None:
     # Catch ValueError and check substring
     with pytest.raises(ValueError) as exc_info_short:
         BackpackRawKline.model_validate(invalid_list_short)
-    assert "Expected 12 elements in kline data list/tuple, got 11" in str(exc_info_short.value)
+    assert "Field 'kline data': Expected 12-element list/tuple, got length 11" in str(
+        exc_info_short.value
+    )
 
     invalid_list_long = [*VALID_KLINE_LIST, "extra"]
     # Catch ValueError and check substring
     with pytest.raises(ValueError) as exc_info_long:
         BackpackRawKline.model_validate(invalid_list_long)
-    assert "Expected 12 elements in kline data list/tuple, got 13" in str(exc_info_long.value)
+    assert "Field 'kline data': Expected 12-element list/tuple, got length 13" in str(
+        exc_info_long.value
+    )
 
 
 @pytest.mark.parametrize(
     ("index", "field_name", "invalid_value", "expected_exception", "expected_error_msg"),
     [
         # --- startTimeMs validation (index 0) ---
-        (0, "start_time_ms", "1700000000000", TypeError, "Raw value must be an integer"),
-        (0, "start_time_ms", 1700000000000.5, TypeError, "Raw value must be an integer"),
-        (0, "start_time_ms", -1, ValueError, "Value must be non-negative"),
+        (0, "start_time_ms", "1700000000000", TypeFieldError, "must be integer, got string"),
+        (0, "start_time_ms", 1700000000000.5, TypeFieldError, "must be integer, got float"),
+        (0, "start_time_ms", -1, ValidationError, "Value must be non-negative"),
         # --- openPrice validation (index 1) ---
-        (1, "open_price", 100.0, TypeError, "Raw value must be a string"),
-        (1, "open_price", 100, TypeError, "Raw value must be a string"),
-        (1, "open_price", True, TypeError, "Raw value must be a string"),
-        (1, "open_price", "", ValueError, "String cannot be empty or whitespace"),
-        (1, "open_price", " ", ValueError, "String cannot be empty or whitespace"),
-        (1, "open_price", "NaN", ValueError, "must represent a finite decimal"),
-        (1, "open_price", "Infinity", ValueError, "must represent a finite decimal"),
-        (1, "open_price", "-inf", ValueError, "must represent a finite decimal"),
-        (1, "open_price", "not_a_decimal", ValueError, "Cannot convert 'not_a_decimal' to Decimal"),
-        (1, "open_price", "1" * 65, ValueError, "String value too long (max 64 chars)"),
+        (1, "open_price", 100.0, KlineTypeError, "Raw value must be a string"),
+        (1, "open_price", 100, KlineTypeError, "Raw value must be a string"),
+        (1, "open_price", True, KlineTypeError, "Raw value must be a string"),
+        (1, "open_price", "", EmptyStringError, "String cannot be empty"),
+        (1, "open_price", " ", EmptyStringError, "String cannot be empty"),
+        (1, "open_price", "NaN", ValidationError, "must represent a finite decimal"),
+        (1, "open_price", "Infinity", ValidationError, "must represent a finite decimal"),
+        (1, "open_price", "-inf", ValidationError, "must represent a finite decimal"),
+        (
+            1,
+            "open_price",
+            "not_a_decimal",
+            ValidationError,
+            "Cannot convert 'not_a_decimal' to Decimal",
+        ),
+        (1, "open_price", "1" * 65, TypeFieldError, "must be string with max length 64"),
         # --- highPrice validation (index 2) ---
-        (2, "high_price", None, TypeError, "Raw value must be a string, got NoneType"),
-        (2, "high_price", 102.5, TypeError, "Raw value must be a string"),
-        (2, "high_price", "inf", ValueError, "must represent a finite decimal"),
+        (2, "high_price", None, KlineTypeError, "Raw value must be a string, got NoneType"),
+        (2, "high_price", 102.5, KlineTypeError, "Raw value must be a string"),
+        (2, "high_price", "inf", ValidationError, "must represent a finite decimal"),
         # --- lowPrice validation (index 3) ---
-        (3, "low_price", ["list"], TypeError, "Raw value must be a string"),
-        (3, "low_price", "-Infinity", ValueError, "must represent a finite decimal"),
+        (3, "low_price", ["list"], KlineTypeError, "Raw value must be a string"),
+        (3, "low_price", "-Infinity", ValidationError, "must represent a finite decimal"),
         # --- closePrice validation (index 4) ---
-        (4, "close_price", 101, TypeError, "Raw value must be a string"),
-        (4, "close_price", "", ValueError, "String cannot be empty or whitespace"),
+        (4, "close_price", 101, KlineTypeError, "Raw value must be a string"),
+        (4, "close_price", "", EmptyStringError, "String cannot be empty"),
         # --- volume validation (index 5) ---
-        (5, "volume", 1000.123, TypeError, "Raw value must be a string"),
-        (5, "volume", "NaN", ValueError, "must represent a finite decimal"),
+        (5, "volume", 1000.123, KlineTypeError, "Raw value must be a string"),
+        (5, "volume", "NaN", ValidationError, "must represent a finite decimal"),
         # --- endTimeMs validation (index 6) ---
-        (6, "end_time_ms", "1700000059999", TypeError, "Raw value must be an integer"),
-        (6, "end_time_ms", -1700000059999, ValueError, "Value must be non-negative"),
+        (6, "end_time_ms", "1700000059999", TypeFieldError, "must be integer, got string"),
+        (6, "end_time_ms", -1700000059999, ValidationError, "Value must be non-negative"),
         # --- quoteVolume validation (index 7) ---
-        (7, "quote_volume", 101000.456, TypeError, "Raw value must be a string"),
-        (7, "quote_volume", "101000.456x", ValueError, "Cannot convert '101000.456x' to Decimal"),
+        (7, "quote_volume", 101000.456, KlineTypeError, "Raw value must be a string"),
+        (
+            7,
+            "quote_volume",
+            "101000.456x",
+            ValidationError,
+            "Cannot convert '101000.456x' to Decimal",
+        ),
         # --- tradeCount validation (index 8) ---
-        (8, "trade_count", "50", TypeError, "Raw value must be an integer"),
-        (8, "trade_count", -10, ValueError, "Value must be non-negative"),
+        (8, "trade_count", "50", TypeFieldError, "must be integer, got string"),
+        (8, "trade_count", -10, ValidationError, "Value must be non-negative"),
         # --- takerBuyBaseVolume validation (index 9) ---
-        (9, "taker_buy_base_volume", 500.1, TypeError, "Raw value must be a string"),
-        (9, "taker_buy_base_volume", "Infinity", ValueError, "must represent a finite decimal"),
+        (9, "taker_buy_base_volume", 500.1, KlineTypeError, "Raw value must be a string"),
+        (
+            9,
+            "taker_buy_base_volume",
+            "Infinity",
+            ValidationError,
+            "must represent a finite decimal",
+        ),
         # --- takerBuyQuoteVolume validation (index 10) ---
-        (10, "taker_buy_quote_volume", 50500.2, TypeError, "Raw value must be a string"),
-        (10, "taker_buy_quote_volume", "NaN", ValueError, "must represent a finite decimal"),
+        (10, "taker_buy_quote_volume", 50500.2, KlineTypeError, "Raw value must be a string"),
+        (10, "taker_buy_quote_volume", "NaN", ValidationError, "must represent a finite decimal"),
         # --- ignored validation (index 11) ---
-        (11, "ignored", 0, TypeError, "Raw value must be a string"),
-        (11, "ignored", "", ValueError, "String cannot be empty or whitespace"),
-        (11, "ignored", "a" * 65, ValueError, "String value too long (max 64 chars)"),
+        (11, "ignored", 0, KlineTypeError, "Raw value must be a string"),
+        (11, "ignored", "", EmptyStringError, "String cannot be empty"),
+        (11, "ignored", "a" * 65, TypeFieldError, "must be string with max length 64"),
     ],
 )
 def test_field_validation_failures(

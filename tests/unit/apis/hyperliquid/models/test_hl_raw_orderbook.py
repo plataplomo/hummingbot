@@ -15,6 +15,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawL2Book,
     HyperliquidRawL2BookRequestPayload,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 
 
 # --- Helper: Valid minimal payloads for each model ---
@@ -72,14 +74,14 @@ def test_book_level_format_errors() -> None:
     for field in ["px", "sz"]:
         d = valid_book_level().copy()
         d[field] = ""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawBookLevel.model_validate(d)
         d[field] = "a" * 1000
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeFieldError)):
             HyperliquidRawBookLevel.model_validate(d)
     d = valid_book_level().copy()
     d["px"] = "NaN"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, ParsingError)):
         HyperliquidRawBookLevel.model_validate(d)
 
 
@@ -196,10 +198,10 @@ def test_l2book_request_payload_format_errors() -> None:
     """Test l2book request payload format errors."""
     d = valid_l2book_request_payload().copy()
     d["coin"] = ""
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, EmptyStringError)):
         HyperliquidRawL2BookRequestPayload.model_validate(d)
     d["coin"] = "a" * 1000
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawL2BookRequestPayload.model_validate(d)
 
 
@@ -227,17 +229,21 @@ def test_l2book_levels_structure_edge_cases() -> None:
     # Not a list, wrong number of sublists, empty sublists, wrong type, excessive levels
     d = valid_l2book().copy()
     d["levels"] = "notalist"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeError)):
         HyperliquidRawL2Book.model_validate(d)
+    d = valid_l2book().copy()
     d["levels"] = [[valid_book_level()]]
     with pytest.raises(ValidationError):
         HyperliquidRawL2Book.model_validate(d)
+    d = valid_l2book().copy()
     d["levels"] = [[], []]
     obj = HyperliquidRawL2Book.model_validate(d)
     assert obj.levels == [[], []]
+    d = valid_l2book().copy()
     d["levels"] = [[valid_book_level()] for _ in range(3)]
     with pytest.raises(ValidationError):
         HyperliquidRawL2Book.model_validate(d)
+    d = valid_l2book().copy()
     d["levels"] = [[valid_book_level()] * 1000, [valid_book_level()] * 1000]
     obj = HyperliquidRawL2Book.model_validate(d)
     assert len(obj.levels[0]) == 1000
@@ -272,7 +278,7 @@ def test_book_level_field_edge_cases() -> None:
     obj = HyperliquidRawBookLevel.model_validate(d)
     assert obj.px == "-123.45"  # This one doesn't change
     d["px"] = "1" * 65
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawBookLevel.model_validate(d)
 
 

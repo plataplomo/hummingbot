@@ -20,6 +20,7 @@ import pytest
 import structlog.testing
 
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import MissingRequiredFieldError
 from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -367,8 +368,8 @@ class TestCreateMarketFromAssetDefinition:
             mock_parse.return_value = None
 
             with pytest.raises(
-                TransformationError,
-                match="Failed to parse step size for INVALID-PERP",
+                MissingRequiredFieldError,
+                match="sz_decimals is required for asset definition for INVALID-PERP",
             ):
                 mapper.transform_single_asset_to_market(asset_def)
 

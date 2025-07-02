@@ -7,6 +7,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawImfFunction,
     BackpackRawMmfFunction,
 )
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # --- Test BackpackRawImfFunction ---
@@ -57,7 +58,7 @@ def test_bp_raw_imf_function_invalid_decimal_format() -> None:
 def test_bp_raw_imf_function_empty_string() -> None:
     """Test validation failure for empty string fields."""
     with pytest.raises(
-        ValidationError,
+        EmptyStringError,
         match="base: Validation failed - base: String cannot be empty",
     ):
         BackpackRawImfFunction.model_validate({"base": "", "factor": "0.1"})
@@ -107,7 +108,7 @@ def test_bp_raw_mmf_function_invalid_decimal_format() -> None:
 def test_bp_raw_mmf_function_empty_string() -> None:
     """Test validation failure for empty string fields."""
     with pytest.raises(
-        ValidationError,
+        EmptyStringError,
         match="factor: Validation failed - factor: String cannot be empty",
     ):
         BackpackRawMmfFunction.model_validate({"base": "0.1", "factor": ""})

@@ -146,7 +146,7 @@ def test_handle_user_fill_event_payload_invalid() -> None:
     # Business logic throws TypeError for invalid data types, not APIError
     with pytest.raises(TypeError) as excinfo:
         HyperliquidWsRawMessageHandler.handle_user_fill_event_payload(invalid_payload)
-    assert "Expected string, got float" in str(excinfo.value)
+    assert "must be str, got float" in str(excinfo.value)
 
 
 # --- User Order Event (Inner Detail) --- using HyperliquidRawOrder
@@ -273,7 +273,7 @@ def test_handle_all_mids_payload_invalid_not_dict() -> None:
     with pytest.raises(TypeError) as excinfo:
         # Typing ignored as the function expects a dict, but we are testing invalid input.
         HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload_list)  # type: ignore
-    assert "Expected a dictionary, got list" in str(excinfo.value)
+    assert "expected dict, got list" in str(excinfo.value)
 
 
 def test_handle_all_mids_payload_invalid_value_type() -> None:
@@ -282,10 +282,10 @@ def test_handle_all_mids_payload_invalid_value_type() -> None:
         "BTC": "60000.0",
         "ETH": 3000,  # Should be string "3000"
     }
-    # Business logic throws TypeError for invalid data types, not APIError
+    # Business logic throws TypeFieldError for invalid data types, not APIError
     with pytest.raises(TypeError) as excinfo:
         HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload)
-    assert "Expected string, got int" in str(excinfo.value)
+    assert "Field 'root' must be str, got int" in str(excinfo.value)
 
 
 def test_handle_all_mids_payload_invalid_key_type() -> None:
@@ -295,18 +295,9 @@ def test_handle_all_mids_payload_invalid_key_type() -> None:
     invalid_payload = {
         long_asset_name: "60000.0",
     }
-    with pytest.raises(APIError) as excinfo:
+    # Business logic throws TypeFieldError during validation, before it reaches the wrapper
+    with pytest.raises(TypeError) as excinfo:
         HyperliquidWsRawMessageHandler.handle_all_mids_payload(invalid_payload)
-    assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
-    assert isinstance(excinfo.value.original_exception, ValidationError)
-    error_details = excinfo.value.original_exception.errors(include_input=False)
-    # Pydantic v2 RootModel error for invalid key in dict
-    assert any(
-        err["loc"]
-        == (long_asset_name, "[key]")  # Note: Pydantic v2 adds '[key]' to loc for dict key errors
-        and (
-            "String value too long" in err["msg"]
-            or "ensure this value has at most 64 characters" in err["msg"]
-        )
-        for err in error_details
+    assert "Field 'root' must be string with max length 64, got string with length 65" in str(
+        excinfo.value
     )

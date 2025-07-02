@@ -10,6 +10,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # --- Helpers for valid payloads ---
@@ -140,7 +142,7 @@ def test_leverage_type_utf8_and_length() -> None:
     with pytest.raises(ValidationError):
         HyperliquidRawLeverage.model_validate(d)
     d["type"] = "cross\udce2\udc28\udc00"
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawLeverage.model_validate(d)
 
 
@@ -262,10 +264,10 @@ def test_position_info_decimal_format_errors() -> None:
         with pytest.raises(ValidationError):
             HyperliquidRawPositionInfo.model_validate(d)
         d[field] = ""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawPositionInfo.model_validate(d)
         d[field] = "1" * 65
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeFieldError)):
             HyperliquidRawPositionInfo.model_validate(d)
 
 
@@ -336,10 +338,10 @@ def test_position_info_optional_fields_empty_or_whitespace() -> None:
     for field in ["entryPx", "liquidationPx"]:
         d = valid_position_info().copy()
         d[field] = ""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawPositionInfo.model_validate(d)
         d[field] = "   "
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawPositionInfo.model_validate(d)
         d[field] = None
         obj = HyperliquidRawPositionInfo.model_validate(d)
@@ -449,10 +451,10 @@ def test_margin_summary_type_and_format_errors() -> None:
         with pytest.raises(ValidationError):
             HyperliquidRawMarginSummary.model_validate(d)
         d[field] = ""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawMarginSummary.model_validate(d)
         d[field] = "1" * 65
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeFieldError)):
             HyperliquidRawMarginSummary.model_validate(d)
 
 
@@ -559,10 +561,10 @@ def test_clearinghouse_state_decimal_format_errors() -> None:
         with pytest.raises(ValidationError):
             HyperliquidRawClearinghouseState.model_validate(d)
         d[field] = ""
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, EmptyStringError)):
             HyperliquidRawClearinghouseState.model_validate(d)
         d[field] = "1" * 65
-        with pytest.raises(ValidationError):
+        with pytest.raises((ValidationError, TypeFieldError)):
             HyperliquidRawClearinghouseState.model_validate(d)
 
 

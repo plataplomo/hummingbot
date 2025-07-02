@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions import StructureTypeError
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
@@ -192,17 +193,12 @@ class TestHandleQueryOrderHistoryResponse:
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test order history response with wrong top-level type (dict instead of list)."""
         raw_data = {"invalid": "data"}
-        with pytest.raises(APIError) as exc_info:
+        with pytest.raises(StructureTypeError) as exc_info:
             HyperliquidResponseHandler.handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
             )
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid historicalOrders (for {user_address}) response from exchange"
-            in exc_info.value.message
-        )
-        assert "Expected a list of orders, got dict" in exc_info.value.message
+        assert "Expected list, got dict" in str(exc_info.value)
 
 
 class TestHandleInfoOrderStatusResponse:

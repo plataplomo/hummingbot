@@ -153,7 +153,7 @@ class TestHyperliquidRawOrderType:
         """Test invalid tif string."""
         with pytest.raises(
             ValidationError,
-            match=r"Invalid value 'InvalidTif'\. Expected one of \['Alo', 'Gtc', 'Ioc'\]",
+            match=r"Field 'tif' must be one of \['Alo', 'Gtc', 'Ioc'\], got 'InvalidTif'",
         ):
             HyperliquidRawOrderType(
                 limit=cast("HyperliquidRawLimitOrderTypeDetails", {"tif": "InvalidTif"}),
@@ -189,7 +189,7 @@ class TestHyperliquidRawTriggerInfo:
         data["triggerPx"] = "not_a_number"
         with pytest.raises(
             ValidationError,
-            match=r"Cannot convert 'not_a_number' to Decimal",
+            match=r"Cannot convert to Decimal",
         ):
             HyperliquidRawTriggerInfo(**data)
 
@@ -199,7 +199,7 @@ class TestHyperliquidRawTriggerInfo:
         data["triggerPx"] = "inf"
         with pytest.raises(
             ValidationError,
-            match=r"trigger_px: Value 'inf' must be a parseable finite decimal string.",
+            match=r"must be a parseable finite decimal string",
         ):
             HyperliquidRawTriggerInfo(**data)
 
@@ -216,7 +216,7 @@ class TestHyperliquidRawTriggerInfo:
         data["tpsl"] = "stop"
         with pytest.raises(
             ValidationError,
-            match=r"Invalid value 'stop'\. Expected one of \['sl', 'tp'\]",
+            match=r"Field 'tpsl' must be one of \['sl', 'tp'\], got 'stop'",
         ):
             HyperliquidRawTriggerInfo(**data)
 
@@ -230,7 +230,7 @@ class TestHyperliquidRawTriggerInfo:
         """Test invalid is market type."""
         data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
         data["isMarket"] = "not_a_bool"
-        with pytest.raises(ValidationError, match="is_market: Must be a boolean"):
+        with pytest.raises(TypeError, match="Field 'is_market' must be boolean, got str"):
             HyperliquidRawTriggerInfo(**data)
 
 
@@ -298,21 +298,21 @@ class TestHyperliquidRawPlaceOrderAction:
         """Test invalid asset type string."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["asset"] = "not_an_int"
-        with pytest.raises((ValidationError, TypeError), match="asset: Must be an integer"):
+        with pytest.raises(TypeError, match="Field 'asset' must be integer, got str"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_invalid_limit_px_type_not_string(self) -> None:
         """Test invalid limit px type not string."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["limitPx"] = 150.75
-        with pytest.raises((ValidationError, TypeError), match=r"Expected string, got float"):
+        with pytest.raises(TypeError, match=r"Field 'limitPx' must be str, got float"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_invalid_sz_not_parseable_to_decimal(self) -> None:
         """Test invalid sz not parseable to decimal."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["sz"] = "abc"
-        with pytest.raises(ValidationError, match=r"Cannot convert 'abc' to Decimal"):
+        with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_valid_sz_zero_string_for_raw_model(self) -> None:
@@ -326,7 +326,7 @@ class TestHyperliquidRawPlaceOrderAction:
         """Test invalid is buy type string."""
         data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
         data["isBuy"] = "TrueString"
-        with pytest.raises(ValidationError, match="isBuy: Must be a boolean"):
+        with pytest.raises(TypeError, match="Field 'isBuy' must be boolean, got str"):
             HyperliquidRawPlaceOrderAction(**data)
 
     def test_extra_field_not_allowed(self) -> None:

@@ -356,8 +356,11 @@ class TestBackpackMarketDataServiceKlinesMisc:
         with pytest.raises(APIError) as exc_info:
             await backpack_market_data_service.get_all_tickers()
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected service failure" in exc_info.value.message
+        assert exc_info.value.code == APIErrorCode.INVALID_REQUEST.value
+        assert (
+            "get_all_tickers is not implemented for BackpackMarketDataService"
+            in exc_info.value.message
+        )
 
     @pytest.mark.asyncio
     async def test_constructor_with_custom_mapper(

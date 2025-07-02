@@ -14,6 +14,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusResting,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 logger = get_logger(__name__)
@@ -175,9 +176,9 @@ def test_hl_response_valid_missing_data() -> None:
 @pytest.mark.parametrize(
     ("invalid_data", "expected_msg_part"),
     [
-        ({"oid": -1}, "Value -1 cannot be negative"),
-        ({"oid": "abc"}, "Must be an integer"),
-        ({"oid": 1.0}, "Must be an integer"),
+        ({"oid": -1}, "value cannot be negative"),
+        ({"oid": "abc"}, "must be integer"),
+        ({"oid": 1.0}, "must be integer"),
         ({}, "Field required"),
     ],
 )
@@ -207,7 +208,7 @@ def test_hl_resting_extra_fields_ignored() -> None:
         ({"oid": 1, "totalSz": "1.0", "avgPx": ""}, ("string", "cannot be empty")),
         ({"oid": 1, "totalSz": "1.0", "avgPx": "1..0"}, ("cannot convert", "1..0")),
         ({"oid": 1, "totalSz": 1.0, "avgPx": "1.0"}, ("expected string", "got float")),
-        ({"oid": -1, "totalSz": "1", "avgPx": "1"}, ("value", "-1", "cannot be negative")),
+        ({"oid": -1, "totalSz": "1", "avgPx": "1"}, ("value cannot be negative",)),
         ({"oid": 1, "totalSz": "1"}, ("field required", "avgPx")),
         ({"oid": 1, "avgPx": "1"}, ("field required", "totalSz")),
         ({"totalSz": "1", "avgPx": "1"}, ("field required", "oid")),
@@ -218,7 +219,7 @@ def test_hl_filled_invalid(
     expected_keywords: tuple[str, ...],
 ) -> None:
     """Test hl filled invalid."""
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
+    with pytest.raises((ValidationError, TypeError, EmptyStringError)) as exc_info:
         HyperliquidRawExchangeStatusFilled.model_validate(invalid_data)
     error_str = str(exc_info.value).lower()
     for keyword in expected_keywords:
@@ -230,6 +231,7 @@ def test_hl_filled_invalid(
                     "input should be a valid string",
                     "must be a string",
                     "expected string",
+                    "must be str",
                 ]
                 assert any(alt in error_str for alt in valid_alts)
             elif "got int" in keyword.lower():
@@ -251,7 +253,7 @@ def test_hl_filled_extra_fields_ignored() -> None:
 @pytest.mark.parametrize(
     ("invalid_data", "expected_keywords"),
     [
-        ({"resting": {"oid": -1}}, ("value", "-1", "cannot be negative")),
+        ({"resting": {"oid": -1}}, ("value cannot be negative",)),
         ({"filled": {"oid": 1, "totalSz": "", "avgPx": "1"}}, ("string", "cannot be empty")),
         ({"error": ""}, ("string", "cannot be empty")),
         ({"error": 123}, ("expected string", "got int")),
@@ -262,7 +264,7 @@ def test_hl_status_object_invalid(
     expected_keywords: tuple[str, ...],
 ) -> None:
     """Test hl status object invalid."""
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
+    with pytest.raises((ValidationError, TypeError, EmptyStringError)) as exc_info:
         HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
     error_str = str(exc_info.value).lower()
     for keyword in expected_keywords:
@@ -274,6 +276,7 @@ def test_hl_status_object_invalid(
                     "input should be a valid string",
                     "must be a string",
                     "expected string",
+                    "must be str",
                 ]
                 assert any(alt in error_str for alt in valid_alts)
             elif "got int" in keyword.lower():
@@ -295,7 +298,7 @@ def test_hl_status_object_extra_fields_ignored() -> None:
 @pytest.mark.parametrize(
     ("invalid_data", "expected_exception", "expected_keywords"),
     [
-        ({"type": "", "statuses": []}, ValueError, ("string", "cannot be empty")),
+        ({"type": "", "statuses": []}, EmptyStringError, ("string", "cannot be empty")),
         ({"type": 123, "statuses": []}, TypeError, ("expected string", "got int")),
         ({"type": "order", "statuses": 123}, ValidationError, ("should be a valid list",)),
         (
@@ -311,7 +314,7 @@ def test_hl_status_object_extra_fields_ignored() -> None:
         (
             {"type": "order", "statuses": [{"resting": {"oid": -1}}]},
             ValidationError,
-            ("value", "-1", "cannot be negative"),
+            ("value cannot be negative",),
         ),
         ({"type": "order"}, ValidationError, ("field required", "statuses")),
         ({"statuses": []}, ValidationError, ("field required", "type")),
@@ -335,6 +338,7 @@ def test_hl_response_data_invalid(
                     "input should be a valid string",
                     "must be a string",
                     "expected string",
+                    "must be str",
                 ]
                 assert any(alt in error_str for alt in valid_alts)
             elif "got int" in keyword.lower():
@@ -367,7 +371,7 @@ def test_hl_response_data_extra_fields_ignored() -> None:
         ({"status": "ok", "extra_field": 1}, ValidationError, ("extra", "not permitted")),
         (
             {"status": "ok", "data": {"type": "", "statuses": []}},
-            ValueError,
+            EmptyStringError,
             ("string", "cannot be empty"),
         ),
     ],
@@ -390,6 +394,7 @@ def test_hl_response_invalid(
                     "input should be a valid string",
                     "must be a string",
                     "expected string",
+                    "must be str",
                 ]
                 assert any(alt in error_str for alt in valid_alts)
             elif "got int" in keyword.lower():

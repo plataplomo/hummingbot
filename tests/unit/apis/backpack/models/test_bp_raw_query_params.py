@@ -27,6 +27,8 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetTickerParams,
     BackpackRawGetTradeHistoryParams,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 class TestBackpackRawGetTickerParams:
@@ -50,17 +52,17 @@ class TestBackpackRawGetTickerParams:
 
     def test_empty_symbol(self) -> None:
         """Test empty symbol validation."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             BackpackRawGetTickerParams(symbol="")
 
     def test_whitespace_symbol(self) -> None:
         """Test whitespace-only symbol validation."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             BackpackRawGetTickerParams(symbol="   ")
 
     def test_symbol_too_long(self) -> None:
         """Test symbol length validation."""
-        with pytest.raises(ValidationError, match="String value too long"):
+        with pytest.raises(TypeFieldError, match="must be string with max length 64"):
             BackpackRawGetTickerParams(symbol="A" * 65)
 
     def test_symbol_wrong_type(self) -> None:
@@ -185,7 +187,7 @@ class TestBackpackRawGetOpenOrdersParams:
 
     def test_empty_symbol_rejected(self) -> None:
         """Test empty symbol validation."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             BackpackRawGetOpenOrdersParams(symbol="")
 
 
@@ -325,10 +327,10 @@ class TestBackpackRawGetOrderHistoryParams:
 
     def test_empty_string_fields_rejected(self) -> None:
         """Test empty string validation."""
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             BackpackRawGetOrderHistoryParams(orderId="")
 
-        with pytest.raises(ValidationError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             BackpackRawGetOrderHistoryParams(clientId="")
 
 
@@ -522,5 +524,5 @@ class TestGeneralValidationBehavior:
         """Test symbol length validation with unicode characters."""
         # Create a symbol that's too long with unicode
         long_symbol = "A" * 65  # Simple approach - just use too many chars
-        with pytest.raises(ValidationError, match="String value too long"):
+        with pytest.raises(TypeFieldError, match="must be string with max length 64"):
             BackpackRawGetTickerParams(symbol=long_symbol)

@@ -6,6 +6,10 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.apis.exceptions.request_validation import (
+    DecimalRangeError,
+    MissingRequiredParameterError,
+)
 from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
@@ -75,7 +79,9 @@ class TestHyperliquidRequestBuilderTrading:
             post_only=False,
         )
         # Business logic now requires market orders to have a price provided by the service layer
-        with pytest.raises(ValueError, match="Market orders require a calculated aggressive price"):
+        with pytest.raises(
+            MissingRequiredParameterError, match="Required parameter 'price' is missing"
+        ):
             HyperliquidRequestBuilder.build_place_order_payload(
                 args=args,
                 asset_index=asset_index + 1,
@@ -496,8 +502,8 @@ class TestHyperliquidRequestBuilderTrading:
         builder = HyperliquidRequestBuilder()
 
         with pytest.raises(
-            ValueError,
-            match="Cannot create batch order payload with empty order list",
+            MissingRequiredParameterError,
+            match="Required parameter 'orders' is missing",
         ):
             builder.build_batch_place_order_payload(
                 orders_with_indices=[],
@@ -521,7 +527,7 @@ class TestHyperliquidRequestBuilderTrading:
 
         builder = HyperliquidRequestBuilder()
 
-        with pytest.raises(ValueError, match="Batch size 51 exceeds maximum of 50 orders"):
+        with pytest.raises(DecimalRangeError, match="Value 51 must be <= 50"):
             builder.build_batch_place_order_payload(
                 orders_with_indices=orders_data,
                 tif_mapping=None,
@@ -585,8 +591,8 @@ class TestHyperliquidRequestBuilderTrading:
         builder = HyperliquidRequestBuilder()
 
         with pytest.raises(
-            ValueError,
-            match="Cannot create batch cancel payload with empty cancel list",
+            MissingRequiredParameterError,
+            match="Required parameter 'cancel_items' is missing",
         ):
             builder.build_batch_cancel_order_payload([])
 
@@ -597,7 +603,7 @@ class TestHyperliquidRequestBuilderTrading:
 
         builder = HyperliquidRequestBuilder()
 
-        with pytest.raises(ValueError, match="Batch size 51 exceeds maximum of 50 cancellations"):
+        with pytest.raises(DecimalRangeError, match="Value 51 must be <= 50"):
             builder.build_batch_cancel_order_payload(cancel_items)
 
     def test_order_spec_functionality_via_public_api(self, asset_index: int) -> None:

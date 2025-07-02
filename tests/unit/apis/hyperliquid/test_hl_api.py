@@ -31,6 +31,8 @@ from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarkets
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.models.market.market import Market
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
@@ -651,11 +653,11 @@ class TestHyperliquidAPIMarketDataMethods:
         assert valid_args.symbol == "BTC-USD"
 
         # Test invalid args - empty symbol should fail validation
-        with pytest.raises(ValidationError):
+        with pytest.raises(EmptyStringError):
             GetMarketArgs(symbol="")
 
         # Test args with very long symbol (should fail max length validation)
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeFieldError):
             GetMarketArgs(symbol="A" * 65)  # Max length is 64
 
     @pytest.mark.asyncio

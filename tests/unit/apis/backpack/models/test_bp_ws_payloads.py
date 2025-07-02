@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
+from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
 class TestBackpackWsPayloads:
@@ -133,9 +134,9 @@ class TestBackpackWsPayloads:
     def test_too_long_stream_name_invalid(self) -> None:
         """Test that stream names over 128 chars are invalid."""
         too_long_stream = "a" * 129
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(TypeFieldError) as exc_info:
             BackpackRawWsSubscriptionRequest(method="SUBSCRIBE", params=[too_long_stream])
-        assert "String value too long (max 128 chars)" in str(exc_info.value)
+        assert "must be string with max length 128" in str(exc_info.value)
 
     def test_signature_serialization_consistency(self) -> None:
         """Test that signature tuple is consistent in serialization."""

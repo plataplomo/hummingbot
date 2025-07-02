@@ -30,6 +30,8 @@ if TYPE_CHECKING:
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
+
+# Note: OrderTransformationFailedError doesn't exist, using TransformationError instead
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,
@@ -321,7 +323,7 @@ class TestErrorHandlingAndRecovery:
 
         raw_order = create_raw_order()
 
-        with pytest.raises(TransformationError, match="Failed to transform BackpackRawOrder"):
+        with pytest.raises(TransformationError, match="Failed to transform order 12345"):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_invalid_datetime_conversion_handling(
@@ -338,7 +340,7 @@ class TestErrorHandlingAndRecovery:
 
         raw_order = create_raw_order()
 
-        with pytest.raises(TransformationError, match="Failed to transform BackpackRawOrder"):
+        with pytest.raises(TransformationError, match="Failed to transform order 12345"):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_multiple_parsing_errors_aggregation(
@@ -399,7 +401,9 @@ class TestErrorHandlingAndRecovery:
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         error_message = str(exc_info.value)
-        assert "Failed to transform BackpackRawOrder to Order" in error_message
+        # The error message includes order ID and the specific error
+        assert "Failed to transform order 12345" in error_message
+        assert "Specific parsing error message" in error_message
 
 
 class TestPerformanceAndMemoryConsiderations:

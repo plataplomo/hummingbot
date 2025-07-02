@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import MissingRequiredFieldError
 from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
@@ -244,7 +245,9 @@ class TestTransformRawOrderToInternal:
         )
         mock_parse.return_value = None
 
-        with pytest.raises(TransformationError, match="quantity_requested \\(sz\\) is required"):
+        with pytest.raises(
+            MissingRequiredFieldError, match="sz is required for HyperliquidRawOrder"
+        ):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_missing_timestamp_raises_error(
@@ -261,7 +264,9 @@ class TestTransformRawOrderToInternal:
         )
         mock_parse.return_value = None
 
-        with pytest.raises(TransformationError, match="created_at \\(timestamp\\) is required"):
+        with pytest.raises(
+            MissingRequiredFieldError, match="timestamp is required for HyperliquidRawOrder"
+        ):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
     def test_transform_raw_order_parsing_exception_raises_transformation_error(
@@ -442,8 +447,8 @@ class TestTransformRawHistoricalOrderToInternal:
         mock_parse.return_value = None
 
         with pytest.raises(
-            TransformationError,
-            match="quantity_requested \\(orig_sz\\) is required",
+            MissingRequiredFieldError,
+            match="orig_sz is required for HyperliquidRawHistoricalOrder",
         ):
             trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
@@ -460,7 +465,10 @@ class TestTransformRawHistoricalOrderToInternal:
         )
         mock_parse.return_value = None
 
-        with pytest.raises(TransformationError, match="created_at \\(timestamp\\) is required"):
+        with pytest.raises(
+            MissingRequiredFieldError,
+            match="timestamp is required for HyperliquidRawHistoricalOrder",
+        ):
             trading_data_mapper.transform_raw_historical_order_to_internal(raw_order)
 
     def test_transform_raw_historical_order_no_status_timestamp_uses_created_at(

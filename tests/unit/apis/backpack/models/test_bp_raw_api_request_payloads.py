@@ -30,6 +30,7 @@ from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawRequestForQuoteRequest,
     BackpackRawUpdateAccountSettingsRequest,
 )
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 class TestBackpackRawOrderExecuteRequest:
@@ -277,7 +278,7 @@ class TestBackpackRawOrderCancelRequest:
 
     def test_empty_symbol_validation(self) -> None:
         """Test validation error for empty symbol."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(EmptyStringError):
             BackpackRawOrderCancelRequest(
                 symbol="",  # Empty string should fail
             )
@@ -653,7 +654,7 @@ class TestBackpackRawQuoteAcceptRequest:
 
     def test_empty_strings_fail_validation(self) -> None:
         """Test that empty strings fail validation."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(EmptyStringError):
             BackpackRawQuoteAcceptRequest(
                 rfqId="",  # Empty string should fail
                 quoteId="quote_456",
@@ -670,7 +671,7 @@ class TestBackpackRawRequestForQuoteCancelRequest:
 
     def test_empty_rfq_id_fails(self) -> None:
         """Test that empty rfqId fails validation."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(EmptyStringError):
             BackpackRawRequestForQuoteCancelRequest(rfqId="")
 
 

@@ -14,6 +14,7 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     ProcessedResponseHeaders,
     WebSocketManagerConfig,
 )
+from cyberdelta.apis.exceptions.connectivity import ContentTypeValidationError
 
 
 class TestProcessedResponseHeaders:
@@ -42,28 +43,45 @@ class TestProcessedResponseHeaders:
         assert headers.content_type == valid_content_type
 
     @pytest.mark.parametrize(
-        ("invalid_content_type", "expected_error_part"),
+        ("invalid_content_type", "expected_error_part", "expected_exception"),
         [
-            ("a" * (MAX_CONTENT_TYPE_LENGTH + 1), "string should have at most 256 characters"),
-            ("application/json\\n", "invalid characters"),
-            ("\\t\\t", "content-type contains invalid character"),
-            (" ", "content-type cannot be only whitespace"),
-            ("你好世界", "invalid characters"),
+            (
+                "a" * (MAX_CONTENT_TYPE_LENGTH + 1),
+                "string should have at most 256 characters",
+                ValidationError,
+            ),
+            (
+                "application/json\\n",
+                "Content-Type contains invalid characters",
+                ContentTypeValidationError,
+            ),
+            ("\\t\\t", "Content-Type contains invalid characters", ContentTypeValidationError),
+            (" ", "Content-Type cannot be only whitespace", ContentTypeValidationError),
+            ("你好世界", "Content-Type contains invalid characters", ContentTypeValidationError),
         ],
     )
     def test_invalid_content_type(
         self,
         invalid_content_type: str,
         expected_error_part: str,
+        expected_exception: type[Exception],
     ) -> None:
-        """Test with invalid content_type values, expecting ValidationError."""
-        with pytest.raises(ValidationError) as exc_info:
+        """Test with invalid content_type values, expecting ValidationError or specific exceptions.
+
+        Args:
+            invalid_content_type: The invalid content type to test.
+            expected_exception: The expected exception type.
+            expected_error_part: Part of the expected error message.
+        """
+        exc_info: pytest.ExceptionInfo[Exception]
+        with pytest.raises(expected_exception) as exc_info:
             ProcessedResponseHeaders(content_type=invalid_content_type)
         assert expected_error_part.lower() in str(exc_info.value).lower()
 
     def test_frozen_behavior(self) -> None:
         """Test that the model is frozen."""
         headers = ProcessedResponseHeaders(content_type="application/json")
+        exc_info: pytest.ExceptionInfo[ValidationError]
         with pytest.raises(ValidationError) as exc_info:
             headers.content_type = "new/type"
         assert "frozen" in str(exc_info.value).lower()

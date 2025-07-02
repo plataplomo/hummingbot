@@ -3,6 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawAssetDefinition,
@@ -335,7 +336,7 @@ def test_meta_and_asset_ctxs_response_happy_path() -> None:
 def test_meta_and_asset_ctxs_response_invalid_structure() -> None:
     """Test meta and asset ctxs response invalid structure."""
     obj = {"not": "alist"}
-    with pytest.raises(ValueError):
+    with pytest.raises(StructureTypeError):
         HyperliquidRawMetaAndAssetCtxsResponse.model_validate(obj)
 
 
@@ -354,7 +355,7 @@ def test_meta_and_asset_ctxs_response_wrong_types() -> None:
     """Test meta and asset ctxs response wrong types."""
     # Wrong types in tuple
     obj: list[list[object]] = [[], []]
-    with pytest.raises(ValueError):
+    with pytest.raises(StructureTypeError):
         HyperliquidRawMetaAndAssetCtxsResponse.model_validate(obj)
 
 

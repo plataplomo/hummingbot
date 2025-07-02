@@ -16,6 +16,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def test_ws_fill_event_happy_path() -> None:
@@ -74,7 +76,7 @@ def test_ws_fill_event_constraint_errors() -> None:
         "cloid": "0x" + "c" * 65,  # Invalid - too long
         "isMaker": False,
     }
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
@@ -239,7 +241,8 @@ def test_ws_trade_event_happy_path() -> None:
 def test_ws_trade_event_missing_required() -> None:
     """Test ws trade event missing required."""
     obj: dict[str, object] = {"coin": "ETH", "px": "3000.0"}
-    with pytest.raises(ValidationError):
+
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawWsTradeEvent.model_validate(obj)
 
 
@@ -271,7 +274,8 @@ def test_ws_trade_event_constraint_errors() -> None:
         "tid": -1,
         "users": [],
     }
-    with pytest.raises(ValidationError):
+
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawWsTradeEvent.model_validate(obj)
 
 
@@ -288,7 +292,8 @@ def test_ws_trade_event_extra_field() -> None:
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
         "foo": 1,
     }
-    with pytest.raises(ValidationError):
+
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawWsTradeEvent.model_validate(obj)
 
 
@@ -305,7 +310,8 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
     }
-    with pytest.raises(ValidationError):
+
+    with pytest.raises((ValidationError, TypeFieldError)):
         HyperliquidRawWsTradeEvent.model_validate(obj)
     obj2: dict[str, object] = {
         "coin": "ETH",
@@ -329,7 +335,8 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
     }
-    with pytest.raises(ValidationError):
+
+    with pytest.raises((ValidationError, EmptyStringError)):
         HyperliquidRawWsTradeEvent.model_validate(obj3)
 
 

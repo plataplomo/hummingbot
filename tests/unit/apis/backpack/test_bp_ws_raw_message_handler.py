@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
 # Test functions are now standalone
@@ -83,9 +84,9 @@ def test_handle_ticker_payload_invalid() -> None:
         "quoteVolume": "1500000.0",
         "priceChangePercent": "0.12",
     }
-    with pytest.raises(TypeError) as excinfo:
+    with pytest.raises(TypeFieldError) as excinfo:
         BackpackWsRawMessageHandler.handle_ticker_payload(invalid_payload)
-    assert "last_price: Raw value must be a string" in str(excinfo.value)
+    assert "Field 'last_price' must be string, got float" in str(excinfo.value)
 
 
 # --- Trade Event --- (BackpackRawPublicTradeEvent)

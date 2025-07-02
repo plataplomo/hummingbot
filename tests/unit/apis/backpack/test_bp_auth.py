@@ -33,6 +33,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
+from cyberdelta.apis.exceptions.authentication import InvalidAPIKeyError, InvalidPrivateKeyError
 
 
 # Using centralized mock_time_patch fixture from tests.fixtures.time_fixtures
@@ -85,7 +86,7 @@ class TestBackpackEd25519Authenticator:
         when it's missing or empty.
         """
         with pytest.raises(
-            ValueError,
+            InvalidAPIKeyError,
             match="API key \\(Base64 public ED25519 key\\) cannot be empty",
         ):
             BackpackEd25519Authenticator(
@@ -104,7 +105,7 @@ class TestBackpackEd25519Authenticator:
         missing or empty.
         """
         with pytest.raises(
-            ValueError,
+            InvalidPrivateKeyError,
             match="Private key \\(Base64 private ED25519 key\\) cannot be empty",
         ):
             BackpackEd25519Authenticator(
@@ -121,7 +122,7 @@ class TestBackpackEd25519Authenticator:
         Ensures that the authenticator validates the format and structure of
         the private key during initialization and rejects malformed keys.
         """
-        with pytest.raises(ValueError, match="Invalid Base64 ED25519 private key"):
+        with pytest.raises(InvalidPrivateKeyError, match="Invalid Base64 ED25519 private key"):
             BackpackEd25519Authenticator(
                 api_key_b64_secret=SecretStr(test_ed25519_keys["public_key_b64"]),
                 private_key_b64_secret=SecretStr("invalid_base64"),
@@ -135,7 +136,7 @@ class TestBackpackEd25519Authenticator:
         validation error message.
         """
         with pytest.raises(
-            ValueError,
+            InvalidAPIKeyError,
             match="API key \\(Base64 public ED25519 key\\) cannot be empty",
         ):
             BackpackEd25519Authenticator(

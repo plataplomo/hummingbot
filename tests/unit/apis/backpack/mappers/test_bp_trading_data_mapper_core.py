@@ -30,6 +30,8 @@ if TYPE_CHECKING:
 from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
+
+# Note: OrderTransformationFailedError doesn't exist, using TransformationError instead
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.enums import (
     OrderSide,
@@ -162,7 +164,7 @@ def test_invalid_order_side_raises_error(
     invalid_side: str,
 ) -> None:
     """Test that invalid order sides raise TransformationError."""
-    with pytest.raises(TransformationError, match="Unknown Backpack order side"):
+    with pytest.raises(TransformationError) as exc_info:
         trading_data_mapper.transform_order_data_to_internal(
             order_id="12345",
             symbol="SOL_USDC",
@@ -172,6 +174,8 @@ def test_invalid_order_side_raises_error(
             quantity="1.0",
             price="100.0",
         )
+    # Check that the underlying error message contains the expected text
+    assert "Unknown order side" in str(exc_info.value)
 
 
 # --- Parameterized Tests for Order Status Mapping ---
@@ -491,11 +495,11 @@ class TestTransformRawOrderToInternal:
         mock_parse.side_effect = ValueError("Mock parsing error")
 
         raw_order = create_raw_order()
-        with pytest.raises(
-            TransformationError,
-            match="Failed to transform BackpackRawOrder to Order",
-        ):
+        with pytest.raises(TransformationError) as exc_info:
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        # Verify the error contains the parsing error
+        assert "Mock parsing error" in str(exc_info.value)
 
     def test_transform_raw_order_with_triggered_at(
         self,
@@ -685,7 +689,7 @@ class TestTransformOrderDataToInternal:
 
         with pytest.raises(
             TransformationError,
-            match="Failed to transform Backpack order data to Order",
+            match="Failed to transform order 123",
         ):
             trading_data_mapper.transform_order_data_to_internal(
                 order_id="123",

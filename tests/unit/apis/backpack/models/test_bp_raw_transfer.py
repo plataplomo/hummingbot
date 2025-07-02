@@ -32,6 +32,7 @@ from cyberdelta.apis.backpack.models.bp_raw_transfer import (
     BackpackRawLiquidation,
     BackpackRawWithdrawal,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
 def valid_withdrawal() -> dict[str, Any]:
@@ -101,11 +102,11 @@ def test_BackpackRawWithdrawal_invalid_format_fields() -> None:
     """
     p: dict[str, Any] = valid_withdrawal().copy()
     p["amount"] = "1..0"
-    with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
+    with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
         BackpackRawWithdrawal.model_validate(p)
     p = valid_withdrawal().copy()
     p["status"] = "notastatus"
-    with pytest.raises(ValidationError, match=r"Invalid value 'notastatus'. Expected one of"):
+    with pytest.raises(ValidationError, match=r"Field 'status' must be one of"):
         BackpackRawWithdrawal.model_validate(p)
     p = valid_withdrawal().copy()
     p["amount"] = "-50.0"
@@ -166,7 +167,7 @@ def test_BackpackRawWithdrawal_corruption_cases() -> None:
     # Excessive length
     p = valid_withdrawal().copy()
     p["asset"] = "A" * 10000
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawWithdrawal.model_validate(p)
     # Negative/zero/NaN/inf amounts
     for val in ["-100.0", "0", "NaN", "inf", "-inf"]:
@@ -270,11 +271,11 @@ def test_BackpackRawDeposit_invalid_format_fields() -> None:
     """
     p: dict[str, Any] = valid_deposit().copy()
     p["amount"] = "1..0"
-    with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
+    with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
         BackpackRawDeposit.model_validate(p)
     p = valid_deposit().copy()
     p["status"] = "notastatus"
-    with pytest.raises(ValidationError, match=r"Invalid value 'notastatus'. Expected one of"):
+    with pytest.raises(ValidationError, match=r"Field 'status' must be one of"):
         BackpackRawDeposit.model_validate(p)
     p = valid_deposit().copy()
     p["amount"] = "-0.1"
@@ -335,7 +336,7 @@ def test_BackpackRawDeposit_corruption_cases() -> None:
     # Excessive length
     p = valid_deposit().copy()
     p["asset"] = "B" * 10000
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawDeposit.model_validate(p)
     # Negative/zero/NaN/inf amounts
     for val in ["-0.5", "0", "NaN", "inf", "-inf"]:
@@ -439,7 +440,7 @@ def test_BackpackRawLiquidation_invalid_format_fields() -> None:
     """
     p: dict[str, Any] = valid_liquidation().copy()
     p["price"] = "1..0"
-    with pytest.raises(ValidationError, match=r"Cannot convert '1\.\.0' to Decimal"):
+    with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["quantity"] = "nan"
@@ -447,7 +448,7 @@ def test_BackpackRawLiquidation_invalid_format_fields() -> None:
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["side"] = "sideways"
-    with pytest.raises(ValidationError, match=r"Invalid value 'sideways'. Expected one of"):
+    with pytest.raises(ValidationError, match=r"Field 'side' must be one of"):
         BackpackRawLiquidation.model_validate(p)
     p = valid_liquidation().copy()
     p["quantity"] = "-0.001"
@@ -507,7 +508,7 @@ def test_BackpackRawLiquidation_corruption_cases() -> None:
     # Excessive length
     p = valid_liquidation().copy()
     p["symbol"] = "A" * 10000
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawLiquidation.model_validate(p)
     # Negative/zero/NaN/inf quantities
     for val in ["-0.01", "0", "NaN", "inf", "-inf"]:
@@ -620,7 +621,7 @@ def test_BackpackRawWithdrawal_corruption_garbled_unicode_asset() -> None:
     p = valid_withdrawal().copy()
     p["asset"] = "USDC\udce2\udc28\udc00"
     # UTF-8 validation is format validation, not type validation
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawWithdrawal.model_validate(p)
 
 
@@ -700,7 +701,7 @@ def test_BackpackRawDeposit_corruption_garbled_unicode_asset() -> None:
     p = valid_deposit().copy()
     p["asset"] = "BTC\udce2\udc28\udc00"
     # UTF-8 validation is format validation, not type validation
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawDeposit.model_validate(p)
 
 
@@ -781,5 +782,5 @@ def test_BackpackRawLiquidation_corruption_garbled_unicode_symbol() -> None:
     p = valid_liquidation().copy()
     p["symbol"] = "BTC_USDC\udce2\udc28\udc00"
     # UTF-8 validation is format validation, not type validation
-    with pytest.raises(ValidationError):
+    with pytest.raises(TypeFieldError):
         BackpackRawLiquidation.model_validate(p)

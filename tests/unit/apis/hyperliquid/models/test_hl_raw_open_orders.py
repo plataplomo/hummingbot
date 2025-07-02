@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # --- Helper: Valid minimal payloads for each model ---
@@ -153,7 +154,7 @@ def test_trigger_info_enum_and_format_errors() -> None:
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["triggerPx"] = ""
-    with pytest.raises((ValidationError, TypeError)):
+    with pytest.raises((ValidationError, TypeError, EmptyStringError)):
         HyperliquidRawTriggerInfo.model_validate(p)
     p = valid_trigger_info().copy()
     p["triggerPx"] = "a" * 1000

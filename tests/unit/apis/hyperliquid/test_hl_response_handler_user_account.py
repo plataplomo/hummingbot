@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
 )
+from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -248,13 +249,13 @@ class TestHandleInfoUserFillsResponse:
     def test_invalid_item_type_in_list(self, user_address: str) -> None:
         """Test user fills response with non-dict item in list."""
         raw_data = ["not_a_fill_dict"]
-        with pytest.raises(TypeError) as exc_info:
+        with pytest.raises(ListFieldError) as exc_info:
             HyperliquidResponseHandler.handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
             )
-        assert "Expected a dictionary" in str(exc_info.value)
+        assert "Expected dict" in str(exc_info.value)
 
     def test_invalid_top_level_type(self, user_address: str) -> None:
         """Test user fills response with wrong top-level type."""
