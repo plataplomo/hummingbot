@@ -11,9 +11,34 @@ from functools import wraps
 from typing import ParamSpec, TypeVar, cast
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.exceptions.decorators import AsyncDecoratorError, NoExceptionCapturedError
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.structlog_config import get_logger
+
+
+class AsyncDecoratorError(APIError):
+    """Raised when an async decorator is used incorrectly."""
+
+    def __init__(self, decorator_name: str) -> None:
+        """Initialize async decorator error.
+
+        Args:
+            decorator_name: Name of the decorator that was misused
+        """
+        super().__init__(
+            message=f"{decorator_name} decorator can only be used with async functions",
+            code=APIErrorCode.INVALID_REQUEST.value,
+        )
+
+
+class NoExceptionCapturedError(APIError):
+    """Raised when retry logic completes but no exception was captured."""
+
+    def __init__(self) -> None:
+        """Initialize no exception captured error."""
+        super().__init__(
+            message="Retry attempts completed but no exception was captured",
+            code=APIErrorCode.UNKNOWN.value,
+        )
 
 
 logger = get_logger(__name__)

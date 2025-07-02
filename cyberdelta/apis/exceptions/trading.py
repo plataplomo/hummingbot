@@ -9,46 +9,7 @@ from typing import Any
 from cyberdelta.apis.common import APIError, APIErrorCode
 
 
-class TradingError(APIError):
-    """Base class for trading-related errors."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        code: int | str | None = None,
-        http_status: int | None = None,
-        exchange_code: str | int | None = None,
-        exchange_message: str | None = None,
-        retry_after: float | None = None,
-        metadata: dict[str, Any] | None = None,
-        original_exception: Exception | None = None,
-    ) -> None:
-        """Initialize trading error.
-
-        Args:
-            message: Human-readable error description
-            code: Error code (defaults to UNKNOWN if not provided)
-            http_status: HTTP status code
-            exchange_code: Exchange-specific error code
-            exchange_message: Exchange-specific error message
-            retry_after: Seconds to wait before retry
-            metadata: Additional error context
-            original_exception: The underlying exception
-        """
-        super().__init__(
-            message=message,
-            code=code or APIErrorCode.UNKNOWN.value,
-            http_status=http_status,
-            exchange_code=exchange_code,
-            exchange_message=exchange_message,
-            retry_after=retry_after,
-            metadata=metadata,
-            original_exception=original_exception,
-        )
-
-
-class InvalidBatchResponseError(TradingError):
+class InvalidBatchResponseError(APIError):
     """Batch operation response is invalid or missing expected data."""
 
     def __init__(
@@ -93,7 +54,7 @@ class InvalidBatchResponseError(TradingError):
         )
 
 
-class OrderError(TradingError):
+class OrderError(APIError):
     """Base class for order-related errors."""
 
     def __init__(
@@ -151,85 +112,6 @@ class OrderError(TradingError):
         )
 
 
-class OrderSizeError(OrderError):
-    """Raised when order size is invalid."""
-
-    def __init__(
-        self,
-        size: float | str,
-        min_size: float | str | None = None,
-        max_size: float | str | None = None,
-        symbol: str | None = None,
-    ) -> None:
-        """Initialize order size error.
-
-        Args:
-            size: The invalid order size
-            min_size: Minimum allowed size
-            max_size: Maximum allowed size
-            symbol: Trading symbol
-        """
-        self.size = size
-        self.min_size = min_size
-        self.max_size = max_size
-
-        if min_size is not None and max_size is not None:
-            message = f"Order size {size} must be between {min_size} and {max_size}"
-        elif min_size is not None:
-            message = f"Order size {size} below minimum {min_size}"
-        elif max_size is not None:
-            message = f"Order size {size} above maximum {max_size}"
-        else:
-            message = f"Order size {size} is invalid"
-
-        if symbol:
-            message = f"{message} for {symbol}"
-
-        super().__init__(
-            message=message,
-            symbol=symbol,
-            code=APIErrorCode.INVALID_ORDER_SIZE.value,
-        )
-
-
-class InsufficientBalanceError(TradingError):
-    """Raised when account has insufficient balance for an operation."""
-
-    def __init__(
-        self,
-        required: float | str,
-        available: float | str,
-        currency: str,
-        operation: str = "order",
-    ) -> None:
-        """Initialize insufficient balance error.
-
-        Args:
-            required: Amount required
-            available: Amount available
-            currency: Currency symbol
-            operation: Type of operation attempted
-        """
-        self.required = required
-        self.available = available
-        self.currency = currency
-        self.operation = operation
-
-        super().__init__(
-            message=(
-                f"Insufficient {currency} balance for {operation}: "
-                f"required {required}, available {available}"
-            ),
-            code=APIErrorCode.INSUFFICIENT_FUNDS.value,
-            metadata={
-                "required": required,
-                "available": available,
-                "currency": currency,
-                "operation": operation,
-            },
-        )
-
-
 class OrderNotFoundError(OrderError):
     """Raised when an order cannot be found."""
 
@@ -259,7 +141,7 @@ class OrderNotFoundError(OrderError):
         )
 
 
-class MarketClosedError(TradingError):
+class MarketClosedError(APIError):
     """Raised when attempting to trade in a closed market."""
 
     def __init__(
@@ -307,46 +189,5 @@ class MarketClosedError(TradingError):
                 "next_open": next_open,
                 "exchange": exchange,
                 "reason": reason,
-            },
-        )
-
-
-class PositionNotFoundError(TradingError):
-    """Raised when a position cannot be found."""
-
-    def __init__(
-        self,
-        position_id: str | None = None,
-        symbol: str | None = None,
-        exchange: str | None = None,
-    ) -> None:
-        """Initialize position not found error.
-
-        Args:
-            position_id: Optional position identifier
-            symbol: Optional trading symbol
-            exchange: Optional exchange name
-        """
-        self.position_id = position_id
-        self.symbol = symbol
-        self.exchange = exchange
-
-        if position_id:
-            message = f"Position {position_id} not found"
-        elif symbol:
-            message = f"No position found for {symbol}"
-        else:
-            message = "Position not found"
-
-        if exchange:
-            message = f"{message} on {exchange}"
-
-        super().__init__(
-            message=message,
-            code=APIErrorCode.UNKNOWN.value,  # No specific position error code available
-            metadata={
-                "position_id": position_id,
-                "symbol": symbol,
-                "exchange": exchange,
             },
         )

@@ -7,58 +7,7 @@ including empty responses, invalid data formats, and missing fields.
 from cyberdelta.apis.common import APIError, APIErrorCode
 
 
-class ResponseValidationError(APIError):
-    """Base class for response validation errors."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        response_type: str | None = None,
-        expected_format: str | None = None,
-        actual_data: object = None,
-        http_status: int | None = None,
-        exchange_code: str | int | None = None,
-        exchange_message: str | None = None,
-        retry_after: float | None = None,
-        original_exception: Exception | None = None,
-        **metadata: object,
-    ) -> None:
-        """Initialize response validation error.
-
-        Args:
-            message: Human-readable error description
-            response_type: Type of response expected
-            expected_format: Expected format description
-            actual_data: The actual data received
-            http_status: HTTP status code
-            exchange_code: Exchange-specific error code
-            exchange_message: Exchange-specific error message
-            retry_after: Seconds to wait before retry
-            original_exception: The underlying exception
-            **metadata: Additional error context
-        """
-        # Combine all metadata
-        full_metadata = {
-            "response_type": response_type,
-            "expected_format": expected_format,
-            "actual_data": actual_data,
-            **metadata,
-        }
-
-        super().__init__(
-            message=message,
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            http_status=http_status,
-            exchange_code=exchange_code,
-            exchange_message=exchange_message,
-            retry_after=retry_after,
-            metadata=full_metadata,
-            original_exception=original_exception,
-        )
-
-
-class EmptyResponseError(ResponseValidationError):
+class EmptyResponseError(APIError):
     """Raised when an empty response is received where data was expected."""
 
     def __init__(
@@ -84,12 +33,15 @@ class EmptyResponseError(ResponseValidationError):
 
         super().__init__(
             message=message,
-            response_type=response_type,
-            expected_format="non-empty data",
-            actual_data=None,
+            code=APIErrorCode.INVALID_RESPONSE.value,
             http_status=http_status,
-            operation=operation,
-            exchange=exchange,
+            metadata={
+                "response_type": response_type,
+                "expected_format": "non-empty data",
+                "actual_data": None,
+                "operation": operation,
+                "exchange": exchange,
+            },
         )
 
 

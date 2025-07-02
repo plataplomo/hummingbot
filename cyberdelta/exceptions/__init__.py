@@ -43,6 +43,21 @@ from .field_validation import (
     TypeFieldError,
 )
 
+# Funding exceptions
+from .funding import (
+    AllSourcesFailedError,
+    ArbitrageFieldError,
+    FundingError,
+    FundingRateSourceError,
+    NegativeLongPriceError,
+    NegativeShortPriceError,
+    NegativeSizeError,
+    NoFallbackSourceError,
+    NoFundingDataError,
+    NoValidWeightedDataError,
+    NullTimestampError,
+)
+
 # Market data exceptions moved to cyberdelta.apis.exceptions
 # Parsing exceptions (core utilities only)
 from .parsing import (
@@ -93,6 +108,8 @@ from .service_validation import (
 __all__ = [
     # Note: APIError, APIErrorCode, TransformationError are not exported here
     # Import them directly from cyberdelta.apis.common when needed
+    "AllSourcesFailedError",
+    "ArbitrageFieldError",
     "BooleanFieldError",
     "DateTimeParsingError",
     "DecimalFieldError",
@@ -102,15 +119,24 @@ __all__ = [
     "EnumFieldError",
     "FieldError",
     "FieldNameMissingError",
+    "FundingError",
+    "FundingRateSourceError",
     "IntegerConversionError",
     "InvalidAccountTypeError",
     "InvalidFormatError",
     "ListFieldError",
     "MissingPriceError",
     "MissingStopPriceError",
+    "NegativeLongPriceError",
+    "NegativeShortPriceError",
+    "NegativeSizeError",
     "NegativeValueError",
     "NetworkRequiredError",
+    "NoFallbackSourceError",
+    "NoFundingDataError",
+    "NoValidWeightedDataError",
     "NonFinitePositionValueError",
+    "NullTimestampError",
     "OrderFieldError",
     "OrderLogicError",
     "OrderParameterError",

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from cyberdelta.exceptions import FundingRateSourceError
 from cyberdelta.validation.funding_data import (
     FundingData,
     FundingRateValidationMetrics,
@@ -13,7 +14,6 @@ from cyberdelta.validation.funding_data import (
     SourceType,
 )
 from cyberdelta.validation.multi_tier_funding_provider import (
-    FundingRateSourceError,
     MultiTierFundingProvider,
 )
 

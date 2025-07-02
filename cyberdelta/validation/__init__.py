@@ -20,6 +20,9 @@ except ImportError:
     pass
 
 # New multi-tier components
+# Import exceptions from their proper location
+from cyberdelta.exceptions import FundingRateSourceError
+
 from .funding_data import (
     ArbitrageOpportunity,
     ConfidenceFactors,
@@ -32,7 +35,6 @@ from .funding_data import (
     SourceType,
 )
 from .multi_tier_funding_provider import (
-    FundingRateSourceError,
     MultiTierFundingProvider,
 )
 

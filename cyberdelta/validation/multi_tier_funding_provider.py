@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Any, Protocol, cast
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions.funding import (
+from cyberdelta.exceptions import (
     AllSourcesFailedError,
     FundingRateSourceError,
     NoFallbackSourceError,

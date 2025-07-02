@@ -4,83 +4,14 @@ These exceptions handle authentication errors including API key validation,
 signature generation, and authenticator configuration.
 """
 
-from typing import Any
-
 from cyberdelta.apis.common import APIError, APIErrorCode
 
 
-class AuthenticationError(APIError):
-    """Base class for authentication-related errors."""
+class InvalidPrivateKeyError(APIError, ValueError):
+    """Raised when private key is invalid or cannot be loaded.
 
-    def __init__(
-        self,
-        message: str,
-        *,
-        code: int | str | None = None,
-        http_status: int | None = None,
-        exchange_code: str | int | None = None,
-        exchange_message: str | None = None,
-        retry_after: float | None = None,
-        metadata: dict[str, Any] | None = None,
-        original_exception: Exception | None = None,
-    ) -> None:
-        """Initialize authentication error with default code and status.
-
-        Args:
-            message: Human-readable error description
-            code: Error code (defaults to AUTHENTICATION_FAILED)
-            http_status: HTTP status code (defaults to 401)
-            exchange_code: Exchange-specific error code
-            exchange_message: Exchange-specific error message
-            retry_after: Seconds to wait before retry
-            metadata: Additional error context
-            original_exception: The underlying exception
-        """
-        # Default to AUTHENTICATION_FAILED for auth errors
-        if code is None:
-            code = APIErrorCode.AUTHENTICATION_FAILED.value
-        # Auth errors typically not retryable
-        if http_status is None:
-            http_status = 401
-        super().__init__(
-            message=message,
-            code=code,
-            http_status=http_status,
-            exchange_code=exchange_code,
-            exchange_message=exchange_message,
-            retry_after=retry_after,
-            metadata=metadata,
-            original_exception=original_exception,
-        )
-
-
-class InvalidAPIKeyError(AuthenticationError):
-    """Raised when API key is invalid or missing."""
-
-    def __init__(self, key_type: str = "API", reason: str | None = None) -> None:
-        """Initialize invalid API key error.
-
-        Args:
-            key_type: Type of key (default: "API")
-            reason: Optional reason for invalidity
-        """
-        self.key_type = key_type
-        self.reason = reason
-
-        if reason:
-            message = f"{key_type} key (Base64 public ED25519 key) {reason}"
-        else:
-            message = f"{key_type} key (Base64 public ED25519 key) cannot be empty"
-
-        super().__init__(
-            message=message,
-            exchange_code="INVALID_API_KEY",
-            metadata={"key_type": key_type, "reason": reason or "empty"},
-        )
-
-
-class InvalidPrivateKeyError(AuthenticationError):
-    """Raised when private key is invalid or cannot be loaded."""
+    Inherits from both APIError and ValueError for backward compatibility.
+    """
 
     def __init__(self, reason: str, original_error: Exception | None = None) -> None:
         """Initialize invalid private key error.
@@ -97,15 +28,50 @@ class InvalidPrivateKeyError(AuthenticationError):
         else:
             message = f"Invalid Base64 ED25519 private key: {reason}"
 
-        super().__init__(
+        # Initialize APIError
+        APIError.__init__(
+            self,
             message=message,
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,
             exchange_code="INVALID_PRIVATE_KEY",
             original_exception=original_error,
             metadata={"key_type": "private", "error_reason": reason},
         )
 
+        # Initialize ValueError with same message
+        ValueError.__init__(self, message)
 
-class AuthenticationPreparationError(AuthenticationError):
+
+class InvalidAPIKeyError(APIError, ValueError):
+    """Raised when API key is invalid or missing.
+
+    Inherits from both APIError and ValueError for backward compatibility.
+    """
+
+    def __init__(self, reason: str = "cannot be empty") -> None:
+        """Initialize invalid API key error.
+
+        Args:
+            reason: Specific reason why the API key is invalid
+        """
+        message = f"API key (Base64 public ED25519 key) {reason}"
+
+        # Initialize APIError
+        APIError.__init__(
+            self,
+            message=message,
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,
+            exchange_code="INVALID_API_KEY",
+            metadata={"key_type": "api", "error_reason": reason},
+        )
+
+        # Initialize ValueError with same message
+        ValueError.__init__(self, message)
+
+
+class AuthenticationPreparationError(APIError):
     """Raised when authentication preparation fails."""
 
     def __init__(
@@ -123,13 +89,15 @@ class AuthenticationPreparationError(AuthenticationError):
 
         super().__init__(
             message=f"Authentication preparation failed: {reason}",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,
             exchange_code="AUTH_PREP_FAILED",
             original_exception=original_error,
             metadata={"operation": operation, "failure_reason": reason},
         )
 
 
-class WebSocketSignatureError(AuthenticationError):
+class WebSocketSignatureError(APIError):
     """Raised when WebSocket signature generation fails."""
 
     def __init__(self, reason: str, original_error: Exception | None = None) -> None:
@@ -143,13 +111,15 @@ class WebSocketSignatureError(AuthenticationError):
 
         super().__init__(
             message=f"WebSocket signature generation failed: {reason}",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,
             exchange_code="WS_SIGNATURE_FAILED",
             original_exception=original_error,
             metadata={"operation": "websocket_signature", "failure_reason": reason},
         )
 
 
-class AuthenticatorNotConfiguredError(AuthenticationError):
+class AuthenticatorNotConfiguredError(APIError):
     """Raised when required authenticator is not configured."""
 
     def __init__(self, auth_type: str, operation: str) -> None:
@@ -164,6 +134,8 @@ class AuthenticatorNotConfiguredError(AuthenticationError):
 
         super().__init__(
             message=f"{auth_type} authenticator required for {operation}",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,
             exchange_code="AUTHENTICATOR_REQUIRED",
             metadata={"auth_type": auth_type, "operation": operation, "required": True},
         )

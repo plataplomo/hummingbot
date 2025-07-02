@@ -19,6 +19,7 @@ from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTrad
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
+from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
@@ -101,6 +102,17 @@ class BackpackAPIComponentsFactory:
                     private_key_b64_secret=secrets.api_secret,  # Pass SecretStr for private key
                 )
             except ValueError as e:  # Catch init errors from Authenticator
+                # Re-raise authentication-related errors to fail fast during API initialization
+                if isinstance(e, InvalidPrivateKeyError):
+                    logger.exception(
+                        "authenticator_invalid_credentials",
+                        action="init_authenticator",
+                        authenticator_type="BackpackEd25519Authenticator",
+                        error=str(e),
+                        message="Invalid authentication credentials provided",
+                    )
+                    raise  # Re-raise the InvalidPrivateKeyError
+                # For other ValueError types, log and return None as before
                 logger.exception(
                     "authenticator_initialization_failed",
                     action="init_authenticator",

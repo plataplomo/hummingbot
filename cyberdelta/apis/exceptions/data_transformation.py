@@ -7,41 +7,7 @@ in mapper classes. They extend TransformationError (Layer 3).
 from cyberdelta.apis.common import TransformationError
 
 
-class MappingError(TransformationError):
-    """Base class for mapping/transformation errors."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        source_type: str | None = None,
-        target_type: str | None = None,
-        field_name: str | None = None,
-        source_value: object = None,
-        details: dict[str, object] | None = None,
-        original_exception: Exception | None = None,
-    ) -> None:
-        """Initialize mapping error.
-
-        Args:
-            message: Human-readable error description
-            source_type: Source data type being mapped from
-            target_type: Target data type being mapped to
-            field_name: Specific field that failed mapping
-            source_value: The value that failed to map
-            details: Additional error context
-            original_exception: The underlying exception
-        """
-        super().__init__(message)
-        self.source_type = source_type
-        self.target_type = target_type
-        self.field_name = field_name
-        self.source_value = source_value
-        self.details = details or {}
-        self.original_exception = original_exception
-
-
-class UnknownEnumError(MappingError):
+class UnknownEnumError(TransformationError):
     """Raised when an unknown enum value is encountered during mapping."""
 
     def __init__(
@@ -62,18 +28,16 @@ class UnknownEnumError(MappingError):
         else:
             message = f"Unknown {enum_type}: '{value}'"
 
-        super().__init__(
-            message=message,
-            source_value=value,
-            target_type=enum_type,
-            details={"valid_values": valid_values} if valid_values else {},
-        )
+        super().__init__(message)
         self.enum_type = enum_type
         self.value = value
         self.valid_values = valid_values
+        self.source_value = value
+        self.target_type = enum_type
+        self.details = {"valid_values": valid_values} if valid_values else {}
 
 
-class MissingRequiredFieldError(MappingError):
+class MissingRequiredFieldError(TransformationError):
     """Raised when required fields are missing during transformation."""
 
     def __init__(
@@ -131,14 +95,6 @@ class MissingRequiredFieldError(MappingError):
             message=message,
             field_name=field_names if isinstance(field_names, str) else None,
             source_value=source_data,
-            details={
-                "missing_fields": field_names if isinstance(field_names, list) else [field_names],
-                "context": context,
-                "exchange": exchange,
-                "operation": operation,
-                "reason": reason,
-                **kwargs,
-            },
         )
         self.field_names = field_names
         self.context = context
@@ -146,9 +102,17 @@ class MissingRequiredFieldError(MappingError):
         self.exchange = exchange
         self.operation = operation
         self.reason = reason
+        self.details = {
+            "missing_fields": field_names if isinstance(field_names, list) else [field_names],
+            "context": context,
+            "exchange": exchange,
+            "operation": operation,
+            "reason": reason,
+            **kwargs,
+        }
 
 
-class DataTransformationError(MappingError):
+class DataTransformationError(TransformationError):
     """Raised when data transformation fails."""
 
     def __init__(
@@ -172,17 +136,17 @@ class DataTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=source_model,
-            target_type=target_model,
             source_value=source_data,
             original_exception=original_error,
         )
         self.source_model = source_model
         self.target_model = target_model
         self.reason = reason
+        self.source_type = source_model
+        self.target_type = target_model
 
 
-class InvalidMappingError(MappingError):
+class InvalidMappingError(TransformationError):
     """Raised when a mapping is invalid or impossible."""
 
     def __init__(
@@ -206,16 +170,16 @@ class InvalidMappingError(MappingError):
             message=message,
             field_name=field_name,
             source_value=source_value,
-            details={
-                "reason": reason,
-                "expected_format": expected_format,
-            },
         )
         self.reason = reason
         self.expected_format = expected_format
+        self.details = {
+            "reason": reason,
+            "expected_format": expected_format,
+        }
 
 
-class CollateralTransformationError(MappingError):
+class CollateralTransformationError(TransformationError):
     """Raised when collateral data transformation fails."""
 
     def __init__(
@@ -235,16 +199,16 @@ class CollateralTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=f"{collateral_type}_collateral",
-            target_type="CollateralInfo",
             source_value=source_data,
-            details={"collateral_type": collateral_type},
         )
         self.collateral_type = collateral_type
         self.reason = reason
+        self.source_type = f"{collateral_type}_collateral"
+        self.target_type = "CollateralInfo"
+        self.details = {"collateral_type": collateral_type}
 
 
-class OrderTransformationError(MappingError):
+class OrderTransformationError(TransformationError):
     """Raised when order data transformation fails."""
 
     def __init__(
@@ -269,17 +233,17 @@ class OrderTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type="BackpackRawOrder",
-            target_type="Order",
             source_value=order_data,
-            details={"order_id": order_id} if order_id else {},
             original_exception=original_error,
         )
         self.order_id = order_id
         self.reason = reason
+        self.source_type = "BackpackRawOrder"
+        self.target_type = "Order"
+        self.details = {"order_id": order_id} if order_id else {}
 
 
-class TickerTransformationError(MappingError):
+class TickerTransformationError(TransformationError):
     """Raised when ticker data transformation fails."""
 
     def __init__(
@@ -306,18 +270,18 @@ class TickerTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=ticker_source,
-            target_type="Ticker",
             source_value=source_data,
-            details={"symbol": symbol} if symbol else {},
             original_exception=original_error,
         )
         self.ticker_source = ticker_source
         self.symbol = symbol
         self.reason = reason
+        self.source_type = ticker_source
+        self.target_type = "Ticker"
+        self.details = {"symbol": symbol} if symbol else {}
 
 
-class MarketTransformationError(MappingError):
+class MarketTransformationError(TransformationError):
     """Raised when market data transformation fails."""
 
     def __init__(
@@ -344,17 +308,17 @@ class MarketTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=source_type,
-            target_type="Market",
             source_value=source_data,
-            details={"symbol": symbol} if symbol else {},
             original_exception=original_error,
         )
         self.symbol = symbol
         self.reason = reason
+        self.source_type = source_type
+        self.target_type = "Market"
+        self.details = {"symbol": symbol} if symbol else {}
 
 
-class OrderBookTransformationError(MappingError):
+class OrderBookTransformationError(TransformationError):
     """Raised when order book data transformation fails."""
 
     def __init__(
@@ -381,17 +345,17 @@ class OrderBookTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=source_type,
-            target_type="OrderBook",
             source_value=source_data,
-            details={"symbol": symbol} if symbol else {},
             original_exception=original_error,
         )
         self.symbol = symbol
         self.reason = reason
+        self.source_type = source_type
+        self.target_type = "OrderBook"
+        self.details = {"symbol": symbol} if symbol else {}
 
 
-class TradeTransformationError(MappingError):
+class TradeTransformationError(TransformationError):
     """Raised when trade data transformation fails."""
 
     def __init__(
@@ -427,22 +391,22 @@ class TradeTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=trade_source,
-            target_type="Trade",
             source_value=source_data,
-            details={
-                "symbol": symbol,
-                "trade_id": trade_id,
-            },
             original_exception=original_error,
         )
         self.trade_source = trade_source
         self.symbol = symbol
         self.trade_id = trade_id
         self.reason = reason
+        self.source_type = trade_source
+        self.target_type = "Trade"
+        self.details = {
+            "symbol": symbol,
+            "trade_id": trade_id,
+        }
 
 
-class FundingRateTransformationError(MappingError):
+class FundingRateTransformationError(TransformationError):
     """Raised when funding rate data transformation fails."""
 
     def __init__(
@@ -469,17 +433,17 @@ class FundingRateTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type=source_type,
-            target_type="FundingRate",
             source_value=source_data,
-            details={"symbol": symbol} if symbol else {},
             original_exception=original_error,
         )
         self.symbol = symbol
         self.reason = reason
+        self.source_type = source_type
+        self.target_type = "FundingRate"
+        self.details = {"symbol": symbol} if symbol else {}
 
 
-class CandleTransformationError(MappingError):
+class CandleTransformationError(TransformationError):
     """Raised when candle/kline data transformation fails."""
 
     def __init__(
@@ -511,15 +475,15 @@ class CandleTransformationError(MappingError):
 
         super().__init__(
             message=message,
-            source_type="BackpackRawKline",
-            target_type="Candle",
             source_value=source_data,
-            details={
-                "symbol": symbol,
-                "interval": interval,
-            },
             original_exception=original_error,
         )
         self.symbol = symbol
         self.interval = interval
         self.reason = reason
+        self.source_type = "BackpackRawKline"
+        self.target_type = "Candle"
+        self.details = {
+            "symbol": symbol,
+            "interval": interval,
+        }

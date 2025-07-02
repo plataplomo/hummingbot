@@ -10,6 +10,24 @@ from cyberdelta.exceptions.parsing import (
 )
 
 
+__all__ = [
+    # Defined in this module
+    "ActionHashError",
+    "ClientIdFormatError",
+    "DictStructureError",
+    "EmptyDictionaryError",
+    "KlineTypeError",
+    "KlineValueError",
+    "MsgpackSerializationError",
+    "NonNullableFieldError",
+    # Re-exported from core
+    "ParsingError",
+    "SequenceLengthError",
+    "StructureTypeError",
+    "TimestampYearRangeError",
+]
+
+
 class TimestampYearRangeError(ParsingError):
     """Raised when timestamp year is outside acceptable range."""
 

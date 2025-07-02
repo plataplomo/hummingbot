@@ -608,7 +608,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                         message="[HL_AUTH] Field 'c' is missing from order!",
                     )
 
-            msgpacked_action: bytes = msgpack.packb(action_payload_dict)
+            msgpacked_action: bytes = bytes(msgpack.packb(action_payload_dict))
         except Exception as e:
             self.logger.exception(
                 "msgpack_serialization_failed",

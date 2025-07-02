@@ -79,6 +79,8 @@ if TYPE_CHECKING:
 
 # Define what is explicitly exported by this module
 __all__ = [
+    "APIError",
+    "APIErrorCode",
     "ExchangeAPI",
 ]
 

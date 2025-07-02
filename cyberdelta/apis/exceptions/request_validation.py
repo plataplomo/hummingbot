@@ -9,44 +9,7 @@ from decimal import Decimal
 from cyberdelta.apis.common import APIError, APIErrorCode
 
 
-class RequestValidationError(APIError):
-    """Base class for request validation errors."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        code: int | str | None = None,
-        parameter_name: str | None = None,
-        parameter_value: object = None,
-        metadata: dict[str, object] | None = None,
-    ) -> None:
-        """Initialize request validation error.
-
-        Args:
-            message: Human-readable error description
-            code: Error code (defaults to INVALID_REQUEST)
-            parameter_name: Name of the parameter that failed validation
-            parameter_value: The value that failed validation
-            metadata: Additional error context
-        """
-        if code is None:
-            code = APIErrorCode.INVALID_REQUEST.value
-
-        super().__init__(
-            message=message,
-            code=code,
-            metadata={
-                "parameter_name": parameter_name,
-                "parameter_value": str(parameter_value) if parameter_value is not None else None,
-                **(metadata or {}),
-            },
-        )
-        self.parameter_name = parameter_name
-        self.parameter_value = parameter_value
-
-
-class DecimalFormatError(RequestValidationError):
+class DecimalFormatError(APIError):
     """Raised when decimal value cannot be formatted for wire transmission."""
 
     def __init__(
@@ -69,13 +32,16 @@ class DecimalFormatError(RequestValidationError):
 
         super().__init__(
             message=message,
-            parameter_name=parameter_name,
-            parameter_value=value,
-            metadata={"reason": reason},
+            code=APIErrorCode.INVALID_REQUEST.value,
+            metadata={
+                "parameter_name": parameter_name,
+                "parameter_value": str(value),
+                "reason": reason,
+            },
         )
 
 
-class DecimalRangeError(RequestValidationError):
+class DecimalRangeError(APIError):
     """Raised when decimal value is outside acceptable range."""
 
     def __init__(
@@ -110,9 +76,10 @@ class DecimalRangeError(RequestValidationError):
 
         super().__init__(
             message=message,
-            parameter_name=parameter_name,
-            parameter_value=value,
+            code=APIErrorCode.INVALID_REQUEST.value,
             metadata={
+                "parameter_name": parameter_name,
+                "parameter_value": str(value),
                 "constraint": constraint,
                 "min_value": str(min_value) if min_value else None,
                 "max_value": str(max_value) if max_value else None,
@@ -120,7 +87,7 @@ class DecimalRangeError(RequestValidationError):
         )
 
 
-class PrecisionLossError(RequestValidationError):
+class PrecisionLossError(APIError):
     """Raised when conversion would result in unacceptable precision loss."""
 
     def __init__(
@@ -148,16 +115,17 @@ class PrecisionLossError(RequestValidationError):
 
         super().__init__(
             message=message,
-            parameter_name=parameter_name,
-            parameter_value=value,
+            code=APIErrorCode.INVALID_REQUEST.value,
             metadata={
+                "parameter_name": parameter_name,
+                "parameter_value": str(value),
                 "precision_loss": precision_loss,
                 "tolerance": tolerance,
             },
         )
 
 
-class MissingRequiredParameterError(RequestValidationError):
+class MissingRequiredParameterError(APIError):
     """Raised when a required parameter is missing."""
 
     def __init__(
@@ -177,12 +145,15 @@ class MissingRequiredParameterError(RequestValidationError):
 
         super().__init__(
             message=message,
-            parameter_name=parameter_name,
-            metadata={"operation": operation},
+            code=APIErrorCode.INVALID_REQUEST.value,
+            metadata={
+                "parameter_name": parameter_name,
+                "operation": operation,
+            },
         )
 
 
-class InvalidParameterTypeError(RequestValidationError):
+class InvalidParameterTypeError(APIError):
     """Raised when parameter has wrong type."""
 
     def __init__(
@@ -204,16 +175,17 @@ class InvalidParameterTypeError(RequestValidationError):
 
         super().__init__(
             message=message,
-            parameter_name=parameter_name,
-            parameter_value=value,
+            code=APIErrorCode.INVALID_REQUEST.value,
             metadata={
+                "parameter_name": parameter_name,
+                "parameter_value": str(value) if value is not None else None,
                 "expected_type": expected_type,
                 "actual_type": actual_type,
             },
         )
 
 
-class InvalidEnumValueError(RequestValidationError):
+class InvalidEnumValueError(APIError):
     """Raised when enum parameter has invalid value."""
 
     def __init__(
@@ -239,9 +211,10 @@ class InvalidEnumValueError(RequestValidationError):
 
         super().__init__(
             message=message,
-            parameter_name=parameter_name,
-            parameter_value=value,
+            code=APIErrorCode.INVALID_REQUEST.value,
             metadata={
+                "parameter_name": parameter_name,
+                "parameter_value": value,
                 "valid_values": valid_values,
                 "enum_type": enum_type,
             },

@@ -27,7 +27,7 @@ from cyberdelta.apis.exceptions import (
     InvalidQuantityError,
     MissingQuantityError,
     MissingTimestampError,
-    OrderTransformationFailedError,
+    OrderTransformationError,
 )
 from cyberdelta.apis.exceptions.trading_transformation import UnknownOrderSideError
 from cyberdelta.config.structlog_config import get_logger
@@ -260,10 +260,11 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            raise OrderTransformationFailedError(
-                source_type="Backpack order data",
-                reason=e,
-                exchange="Backpack",
+            raise OrderTransformationError(
+                order_id=order_id,
+                reason=str(e),
+                order_data=None,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -549,11 +550,11 @@ class BackpackTradingDataMapper:
                 error=str(e),
                 message=f"Failed to transform order {raw_order.id}: {e}",
             )
-            raise OrderTransformationFailedError(
-                source_type="BackpackRawOrder",
-                reason=e,
+            raise OrderTransformationError(
                 order_id=raw_order.id,
-                exchange="Backpack",
+                reason=str(e),
+                order_data=None,
+                original_error=e,
             ) from e
 
     @staticmethod
@@ -661,11 +662,11 @@ class BackpackTradingDataMapper:
             )
 
         except Exception as e:
-            raise OrderTransformationFailedError(
-                source_type="BackpackRawOrderUpdate",
-                reason=e,
+            raise OrderTransformationError(
                 order_id=raw_order_update.client_order_id,
-                exchange="Backpack",
+                reason=str(e),
+                order_data=None,
+                original_error=e,
             ) from e
 
     @staticmethod

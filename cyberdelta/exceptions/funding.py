@@ -4,6 +4,20 @@ These exceptions handle funding rate data errors including source failures,
 data availability issues, and multi-tier provider errors.
 """
 
+__all__ = [
+    "AllSourcesFailedError",
+    "ArbitrageFieldError",
+    "FundingError",
+    "FundingRateSourceError",
+    "NegativeLongPriceError",
+    "NegativeShortPriceError",
+    "NegativeSizeError",
+    "NoFallbackSourceError",
+    "NoFundingDataError",
+    "NoValidWeightedDataError",
+    "NullTimestampError",
+]
+
 
 class FundingError(Exception):
     """Base exception for all funding-related errors."""

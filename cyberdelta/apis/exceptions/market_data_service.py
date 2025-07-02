@@ -208,6 +208,50 @@ class NoFundingDataError(APIError):
         )
 
 
+class SymbolNotFoundError(MarketDataServiceError):
+    """Raised when a requested symbol is not found in available symbols."""
+
+    def __init__(
+        self,
+        symbol: str,
+        available_symbols: list[str] | None = None,
+        exchange: str | None = None,
+        service_method: str | None = None,
+    ) -> None:
+        """Initialize symbol not found error.
+
+        Args:
+            symbol: The symbol that was not found
+            available_symbols: List of available symbols
+            exchange: Exchange name where symbol lookup failed
+            service_method: Service method where error occurred
+        """
+        prefix = f"[{exchange}] " if exchange else ""
+        message = f"{prefix}Symbol '{symbol}' not found"
+
+        if available_symbols:
+            max_displayed_symbols = 10
+            displayed_symbols = available_symbols[:max_displayed_symbols]
+            message += f". Available symbols: {', '.join(displayed_symbols)}"
+            if len(available_symbols) > max_displayed_symbols:
+                remaining_count = len(available_symbols) - max_displayed_symbols
+                message += f" (and {remaining_count} more)"
+
+        super().__init__(
+            message=message,
+            code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+            service_method=service_method,
+            metadata={
+                "symbol": symbol,
+                "available_symbols": available_symbols,
+                "exchange": exchange,
+            },
+        )
+        self.symbol = symbol
+        self.available_symbols = available_symbols
+        self.exchange = exchange
+
+
 class NotImplementedServiceError(APIError):
     """Raised when a service method is not implemented."""
 

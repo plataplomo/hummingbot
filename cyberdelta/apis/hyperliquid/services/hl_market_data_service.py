@@ -18,7 +18,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.exceptions.market_data import SymbolNotFoundError
+from cyberdelta.apis.exceptions.market_data_service import SymbolNotFoundError
 from cyberdelta.apis.exceptions.response_validation import EmptyResponseError
 
 # Hyperliquid-specific imports

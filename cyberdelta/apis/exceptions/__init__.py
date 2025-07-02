@@ -14,7 +14,6 @@ from cyberdelta.exceptions.parsing import (
 )
 
 from .authentication import (
-    AuthenticationError,
     AuthenticationPreparationError,
     AuthenticatorNotConfiguredError,
     InvalidAPIKeyError,
@@ -25,17 +24,10 @@ from .authentication import (
 
 # Connectivity exceptions
 from .connectivity import (
-    ConnectivityError,
     ContentTypeValidationError,
-    EmptyResponseError as ConnectivityEmptyResponseError,
-    HttpClientError,
     HttpTimeoutError,
-    InvalidContentTypeError,
     ResponseParsingError,
     WebSocketConnectionClosedError,
-    WebSocketError as ConnectivityWebSocketError,
-    WebSocketNotConnectedError,
-    WhitespaceContentTypeError,
 )
 
 # Data transformation exceptions
@@ -45,7 +37,6 @@ from .data_transformation import (
     DataTransformationError,
     FundingRateTransformationError,
     InvalidMappingError,
-    MappingError,
     MarketTransformationError,
     MissingRequiredFieldError,
     OrderBookTransformationError,
@@ -55,19 +46,10 @@ from .data_transformation import (
     UnknownEnumError,
 )
 
-# Market data exceptions
-from .market_data import (
-    DataUnavailableError,
-    FundingRateUnavailableError,
-    MarketDataError,
-    OrderBookError,
-    SymbolNotFoundError,
-    TickerError,
-)
-
 # Market data service exceptions
 from .market_data_service import (
     MarketDataServiceError,
+    SymbolNotFoundError,
 )
 
 # Import API-specific parsing exceptions from local module
@@ -93,7 +75,6 @@ from .request_validation import (
     InvalidParameterTypeError,
     MissingRequiredParameterError,
     PrecisionLossError,
-    RequestValidationError,
 )
 
 # Response validation exceptions
@@ -101,7 +82,6 @@ from .response_validation import (
     EmptyResponseError,
     InvalidLeverageError,
     NotImplementedOperationError,
-    ResponseValidationError,
     UnreachableCodeError,
 )
 
@@ -115,27 +95,15 @@ from .security import (
     SecurityValidationError,
 )
 
-# Strategy exceptions
-from .strategy import (
-    ArbitrageError,
-    DeltaNeutralError,
-    FundingRateArbitrageError,
-    PositionSyncError,
-    RebalanceError,
-    RiskLimitError,
-    StrategyError,
-)
+# Service exceptions
+from .service import ServiceParameterError
 
 # Trading exceptions
 from .trading import (
-    InsufficientBalanceError,
     InvalidBatchResponseError,
     MarketClosedError,
     OrderError,
     OrderNotFoundError,
-    OrderSizeError,
-    PositionNotFoundError,
-    TradingError,
 )
 
 # Trading transformation exceptions
@@ -143,7 +111,6 @@ from .trading_transformation import (
     InvalidQuantityError,
     MissingQuantityError,
     MissingTimestampError,
-    OrderTransformationFailedError,
     UnknownOrderSideError,
 )
 
@@ -159,23 +126,16 @@ from .websocket import (
 
 __all__ = [
     "ActionHashError",
-    "ArbitrageError",
-    "AuthenticationError",
     "AuthenticationPreparationError",
     "AuthenticatorNotConfiguredError",
     "CandleTransformationError",
     "ClientIdFormatError",
     "CollateralTransformationError",
-    "ConnectivityEmptyResponseError",
-    "ConnectivityError",
-    "ConnectivityWebSocketError",
     "ContentTypeValidationError",
     "DataTransformationError",
-    "DataUnavailableError",
     "DateTimeParsingError",
     "DecimalFormatError",
     "DecimalRangeError",
-    "DeltaNeutralError",
     "DictStructureError",
     "EmptyDictionaryError",
     "EmptyResponseError",
@@ -183,15 +143,10 @@ __all__ = [
     "FieldConstraintError",
     "FieldTypeError",
     "FinancialFieldError",
-    "FundingRateArbitrageError",
     "FundingRateTransformationError",
-    "FundingRateUnavailableError",
-    "HttpClientError",
     "HttpTimeoutError",
-    "InsufficientBalanceError",
     "InvalidAPIKeyError",
     "InvalidBatchResponseError",
-    "InvalidContentTypeError",
     "InvalidEnumValueError",
     "InvalidLeverageError",
     "InvalidMapperResultError",
@@ -203,9 +158,7 @@ __all__ = [
     "KlineTypeError",
     "KlineValueError",
     "MapperNotFoundError",
-    "MappingError",
     "MarketClosedError",
-    "MarketDataError",
     "MarketDataServiceError",
     "MarketTransformationError",
     "MissingQuantityError",
@@ -215,33 +168,22 @@ __all__ = [
     "MsgpackSerializationError",
     "NonNullableFieldError",
     "NotImplementedOperationError",
-    "OrderBookError",
     "OrderBookTransformationError",
     "OrderError",
     "OrderNotFoundError",
-    "OrderSizeError",
     "OrderTransformationError",
-    "OrderTransformationFailedError",
     "ParsingError",
-    "PositionNotFoundError",
-    "PositionSyncError",
     "PrecisionLossError",
-    "RebalanceError",
-    "RequestValidationError",
     "ResponseParsingError",
-    "ResponseValidationError",
-    "RiskLimitError",
     "SecurityValidationError",
     "SequenceLengthError",
-    "StrategyError",
+    "ServiceParameterError",
     "StructureTypeError",
     "SymbolNotFoundError",
-    "TickerError",
     "TickerTransformationError",
     "TimestampFormatError",
     "TimestampYearRangeError",
     "TradeTransformationError",
-    "TradingError",
     "UnknownEndpointError",
     "UnknownEnumError",
     "UnknownOrderSideError",
@@ -250,8 +192,6 @@ __all__ = [
     "UserEventsSubscriptionError",
     "WebSocketConnectionClosedError",
     "WebSocketError",
-    "WebSocketNotConnectedError",
     "WebSocketSignatureError",
     "WebSocketSubscriptionError",
-    "WhitespaceContentTypeError",
 ]

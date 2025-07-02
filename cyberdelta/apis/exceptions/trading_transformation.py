@@ -4,7 +4,8 @@ These exceptions handle transformation errors specific to trading data
 such as orders, trades, and trading-related enums.
 """
 
-from cyberdelta.apis.exceptions.data_transformation import MappingError, UnknownEnumError
+from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import UnknownEnumError
 
 
 class UnknownOrderSideError(UnknownEnumError):
@@ -28,7 +29,7 @@ class UnknownOrderSideError(UnknownEnumError):
         self.exchange = exchange
 
 
-class MissingQuantityError(MappingError):
+class MissingQuantityError(TransformationError):
     """Raised when required quantity field is missing or invalid."""
 
     def __init__(
@@ -53,51 +54,12 @@ class MissingQuantityError(MappingError):
         super().__init__(
             message=message,
             field_name=field_name,
-            details={"order_id": order_id} if order_id else {},
         )
         self.order_id = order_id
+        self.details = {"order_id": order_id} if order_id else {}
 
 
-class OrderTransformationFailedError(MappingError):
-    """Raised when order transformation fails."""
-
-    def __init__(
-        self,
-        source_type: str,
-        reason: str | Exception,
-        order_id: str | None = None,
-        exchange: str | None = None,
-    ) -> None:
-        """Initialize order transformation error.
-
-        Args:
-            source_type: Type of source order (e.g., "Backpack order data", "BackpackRawOrder")
-            reason: Reason for transformation failure
-            order_id: Optional order ID
-            exchange: Optional exchange name
-        """
-        self.source_type = source_type
-        self.reason = reason
-        self.order_id = order_id
-        self.exchange = exchange
-
-        prefix = f"[{exchange}] " if exchange else ""
-        id_part = f" {order_id}" if order_id else ""
-        message = f"{prefix}Failed to transform {source_type}{id_part} to Order: {reason}"
-
-        super().__init__(
-            message=message,
-            source_type=source_type,
-            target_type="Order",
-            details={
-                "order_id": order_id,
-                "exchange": exchange,
-            },
-            original_exception=reason if isinstance(reason, Exception) else None,
-        )
-
-
-class InvalidQuantityError(MappingError):
+class InvalidQuantityError(TransformationError):
     """Raised when quantity value is invalid."""
 
     def __init__(
@@ -121,7 +83,7 @@ class InvalidQuantityError(MappingError):
         self.constraint = constraint
 
 
-class MissingTimestampError(MappingError):
+class MissingTimestampError(TransformationError):
     """Raised when required timestamp field is missing."""
 
     def __init__(
@@ -142,6 +104,6 @@ class MissingTimestampError(MappingError):
         super().__init__(
             message=message,
             field_name=field_name,
-            details={"order_id": order_id} if order_id else {},
         )
         self.order_id = order_id
+        self.details = {"order_id": order_id} if order_id else {}
