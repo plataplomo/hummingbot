@@ -9,6 +9,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import pandas as pd
@@ -48,7 +49,7 @@ class PerformanceTracker:
         effective_output_dir = output_dir or "./performance_data"
 
         # Initialize data structures (in-memory storage)
-        self.returns: dict[str, dict[datetime, float]] = {}
+        self.returns: dict[str, dict[datetime, Decimal]] = {}
         self.trades: list[dict[str, Any]] = []
         self.signals: list[dict[str, Any]] = []
         self.funding_rates: list[dict[str, Any]] = []
@@ -62,7 +63,7 @@ class PerformanceTracker:
         # Load existing data using the persistence handler
         self._load_data()
 
-    def track_return(self, strategy_name: str, timestamp: datetime, return_value: float) -> None:
+    def track_return(self, strategy_name: str, timestamp: datetime, return_value: Decimal) -> None:
         """Track a return for a strategy.
 
         Args:
@@ -88,12 +89,12 @@ class PerformanceTracker:
         symbol: str,
         exchange: str,
         direction: str,
-        size: float,
-        entry_price: float,
+        size: Decimal,
+        entry_price: Decimal,
         entry_time: datetime,
-        exit_price: float | None = None,
+        exit_price: Decimal | None = None,
         exit_time: datetime | None = None,
-        pnl: float | None = None,
+        pnl: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Track a trade.
@@ -156,9 +157,9 @@ class PerformanceTracker:
     def track_trade_exit(
         self,
         trade_id: str,
-        exit_price: float,
+        exit_price: Decimal,
         exit_time: datetime,
-        pnl: float,
+        pnl: Decimal,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Track the exit of a trade.
@@ -203,7 +204,7 @@ class PerformanceTracker:
                     trade_updated = True
 
                     # Prepare data for return tracking (outside the loop)
-                    # pnl is always float (never None) by type, so this check is redundant
+                    # pnl is always Decimal (never None) by type, so this check is redundant
                     # (Removed per linter warning)
                     # Always execute the following block
                     # (If you expect pnl to be None, adjust type hints and logic accordingly)
@@ -214,10 +215,10 @@ class PerformanceTracker:
                     entry_p = trade.get("entry_price", 0.0)
                     size_val = trade.get("size", 0.0)
                     try:
-                        initial_value = float(entry_p) * float(size_val)
+                        initial_value = Decimal(str(entry_p)) * Decimal(str(size_val))
                         if initial_value > 0:
                             return_value_to_track = pnl / initial_value
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, InvalidOperation):
                         logger.warning(
                             "return_tracking_calculation_failed",
                             trade_id=trade_id,
@@ -253,7 +254,7 @@ class PerformanceTracker:
         symbol: str,
         signal_type: str,
         timestamp: datetime,
-        confidence: float | None = None,
+        confidence: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Track a trading signal.
@@ -350,8 +351,8 @@ class PerformanceTracker:
         timestamp: datetime,
         exchange: str,
         symbol: str,
-        funding_rate: float,
-        predicted_rate: float | None = None,
+        funding_rate: Decimal,
+        predicted_rate: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Track a funding rate.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -160,6 +161,8 @@ class PerformanceDataPersistence:
                 serializable_list.append(self._make_dict_serializable(item))
             elif isinstance(item, datetime):
                 serializable_list.append(item.isoformat())
+            elif isinstance(item, Decimal):
+                serializable_list.append(str(item))
             else:
                 serializable_list.append(item)
         return serializable_list
@@ -178,6 +181,8 @@ class PerformanceDataPersistence:
         for key, value in item.items():
             if isinstance(value, datetime):
                 serializable_item[key] = value.isoformat()
+            elif isinstance(value, Decimal):
+                serializable_item[key] = str(value)
             elif isinstance(value, dict):
                 # DEFENSIVE CHECK: Recursively handle nested dicts.
                 serializable_item[key] = self._make_dict_serializable(value)
@@ -223,12 +228,12 @@ class PerformanceDataPersistence:
             processed_returns: dict[str, Any] = {}
             for strategy_name, strategy_data in loaded_data.items():
                 if isinstance(strategy_data, dict):
-                    processed_strategy_data: dict[datetime, float] = {}
+                    processed_strategy_data: dict[datetime, Decimal] = {}
                     # DEFENSIVE CHECK: Handle unknown types from JSON.
                     for ts_str, val in strategy_data.items():
                         try:
                             timestamp = datetime.fromisoformat(str(ts_str))
-                            processed_strategy_data[timestamp] = float(val)
+                            processed_strategy_data[timestamp] = Decimal(str(val))
                         except (ValueError, TypeError):
                             logger.warning(
                                 "timestamp_parse_failed",
@@ -300,13 +305,13 @@ class PerformanceDataPersistence:
 
     # --- Specific Load/Save Methods --- #
 
-    def save_returns(self, strategy_name: str, returns_data: dict[datetime, float]) -> None:
+    def save_returns(self, strategy_name: str, returns_data: dict[datetime, Decimal]) -> None:
         """Save returns data for a strategy."""
-        # Convert datetime keys to strings for JSON serialization
-        serializable_data = {ts.isoformat(): val for ts, val in returns_data.items()}
+        # Convert datetime keys to strings and Decimal values to strings for JSON serialization
+        serializable_data = {ts.isoformat(): str(val) for ts, val in returns_data.items()}
         self.save_data("returns", f"{strategy_name}.json", serializable_data)
 
-    def load_all_returns(self) -> dict[str, dict[datetime, float]]:
+    def load_all_returns(self) -> dict[str, dict[datetime, Decimal]]:
         """Load all returns data from files.
 
         Returns:
@@ -314,7 +319,7 @@ class PerformanceDataPersistence:
 
         """
         returns_dir = self.output_dir / "returns"
-        all_returns: dict[str, dict[datetime, float]] = {}
+        all_returns: dict[str, dict[datetime, Decimal]] = {}
 
         if not returns_dir.exists():
             return all_returns
