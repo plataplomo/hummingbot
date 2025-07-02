@@ -29,6 +29,7 @@ from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.portfolio_tracker_async_save import patch_portfolio_tracker
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.services import PortfolioOrchestrator, PriceDataService
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
@@ -234,6 +235,22 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         )
         app_state["portfolio_tracker"] = portfolio_tracker
 
+        # Create PriceDataService for ticker management
+        price_data_service = PriceDataService(
+            app_settings=config,
+            api_clients={},  # Will be populated later
+            cache_expiry_seconds=30,  # 30 second cache
+        )
+        app_state["price_data_service"] = price_data_service
+
+        # Create PortfolioOrchestrator to handle API interactions
+        portfolio_orchestrator = PortfolioOrchestrator(
+            app_settings=config,
+            portfolio_tracker=portfolio_tracker,
+            api_clients={},  # Will be populated later
+        )
+        app_state["portfolio_orchestrator"] = portfolio_orchestrator
+
         # CircuitBreakerSystem expects Config
         circuit_breaker = CircuitBreakerSystem(config)
         app_state["circuit_breaker"] = circuit_breaker
@@ -349,7 +366,9 @@ async def _initialize_api_clients(
             # Register API client with relevant components
             app_state["data_handler"].register_api_client(exchange_name, client)
             app_state["execution_handler"].register_api_client(exchange_name, client)
-            app_state["portfolio_tracker"].register_api_client(exchange_name, client)
+            # Register with PortfolioOrchestrator and PriceDataService instead of PortfolioTracker
+            app_state["portfolio_orchestrator"].register_api_client(exchange_name, client)
+            app_state["price_data_service"].register_api_client(exchange_name, client)
             logger.info("Initialized and connected API client", exchange=exchange_name)
 
         # Update data_handler with the initialized API clients
@@ -491,8 +510,9 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
 
     logger.info("Loading initial state...")
     await app_state["portfolio_tracker"].load_state()
-    # Fetch initial balances/positions AFTER loading state
-    await app_state["portfolio_tracker"].initialize_portfolio()
+    # Fetch initial balances/positions AFTER loading state using PortfolioOrchestrator
+    logger.info("Performing initial portfolio reconciliation...")
+    await app_state["portfolio_orchestrator"].orchestrate_full_reconciliation()
 
     logger.info("Starting background component tasks...")
     # Start data streams and processing

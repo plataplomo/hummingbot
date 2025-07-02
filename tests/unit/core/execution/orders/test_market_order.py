@@ -233,12 +233,22 @@ class TestMarketOrder:
         assert result.quantity_filled == Decimal(0)
 
     @pytest.mark.asyncio
-    async def test_execute_market_order_disabled(self, market_order: MarketOrder) -> None:
+    async def test_execute_market_order_disabled(
+        self,
+        mock_exchange_api: AsyncMock,
+        mock_market_order_service: AsyncMock,
+    ) -> None:
         """Test error when market orders are disabled."""
-        market_order._config = MarketOrderConfig(enabled=False)
+        # Create a new MarketOrder instance with disabled configuration
+        disabled_config = MarketOrderConfig(enabled=False)
+        disabled_market_order = MarketOrder(
+            exchange_api=mock_exchange_api,
+            market_order_service=mock_market_order_service,
+            config=disabled_config,
+        )
 
         with pytest.raises(MarketOrderError, match="Market orders are disabled"):
-            await market_order.execute_market_order(
+            await disabled_market_order.execute_market_order(
                 symbol="BTC",
                 side=OrderSide.BUY,
                 quantity=Decimal(1),

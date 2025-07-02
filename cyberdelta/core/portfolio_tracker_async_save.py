@@ -77,7 +77,7 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
             "timestamp": datetime.now(UTC).isoformat(),
             "portfolio_state": self.to_dict(),
             "metadata": {
-                "exchanges": list(self.api_clients.keys()),
+                "exchanges": list(self.exchange_summaries.keys()),
                 "active_symbols": list(self.active_symbols),
                 "watchlist": list(self.watchlist),
                 "high_watermark": str(self.high_watermark),
@@ -176,7 +176,6 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
             self.positions = temp_tracker.positions
             self.orders = temp_tracker.orders
             self.last_update_time = temp_tracker.last_update_time
-            self.last_reconciliation_time = temp_tracker.last_reconciliation_time
             self.high_watermark = temp_tracker.high_watermark
             self.realized_pnl = temp_tracker.realized_pnl
 

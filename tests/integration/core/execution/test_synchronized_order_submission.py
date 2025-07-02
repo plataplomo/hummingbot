@@ -179,7 +179,7 @@ class TestOrderVerifier:
     async def test_verify_order_placement(self, portfolio_tracker: MagicMock) -> None:
         """Test verifying order placement via OrderVerifier."""
         config: dict[str, Any] = {}
-        verifier = OrderVerifier(config, portfolio_tracker)
+        verifier = OrderVerifier(config, portfolio_tracker, {})
 
         # Test successful verification
         expected_details: dict[str, Any] = {
@@ -251,7 +251,7 @@ class TestOrderVerifier:
     async def test_verify_order_execution(self, portfolio_tracker: MagicMock) -> None:
         """Test verifying order execution via OrderVerifier."""
         config: dict[str, Any] = {}
-        verifier = OrderVerifier(config, portfolio_tracker)
+        verifier = OrderVerifier(config, portfolio_tracker, {})
 
         # Test successful verification
         # Ensure we use a client from the mocked api_clients dict

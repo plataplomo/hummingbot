@@ -443,7 +443,7 @@ class PerformanceTracker:
                     # Create Series with datetime index before assigning
                     strategy_returns = self.returns[strategy]
                     # Create series with proper datetime index
-                    series = pd.Series(
+                    series: pd.Series[Any] = pd.Series(
                         list(strategy_returns.values()),
                         index=pd.to_datetime(list(strategy_returns.keys())),
                     )

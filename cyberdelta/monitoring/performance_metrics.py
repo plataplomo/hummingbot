@@ -35,9 +35,9 @@ class PerformanceMetricsCalculator:
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
 
         # Calculate excess returns (Series operations will convert to float internally)
-        excess_returns = returns - float(per_period_rfr)
-        mean_excess_return = excess_returns.mean()
-        std_dev_excess_return = excess_returns.std()
+        excess_returns: pd.Series[float] = returns - float(per_period_rfr)
+        mean_excess_return: float = excess_returns.mean()
+        std_dev_excess_return: float = excess_returns.std()
 
         if std_dev_excess_return == 0:
             logger.warning(
@@ -73,16 +73,16 @@ class PerformanceMetricsCalculator:
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
 
         # Calculate excess returns (Series operations will convert to float internally)
-        excess_returns = returns - float(per_period_rfr)
-        mean_excess_return = excess_returns.mean()
+        excess_returns: pd.Series[float] = returns - float(per_period_rfr)
+        mean_excess_return: float = excess_returns.mean()
 
         # Calculate downside deviation
-        downside_returns = excess_returns[excess_returns < 0]
+        downside_returns: pd.Series[float] = excess_returns[excess_returns < 0]
         if downside_returns.empty:
             logger.warning("No downside returns found. Cannot calculate Sortino ratio.")
             return Decimal("Infinity")  # Return infinite as Decimal
 
-        downside_deviation = np.sqrt((downside_returns**2).mean())
+        downside_deviation: float = np.sqrt((downside_returns**2).mean())
 
         if downside_deviation == 0:
             logger.warning(
@@ -109,10 +109,10 @@ class PerformanceMetricsCalculator:
             Maximum drawdown as a negative percentage (e.g., -0.1 for -10%) (Decimal).
 
         """
-        cumulative_returns = (1 + returns).cumprod()
-        rolling_max = cumulative_returns.cummax()
-        drawdown = (cumulative_returns / rolling_max) - 1
-        max_drawdown = drawdown.min()
+        cumulative_returns: pd.Series[float] = (1 + returns).cumprod()
+        rolling_max: pd.Series[float] = cumulative_returns.cummax()
+        drawdown: pd.Series[float] = (cumulative_returns / rolling_max) - 1
+        max_drawdown: float = drawdown.min()
         return Decimal(str(max_drawdown))  # Convert to Decimal
 
     @staticmethod
@@ -128,7 +128,7 @@ class PerformanceMetricsCalculator:
 
         """
         # Calculate annualized return
-        mean_return = returns.mean()
+        mean_return: float = returns.mean()
         mean_annual_return = Decimal(str(mean_return)) * Decimal(str(periods_per_year))
 
         # Get max drawdown as Decimal
@@ -184,8 +184,8 @@ class PerformanceMetricsCalculator:
             logger.warning("Trade data is missing or invalid for profit factor calculation.")
             return Decimal("NaN")
 
-        gross_profits = trades[trades["pnl"] > 0]["pnl"].sum()
-        gross_losses = abs(trades[trades["pnl"] < 0]["pnl"].sum())
+        gross_profits: float = trades[trades["pnl"] > 0]["pnl"].sum()
+        gross_losses: float = abs(trades[trades["pnl"] < 0]["pnl"].sum())
 
         if gross_losses == 0:
             logger.warning(
@@ -251,8 +251,10 @@ class PerformanceMetricsCalculator:
         returns_array = np.asarray(returns.values, dtype=float)
         cumulative_return = float(np.prod(1 + returns_array) - 1)
         metrics["cumulative_return"] = Decimal(str(cumulative_return))
-        metrics["annualized_return"] = Decimal(str(returns.mean() * periods_per_year))
-        metrics["annualized_volatility"] = Decimal(str(returns.std() * np.sqrt(periods_per_year)))
+        metrics["annualized_return"] = Decimal(str(float(returns.mean()) * periods_per_year))
+        metrics["annualized_volatility"] = Decimal(
+            str(float(returns.std()) * np.sqrt(periods_per_year))
+        )
 
         logger.info(
             "calculated_performance_metrics",

@@ -74,7 +74,7 @@ Current PortfolioTracker does **TOO MUCH**:
 ```python
 class PortfolioOrchestrator:
     """Orchestrates portfolio data fetching from exchanges and feeds PortfolioTracker."""
-    
+
     def __init__(
         self,
         app_settings: AppSettings,
@@ -86,10 +86,10 @@ class PortfolioOrchestrator:
         self.api_clients: dict[str, ExchangeAPI] = api_clients or {}
         self.reconciliation_interval = 300  # Move from PortfolioTracker
         self.last_reconciliation_time: dict[str, datetime] = {}
-    
+
     # Move all API-related methods from PortfolioTracker:
     async def fetch_and_update_balances(self, exchange_id: str) -> bool
-    async def fetch_and_update_positions(self, exchange_id: str) -> bool  
+    async def fetch_and_update_positions(self, exchange_id: str) -> bool
     async def fetch_and_update_orders(self, exchange_id: str) -> bool
     async def fetch_and_update_account_summary(self, exchange_id: str) -> bool
     async def orchestrate_full_reconciliation(self) -> None
@@ -115,7 +115,7 @@ class PortfolioOrchestrator:
 ```python
 # Pure data input methods (no API calls)
 def update_balances(self, exchange_id: str, balances: dict[str, SpotBalance]) -> None
-def update_positions(self, exchange_id: str, positions: list[DerivativePosition]) -> None  
+def update_positions(self, exchange_id: str, positions: list[DerivativePosition]) -> None
 def update_orders(self, exchange_id: str, orders: list[Order]) -> None
 def update_account_summary(self, exchange_id: str, summary: MarginAccountSummary) -> None
 def update_ticker_data(self, exchange_id: str, symbol: str, ticker: Ticker) -> None
@@ -135,7 +135,7 @@ def update_ticker_data(self, exchange_id: str, symbol: str, ticker: Ticker) -> N
 PortfolioOrchestrator → ExchangeAPI.get_balances()
                     ↓
 PortfolioOrchestrator.process_api_response()
-                    ↓  
+                    ↓
 PortfolioTracker.update_balances(exchange_id, clean_data)
                     ↓
 PortfolioTracker internal state updated
@@ -183,7 +183,7 @@ portfolio_orchestrator = PortfolioOrchestrator(config, portfolio_tracker, api_cl
 ```python
 class PriceDataService:
     """Manages ticker/price data fetching and caching."""
-    
+
     async def get_ticker(self, exchange_id: str, symbol: str) -> Ticker | None
     async def get_price_in_base_currency(self, exchange_id: str, asset: str, base: str) -> Decimal | None
     def cache_ticker(self, exchange_id: str, symbol: str, ticker: Ticker) -> None
@@ -191,7 +191,7 @@ class PriceDataService:
 
 #### 5.2 Update Price-Dependent Calculations
 - `get_total_capital()` - inject price data instead of fetching
-- `get_exchange_exposure()` - inject price data instead of fetching  
+- `get_exchange_exposure()` - inject price data instead of fetching
 - `_calculate_position_unrealized_pnl()` - inject price data instead of fetching
 
 ### Phase 6: Testing Strategy
@@ -233,7 +233,7 @@ class PriceDataService:
 - Move API client management
 - Create pure data input interface on PortfolioTracker
 
-### Week 2: Core Refactor  
+### Week 2: Core Refactor
 - Remove API dependencies from PortfolioTracker
 - Transform fetch methods to pure processing methods
 - Update data flow patterns
@@ -255,7 +255,7 @@ class PriceDataService:
 - ✅ Proper separation of concerns (Core vs APIs layers)
 - ✅ Single Responsibility Principle compliance
 
-### 2. **Improved Testability**  
+### 2. **Improved Testability**
 - ✅ PortfolioTracker becomes easily unit testable (no API mocks needed)
 - ✅ API logic isolated and independently testable
 - ✅ Clear boundaries for integration testing
@@ -267,7 +267,7 @@ class PriceDataService:
 
 ### 4. **Better Performance**
 - ✅ API orchestration can be optimized independently
-- ✅ State calculations can be optimized independently  
+- ✅ State calculations can be optimized independently
 - ✅ Better caching and batching opportunities
 
 ### 5. **Future Extensibility**
@@ -292,4 +292,4 @@ class PriceDataService:
 - Graceful degradation when API data is unavailable
 - Proper error propagation to calling services
 
-This refactor transforms PortfolioTracker from a problematic "god class" that violates architectural boundaries into a clean, focused state manager that properly separates concerns and eliminates the circular import issue. 
+This refactor transforms PortfolioTracker from a problematic "god class" that violates architectural boundaries into a clean, focused state manager that properly separates concerns and eliminates the circular import issue.

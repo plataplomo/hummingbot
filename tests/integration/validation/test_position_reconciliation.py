@@ -241,11 +241,7 @@ class TestPositionReconciliationSystem:
         # _setup_tracker_methods
         tracker.update_position = MagicMock()
 
-        # Configure API client and execution handler access
-        tracker.api_clients = {
-            "hyperliquid": hyperliquid_client,
-            "backpack": backpack_client,
-        }
+        # NOTE: API clients have moved to PortfolioOrchestrator
 
         def get_execution_handler(exchange: str) -> MagicMock:
             """Get execution handler for testing."""
@@ -277,12 +273,7 @@ class TestPositionReconciliationSystem:
         portfolio_tracker: MagicMock,
     ) -> PositionReconciliationSystem:
         """Create a PositionReconciliationSystem instance for testing."""
-        # Ensure the portfolio_tracker mock has the api_clients attribute expected by the system
-        if not hasattr(portfolio_tracker, "api_clients"):
-            portfolio_tracker.api_clients = {
-                "hyperliquid": AsyncMock(spec=ExchangeAPI),
-                "backpack": AsyncMock(spec=ExchangeAPI),
-            }
+        # Note: API clients have moved to PortfolioOrchestrator
         return PositionReconciliationSystem(config, portfolio_tracker)
 
     def test_init(
@@ -312,11 +303,7 @@ class TestPositionReconciliationSystem:
     ) -> None:
         """Test registering a portfolio tracker."""
         new_tracker = MagicMock()
-        # Ensure the new_tracker mock also has the api_clients attribute
-        new_tracker.api_clients = {
-            "hyperliquid": AsyncMock(spec=ExchangeAPI),
-            "backpack": AsyncMock(spec=ExchangeAPI),
-        }
+        # Note: API clients have moved to PortfolioOrchestrator
         reconciliation_system.register_portfolio_tracker(new_tracker)
         assert reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage] == new_tracker
 
@@ -326,12 +313,7 @@ class TestPositionReconciliationSystem:
         reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test position check interval logic."""
-        portfolio_tracker_mock = reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage]
-
-        portfolio_tracker_mock.api_clients = {
-            "hyperliquid": AsyncMock(spec=ExchangeAPI),
-            "backpack": AsyncMock(spec=ExchangeAPI),
-        }
+        # NOTE: API client registration has moved to PortfolioOrchestrator
 
         # Scenario 1: Interval has passed, should run
         reconciliation_system.check_interval = timedelta(seconds=100)
@@ -417,7 +399,6 @@ class TestPositionReconciliationSystem:
         mock_tracker.get_positions_by_exchange.return_value = (
             None  # Simulate tracker unable to provide data
         )
-        mock_tracker.api_clients = {}  # Simulate no clients registered
 
         system = PositionReconciliationSystem(config, portfolio_tracker=mock_tracker)
 
@@ -475,11 +456,7 @@ class TestPositionReconciliationSystem:
         mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
         mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
-        portfolio_tracker = reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage]
-        portfolio_tracker.api_clients = {
-            "hyperliquid": mock_hl_api_client,
-            "backpack": mock_bp_api_client,
-        }
+        # NOTE: API client registration has moved to PortfolioOrchestrator
 
         # Patch _reconcile_exchange to return a known structure to avoid internal errors
         # This helps test check_positions's aggregation logic rather than _reconcile_exchange
@@ -566,19 +543,8 @@ class TestPositionReconciliationSystem:
             "_reconcile_exchange",  # Patching the correct method name
             side_effect=mock_side_effect_reconcile_exchange,
         ) as mock_reconcile_method:
-            # Mock portfolio_tracker.api_clients to return mock ExchangeAPI instances
-            mock_hl_api_client = AsyncMock(spec=ExchangeAPI)
-            mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
-
-            # Configure mock API clients (get_positions is called by the real
-            # _reconcile_exchange, but _reconcile_exchange itself is mocked here,
-            # so get_positions won't be hit via this path)
-            # However, portfolio_tracker.api_clients itself needs to be set for
-            # check_positions to iterate
-            portfolio_tracker.api_clients = {
-                "hyperliquid": mock_hl_api_client,
-                "backpack": mock_bp_api_client,
-            }
+            # Note: API clients are no longer directly accessible after refactoring
+            # API access now goes through PortfolioOrchestrator
 
             # Mock methods on portfolio_tracker that auto_correct might call if
             # discrepancies were processed
@@ -926,11 +892,8 @@ class TestPositionReconciliationSystem:
             mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
             mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
-            portfolio_tracker = reconciliation_system._portfolio_tracker  # pyright: ignore[reportPrivateUsage]
-            portfolio_tracker.api_clients = {
-                "hyperliquid": mock_hl_api_client,
-                "backpack": mock_bp_api_client,
-            }
+            # Note: portfolio_tracker no longer has api_clients after refactoring
+            # API access is now handled through PortfolioOrchestrator
 
             # Patch _reconcile_exchange to return a known structure to avoid internal errors
             # This helps test check_positions's aggregation logic rather than

@@ -153,7 +153,7 @@ class DashboardIntegration:
             return_value: Return value (Decimal)
 
         """
-        self.performance_tracker.track_return(strategy_name, timestamp, float(return_value))
+        self.performance_tracker.track_return(strategy_name, timestamp, Decimal(str(return_value)))
 
     def track_trade(
         self,
@@ -193,12 +193,12 @@ class DashboardIntegration:
             symbol=symbol,
             exchange=exchange,
             direction=direction,
-            size=float(size),
-            entry_price=float(entry_price),
+            size=Decimal(str(size)),
+            entry_price=Decimal(str(entry_price)),
             entry_time=entry_time,
-            exit_price=float(exit_price) if exit_price is not None else None,
+            exit_price=Decimal(str(exit_price)) if exit_price is not None else None,
             exit_time=exit_time,
-            pnl=float(pnl) if pnl is not None else None,
+            pnl=Decimal(str(pnl)) if pnl is not None else None,
             metadata=metadata,
         )
 
@@ -222,9 +222,9 @@ class DashboardIntegration:
         """
         self.performance_tracker.track_trade_exit(
             trade_id=trade_id,
-            exit_price=float(exit_price),
+            exit_price=Decimal(str(exit_price)),
             exit_time=exit_time,
-            pnl=float(pnl),
+            pnl=Decimal(str(pnl)),
             metadata=metadata,
         )
 
@@ -280,8 +280,8 @@ class DashboardIntegration:
             timestamp=timestamp,
             exchange=exchange,
             symbol=symbol,
-            funding_rate=float(funding_rate),
-            predicted_rate=float(predicted_rate) if predicted_rate is not None else None,
+            funding_rate=Decimal(str(funding_rate)),
+            predicted_rate=Decimal(str(predicted_rate)) if predicted_rate is not None else None,
             metadata=metadata,
         )
 

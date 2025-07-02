@@ -3,6 +3,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.services.hl_account_service import MAX_LEVERAGE_VALUE
@@ -59,7 +60,7 @@ def simulate_hyperliquid_leverage_update() -> None:
 
     # Step 4: Simulate getting current positions
     logger.info("3. Get current positions to update leverage for each:")
-    mock_positions = [
+    mock_positions: list[dict[str, Any]] = [
         {"symbol": "BTC", "asset_index": 0, "size": "0.5"},
         {"symbol": "ETH", "asset_index": 1, "size": "10.0"},
         {"symbol": "SOL", "asset_index": 5, "size": "100.0"},
@@ -76,7 +77,7 @@ def simulate_hyperliquid_leverage_update() -> None:
 
     # Step 5: Update leverage for each position
     logger.info("4. Update leverage for each position:")
-    asset_leverage_settings = {}
+    asset_leverage_settings: dict[int, int] = {}
 
     for pos in mock_positions:
         # Simulate building request
@@ -97,7 +98,7 @@ def simulate_hyperliquid_leverage_update() -> None:
         logger.info("     - Requires EIP-712 signature")
         logger.info("leverage_updated: Leverage update complete", leverage=leverage_int, unit="x")
 
-        asset_leverage_settings[pos["asset_index"]] = leverage_int
+        asset_leverage_settings[int(pos["asset_index"])] = leverage_int
     logger.info("")
 
     # Step 6: Create AccountSettings response

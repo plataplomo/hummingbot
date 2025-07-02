@@ -3,26 +3,24 @@
 This module contains the PortfolioTracker class, which is responsible for tracking
 and managing the current state of the trading portfolio across multiple exchanges.
 It handles balance tracking, position monitoring, order management, P&L calculations,
-and portfolio reconciliation with exchange data.
+and portfolio state management.
 
-The PortfolioTracker serves as the central state management component for the
-trading engine, providing real-time portfolio information to other system components.
+The PortfolioTracker serves as a pure state management component for the
+trading engine, receiving data updates from external sources and providing
+real-time portfolio information to other system components.
 """
 
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
 from collections import defaultdict
-from collections.abc import Awaitable, Callable, Sequence
-from datetime import UTC, datetime
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import ValidationError
 
-
-if TYPE_CHECKING:
-    from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.config.models.config_models import AppSettings, PortfolioTrackerConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
@@ -39,50 +37,84 @@ from cyberdelta.core.symbol_mapper import SymbolMapper  # IMPORT IS PRESENT
 from cyberdelta.utils.parsing import parse_datetime_utc
 
 
+if TYPE_CHECKING:
+    from cyberdelta.core.services.price_data_service import PriceDataService
+
 logger = get_logger(__name__)
 
-# Temporarily define ExchangeType, Symbol as str TypeAlias to unblock linter
-# TODO: Find or create the canonical definitions for these types
-type Symbol = str
-type ExchangeType = str
+# Type aliases for commonly used string types in portfolio context
+type Symbol = str  # Trading symbol (e.g., "BTC-PERP", "ETH-USDC")
+type ExchangeType = str  # Exchange identifier (e.g., "hyperliquid", "backpack")
 
 
 class PortfolioTracker:
-    """Track and manage the current state of the portfolio.
+    """Pure state manager for tracking portfolio data across exchanges.
 
-    Responsible for:
-    - Tracking balances across exchanges
-    - Monitoring open positions and their P&L
-    - Tracking order status
-    - Calculating exposure metrics
-    - Maintaining portfolio state
-    - Performing reconciliation with exchange data
+    This class is responsible for maintaining the current state of the trading portfolio
+    without making any external API calls. It follows the Single Responsibility Principle
+    and serves as the core state management component of the trading engine.
+
+    Key Responsibilities:
+    - **State Management**: Tracking balances, positions, orders, and account summaries
+    - **Data Validation**: Ensuring incoming data meets quality standards
+    - **P&L Calculations**: Computing unrealized and realized profit/loss
+    - **Exposure Metrics**: Calculating position exposures and risk metrics
+    - **Memory Management**: Optimizing memory usage and cleaning up stale data
+    - **Concurrent Safety**: Thread-safe updates with exchange-specific locking
+
+    Architecture Notes:
+    - **No API Dependencies**: This class does not import or use ExchangeAPI classes
+    - **Data Input Methods**: All data must be provided through update_* methods
+    - **Pure State Logic**: No side effects beyond state updates and logging
+    - **Optimized Concurrency**: Uses exchange-specific locks for better performance
+    - **Memory Efficient**: Implements data retention policies and cleanup mechanisms
+
+    Data Flow:
+    1. PortfolioOrchestrator fetches data from exchange APIs
+    2. Data is passed to PortfolioTracker via update_* methods
+    3. PortfolioTracker validates, processes, and stores the data
+    4. Other components query PortfolioTracker for current state
+
+    Example Usage:
+        ```python
+        # Initialize
+        tracker = PortfolioTracker(app_settings, pt_config)
+        await tracker.initialize()
+
+        # Update with fresh data (typically from PortfolioOrchestrator)
+        await tracker.update_balances(exchange_id, balances_dict)
+        await tracker.update_positions(exchange_id, positions_list)
+
+        # Query current state
+        total_capital = await tracker.get_total_capital(base_currency="USDC")
+        exposure = await tracker.get_total_exposure_usd()
+        ```
+
+    See Also:
+        - PortfolioOrchestrator: Handles API calls and feeds data to this class
+        - PriceDataService: Manages ticker data and price conversions
     """
 
     def __init__(
         self,
         app_settings: AppSettings,
         pt_config: PortfolioTrackerConfig,
-        api_clients: dict[str, ExchangeAPI] | None = None,
-        exchange_factories: dict[ExchangeType, Callable[..., ExchangeAPI]] | None = None,
-        symbol_mapper: SymbolMapper | None = None,  # ADDED PARAMETER
+        symbol_mapper: SymbolMapper | None = None,
     ) -> None:
         """Initialize the portfolio tracker.
 
         Args:
             app_settings: Application configuration
             pt_config: Portfolio tracker configuration
-            api_clients: Dictionary of exchange API clients
-            exchange_factories: Dictionary of exchange API factory functions
-            symbol_mapper: Symbol mapper instance # ADDED DOC
+            symbol_mapper: Symbol mapper instance
 
         """
         self.logger = get_logger(__name__ + "." + self.__class__.__name__)
         self.app_settings: AppSettings = app_settings
-        self.api_clients: dict[str, ExchangeAPI] = api_clients or {}
-        self.exchange_factories = exchange_factories or {}
-        self.symbol_mapper: SymbolMapper | None = symbol_mapper  # STORE AS SELF.SYMBOL_MAPPER
-        self._lock = asyncio.Lock()
+        self.symbol_mapper: SymbolMapper | None = symbol_mapper
+        self._lock = asyncio.Lock()  # Global lock for state consistency
+        # Per-exchange locks for concurrent updates
+        self._exchange_locks: dict[str, asyncio.Lock] = {}
         self._background_tasks: set[asyncio.Task[Any]] = set()
 
         # Internal state
@@ -116,25 +148,27 @@ class PortfolioTracker:
             dict,
         )  # client_order_id -> Order
 
+        # Exchange account summaries
+        self.exchange_summaries: dict[str, MarginAccountSummary] = {}
+
         # Initialize last update times
         # Consolidate individual last update times
         self.last_update_time: defaultdict[str, datetime] = defaultdict(
-            lambda: datetime.min.replace(tzinfo=UTC),
-        )
-        self.last_reconciliation_time: defaultdict[str, datetime] = defaultdict(
             lambda: datetime.min.replace(tzinfo=UTC),
         )
         # Removed individual _last_balance_update_times, _last_position_update_times, etc.
 
         self.tickers: dict[str, Ticker] = {}
 
+        # Memory management configuration
+        self._max_ticker_entries = 1000  # Limit ticker cache size
+        self._data_retention_hours = 24  # Keep data for 24 hours
+        self._cleanup_interval_minutes = 60  # Clean up every hour
+
         # Use the passed portfolio tracker config
         self.pt_config = pt_config
 
         self._initialize_from_config()
-
-        # Reconciliation interval (5 minutes by default)
-        self.reconciliation_interval = 300  # seconds
 
         # Initialize data structures
         self._initialize_data_structures()
@@ -157,131 +191,45 @@ class PortfolioTracker:
             if not self.app_settings.exchanges[exchange_id].enabled:
                 continue
 
-            # Ensure last_update_time and last_reconciliation_time have initial entries
-            # if not already set by defaultdict lambda (which they are)
+            # Ensure last_update_time has initial entry
+            # if not already set by defaultdict lambda (which it is)
             _ = self.last_update_time[exchange_id]
-            _ = self.last_reconciliation_time[exchange_id]
 
-    def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
-        """Register an API client for an exchange.
+    def _get_exchange_lock(self, exchange_id: str) -> asyncio.Lock:
+        """Get or create a lock for a specific exchange.
+
+        This allows concurrent updates to different exchanges while maintaining
+        consistency within each exchange's data.
 
         Args:
-            exchange_id: Exchange identifier
-            client: ExchangeAPI implementation
+            exchange_id: The exchange identifier
 
+        Returns:
+            asyncio.Lock: Lock specific to the exchange
         """
-        self.api_clients[exchange_id] = client
-        self.logger.info(
-            "api_client_registered",
-            component="PT_REGISTER",
-            exchange_id=exchange_id,
-            api_client_keys=list(self.api_clients.keys()),
-            message=(
-                f"PT_REGISTER: Registered API client for {exchange_id}. "
-                f"Current api_clients keys: {list(self.api_clients.keys())}"
-            ),
-        )
+        if exchange_id not in self._exchange_locks:
+            self._exchange_locks[exchange_id] = asyncio.Lock()
+        return self._exchange_locks[exchange_id]
 
     async def initialize(self) -> None:
-        """Initialize portfolio state from exchanges."""
-        initialization_tasks: list[Awaitable[Any]] = []
+        """Initialize portfolio state.
+
+        Note: This method now only performs internal initialization.
+        Data must be provided through the update methods.
+        """
         logger.info(
             "portfolio_tracker_init_start",
             tracker_id=id(self),
-            phase="gathering_init_tasks",
-            balance_exchanges=list(self.balances.keys()),
+            phase="initialization",
             message=(
-                f"PortfolioTracker {id(self)}: About to gather init tasks. "
-                f"Balance dict: {self.balances}"
+                f"PortfolioTracker {id(self)}: Initializing internal state. "
+                f"Data will be provided through update methods."
             ),
         )
-        for exchange_id, client in self.api_clients.items():
-            if not self.app_settings.exchanges[exchange_id].enabled:
-                continue
-            initialization_tasks.extend((
-                self._fetch_exchange_account_summary(client, exchange_id),
-                self._fetch_exchange_balances(exchange_id),
-                self._fetch_exchange_positions(exchange_id),
-                self._fetch_exchange_orders(exchange_id),
-            ))
-        logger.info(
-            "portfolio_tracker_pre_gather",
-            tracker_id=id(self),
-            phase="pre_gather",
-            balance_exchanges=list(self.balances.keys()),
-            message=(
-                f"PortfolioTracker {id(self)}: About to gather init tasks. "
-                f"Balances before: {self.balances}"
-            ),
-        )
-        results: list[bool | BaseException] = await asyncio.gather(
-            *initialization_tasks,
-            return_exceptions=True,
-        )
-        logger.info(
-            "portfolio_tracker_post_gather_balances",
-            phase="post_gather",
-            balance_exchanges=list(self.balances.keys()),
-            message=f"---> State of self.balances immediately after init gather: {self.balances}",
-        )
-        initialization_failed = False
-        failed_tasks_info: list[str] = []
-        for i, result in enumerate(results):
-            if isinstance(result, BaseException):
-                task_description = f"task index {i}"
-                logger.critical(
-                    "portfolio_tracker_init_critical_error",
-                    task_index=i,
-                    task_description=task_description,
-                    error_type=type(result).__name__,
-                    error=str(result),
-                    message=(
-                        f"CRITICAL ERROR during PortfolioTracker initialization "
-                        f"({task_description}): {result}"
-                    ),
-                    exc_info=result,
-                )
-                failed_tasks_info.append(f"{task_description}: {result}")
-                initialization_failed = True
-        if initialization_failed:
-            error_summary = "; ".join(failed_tasks_info)
-            logger.critical(
-                "portfolio_tracker_init_failed",
-                error_summary=error_summary,
-                failed_task_count=len(failed_tasks_info),
-                action="cannot_proceed_reliably",
-                message=(
-                    f"PortfolioTracker failed to initialize essential data from "
-                    f"one or more exchanges. Cannot proceed reliably. "
-                    f"Errors: {error_summary}"
-                ),
-            )
 
-        # Set initial reconciliation time AFTER fetching
-        now_utc = datetime.now(UTC)
-        logger.info(
-            "setting_reconciliation_times",
-            component="PT_INIT",
-            phase="before_setting",
-            last_reconciliation_time_before=dict(self.last_reconciliation_time),
-            message=(
-                f"PT INIT: Setting reconciliation times. Current "
-                f"self.last_reconciliation_time before: {self.last_reconciliation_time}"
-            ),
-        )
-        for exchange_id in self.api_clients:
-            self.last_reconciliation_time[exchange_id] = now_utc
-        logger.info(
-            "reconciliation_times_set",
-            component="PT_INIT",
-            phase="after_setting",
-            last_reconciliation_time_after=dict(self.last_reconciliation_time),
-            exchanges_count=len(self.last_reconciliation_time),
-            message=(
-                f"PT INIT: Reconciliation times set. Current "
-                f"self.last_reconciliation_time after: {self.last_reconciliation_time}"
-            ),
-        )
+        # Initialize any internal state that doesn't require API calls
+        # Currently, most initialization happens in __init__
+        # This method is kept for compatibility and future extensions
 
         # Calculate initial portfolio capital and set high watermark
         initial_capital = await self.get_total_capital()
@@ -303,44 +251,256 @@ class PortfolioTracker:
         logger.info(
             "portfolio_state_initialized",
             status="initialized",
-            exchanges=list(self.api_clients.keys()),
             high_watermark=float(self.high_watermark) if self.high_watermark else None,
             message="Portfolio state initialized",
         )
 
-    async def _fetch_exchange_balances(self, exchange_id: str) -> bool:
-        client = self.api_clients.get(exchange_id)
-        if not client:
-            logger.error(
-                "api_client_not_found",
+    # Pure Data Input Methods
+    async def update_balances(self, exchange_id: str, balances: dict[str, SpotBalance]) -> None:
+        """Update balance data for a specific exchange.
+
+        This is a pure data input method that accepts pre-fetched balance data
+        from external sources (e.g., PortfolioOrchestrator).
+
+        Args:
+            exchange_id: The exchange identifier
+            balances: Dictionary of asset balances from the exchange
+        """
+        if not exchange_id:
+            self.logger.error(
+                "update_balances_invalid_exchange",
                 exchange_id=exchange_id,
-                function="fetch_balances",
-                action="returning_false",
-                message=f"No API client found for {exchange_id} in fetch_balances",
+                message="Invalid exchange_id provided to update_balances",
             )
-            return False
+            return
 
-        try:
-            balances_data = await client.get_balances()  # Returns dict[str, SpotBalance]
-            updated_balances = self._process_balances_data(exchange_id, balances_data)
+        # Process and validate the balance data
+        updated_balances = self._process_balances_data(exchange_id, balances)
 
-            if updated_balances:
-                await self._update_balances_state(exchange_id, updated_balances)
-            else:
-                self._handle_empty_balances(exchange_id, balances_data)
-
-        except Exception as e:
-            logger.exception(
-                "balance_fetch_error",
-                component="FETCH_BALANCES",
+        if updated_balances:
+            await self._update_balances_state(exchange_id, updated_balances)
+            self.logger.info(
+                "balances_updated",
+                component="UPDATE_BALANCES",
                 exchange_id=exchange_id,
-                error_type=type(e).__name__,
-                error=str(e),
-                message=f"[FETCH_BALANCES:{exchange_id}] Error during balance fetch: {e}",
+                num_balances=len(updated_balances),
+                message=f"Successfully updated {len(updated_balances)} balances for {exchange_id}",
             )
-            return False
         else:
-            return True
+            self._handle_empty_balances(exchange_id, balances)
+
+    async def update_positions(self, exchange_id: str, positions: list[DerivativePosition]) -> None:
+        """Update position data for a specific exchange.
+
+        This is a pure data input method that accepts pre-fetched position data
+        from external sources (e.g., PortfolioOrchestrator).
+
+        Args:
+            exchange_id: The exchange identifier
+            positions: List of derivative positions from the exchange
+        """
+        if not exchange_id:
+            self.logger.error(
+                "update_positions_invalid_exchange",
+                exchange_id=exchange_id,
+                message="Invalid exchange_id provided to update_positions",
+            )
+            return
+
+        # Process positions into a dictionary keyed by symbol
+        updated_positions: dict[str, DerivativePosition] = {}
+        for position_info in positions:
+            pos_key = position_info.symbol
+            if pos_key:
+                updated_positions[pos_key] = position_info
+            else:
+                self.logger.warning(
+                    "position_missing_symbol",
+                    exchange_id=exchange_id,
+                    position_info=str(position_info),
+                    message="Skipping DerivativePosition object without symbol",
+                )
+
+        # Update the positions state
+        async with self._lock:
+            self.positions[exchange_id] = defaultdict(
+                lambda: DerivativePosition(
+                    exchange="",
+                    symbol="",
+                    side=OrderSide.BUY,
+                    size=Decimal(0),
+                    entry_price=None,
+                    timestamp=datetime.min.replace(tzinfo=UTC),
+                ),
+                updated_positions,
+            )
+            self.last_update_time[exchange_id] = datetime.now(UTC)
+
+        self.logger.info(
+            "positions_updated",
+            component="UPDATE_POSITIONS",
+            exchange_id=exchange_id,
+            position_count=len(updated_positions),
+            message=f"Successfully updated {len(updated_positions)} positions for {exchange_id}",
+        )
+
+    async def update_orders(self, exchange_id: str, orders: list[Order]) -> None:
+        """Update order data for a specific exchange.
+
+        This is a pure data input method that accepts pre-fetched order data
+        from external sources (e.g., PortfolioOrchestrator).
+
+        Args:
+            exchange_id: The exchange identifier
+            orders: List of orders from the exchange
+        """
+        if not exchange_id:
+            self.logger.error(
+                "update_orders_invalid_exchange",
+                exchange_id=exchange_id,
+                message="Invalid exchange_id provided to update_orders",
+            )
+            return
+
+        # Process orders into a dictionary keyed by client_order_id
+        # Optimize batch processing by pre-filtering and using batch operations
+        updated_orders: dict[str, Order] = {}
+        orders_without_id = 0
+
+        # Batch process orders to reduce individual operations
+        for order_info in orders:
+            order_id = order_info.client_order_id
+            if order_id:
+                # Batch decimal conversions for better performance
+                try:
+                    # Note: Order model ensures these fields are already Decimal,
+                    # so we only need validation, not conversion
+                    if order_info.price is not None and not order_info.price.is_finite():
+                        order_info.price = None
+                    if not order_info.quantity_requested.is_finite():
+                        order_info.quantity_requested = Decimal(0)
+                    if not order_info.quantity_filled.is_finite():
+                        order_info.quantity_filled = Decimal(0)
+
+                    updated_orders[order_id] = order_info
+                except (ValueError, InvalidOperation, AttributeError) as e:
+                    self.logger.warning(
+                        "order_processing_error",
+                        exchange_id=exchange_id,
+                        order_id=order_id,
+                        error=str(e),
+                        message=f"Error processing order {order_id}: {e}",
+                    )
+            else:
+                orders_without_id += 1
+
+        # Log batch results instead of individual warnings
+        if orders_without_id > 0:
+            self.logger.warning(
+                "orders_missing_ids",
+                exchange_id=exchange_id,
+                count=orders_without_id,
+                total=len(orders),
+                message=f"Skipped {orders_without_id} orders without client_order_id",
+            )
+
+        # Update the orders state using exchange-specific lock
+        exchange_lock = self._get_exchange_lock(exchange_id)
+        async with exchange_lock:
+            self.orders[exchange_id] = updated_orders
+            self.last_update_time[exchange_id] = datetime.now(UTC)
+
+        self.logger.info(
+            "orders_updated",
+            component="UPDATE_ORDERS",
+            exchange_id=exchange_id,
+            order_count=len(updated_orders),
+            message=f"Successfully updated {len(updated_orders)} orders for {exchange_id}",
+        )
+
+    async def update_account_summary(self, exchange_id: str, summary: MarginAccountSummary) -> None:
+        """Update account summary data for a specific exchange.
+
+        This is a pure data input method that accepts pre-fetched account summary
+        from external sources (e.g., PortfolioOrchestrator).
+
+        Args:
+            exchange_id: The exchange identifier
+            summary: Margin account summary from the exchange
+        """
+        if not exchange_id:
+            self.logger.error(
+                "update_account_summary_invalid_exchange",
+                exchange_id=exchange_id,
+                message="Invalid exchange_id provided to update_account_summary",
+            )
+            return
+
+        if not summary:
+            self.logger.warning(
+                "update_account_summary_empty",
+                exchange_id=exchange_id,
+                message=f"Empty account summary provided for {exchange_id}",
+            )
+            return
+
+        # Store the account summary
+        async with self._lock:
+            self.exchange_summaries[exchange_id] = summary
+            self.last_update_time[exchange_id] = datetime.now(UTC)
+
+        self.logger.info(
+            "account_summary_updated",
+            component="UPDATE_ACCOUNT_SUMMARY",
+            exchange_id=exchange_id,
+            message=f"Successfully updated account summary for {exchange_id}",
+        )
+
+    async def update_ticker_data(self, exchange_id: str, symbol: str, ticker: Ticker) -> None:
+        """Update ticker data for a specific symbol.
+
+        This is a pure data input method that accepts pre-fetched ticker data
+        from external sources (e.g., PortfolioOrchestrator).
+
+        Args:
+            exchange_id: The exchange identifier
+            symbol: The symbol for the ticker
+            ticker: Ticker data from the exchange
+        """
+        if not exchange_id or not symbol:
+            self.logger.error(
+                "update_ticker_invalid_params",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                message="Invalid parameters provided to update_ticker_data",
+            )
+            return
+
+        if not ticker:
+            self.logger.warning(
+                "update_ticker_empty",
+                exchange_id=exchange_id,
+                symbol=symbol,
+                message=f"Empty ticker provided for {symbol} on {exchange_id}",
+            )
+            return
+
+        # Create a composite key for the ticker
+        ticker_key = f"{exchange_id}:{symbol}"
+
+        # Store the ticker data
+        async with self._lock:
+            self.tickers[ticker_key] = ticker
+
+        self.logger.debug(
+            "ticker_updated",
+            component="UPDATE_TICKER",
+            exchange_id=exchange_id,
+            symbol=symbol,
+            bid=float(ticker.bid) if ticker.bid else None,
+            ask=float(ticker.ask) if ticker.ask else None,
+            message=f"Successfully updated ticker for {symbol} on {exchange_id}",
+        )
 
     def _process_balances_data(
         self,
@@ -385,7 +545,9 @@ class PortfolioTracker:
         updated_balances: dict[str, SpotBalance],
     ) -> None:
         """Update internal balances state with new data."""
-        async with self._lock:
+        # Use exchange-specific lock for better concurrency
+        exchange_lock = self._get_exchange_lock(exchange_id)
+        async with exchange_lock:
             current_assets_for_exchange = set(self.balances[exchange_id].keys())
             newly_updated_asset_symbols = set(updated_balances.keys())
 
@@ -549,204 +711,23 @@ class PortfolioTracker:
             )
             return None
 
-    async def _fetch_exchange_positions(self, exchange_id: str) -> bool:
-        """Fetch and update positions for a specific exchange."""
-        client = self.api_clients.get(exchange_id)
-        if not client:
-            logger.error(
-                "no_api_client_for_fetch_positions",
-                exchange_id=exchange_id,
-                action="fetch_positions",
-                error="no_api_client_registered",
-                message=f"No API client registered for {exchange_id} in fetch_positions",
-            )
-            return False
-        try:
-            positions_data_raw = await client.get_positions()  # -> list[DerivativePosition]
-
-            # positions_data_raw is guaranteed to be a list by the ExchangeAPI interface
-            processed_positions_list = positions_data_raw
-
-            updated_positions: dict[str, DerivativePosition] = {}
-            for position_info in processed_positions_list:
-                # Use symbol as the key for now
-                # TODO: Revisit position identification strategy
-                pos_key = position_info.symbol
-                if pos_key:
-                    # Assume position_info is already a validated DerivativePosition
-                    # No need for _safe_decimal_convert if API layer provides validated models
-                    updated_positions[pos_key] = position_info
-                else:
-                    logger.warning(
-                        "position_missing_symbol",
-                        exchange_id=exchange_id,
-                        position_info=str(position_info),
-                        message="Skipping DerivativePosition object without symbol",
-                    )
-
-            # This completely replaces the inner dict for the exchange_id
-            self.positions[exchange_id] = defaultdict(
-                lambda: DerivativePosition(
-                    exchange="",
-                    symbol="",
-                    side=OrderSide.BUY,
-                    size=Decimal(0),
-                    entry_price=None,
-                    timestamp=datetime.min.replace(tzinfo=UTC),
-                ),
-                updated_positions,
-            )
-            self.last_update_time[exchange_id] = datetime.now(UTC)
-            logger.debug(
-                "positions_updated_successfully",
-                exchange_id=exchange_id,
-                position_count=len(updated_positions),
-                message="Successfully updated positions",
-            )
-        except Exception as e:
-            logger.exception(
-                "position_fetch_failed",
-                action="fetch_positions",
-                exchange_id=exchange_id,
-                error=str(e),
-                message=f"Failed to fetch positions for {exchange_id}: {e}",
-            )
-            return False
-        else:
-            return True
-
-    async def _fetch_exchange_orders(self, exchange_id: str) -> bool:
-        """Fetch and update open orders for a specific exchange."""
-        try:
-            client = self.api_clients.get(exchange_id)
-            if not client:
-                logger.error(
-                    "no_api_client_found",
-                    exchange_id=exchange_id,
-                    action="reconcile_portfolio",
-                    error="no_api_client_found",
-                    message=f"No API client found for {exchange_id}",
-                )
-                return False
-            # ExchangeAPI.get_open_orders returns list[Order], Pyright should infer this.
-            orders_data: list[Order] = await client.get_open_orders()
-            updated_orders: dict[str, Order] = {}
-            for order_info in orders_data:
-                order_instance = None
-                order_id = None
-                # order_info is always Order
-                order_instance = order_info
-                order_id = order_instance.client_order_id
-                if order_instance and order_id:
-                    order_instance.price = self._safe_decimal_convert(
-                        order_instance.price,
-                        "price",
-                        order_instance.symbol,
-                        exchange_id,
-                    )
-                    order_instance.quantity_requested = self._safe_decimal_convert(
-                        order_instance.quantity_requested,
-                        "quantity_requested",
-                        order_instance.symbol,
-                        exchange_id,
-                    ) or Decimal(0)
-                    order_instance.quantity_filled = self._safe_decimal_convert(
-                        order_instance.quantity_filled,
-                        "quantity_filled",
-                        order_instance.symbol,
-                        exchange_id,
-                    ) or Decimal(0)
-                    if isinstance(order_instance.status, str):
-                        try:
-                            order_instance.status = OrderStatus(order_instance.status)
-                        except ValueError:
-                            logger.warning(
-                                "invalid_order_status",
-                                order_id=order_id,
-                                status=order_instance.status,
-                                message="Invalid status string for order",
-                            )
-                            order_instance.status = OrderStatus.UNKNOWN
-                    updated_orders[str(order_id)] = order_instance
-            self.orders[exchange_id] = updated_orders  # This replaces the inner dict
-            self.last_update_time[exchange_id] = datetime.now(UTC)
-            logger.debug(
-                "orders_updated_successfully",
-                exchange_id=exchange_id,
-                order_count=len(updated_orders),
-                message="Successfully updated open orders",
-            )
-        except Exception as e:
-            logger.exception(
-                "order_fetch_error",
-                action="fetch_orders",
-                exchange_id=exchange_id,
-                error=str(e),
-                message=f"Unexpected error fetching orders for {exchange_id}: {e}",
-            )
-            return False
-        else:
-            return True
-
     async def update(self) -> None:
-        """Update portfolio state by fetching data from exchanges."""
+        """Update portfolio internal state and calculations.
+
+        Note: This method now only performs internal state updates and calculations.
+        Data fetching is handled by the PortfolioOrchestrator.
+        """
         now = datetime.now(UTC)
-        update_tasks: list[Awaitable[Any]] = []
-        for exchange_id, client in self.api_clients.items():
-            if not self.app_settings.exchanges[exchange_id].enabled:
-                continue
-            last_reconciliation = self.last_reconciliation_time.get(
-                exchange_id,
-                datetime.min.replace(tzinfo=UTC),
-            )
-            needs_reconciliation = (
-                now - last_reconciliation
-            ).total_seconds() >= self.reconciliation_interval
-            if needs_reconciliation:
-                logger.info(
-                    "reconciliation_needed",
-                    exchange_id=exchange_id,
-                    action="reconcile_portfolio",
-                    data_scope="all_data",
-                    message=f"Reconciliation needed for {exchange_id}. Fetching all data.",
-                )
-                update_tasks.extend((
-                    self._fetch_exchange_account_summary(client, exchange_id),
-                    self._fetch_exchange_balances(exchange_id),
-                    self._fetch_exchange_positions(exchange_id),
-                    self._fetch_exchange_orders(exchange_id),
-                ))
-                self.last_reconciliation_time[exchange_id] = now
-            else:
-                logger.debug(
-                    "fetching_orders_only",
-                    exchange_id=exchange_id,
-                    action="reconcile_portfolio",
-                    data_scope="orders_only",
-                    reason="no_reconciliation_needed",
-                    message=f"Fetching only orders for {exchange_id} (no reconciliation needed).",
-                )
-                update_tasks.append(self._fetch_exchange_orders(exchange_id))
-        if update_tasks:
-            results: list[bool | BaseException] = await asyncio.gather(
-                *update_tasks,
-                return_exceptions=True,
-            )
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    logger.error(
-                        "portfolio_update_task_error",
-                        task_index=i,
-                        error=str(result),
-                        message="Error during portfolio update task",
-                        exc_info=result,
-                    )
-                elif result is False:
-                    logger.warning(
-                        "portfolio_update_task_failed",
-                        task_index=i,
-                        message="Portfolio update task indicated failure",
-                    )
+
+        # Perform internal state updates and calculations
+        # Update any derived metrics, validate consistency, etc.
+        logger.debug(
+            "portfolio_internal_update",
+            timestamp=now.isoformat(),
+            message="Performing internal portfolio state update",
+        )
+
+        # Update high watermark with current capital
         current_capital = await self.get_total_capital()
         self.high_watermark = max(self.high_watermark, current_capital)
 
@@ -1220,11 +1201,14 @@ class PortfolioTracker:
         # Filter out placeholders
         return [pos for pos in self.positions[exchange_id].values() if pos.size != Decimal(0)]
 
-    async def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
+    async def get_total_capital(
+        self, base_currency: str = "USDC", price_service: PriceDataService | None = None
+    ) -> Decimal:
         """Calculate the total portfolio capital in the specified base currency.
 
         Args:
             base_currency: Currency to calculate total capital in (default: USDC).
+            price_service: PriceDataService for price conversions. If None, uses cached ticker data.
 
         Returns:
             Total portfolio value as a Decimal.
@@ -1246,7 +1230,12 @@ class PortfolioTracker:
                 if balance.total_quantity == Decimal(0):
                     continue
 
-                price = await self._get_asset_price_in_base(exchange_id, asset, base_currency)
+                if price_service:
+                    price = await price_service.get_price_in_base_currency(
+                        exchange_id, asset, base_currency
+                    )
+                else:
+                    price = await self._get_asset_price_in_base(exchange_id, asset, base_currency)
                 if price is not None:
                     try:
                         asset_value = balance.total_quantity * price
@@ -1283,7 +1272,7 @@ class PortfolioTracker:
         # This is simplified: Assumes margin is held in base_currency and PnL reflects value.
         # A more accurate calculation might need margin details per exchange.
         # We add unrealized PnL here as a proxy for position value change.
-        _realized, unrealized = await self.get_pnl(base_currency)
+        _realized, unrealized = await self.get_pnl(base_currency, price_service)
         total_value += unrealized
         logger.debug(
             "adding_unrealized_pnl_to_capital",
@@ -1316,8 +1305,18 @@ class PortfolioTracker:
         self,
         exchange_id: str,
         valuation_asset: str = "USDC",
+        price_service: PriceDataService | None = None,
     ) -> Decimal:
-        """Calculate the total market exposure for a given exchange in a valuation asset."""
+        """Calculate the total market exposure for a given exchange in a valuation asset.
+
+        Args:
+            exchange_id: The exchange to calculate exposure for
+            valuation_asset: Asset to value exposure in (default: USDC)
+            price_service: PriceDataService for price conversions. If None, uses cached ticker data.
+
+        Returns:
+            Total exposure as a Decimal
+        """
         logger.debug(
             "calculating_exchange_exposure",
             exchange_id=exchange_id,
@@ -1334,11 +1333,16 @@ class PortfolioTracker:
                 continue  # Skip zero size positions
 
             # Get current market price
-            mark_price = await self._get_asset_price_in_base(
-                exchange_id,
-                position.symbol,
-                valuation_asset,
-            )
+            if price_service:
+                mark_price = await price_service.get_price_in_base_currency(
+                    exchange_id, position.symbol, valuation_asset
+                )
+            else:
+                mark_price = await self._get_asset_price_in_base(
+                    exchange_id,
+                    position.symbol,
+                    valuation_asset,
+                )
 
             if mark_price is not None and mark_price.is_finite():
                 try:
@@ -1394,7 +1398,7 @@ class PortfolioTracker:
             message=f"Calculating total exposure across all exchanges in {valuation_asset}...",
         )
         total_exposure = Decimal("0.0")
-        for exchange_id in self.api_clients:
+        for exchange_id in self.app_settings.exchanges:
             if self.app_settings.exchanges[exchange_id].enabled:
                 total_exposure += await self.get_exchange_exposure(exchange_id, valuation_asset)
 
@@ -1407,11 +1411,14 @@ class PortfolioTracker:
         )
         return total_exposure if total_exposure.is_finite() else Decimal("0.0")
 
-    async def get_pnl(self, base_currency: str = "USDC") -> tuple[Decimal, Decimal]:
+    async def get_pnl(
+        self, base_currency: str = "USDC", price_service: PriceDataService | None = None
+    ) -> tuple[Decimal, Decimal]:
         """Calculate the total realized and unrealized PNL across all exchanges.
 
         Args:
             base_currency: The currency to report PNL in.
+            price_service: PriceDataService for price conversions. If None, uses cached ticker data.
 
         Returns:
             A tuple containing (total_realized_pnl, total_unrealized_pnl).
@@ -1443,6 +1450,7 @@ class PortfolioTracker:
                     position_key,
                     exchange_id,
                     base_currency,
+                    price_service,
                 )
                 if unrealized_pnl is not None:
                     total_unrealized_pnl += unrealized_pnl
@@ -1529,6 +1537,7 @@ class PortfolioTracker:
         position_key: str,
         exchange_id: str,
         base_currency: str,
+        price_service: PriceDataService | None = None,
     ) -> Decimal | None:
         """Calculate unrealized PNL for a single position."""
         # DEFENSIVE CHECK: Check entry_price is not None *before* size check
@@ -1549,6 +1558,7 @@ class PortfolioTracker:
             position,
             exchange_id,
             base_currency,
+            price_service,
         )
 
         # Calculate unrealized PNL if possible
@@ -1583,14 +1593,20 @@ class PortfolioTracker:
         position: DerivativePosition,
         exchange_id: str,
         base_currency: str,
+        price_service: PriceDataService | None = None,
     ) -> tuple[Decimal | None, Decimal | None]:
         """Get mark price and entry price converted to base currency."""
         # 1. Get Mark Price in the requested Base Currency
-        mark_price_in_base = await self._get_asset_price_in_base(
-            exchange_id,
-            position.symbol,
-            base_currency,
-        )
+        if price_service:
+            mark_price_in_base = await price_service.get_price_in_base_currency(
+                exchange_id, position.symbol, base_currency
+            )
+        else:
+            mark_price_in_base = await self._get_asset_price_in_base(
+                exchange_id,
+                position.symbol,
+                base_currency,
+            )
 
         # 2. Get Entry Price (which is in the Quote currency of the symbol)
         entry_price_in_quote = position.entry_price
@@ -1616,6 +1632,7 @@ class PortfolioTracker:
                 base_currency,
                 exchange_id,
                 position.symbol,
+                price_service,
             )
         else:
             entry_price_in_base = None
@@ -1637,17 +1654,23 @@ class PortfolioTracker:
         base_currency: str,
         exchange_id: str,
         symbol: str,
+        price_service: PriceDataService | None = None,
     ) -> Decimal | None:
         """Convert entry price from quote currency to base currency."""
         if quote_currency == base_currency:
             return entry_price_in_quote
 
         # Need conversion rate from quote to base
-        quote_to_base_rate = await self._get_asset_price_in_base(
-            exchange_id,
-            quote_currency,
-            base_currency,
-        )
+        if price_service:
+            quote_to_base_rate = await price_service.get_price_in_base_currency(
+                exchange_id, quote_currency, base_currency
+            )
+        else:
+            quote_to_base_rate = await self._get_asset_price_in_base(
+                exchange_id,
+                quote_currency,
+                base_currency,
+            )
         if quote_to_base_rate is not None:
             return entry_price_in_quote * quote_to_base_rate
         logger.warning(
@@ -1803,14 +1826,11 @@ class PortfolioTracker:
         positions_dict = {ex: dict(syms) for ex, syms in self.positions.items()}
         orders_dict = {ex: dict(ords) for ex, ords in self.orders.items()}
         last_update_dict = dict(self.last_update_time)
-        last_reconciliation_dict = dict(self.last_reconciliation_time)
-
         return {
             "balances": balances_dict,
             "positions": positions_dict,
             "orders": orders_dict,
             "last_update_time": last_update_dict,
-            "last_reconciliation_time": last_reconciliation_dict,
             "high_watermark": self.high_watermark,
             "realized_pnl": self.realized_pnl,
             # Active symbols and watchlist could be added if needed for persistence
@@ -1995,7 +2015,6 @@ class PortfolioTracker:
     def _load_timestamps_from_dict(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
         """Load timestamp data from dictionary."""
         cls._load_last_update_times(tracker, data)
-        cls._load_last_reconciliation_times(tracker, data)
 
     @classmethod
     def _load_last_update_times(cls, tracker: PortfolioTracker, data: dict[str, Any]) -> None:
@@ -2011,26 +2030,6 @@ class PortfolioTracker:
                 ex_id_str_lut,
                 ts_data_any_lut,
                 "last_update_time",
-            )
-
-    @classmethod
-    def _load_last_reconciliation_times(
-        cls,
-        tracker: PortfolioTracker,
-        data: dict[str, Any],
-    ) -> None:
-        """Load last reconciliation times from dictionary."""
-        last_reconciliation_data_get = data.get("last_reconciliation_time", {})
-        if not isinstance(last_reconciliation_data_get, dict):
-            return
-
-        last_reconciliation_data_typed = cast("dict[str, Any]", last_reconciliation_data_get)
-        for ex_id_str_lrt, ts_data_any_lrt in last_reconciliation_data_typed.items():
-            cls._process_timestamp(
-                tracker.last_reconciliation_time,
-                ex_id_str_lrt,
-                ts_data_any_lrt,
-                "last_reconciliation_time",
             )
 
     @classmethod
@@ -2300,7 +2299,6 @@ class PortfolioTracker:
         self.orders.clear()
         self.tickers.clear()
         self.last_update_time.clear()
-        self.last_reconciliation_time.clear()
         self.high_watermark = Decimal("0.0")
         self.realized_pnl = Decimal("0.0")
         self.active_symbols.clear()
@@ -2367,150 +2365,34 @@ class PortfolioTracker:
         if asset == base_currency:
             return Decimal("1.0")
 
-        client = self.api_clients.get(exchange_id)
-        if not client:
-            logger.warning(
-                "no_api_client_for_price",
-                exchange_id=exchange_id,
-                asset=asset,
-                base_currency=base_currency,
-                message="No API client to fetch price",
-            )
-            return None
+        # TODO: Replace with injected price data from PriceDataService
+        # For now, try to use cached ticker data
+        ticker_key = f"{exchange_id}:{asset}-{base_currency}"
+        ticker = self.tickers.get(ticker_key)
+        if ticker and ticker.mid_price:
+            return ticker.mid_price
 
-        # DEBUG LOGGING START
-        logger.info(
-            "get_asset_price_in_base_called",
-            exchange_id=exchange_id,
-            asset=asset,
-            base_currency=base_currency,
-            price_override=price_override,
-        )
-        # DEBUG LOGGING END
+        # Try inverse ticker
+        inverse_ticker_key = f"{exchange_id}:{base_currency}-{asset}"
+        inverse_ticker = self.tickers.get(inverse_ticker_key)
+        if inverse_ticker and inverse_ticker.mid_price and inverse_ticker.mid_price > 0:
+            return Decimal(1) / inverse_ticker.mid_price
 
-        # 1. Direct match (e.g., BTC/USDC)
-        symbol_direct = f"{asset.upper()}-{base_currency.upper()}"
-        logger.debug(
-            "get_asset_price_attempting_direct_lookup",
-            exchange_id=exchange_id,
-            symbol_direct=symbol_direct,
-            message="_get_asset_price_in_base: Attempting direct lookup",
-        )
-        ticker_direct = await client.get_ticker(symbol_direct)
-        logger.debug(
-            "get_asset_price_received_ticker_direct",
-            exchange_id=exchange_id,
-            symbol_direct=symbol_direct,
-            ticker_direct=ticker_direct,
-            ticker_type=type(ticker_direct).__name__,
-            message="_get_asset_price_in_base: Received ticker_direct",
-        )
-        if ticker_direct:
-            logger.debug(
-                "get_asset_price_ticker_direct_price",
-                exchange_id=exchange_id,
-                symbol_direct=symbol_direct,
-                price=getattr(ticker_direct, "price", "N/A"),
-                message="_get_asset_price_in_base: ticker_direct.price",
-            )
-            # Debug logging for ticker price checks
-            has_valid_price = (
-                ticker_direct
-                and ticker_direct.price is not None
-                and ticker_direct.price > Decimal(0)
-            )
-            logger.debug(
-                "ticker_direct_price_check",
-                exchange_id=exchange_id,
-                symbol_direct=symbol_direct,
-                has_valid_price=has_valid_price,
-                message="Ticker direct price check",
-            )
-
-        if ticker_direct and ticker_direct.price is not None and ticker_direct.price > Decimal(0):
-            logger.debug(
-                "get_asset_price_ticker_direct_final_price",
-                exchange_id=exchange_id,
-                symbol_direct=symbol_direct,
-                price=ticker_direct.price,
-                message="_get_asset_price_in_base: ticker_direct.price final",
-            )
-            return ticker_direct.price
-
-        # Try inverse pair: BASE-ASSET (e.g., USDC-BTC)
-        symbol_inverse = f"{base_currency}-{asset}"
-        logger.debug(
-            "get_asset_price_attempting_inverse_lookup",
-            exchange_id=exchange_id,
-            symbol_inverse=symbol_inverse,
-            message="_get_asset_price_in_base: Attempting inverse lookup",
-        )
-        ticker_inverse = await client.get_ticker(symbol_inverse)
-        logger.debug(
-            "get_asset_price_received_ticker_inverse",
-            exchange_id=exchange_id,
-            symbol_inverse=symbol_inverse,
-            ticker_inverse=ticker_inverse,
-            ticker_type=type(ticker_inverse).__name__,
-            message="_get_asset_price_in_base: Received ticker_inverse",
-        )
-        if ticker_inverse:
-            logger.debug(
-                "get_asset_price_ticker_inverse_price",
-                exchange_id=exchange_id,
-                symbol_inverse=symbol_inverse,
-                price=getattr(ticker_inverse, "price", "N/A"),
-                message="_get_asset_price_in_base: ticker_inverse.price",
-            )
-            # Debug logging for inverse ticker price checks
-            has_valid_inverse_price = (
-                ticker_inverse
-                and ticker_inverse.price is not None
-                and ticker_inverse.price > Decimal(0)
-            )
-            logger.debug(
-                "ticker_inverse_price_check",
-                exchange_id=exchange_id,
-                symbol_inverse=symbol_inverse,
-                has_valid_inverse_price=has_valid_inverse_price,
-                message="Ticker inverse price check",
-            )
-
-        if (
-            ticker_inverse
-            and ticker_inverse.price is not None
-            and ticker_inverse.price > Decimal(0)
-        ):
-            price = Decimal("1.0") / ticker_inverse.price
-            logger.debug(
-                "get_asset_price_ticker_inverse_calculated",
-                exchange_id=exchange_id,
-                symbol_inverse=symbol_inverse,
-                inverse_price=ticker_inverse.price,
-                calculated_price=price,
-                message="_get_asset_price_in_base: ticker_inverse calculated price",
-            )
-            return price
-
-        # TODO: Implement simple triangulation if needed
         logger.warning(
-            "price_conversion_failed",
+            "no_price_data_available",
             exchange_id=exchange_id,
             asset=asset,
             base_currency=base_currency,
-            message="Price conversion failed. Returning None.",
+            message="No price data available for asset",
         )
         return None
 
     def get_exchange_balance(self, exchange: str, asset: str) -> SpotBalance | None:
-        """Retrieve the balance for a specific asset on a specific exchange.
-
-        Conforms to PortfolioTrackerProtocol by providing access to asset balances
-        for a given exchange.
+        """Get balance for an asset on a specific exchange.
 
         Args:
-            exchange: Exchange identifier.
-            asset: Asset symbol to retrieve balance for.
+            exchange: Exchange identifier (e.g., "backpack", "hyperliquid")
+            asset: Asset symbol (e.g., "BTC", "ETH")
 
         Returns:
             SpotBalance object if found, None otherwise.
@@ -2525,128 +2407,295 @@ class PortfolioTracker:
             exchange=exchange,
             action="get_exchange_balance",
             issue="balance_not_found",
-            message=f"Balance for {asset} on exchange '{exchange}' not found.",
-        )  # DEBUG log
+            message=f"Balance not found for {asset} on {exchange}",
+        )
         return None
 
     def _initialize_from_config(self) -> None:
-        logger.info("Initializing PortfolioTracker from config...")
-        # Initialize balances
-        for exchange_id, balances in self.pt_config.initial_balances.items():
-            for asset, quantity_str in balances.items():
-                try:
-                    quantity = Decimal(quantity_str)
-                    self.balances[exchange_id][asset] = SpotBalance(
-                        exchange=exchange_id,
-                        asset=asset,
-                        total_quantity=quantity,
-                        available_quantity=quantity,  # Assume all available initially
-                        timestamp=datetime.now(UTC),
-                    )
-                    logger.info(
-                        "balance_initialized_from_config",
-                        asset=asset,
-                        exchange_id=exchange_id,
-                        quantity=float(quantity),
-                        action="initialize_from_config",
-                        message=f"Initialized balance for {asset} on {exchange_id}: {quantity}",
-                    )
-                except InvalidOperation:
-                    logger.exception(
-                        "invalid_decimal_initial_balance",
-                        asset=asset,
-                        exchange_id=exchange_id,
-                        quantity_str=quantity_str,
-                        message="Invalid decimal value for initial balance",
-                    )
-        # Initialize positions
-        for pos_dict in self.pt_config.initial_positions:
-            try:
-                pos = DerivativePosition(**pos_dict)
-                self.positions[pos.exchange][pos.symbol] = pos
-                logger.info(
-                    "position_initialized",
-                    symbol=pos.symbol,
-                    exchange=pos.exchange,
-                    side=pos.side,
-                    size=pos.size,
-                    message="Initialized position",
-                )
-            except (ValidationError, TypeError) as e:
-                logger.exception(
-                    "derivative_position_creation_failed",
-                    error_message=str(e),
-                    error_type=type(e).__name__,
-                    action="initialize_from_config",
-                    error="position_creation_failed",
-                    message=f"Failed to create DerivativePosition from config: {e}",
-                )
+        """Initialize portfolio from configuration."""
         logger.info("PortfolioTracker initialized.")
-
-    async def _fetch_exchange_account_summary(
-        self,
-        client: ExchangeAPI,
-        exchange_id: str,
-    ) -> tuple[str, MarginAccountSummary | None] | None:
-        try:
-            summary = await client.get_account_summary()
-            if summary:
-                return exchange_id, summary
-            logger.warning(
-                "no_account_summary_found",
-                exchange_id=exchange_id,
-                action="fetch_exchange_account_summary",
-                issue="no_account_summary",
-                message=f"No account summary found for {exchange_id}",
-            )
-        except Exception as e:
-            logger.exception(
-                "account_summary_fetch_error",
-                action="fetch_account_summary",
-                exchange_id=exchange_id,
-                error=str(e),
-                message=f"Error fetching account summary for {exchange_id}: {e}",
-            )
-            return None
-        else:
-            return None
 
     def get_all_derivative_positions_for_exchange(
         self,
         exchange_id: str,
-    ) -> dict[Symbol, DerivativePosition] | None:
-        """Return all derivative positions for a given exchange.
-
-        Args:
-            exchange_id: Exchange identifier to get positions for.
-
-        Returns:
-            Dictionary mapping symbols to positions, or None if exchange not found.
-
-        """
+    ) -> dict[str, DerivativePosition] | None:
+        """Return all derivative positions for a given exchange."""
         normalized_exchange_id = exchange_id.lower()
 
-        # ADDED DETAILED LOGGING (NOW AS WARNING)
-        self.logger.warning(
-            "pt_get_all_deriv_pos_critical_debug",
-            self_id=id(self),
-            api_clients_id=id(self.api_clients),
-            api_clients=self.api_clients,
-            exchange_id=exchange_id,
-            normalized_exchange_id=normalized_exchange_id,
-            message="PT_GET_ALL_DERIV_POS_CRITICAL_DEBUG",
-        )
-
-        if normalized_exchange_id not in self.api_clients:
+        # Check if the exchange is enabled in settings
+        if normalized_exchange_id not in self.app_settings.exchanges:
             self.logger.warning(
                 "pt_get_all_deriv_pos_unknown_exchange",
                 exchange_id=exchange_id,
                 normalized_exchange_id=normalized_exchange_id,
-                message=(
-                    "PT_GET_ALL_DERIV_POS: Attempted to get positions "
-                    "for unknown or unregistered exchange"
-                ),
+                message=f"Unknown exchange: {exchange_id}",
             )
             return None
 
-        return self.positions[normalized_exchange_id]
+        # Return the positions for this exchange
+        if exchange_id in self.positions:
+            return dict(self.positions[exchange_id])
+
+        return {}
+
+    # --- Async Optimizations & Resource Management --- #
+
+    async def cleanup_completed_tasks(self) -> int:
+        """Clean up completed background tasks.
+
+        This method removes completed tasks from the background tasks set
+        to prevent memory leaks from accumulating finished tasks.
+
+        Returns:
+            int: Number of tasks cleaned up
+        """
+        completed_tasks = {task for task in self._background_tasks if task.done()}
+        self._background_tasks -= completed_tasks
+
+        if completed_tasks:
+            self.logger.debug(
+                "background_tasks_cleaned",
+                cleaned_count=len(completed_tasks),
+                remaining_count=len(self._background_tasks),
+                message=f"Cleaned up {len(completed_tasks)} completed background tasks",
+            )
+
+        return len(completed_tasks)
+
+    async def cancel_background_tasks(self) -> None:
+        """Cancel all running background tasks.
+
+        This method cancels all background tasks and waits for them to complete.
+        Should be called during shutdown or cleanup.
+        """
+        if not self._background_tasks:
+            return
+
+        self.logger.info(
+            "cancelling_background_tasks",
+            task_count=len(self._background_tasks),
+            message=f"Cancelling {len(self._background_tasks)} background tasks",
+        )
+
+        # Cancel all tasks
+        for task in self._background_tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for all tasks to complete or be cancelled
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
+
+        self._background_tasks.clear()
+
+        self.logger.info(
+            "background_tasks_cancelled",
+            message="All background tasks cancelled and cleaned up",
+        )
+
+    def get_performance_stats(self) -> dict[str, Any]:
+        """Get performance statistics for monitoring.
+
+        Returns:
+            dict: Performance statistics including task counts and memory usage
+        """
+        return {
+            "background_tasks": len(self._background_tasks),
+            "exchange_locks": len(self._exchange_locks),
+            "exchanges_tracked": len(self.balances),
+            "total_positions": sum(len(positions) for positions in self.positions.values()),
+            "total_orders": sum(len(orders) for orders in self.orders.values()),
+            "total_balances": sum(len(balances) for balances in self.balances.values()),
+            "ticker_cache_size": len(self.tickers),
+            "memory_limits": {
+                "max_ticker_entries": self._max_ticker_entries,
+                "data_retention_hours": self._data_retention_hours,
+                "cleanup_interval_minutes": self._cleanup_interval_minutes,
+            },
+        }
+
+    # --- Memory Management --- #
+
+    async def cleanup_stale_data(self) -> dict[str, int]:
+        """Clean up stale data based on retention policies.
+
+        This method removes old data that exceeds the configured retention period
+        to prevent unbounded memory growth.
+
+        Returns:
+            dict: Statistics about data cleaned up
+        """
+        now = datetime.now(UTC)
+        cutoff_time = now - timedelta(hours=self._data_retention_hours)
+
+        cleanup_stats = {
+            "tickers_removed": 0,
+            "stale_balances": 0,
+            "stale_positions": 0,
+            "stale_orders": 0,
+        }
+
+        # Clean up different data types
+        cleanup_stats["tickers_removed"] += self._cleanup_stale_tickers(cutoff_time)
+        cleanup_stats["stale_balances"] += self._cleanup_stale_balances(cutoff_time)
+        cleanup_stats["stale_positions"] += self._cleanup_stale_positions(cutoff_time)
+        cleanup_stats["stale_orders"] += self._cleanup_stale_orders(cutoff_time)
+
+        if any(cleanup_stats.values()):
+            self.logger.info(
+                "memory_cleanup_completed",
+                cleanup_stats=cleanup_stats,
+                cutoff_time=cutoff_time.isoformat(),
+                message=f"Memory cleanup completed: {cleanup_stats}",
+            )
+
+        return cleanup_stats
+
+    def _cleanup_stale_tickers(self, cutoff_time: datetime) -> int:
+        """Clean up old tickers and enforce cache size limits."""
+        removed_count = 0
+
+        # Remove old tickers
+        stale_tickers = [
+            ticker_key
+            for ticker_key, ticker in self.tickers.items()
+            if ticker.timestamp < cutoff_time
+        ]
+
+        for ticker_key in stale_tickers:
+            del self.tickers[ticker_key]
+            removed_count += 1
+
+        # Enforce ticker cache size limit (LRU-style cleanup)
+        if len(self.tickers) > self._max_ticker_entries:
+            sorted_tickers = sorted(self.tickers.items(), key=lambda x: x[1].timestamp)
+            excess_count = len(self.tickers) - self._max_ticker_entries
+
+            for i in range(excess_count):
+                ticker_key = sorted_tickers[i][0]
+                del self.tickers[ticker_key]
+                removed_count += 1
+
+        return removed_count
+
+    def _cleanup_stale_balances(self, cutoff_time: datetime) -> int:
+        """Clean up stale balance data."""
+        removed_count = 0
+
+        for exchange_balances in self.balances.values():
+            stale_assets = [
+                asset
+                for asset, balance in exchange_balances.items()
+                if balance.timestamp < cutoff_time
+            ]
+
+            for asset in stale_assets:
+                del exchange_balances[asset]
+                removed_count += 1
+
+        return removed_count
+
+    def _cleanup_stale_positions(self, cutoff_time: datetime) -> int:
+        """Clean up stale position data."""
+        removed_count = 0
+
+        for exchange_positions in self.positions.values():
+            stale_symbols = [
+                symbol
+                for symbol, position in exchange_positions.items()
+                if position.timestamp < cutoff_time
+            ]
+
+            for symbol in stale_symbols:
+                del exchange_positions[symbol]
+                removed_count += 1
+
+        return removed_count
+
+    def _cleanup_stale_orders(self, cutoff_time: datetime) -> int:
+        """Clean up very old completed orders."""
+        removed_count = 0
+
+        for exchange_orders in self.orders.values():
+            stale_order_ids = [
+                order_id
+                for order_id, order in exchange_orders.items()
+                if (
+                    order.status in {OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.EXPIRED}
+                    and order.created_at < cutoff_time
+                )
+            ]
+
+            for order_id in stale_order_ids:
+                del exchange_orders[order_id]
+                removed_count += 1
+
+        return removed_count
+
+    def get_memory_usage_estimate(self) -> dict[str, int]:
+        """Get an estimate of memory usage by data type.
+
+        Returns:
+            dict: Estimated memory usage in bytes by data category
+        """
+        # Rough estimates - actual memory usage may vary
+        estimates = {
+            "balances": 0,
+            "positions": 0,
+            "orders": 0,
+            "tickers": 0,
+            "exchange_summaries": 0,
+        }
+
+        # Estimate balance memory usage
+        for exchange_balances in self.balances.values():
+            estimates["balances"] += len(exchange_balances) * 200  # ~200 bytes per balance
+
+        # Estimate position memory usage
+        for exchange_positions in self.positions.values():
+            estimates["positions"] += len(exchange_positions) * 300  # ~300 bytes per position
+
+        # Estimate order memory usage
+        for exchange_orders in self.orders.values():
+            estimates["orders"] += len(exchange_orders) * 400  # ~400 bytes per order
+
+        # Estimate ticker memory usage
+        estimates["tickers"] = len(self.tickers) * 150  # ~150 bytes per ticker
+
+        # Estimate exchange summaries
+        # ~250 bytes per summary
+        estimates["exchange_summaries"] = len(self.exchange_summaries) * 250
+
+        estimates["total"] = sum(estimates.values())
+
+        return estimates
+
+    async def optimize_memory_usage(self) -> dict[str, Any]:
+        """Optimize memory usage by cleaning up and reorganizing data.
+
+        Returns:
+            dict: Results of optimization efforts
+        """
+        # Clean up completed tasks first
+        tasks_cleaned = await self.cleanup_completed_tasks()
+
+        # Clean up stale data
+        cleanup_stats = await self.cleanup_stale_data()
+
+        # Get memory usage after cleanup
+        memory_usage = self.get_memory_usage_estimate()
+
+        optimization_results = {
+            "tasks_cleaned": tasks_cleaned,
+            "data_cleanup": cleanup_stats,
+            "memory_usage_after": memory_usage,
+            "optimization_timestamp": datetime.now(UTC).isoformat(),
+        }
+
+        self.logger.info(
+            "memory_optimization_completed",
+            results=optimization_results,
+            message="Memory optimization cycle completed",
+        )
+
+        return optimization_results

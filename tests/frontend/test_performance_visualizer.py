@@ -160,7 +160,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Any = self.visualizer.create_returns_chart(self.returns_data)
+        fig: go.Figure = self.visualizer.create_returns_chart(self.returns_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -193,7 +193,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Any = self.visualizer.create_drawdown_chart(self.returns_data)
+        fig: go.Figure = self.visualizer.create_drawdown_chart(self.returns_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -214,7 +214,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Any = self.visualizer.create_trade_analysis_chart(self.trade_data)
+        fig: go.Figure = self.visualizer.create_trade_analysis_chart(self.trade_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -236,7 +236,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Any = self.visualizer.create_funding_rate_heatmap(self.funding_data)
+        fig: go.Figure = self.visualizer.create_funding_rate_heatmap(self.funding_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -258,7 +258,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Any = self.visualizer.create_performance_dashboard(
+        fig: go.Figure = self.visualizer.create_performance_dashboard(
             returns_data=self.returns_data,
             trade_data=self.trade_data,
             funding_data=self.funding_data,

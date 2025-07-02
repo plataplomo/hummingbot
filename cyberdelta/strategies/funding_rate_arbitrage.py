@@ -123,6 +123,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Position sizing info storage
         self.sized_opportunities: dict[str, SizedOpportunity] = {}
+        self.signals_generated: int = 0
 
         logger.info(
             "funding_arbitrage_strategy_initialized",

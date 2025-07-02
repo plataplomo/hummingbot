@@ -470,10 +470,7 @@ def _register_mock_apis(
     bp_api: MockExchangeAPI,
 ) -> None:
     """Register mock APIs with portfolio tracker."""
-    if "backpack" not in tracker.api_clients:
-        tracker.register_api_client("backpack", bp_api)
-    if "hyperliquid" not in tracker.api_clients:
-        tracker.register_api_client("hyperliquid", hl_api)
+    # NOTE: API client registration has moved to PortfolioOrchestrator
 
 
 def _check_hl_discrepancies(discrepancies: list[Any]) -> None:
@@ -548,18 +545,14 @@ async def test_position_reconciler_detects_discrepancy(
     mock_bp_api.reset()  # Clear position from mock API
     real_portfolio_tracker.update_position(exchange_id, mock_position)  # Add to real tracker
 
-    # Ensure API clients are registered on real tracker for the reverse scenario
-    if "mock_bp" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_bp", mock_bp_api)
-    if "mock_hl" not in real_portfolio_tracker.api_clients:
-        real_portfolio_tracker.register_api_client("mock_hl", mock_hl_api)
+    # Note: API client registration has moved to PortfolioOrchestrator
 
     # === ADDED State Check Logging ===
     logger.info("--- Reverse Scenario State Check ---")
-    bp_positions_after_reset = await mock_bp_api.get_positions()
+    bp_positions_after_reset: list[DerivativePosition] = await mock_bp_api.get_positions()
     logger.info(
         "mock_bp_positions_after_reset",
-        positions=bp_positions_after_reset,
+        positions=[p.model_dump() for p in bp_positions_after_reset],
         message="Mock BP positions after reset",
     )
     # Get all positions and filter by the target exchange

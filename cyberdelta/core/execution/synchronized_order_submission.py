@@ -167,10 +167,12 @@ class OrderVerifier:
         self,
         config: dict[str, Any],
         portfolio_tracker: PortfolioTracker,
+        exchange_adapters: dict[str, ExchangeAPI],
     ) -> None:  # Add -> None
         """Initialize the order verifier."""
         self.config = config
         self.portfolio_tracker = portfolio_tracker
+        self.exchange_adapters = exchange_adapters
 
     async def verify_order_placement(
         self,
@@ -297,7 +299,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
         """Verify API order details."""
-        api_client = self.portfolio_tracker.api_clients.get(exchange)
+        api_client = self.exchange_adapters.get(exchange)
         api_order: Order | None = None
 
         if not api_client:
@@ -442,7 +444,7 @@ class OrderVerifier:
         )
 
         # 2. Get API client and early return if not found
-        api_client = self.portfolio_tracker.api_clients.get(exchange)
+        api_client = self.exchange_adapters.get(exchange)
         if not api_client:
             return self._handle_missing_api_client(
                 exchange,
@@ -970,7 +972,7 @@ class SynchronizedOrderSubmissionService:
         self.position_reconciliation_system = position_reconciliation_system
         self.portfolio_tracker = portfolio_tracker
 
-        self.order_verifier = OrderVerifier(config, portfolio_tracker)
+        self.order_verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
         self.execution_coordinator = ExecutionCoordinator(config)
 
         # Configuration parameters
@@ -1443,7 +1445,9 @@ class SynchronizedOrderSubmissionService:
             )
 
             # Verify first order
-            order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
+            order_verifier = OrderVerifier(
+                self.config, self.portfolio_tracker, self.exchange_adapters
+            )
             verification_result = await order_verifier.verify_order_placement(
                 first_exchange,
                 placed_order.client_order_id,  # Use client_order_id
@@ -1579,7 +1583,9 @@ class SynchronizedOrderSubmissionService:
             )
 
             # Verify second order
-            order_verifier = OrderVerifier(self.config, self.portfolio_tracker)
+            order_verifier = OrderVerifier(
+                self.config, self.portfolio_tracker, self.exchange_adapters
+            )
             second_verification = await order_verifier.verify_order_placement(
                 second_exchange,
                 second_placed_order.client_order_id,  # Use client_order_id

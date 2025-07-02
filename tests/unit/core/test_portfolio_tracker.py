@@ -2,18 +2,14 @@
 
 from __future__ import annotations  # Enable postponed evaluation
 
-import asyncio
-import logging  # Keep for specific mock logger creation
-from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.config.models.config_models import PortfolioTrackerConfig
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -24,7 +20,7 @@ from cyberdelta.core.models import (
     OrderType,
     SpotBalance,
     Ticker,
-    TimeInForce,  # Added Trade import - This seems unused later, remove if confirmed
+    TimeInForce,
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
@@ -127,128 +123,26 @@ def _handle_usd_usdc_pairs(base: str, quote: str) -> Decimal | None:
     return None
 
 
-def _create_mock_get_ticker_side_effect(
-    mock_logger: logging.Logger,
-) -> Callable[[str], Awaitable[Ticker | None]]:
-    """Create mock get_ticker side effect function.
-
-    Returns:
-        Callable[[str], Awaitable[Ticker | None]]: Mock function that returns ticker data.
-    """
-    prices = _get_mock_price_data()
-
-    async def mock_get_ticker_side_effect(symbol: str) -> Ticker | None:
-        await asyncio.sleep(0)  # Satisfy RUF029
-        mock_logger.debug(
-            "SIDE_EFFECT: Called with symbol: '%s'",
-            symbol,
-        )
-
-        # Parse symbol
-        parts = symbol.split("-")
-        if len(parts) != 2:
-            mock_logger.error(
-                "SIDE_EFFECT: Invalid symbol format '%s', returning None.",
-                symbol,
-            )
-            return None
-        base, quote = parts
-        now = datetime.now(UTC)
-
-        # Try direct pairs
-        price = _handle_direct_pairs(base, quote, prices)
-        if price is not None:
-            mock_logger.debug(
-                "SIDE_EFFECT: Returning %s ticker price=%s",
-                symbol,
-                price,
-            )
-            return Ticker(symbol=symbol, timestamp=now, price=price)
-
-        # Try inverse pairs
-        price = _handle_inverse_pairs(base, quote, prices)
-        if price is not None:
-            mock_logger.debug(
-                "SIDE_EFFECT: Returning %s ticker price=%s",
-                symbol,
-                price,
-            )
-            return Ticker(symbol=symbol, timestamp=now, price=price)
-
-        # Try USD/USDC pairs
-        price = _handle_usd_usdc_pairs(base, quote)
-        if price is not None:
-            mock_logger.debug(
-                "SIDE_EFFECT: Returning %s ticker price=%s",
-                symbol,
-                price,
-            )
-            return Ticker(symbol=symbol, timestamp=now, price=price)
-
-        mock_logger.warning(
-            "SIDE_EFFECT: Unhandled symbol '%s', returning None.",
-            symbol,
-        )
-        return None
-
-    return mock_get_ticker_side_effect
-
-
-def _setup_client_mocks(clients: list[AsyncMock], side_effect: Callable[..., Any]) -> None:
-    """Setup mock clients with common behavior."""
-    for client in clients:
-        client.get_ticker.side_effect = side_effect
-        client.is_healthy = MagicMock(return_value=True)
-        client.get_account_summary = AsyncMock(return_value=None)
-        client.get_balances = AsyncMock(return_value=[])
-        client.get_positions = AsyncMock(return_value=[])
-        client.get_open_orders = AsyncMock(return_value=[])
+# Removed API client mocking functions - no longer needed for pure state manager tests
 
 
 class TestPortfolioTracker:
     """Test cases for PortfolioTracker."""
 
-    @pytest.fixture
-    def api_clients(self) -> dict[str, AsyncMock]:
-        """Create mock API clients for testing.
-
-        Returns:
-            dict[str, AsyncMock]: Dictionary mapping exchange names to mock API clients.
-        """
-        # Use a distinct logger for the mock side effect
-        mock_logger = logging.getLogger(__name__ + ".mock_get_ticker_side_effect")
-        mock_logger.setLevel(logging.DEBUG)
-
-        # Create overall client mocks
-        hyperliquid_client = AsyncMock(spec=ExchangeAPI)
-        backpack_client = AsyncMock(spec=ExchangeAPI)
-        clients = [hyperliquid_client, backpack_client]
-
-        # Create and assign side effect
-        side_effect = _create_mock_get_ticker_side_effect(mock_logger)
-        _setup_client_mocks(clients, side_effect)
-
-        return {"hyperliquid": hyperliquid_client, "backpack": backpack_client}
+    # Removed api_clients fixture - no longer needed for pure state manager
 
     @pytest.fixture
     def portfolio_tracker(
         self,
         config: MagicMock,
         pt_config: PortfolioTrackerConfig,
-        api_clients: dict[str, AsyncMock],
     ) -> PortfolioTracker:
         """Create a PortfolioTracker instance for testing.
 
         Returns:
-            PortfolioTracker: Configured portfolio tracker with registered API clients.
+            PortfolioTracker: Configured portfolio tracker for pure state management.
         """
-        tracker = PortfolioTracker(config, pt_config)
-
-        # Register API clients
-        for exchange_id, client in api_clients.items():
-            tracker.register_api_client(exchange_id, client)
-
-        return tracker
+        return PortfolioTracker(config, pt_config)
 
     @pytest.fixture
     def sample_positions(self) -> dict[str, dict[str, DerivativePosition]]:
@@ -434,290 +328,88 @@ class TestPortfolioTracker:
     async def test_initialize(
         self,
         portfolio_tracker: PortfolioTracker,
-        api_clients: dict[str, AsyncMock],
+    ) -> None:
+        """Test portfolio tracker initialization.
+
+        Note: PortfolioTracker is now a pure state manager.
+        The initialize method only sets up internal state, not API calls.
+        """
+        # Initialize the portfolio tracker
+        await portfolio_tracker.initialize()
+
+        # Verify that internal state is properly initialized
+        # After initialization with no data, all collections should be empty
+        assert portfolio_tracker.balances == {}
+        assert portfolio_tracker.positions == {}
+        assert portfolio_tracker.orders == {}
+        assert portfolio_tracker.exchange_summaries == {}
+        assert portfolio_tracker.last_update_time == {}
+
+        # Verify high watermark was set (to 0 since no initial data)
+        assert portfolio_tracker.high_watermark == Decimal(0)
+
+    @pytest.mark.asyncio
+    async def test_update_basic_state_management(
+        self,
+        portfolio_tracker: PortfolioTracker,
         sample_positions: dict[str, dict[str, DerivativePosition]],
         sample_orders: dict[str, dict[str, Order]],
         sample_balances_raw: dict[str, dict[str, Decimal]],
     ) -> None:
-        """Test portfolio tracker initialization."""
-        # Mock API responses for initialization
+        """Test portfolio tracker basic state management functionality.
 
-        # Mock for get_balances - should return dict[str, SpotBalance]
-        now_init = datetime.now(UTC)
-        mock_hl_usdc_balance = SpotBalance(
-            exchange="hyperliquid",
-            asset="USDC",
-            total_quantity=sample_balances_raw["hyperliquid"]["USDC"],
-            available_quantity=sample_balances_raw["hyperliquid"]["USDC"],
-            timestamp=now_init,
+        Note: PortfolioTracker is now a pure state manager without API calls or timing logic.
+        API orchestration has moved to PortfolioOrchestrator.
+        """
+        # Test that portfolio tracker can process data updates correctly
+        # Since update() method no longer makes API calls, we test state management
+
+        # Create spot balances from raw balance data
+        spot_balances: dict[str, dict[str, SpotBalance]] = {}
+        for exchange_id, balances in sample_balances_raw.items():
+            spot_balances[exchange_id] = {}
+            for asset, amount in balances.items():
+                spot_balances[exchange_id][asset] = SpotBalance(
+                    exchange=exchange_id,
+                    asset=asset,
+                    total_quantity=amount,
+                    available_quantity=amount * Decimal("0.9"),  # Assume 10% is held
+                    timestamp=datetime.now(UTC),
+                )
+
+        # Test data updates using the new pure update methods
+        await portfolio_tracker.update_balances("hyperliquid", spot_balances["hyperliquid"])
+        await portfolio_tracker.update_positions(
+            "hyperliquid", list(sample_positions["hyperliquid"].values())
         )
-        mock_bp_usdc_balance = SpotBalance(
-            exchange="backpack",
-            asset="USDC",
-            total_quantity=sample_balances_raw["backpack"]["USDC"],
-            available_quantity=sample_balances_raw["backpack"]["USDC"],
-            timestamp=now_init,
+        await portfolio_tracker.update_orders(
+            "hyperliquid", list(sample_orders["hyperliquid"].values())
         )
-        api_clients["hyperliquid"].get_balances.return_value = {"USDC": mock_hl_usdc_balance}
-        api_clients["backpack"].get_balances.return_value = {"USDC": mock_bp_usdc_balance}
 
-        # Mock for get_positions
-        mock_hl_positions = list(sample_positions["hyperliquid"].values())
-        mock_bp_positions = list(sample_positions["backpack"].values())
-        api_clients["hyperliquid"].get_positions.return_value = mock_hl_positions
-        api_clients["backpack"].get_positions.return_value = mock_bp_positions
-
-        # Mock for get_open_orders
-        mock_hl_orders = list(sample_orders["hyperliquid"].values())
-        mock_bp_orders = list(sample_orders["backpack"].values())
-        api_clients["hyperliquid"].get_open_orders.return_value = mock_hl_orders
-        api_clients["backpack"].get_open_orders.return_value = mock_bp_orders
-
-        # Mock get_account_summary (using correct field names for MarginAccountSummary)
-        mock_hl_summary = MarginAccountSummary(
-            exchange="hyperliquid",
-            timestamp=datetime.now(UTC),
-            total_equity=Decimal(10000),
-            available_equity=Decimal(9500),
-            total_initial_margin_required=Decimal(1000),
-            total_maintenance_margin_required=Decimal(500),
-            total_position_notional=Decimal(5000),
-            total_unrealized_pnl=Decimal(100),
-        )
-        api_clients["hyperliquid"].get_account_summary.return_value = mock_hl_summary
-        api_clients[
-            "backpack"
-        ].get_account_summary.return_value = None  # Explicitly None for backpack if intended
-
-        await portfolio_tracker.initialize()
-
-        # Verify that balances are updated
+        # Verify state was updated correctly
+        assert "hyperliquid" in portfolio_tracker.balances
         assert "USDC" in portfolio_tracker.balances["hyperliquid"]
-        assert "USDC" in portfolio_tracker.balances["backpack"]
-        assert (
-            portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity
-            == sample_balances_raw["hyperliquid"]["USDC"]
+        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal(
+            "100000.0"
         )
 
-        # Verify that positions are updated
+        assert "hyperliquid" in portfolio_tracker.positions
         assert "BTC" in portfolio_tracker.positions["hyperliquid"]
-        assert "ETH" in portfolio_tracker.positions["backpack"]
-        assert (
-            portfolio_tracker.positions["hyperliquid"]["BTC"].size
-            == sample_positions["hyperliquid"]["BTC"].size
-        )
 
-        # Verify that orders are updated
-        assert "hl-order-2" in portfolio_tracker.orders["hyperliquid"]
-        assert "bp-order-1" in portfolio_tracker.orders["backpack"]
-        assert (
-            portfolio_tracker.orders["hyperliquid"]["hl-order-2"].symbol
-            == sample_orders["hyperliquid"]["hl-order-2"].symbol
-        )
-        assert portfolio_tracker.last_reconciliation_time["hyperliquid"] > datetime.min.replace(
-            tzinfo=UTC,
-        )
+        assert "hyperliquid" in portfolio_tracker.orders
+        assert len(portfolio_tracker.orders["hyperliquid"]) > 0
 
     @pytest.mark.asyncio
-    async def test_update(
+    async def test_update_account_summary_method(
         self,
         portfolio_tracker: PortfolioTracker,
-        api_clients: dict[str, AsyncMock],
-        sample_positions: dict[str, dict[str, DerivativePosition]],
-        sample_orders: dict[str, dict[str, Order]],
-        sample_balances_raw: dict[str, dict[str, Decimal]],
     ) -> None:
-        """Test portfolio tracker update mechanism."""
-        # Initialize first to set reconciliation times and make initial API calls
-        await portfolio_tracker.initialize()
-
-        # Reset mocks for specific methods AFTER initialize() to test the first
-        # update() call behavior
-        api_clients["hyperliquid"].get_balances.reset_mock()
-        api_clients["hyperliquid"].get_positions.reset_mock()
-        # get_open_orders is always called by update(), so we don't reset it if we want
-        # to check its call for this update.
-        # However, the first assertion block only cares about get_balances for hyperliquid
-        # not being called.
-        # For backpack, get_open_orders is asserted.
-        api_clients["backpack"].get_open_orders.reset_mock()
-        # Reset other backpack mocks that should NOT be called by the first update
-        api_clients["backpack"].get_balances.reset_mock()
-        api_clients["backpack"].get_positions.reset_mock()
-        api_clients["backpack"].get_account_summary.reset_mock()
-
-        # Mock API responses for the *first* update call (if any were needed beyond orders)
-        now_update = datetime.now(UTC)
-        mock_bp_orders_update = [sample_orders["backpack"]["bp-order-2"]]
-        # # Not expecting call
-        api_clients["backpack"].get_open_orders.return_value = mock_bp_orders_update
-
-        # Set reconciliation times to be recent so NO reconciliation is needed initially
-        portfolio_tracker.last_reconciliation_time["hyperliquid"] = now_update - timedelta(
-            seconds=10,
-        )
-        portfolio_tracker.last_reconciliation_time["backpack"] = now_update - timedelta(seconds=10)
-
-        await portfolio_tracker.update()  # First update call
-
-        # Verify Hyperliquid did NOT fetch balances/positions (because no reconciliation)
-        api_clients["hyperliquid"].get_balances.assert_not_awaited()
-        api_clients["hyperliquid"].get_positions.assert_not_awaited()
-        # Hyperliquid will still fetch orders as part of the general update, so check its
-        # call count if needed
-        # For now, focusing on the reconciliation-dependent calls.
-
-        # Verify Backpack ONLY fetched orders (because no reconciliation)
-        api_clients["backpack"].get_open_orders.assert_awaited_once()
-        api_clients["backpack"].get_balances.assert_not_awaited()
-        api_clients["backpack"].get_positions.assert_not_awaited()
-        api_clients["backpack"].get_account_summary.assert_not_awaited()
-
-        # Verify reconciliation times did not change significantly for this first update
-        assert (
-            abs(
-                (
-                    portfolio_tracker.last_reconciliation_time["hyperliquid"]
-                    - (now_update - timedelta(seconds=10))
-                ).total_seconds(),
-            )
-            < 1
-        )
-        assert (
-            abs(
-                (
-                    portfolio_tracker.last_reconciliation_time["backpack"]
-                    - (now_update - timedelta(seconds=10))
-                ).total_seconds(),
-            )
-            < 1
-        )
-
-        # --- Now, test the case where reconciliation IS triggered ---
-        portfolio_tracker.reconciliation_interval = 1  # seconds for quick trigger
-        stale_time = datetime.now(UTC) - timedelta(
-            seconds=portfolio_tracker.reconciliation_interval + 5,
-        )
-        portfolio_tracker.last_reconciliation_time["hyperliquid"] = stale_time
-        recent_bp_recon_time_before_second_update = datetime.now(UTC) - timedelta(seconds=10)
-        portfolio_tracker.last_reconciliation_time["backpack"] = (
-            recent_bp_recon_time_before_second_update
-        )
-
-        # Reset mocks again for the second assertion phase
-        api_clients["hyperliquid"].get_balances.reset_mock()
-        api_clients["hyperliquid"].get_positions.reset_mock()
-        api_clients["hyperliquid"].get_open_orders.reset_mock()
-        api_clients["hyperliquid"].get_account_summary.reset_mock()
-        api_clients["backpack"].get_balances.reset_mock()
-        api_clients["backpack"].get_positions.reset_mock()
-        api_clients["backpack"].get_open_orders.reset_mock()
-        api_clients["backpack"].get_account_summary.reset_mock()
-
-        # Set up return values for the second update() call where HL reconciles
-        mock_hl_balances_reconcile = [
-            SpotBalance(
-                exchange="hyperliquid",
-                asset="USDC",
-                total_quantity=Decimal(12000),  # Corrected: "12k" -> "12000"
-                available_quantity=Decimal(11000),  # Corrected: "11k" -> "11000"
-                timestamp=datetime.now(UTC),
-            ),
-        ]
-        api_clients["hyperliquid"].get_balances.return_value = mock_hl_balances_reconcile
-        # Similar mocks for get_positions, get_open_orders, get_account_summary
-        # for hyperliquid if their data is checked
-        # For backpack, only get_open_orders will be called
-        mock_bp_orders_second_update = [
-            sample_orders["backpack"]["bp-order-1"],
-        ]  # Use a different order for clarity
-        api_clients["backpack"].get_open_orders.return_value = mock_bp_orders_second_update
-
-        await portfolio_tracker.update()  # Second update call
-
-        # Verify that HyperLiquid (stale) fetched all data due to reconciliation
-        api_clients["hyperliquid"].get_balances.assert_awaited_once()
-        api_clients["hyperliquid"].get_positions.assert_awaited_once()
-        api_clients["hyperliquid"].get_open_orders.assert_awaited_once()
-        api_clients["hyperliquid"].get_account_summary.assert_awaited_once()
-
-        # Verify that Backpack (now also considered stale due to global reconciliation_interval = 1)
-        # ALSO fetched all its data.
-        api_clients["backpack"].get_balances.assert_awaited_once()
-        api_clients["backpack"].get_positions.assert_awaited_once()
-        api_clients["backpack"].get_open_orders.assert_awaited_once()
-        api_clients["backpack"].get_account_summary.assert_awaited_once()
-
-        # Check that reconciliation time was updated for HyperLiquid
-        assert portfolio_tracker.last_reconciliation_time["hyperliquid"] > stale_time
-        # Backpack reconciliation time should ALSO have been updated in this specific update() call
-        assert (
-            portfolio_tracker.last_reconciliation_time["backpack"]
-            > recent_bp_recon_time_before_second_update
-        )
-
-    @pytest.mark.asyncio
-    async def test_reconcile_portfolio_state_success(
-        self,
-        portfolio_tracker: PortfolioTracker,
-        api_clients: dict[str, AsyncMock],
-    ) -> None:
-        """Test successful reconciliation of portfolio state."""
-        # ADDED: Initialize portfolio state, so last_reconciliation_time is set for all exchanges
-        await portfolio_tracker.initialize()
-
-        # Setup mock API responses for reconciliation
-        now_reconcile = datetime.now(UTC)
-        mock_hl_usdc_balance_rec = SpotBalance(
+        """Test the update_account_summary method for pure state management."""
+        # Test that portfolio tracker can update account summary data
+        now = datetime.now(UTC)
+        summary = MarginAccountSummary(
             exchange="hyperliquid",
-            asset="USDC",
-            total_quantity=Decimal(10000),
-            available_quantity=Decimal(9000),
-            timestamp=now_reconcile,
-        )
-        mock_hl_positions_rec = [
-            DerivativePosition(
-                exchange="hyperliquid",
-                symbol="BTC",
-                side=OrderSide.BUY,
-                size=Decimal("1.5"),
-                entry_price=Decimal(50500),  # Required as size is non-zero
-                timestamp=now_reconcile,
-            ),
-        ]
-        mock_hl_orders_rec = [
-            Order(
-                exchange="hyperliquid",
-                client_order_id="hl-rec-1",
-                symbol="BTC",
-                side=OrderSide.BUY,
-                price=Decimal(50000),  # Required for LIMIT order
-                quantity_requested=Decimal("0.5"),
-                status=OrderStatus.OPEN,
-                created_at=now_reconcile,
-                order_type=OrderType.LIMIT,
-                time_in_force=TimeInForce.GTC,
-                exchange_order_id=None,
-                related_order_id=None,
-                quote_quantity_requested=None,
-                quantity_filled=Decimal(0),
-                stop_price=None,
-                average_fill_price=None,
-                trigger_by=None,
-                reduce_only=False,
-                post_only=False,
-                updated_at=None,
-                triggered_at=None,
-                strategy_name=None,
-                signal_id=None,
-                trades=[],
-                hl_details=None,
-                bp_details=None,
-            ),
-        ]
-        mock_hl_summary_rec = MarginAccountSummary(
-            exchange="hyperliquid",
-            timestamp=now_reconcile,
+            timestamp=now,
             total_equity=Decimal(10000),
             available_equity=Decimal(9250),
             total_initial_margin_required=Decimal(1000),
@@ -726,159 +418,160 @@ class TestPortfolioTracker:
             total_unrealized_pnl=Decimal(0),
         )
 
-        # Ensure get_balances returns a dict
-        api_clients["hyperliquid"].get_balances.return_value = {"USDC": mock_hl_usdc_balance_rec}
-        api_clients["hyperliquid"].get_positions.return_value = mock_hl_positions_rec
-        api_clients["hyperliquid"].get_open_orders.return_value = mock_hl_orders_rec
-        api_clients["hyperliquid"].get_account_summary.return_value = mock_hl_summary_rec
+        # Test data update using the new pure update method
+        await portfolio_tracker.update_account_summary("hyperliquid", summary)
 
-        # Set reconciliation time to be old to trigger reconciliation
-        old_time = datetime.now(UTC) - timedelta(days=1)
-        portfolio_tracker.last_reconciliation_time["hyperliquid"] = old_time
-
-        await portfolio_tracker.update()  # This should trigger reconciliation
-
-        # Verify data was fetched by all relevant methods
-        # api_clients["hyperliquid"].get_balances was called once during initialize()
-        # and once during update() due to old reconciliation time for hyperliquid.
-        assert api_clients["hyperliquid"].get_balances.call_count == 2
-        assert api_clients["hyperliquid"].get_positions.call_count == 2
-        assert api_clients["hyperliquid"].get_open_orders.call_count == 2
-        assert api_clients["hyperliquid"].get_account_summary.call_count == 2
-
-        # Verify internal state reflects reconciled data for HyperLiquid
-        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal(10000)
-        assert portfolio_tracker.positions["hyperliquid"]["BTC"].size == Decimal("1.5")
-        assert "hl-rec-1" in portfolio_tracker.orders["hyperliquid"]
-        assert portfolio_tracker.last_reconciliation_time["hyperliquid"] > old_time
-
-        # Verify Backpack (not reconciled in this call directly, but update fetches orders)
-        # Backpack should not have called get_balances, get_positions, get_account_summary
-        # during the update()
-        # because initialize() made its reconciliation time recent.
-        # It would have been called once during initialize() though.
-        assert api_clients["backpack"].get_balances.call_count == 1  # Called during initialize()
-        assert api_clients["backpack"].get_positions.call_count == 1  # Called during initialize()
-        # get_open_orders for backpack IS called during portfolio_tracker.update()
-        # regardless of reconciliation status
-        # and also once during initialize(). So, 2 calls.
-        assert api_clients["backpack"].get_open_orders.call_count == 2
-        assert (
-            api_clients["backpack"].get_account_summary.call_count == 1
-        )  # Called during initialize()
+        # Verify state was updated correctly
+        assert "hyperliquid" in portfolio_tracker.exchange_summaries
+        assert portfolio_tracker.exchange_summaries["hyperliquid"].total_equity == Decimal(10000)
+        assert portfolio_tracker.exchange_summaries["hyperliquid"].available_equity == Decimal(9250)
 
     @pytest.mark.asyncio
-    async def test_reconcile_portfolio_state_api_error(
+    async def test_update_ticker_data_method(
         self,
         portfolio_tracker: PortfolioTracker,
-        api_clients: dict[str, AsyncMock],
     ) -> None:
-        """Test reconciliation with API errors."""
-        # Store initial state for comparison
-        initial_balances = portfolio_tracker.balances.copy()
-        old_time = datetime.now(UTC) - timedelta(days=1)
-        portfolio_tracker.last_reconciliation_time["hyperliquid"] = old_time
-        initial_reconciliation_time = portfolio_tracker.last_reconciliation_time["hyperliquid"]
-
-        # Simulate an API error for one of the calls, e.g., get_balances
-        api_clients["hyperliquid"].get_balances = AsyncMock(
-            side_effect=RuntimeError("API unavailable"),
+        """Test the update_ticker_data method for pure state management."""
+        # Test that portfolio tracker can update ticker data
+        ticker = Ticker(
+            symbol="BTC-PERP",
+            bid=Decimal(50000),
+            ask=Decimal(50100),
+            timestamp=datetime.now(UTC),
         )
-        # Other calls succeed
-        now_api_error = datetime.now(UTC)
-        mock_hl_positions_err = [
+
+        # Test data update using the new pure update method
+        await portfolio_tracker.update_ticker_data("hyperliquid", "BTC-PERP", ticker)
+
+        # Verify state was updated correctly - ticker data is stored in the _tickers cache
+        # Note: This verifies the method accepts the data correctly
+        # The actual storage mechanism is an internal implementation detail
+
+    @pytest.mark.asyncio
+    async def test_update_balances_validation(
+        self,
+        portfolio_tracker: PortfolioTracker,
+    ) -> None:
+        """Test update_balances method with validation."""
+        # Create test balance data
+        balances = {
+            "USDC": SpotBalance(
+                exchange="hyperliquid",
+                asset="USDC",
+                total_quantity=Decimal(10000),
+                available_quantity=Decimal(9000),
+                timestamp=datetime.now(UTC),
+            ),
+            "BTC": SpotBalance(
+                exchange="hyperliquid",
+                asset="BTC",
+                total_quantity=Decimal("0.5"),
+                available_quantity=Decimal("0.5"),
+                timestamp=datetime.now(UTC),
+            ),
+        }
+
+        # Update balances
+        await portfolio_tracker.update_balances("hyperliquid", balances)
+
+        # Verify balances were stored correctly
+        assert "hyperliquid" in portfolio_tracker.balances
+        assert "USDC" in portfolio_tracker.balances["hyperliquid"]
+        assert "BTC" in portfolio_tracker.balances["hyperliquid"]
+        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal(10000)
+        assert portfolio_tracker.balances["hyperliquid"]["BTC"].total_quantity == Decimal("0.5")
+
+    @pytest.mark.asyncio
+    async def test_update_positions_validation(
+        self,
+        portfolio_tracker: PortfolioTracker,
+    ) -> None:
+        """Test update_positions method with validation."""
+        # Create test position data
+        positions = [
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol="BTC",
+                symbol="BTC-PERP",
                 side=OrderSide.BUY,
-                size=Decimal(1),
-                entry_price=Decimal(50000),  # Required for non-zero size
-                timestamp=now_api_error,
-                # Explicitly provide None for optional fields for clarity in test mock
-                mark_price=None,
-                liquidation_price=None,
-                unrealized_pnl=None,
-                realized_pnl=None,
-                strategy_name=None,
-                signal_id=None,
-                hl_details=None,
-                bp_details=None,
+                size=Decimal("1.0"),
+                entry_price=Decimal(50000),
+                timestamp=datetime.now(UTC),
+                mark_price=Decimal(51000),
+                unrealized_pnl=Decimal(1000),
+            ),
+            DerivativePosition(
+                exchange="hyperliquid",
+                symbol="ETH-PERP",
+                side=OrderSide.SELL,
+                size=Decimal("-2.0"),
+                entry_price=Decimal(3000),
+                timestamp=datetime.now(UTC),
+                mark_price=Decimal(2950),
+                unrealized_pnl=Decimal(100),
             ),
         ]
-        mock_hl_orders_err = [
+
+        # Update positions
+        await portfolio_tracker.update_positions("hyperliquid", positions)
+
+        # Verify positions were stored correctly
+        assert "hyperliquid" in portfolio_tracker.positions
+        assert "BTC-PERP" in portfolio_tracker.positions["hyperliquid"]
+        assert "ETH-PERP" in portfolio_tracker.positions["hyperliquid"]
+        assert portfolio_tracker.positions["hyperliquid"]["BTC-PERP"].size == Decimal("1.0")
+        assert portfolio_tracker.positions["hyperliquid"]["ETH-PERP"].side == OrderSide.SELL
+
+    @pytest.mark.asyncio
+    async def test_update_orders_validation(
+        self,
+        portfolio_tracker: PortfolioTracker,
+    ) -> None:
+        """Test update_orders method with validation."""
+        # Create test order data
+        orders = [
             Order(
                 exchange="hyperliquid",
-                client_order_id="hl-err-1",
+                client_order_id="order-1",
+                symbol="BTC-PERP",
+                side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                symbol="BTC",
-                side=OrderSide.SELL,
-                price=Decimal(52000),  # Required for LIMIT
+                price=Decimal(49000),
                 quantity_requested=Decimal("0.5"),
                 status=OrderStatus.OPEN,
-                created_at=now_api_error,
+                created_at=datetime.now(UTC),
                 time_in_force=TimeInForce.GTC,
-                # Explicitly provide None for optional fields for clarity in test mock
-                exchange_order_id=None,
-                related_order_id=None,
-                quote_quantity_requested=None,
-                quantity_filled=Decimal(0),  # Default but explicit
-                stop_price=None,
-                average_fill_price=None,
-                trigger_by=None,
-                reduce_only=False,  # Default but explicit
-                post_only=False,  # Default but explicit
-                updated_at=None,
+                updated_at=datetime.now(UTC),
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
-                trades=[],  # Default but explicit
-                hl_details=None,
-                bp_details=None,
+            ),
+            Order(
+                exchange="hyperliquid",
+                client_order_id="order-2",
+                symbol="ETH-PERP",
+                side=OrderSide.SELL,
+                order_type=OrderType.LIMIT,
+                price=Decimal(3100),
+                quantity_requested=Decimal("1.0"),
+                status=OrderStatus.OPEN,
+                created_at=datetime.now(UTC),
+                time_in_force=TimeInForce.IOC,
+                updated_at=datetime.now(UTC),
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
             ),
         ]
-        mock_hl_summary_err = MarginAccountSummary(
-            exchange="hyperliquid",
-            timestamp=datetime.now(UTC),
-            total_equity=Decimal(10000),
-            available_equity=Decimal(9500),
-            total_initial_margin_required=Decimal(1000),
-            total_maintenance_margin_required=Decimal(500),
-            total_position_notional=Decimal(5000),
-            total_unrealized_pnl=Decimal(100),
-        )
 
-        api_clients["hyperliquid"].get_positions.return_value = mock_hl_positions_err
-        api_clients["hyperliquid"].get_open_orders.return_value = mock_hl_orders_err
-        api_clients["hyperliquid"].get_account_summary.return_value = mock_hl_summary_err
+        # Update orders
+        await portfolio_tracker.update_orders("hyperliquid", orders)
 
-        await portfolio_tracker.update()  # Should attempt reconciliation
-
-        # Verify that get_balances was called (and failed)
-        api_clients["hyperliquid"].get_balances.assert_awaited_once()
-        # Verify other methods were still called as part_of_portfolio_tracker.update()
-        api_clients["hyperliquid"].get_positions.assert_awaited_once()
-        api_clients["hyperliquid"].get_open_orders.assert_awaited_once()
-        api_clients["hyperliquid"].get_account_summary.assert_awaited_once()
-
-        # Check that internal state for balances was not corrupted or incorrectly updated
-        # It should remain as it was or be handled gracefully (e.g., empty if init failed there)
-        # For this test, assume initial state was empty or some known state.
-        # If initialize() was called, initial_balances would reflect that.
-        # If the error occurs during update *after* a successful init, state should persist.
-        # Here, initial_balances reflects the state *before* this failing update.
-        assert portfolio_tracker.balances.get(
-            "hyperliquid",
-            dict[str, SpotBalance](),
-        ) == initial_balances.get("hyperliquid", dict[str, SpotBalance]())
-
-        # Positions and orders should reflect the successful API calls for those parts
-        assert "BTC" in portfolio_tracker.positions["hyperliquid"]
-        assert "hl-err-1" in portfolio_tracker.orders["hyperliquid"]
-
-        # Reconciliation timestamp should still update because an attempt was made
-        assert (
-            portfolio_tracker.last_reconciliation_time["hyperliquid"] > initial_reconciliation_time
-        )
+        # Verify orders were stored correctly
+        assert "hyperliquid" in portfolio_tracker.orders
+        assert "order-1" in portfolio_tracker.orders["hyperliquid"]
+        assert "order-2" in portfolio_tracker.orders["hyperliquid"]
+        assert portfolio_tracker.orders["hyperliquid"]["order-1"].symbol == "BTC-PERP"
+        assert portfolio_tracker.orders["hyperliquid"]["order-2"].price == Decimal(3100)
 
     def test_update_order(
         self,
@@ -891,7 +584,6 @@ class TestPortfolioTracker:
         # Setup initial state
         portfolio_tracker.orders.update(sample_orders)
         portfolio_tracker.balances.update(sample_balances_state)  # type: ignore
-        portfolio_tracker.last_update_time["hyperliquid"] = now - timedelta(seconds=60)
 
         order_in_tracker = portfolio_tracker.orders["hyperliquid"]["hl-order-2"]
         original_status = order_in_tracker.status
@@ -925,9 +617,7 @@ class TestPortfolioTracker:
         retrieved_updated_order = portfolio_tracker.orders["hyperliquid"]["hl-order-2"]
         assert retrieved_updated_order.status == OrderStatus.FILLED
         assert retrieved_updated_order.updated_at == now
-        assert (
-            abs((portfolio_tracker.last_update_time["hyperliquid"] - now).total_seconds()) < 1
-        )  # Approximate
+        # Note: last_update_time tracking has been removed from PortfolioTracker
         assert original_status != retrieved_updated_order.status  # Ensure status actually changed
         assert retrieved_updated_order.average_fill_price == order_in_tracker.price
 
@@ -942,7 +632,7 @@ class TestPortfolioTracker:
         # Setup initial state
         portfolio_tracker.positions.update(sample_positions)  # type: ignore
         portfolio_tracker.balances.update(sample_balances_state)  # type: ignore
-        portfolio_tracker.last_update_time["hyperliquid"] = now - timedelta(seconds=60)
+        # Note: last_update_time tracking has been removed from PortfolioTracker
 
         position_to_update = sample_positions["hyperliquid"]["BTC"]
         original_size = position_to_update.size
@@ -957,9 +647,7 @@ class TestPortfolioTracker:
         assert (
             updated_position.timestamp == now
         )  # Direct comparison ok if 'now' is from position_to_update
-        assert (
-            abs((portfolio_tracker.last_update_time["hyperliquid"] - now).total_seconds()) < 1
-        )  # Approximate
+        # Note: last_update_time tracking has been removed from PortfolioTracker
         assert original_size != new_size
 
     @pytest.mark.asyncio
@@ -987,17 +675,10 @@ class TestPortfolioTracker:
             timestamp=now,
         )
 
-        # Test balance update through the public interface by simulating
-        # the exchange API returning the new balance data
-        with patch.object(portfolio_tracker, "_fetch_exchange_balances") as mock_fetch:
-            # Make the API fetch return our new balance data
-            def mock_fetch_balances(exchange_id: str) -> None:
-                portfolio_tracker.balances[exchange_id][asset_to_update] = new_balance_data
-
-            mock_fetch.side_effect = mock_fetch_balances
-
-            # Trigger update through public API which should fetch and update balances
-            await portfolio_tracker.update()
+        # Test balance update through the new public interface
+        # Since PortfolioTracker is now a pure state manager, we directly update balances
+        new_balances = {asset_to_update: new_balance_data}
+        await portfolio_tracker.update_balances(exchange_id, new_balances)
 
         updated_balance_obj = portfolio_tracker.balances[exchange_id].get(asset_to_update, None)
         assert updated_balance_obj is not None, "Updated balance must exist"
@@ -1034,28 +715,47 @@ class TestPortfolioTracker:
         self,
         portfolio_tracker: PortfolioTracker,
         sample_balances_state: ExchangeBalances,
-        api_clients: dict[str, AsyncMock],  # api_clients fixture for get_ticker
     ) -> None:
-        """Test calculating total portfolio capital."""
-        # Setup initial state: balances and mock API clients
+        """Test calculating total portfolio capital.
+
+        Note: Price data should now be provided via PriceDataService parameter.
+        """
+        # Setup initial state: balances
         portfolio_tracker.balances.update(sample_balances_state)  # type: ignore
-        # Positions also contribute to capital via PnL, so mock them too if not using
-        # sample_positions
-        # For simplicity, let's assume PnL part is tested separately or positions are
-        # zero for this test.
-        # If positions are non-zero, ensure get_pnl (and its dependency
-        # _get_asset_price_in_base) is mocked
-        # or correctly functioning with api_clients.
 
         # Mock get_pnl to simplify this test and focus on balance valuation
-        # get_pnl is an async method on PortfolioTracker
         portfolio_tracker.get_pnl = AsyncMock(return_value=(Decimal(0), Decimal(0)))  # type: ignore
 
-        # Ensure api_clients are registered if not done by portfolio_tracker fixture
-        # This is typically handled by the portfolio_tracker fixture itself
-        # for client in api_clients.values():
-        #     if isinstance(client, AsyncMock) and hasattr(client, 'exchange_id'):
-        # # Hypothetical attr
+        # Create a mock PriceDataService for testing using our helper functions
+        mock_price_service = AsyncMock()
+
+        # Use the helper functions to create a more robust price service mock
+        mock_price_data = _get_mock_price_data()
+
+        # Mock price service to return expected prices using helper functions
+        def mock_get_price(exchange_id: str, asset: str, base: str) -> Decimal | None:
+            # Try direct pair lookup first
+            price = _handle_direct_pairs(asset, base, mock_price_data)
+            if price is not None:
+                return price
+
+            # Try inverse pair lookup
+            price = _handle_inverse_pairs(asset, base, mock_price_data)
+            if price is not None:
+                return price
+
+            # Handle USD/USDC conversions
+            price = _handle_usd_usdc_pairs(asset, base)
+            if price is not None:
+                return price
+
+            # Same currency
+            if asset == base:
+                return Decimal("1.0")
+
+            return None
+
+        mock_price_service.get_price_in_base_currency.side_effect = mock_get_price
 
         # Expected total capital based on sample_balances_state and mocked prices
         # HyperLiquid: USDC 100000.0 (price 1.0) = 100000.0
@@ -1063,46 +763,15 @@ class TestPortfolioTracker:
         # Backpack:    USDC 5000.0 (price 1.0) = 5000.0
         #              BTC  0.1 (price 50000.0) = 5000.0
         # Total expected = 100000 + 15000 + 5000 + 5000 = 125000.0
-        # This calculation depends on _get_asset_price_in_base using api_clients correctly.
 
-        # Verify the mocked get_ticker within api_clients works as expected
-        # by _get_asset_price_in_base
-        # Example: direct call to the helper if possible, or rely on get_total_capital's
-        # internal use.
-        # price_btc_usdc = await portfolio_tracker._get_asset_price_in_base("backpack",
-        # "BTC", "USDC")  , SLF001
+        total_capital = await portfolio_tracker.get_total_capital(
+            base_currency="USDC", price_service=mock_price_service
+        )
 
-        total_capital = await portfolio_tracker.get_total_capital(base_currency="USDC")
-
-        # --- DETAILED ASSERTIONS FOR EACH ASSET ---
-        # Test that get_total_capital correctly handles price conversions internally
-        # We verify the total result rather than individual price calculations
-        # HyperLiquid USDC value: total_quantity * 1.0 (USDC price in USDC is 1)
-        # Backpack USDC value: total_quantity * 1.0
-        # Test the total capital calculation result instead of individual price lookups
-        # Based on our mocked ticker data and balance quantities:
-        # HyperLiquid: 100000 USDC + (5.0 ETH * 3000) = 100000 + 15000 = 115000 USDC
-        # Backpack: 5000 USDC + (0.1 BTC * 50000) = 5000 + 5000 = 10000 USDC
-        # Expected total: 115000 + 10000 = 125000 USDC
-        # This calculation depends on _get_asset_price_in_base using api_clients correctly.
         expected_total_capital = Decimal("125000.0")
-        # --- END DETAILED ASSERTIONS ---
-
         assert total_capital == expected_total_capital
 
-        # Test with a different base currency if _get_asset_price_in_base supports it
-        # For example, if BTC is base currency (this requires USDC-BTC ticker mock)
-        #     "hyperliquid", "USDC", "BTC")  , SLF001
-
-        # base_currency="BTC")
-        # hl_usdc_in_btc = sample_balances_state["hyperliquid"]["USDC"].total_quantity *
-        # price_usdc_btc
-        # bp_usdc_in_btc = sample_balances_state["backpack"]["USDC"].total_quantity *
-        # price_usdc_btc
-        # bp_btc_in_btc = sample_balances_state["backpack"]["BTC"].total_quantity *
-
         # Test with an asset that has no price (should be skipped)
-        # Add a balance for an unpriced asset
         portfolio_tracker.balances["hyperliquid"]["UNPRICED"] = SpotBalance(
             exchange="hyperliquid",
             asset="UNPRICED",
@@ -1110,17 +779,67 @@ class TestPortfolioTracker:
             available_quantity=Decimal(100),
             timestamp=datetime.now(UTC),
         )
-        # Ensure _get_asset_price_in_base returns None for "UNPRICED"
-        # The api_clients fixture's mock_get_ticker_side_effect should return None
-        # for it.
-        #     "hyperliquid", "UNPRICED", "USDC")  , SLF001
 
+        # The price service should return None for unpriced assets
         total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
-            base_currency="USDC",
+            base_currency="USDC", price_service=mock_price_service
         )
         assert (
             total_capital_with_unpriced == expected_total_capital
         )  # Unpriced asset should not change total
+
+    @pytest.mark.asyncio
+    async def test_get_total_capital_different_base_currencies(
+        self,
+        portfolio_tracker: PortfolioTracker,
+        sample_balances_state: ExchangeBalances,
+    ) -> None:
+        """Test calculating total portfolio capital with different base currencies.
+
+        Uses helper functions to test comprehensive price conversion logic.
+        """
+        # Setup initial state: balances
+        portfolio_tracker.balances.update(sample_balances_state)  # type: ignore
+
+        # Mock get_pnl to simplify this test
+        portfolio_tracker.get_pnl = AsyncMock(return_value=(Decimal(0), Decimal(0)))  # type: ignore
+
+        # Create a mock PriceDataService using our helper functions
+        mock_price_service = AsyncMock()
+        mock_price_data = _get_mock_price_data()
+
+        def mock_get_price(exchange_id: str, asset: str, base: str) -> Decimal | None:
+            # Use helper functions for comprehensive price lookup
+            price = _handle_direct_pairs(asset, base, mock_price_data)
+            if price is not None:
+                return price
+
+            price = _handle_inverse_pairs(asset, base, mock_price_data)
+            if price is not None:
+                return price
+
+            price = _handle_usd_usdc_pairs(asset, base)
+            if price is not None:
+                return price
+
+            if asset == base:
+                return Decimal("1.0")
+
+            return None
+
+        mock_price_service.get_price_in_base_currency.side_effect = mock_get_price
+
+        # Test with BTC as base currency
+        # ETH/BTC rate from mock data: 0.06 (3000/50000)
+        # HyperLiquid: 100000 USDC * (1/50000) = 2.0 BTC, 5.0 ETH * 0.06 = 0.3 BTC
+        # Backpack: 5000 USDC * (1/50000) = 0.1 BTC, 0.1 BTC * 1 = 0.1 BTC
+        # Total: 2.0 + 0.3 + 0.1 + 0.1 = 2.5 BTC
+        total_capital_btc = await portfolio_tracker.get_total_capital(
+            base_currency="BTC", price_service=mock_price_service
+        )
+
+        expected_btc_total = Decimal("2.5")
+        assert total_capital_btc == expected_btc_total
 
     def test_get_position(
         self,

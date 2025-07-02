@@ -387,10 +387,8 @@ def portfolio_tracker(
     Returns:
         PortfolioTracker instance with mock APIs registered for testing.
     """
-    tracker = PortfolioTracker(mock_config, mock_config.portfolio_tracker)
-    tracker.register_api_client("hyperliquid", mock_hl_api)
-    tracker.register_api_client("backpack", mock_bp_api)
-    return tracker
+    # NOTE: API client registration has moved to PortfolioOrchestrator
+    return PortfolioTracker(mock_config, mock_config.portfolio_tracker)
 
 
 @pytest.fixture

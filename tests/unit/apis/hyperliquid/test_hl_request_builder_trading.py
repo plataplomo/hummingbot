@@ -507,7 +507,7 @@ class TestHyperliquidRequestBuilderTrading:
     def test_build_batch_place_order_payload_size_limit(self, asset_index: int) -> None:
         """Test batch order payload building with size limit exceeded."""
         # Create 51 orders (exceeds limit of 50)
-        orders_data = []
+        orders_data: list[tuple[PlaceOrderArgs, int]] = []
         for i in range(51):
             order_args = PlaceOrderArgs(
                 symbol=f"TOKEN{i}_USDC",
@@ -600,8 +600,12 @@ class TestHyperliquidRequestBuilderTrading:
         with pytest.raises(ValueError, match="Batch size 51 exceeds maximum of 50 cancellations"):
             builder.build_batch_cancel_order_payload(cancel_items)
 
-    def test_build_order_item_spec_reusability(self, asset_index: int) -> None:
-        """Test that _build_order_item_spec method works correctly for reuse."""
+    def test_order_spec_functionality_via_public_api(self, asset_index: int) -> None:
+        """Test order specification building functionality through public API.
+
+        This test validates the same functionality as the protected _build_order_item_spec_static
+        method, but accesses it through the public build_place_order_payload API.
+        """
         args = PlaceOrderArgs(
             symbol="BTC_USDC",
             side=OrderSide.BUY,
@@ -614,16 +618,20 @@ class TestHyperliquidRequestBuilderTrading:
             post_only=True,
         )
 
-        builder = HyperliquidRequestBuilder()
-
-        # Test the extracted helper method directly
-        order_spec = builder._build_order_item_spec(
+        # Test the functionality through the public API
+        order_payload = HyperliquidRequestBuilder.build_place_order_payload(
             args=args,
             asset_index=asset_index,
             tif_str="Gtc",
         )
 
-        # Validate the order spec
+        # Validate the payload structure
+        assert isinstance(order_payload, HyperliquidApiPlaceOrderRequest)
+        assert order_payload.type == "order"
+        assert len(order_payload.orders) == 1
+
+        # Extract and validate the order spec (this tests the protected method indirectly)
+        order_spec = order_payload.orders[0]
         assert isinstance(order_spec, HyperliquidRawOrderItemSpec)
         assert order_spec.a == asset_index
         assert order_spec.b is True  # BUY

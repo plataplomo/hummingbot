@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import structlog
@@ -366,10 +366,10 @@ class Engine:
         for idx, row in df.iterrows():
             # Cast to ensure proper typing for pandas operations
             # Note: pandas iterrows returns (index, Series[Unknown]) due to dynamic nature
-            idx_typed = cast("int", idx)
+            idx_typed: int = idx  # type: ignore
             # DEFENSIVE CHECK: Handle pandas Series dynamic typing
             # Pyright=[reportUnknownVariableType] - pandas Series typing is inherently dynamic
-            row_typed = row
+            row_typed: pd.Series[Any] = row
 
             # Extract timestamp and convert to datetime
             # DEFENSIVE CHECK: Handle pandas Series.get dynamic return type
@@ -392,12 +392,12 @@ class Engine:
                 # DEFENSIVE CHECK: Handle pandas to_datetime complex overloads
                 # Pyright=[reportUnknownMemberType, reportUnknownArgumentType] - pd.to_datetime has
                 # many overloads
-                pd_timestamp_result = cast("pd.Timestamp", pd.to_datetime(timestamp_raw, utc=True))
+                pd_timestamp_result: pd.Timestamp = pd.to_datetime(timestamp_raw, utc=True)
                 # Convert to standard datetime if it's a pandas Timestamp
                 if hasattr(pd_timestamp_result, "to_pydatetime"):
                     timestamp = pd_timestamp_result.to_pydatetime()
                 else:
-                    timestamp = cast("datetime", pd_timestamp_result)
+                    timestamp: datetime = pd_timestamp_result  # type: ignore
             except (ValueError, TypeError, OverflowError) as e:
                 logger.warning(
                     "dataframe_row_invalid_timestamp",
@@ -416,7 +416,7 @@ class Engine:
                 # Cast the to_dict result to ensure proper typing
                 # DEFENSIVE CHECK: Handle pandas Series.to_dict complex overloads
                 # Pyright=[reportUnknownMemberType] - pandas Series.to_dict has complex overloads
-                row_dict_result = cast("dict[str, Any]", row_typed.to_dict())
+                row_dict_result: dict[str, Any] = row_typed.to_dict()
                 row_dict = row_dict_result
 
                 # Ensure conversion from string for precision

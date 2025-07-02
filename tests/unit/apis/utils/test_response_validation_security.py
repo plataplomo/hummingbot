@@ -223,8 +223,8 @@ class TestSecurityValidationScenarios:
 
     def test_concurrent_validation_safety(self) -> None:
         """Test that validation functions are thread-safe."""
-        results = []
-        errors = []
+        results: list[dict[str, Any]] = []
+        errors: list[APIError] = []
 
         def validate_concurrently(value: dict[str, Any] | str, expected_error: bool) -> None:
             try:
@@ -241,7 +241,7 @@ class TestSecurityValidationScenarios:
                 errors.append(e)
 
         # Create multiple threads with different inputs
-        threads = []
+        threads: list[threading.Thread] = []
         for i in range(10):
             if i % 2 == 0:
                 # Valid dict
@@ -252,21 +252,21 @@ class TestSecurityValidationScenarios:
             threads.append(thread)
 
         # Start all threads
-        for thread in threads:
-            thread.start()
+        for thread_item in threads:
+            thread_item.start()
 
         # Wait for completion
-        for thread in threads:
-            thread.join()
+        for thread_item in threads:
+            thread_item.join()
 
         # Verify results
         assert len(results) == 5  # 5 valid dicts
         assert len(errors) == 5  # 5 errors from invalid inputs
 
         # Check that each error has correct type
-        for error in errors:
-            assert error.code == APIErrorCode.INVALID_RESPONSE.value
-            assert "expected dict, got str" in str(error)
+        for error_item in errors:
+            assert error_item.code == APIErrorCode.INVALID_RESPONSE.value
+            assert "expected dict, got str" in str(error_item)
 
     def test_malformed_json_like_structures(self) -> None:
         """Test validation against malformed JSON-like structures."""

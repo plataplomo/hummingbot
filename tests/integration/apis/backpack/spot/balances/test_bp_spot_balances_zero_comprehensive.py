@@ -299,11 +299,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
                                 f"Rate limit error should map to RATE_LIMITED, got {e.code}"
                             )
                         # Check if retry-after information is preserved
-                        if (
-                            hasattr(e, "retry_after")
-                            and e.retry_after
-                            and not isinstance(e.retry_after, int | float)
-                        ):
+                        if hasattr(e, "retry_after") and e.retry_after is not None:
                             pytest.fail("retry_after should be numeric if present")
                     else:
                         raise  # Re-raise non-rate-limit errors

@@ -114,11 +114,7 @@ class TestBackpackSpotBalancesPrivate:
                     if "rate" in e.message.lower() or "limit" in e.message.lower():
                         if e.code != APIErrorCode.RATE_LIMITED.value:
                             pytest.fail(f"Expected RATE_LIMITED error code, got: {e.code}")
-                        if (
-                            hasattr(e, "retry_after")
-                            and e.retry_after
-                            and not isinstance(e.retry_after, int | float)
-                        ):
+                        if hasattr(e, "retry_after") and e.retry_after is not None:
                             pytest.fail(
                                 f"retry_after should be int or float, got: {type(e.retry_after)}"
                             )

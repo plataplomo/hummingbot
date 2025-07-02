@@ -12,6 +12,9 @@ from typing import Any
 import structlog
 
 
+type SerializableData = dict[str, Any] | list[Any]
+
+
 # Assuming Decimal might be used in trade/signal data, import if needed
 # Using the centralized encoder is recommended
 
@@ -56,7 +59,7 @@ class PerformanceDataPersistence:
         dir_path.mkdir(parents=True, exist_ok=True)
         return dir_path / filename
 
-    def save_data(self, data_type: str, filename: str, data: dict[str, Any] | list[Any]) -> None:
+    def save_data(self, data_type: str, filename: str, data: SerializableData) -> None:
         """Save data to a JSON file.
 
         Args:
@@ -143,7 +146,7 @@ class PerformanceDataPersistence:
         else:
             return processed_data
 
-    def _make_serializable(self, data: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
+    def _make_serializable(self, data: SerializableData) -> SerializableData:
         """Make data JSON serializable by converting datetime objects to ISO strings.
 
         Args:
@@ -224,29 +227,50 @@ class PerformanceDataPersistence:
     ) -> dict[str, Any] | list[Any]:
         """Post-process returns data to convert timestamp keys back to datetime objects."""
         # For returns data, convert timestamp keys back to datetime objects
-        if isinstance(loaded_data, dict):
-            processed_returns: dict[str, Any] = {}
-            for strategy_name, strategy_data in loaded_data.items():
-                if isinstance(strategy_data, dict):
-                    processed_strategy_data: dict[datetime, Decimal] = {}
-                    # DEFENSIVE CHECK: Handle unknown types from JSON.
-                    for ts_str, val in strategy_data.items():
-                        try:
-                            timestamp = datetime.fromisoformat(str(ts_str))
-                            processed_strategy_data[timestamp] = Decimal(str(val))
-                        except (ValueError, TypeError):
-                            logger.warning(
-                                "timestamp_parse_failed",
-                                action="parse",
-                                timestamp_str=str(ts_str),
-                                message=f"Could not parse timestamp: {ts_str}",
-                            )
-                            continue
-                    processed_returns[strategy_name] = processed_strategy_data
-                else:
-                    processed_returns[strategy_name] = strategy_data
-            return processed_returns
-        return loaded_data
+        if not isinstance(loaded_data, dict):
+            return loaded_data
+
+        processed_returns: dict[str, Any] = {}
+        for strategy_name, strategy_data in loaded_data.items():
+            if not isinstance(strategy_data, dict):
+                processed_returns[strategy_name] = strategy_data
+                continue
+
+            processed_strategy_data: dict[datetime, Decimal] = {}
+            for ts_str, val in strategy_data.items():
+                result = self._process_timestamp_value(ts_str, val)
+                if result is not None:
+                    timestamp, decimal_val = result
+                    processed_strategy_data[timestamp] = decimal_val
+
+            processed_returns[strategy_name] = processed_strategy_data
+        return processed_returns
+
+    def _process_timestamp_value(
+        self, ts_str: object, val: object
+    ) -> tuple[datetime, Decimal] | None:
+        """Process a single timestamp-value pair."""
+        try:
+            if not isinstance(ts_str, str) or not isinstance(val, (str, int, float)):
+                logger.warning(
+                    "invalid_type_in_returns_data",
+                    action="parse",
+                    timestamp_key=ts_str,
+                    value=val,
+                    message="Skipping entry in returns data due to invalid type.",
+                )
+                return None
+
+            timestamp = datetime.fromisoformat(ts_str)
+            return timestamp, Decimal(str(val))
+        except (ValueError, TypeError):
+            logger.warning(
+                "timestamp_parse_failed",
+                action="parse",
+                timestamp_str=str(ts_str),
+                message=f"Could not parse timestamp: {ts_str}",
+            )
+            return None
 
     def _post_process_list_data(
         self,

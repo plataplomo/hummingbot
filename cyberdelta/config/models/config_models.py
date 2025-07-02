@@ -8,8 +8,10 @@ These models define the structure, types, defaults, and validation rules for con
 leveraging utility functions from cyberdelta.utils.parsing for robust parsing and validation.
 """
 
+from __future__ import annotations
+
 from decimal import Decimal
-from typing import Any, Literal, Self
+from typing import Literal, Self
 
 from pydantic import (
     AnyUrl,
@@ -30,6 +32,7 @@ from cyberdelta.config.models.config_types import (
 
 # Import strategy models from separate module
 from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
+from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.base import (
     ConfigurationError,
@@ -559,7 +562,7 @@ class PortfolioTrackerConfig(BaseModel):
 
     data_freshness_seconds: int = Field(DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
     initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
-    initial_positions: list[dict[str, Any]] = Field(default_factory=list)
+    initial_positions: list[DerivativePosition] = Field(default_factory=list)
 
 
 class AppSettings(BaseModel):

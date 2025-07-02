@@ -191,7 +191,7 @@ class StrategyFactory:
         params_dict = params.model_dump()
 
         # Convert Decimal values to float for strategy consumption
-        converted_params = {}
+        converted_params: dict[str, Any] = {}
         for key, value in params_dict.items():
             if hasattr(value, "is_finite"):  # Decimal type
                 converted_params[key] = float(value)

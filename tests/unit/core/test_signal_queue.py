@@ -497,17 +497,24 @@ async def test_clean_expired_signals_direct_patch(
 
         assert await queue.count() == 4
 
-        # Trigger cleanup manually since automatic cleanup relies on real time intervals
-        # The test's mocked time should make expired signals be removed
-        async with queue.lock:
-            queue._clean_expired_signals()
-            queue.last_cleanup = datetime.now(UTC)
+        # Trigger cleanup by adding a dummy signal which will trigger automatic cleanup
+        # Since we've advanced time past the cleanup interval, cleanup will run automatically
+        dummy_cleanup_signal = create_test_signal(
+            symbol="CLEANUP_TRIGGER",
+            score=0.1,
+            price=Decimal(1),
+            base_time=future_time_for_expirations,
+        )
+        await queue.add_signal(dummy_cleanup_signal)
 
-        # Assertions after explicit cleanup
+        # Assertions after automatic cleanup via add_signal
         current_signals = await queue.get_signals()
-        assert len(current_signals) == 2, "Expected 2 valid signals after cleanup"
+        # Should have dummy signal plus the 2 valid signals (DEF_VAL and EXP_VAL)
+        assert len(current_signals) == 3, "Expected 3 signals after automatic cleanup"
         symbols_remaining = {s.symbol for s in current_signals}
-        assert symbols_remaining == {"DEF_VAL", "EXP_VAL"}
+        assert "DEF_VAL" in symbols_remaining
+        assert "EXP_VAL" in symbols_remaining
+        assert "CLEANUP_TRIGGER" in symbols_remaining
 
         # Verify cleanup happened (using the internal counter for simplicity in this test)
         # Note: Accessing _cleaned_count is not ideal practice outside testing.
@@ -686,18 +693,25 @@ async def test_clean_expired_signals_with_helper(
     await queue.add_signal(signal_valid)
     await queue.add_signal(signal_expired)
 
-    # *** Explicitly trigger cleanup AFTER adding signals ***
-    # Trigger cleanup manually since automatic cleanup relies on real time intervals
-    async with queue.lock:
-        queue._clean_expired_signals()
-        queue.last_cleanup = datetime.now(UTC)
-
-    # Assertions after explicit cleanup (outside the lock)
-    current_signals = await queue.get_signals()
-    # Cleanup should have removed the expired one
-    assert len(current_signals) == 1, (
-        f"Expected 1 signal after explicit cleanup, found {len(current_signals)}"
+    # *** Trigger cleanup by adding a dummy signal ***
+    # This will trigger automatic cleanup since we've advanced time past cleanup interval
+    dummy_trigger_signal = create_test_signal(
+        symbol="TRIGGER_CLEANUP",
+        score=0.1,
+        price=Decimal(1),
+        base_time=future_now_for_expirations,
     )
+    await queue.add_signal(dummy_trigger_signal)
+
+    # Assertions after automatic cleanup via add_signal
+    current_signals = await queue.get_signals()
+    # Cleanup should have removed the expired one, leaving valid + dummy
+    assert len(current_signals) == 2, (
+        f"Expected 2 signals after automatic cleanup, found {len(current_signals)}"
+    )
+    symbols_remaining = {s.symbol for s in current_signals}
+    assert "VALID/USDT" in symbols_remaining
+    assert "TRIGGER_CLEANUP" in symbols_remaining
 
 
 # --- Signal Specific Tests ---

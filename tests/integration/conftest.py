@@ -452,8 +452,7 @@ async def position_reconciler(
     # Create a fresh PortfolioTracker for this fixture
     portfolio_tracker = PortfolioTracker(mock_config, mock_pt_config)
     await portfolio_tracker.initialize()  # Initialize it
-    portfolio_tracker.register_api_client("hyperliquid", mock_hl_api)
-    portfolio_tracker.register_api_client("backpack", mock_bp_api)
+    # NOTE: API client registration has moved to PortfolioOrchestrator
 
     reconciler = PositionReconciliationSystem(
         app_settings=mock_config,
