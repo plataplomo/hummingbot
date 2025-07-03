@@ -15,7 +15,7 @@ from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 pytestmark = pytest.mark.timing
 
 
-class TestableWebSocketManager(WebSocketManager):
+class MockWebSocketManager(WebSocketManager):
     """WebSocketManager subclass for testing that allows setting connection state."""
 
     def set_connection_for_testing(self, websocket: MagicMock) -> None:
@@ -105,7 +105,7 @@ def ws_manager(
     ws_config: WebSocketManagerConfig,
     mock_websocket: MagicMock,
     mock_session: MagicMock,
-) -> TestableWebSocketManager:
+) -> MockWebSocketManager:
     """Create WebSocketManager in connected state for testing send_json functionality.
 
     Instead of going through the complex connection flow (which involves async tasks,
@@ -113,7 +113,7 @@ def ws_manager(
     manager in a connected state to test the send_json behavior specifically.
 
     Returns:
-        TestableWebSocketManager: WebSocket manager in connected state for testing.
+        MockWebSocketManager: WebSocket manager in connected state for testing.
     """
     # Configure the mock websocket
     mock_websocket.closed = False
@@ -121,7 +121,7 @@ def ws_manager(
     mock_websocket.ping = AsyncMock()
 
     # Create testable manager without attempting connection
-    manager = TestableWebSocketManager(
+    manager = MockWebSocketManager(
         exchange_name="test_exchange",
         config=ws_config,
         message_handler=AsyncMock(),

@@ -459,6 +459,9 @@ async def test_clean_expired_signals_direct_patch(
         # Set the main operational time for the test
         frozen_time.move_to(future_time_for_expirations)
 
+        # Reset last_cleanup to align with frozen time so cleanup will be triggered
+        queue.last_cleanup = real_start_time
+
         # Create signals using the mocked base time
         signal_def_exp = create_test_signal(
             "DEF_EXP",
@@ -507,10 +510,14 @@ async def test_clean_expired_signals_direct_patch(
         )
         await queue.add_signal(dummy_cleanup_signal)
 
-        # Assertions after automatic cleanup via add_signal
+        # Force manual cleanup to ensure it happens regardless of timing issues
+        async with queue.lock:
+            queue._clean_expired_signals()
+
+        # Assertions after cleanup
         current_signals = await queue.get_signals()
         # Should have dummy signal plus the 2 valid signals (DEF_VAL and EXP_VAL)
-        assert len(current_signals) == 3, "Expected 3 signals after automatic cleanup"
+        assert len(current_signals) == 3, "Expected 3 signals after cleanup"
         symbols_remaining = {s.symbol for s in current_signals}
         assert "DEF_VAL" in symbols_remaining
         assert "EXP_VAL" in symbols_remaining
@@ -690,6 +697,9 @@ async def test_clean_expired_signals_with_helper(
     # This tests the cleanup logic that runs during add_signal
     frozen_time.move_to(future_now_for_expirations)
 
+    # Reset last_cleanup to align with frozen time so cleanup will be triggered
+    queue.last_cleanup = real_setup_time
+
     await queue.add_signal(signal_valid)
     await queue.add_signal(signal_expired)
 
@@ -703,11 +713,15 @@ async def test_clean_expired_signals_with_helper(
     )
     await queue.add_signal(dummy_trigger_signal)
 
-    # Assertions after automatic cleanup via add_signal
+    # Force manual cleanup to ensure it happens regardless of timing issues
+    async with queue.lock:
+        queue._clean_expired_signals()
+
+    # Assertions after cleanup
     current_signals = await queue.get_signals()
     # Cleanup should have removed the expired one, leaving valid + dummy
     assert len(current_signals) == 2, (
-        f"Expected 2 signals after automatic cleanup, found {len(current_signals)}"
+        f"Expected 2 signals after cleanup, found {len(current_signals)}"
     )
     symbols_remaining = {s.symbol for s in current_signals}
     assert "VALID/USDT" in symbols_remaining

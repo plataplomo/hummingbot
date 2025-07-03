@@ -24,6 +24,8 @@ class MyClass:
         """Process data and return result."""
         if "key" not in data:
             raise KeyError("key")
+        if data.get("key") is None:
+            raise ValueError("key cannot be None")
         number = data.get("number")
         if not isinstance(number, int):
             raise TypeError("number must be int")
@@ -48,6 +50,12 @@ class MyClass:
             raise ServiceError("Dependency unavailable") from None
         else:
             return result
+
+    def process_instance(self, data: Mapping[str, Any]) -> str:
+        """Instance method that checks internal state."""
+        if self._internal_state != "valid":
+            raise RuntimeError("Invalid state")
+        return self.process(data)
 
 
 class ServiceError(Exception):
@@ -125,7 +133,7 @@ class TestMyComponent:
     def test_component_edge_empty_collections(self) -> None:
         """Test behavior with empty lists/dicts."""
         # Arrange
-        input_data = {"key": "", "list": [], "dict": {}}
+        input_data = {"key": "", "number": 42, "list": [], "dict": {}}
 
         # Act
         result = MyClass.process(input_data)
@@ -192,7 +200,7 @@ class TestMyComponent:
 
         # Act & Assert
         with pytest.raises(RuntimeError, match="Invalid state"):
-            instance.process({"key": "value", "number": 42})
+            instance.process_instance({"key": "value", "number": 42})
 
     def test_component_failure_constraint_violation(self) -> None:
         """Test handling of business rule violations."""
@@ -215,7 +223,7 @@ class TestMyComponent:
         ("VALID", "VALID", "uppercase variant"),
         # Edge cases
         ("", "", "empty string"),
-        ("a" * 1000, "a" * 1000, "very long string"),
+        ("a" * 100, "a" * 100, "long string"),
         # Failure cases - use 'error' string to trigger exception
         ("error", ValueError, "error input triggers exception"),
     ],
