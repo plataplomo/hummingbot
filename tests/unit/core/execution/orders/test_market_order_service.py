@@ -6,6 +6,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (
@@ -346,18 +347,15 @@ class TestMarketOrderService:
         )
         mock_exchange_api.get_market.return_value = None
 
-        # When no signal generator, should use config default
-        price = asyncio.run(
-            service.calculate_aggressive_price(
-                symbol="SOL",
-                side=OrderSide.BUY,
-                quantity=Decimal(100),
+        # When no signal generator and insufficient liquidity, should raise error
+        with pytest.raises(InsufficientLiquidityError):
+            asyncio.run(
+                service.calculate_aggressive_price(
+                    symbol="SOL",
+                    side=OrderSide.BUY,
+                    quantity=Decimal(100),
+                )
             )
-        )
-
-        # Expected price with SOL default from config (0.01)
-        expected = Decimal(101) * Decimal("1.01")
-        assert abs(price - expected) < Decimal(1)
 
     @pytest.mark.asyncio
     async def test_get_reference_price_all_mids(
@@ -447,21 +445,10 @@ class TestMarketOrderService:
             disabled_service.validate_config()
 
         # Test invalid slippage configuration
-        invalid_config = MarketOrderConfig(max_slippage_pct=Decimal(0))
         # This should fail at model validation time, not at validate_config time
         # So we test that the config validation catches issues
-        try:
-            invalid_service = MarketOrderService(
-                exchange_api=mock_exchange_api,
-                signal_generator=mock_signal_generator,
-                config=invalid_config,
-            )
-            # If we reach here, the invalid config was accepted, so validate_config should catch it
-            with pytest.raises(ValueError, match="Maximum slippage must be positive"):
-                invalid_service.validate_config()
-        except ValueError:
-            # Config validation caught it at creation time, which is also acceptable
-            pass
+        with pytest.raises(ValidationError):
+            MarketOrderConfig(max_slippage_pct=Decimal(0))
 
     @pytest.mark.asyncio
     async def test_round_to_tick_size(

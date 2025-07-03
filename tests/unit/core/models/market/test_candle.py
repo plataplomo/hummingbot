@@ -13,6 +13,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -104,47 +106,55 @@ class TestCandle:
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
-        with pytest.raises(ValueError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError):
             Candle(**create_valid_candle_data(symbol=""))
-        with pytest.raises(ValueError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError):
             Candle(**create_valid_candle_data(symbol="   "))
-        with pytest.raises(ValueError, match="String value too long"):
+        with pytest.raises(TypeFieldError):
             Candle(**create_valid_candle_data(symbol="A" * 65))
 
     def test_interval_validation(self) -> None:
         """Test validation rules for the interval field."""
-        with pytest.raises(ValueError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError):
             Candle(**create_valid_candle_data(interval=""))
-        with pytest.raises(ValueError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError):
             Candle(**create_valid_candle_data(interval="    "))
-        with pytest.raises(ValueError, match="String value too long"):
+        with pytest.raises(TypeFieldError):
             Candle(**create_valid_candle_data(interval="A" * 17))
 
     def test_open_time_validation(self) -> None:
         """Test open_time validation (required, parsing, None handling)."""
-        with pytest.raises(ValueError, match="open_time must not be None"):
+        with pytest.raises(
+            ValidationError, match=r"open_time.*datetime validation failed.*must not be None"
+        ):
             Candle(**create_valid_candle_data(open_time=None))
         with pytest.raises(
-            ValidationError,
-            match=r"open_time.*Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            DateTimeParsingError, match=r"Cannot parse as ISO datetime.*or as numeric timestamp"
         ):
             Candle(**create_valid_candle_data(open_time="invalid-date"))
 
     @pytest.mark.parametrize("field", ["open", "high", "low", "close", "volume"])
     def test_decimal_parsing_finiteness_required(self, field: str) -> None:
         """Test parsing, finiteness for required Decimal fields (OHLCV)."""
-        # Test None fails (validator raises ValueError before Pydantic)
-        with pytest.raises(ValueError, match=f"Field '{field}' cannot be None"):
+        # Test None fails (validator raises ValidationError with specific message before Pydantic)
+        with pytest.raises(ValidationError, match=f"{field}.*Required OHLCV field cannot be None"):
             Candle(**create_valid_candle_data(**{field: None}))
 
         # Test invalid parsing
-        with pytest.raises(ValidationError, match=rf"Value error, {field}: Cannot convert"):
+        with pytest.raises(
+            ValidationError,
+            match=rf"Field '{field}' decimal validation failed.*Cannot convert to Decimal",
+        ):
             Candle(**create_valid_candle_data(**{field: "not-a-number"}))
 
         # Test non-finite values
-        with pytest.raises(ValidationError, match=rf"Field '{field}' must be a finite Decimal"):
+        with pytest.raises(
+            ValidationError, match=rf"Field '{field}' must be finite.*NaN.*Infinity are invalid"
+        ):
             Candle(**create_valid_candle_data(**{field: DEC_NAN}))
-        with pytest.raises(ValidationError, match=rf"Field '{field}' must be a finite Decimal"):
+        with pytest.raises(
+            ValidationError, match=rf"Field '{field}' must be finite.*NaN.*Infinity are invalid"
+        ):
             Candle(**create_valid_candle_data(**{field: DEC_INF}))
 
     @pytest.mark.parametrize("field", ["open", "high", "low", "close"])
@@ -172,19 +182,29 @@ class TestCandle:
     def test_ohlc_consistency_validation(self) -> None:
         """Test the model-level OHLC consistency validation."""
         # high < low
-        with pytest.raises(ValueError, match=r"high .* must be >= low"):
+        with pytest.raises(
+            ValidationError, match=r"OHLC consistency validation failed.*high must be >= low"
+        ):
             Candle(**create_valid_candle_data(high=Decimal(90), low=Decimal(95)))
         # high < open
-        with pytest.raises(ValueError, match=r"high .* must be >= open"):
+        with pytest.raises(
+            ValidationError, match=r"OHLC consistency validation failed.*high must be >= open"
+        ):
             Candle(**create_valid_candle_data(high=Decimal(99), open=Decimal(100)))
         # high < close
-        with pytest.raises(ValueError, match=r"high .* must be >= close"):
+        with pytest.raises(
+            ValidationError, match=r"OHLC consistency validation failed.*high must be >= close"
+        ):
             Candle(**create_valid_candle_data(high=Decimal(101), close=Decimal(102)))
         # low > open
-        with pytest.raises(ValueError, match=r"low .* must be <= open"):
+        with pytest.raises(
+            ValidationError, match=r"OHLC consistency validation failed.*low must be <= open"
+        ):
             Candle(**create_valid_candle_data(low=Decimal(101), open=Decimal(100)))
         # low > close - This case also violates low > open, which is checked first.
-        with pytest.raises(ValueError, match=r"low .* must be <= open"):
+        with pytest.raises(
+            ValidationError, match=r"OHLC consistency validation failed.*low must be <= open"
+        ):
             Candle(**create_valid_candle_data(low=Decimal(103), close=Decimal(102)))
 
         # Valid case (already tested in test_valid_creation, but good to be explicit)

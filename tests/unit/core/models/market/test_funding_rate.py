@@ -15,6 +15,8 @@ from cyberdelta.core.models.market.funding_rate import (
     FundingRate,
     HyperliquidFundingDetails,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -134,15 +136,17 @@ class TestFundingRate:
         now = datetime.now(UTC)
 
         # Empty symbol
-        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             FundingRate(symbol="", timestamp=now)
 
         # Whitespace symbol
-        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             FundingRate(symbol="   ", timestamp=now)
 
         # Symbol too long (max 64 chars)
-        with pytest.raises(ValueError, match="String value too long"):
+        with pytest.raises(
+            TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
+        ):
             FundingRate(symbol="X" * 65, timestamp=now)
 
         # Valid symbol
@@ -152,7 +156,7 @@ class TestFundingRate:
     def test_validation_timestamp_required(self) -> None:
         """Test that timestamp is required and must not be None."""
         # None timestamp - we're explicitly testing validator behavior with None
-        with pytest.raises(ValueError, match="timestamp must not be None"):
+        with pytest.raises(ValidationError, match=r"timestamp.*Funding rate timestamp is required"):
             # Pass None to a non-optional field to test validator behavior
             kwargs3: dict[str, Any] = {"symbol": "BTC-PERP", "timestamp": None}
             FundingRate(**kwargs3)
@@ -308,7 +312,7 @@ class TestFundingRate:
             "timestamp": now,
             "mark_price": Decimal("Infinity"),
         }
-        with pytest.raises(ValueError, match="must be a finite decimal"):
+        with pytest.raises(ValidationError, match="must be finite for funding rate calculations"):
             FundingRate(**infinity_kwargs)
 
         # NaN not allowed for rates
@@ -318,7 +322,7 @@ class TestFundingRate:
             "timestamp": now,
             "funding_rate": Decimal("NaN"),
         }
-        with pytest.raises(ValueError, match="must be a finite decimal"):
+        with pytest.raises(ValidationError, match="must be finite for funding rate calculations"):
             FundingRate(**nan_kwargs)
 
     def test_validation_rates_zero_allowed(self) -> None:
@@ -428,14 +432,14 @@ class TestHyperliquidFundingDetails:
         """Test that Decimal fields must be finite."""
         # Infinity not allowed
         # Pass non-finite value to test validator
-        with pytest.raises(ValueError, match="must be a finite decimal"):
+        with pytest.raises(ValidationError, match="must be finite for Hyperliquid funding details"):
             # Using Any to bypass type checking for non-finite Decimal
             hl_infinity_kwargs: dict[str, Any] = {"hl_funding_hourly": Decimal("Infinity")}
             HyperliquidFundingDetails(**hl_infinity_kwargs)
 
         # NaN not allowed
         # Pass non-finite value to test validator
-        with pytest.raises(ValueError, match="must be a finite decimal"):
+        with pytest.raises(ValidationError, match="must be finite for Hyperliquid funding details"):
             # Using Any to bypass type checking for non-finite Decimal
             hl_nan_kwargs: dict[str, Any] = {"hl_prev_day_px": Decimal("NaN")}
             HyperliquidFundingDetails(**hl_nan_kwargs)

@@ -1,8 +1,5 @@
 """Core components of the CyberDelta trading engine."""
 
-# Import CircuitBreakerSystem from the correct module
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
-
 from .balance_monitor import BalanceMonitor
 from .data_handler import DataHandler
 from .engine import Engine
@@ -19,7 +16,6 @@ from .strategy import Strategy
 __all__ = [
     # Core Components
     "BalanceMonitor",
-    "CircuitBreakerSystem",
     "DataHandler",
     "Engine",
     "PortfolioTracker",

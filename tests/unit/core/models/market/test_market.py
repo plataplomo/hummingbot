@@ -17,6 +17,8 @@ from cyberdelta.core.models.market.market import (
     HyperliquidMarketDetails,
     Market,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -191,7 +193,7 @@ class TestMarket:
     def test_string_field_validation(self) -> None:
         """Test validation rules for string fields (required, non-empty, length)."""
         # Empty strings
-        with pytest.raises(ValueError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             Market(
                 symbol="",
                 base_symbol=BASE_SYMBOL,
@@ -202,7 +204,7 @@ class TestMarket:
                 status=STATUS,
             )
 
-        with pytest.raises(ValueError, match="String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             Market(
                 symbol=VALID_SYMBOL,
                 base_symbol="   ",
@@ -214,7 +216,9 @@ class TestMarket:
             )
 
         # String too long
-        with pytest.raises(ValueError, match="String value too long"):
+        with pytest.raises(
+            TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
+        ):
             Market(
                 symbol="A" * 65,
                 base_symbol=BASE_SYMBOL,
@@ -301,7 +305,7 @@ class TestMarket:
     def test_non_finite_decimal_rejection(self) -> None:
         """Test that non-finite Decimal values (NaN, Infinity) are rejected."""
         # NaN tick_size
-        with pytest.raises(ValueError, match="must be a finite Decimal"):
+        with pytest.raises(ValidationError, match="must be finite for market configuration"):
             Market(
                 symbol=VALID_SYMBOL,
                 base_symbol=BASE_SYMBOL,
@@ -313,7 +317,7 @@ class TestMarket:
             )
 
         # Infinity step_size
-        with pytest.raises(ValueError, match="must be a finite Decimal"):
+        with pytest.raises(ValidationError, match="must be finite for market configuration"):
             Market(
                 symbol=VALID_SYMBOL,
                 base_symbol=BASE_SYMBOL,
@@ -325,7 +329,7 @@ class TestMarket:
             )
 
         # -Infinity min_price
-        with pytest.raises(ValueError, match="must be a finite Decimal"):
+        with pytest.raises(ValidationError, match="must be finite for market configuration"):
             Market(
                 symbol=VALID_SYMBOL,
                 base_symbol=BASE_SYMBOL,

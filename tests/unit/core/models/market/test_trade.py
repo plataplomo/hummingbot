@@ -35,9 +35,12 @@ from decimal import Decimal
 
 import pydantic
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import BackpackTradeDetails, HyperliquidTradeDetails, Trade
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def test_trade_minimal_valid() -> None:
@@ -160,7 +163,7 @@ def test_trade_id_and_order_id_validation() -> None:
         assert trade.id == valid_id
         assert trade.order_id == valid_id
     # Invalid: empty string
-    with pytest.raises(ValueError):
+    with pytest.raises(EmptyStringError):
         Trade(
             id="",
             symbol="BTC-PERP",
@@ -172,7 +175,7 @@ def test_trade_id_and_order_id_validation() -> None:
             quantity=Decimal("1.0"),
         )
     # Invalid: whitespace-only string
-    with pytest.raises(ValueError):
+    with pytest.raises(EmptyStringError):
         Trade(
             id="   ",
             symbol="BTC-PERP",
@@ -184,7 +187,7 @@ def test_trade_id_and_order_id_validation() -> None:
             quantity=Decimal("1.0"),
         )
     # Invalid: overlength string (model allows up to 128 chars)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeFieldError):
         Trade(
             id="A" * 129,
             symbol="BTC-PERP",
@@ -347,7 +350,7 @@ def test_trade_optional_string_fields() -> None:
     assert trade.fee_asset is None
     assert trade.hl_details is None
     # Invalid: empty string
-    with pytest.raises(ValueError):
+    with pytest.raises(EmptyStringError):
         Trade(
             id="abc123",
             symbol="BTC-PERP",
@@ -502,16 +505,16 @@ def test_hyperliquid_trade_details_validation() -> None:
     assert details.start_position is None
     assert details.dir is None
     # Invalid: empty trade_hash
-    with pytest.raises(ValueError):
+    with pytest.raises(EmptyStringError):
         HyperliquidTradeDetails(trade_hash="")
     # Invalid: overlength trade_hash
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeFieldError):
         HyperliquidTradeDetails(trade_hash="a" * 129)
     # Invalid: overlength dir
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeFieldError):
         HyperliquidTradeDetails(trade_hash="hash", dir="a" * 33)
     # Invalid: non-finite decimal
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         HyperliquidTradeDetails(trade_hash="hash", liquidation_mark_px=Decimal("NaN"))
 
 
@@ -524,7 +527,7 @@ def test_backpack_trade_details_validation() -> None:
     details = BackpackTradeDetails()
     assert details.system_order_type is None
     # Invalid: overlength system_order_type
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeFieldError):
         BackpackTradeDetails(system_order_type="a" * 33)
 
 

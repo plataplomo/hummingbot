@@ -1412,7 +1412,7 @@ class TestGetMarketArgs:
         with pytest.raises(TypeError) as exc_info:
             GetMarketArgs(symbol=123)  # type: ignore[arg-type]
 
-        assert "symbol: Expected string, got int" in str(exc_info.value)
+        assert "Field 'symbol' must be str, got int" in str(exc_info.value)
 
         with pytest.raises(TypeError):
             GetMarketArgs(symbol=None)  # type: ignore[arg-type]
@@ -1430,10 +1430,10 @@ class TestGetMarketArgs:
         args = GetMarketArgs(symbol="BTC-USDC")
 
         # Test validation on assignment
-        with pytest.raises(ValidationError):
+        with pytest.raises(EmptyStringError):
             args.symbol = ""
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(TypeFieldError):
             args.symbol = "A" * 65
 
     def test_model_validation_assignment(self) -> None:

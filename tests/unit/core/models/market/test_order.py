@@ -31,6 +31,8 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -255,9 +257,25 @@ def test_order_invalid_core_field_values(
         invalid_data["order_type"] = OrderType.STOP_MARKET
 
     invalid_data[field] = value
-    # Check if *any* validation error occurs, remove specific match
-    with pytest.raises((ValidationError, ValueError, TypeError)):
-        Order(**invalid_data)
+
+    # Handle specific business logic exceptions
+    if (field == "exchange" and not value) or (field == "client_order_id" and value == "   "):
+        with pytest.raises(EmptyStringError):
+            Order(**invalid_data)
+    elif field == "updated_at" and value == "yesterday":
+        with pytest.raises(DateTimeParsingError):
+            Order(**invalid_data)
+    else:
+        # Check if *any* validation error occurs, remove specific match
+        with pytest.raises((
+            ValidationError,
+            ValueError,
+            TypeError,
+            EmptyStringError,
+            DateTimeParsingError,
+            TypeFieldError,
+        )):
+            Order(**invalid_data)
 
 
 def test_order_model_validation_failures(base_order_data: dict[str, Any]) -> None:
@@ -425,8 +443,8 @@ def test_hl_details_creation_and_immutability(
     ("field", "value", "error_match"),
     [
         ("remaining_sz", Decimal(-1), "Input should be greater than or equal to 0"),
-        ("remaining_sz", Decimal("NaN"), "Value must be finite if provided"),
-        ("remaining_sz", "abc", "Cannot convert 'abc' to Decimal"),
+        ("remaining_sz", Decimal("NaN"), "must be finite if provided"),
+        ("remaining_sz", "abc", "decimal validation failed.*Cannot convert to Decimal"),
     ],
 )
 def test_hl_details_invalid_field_values(

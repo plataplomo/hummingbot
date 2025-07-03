@@ -13,6 +13,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.ticker import Ticker
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -90,11 +92,13 @@ class TestTicker:
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field (required, non-empty, length)."""
-        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             Ticker(symbol="", timestamp=NOW)
-        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             Ticker(symbol="   ", timestamp=NOW)
-        with pytest.raises(ValueError, match="String value too long"):
+        with pytest.raises(
+            TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
+        ):
             Ticker(symbol="A" * 65, timestamp=NOW)
         # Valid symbol should pass
         Ticker(symbol="VALID-SYM_123", timestamp=NOW)
@@ -102,15 +106,14 @@ class TestTicker:
     def test_timestamp_validation(self) -> None:
         """Test timestamp validation (required, parsing, None handling)."""
         # Test None raises error
-        with pytest.raises(ValueError, match="timestamp must not be None"):
+        with pytest.raises(ValidationError, match=r"timestamp.*Ticker timestamp is required"):
             # Use Any to test validator behavior
             kwargs: dict[str, Any] = {"symbol": VALID_SYMBOL, "timestamp": None}
             Ticker(**kwargs)
 
         # Test invalid format raises error (Pydantic wraps underlying errors)
         with pytest.raises(
-            ValidationError,
-            match=r"timestamp.*Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            DateTimeParsingError, match=r"Cannot parse as ISO datetime.*or as numeric timestamp"
         ):
             # Use Any to test validator behavior
             kwargs_invalid: dict[str, Any] = {
@@ -166,18 +169,21 @@ class TestTicker:
 
         # Test invalid parsing (Pydantic wraps underlying errors)
         # Match needs to accommodate the field name which might be included
-        with pytest.raises(ValidationError, match=rf"Value error, {field_name}: Cannot convert"):
+        with pytest.raises(
+            ValidationError,
+            match=rf"Field '{field_name}' decimal validation failed.*Cannot convert to Decimal",
+        ):
             # No ignore needed here, exception is expected before getattr
             get_ticker_field_value("not-a-number")
 
         # Test non-finite values (handled by custom validator)
-        with pytest.raises(ValidationError, match="finite Decimal"):
+        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
             # No ignore needed here, exception is expected before getattr
             get_ticker_field_value(DEC_NAN)
-        with pytest.raises(ValidationError, match="finite Decimal"):
+        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
             # No ignore needed here, exception is expected before getattr
             get_ticker_field_value(DEC_INF)
-        with pytest.raises(ValidationError, match="finite Decimal"):
+        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
             # No ignore needed here, exception is expected before getattr
             get_ticker_field_value(DEC_NEG_INF)
 

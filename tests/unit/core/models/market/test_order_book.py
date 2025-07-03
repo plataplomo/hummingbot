@@ -11,6 +11,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.order_book import OrderBook
+from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -71,11 +73,13 @@ class TestOrderBook:
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
         now = datetime.now(UTC)
-        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             OrderBook(symbol="", timestamp=now, bids=[], asks=[])
-        with pytest.raises(ValueError, match="Field symbol: String cannot be empty"):
+        with pytest.raises(EmptyStringError, match="String cannot be empty"):
             OrderBook(symbol="   ", timestamp=now, bids=[], asks=[])
-        with pytest.raises(ValueError, match="String value too long"):
+        with pytest.raises(
+            TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
+        ):
             OrderBook(symbol="A" * 65, timestamp=now, bids=[], asks=[])
         # Valid symbol should pass
         OrderBook(symbol="VALID-SYM_123", timestamp=now, bids=[], asks=[])
@@ -84,7 +88,9 @@ class TestOrderBook:
         """Test that providing timestamp=None raises a ValueError from the validator."""
         # Using Any to bypass static checks for testing runtime validation of None input.
         invalid_data: dict[str, Any] = {"symbol": "BTC", "timestamp": None, "bids": [], "asks": []}
-        with pytest.raises(ValueError, match="timestamp must not be None"):
+        with pytest.raises(
+            ValidationError, match=r"timestamp.*Required value parsed as None or was invalid"
+        ):
             # No type ignore needed here as Mypy doesn't flag an error for passing None
             # when the validator explicitly accepts Optional types in its signature.
             OrderBook(**invalid_data)
@@ -144,7 +150,7 @@ class TestOrderBook:
         zero_qty_level = (Decimal(10), Decimal(0))  # Zero quantity is valid
 
         # --- Test Top-Level Structure ---
-        with pytest.raises(TypeError, match="bids must be a list"):
+        with pytest.raises(ListFieldError, match="Expected list, got str"):
             # Test invalid bids type using Any
             kwargs_bids: dict[str, Any] = {
                 "symbol": "T",
@@ -153,27 +159,27 @@ class TestOrderBook:
                 "asks": [],
             }
             OrderBook(**kwargs_bids)
-        with pytest.raises(TypeError, match="asks must be a list"):
+        with pytest.raises(ListFieldError, match="Expected list, got"):
             # Test invalid asks type using Any
             kwargs_asks: dict[str, Any] = {"symbol": "T", "timestamp": now, "bids": [], "asks": {}}
             OrderBook(**kwargs_asks)
 
         # --- Test Level Item Structure ---
-        with pytest.raises(TypeError, match="must be a list or tuple"):
+        with pytest.raises(ListFieldError, match="Expected list or tuple, got int"):
             invalid_bids_item_type: Any = [valid_level_raw, 123]
             OrderBook(symbol="T", timestamp=now, bids=invalid_bids_item_type, asks=[])
-        with pytest.raises(ValueError, match="must have length 2"):
+        with pytest.raises(ValidationError, match="Level item must have exactly 2 elements"):
             invalid_bids_len1: Any = [valid_level_raw, ("9",)]
             OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len1, asks=[])
-        with pytest.raises(ValueError, match="must have length 2"):
+        with pytest.raises(ValidationError, match="Level item must have exactly 2 elements"):
             invalid_bids_len3: Any = [valid_level_raw, ("9", "1", "2")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len3, asks=[])
 
         # --- Test Level Content - Price ---
-        with pytest.raises(TypeError, match="Invalid price type"):
+        with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got None"):
             invalid_price_type: Any = [(None, "1")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_price_type, asks=[])
-        with pytest.raises(TypeError, match="Invalid price type"):
+        with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got dict"):
             invalid_price_type_obj: Any = [({"a": 1}, "1")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_price_type_obj, asks=[])
         with pytest.raises(
@@ -196,10 +202,10 @@ class TestOrderBook:
             OrderBook(symbol="T", timestamp=now, bids=nan_price, asks=[])
 
         # --- Test Level Content - Quantity ---
-        with pytest.raises(TypeError, match="Invalid quantity type"):
+        with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got None"):
             invalid_qty_type: Any = [("10", None)]
             OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type, asks=[])
-        with pytest.raises(TypeError, match="Invalid quantity type"):
+        with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got list"):
             invalid_qty_type_obj: Any = [("10", ["1"])]
             OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type_obj, asks=[])
         with pytest.raises(
@@ -222,7 +228,7 @@ class TestOrderBook:
             OrderBook(symbol="T", timestamp=now, bids=nan_qty, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid quantity value.*Must be non-negative",
+            match=r"Quantity must be non-negative",
         ):
             negative_qty: Any = [("10", "-1")]
             OrderBook(symbol="T", timestamp=now, bids=negative_qty, asks=[])
