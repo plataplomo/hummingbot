@@ -70,7 +70,7 @@ class TestSecureTransformSecurity:
                 source_exchange="backpack",
             )
 
-        assert "Security validation failed" in str(exc_info.value)
+        assert "SECURITY ALERT" in str(exc_info.value)
         assert "balance_update" in str(exc_info.value)
         # The actual validation error should contain details
         assert "validation errors" in str(exc_info.value)

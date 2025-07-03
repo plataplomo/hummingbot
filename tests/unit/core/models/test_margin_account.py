@@ -141,9 +141,13 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
     ("field", "value", "error_match"),
     [
         # Required Strings
-        ("exchange", None, "Expected string, got NoneType"),
+        ("exchange", None, "Field 'exchange' must be str, got NoneType"),
         ("exchange", " ", "Field exchange: String cannot be empty"),
-        ("exchange", "x" * 65, "String value too long"),
+        (
+            "exchange",
+            "x" * 65,
+            "Field 'exchange' must be string with max length 64, got string with length 65",
+        ),
         # Required Datetime
         (
             "timestamp",
@@ -153,13 +157,17 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
         (
             "timestamp",
             "not-a-date",
-            r"timestamp: Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            r"timestamp: Invalid.*timestamp value",
         ),
         # Required Decimals (>= 0)
-        ("total_equity", None, "total_equity: Value cannot be None"),
+        (
+            "total_equity",
+            None,
+            "Field 'total_equity' decimal validation failed: Value cannot be None",
+        ),
         ("total_equity", Decimal("-0.1"), "Input should be greater than or equal to 0"),
-        ("total_equity", Decimal("NaN"), "total_equity: Value must be finite"),
-        ("available_equity", "invalid", "Cannot convert 'invalid' to Decimal"),
+        ("total_equity", Decimal("NaN"), "Field 'total_equity' must be finite"),
+        ("available_equity", "invalid", "Cannot convert to Decimal"),
         ("available_equity", Decimal(-100), "Input should be greater than or equal to 0"),
         # Optional Decimals (>= 0 where applicable)
         (
@@ -170,13 +178,13 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
         (
             "total_maintenance_margin_required",
             Decimal("NaN"),
-            "total_maintenance_margin_required: Value must be finite if provided",
+            "Field 'total_maintenance_margin_required' must be finite if provided",
         ),
         ("total_position_notional", Decimal(-1000), "Input should be greater than or equal to 0"),
         (
             "total_unrealized_pnl",
             Decimal("Infinity"),
-            "total_unrealized_pnl: Value must be finite if provided",
+            "Field 'total_unrealized_pnl' must be finite if provided",
         ),
     ],
 )
@@ -273,12 +281,16 @@ def test_hyperliquid_margin_details_creation_and_immutability(
             Decimal(-1),
             "Input should be greater than or equal to 0",
         ),
-        ("cross_maintenance_margin_used", Decimal("NaN"), "Value must be finite"),
-        ("isolated_maintenance_margin_used", "abc", "Cannot convert 'abc' to Decimal"),
+        (
+            "cross_maintenance_margin_used",
+            Decimal("NaN"),
+            "Field 'cross_maintenance_margin_used' must be finite",
+        ),
+        ("isolated_maintenance_margin_used", "abc", "Cannot convert to Decimal"),
         (
             "isolated_maintenance_margin_used",
             None,
-            "Value error, isolated_maintenance_margin_used: Value cannot be None",
+            "isolated_maintenance_margin_used: Required value parsed as None or was invalid",
         ),
     ],
 )
@@ -325,12 +337,16 @@ def test_backpack_margin_details_creation_and_immutability(
     ("field", "value", "error_match"),
     [
         ("assets_value", Decimal(-1), "Input should be greater than or equal to 0"),
-        ("borrow_liability", Decimal("NaN"), "Value must be finite if provided"),
-        ("liabilities_value", "bad-decimal", "Cannot convert 'bad-decimal' to Decimal"),
+        ("borrow_liability", Decimal("NaN"), "Field 'borrow_liability' must be finite if provided"),
+        ("liabilities_value", "bad-decimal", "Cannot convert to Decimal"),
         ("locked_equity", Decimal(-100), "Input should be greater than or equal to 0"),
         ("margin_fraction", Decimal("-0.1"), "Input should be greater than or equal to 0"),
-        ("imf_raw", 123, "Expected string, got int"),
-        ("mmf_raw", "s" * 257, "String value too long"),
+        ("imf_raw", 123, "Field 'imf_raw' must be str, got int"),
+        (
+            "mmf_raw",
+            "s" * 257,
+            "Field 'mmf_raw' must be string with max length 256, got string with length 257",
+        ),
     ],
 )
 def test_backpack_margin_details_invalid_fields(

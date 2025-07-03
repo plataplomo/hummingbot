@@ -184,13 +184,13 @@ class TestOrderBook:
             OrderBook(symbol="T", timestamp=now, bids=invalid_price_type_obj, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid price value.*Cannot convert",
+            match=r"Cannot convert to Decimal",
         ):
             invalid_price_parse: Any = [("not_a_number", "1")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_price_parse, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid price value.*Expected finite Decimal, got Infinity",
+            match=r"must be finite",
         ):
             infinite_price: Any = [(Decimal("Infinity"), "1")]
             OrderBook(symbol="T", timestamp=now, bids=infinite_price, asks=[])

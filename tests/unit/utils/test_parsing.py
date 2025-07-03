@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 
+from cyberdelta.exceptions.parsing import TimestampFormatError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
@@ -139,7 +140,7 @@ class TestParseDatetimeUTC:
         # Testing with an invalid type by using cast to bypass type checking
 
         invalid_value = cast("str", [])  # Cast list to str to satisfy type checker
-        with pytest.raises(ValueError, match="Unsupported datetime type"):
+        with pytest.raises(TimestampFormatError, match="Unsupported datetime type"):
             parse_datetime_utc(invalid_value)
 
     def test_invalid_string(self) -> None:

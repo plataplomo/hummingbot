@@ -587,7 +587,7 @@ def test_trade_enrichment_slots_none() -> None:
 def test_trade_enrichment_invalid_details() -> None:
     """Test that Trade rejects invalid enrichment slot data."""
     # Invalid HyperliquidTradeDetails
-    with pytest.raises(ValueError):
+    with pytest.raises(EmptyStringError):
         Trade(
             id="t3",
             symbol="BTC-PERP",
@@ -600,7 +600,7 @@ def test_trade_enrichment_invalid_details() -> None:
             hl_details=HyperliquidTradeDetails(trade_hash=""),
         )
     # Invalid BackpackTradeDetails
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeFieldError):
         Trade(
             id="t4",
             symbol="BTC-PERP",

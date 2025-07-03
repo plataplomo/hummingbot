@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from cyberdelta.core.models.enums import OrderSide, SignalType
 from cyberdelta.core.models.trade_signal import TradeSignal
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 pytestmark = pytest.mark.timing
@@ -144,36 +145,43 @@ def test_tradesignal_extra_fields_forbidden(minimal_signal_data: dict[str, Any])
     ("field", "value", "error_match"),
     [
         # String validations
-        ("symbol", "", r"symbol.*String should not be empty"),
-        ("symbol", None, r"symbol.*cannot be None"),
-        ("source_strategy", " ", r"source_strategy.*String should not be empty"),
+        ("symbol", "", r"Field symbol: String cannot be empty"),
+        ("symbol", None, r"Required field 'symbol' is missing"),
+        ("source_strategy", " ", r"Field source_strategy: String cannot be empty"),
         (
             "source_strategy",
             "a" * 100,
-            r"source_strategy.*ensure this value has at most 64 characters",
+            (
+                r"Field 'source_strategy' must be string with max length 64, "
+                r"got string with length 100"
+            ),
         ),
         # Exchange validation (str)
-        ("exchange", "", r"exchange.*String should not be empty"),
-        ("exchange", "a" * 100, r"exchange.*ensure this value has at most 64 characters"),
+        ("exchange", "", r"Field exchange: String cannot be empty"),
+        (
+            "exchange",
+            "a" * 100,
+            r"Field 'exchange' must be string with max length 64, got string with length 100",
+        ),
         # Decimal validations (Positive required)
-        ("price", "0", r"price.*Input should be greater than 0"),
-        ("price", "-1.0", r"price.*Input should be greater than 0"),
-        ("price", Decimal("NaN"), r"price.*Must be finite"),
-        ("price", "invalid", r"price.*Cannot convert 'invalid' to Decimal"),
+        ("price", "0", r"Input should be greater than 0"),
+        ("price", "-1.0", r"Input should be greater than 0"),
+        ("price", Decimal("NaN"), r"Field 'price' must be finite"),
+        ("price", "invalid", r"Cannot convert to Decimal"),
         # Decimal validations (Optional, Positive if set)
-        ("quantity", "0", r"quantity.*Input should be greater than 0"),
-        ("quantity", Decimal("Infinity"), r"quantity.*Must be finite if provided"),
-        ("stop_loss", "-50000", r"stop_loss.*Input should be greater than 0"),
-        ("take_profit", "invalid", r"take_profit.*Cannot convert 'invalid' to Decimal"),
+        ("quantity", "0", r"Input should be greater than 0"),
+        ("quantity", Decimal("Infinity"), r"Field 'quantity' must be finite if provided"),
+        ("stop_loss", "-50000", r"Input should be greater than 0"),
+        ("take_profit", "invalid", r"Cannot convert to Decimal"),
         # Float validation (Optional)
-        ("confidence", "not a float", r"confidence.*Invalid float value"),
-        ("confidence", [1.0], r"confidence.*Invalid float value"),
+        ("confidence", "not a float", r"Invalid float value"),
+        ("confidence", [1.0], r"Invalid float value"),
         # Datetime validation (Optional)
-        ("expiration", "not a datetime", r"expiration.*Cannot parse ISO datetime string"),
-        ("expiration", ["a"], r"expiration.*Unsupported datetime type"),
+        ("expiration", "not a datetime", r"Field expiration: Cannot parse ISO datetime string.*"),
+        ("expiration", ["a"], r"Field expiration: Unsupported datetime type.*"),
         # Enum validation
-        ("signal_type", "UNKNOWN", r"signal_type.*Input should be .*SignalType"),
-        ("side", 1, r"side.*Input should be .*BUY.* or .*SELL"),
+        ("signal_type", "UNKNOWN", r"Input should be.*SignalType"),
+        ("side", 1, r"Input should be.*'BUY'.*or.*'SELL'"),
     ],
 )
 def test_tradesignal_invalid_field_values(
@@ -185,7 +193,9 @@ def test_tradesignal_invalid_field_values(
     """Test various invalid field inputs raise appropriate ValidationErrors."""
     invalid_data = minimal_signal_data.copy()
     invalid_data[field] = value
-    with pytest.raises((ValidationError, ValueError, TypeError)):
+    with pytest.raises(
+        (ValidationError, ValueError, TypeError, EmptyStringError), match=error_match
+    ):
         TradeSignal(**invalid_data)
 
 

@@ -214,36 +214,44 @@ def test_derivative_position_mutability(
     ("field", "value", "error_match"),
     [
         # Required Strings
-        ("exchange", None, "Expected string, got NoneType"),
+        ("exchange", None, "Field 'exchange' must be str, got NoneType"),
         ("exchange", "", "Field exchange: String cannot be empty"),
-        ("symbol", None, "Expected string, got NoneType"),
+        ("symbol", None, "Field 'symbol' must be str, got NoneType"),
         ("symbol", "   ", "Field symbol: String cannot be empty"),
-        ("symbol", "S" * 65, "String value too long"),
+        (
+            "symbol",
+            "S" * 65,
+            "Field 'symbol' must be string with max length 64, got string with length 65",
+        ),
         # Required Enum
         ("side", None, "Input should be 'BUY' or 'SELL'"),
         ("side", "NEUTRAL", "Input should be 'BUY' or 'SELL'"),
         # Required Decimal (Size)
-        ("size", None, "size: Value cannot be None"),
-        ("size", "not-a-number", "Cannot convert 'not-a-number' to Decimal"),
-        ("size", Decimal("NaN"), "size: Value must be finite"),
-        ("size", Decimal("Infinity"), "size: Value must be finite"),
+        ("size", None, "size: Required value parsed as None or was invalid"),
+        ("size", "not-a-number", "Cannot convert to Decimal"),
+        ("size", Decimal("NaN"), "Field 'size' must be finite"),
+        ("size", Decimal("Infinity"), "Field 'size' must be finite"),
         # Required Datetime
-        ("timestamp", None, "timestamp: Value cannot be None"),
+        ("timestamp", None, "Required datetime parsed as None or was invalid"),
         (
             "timestamp",
             "2023-13-01T00:00:00Z",
-            r"timestamp: Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            r"timestamp: Invalid.*timestamp value",
         ),
         # Optional Decimals (with constraints)
-        ("entry_price", Decimal("NaN"), "entry_price: Value must be finite if provided"),
+        ("entry_price", Decimal("NaN"), "Field 'entry_price' must be finite if provided"),
         ("mark_price", Decimal("-0.01"), "Input should be greater than or equal to 0"),
-        ("mark_price", Decimal("Infinity"), "mark_price: Value must be finite if provided"),
+        ("mark_price", Decimal("Infinity"), "Field 'mark_price' must be finite if provided"),
         ("liquidation_price", Decimal(-100), "Input should be greater than or equal to 0"),
-        ("unrealized_pnl", Decimal("NaN"), "unrealized_pnl: Value must be finite if provided"),
+        ("unrealized_pnl", Decimal("NaN"), "Field 'unrealized_pnl' must be finite if provided"),
         # Optional Strings
-        ("strategy_name", 12345, "Expected string, got int"),
-        ("strategy_name", "A" * 129, "String value too long"),
-        ("signal_id", {"a": 1}, "Expected string, got dict"),
+        ("strategy_name", 12345, "Field 'strategy_name' must be str, got int"),
+        (
+            "strategy_name",
+            "A" * 129,
+            "Field 'strategy_name' must be string with max length 128, got string with length 129",
+        ),
+        ("signal_id", {"a": 1}, "Field 'signal_id' must be str, got dict"),
     ],
 )
 def test_derivative_position_invalid_field_inputs(
@@ -264,7 +272,7 @@ def test_derivative_position_invalid_field_inputs(
     # Use a more general regex for Pydantic's verbose error messages
     # This matches the specific error_match string within the larger Pydantic message.
     # Some validators raise TypeError directly for type mismatches
-    with pytest.raises((ValidationError, TypeError), match=f".*{error_match}.*"):
+    with pytest.raises((ValidationError, TypeError, ValueError), match=f".*{error_match}.*"):
         DerivativePosition(**data)
 
 
@@ -386,13 +394,13 @@ def test_hyperliquid_details_creation_and_immutability(
 @pytest.mark.parametrize(
     ("field", "value", "error_match"),
     [
-        ("leverage_type", "sideways", "Invalid value"),
-        ("leverage_type", 123, "Expected string"),
+        ("leverage_type", "sideways", r"'leverage_type' must be one of.*got 'sideways'"),
+        ("leverage_type", 123, r"'leverage_type' must be str, got int"),
         ("leverage_value", -1, "Must be non-negative"),
-        ("leverage_value", "abc", "Expected int, got str"),
+        ("leverage_value", "abc", "Field 'leverage_value' must be int, got str"),
         ("max_leverage", -5, "Must be non-negative"),
         ("margin_used", Decimal(-1), "Input should be greater than or equal to 0"),
-        ("margin_used", Decimal("NaN"), "Value must be finite if provided"),
+        ("margin_used", Decimal("NaN"), "Field 'margin_used' must be finite if provided"),
     ],
 )
 def test_hyperliquid_details_invalid_fields(
@@ -405,7 +413,7 @@ def test_hyperliquid_details_invalid_fields(
     data = valid_hl_details_data.copy()
     data[field] = value
     # Some validators raise TypeError directly for type mismatches
-    with pytest.raises((ValidationError, TypeError), match=error_match):
+    with pytest.raises((ValidationError, TypeError, ValueError), match=error_match):
         HyperliquidPositionDetails(**data)
 
 
@@ -434,9 +442,17 @@ def test_backpack_details_creation_and_immutability(valid_bp_details_data: dict[
 @pytest.mark.parametrize(
     ("field", "value", "error_match"),
     [
-        ("imf_base", Decimal("NaN"), "Value must be finite if provided"),
-        ("imf_factor", "invalid", "Cannot convert 'invalid' to Decimal"),
-        ("cumulative_funding", Decimal("Infinity"), "Value must be finite if provided"),
+        ("imf_base", Decimal("NaN"), "Field 'imf_base' must be finite if provided"),
+        (
+            "imf_factor",
+            "invalid",
+            "Field 'imf_factor' decimal validation failed: Cannot convert to Decimal",
+        ),
+        (
+            "cumulative_funding",
+            Decimal("Infinity"),
+            "Field 'cumulative_funding' must be finite if provided",
+        ),
     ],
 )
 def test_backpack_details_invalid_fields(

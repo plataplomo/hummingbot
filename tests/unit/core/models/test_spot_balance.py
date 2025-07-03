@@ -132,11 +132,15 @@ def test_spot_balance_creation_with_strings(
     ("field", "value", "error_match"),
     [
         # Required String Fields
-        ("exchange", None, "Expected string, got NoneType"),
+        ("exchange", None, "Field 'exchange' must be str, got NoneType"),
         ("exchange", "", "Field exchange: String cannot be empty"),
-        ("asset", None, "Expected string, got NoneType"),
+        ("asset", None, "Field 'asset' must be str, got NoneType"),
         ("asset", "   ", "Field asset: String cannot be empty"),
-        ("asset", "A" * 65, "String value too long"),
+        (
+            "asset",
+            "A" * 65,
+            "Field 'asset' must be string with max length 64, got string with length 65",
+        ),
         # Required Datetime
         (
             "timestamp",
@@ -146,15 +150,23 @@ def test_spot_balance_creation_with_strings(
         (
             "timestamp",
             "not-a-datetime",
-            r"timestamp: Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            r"timestamp: Invalid.*timestamp value",
         ),
         # Required Decimal Fields (total_quantity, available_quantity)
-        ("total_quantity", None, r"total_quantity: Value cannot be None"),
-        ("total_quantity", "abc", "Cannot convert 'abc' to Decimal"),
-        ("total_quantity", Decimal("NaN"), "total_quantity: Value must be finite"),
+        (
+            "total_quantity",
+            None,
+            r"Field 'total_quantity' decimal validation failed: Value cannot be None",
+        ),
+        ("total_quantity", "abc", "Cannot convert to Decimal"),
+        ("total_quantity", Decimal("NaN"), "Field 'total_quantity' must be finite"),
         ("total_quantity", Decimal(-1), "Input should be greater than or equal to 0"),
-        ("available_quantity", None, r"available_quantity: Value cannot be None"),
-        ("available_quantity", Decimal("Infinity"), "available_quantity: Value must be finite"),
+        (
+            "available_quantity",
+            None,
+            r"Field 'available_quantity' decimal validation failed: Value cannot be None",
+        ),
+        ("available_quantity", Decimal("Infinity"), "Field 'available_quantity' must be finite"),
         ("available_quantity", Decimal("-0.01"), "Input should be greater than or equal to 0"),
     ],
 )
@@ -260,10 +272,18 @@ def test_bp_details_creation_and_immutability(
     ("field", "value", "error_match"),
     [
         ("open_order_quantity", Decimal(-1), "Input should be greater than or equal to 0"),
-        ("open_order_quantity", Decimal("NaN"), "Value must be finite if provided"),
+        (
+            "open_order_quantity",
+            Decimal("NaN"),
+            "Field 'open_order_quantity' must be finite if provided",
+        ),
         ("lend_quantity", Decimal("-0.1"), "Input should be greater than or equal to 0"),
-        ("lend_quantity", "invalid", "Cannot convert 'invalid' to Decimal"),
-        ("collateral_weight", Decimal("Infinity"), "Value must be finite if provided"),
+        ("lend_quantity", "invalid", "Cannot convert to Decimal"),
+        (
+            "collateral_weight",
+            Decimal("Infinity"),
+            "Field 'collateral_weight' must be finite if provided",
+        ),
     ],
 )
 def test_bp_details_invalid_field_values(
