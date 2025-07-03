@@ -87,6 +87,51 @@ class OrderManager:
         new_total_value = current_total_value + (trade.price * trade.quantity)
         new_quantity_filled = order.quantity_filled + trade.quantity
 
+        # Handle overfill (snapping) BEFORE setting quantity_filled to avoid validation issues
+        tolerance = Decimal("1e-9")
+        if new_quantity_filled > order.quantity_requested:
+            overfill_amount = new_quantity_filled - order.quantity_requested
+            if overfill_amount > tolerance:
+                logger.error(
+                    "order_overfill_error",
+                    client_order_id=order.client_order_id,
+                    exchange_order_id=order.exchange_order_id,
+                    symbol=order.symbol,
+                    quantity_filled=float(new_quantity_filled),
+                    quantity_requested=float(order.quantity_requested),
+                    overfill_amount=float(overfill_amount),
+                    action="snapping_to_requested",
+                    message=(
+                        f"Order {order.client_order_id}: quantity_filled "
+                        f"({new_quantity_filled}) > quantity_requested "
+                        f"({order.quantity_requested})"
+                    ),
+                )
+                # Snap quantity and adjust total value to maintain correct average price
+                new_quantity_filled = order.quantity_requested
+                # Adjust total value to exclude the overfill portion
+                new_total_value -= overfill_amount * trade.price
+            else:
+                logger.warning(
+                    "order_slight_overfill_snapped",
+                    client_order_id=order.client_order_id,
+                    exchange_order_id=order.exchange_order_id,
+                    symbol=order.symbol,
+                    quantity_filled=float(new_quantity_filled),
+                    quantity_requested=float(order.quantity_requested),
+                    overfill_amount=float(overfill_amount),
+                    tolerance=float(tolerance),
+                    action="snapping_to_requested",
+                    message=(
+                        f"Order {order.client_order_id}: Snapping slightly "
+                        f"overfilled qty {new_quantity_filled} to requested "
+                        f"{order.quantity_requested}."
+                    ),
+                )
+                new_quantity_filled = order.quantity_requested
+                # Adjust total value to exclude the overfill portion
+                new_total_value -= overfill_amount * trade.price
+
         if new_quantity_filled > 0:
             order.average_fill_price = new_total_value / new_quantity_filled
         else:
@@ -97,46 +142,6 @@ class OrderManager:
         order.updated_at = (
             datetime.now(order.created_at.tzinfo) if order.created_at.tzinfo else datetime.now(UTC)
         )
-
-        # Handle overfill (snapping)
-        tolerance = Decimal("1e-9")
-        if order.quantity_filled > order.quantity_requested:
-            if (order.quantity_filled - order.quantity_requested) > tolerance:
-                logger.error(
-                    "order_overfill_error",
-                    client_order_id=order.client_order_id,
-                    exchange_order_id=order.exchange_order_id,
-                    symbol=order.symbol,
-                    quantity_filled=float(order.quantity_filled),
-                    quantity_requested=float(order.quantity_requested),
-                    overfill_amount=float(order.quantity_filled - order.quantity_requested),
-                    action="snapping_to_requested",
-                    message=(
-                        f"Order {order.client_order_id}: quantity_filled "
-                        f"({order.quantity_filled}) > quantity_requested "
-                        f"({order.quantity_requested})"
-                    ),
-                )
-                # Optionally raise or snap
-                order.quantity_filled = order.quantity_requested
-            else:
-                logger.warning(
-                    "order_slight_overfill_snapped",
-                    client_order_id=order.client_order_id,
-                    exchange_order_id=order.exchange_order_id,
-                    symbol=order.symbol,
-                    quantity_filled=float(order.quantity_filled),
-                    quantity_requested=float(order.quantity_requested),
-                    overfill_amount=float(order.quantity_filled - order.quantity_requested),
-                    tolerance=float(tolerance),
-                    action="snapping_to_requested",
-                    message=(
-                        f"Order {order.client_order_id}: Snapping slightly "
-                        f"overfilled qty {order.quantity_filled} to requested "
-                        f"{order.quantity_requested}."
-                    ),
-                )
-                order.quantity_filled = order.quantity_requested
 
         # Status transitions
         previous_status = order.status

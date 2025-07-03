@@ -13,6 +13,7 @@ from cyberdelta.core.models.margin_account import (
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
+from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 
 
 pytestmark = pytest.mark.timing
@@ -157,7 +158,7 @@ def test_margin_summary_creation_with_strings(base_margin_summary_data: dict[str
         (
             "timestamp",
             "not-a-date",
-            r"timestamp: Invalid.*timestamp value",
+            r"Cannot parse as ISO datetime.*Invalid isoformat string",
         ),
         # Required Decimals (>= 0)
         (
@@ -198,8 +199,11 @@ def test_margin_summary_invalid_field_inputs(
     data = base_margin_summary_data.copy()
     data[field] = value
     # Some validators raise TypeError directly for type mismatches,
-    # ValueError for other validation errors
-    with pytest.raises((ValidationError, TypeError, ValueError), match=f".*{error_match}.*"):
+    # ValueError for other validation errors, ParsingError for parsing issues
+    with pytest.raises(
+        (ValidationError, TypeError, ValueError, ParsingError, DateTimeParsingError),
+        match=f".*{error_match}.*",
+    ):
         MarginAccountSummary(**data)
 
 
@@ -290,7 +294,7 @@ def test_hyperliquid_margin_details_creation_and_immutability(
         (
             "isolated_maintenance_margin_used",
             None,
-            "isolated_maintenance_margin_used: Required value parsed as None or was invalid",
+            "decimal validation failed: Value cannot be None",
         ),
     ],
 )

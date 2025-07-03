@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.exceptions.risk import RiskCheckError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -42,25 +43,22 @@ class TestRiskManagerDependencyFailures:
         sample_opportunity: ArbitrageOpportunity,
         bad_capital: object,
     ) -> None:
-        """Test size_opportunity returns None or raises with invalid capital.
+        """Test size_opportunity raises RiskCheckError with invalid capital.
 
         Tests when total capital is zero, negative, or invalid.
         """
         mock_portfolio_tracker.get_total_capital.return_value = bad_capital
-        # original_defaults was removed - unused after refactoring
+        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
 
-        # Function get_side_effect_for_bad_capital removed - was unused after refactoring
+        # Business logic raises RiskCheckError for validation failures including bad capital
+        with pytest.raises((RiskCheckError, TypeError, Exception)) as exc_info:
+            await risk_manager.size_opportunity(sample_opportunity)
 
-        # Business logic uses direct attribute access, not config.get()
-        # Configure mock_config attributes directly instead of patching get method
-        if bad_capital == "invalid_decimal" or bad_capital is None:
-            with pytest.raises((TypeError, Exception)):
-                mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
-                await risk_manager.size_opportunity(sample_opportunity)
-        else:
-            mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
-            sized_opp = await risk_manager.size_opportunity(sample_opportunity)
-            assert sized_opp is None
+        # For zero/negative capital, expect RiskCheckError from leverage check
+        if bad_capital == Decimal(0) or bad_capital == Decimal(-100):
+            assert isinstance(exc_info.value, RiskCheckError)
+            assert exc_info.value.validation_type == "_check_leverage"
+            assert exc_info.value.symbol == sample_opportunity.symbol
 
     @pytest.mark.asyncio
     async def test_size_opportunity_constraint_check_fail(
@@ -200,8 +198,14 @@ class TestRiskManagerDependencyFailures:
 
                 mock_circuit_breaker.can_execute.side_effect = can_execute_side_effect
                 risk_manager.circuit_breaker_system = mock_circuit_breaker
-                sized_opp = await risk_manager.size_opportunity(sample_opportunity)
-                assert sized_opp is None
+
+                # Business logic raises RiskCheckError when circuit breaker is tripped
+                with pytest.raises(RiskCheckError) as exc_info:
+                    await risk_manager.size_opportunity(sample_opportunity)
+
+                # Verify the error is from circuit breaker validation
+                assert exc_info.value.validation_type == "_check_circuit_breaker"
+                assert exc_info.value.symbol == sample_opportunity.symbol
 
     @pytest.mark.asyncio
     async def test_size_opportunity_circuit_breaker_exception(

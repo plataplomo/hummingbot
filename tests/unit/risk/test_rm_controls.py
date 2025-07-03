@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest  # Added for asyncio mark
 
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.exceptions.risk import RiskCheckError
 from cyberdelta.validation.circuit_breaker import BreakerState
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -109,8 +110,10 @@ class TestRiskManagerControls:
         # Configure the risk manager with the circuit breaker
         risk_manager.circuit_breaker_system = mock_circuit_breaker
 
-        # Test through public interface
-        result = await risk_manager.size_opportunity(sample_opportunity)
+        # Test through public interface - business logic raises RiskCheckError for failures
+        with pytest.raises(RiskCheckError) as exc_info:
+            await risk_manager.size_opportunity(sample_opportunity)
 
-        # Verify that the opportunity was rejected
-        assert result is None, "Expected opportunity to be rejected by circuit breaker"
+        # Verify that the error is for circuit breaker validation
+        assert exc_info.value.validation_type == "_check_circuit_breaker"
+        assert exc_info.value.symbol == sample_opportunity.symbol

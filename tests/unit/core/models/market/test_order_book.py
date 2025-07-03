@@ -196,7 +196,7 @@ class TestOrderBook:
             OrderBook(symbol="T", timestamp=now, bids=infinite_price, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid price value.*Expected finite Decimal, got NaN",
+            match=r"must be finite.*got NaN",
         ):
             nan_price: Any = [(Decimal("NaN"), "1")]
             OrderBook(symbol="T", timestamp=now, bids=nan_price, asks=[])
@@ -210,19 +210,19 @@ class TestOrderBook:
             OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type_obj, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid quantity value.*Cannot convert",
+            match=r"Cannot convert to Decimal",
         ):
             invalid_qty_parse: Any = [("10", "not_a_number")]
             OrderBook(symbol="T", timestamp=now, bids=invalid_qty_parse, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid quantity value.*Expected finite Decimal, got Infinity",
+            match=r"must be finite.*got Infinity",
         ):
             infinite_qty: Any = [("10", Decimal("Infinity"))]
             OrderBook(symbol="T", timestamp=now, bids=infinite_qty, asks=[])
         with pytest.raises(
             ValidationError,
-            match=r"Value error, Invalid quantity value.*Expected finite Decimal, got NaN",
+            match=r"must be finite.*got NaN",
         ):
             nan_qty: Any = [("10", Decimal("NaN"))]
             OrderBook(symbol="T", timestamp=now, bids=nan_qty, asks=[])

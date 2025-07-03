@@ -1,6 +1,7 @@
 """Tests for the multi-tier funding rate provider."""
 
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -146,8 +147,8 @@ class TestMultiTierFundingProvider:
         self.tertiary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result
-        assert rate == pytest.approx(0.00147865, abs=1e-7)
-        assert confidence == pytest.approx(0.584117, abs=1e-6)
+        assert rate == cast(float, pytest.approx(0.00147865, abs=1e-7))
+        assert confidence == cast(float, pytest.approx(0.584117, abs=1e-6))
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_primary_only(self) -> None:
@@ -167,8 +168,8 @@ class TestMultiTierFundingProvider:
         self.primary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result
-        assert rate == pytest.approx(0.0015, abs=1e-5)
-        assert confidence == pytest.approx(0.466666, abs=1e-6)
+        assert rate == cast(float, pytest.approx(0.0015, abs=1e-5))
+        assert confidence == cast(float, pytest.approx(0.466666, abs=1e-6))
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_primary_fails(self) -> None:
@@ -196,7 +197,7 @@ class TestMultiTierFundingProvider:
         self.secondary_source.assert_called_once_with("BTC-PERP")
 
         # Verify result uses secondary
-        assert rate == pytest.approx(0.0014, abs=1e-5)
+        assert rate == cast(float, pytest.approx(0.0014, abs=1e-5))
         assert confidence < 0.7
 
     @pytest.mark.asyncio
@@ -241,8 +242,8 @@ class TestMultiTierFundingProvider:
         self.fallback_source.assert_called_once_with("BTC-PERP")
 
         # Verify result uses fallback
-        assert rate == pytest.approx(0.0013, abs=1e-5)
-        assert confidence == pytest.approx(0.1999999, abs=1e-6)
+        assert rate == cast(float, pytest.approx(0.0013, abs=1e-5))
+        assert confidence == cast(float, pytest.approx(0.1999999, abs=1e-6))
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_all_fail_no_fallback(self) -> None:
@@ -399,7 +400,7 @@ class TestMultiTierFundingProvider:
         # Adjust expected value based on reliability-weighted calculation
         # = (0.0009 + 0.000336 + 0.00008) / (0.6 + 0.24 + 0.05)
         # = 0.001316 / 0.89 = 0.0014786516...
-        assert integrated.rate == pytest.approx(0.00147865, abs=1e-7)
+        assert integrated.rate == cast(float, pytest.approx(0.00147865, abs=1e-7))
         # Confidence score assertion needs separate verification if needed
         # assert integrated.confidence_score > 0.7
 

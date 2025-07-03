@@ -20,7 +20,12 @@ from pydantic import ValidationError
 
 from cyberdelta.core.models.enums import OrderSide, SignalType
 from cyberdelta.core.models.trade_signal import TradeSignal
-from cyberdelta.exceptions.parsing import EmptyStringError
+from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    TimestampFormatError,
+)
 
 
 pytestmark = pytest.mark.timing
@@ -177,10 +182,14 @@ def test_tradesignal_extra_fields_forbidden(minimal_signal_data: dict[str, Any])
         ("confidence", "not a float", r"Invalid float value"),
         ("confidence", [1.0], r"Invalid float value"),
         # Datetime validation (Optional)
-        ("expiration", "not a datetime", r"Field expiration: Cannot parse ISO datetime string.*"),
-        ("expiration", ["a"], r"Field expiration: Unsupported datetime type.*"),
+        ("expiration", "not a datetime", r"Cannot parse as ISO datetime.*Invalid isoformat string"),
+        ("expiration", ["a"], r"Unsupported datetime type.*<class 'list'>"),
         # Enum validation
-        ("signal_type", "UNKNOWN", r"Input should be.*SignalType"),
+        (
+            "signal_type",
+            "UNKNOWN",
+            r"Input should be.*ENTER_LONG.*EXIT_LONG.*ENTER_SHORT.*EXIT_SHORT.*HOLD.*REBALANCE",
+        ),
         ("side", 1, r"Input should be.*'BUY'.*or.*'SELL'"),
     ],
 )
@@ -194,7 +203,15 @@ def test_tradesignal_invalid_field_values(
     invalid_data = minimal_signal_data.copy()
     invalid_data[field] = value
     with pytest.raises(
-        (ValidationError, ValueError, TypeError, EmptyStringError), match=error_match
+        (
+            ValidationError,
+            ValueError,
+            TypeError,
+            EmptyStringError,
+            DateTimeParsingError,
+            TimestampFormatError,
+        ),
+        match=error_match,
     ):
         TradeSignal(**invalid_data)
 
@@ -210,19 +227,19 @@ def test_tradesignal_exchange_list_validation(minimal_signal_data: dict[str, Any
     # Empty list
     invalid_data_empty = minimal_signal_data.copy()
     invalid_data_empty["exchange"] = []
-    with pytest.raises(ValueError, match="exchange list cannot be empty"):
+    with pytest.raises(ValidationError, match="list cannot be empty"):
         TradeSignal(**invalid_data_empty)
 
     # List with non-string
     invalid_data_type = minimal_signal_data.copy()
     invalid_data_type["exchange"] = ["hyperliquid", 123]
-    with pytest.raises(TypeError, match="exchange list item 1 must be a string"):
+    with pytest.raises(ListFieldError, match="Item 1: Expected string, got int"):
         TradeSignal(**invalid_data_type)
 
     # List with empty string
     invalid_data_content = minimal_signal_data.copy()
     invalid_data_content["exchange"] = ["hyperliquid", ""]
-    with pytest.raises(ValueError, match=r"exchange\[1\].*String cannot be empty"):
+    with pytest.raises(EmptyStringError, match=r"exchange\[1\]: String cannot be empty"):
         TradeSignal(**invalid_data_content)
 
 
@@ -333,9 +350,15 @@ def test_tradesignal_mutability(minimal_signal_data: dict[str, Any]) -> None:
         signal.quantity = Decimal(-1)
 
     # Modify invalidly - Type
-    with pytest.raises(ValidationError, match=r"price.*Cannot convert .* to Decimal"):
+    with pytest.raises(
+        ValidationError,
+        match=r"Field 'price' decimal validation failed: Cannot convert to Decimal",
+    ):
         signal.price = "not a price"  # type: ignore[assignment]
 
     # Modify invalidly - Exchange format
-    with pytest.raises(TypeError, match=r"exchange.*must be a string or a list of strings"):
+    with pytest.raises(
+        TypeFieldError,
+        match=r"Field 'exchange' must be string or list of strings, got int",
+    ):
         signal.exchange = 123  # type: ignore[assignment]

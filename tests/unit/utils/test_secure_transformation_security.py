@@ -14,7 +14,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from cyberdelta.utils.secure_transformation import (
-    TransformationError,
+    SecurityValidationError,
     secure_transform,
     secure_transform_with_audit,
 )
@@ -62,7 +62,7 @@ class TestSecureTransformSecurity:
             "exchange": "backpack",
         }
 
-        with pytest.raises(TransformationError) as exc_info:
+        with pytest.raises(SecurityValidationError) as exc_info:
             secure_transform(
                 data=malicious_data,
                 model_class=MockBalance,
@@ -70,7 +70,7 @@ class TestSecureTransformSecurity:
                 source_exchange="backpack",
             )
 
-        assert "SECURITY ALERT" in str(exc_info.value)
+        assert "Security validation failed" in str(exc_info.value)
         assert "balance_update" in str(exc_info.value)
         # The actual validation error should contain details
         assert "validation errors" in str(exc_info.value)
@@ -88,7 +88,7 @@ class TestSecureTransformSecurity:
             "exchange": "malicious",
         }
 
-        with pytest.raises(TransformationError):
+        with pytest.raises(SecurityValidationError):
             secure_transform(
                 data=data,
                 model_class=MockBalance,
@@ -107,7 +107,7 @@ class TestSecureTransformSecurity:
             "order_type": "limit",
         }
 
-        with pytest.raises(TransformationError) as exc_info:
+        with pytest.raises(SecurityValidationError) as exc_info:
             secure_transform(
                 data=malicious_data,
                 model_class=MockOrder,
@@ -196,7 +196,7 @@ class TestSecureTransformSecurity:
         ]
 
         for test_case in test_cases:
-            with pytest.raises(TransformationError) as exc_info:
+            with pytest.raises(SecurityValidationError) as exc_info:
                 secure_transform(
                     data=test_case["data"],
                     model_class=MockOrder,
@@ -239,7 +239,7 @@ class TestSecureTransformSecurity:
             "exchange": "backpack",
         }
 
-        with pytest.raises(TransformationError) as exc_info:
+        with pytest.raises(SecurityValidationError) as exc_info:
             secure_transform(
                 data=long_asset_data,
                 model_class=MockBalance,
@@ -281,7 +281,7 @@ class TestSecureTransformSecurity:
             "exchange": "backpack",
         }
 
-        with pytest.raises(TransformationError):
+        with pytest.raises(SecurityValidationError):
             secure_transform(
                 data=invalid_data,
                 model_class=MockBalance,
@@ -353,7 +353,7 @@ class TestSecureTransformSecurity:
     def test_concurrent_transformation_safety(self) -> None:
         """Test thread safety of secure_transform."""
         results: list[MockBalance] = []
-        errors: list[TransformationError] = []
+        errors: list[SecurityValidationError] = []
 
         def transform_concurrently(data: dict[str, Any], should_fail: bool) -> None:
             try:
@@ -364,7 +364,7 @@ class TestSecureTransformSecurity:
                     source_exchange="test",
                 )
                 results.append(result)
-            except TransformationError as e:
+            except SecurityValidationError as e:
                 errors.append(e)
 
         threads: list[threading.Thread] = []
@@ -442,7 +442,7 @@ class TestSecureTransformSecurity:
             "user_id": "user_123",
         }
 
-        with pytest.raises(TransformationError) as exc_info:
+        with pytest.raises(SecurityValidationError) as exc_info:
             secure_transform(
                 data=sensitive_data,
                 model_class=MockBalance,

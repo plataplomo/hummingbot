@@ -47,6 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     nano \
     neovim \
+    procps \
     && fc-cache -f -v && rm -rf /var/lib/apt/lists/*
 
 # <<< ADDED: Configure locale to support UTF-8 characters for themes

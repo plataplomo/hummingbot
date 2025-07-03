@@ -557,7 +557,7 @@ async def test_position_reconciler_detects_discrepancy(
     )
     # Get all positions and filter by the target exchange
     all_local_positions = real_portfolio_tracker.get_all_positions()
-    local_positions_after_update = {}
+    local_positions_after_update: dict[Any, Any] = {}
     for pos_item in all_local_positions:
         # get_all_positions() returns tuples of (key, position)
         _, pos = pos_item  # Unpack tuple (key, position)

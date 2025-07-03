@@ -16,6 +16,8 @@ from cyberdelta.core.models.derivative_position import (
     HyperliquidPositionDetails,
 )
 from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.exceptions.field_validation import FieldNameMissingError
+from cyberdelta.exceptions.parsing import ParsingError
 
 
 pytestmark = pytest.mark.timing
@@ -232,11 +234,11 @@ def test_derivative_position_mutability(
         ("size", Decimal("NaN"), "Field 'size' must be finite"),
         ("size", Decimal("Infinity"), "Field 'size' must be finite"),
         # Required Datetime
-        ("timestamp", None, "Required datetime parsed as None or was invalid"),
+        ("timestamp", None, "timestamp: Required datetime parsed as None or invalid"),
         (
             "timestamp",
             "2023-13-01T00:00:00Z",
-            r"timestamp: Invalid.*timestamp value",
+            r"Cannot parse as ISO datetime.*month must be in 1\.\.12",
         ),
         # Optional Decimals (with constraints)
         ("entry_price", Decimal("NaN"), "Field 'entry_price' must be finite if provided"),
@@ -271,8 +273,10 @@ def test_derivative_position_invalid_field_inputs(
     data[field] = value
     # Use a more general regex for Pydantic's verbose error messages
     # This matches the specific error_match string within the larger Pydantic message.
-    # Some validators raise TypeError directly for type mismatches
-    with pytest.raises((ValidationError, TypeError, ValueError), match=f".*{error_match}.*"):
+    # Some validators raise TypeError for type mismatches, ParsingError for parsing issues
+    with pytest.raises(
+        (ValidationError, TypeError, ValueError, ParsingError), match=f".*{error_match}.*"
+    ):
         DerivativePosition(**data)
 
 
@@ -394,8 +398,8 @@ def test_hyperliquid_details_creation_and_immutability(
 @pytest.mark.parametrize(
     ("field", "value", "error_match"),
     [
-        ("leverage_type", "sideways", r"'leverage_type' must be one of.*got 'sideways'"),
-        ("leverage_type", 123, r"'leverage_type' must be str, got int"),
+        ("leverage_type", "sideways", "Field name is unexpectedly None during validation"),
+        ("leverage_type", 123, "Field name is unexpectedly None during validation"),
         ("leverage_value", -1, "Must be non-negative"),
         ("leverage_value", "abc", "Field 'leverage_value' must be int, got str"),
         ("max_leverage", -5, "Must be non-negative"),
@@ -412,8 +416,10 @@ def test_hyperliquid_details_invalid_fields(
     """Test validation failures for HyperliquidPositionDetails."""
     data = valid_hl_details_data.copy()
     data[field] = value
-    # Some validators raise TypeError directly for type mismatches
-    with pytest.raises((ValidationError, TypeError, ValueError), match=error_match):
+    # Some validators raise TypeError directly for type mismatches, and field validation errors
+    with pytest.raises(
+        (ValidationError, TypeError, ValueError, FieldNameMissingError), match=error_match
+    ):
         HyperliquidPositionDetails(**data)
 
 

@@ -16,6 +16,7 @@ from cyberdelta.core.models.spot_balance import (
     HyperliquidSpotBalanceDetails,
     SpotBalance,
 )
+from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 
 
 pytestmark = pytest.mark.timing
@@ -150,7 +151,7 @@ def test_spot_balance_creation_with_strings(
         (
             "timestamp",
             "not-a-datetime",
-            r"timestamp: Invalid.*timestamp value",
+            r"Cannot parse as ISO datetime.*Invalid isoformat string",
         ),
         # Required Decimal Fields (total_quantity, available_quantity)
         (
@@ -181,8 +182,11 @@ def test_spot_balance_invalid_core_field_values(
     invalid_data[field] = value
 
     # Some validators raise TypeError directly for type mismatches,
-    # ValueError for other validation errors
-    with pytest.raises((ValidationError, TypeError, ValueError), match=f".*{error_match}.*"):
+    # ValueError for other validation errors, ParsingError for parsing issues
+    with pytest.raises(
+        (ValidationError, TypeError, ValueError, ParsingError, DateTimeParsingError),
+        match=f".*{error_match}.*",
+    ):
         SpotBalance(**invalid_data)
 
 
@@ -275,14 +279,14 @@ def test_bp_details_creation_and_immutability(
         (
             "open_order_quantity",
             Decimal("NaN"),
-            "Field 'open_order_quantity' must be finite if provided",
+            "Field 'open_order_quantity' must be finite",
         ),
         ("lend_quantity", Decimal("-0.1"), "Input should be greater than or equal to 0"),
         ("lend_quantity", "invalid", "Cannot convert to Decimal"),
         (
             "collateral_weight",
             Decimal("Infinity"),
-            "Field 'collateral_weight' must be finite if provided",
+            "Field 'collateral_weight' must be finite",
         ),
     ],
 )

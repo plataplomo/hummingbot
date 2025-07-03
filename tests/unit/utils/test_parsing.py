@@ -10,7 +10,7 @@ from typing import cast
 
 import pytest
 
-from cyberdelta.exceptions.parsing import TimestampFormatError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, TimestampFormatError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
@@ -144,16 +144,16 @@ class TestParseDatetimeUTC:
             parse_datetime_utc(invalid_value)
 
     def test_invalid_string(self) -> None:
-        """Should raise ValueError for invalid ISO string."""
+        """Should raise DateTimeParsingError for invalid ISO string."""
         with pytest.raises(
-            ValueError,
-            match=r"Cannot parse string .* as ISO datetime .* or as numeric timestamp",
+            DateTimeParsingError,
+            match=r"Cannot parse as ISO datetime .* or as numeric timestamp",
         ):
             parse_datetime_utc("not-a-date")
 
     def test_error_context_includes_field(self) -> None:
         """Error message should include field_name if provided."""
-        with pytest.raises(ValueError) as exc:
+        with pytest.raises(DateTimeParsingError) as exc:
             parse_datetime_utc("bad", field_name="test_field")
         assert "test_field" in str(exc.value)
 
@@ -180,13 +180,13 @@ class TestParseDatetimeUTC:
         assert dt.day == 29
 
     def test_non_leap_year_feb_29(self) -> None:
-        """Should raise ValueError for Feb 29 on a non-leap year."""
-        with pytest.raises(ValueError):
+        """Should raise DateTimeParsingError for Feb 29 on a non-leap year."""
+        with pytest.raises(DateTimeParsingError):
             parse_datetime_utc("2019-02-29T12:00:00")
 
     def test_unreadable_date_string(self) -> None:
-        """Should raise ValueError for unreadable/ambiguous date string."""
-        with pytest.raises(ValueError):
+        """Should raise DateTimeParsingError for unreadable/ambiguous date string."""
+        with pytest.raises(DateTimeParsingError):
             parse_datetime_utc("yesterday")
 
     def test_datetime_with_timezone_offset(self) -> None:
@@ -208,6 +208,6 @@ class TestParseDatetimeUTC:
         assert offset.total_seconds() == 0
 
     def test_datetime_empty_string(self) -> None:
-        """Should raise ValueError for empty string."""
-        with pytest.raises(ValueError):
+        """Should raise DateTimeParsingError for empty string."""
+        with pytest.raises(DateTimeParsingError):
             parse_datetime_utc("")

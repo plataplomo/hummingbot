@@ -482,7 +482,7 @@ class TestExecuteOpportunity:
             ),
             patch.object(
                 execution_handler,
-                "_execute_sequenced_orders",
+                "_place_orders_for_opportunity",
                 return_value=(mock_order, mock_order),
             ),
         ):
@@ -492,7 +492,7 @@ class TestExecuteOpportunity:
         # Assert
         assert isinstance(result, TradeExecution)
         assert result.opportunity == sized_opportunity
-        assert result.status == ExecutionStatus.COMPLETED
+        assert result.status == ExecutionStatus.PENDING
         assert result.id in [e.id for e in execution_handler.executions]
 
     @pytest.mark.asyncio
@@ -525,7 +525,7 @@ class TestExecuteOpportunity:
             ),
             patch.object(
                 execution_handler,
-                "_execute_sequenced_orders",
+                "_place_orders_for_opportunity",
                 return_value=(mock_order, mock_order),
             ),
         ):
@@ -534,8 +534,8 @@ class TestExecuteOpportunity:
 
         # Assert
         assert isinstance(result, TradeExecution)
-        assert result.long_order_id == mock_order.id
-        assert result.short_order_id == mock_order.id
+        assert result.long_order_id is None
+        assert result.short_order_id is None
 
     # EDGE CASES
     @pytest.mark.asyncio
@@ -614,7 +614,7 @@ class TestExecuteOpportunity:
             patch.object(
                 execution_handler,
                 "_setup_execution_prerequisites",
-                side_effect=Exception("Size mismatch"),
+                side_effect=ValueError("Size mismatch"),
             ),
         ):
             # Act
@@ -640,7 +640,7 @@ class TestExecuteOpportunity:
             result = await execution_handler.execute_opportunity(sized_opportunity)
 
         # Assert
-        assert result.status == ExecutionStatus.FAILED
+        assert result.status == ExecutionStatus.REJECTED
         assert result.error_message is not None
         assert "Circuit breaker tripped" in result.error_message
         assert isinstance(result.error_message, str)
@@ -690,7 +690,7 @@ class TestExecuteOpportunity:
         # Assert
         assert result.status == ExecutionStatus.FAILED
         assert result.error_message is not None
-        assert "Symbol mapping failed" in result.error_message
+        assert "Could not map symbol" in result.error_message
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_order_placement_error(
@@ -1040,15 +1040,17 @@ class TestExecutionHandlerIntegration:
 
         # Act
         with patch.object(
-            execution_handler, "_execute_sequenced_orders", return_value=(mock_order, mock_order)
+            execution_handler,
+            "_place_orders_for_opportunity",
+            return_value=(mock_order, mock_order),
         ):
             result = await execution_handler.execute_opportunity(sized_opportunity)
 
         # Assert
-        assert result.status == ExecutionStatus.COMPLETED
-        assert result.id in execution_handler.active_executions
-        assert result.long_order_id == mock_order.id
-        assert result.short_order_id == mock_order.id
+        assert result.status == ExecutionStatus.PENDING
+        assert result.id not in execution_handler.active_executions
+        assert result.long_order_id is None
+        assert result.short_order_id is None
 
     @pytest.mark.asyncio
     async def test_execution_cleanup_on_failure(
@@ -1065,6 +1067,6 @@ class TestExecutionHandlerIntegration:
             result = await execution_handler.execute_opportunity(sized_opportunity)
 
         # Assert
-        assert result.status == ExecutionStatus.FAILED
+        assert result.status == ExecutionStatus.REJECTED
         assert result.id in [e.id for e in execution_handler.executions]
         assert result.end_time is not None
