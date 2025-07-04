@@ -411,7 +411,6 @@ class TestMultiTierFundingProvider:
         cached_data = self.provider.funding_cache["hyperliquid", "BTC-PERP"]
         assert cached_data.rate == pytest.approx(0.00147865, abs=1e-7)
 
-
     @pytest.mark.asyncio
     async def test_get_funding_rate_no_data(self) -> None:
         """Test getting funding rate when no data is available."""

@@ -133,12 +133,12 @@ class TestMyComponent:
     def test_component_edge_empty_collections(self) -> None:
         """Test behavior with empty lists/dicts."""
         # Arrange
-        input_data: dict[str, str | list[str] | dict[str, str]] = {
+        input_data: dict[str, Any] = {
             "key": "",
+            "number": 0,
             "list": [],
             "dict": {},
         }
-
 
         # Act
         result = MyClass.process(input_data)
@@ -205,15 +205,15 @@ class TestMyComponent:
 
         # Arrange - create conditions that would lead to invalid state
         instance = MyClass()
-        # Use public methods to create invalid state if possible
-        # For this template, we'll show the concept without private access
+        # For this template, we'll simulate invalid state by modifying internal state
+        # In real tests, you would trigger this through public methods
+        instance._internal_state = "invalid"  # noqa: SLF001 - Template demo requires private access
 
         # Act & Assert
         # Test the public interface behavior when in invalid state
         with pytest.raises(RuntimeError, match="Invalid state"):
             # Call public method that would fail due to invalid state
-            instance.process({"key": "value", "number": 42})
-
+            instance.process_instance({"key": "value", "number": 42})
 
     def test_component_failure_constraint_violation(self) -> None:
         """Test handling of business rule violations."""

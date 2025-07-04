@@ -34,6 +34,7 @@ from cyberdelta.core.models.market import Candle  # Import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.exceptions.field_validation import RequiredFieldError, TypeFieldError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -80,6 +81,40 @@ class FundingRateArbitrageStrategy(Strategy):
             params: Dictionary of strategy parameters
 
         """
+        # Validate required parameters
+        if data_handler is None:
+            raise TypeFieldError(
+                field_name="data_handler",
+                expected_type="DataHandler",
+                actual_type="None",
+                actual_value=None,
+            )
+        if portfolio_tracker is None:
+            raise TypeFieldError(
+                field_name="portfolio_tracker",
+                expected_type="PortfolioTracker",
+                actual_type="None",
+                actual_value=None,
+            )
+        if not name:
+            raise RequiredFieldError(field_name="name", context="strategy initialization")
+        if not isinstance(name, str):
+            raise TypeFieldError(
+                field_name="name",
+                expected_type="str",
+                actual_type=type(name).__name__,
+                actual_value=name,
+            )
+        if not symbol:
+            raise RequiredFieldError(field_name="symbol", context="strategy initialization")
+        if not isinstance(symbol, str):
+            raise TypeFieldError(
+                field_name="symbol",
+                expected_type="str",
+                actual_type=type(symbol).__name__,
+                actual_value=symbol,
+            )
+
         super().__init__(name, symbol, params)
         self.data_handler = data_handler
         self.portfolio_tracker = portfolio_tracker
@@ -118,7 +153,12 @@ class FundingRateArbitrageStrategy(Strategy):
             self.symbol_mapping: dict[str, str] = symbol_mapping_param
         else:
             # Default mapping if not provided
-            base = symbol.split("-")[0] if "-" in symbol else symbol.split("_")[0]
+            # Extract the base asset from compound symbols like "SOL_USD-PERP" -> "SOL"
+            if "-" in symbol:
+                perp_part = symbol.split("-")[0]  # Get "SOL_USD" from "SOL_USD-PERP"
+                base = perp_part.split("_")[0]  # Get "SOL" from "SOL_USD"
+            else:
+                base = symbol.split("_")[0]  # Get "SOL" from "SOL_USD"
             self.symbol_mapping = {symbol: f"{base}_USDC"}
 
         # Position sizing info storage
@@ -208,13 +248,24 @@ class FundingRateArbitrageStrategy(Strategy):
         if self.perp_exchange != "hyperliquid":
             return
 
-        current_rate = self.data_handler.get_latest_funding_rate(
-            self.perp_exchange,
-            self.symbol,
-        )
+        try:
+            current_rate = self.data_handler.get_latest_funding_rate(
+                self.perp_exchange,
+                self.symbol,
+            )
 
-        if self._should_fetch_hyperliquid_funding(current_rate):
-            await self.data_handler.fetch_funding_rates(self.perp_exchange, [self.symbol])
+            if self._should_fetch_hyperliquid_funding(current_rate):
+                await self.data_handler.fetch_funding_rates(self.perp_exchange, [self.symbol])
+        except Exception as e:
+            logger.exception(
+                "hyperliquid_funding_check_error",
+                strategy=self.name,
+                symbol=self.symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+                action="continuing_without_refresh",
+                message=f"Error checking Hyperliquid funding freshness: {e}",
+            )
 
     def _should_fetch_hyperliquid_funding(self, current_rate: FundingRate | None) -> bool:
         """Check if Hyperliquid funding rates need to be fetched."""
@@ -724,10 +775,21 @@ class FundingRateArbitrageStrategy(Strategy):
             self.last_opportunity_check is None
             or (now - self.last_opportunity_check).total_seconds() >= self.check_interval
         ):
-            opportunity_signals = await self.evaluate_entry_opportunity()
-            if opportunity_signals:
-                signals.extend(opportunity_signals)
-            # self.last_opportunity_check is updated within evaluate_entry_opportunity
+            try:
+                opportunity_signals = await self.evaluate_entry_opportunity()
+                if opportunity_signals:
+                    signals.extend(opportunity_signals)
+                # self.last_opportunity_check is updated within evaluate_entry_opportunity
+            except Exception as e:
+                logger.exception(
+                    "evaluate_entry_opportunity_error",
+                    strategy=self.name,
+                    symbol=self.symbol,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    action="returning_empty_signals",
+                    message=f"Error evaluating entry opportunity: {e}",
+                )
 
         # Rebalance check (can be independent or related to opportunity checks)
         # Fetch live tickers for rebalance check

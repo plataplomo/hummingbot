@@ -13,11 +13,13 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from cyberdelta.core.models import FundingRate, OrderSide, SignalType, Ticker
+from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
+from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 pytestmark = pytest.mark.timing
@@ -32,6 +34,7 @@ def mock_data_handler() -> MagicMock:
     handler.get_latest_ticker = Mock(return_value=None)
     handler.get_historical_candles = Mock(return_value=[])
     handler.refresh_hyperliquid_funding_rates = AsyncMock()
+    handler.fetch_funding_rates = AsyncMock(return_value=None)
     return handler
 
 
@@ -39,7 +42,34 @@ def mock_data_handler() -> MagicMock:
 def mock_portfolio_tracker() -> Mock:
     """Create a mock PortfolioTracker instance."""
     tracker = Mock(spec=PortfolioTracker)
-    tracker.get_position = Mock(return_value=None)
+
+    # Create mock positions
+    mock_perp_position = DerivativePosition(
+        exchange="hyperliquid",
+        symbol="BTC-PERP",
+        side=OrderSide.BUY,
+        size=Decimal("1.0"),
+        entry_price=Decimal("50000.0"),
+        timestamp=datetime.now(UTC),
+    )
+
+    mock_spot_position = DerivativePosition(
+        exchange="backpack",
+        symbol="BTC_USDC",
+        side=OrderSide.SELL,
+        size=Decimal("-1.0"),  # Negative size for SELL position
+        entry_price=Decimal("49900.0"),
+        timestamp=datetime.now(UTC),
+    )
+
+    def get_position_mock(exchange: str, symbol: str) -> DerivativePosition | None:
+        if exchange == "hyperliquid" and symbol == "BTC-PERP":
+            return mock_perp_position
+        if exchange == "backpack" and symbol == "BTC_USDC":
+            return mock_spot_position
+        return None
+
+    tracker.get_position = Mock(side_effect=get_position_mock)
     tracker.get_total_balance = Mock(return_value=Decimal("10000.0"))
     return tracker
 
@@ -48,7 +78,33 @@ def mock_portfolio_tracker() -> Mock:
 def mock_risk_manager() -> Mock:
     """Create a mock RiskManager instance."""
     manager = Mock(spec=RiskManager)
-    manager.size_opportunity = Mock(return_value=None)
+
+    # Create a mock ArbitrageOpportunity
+    mock_opportunity = ArbitrageOpportunity(
+        symbol="BTC-PERP",
+        long_exchange="hyperliquid",
+        short_exchange="backpack",
+        long_price=Decimal("50000.0"),
+        short_price=Decimal("49900.0"),
+        long_funding_rate=Decimal("0.001"),
+        short_funding_rate=Decimal("-0.0005"),
+        net_funding_differential=Decimal("0.0015"),
+        timestamp=datetime.now(UTC),
+        expected_profit=Decimal("100.0"),
+    )
+
+    # Create a mock SizedOpportunity
+    mock_sized_opportunity = SizedOpportunity(
+        opportunity=mock_opportunity,
+        long_size=Decimal("1000.0"),
+        short_size=Decimal("1000.0"),
+        allocation_percentage=Decimal("10.0"),
+        expected_profit=Decimal("100.0"),
+        expected_return=Decimal("10.0"),
+        risk_adjusted_return=Decimal("5.0"),
+    )
+
+    manager.size_opportunity = Mock(return_value=mock_sized_opportunity)
     manager.validate_signal = Mock(return_value=True)
     return manager
 
@@ -305,33 +361,48 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         expected_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
         # Mock funding rate
+        def mock_get_funding_rate(exchange: str, symbol: str) -> FundingRate | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return expected_rate
+            return None
+
         with patch.object(
             funding_rate_strategy.data_handler,
             "get_latest_funding_rate",
-            return_value=expected_rate,
+            side_effect=mock_get_funding_rate,
         ):
             # Mock ticker prices for valid opportunity
             perp_ticker = Ticker(
                 symbol="BTC-PERP",
                 timestamp=datetime.now(UTC),
+                price=Decimal("50000.5"),
                 bid=Decimal("50000.0"),
                 ask=Decimal("50001.0"),
             )
             spot_ticker = Ticker(
                 symbol="BTC_USDC",
                 timestamp=datetime.now(UTC),
+                price=Decimal("49900.5"),
                 bid=Decimal("49900.0"),
                 ask=Decimal("49901.0"),
             )
+
+            def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+                if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                    return perp_ticker
+                if exchange == "backpack" and symbol == "BTC_USDC":
+                    return spot_ticker
+                return None
+
             with patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ):
                 # Act
                 result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -350,7 +421,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         expected_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
@@ -358,37 +429,66 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
             ask=Decimal("49901.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
+
+        # Create a stateful mock for funding rate that returns None twice, then the expected rate
+        call_count = 0
+
+        def mock_get_funding_rate_with_retry(exchange: str, symbol: str) -> FundingRate | None:
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                return None
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return expected_rate
+            return None
 
         with (
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_funding_rate",
-                side_effect=[None, None, expected_rate],
+                side_effect=mock_get_funding_rate_with_retry,
             ) as mock_get_rate,
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
             patch("asyncio.sleep"),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
 
             # Assert
             # The strategy should retry internally and eventually succeed
-            assert mock_get_rate.call_count >= 1
+            # Should make at least 3 calls (2 failures + 1 success)
+            assert mock_get_rate.call_count >= 3
             # Should get a result when funding rate eventually succeeds
-            assert result is not None or result == []
+            assert result is not None
+            assert isinstance(result, list)
+            assert len(result) == 2  # Should have 2 signals for perp and spot
 
     # EDGE CASES
     @pytest.mark.asyncio
@@ -396,8 +496,14 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         self, funding_rate_strategy: FundingRateArbitrageStrategy
     ) -> None:
         """Test opportunity evaluation when no funding rate is available."""
+
+        def mock_get_funding_rate(exchange: str, symbol: str) -> FundingRate | None:
+            return None
+
         with patch.object(
-            funding_rate_strategy.data_handler, "get_latest_funding_rate", return_value=None
+            funding_rate_strategy.data_handler,
+            "get_latest_funding_rate",
+            side_effect=mock_get_funding_rate,
         ) as mock_get_rate:
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -423,26 +529,40 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
+
+        def mock_get_funding_rate(exchange: str, symbol: str) -> FundingRate | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return low_rate
+            return None
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_funding_rate",
-                return_value=low_rate,
+                side_effect=mock_get_funding_rate,
             ),
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
         ):
             # Act
@@ -458,9 +578,15 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         self, funding_rate_strategy: FundingRateArbitrageStrategy
     ) -> None:
         """Test failure when funding rate is consistently unavailable."""
+
+        def mock_get_funding_rate(exchange: str, symbol: str) -> FundingRate | None:
+            return None
+
         with (
             patch.object(
-                funding_rate_strategy.data_handler, "get_latest_funding_rate", return_value=None
+                funding_rate_strategy.data_handler,
+                "get_latest_funding_rate",
+                side_effect=mock_get_funding_rate,
             ) as mock_get_rate,
             patch("asyncio.sleep"),
         ):
@@ -484,6 +610,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 side_effect=Exception("Network error"),
             ) as mock_get_rate,
             patch("asyncio.sleep"),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -502,7 +633,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
@@ -539,21 +670,30 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49999.5"),
             bid=Decimal("49999.0"),
             ask=Decimal("50000.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -564,8 +704,14 @@ class TestEvaluateOpportunityPriceScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -586,21 +732,30 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="ETH-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
         perp_ticker = Ticker(
             symbol="ETH-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("3000.5"),
             bid=Decimal("3000.0"),
             ask=Decimal("3001.0"),
         )
         spot_ticker = Ticker(
             symbol="ETH_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("2999.5"),
             bid=Decimal("2999.0"),
             ask=Decimal("3000.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "ETH-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "ETH_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -611,8 +766,14 @@ class TestEvaluateOpportunityPriceScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -631,21 +792,30 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.0"),
             bid=Decimal("50000.0"),
             ask=Decimal("50000.0"),  # Same as bid
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.0"),
             bid=Decimal("50000.0"),
             ask=Decimal("50000.0"),  # Same as bid
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -656,8 +826,14 @@ class TestEvaluateOpportunityPriceScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -675,22 +851,31 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
         large_price = Decimal("999999999.99")
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=large_price + Decimal("0.005"),
             bid=large_price,
             ask=large_price + Decimal("0.01"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=large_price - Decimal("0.5"),
             bid=large_price - Decimal("1.0"),
             ask=large_price,
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -701,8 +886,14 @@ class TestEvaluateOpportunityPriceScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -723,7 +914,7 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
@@ -747,9 +938,24 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
+
+        spot_ticker = Ticker(
+            symbol="BTC_USDC",
+            timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
+            bid=Decimal("49900.0"),
+            ask=Decimal("49901.0"),
+        )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return None  # Perp ticker is None
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -758,8 +964,16 @@ class TestEvaluateOpportunityPriceScenarios:
                 return_value=funding_rate,
             ),
             patch.object(
-                funding_rate_strategy.data_handler, "get_latest_ticker", side_effect=[None, Mock()]
+                funding_rate_strategy.data_handler,
+                "get_latest_ticker",
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -776,9 +990,24 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
+
+        perp_ticker = Ticker(
+            symbol="BTC-PERP",
+            timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
+            bid=Decimal("50000.0"),
+            ask=Decimal("50001.0"),
+        )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return None  # Spot ticker is None
+            return None
 
         with (
             patch.object(
@@ -787,8 +1016,16 @@ class TestEvaluateOpportunityPriceScenarios:
                 return_value=funding_rate,
             ),
             patch.object(
-                funding_rate_strategy.data_handler, "get_latest_ticker", side_effect=[Mock(), None]
+                funding_rate_strategy.data_handler,
+                "get_latest_ticker",
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -805,7 +1042,7 @@ class TestEvaluateOpportunityPriceScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
@@ -840,22 +1077,31 @@ class TestFundingRateValidationScenarios:
         positive_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
             ask=Decimal("49901.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -866,8 +1112,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -892,15 +1144,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("50100.5"),
             bid=Decimal("50100.0"),
             ask=Decimal("50101.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -911,8 +1172,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -937,15 +1204,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
             ask=Decimal("49901.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -956,8 +1232,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -983,15 +1265,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
             ask=Decimal("49901.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -1002,8 +1293,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -1028,15 +1325,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
             ask=Decimal("49901.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -1047,8 +1353,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -1073,15 +1385,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("50100.5"),
             bid=Decimal("50100.0"),
             ask=Decimal("50101.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -1092,8 +1413,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -1136,15 +1463,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
             ask=Decimal("49901.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -1155,8 +1491,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -1181,15 +1523,24 @@ class TestFundingRateValidationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("50100.5"),
             bid=Decimal("50100.0"),
             ask=Decimal("50101.0"),
         )
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
 
         with (
             patch.object(
@@ -1200,8 +1551,14 @@ class TestFundingRateValidationScenarios:
             patch.object(
                 funding_rate_strategy.data_handler,
                 "get_latest_ticker",
-                side_effect=[perp_ticker, spot_ticker],
+                side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                return_value=None,
+            ),
+            patch("asyncio.sleep"),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -1379,14 +1736,18 @@ class TestProcessData:
     async def test_process_data_failure_invalid_candle_data(
         self, funding_rate_strategy: FundingRateArbitrageStrategy
     ) -> None:
-        """Test data processing failure with invalid candle data."""
+        """Test data processing with invalid candle data."""
         # Arrange - Create candle with missing required fields
         incomplete_candle = Mock()
         incomplete_candle.symbol = None
+        incomplete_candle.close = None
+        incomplete_candle.open_time = None
 
-        # Act & Assert
-        with pytest.raises(AttributeError):
-            await funding_rate_strategy.process_data(incomplete_candle)
+        # Act
+        result = await funding_rate_strategy.process_data(incomplete_candle)
+
+        # Assert - Should handle gracefully and return empty list
+        assert result == []
 
 
 # Integration tests
@@ -1416,7 +1777,7 @@ class TestIntegrationScenarios:
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.001"),  # 0.1% funding rate
+            funding_rate=Decimal("0.002"),  # Increased to ensure profit  # 0.1% funding rate
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
         mock_data_handler.get_latest_funding_rate.return_value = funding_rate
@@ -1425,23 +1786,46 @@ class TestIntegrationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("49900.5"),
             bid=Decimal("49900.0"),  # Lower price on spot
             ask=Decimal("49901.0"),
         )
-        mock_data_handler.get_latest_ticker.side_effect = [perp_ticker, spot_ticker]
 
-        # Mock risk manager sizing - using correct constructor args based on SizedOpportunity
-        mock_risk_manager.size_opportunity.return_value = Mock(
-            spec=SizedOpportunity,
-            symbol="BTC-PERP",
-            size=Decimal("1.0"),
-        )
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
+
+        mock_data_handler.get_latest_ticker.side_effect = mock_get_ticker
+        mock_data_handler.fetch_funding_rates = AsyncMock(return_value=None)
+
+        # Create a mock ArbitrageOpportunity for the sized opportunity
+        mock_opportunity = Mock(spec=ArbitrageOpportunity)
+        mock_opportunity.symbol = "BTC-PERP"
+        mock_opportunity.long_exchange = "backpack"
+        mock_opportunity.short_exchange = "hyperliquid"
+        mock_opportunity.net_funding_differential = Decimal("0.002")
+
+        # Mock risk manager sizing - using correct attributes based on SizedOpportunity
+        mock_sized_opp = Mock(spec=SizedOpportunity)
+        mock_sized_opp.opportunity = mock_opportunity
+        mock_sized_opp.long_size = Decimal("1000.0")
+        mock_sized_opp.short_size = Decimal("1000.0")
+        mock_sized_opp.allocation_percentage = Decimal("10.0")
+        mock_sized_opp.expected_profit = Decimal("100.0")
+        mock_sized_opp.expected_return = Decimal("10.0")
+        mock_sized_opp.risk_adjusted_return = Decimal("5.0")
+
+        mock_risk_manager.size_opportunity.return_value = mock_sized_opp
         mock_risk_manager.validate_signal.return_value = True
 
         # Act
@@ -1449,13 +1833,17 @@ class TestIntegrationScenarios:
 
         # Assert
         assert signals is not None
-        assert len(signals) >= 1  # Should generate at least one signal
+        assert len(signals) == 2  # Should generate two signals (perp and spot)
 
         # Verify basic signal characteristics
+        symbols_found = set()
         for signal in signals:
-            assert signal.symbol == "BTC-PERP"
+            symbols_found.add(signal.symbol)
             assert signal.quantity is not None
             assert signal.price > Decimal(0)
+
+        # Should have both BTC-PERP and BTC_USDC signals
+        assert symbols_found == {"BTC-PERP", "BTC_USDC"}
 
     @pytest.mark.asyncio
     async def test_no_opportunity_when_funding_rate_too_low(
@@ -1489,16 +1877,26 @@ class TestIntegrationScenarios:
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
             timestamp=datetime.now(UTC),
+            price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
             ask=Decimal("50001.0"),
         )
-        mock_data_handler.get_latest_ticker.side_effect = [perp_ticker, spot_ticker]
+
+        def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
+            if exchange == "hyperliquid" and symbol == "BTC-PERP":
+                return perp_ticker
+            if exchange == "backpack" and symbol == "BTC_USDC":
+                return spot_ticker
+            return None
+
+        mock_data_handler.get_latest_ticker.side_effect = mock_get_ticker
 
         # Act
         signals = await strategy.evaluate_entry_opportunity()

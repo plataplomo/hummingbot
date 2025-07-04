@@ -510,9 +510,13 @@ async def test_clean_expired_signals_direct_patch(
         )
         await queue.add_signal(dummy_cleanup_signal)
 
-        # Force manual cleanup to ensure it happens regardless of timing issues
-        async with queue.lock:
-            queue._clean_expired_signals()
+        # Force cleanup by manipulating last_cleanup time to trigger cleanup
+        queue.last_cleanup = future_time_for_expirations - timedelta(
+            seconds=queue.cleanup_interval + 1
+        )
+
+        # Trigger a method that would call _cleanup_expired_signals_if_needed
+        await queue.get_signals()
 
         # Assertions after cleanup
         current_signals = await queue.get_signals()
@@ -713,9 +717,11 @@ async def test_clean_expired_signals_with_helper(
     )
     await queue.add_signal(dummy_trigger_signal)
 
-    # Force manual cleanup to ensure it happens regardless of timing issues
-    async with queue.lock:
-        queue._clean_expired_signals()
+    # Force cleanup by manipulating last_cleanup time to trigger cleanup
+    queue.last_cleanup = future_now_for_expirations - timedelta(seconds=queue.cleanup_interval + 1)
+
+    # Trigger a method that would call _cleanup_expired_signals_if_needed
+    await queue.get_signals()
 
     # Assertions after cleanup
     current_signals = await queue.get_signals()

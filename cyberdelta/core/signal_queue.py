@@ -156,14 +156,15 @@ class PrioritySignalQueue:
         return True
 
     async def _cleanup_expired_signals_if_needed(self) -> None:
-        """Clean expired signals periodically if needed."""
+        """Clean expired signals periodically if needed.
+
+        Note: This method assumes the caller already holds self.lock.
+        """
         now = datetime.now(UTC)
         if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
-            async with self.lock:  # Acquire lock specifically for cleanup
-                # Double check condition inside lock
-                if (now - self.last_cleanup).total_seconds() > self.cleanup_interval:
-                    self._clean_expired_signals()  # This modifies self.signal_queue
-                    self.last_cleanup = now
+            # No need to acquire lock - caller already holds it
+            self._clean_expired_signals()  # This modifies self.signal_queue
+            self.last_cleanup = now
 
     async def _add_signal_to_queue(self, signal: TradeSignal) -> bool:
         """Add signal to the priority queue with duplicate checking and trimming."""

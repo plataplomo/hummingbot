@@ -749,6 +749,10 @@ class ExecutionHandler:
             execution.short_fill_price = short_order_result.average_fill_price
             execution.short_fill_quantity = short_order_result.quantity_filled
             execution.status = ExecutionStatus.COMPLETED
+
+            # Calculate realized PnL now that both orders are completed
+            await self._update_pnl(execution)
+
             logger.info(
                 "execution_completed_successfully",
                 action="complete_execution",
@@ -1791,13 +1795,32 @@ class ExecutionHandler:
             )
             return
 
+        # Validate quantity matching for arbitrage strategy
+        # Allow small differences due to market conditions, but flag significant mismatches
+        quantity_diff = abs(execution.long_fill_quantity - execution.short_fill_quantity)
+        max_quantity = max(execution.long_fill_quantity, execution.short_fill_quantity)
+        tolerance_pct = Decimal("0.05")  # 5% tolerance
+
+        if quantity_diff > (max_quantity * tolerance_pct):
+            logger.error(
+                "execution_pnl_quantity_mismatch",
+                execution_id=execution.id,
+                long_quantity=str(execution.long_fill_quantity),
+                short_quantity=str(execution.short_fill_quantity),
+                difference=str(quantity_diff),
+                tolerance_pct=str(tolerance_pct),
+                action="update_pnl",
+                message="Significant quantity mismatch detected, failing execution",
+            )
+            execution.status = ExecutionStatus.FAILED
+            return
+
         # Simple PnL calculation (assumes quantities match, fees are zero)
         # TODO: Incorporate actual fees when available
         long_cost = execution.long_fill_price * execution.long_fill_quantity
         short_proceeds = execution.short_fill_price * execution.short_fill_quantity
 
-        # Assuming long_fill_quantity and short_fill_quantity are the same base asset amount
-        # This might not hold true if sizing is in quote currency and prices differ significantly
+        # Calculating PnL based on actual filled quantities
         execution.realized_pnl = short_proceeds - long_cost
 
         logger.info(
