@@ -435,7 +435,7 @@ class PerformanceTracker:
             # Create DataFrame with all timestamps
             sorted_timestamps: list[datetime] = sorted(all_timestamps)
             # Create DataFrame with datetime index
-            df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))
+            returns_df = pd.DataFrame(index=pd.to_datetime(sorted_timestamps))
 
             # Fill with returns for each strategy
             for strategy in target_strategies:
@@ -447,20 +447,20 @@ class PerformanceTracker:
                         list(strategy_returns.values()),
                         index=pd.to_datetime(list(strategy_returns.keys())),
                     )
-                    df[strategy] = series
+                    returns_df[strategy] = series
 
             # Sort by timestamp (already sorted by index creation)
 
             # Filter by time range
             if start_time:
                 # Filter by datetime index
-                df = df[df.index >= pd.to_datetime(start_time)]
+                returns_df = returns_df[returns_df.index >= pd.to_datetime(start_time)]
             if end_time:
                 # Filter by datetime index
-                df = df[df.index <= pd.to_datetime(end_time)]
+                returns_df = returns_df[returns_df.index <= pd.to_datetime(end_time)]
 
             # Fill NaN values with 0
-            return df.fillna(0)
+            return returns_df.fillna(0)
 
     def get_trades_dataframe(
         self,
@@ -521,16 +521,16 @@ class PerformanceTracker:
                 return pd.DataFrame()
 
             # Convert to DataFrame
-            df = pd.DataFrame(filtered_trades)
+            trades_df = pd.DataFrame(filtered_trades)
             # Attempt conversion to appropriate dtypes after DF creation
-            df["entry_time"] = pd.to_datetime(df["entry_time"], errors="coerce")
-            df["exit_time"] = pd.to_datetime(df["exit_time"], errors="coerce")
+            trades_df["entry_time"] = pd.to_datetime(trades_df["entry_time"], errors="coerce")
+            trades_df["exit_time"] = pd.to_datetime(trades_df["exit_time"], errors="coerce")
             numeric_cols = ["size", "entry_price", "exit_price", "pnl", "duration"]
             for col in numeric_cols:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
+                if col in trades_df.columns:
+                    trades_df[col] = pd.to_numeric(trades_df[col], errors="coerce")
 
-            return df
+            return trades_df
 
     def get_signals_dataframe(
         self,
@@ -582,12 +582,12 @@ class PerformanceTracker:
                 return pd.DataFrame()
 
             # Convert to DataFrame
-            df = pd.DataFrame(filtered_signals)
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-            if "confidence" in df.columns:
-                df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
+            signals_df = pd.DataFrame(filtered_signals)
+            signals_df["timestamp"] = pd.to_datetime(signals_df["timestamp"], errors="coerce")
+            if "confidence" in signals_df.columns:
+                signals_df["confidence"] = pd.to_numeric(signals_df["confidence"], errors="coerce")
 
-            return df
+            return signals_df
 
     def get_funding_rates_dataframe(
         self,
@@ -621,10 +621,10 @@ class PerformanceTracker:
                 return pd.DataFrame()
 
             # Convert to DataFrame and process
-            df = self._create_funding_rates_dataframe(filtered_rates)
+            funding_rates_df = self._create_funding_rates_dataframe(filtered_rates)
 
             # Apply pivot if requested
-            return self._apply_pivot_if_requested(df, pivot)
+            return self._apply_pivot_if_requested(funding_rates_df, pivot)
 
     def _filter_funding_rates(
         self,
@@ -665,15 +665,15 @@ class PerformanceTracker:
     def _create_funding_rates_dataframe(self, filtered_rates: list[dict[str, Any]]) -> pd.DataFrame:
         """Create and process the funding rates DataFrame."""
         # Convert to DataFrame
-        df = pd.DataFrame(filtered_rates)
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        funding_df = pd.DataFrame(filtered_rates)
+        funding_df["timestamp"] = pd.to_datetime(funding_df["timestamp"], errors="coerce")
         numeric_cols = ["funding_rate", "predicted_rate"]
         for col in numeric_cols:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+            if col in funding_df.columns:
+                funding_df[col] = pd.to_numeric(funding_df[col], errors="coerce")
 
         # Set index
-        return df.set_index("timestamp")
+        return funding_df.set_index("timestamp")
 
     def _apply_pivot_if_requested(self, df: pd.DataFrame, pivot: bool) -> pd.DataFrame:
         """Apply pivot transformation if requested."""
@@ -685,10 +685,11 @@ class PerformanceTracker:
                     subset=["timestamp", "symbol"],
                     keep="last",
                 )
-                return df_unique.pivot(
+                return df_unique.pivot_table(
                     index="timestamp",
                     columns="symbol",
                     values="funding_rate",
+                    aggfunc="last",
                 )
             except (ValueError, KeyError) as e:
                 logger.warning(

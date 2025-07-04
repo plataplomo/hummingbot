@@ -133,7 +133,12 @@ class TestMyComponent:
     def test_component_edge_empty_collections(self) -> None:
         """Test behavior with empty lists/dicts."""
         # Arrange
-        input_data = {"key": "", "number": 42, "list": [], "dict": {}}
+        input_data: dict[str, str | list[str] | dict[str, str]] = {
+            "key": "",
+            "list": [],
+            "dict": {},
+        }
+
 
         # Act
         result = MyClass.process(input_data)
@@ -194,13 +199,21 @@ class TestMyComponent:
 
     def test_component_failure_invalid_state(self) -> None:
         """Test handling of invalid state conditions."""
-        # Arrange
+        # This test demonstrates testing error conditions through public interface
+        # Note: We should NOT directly access private attributes like _internal_state
+        # Instead, test the behavior that would result from invalid state
+
+        # Arrange - create conditions that would lead to invalid state
         instance = MyClass()
-        instance._internal_state = "invalid"
+        # Use public methods to create invalid state if possible
+        # For this template, we'll show the concept without private access
 
         # Act & Assert
+        # Test the public interface behavior when in invalid state
         with pytest.raises(RuntimeError, match="Invalid state"):
-            instance.process_instance({"key": "value", "number": 42})
+            # Call public method that would fail due to invalid state
+            instance.process({"key": "value", "number": 42})
+
 
     def test_component_failure_constraint_violation(self) -> None:
         """Test handling of business rule violations."""
@@ -234,7 +247,7 @@ def test_component_parametrized_scenarios(
     description: str,
 ) -> None:
     """Test multiple scenarios with parametrization: {description}."""
-    if isinstance(expected, type) and issubclass(expected, Exception):
+    if isinstance(expected, type):
         # This is a failure case
         with pytest.raises(expected):
             # Type assertion for mypy - we know it won't be None in the test cases

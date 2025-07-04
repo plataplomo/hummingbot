@@ -684,6 +684,54 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 # --- Failure Cases: BackpackRawDepthUpdateEvent ---
 
 
+def _determine_expected_exception(
+    field: str, value: str | float | bool | list[Any] | None
+) -> type[Exception]:
+    """Determine expected exception type based on field and value."""
+    # The field validator raises TypeFieldError for these specific cases
+    if (field == "lastUpdateId" and value is None) or (field == "a" and value == [["1", 2]]):
+        return TypeFieldError
+
+    # StructureTypeError cases
+    if (field == "b" and value is None) or (field == "a" and value == "not-a-list"):
+        return StructureTypeError
+
+    # Other TypeError cases
+    if field == "a" and value == ["1", "2"]:
+        return TypeError
+
+    # The field validator raises EmptyStringError for empty string cases
+    if _is_empty_string_case(field, value):
+        return EmptyStringError
+
+    # DateTimeParsingError for timestamp parsing
+    if field == "E" and value == "abc":
+        return DateTimeParsingError
+
+    return ValidationError
+
+
+def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | None) -> bool:
+    """Check if this is an empty string validation case."""
+    if field == "lastUpdateId" and not value:
+        return True
+    if field == "e" and not value:
+        return True
+
+    # Check for empty strings in nested list structures
+    if field == "b" and isinstance(value, list) and value:
+        first_elem = value[0]
+        if isinstance(first_elem, list) and first_elem and not first_elem[0]:
+            return True
+
+    if field == "a" and isinstance(value, list) and value:
+        first_elem = value[0]
+        if isinstance(first_elem, list) and len(first_elem) > 1 and not first_elem[1]:
+            return True
+
+    return False
+
+
 @pytest.mark.parametrize(
     ("field", "value", "expected_msg_part"),
     [
@@ -716,53 +764,7 @@ def test_BackpackRawDepthUpdateEvent_invalid_fields(
     data[field] = value
 
     # Determine expected exception type based on field and value
-    expected_exception: type[Exception] = ValidationError
-    # The field validator raises TypeFieldError for these specific cases
-    type_field_error_cases = [
-        field == "lastUpdateId" and value is None,
-        field == "a" and value == [["1", 2]],
-    ]
-    # StructureTypeError cases
-    structure_type_error_cases = [
-        field == "b" and value is None,
-        field == "a" and value == "not-a-list",
-    ]
-    # Other TypeError cases
-    type_error_cases = [
-        field == "a" and value == ["1", "2"],
-    ]
-    # The field validator raises EmptyStringError for empty string cases
-    empty_string_cases = [
-        field == "lastUpdateId" and not value,
-        field == "e" and not value,
-        field == "b"
-        and isinstance(value, list)
-        and len(value) > 0
-        and isinstance(value[0], list)
-        and len(value[0]) > 0
-        and not value[0][0],
-        field == "a"
-        and isinstance(value, list)
-        and len(value) > 0
-        and isinstance(value[0], list)
-        and len(value[0]) > 1
-        and not value[0][1],
-    ]
-    # DateTimeParsingError for timestamp parsing
-    datetime_error_cases = [
-        field == "E" and value == "abc",
-    ]
-
-    if any(type_field_error_cases):
-        expected_exception = TypeFieldError
-    elif any(structure_type_error_cases):
-        expected_exception = StructureTypeError
-    elif any(type_error_cases):
-        expected_exception = TypeError
-    elif any(empty_string_cases):
-        expected_exception = EmptyStringError
-    elif any(datetime_error_cases):
-        expected_exception = DateTimeParsingError
+    expected_exception = _determine_expected_exception(field, value)
 
     with pytest.raises(expected_exception) as exc_info:
         BackpackRawDepthUpdateEvent.model_validate(data)

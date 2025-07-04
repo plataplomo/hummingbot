@@ -9,7 +9,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation, getcontext
 from typing import Any, Literal, cast
 
-from cyberdelta.apis.base.exchange_api import ExchangeAPI  # Add ExchangeAPI
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.common import APIError
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition, OrderSide
@@ -320,7 +321,7 @@ class PositionReconciliationSystem:
             logger.error(
                 "apply_corrections_invalid_discrepancies_type",
                 expected_type="list",
-                actual_type=str(type(discrepancy_details_list_any)),
+                actual_type=type(discrepancy_details_list_any).__name__,
                 message=(
                     f"_apply_corrections: results['discrepancies'] is not a list. "
                     f"Got: {type(discrepancy_details_list_any)}"
@@ -886,24 +887,70 @@ class PositionReconciliationSystem:
             message=f"PRS._reconcile_exchange: Starting for {exchange}",
         )
 
-        # TODO: Note: API clients have moved to PortfolioOrchestrator
-        # This will need to be updated to work with the new architecture
-        # For now, return early as this functionality needs architectural updates
-        self.logger.warning(
-            "api_client_architecture_changed",
-            action="reconcile_exchange",
-            exchange=exchange,
-            message=(
-                "PRS._reconcile_exchange: API client access needs architectural "
-                f"update for {exchange}"
-            ),
-        )
-        return {
-            "success": False,
-            "error": f"API client access needs architectural update for {exchange}",
-            "timestamp": now,
-            "discrepancies": [],
-        }
+        # Get API clients from portfolio tracker
+        api_clients_any = getattr(self._portfolio_tracker, "api_clients", None)
+        if not isinstance(api_clients_any, dict):
+            self.logger.error(
+                "portfolio_tracker_missing_api_clients",
+                action="reconcile_exchange",
+                exchange=exchange,
+                message=f"Portfolio tracker missing api_clients for {exchange}",
+            )
+            return {
+                "success": False,
+                "error": f"Portfolio tracker missing api_clients for {exchange}",
+                "timestamp": now,
+                "discrepancies": [],
+            }
+
+        api_clients: dict[str, ExchangeAPI] = api_clients_any
+        if exchange not in api_clients:
+            self.logger.error(
+                "exchange_not_in_api_clients",
+                action="reconcile_exchange",
+                exchange=exchange,
+                message=f"Exchange {exchange} not found in api_clients",
+            )
+            return {
+                "success": False,
+                "error": f"Exchange {exchange} not found in api_clients",
+                "timestamp": now,
+                "discrepancies": [],
+            }
+
+        try:
+            # Get positions from API
+            api_client = api_clients[exchange]
+            api_positions_list = await api_client.get_positions()
+
+            # Convert API positions to dict by symbol
+            api_positions_dict = {pos.symbol: pos for pos in api_positions_list}
+
+            # Get local positions from portfolio tracker
+            local_positions_list = self._portfolio_tracker.get_positions_by_exchange(exchange)
+
+            # Convert local positions to dict by symbol
+            local_positions_dict = {pos.symbol: pos for pos in local_positions_list}
+
+            # Perform reconciliation
+            return await self.reconcile_positions(
+                exchange, api_positions_dict, local_positions_dict
+            )
+
+        except (APIError, ValueError, TypeError) as e:
+            self.logger.exception(
+                "reconcile_exchange_error",
+                action="reconcile_exchange",
+                exchange=exchange,
+                error=str(e),
+                message=f"Error during reconciliation for {exchange}: {e}",
+            )
+            return {
+                "success": False,
+                "error": f"Error during reconciliation for {exchange}: {e}",
+                "timestamp": now,
+                "discrepancies": [],
+            }
 
         # TODO: This method needs to be updated to work with PortfolioOrchestrator.
         # The commented implementation below should be integrated with the new architecture

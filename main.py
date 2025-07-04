@@ -117,7 +117,7 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
                         "is_running": engine.is_running if engine else False,
                     },
                     "data_handler": {
-                        "running": data_handler._running if data_handler else False,
+                        "running": data_handler.is_running if data_handler else False,
                         "connected_exchanges": (
                             list(data_handler.api_clients.keys()) if data_handler else []
                         ),

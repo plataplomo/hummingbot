@@ -506,7 +506,7 @@ class HyperliquidAccountService:
         error_msg = str(e_service_logic)
         if current_method in error_msg and "symbol" in error_msg:
             # Re-raise input validation errors
-            raise
+            raise e_service_logic
         # Wrap internal errors as APIError
         logger.error(
             "service_logic_error",

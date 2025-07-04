@@ -157,16 +157,12 @@ select = [  # Linting rules to apply
     "C",   # complexity
     "FURB",# bugbear
     "RET", # return
-#    "TC",  # type-checking
+#    "TC003",  # type-checking
     "RUF", # redundant-use-of-function
     "SIM", # similar
     "ERA", # commented-out-code
 #    "DOC", # docstrings
     "INP", # import
-#    "PLR2004",  # magic-value-comparison (good for trading systems)
-#    "PLR6201",  # literal-membership (performance improvement)
-#    "PLR1714",  # repeated-equality-comparison (cleaner code)
-#    "PLR6104",  # non-augmented-assignment (minor improvement)
     "PLR",
     "G",
     "DTZ",
@@ -189,6 +185,9 @@ select = [  # Linting rules to apply
     "TRY",
     "RSE",
     #"EM",
+    "SLF",
+    "PLE",
+    "PD",
 ]
 
 # Ignore rules that conflict with current codebase formatting
@@ -248,6 +247,9 @@ lines-after-imports = 2
 force-sort-within-sections = false
 # Case-sensitive sorting
 case-sensitive = false
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 # Ruff formatter configuration (Black-compatible)
 [tool.ruff.format]

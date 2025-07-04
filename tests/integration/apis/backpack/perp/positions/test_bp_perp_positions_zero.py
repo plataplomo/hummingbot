@@ -216,7 +216,7 @@ class TestBackpackPerpPositionsZero:
 
             except ValueError as e:
                 # Service layer validation errors (e.g., empty string symbols)
-                assert symbol == "", f"ValueError should only occur for empty symbol, got: {symbol}"  # noqa: PLC1901
+                assert not symbol, f"ValueError should only occur for empty symbol, got: {symbol}"
                 logger.info(
                     "empty_symbol_value_error",
                     error_message=str(e),

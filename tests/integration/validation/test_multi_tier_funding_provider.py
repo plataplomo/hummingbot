@@ -353,8 +353,9 @@ class TestMultiTierFundingProvider:
         assert ("hyperliquid", "BTC-PERP") in self.provider.funding_cache
         assert ("hyperliquid", "ETH-PERP") not in self.provider.funding_cache
 
-    def test_integrate_funding_data(self) -> None:
-        """Test integrating funding data from multiple sources."""
+    @pytest.mark.asyncio
+    async def test_integrate_funding_data_through_public_interface(self) -> None:
+        """Test integrating funding data from multiple sources through public interface."""
         # Create test data
         now = datetime.now(UTC)
         primary_data = FundingData(
@@ -384,31 +385,32 @@ class TestMultiTierFundingProvider:
             source_reliability=SourceReliability.LOW,
         )
 
-        # Integrate data - accessing protected method for testing internal behavior
-        # pyright: ignore[reportPrivateUsage]
-        integrated = self.provider._integrate_funding_data(  # pyright: ignore[reportPrivateUsage]
-            "hyperliquid",
-            "BTC-PERP",
-            primary_data,
-            secondary_data,
-            tertiary_data,
-        )
+        # Mock the sources to return our test data
+        self.primary_source.return_value = primary_data
+        self.secondary_source.return_value = secondary_data
+        self.tertiary_source.return_value = tertiary_data
+
+        # Call the public method
+        rate, confidence_score = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
 
         # Verify result
-        assert integrated.exchange == "hyperliquid"
-        assert integrated.symbol == "BTC-PERP"
-        # Adjust expected value based on reliability-weighted calculation
+        # The integrated rate should be the reliability-weighted average:
         # = (0.0009 + 0.000336 + 0.00008) / (0.6 + 0.24 + 0.05)
         # = 0.001316 / 0.89 = 0.0014786516...
-        assert integrated.rate == cast(float, pytest.approx(0.00147865, abs=1e-7))
-        # Confidence score assertion needs separate verification if needed
-        # assert integrated.confidence_score > 0.7
 
-        # Check source data
-        assert len(integrated.source_data) == 3
-        assert integrated.source_data[SourceType.PRIMARY] == primary_data
-        assert integrated.source_data[SourceType.SECONDARY] == secondary_data
-        assert integrated.source_data[SourceType.TERTIARY] == tertiary_data
+        assert rate == pytest.approx(0.00147865, abs=1e-7)
+        assert confidence_score > 0.7  # Should have high confidence with all sources
+
+        # Verify sources were called
+        self.primary_source.assert_called_once_with("hyperliquid", "BTC-PERP")
+        self.secondary_source.assert_called_once_with("hyperliquid", "BTC-PERP")
+        self.tertiary_source.assert_called_once_with("hyperliquid", "BTC-PERP")
+
+        # Verify the result is cached
+        assert ("hyperliquid", "BTC-PERP") in self.provider.funding_cache
+        cached_data = self.provider.funding_cache["hyperliquid", "BTC-PERP"]
+        assert cached_data.rate == pytest.approx(0.00147865, abs=1e-7)
+
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_no_data(self) -> None:

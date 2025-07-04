@@ -138,8 +138,10 @@ class TestPerformanceVisualizer:
                 "funding_rate": rng.normal(0, 0.01, len(dates) * len(assets)),
             },
         )
-        funding_data.set_index("date", inplace=True)
-        self.funding_data = funding_data.pivot(columns="asset", values="funding_rate")
+        funding_data = funding_data.set_index("date")
+        self.funding_data = funding_data.pivot_table(
+            columns="asset", values="funding_rate", aggfunc="last"
+        )
 
     def test_initialization(self) -> None:
         """Test that visualizer initializes correctly with provided configuration.

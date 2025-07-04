@@ -393,14 +393,16 @@ class PerformanceVisualizer:
         # Pivot data if necessary (if not already in the right format)
         # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
         if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
-            pivot_data = funding_data.pivot(index=None, columns="asset", values="funding_rate")
+            pivot_data = funding_data.pivot_table(
+                index=None, columns="asset", values="funding_rate", aggfunc="last"
+            )
         else:
             pivot_data = funding_data
 
         # Create figure
         fig = go.Figure(
             data=go.Heatmap(
-                z=pivot_data.values.T,
+                z=pivot_data.to_numpy().T,
                 x=pivot_data.index,
                 y=pivot_data.columns,
                 colorscale="RdBu",
@@ -636,13 +638,15 @@ class PerformanceVisualizer:
         # Pivot data if necessary
         # NOTE: Type checker limitation: pandas stubs are incomplete for pivot, values, index
         if "asset" in funding_data.columns and "funding_rate" in funding_data.columns:
-            pivot_data = funding_data.pivot(index=None, columns="asset", values="funding_rate")
+            pivot_data = funding_data.pivot_table(
+                index=None, columns="asset", values="funding_rate", aggfunc="last"
+            )
         else:
             pivot_data = funding_data
 
         fig.add_trace(
             go.Heatmap(
-                z=pivot_data.values.T,
+                z=pivot_data.to_numpy().T,
                 x=pivot_data.index,
                 y=pivot_data.columns,
                 colorscale="RdBu",
@@ -1023,7 +1027,7 @@ if __name__ == "__main__":
             "funding_rate": rng.normal(0, 0.01, len(dates) * len(assets)),
         },
     )
-    funding_data.set_index("date", inplace=True)
+    funding_data = funding_data.set_index("date")
 
     # Create visualizer
     visualizer = PerformanceVisualizer()
@@ -1032,7 +1036,9 @@ if __name__ == "__main__":
     dashboard = visualizer.create_performance_dashboard(
         returns_data=returns_data,
         trade_data=trade_data,
-        funding_data=funding_data.pivot(columns="asset", values="funding_rate"),
+        funding_data=funding_data.pivot_table(
+            columns="asset", values="funding_rate", aggfunc="last"
+        ),
     )
 
     # Show dashboard

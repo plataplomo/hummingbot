@@ -832,7 +832,7 @@ class BackpackTradingService:
                 symbol=symbol,
             )
             return None
-        raise
+        raise e
 
     def _handle_get_order_service_logic_error(
         self,
@@ -850,7 +850,7 @@ class BackpackTradingService:
             param in error_msg for param in ["order_id", "symbol"]
         ):
             # This is likely from our input parameter validation - re-raise as is
-            raise
+            raise e_service_logic
         # This is from service internal logic - wrap as APIError
         raise self._create_get_order_api_error(
             e_service_logic,

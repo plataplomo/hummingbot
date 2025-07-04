@@ -502,35 +502,14 @@ async def test_happy_path_full_cycle(
     symbol_hl = "BTC-PERP"
     symbol_bp = "BTC-USDC"
     start_time = datetime.now(UTC)
-    initial_usdc_balance = Decimal("100000.0")
+    # Initial balance is now set through mock APIs instead of direct assignment
 
     # 1. Initialize PortfolioTracker with balances
     await portfolio_tracker.initialize()
     portfolio_tracker.reset()  # Explicitly reset state for this test
-    # Directly set balances for testing via internal API (necessary for mocks)
-    # Consider adding a test-specific method to PortfolioTracker if this pattern persists
-    # DEFENSIVE CHECK: Using protected method for test setup. Mypy=[misc] Ruff=[SLF001]
-    portfolio_tracker._update_balance(  # pyright: ignore[reportPrivateUsage]  # pyright: ignore[reportPrivateUsage]
-        "hyperliquid",
-        SpotBalance(
-            exchange="hyperliquid",
-            asset="USD",
-            timestamp=start_time,
-            total_quantity=initial_usdc_balance,  # Re-using for USD as well
-            available_quantity=initial_usdc_balance,
-        ),
-    )
-    # DEFENSIVE CHECK: Using protected method for test setup. Mypy=[misc] Ruff=[SLF001]
-    portfolio_tracker._update_balance(  # pyright: ignore[reportPrivateUsage]
-        "backpack",
-        SpotBalance(
-            exchange="backpack",
-            asset="USDC",
-            timestamp=start_time,
-            total_quantity=initial_usdc_balance,
-            available_quantity=initial_usdc_balance,
-        ),
-    )
+    # Set balances through mock exchange APIs instead of direct private method access
+    # The portfolio tracker will sync these balances when queried
+    # This approach tests the actual integration flow rather than bypassing it
 
     # --- ADDED: Set internal balances for MockExchangeAPI instances ---
     mock_bp_api.set_mock_balance(
@@ -572,9 +551,8 @@ async def test_happy_path_full_cycle(
     mock_bp_api.set_mock_ticker(mock_bp_ticker)
 
     # --- ADDED: Configure Mock APIs to fill orders immediately for this test ---
-    # DEFENSIVE CHECK: Using protected attribute for test setup. Mypy=[misc] Ruff=[SLF001]
-    mock_hl_api._open_orders_behavior = "fill_immediately"  # pyright: ignore[reportPrivateUsage]
-    mock_bp_api._open_orders_behavior = "fill_immediately"  # pyright: ignore[reportPrivateUsage]
+    mock_hl_api.set_open_orders_behavior("fill_immediately")
+    mock_bp_api.set_open_orders_behavior("fill_immediately")
     # --- END ADDED ---
 
     # Funding Rates

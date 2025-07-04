@@ -650,7 +650,7 @@ class BackpackMarketDataService:
     ) -> None:
         """Handle various recent trades-related exceptions."""
         if isinstance(e, APIError):
-            raise
+            raise e
         if isinstance(e, TransformationError):
             logger.error(
                 "recent_trades_transform_error: Failed to transform exchange data",
@@ -900,7 +900,7 @@ class BackpackMarketDataService:
     ) -> None:
         """Handle exceptions for get_funding_rates."""
         if isinstance(e, APIError):
-            raise
+            raise e
         if isinstance(e, TransformationError):
             logger.error(
                 "funding_rates_transform_error: Failed to transform exchange data",

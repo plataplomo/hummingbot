@@ -824,7 +824,7 @@ class BackpackAccountService:
         error_msg = str(e)
         if method_name in error_msg and "symbol" in error_msg:
             # This is likely from our input parameter validation - re-raise as is
-            raise
+            raise e
         # This is from service internal logic - wrap as APIError
         logger.error(
             "service_logic_error: Service internal logic error for positions",
@@ -1562,7 +1562,7 @@ class BackpackAccountService:
     ) -> None:
         """Handle various transfer-related exceptions."""
         if isinstance(e, APIError):
-            raise
+            raise e
         if isinstance(e, TransformationError):
             logger.error(
                 "transform_failed: Failed to transform exchange data for transfer",
@@ -1596,7 +1596,7 @@ class BackpackAccountService:
             if current_method in error_msg and any(
                 param in error_msg for param in ["from_account_type", "to_account_type"]
             ):
-                raise
+                raise e
             logger.error(
                 "service_logic_error: Service internal logic error for transfer",
                 exchange_name=self._exchange_name,
@@ -1766,7 +1766,7 @@ class BackpackAccountService:
     ) -> None:
         """Handle various withdrawal-related exceptions."""
         if isinstance(e, APIError):
-            raise
+            raise e
         if isinstance(e, TransformationError):
             logger.error(
                 "transform_failed: Failed to transform exchange data for withdrawal",
@@ -1798,7 +1798,7 @@ class BackpackAccountService:
         if isinstance(e, ValueError | TypeError):
             error_msg = str(e)
             if current_method in error_msg and "network" in error_msg:
-                raise
+                raise e
             logger.error(
                 "service_logic_error: Service internal logic error for withdrawal",
                 exchange_name=self._exchange_name,
@@ -2087,7 +2087,7 @@ class BackpackAccountService:
     ) -> None:
         """Handle various trade history-related exceptions."""
         if isinstance(e, APIError):
-            raise
+            raise e
         if isinstance(e, TransformationError):
             logger.error(
                 "transform_failed: Failed to transform exchange data for trade history",
@@ -2119,7 +2119,7 @@ class BackpackAccountService:
         if isinstance(e, ValueError | TypeError):
             error_msg = str(e)
             if current_method in error_msg and "limit" in error_msg:
-                raise
+                raise e
             logger.error(
                 "service_logic_error: Service internal logic error for trade history",
                 exchange_name=self._exchange_name,

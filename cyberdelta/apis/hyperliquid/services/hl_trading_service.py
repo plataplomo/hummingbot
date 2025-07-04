@@ -1672,7 +1672,7 @@ class HyperliquidTradingService:
                 param in error_msg for param in ["order_id", "symbol"]
             ):
                 # Re-raise input validation errors
-                raise
+                raise error
             logger.error(
                 "service_logic_error",
                 message="[%s] %s: Service internal logic error: %s",

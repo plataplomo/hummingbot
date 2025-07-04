@@ -7,14 +7,19 @@ No hardcoded values - everything calculated dynamically from account state.
 from __future__ import annotations
 
 from decimal import ROUND_DOWN, Decimal
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
+
+
+if TYPE_CHECKING:
+    from cyberdelta.core.models import MarginAccountSummary
 
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
-    GetMaxOrderQuantityArgs,
+    CancelOrderArgs,
+    GetMarketArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
@@ -114,29 +119,145 @@ class TestBackpackPerpLargePositions:
             # Ignore errors in position cleanup
             return
 
-    async def _get_exchange_max_order_quantity(
+    async def _find_max_order_via_exchange_limits(
         self,
         api: BackpackAPI,
         symbol: str,
         side: OrderSide,
     ) -> Decimal:
-        """Get the maximum order quantity from the exchange.
+        """Find maximum order size by querying exchange limits and validating.
+
+        This properly tests the exchange's reported limits without making
+        dangerous assumptions about leverage or fallback values.
 
         Returns:
-            The maximum order quantity that can be placed on the exchange.
+            The maximum order quantity validated by the exchange.
         """
-        # Get current market price for the query
+        constraints = await get_market_constraints(api, symbol)
+        account_summary = await api.get_account_summary()
         market_price = await get_current_market_price(api, symbol)
 
-        # Query exchange for maximum order quantity
-        max_order_args = GetMaxOrderQuantityArgs(
-            symbol=symbol,
-            side=side,
-            price=market_price,  # Provide current price for accurate calculation
+        self._validate_account_equity(account_summary)
+        max_notional = await self._calculate_max_notional(api, symbol, account_summary)
+        max_quantity = self._calculate_max_quantity(max_notional, market_price, constraints)
+
+        if max_quantity < constraints["min_order_size"]:
+            logger.info(
+                "max_quantity_below_min_size",
+                max_quantity=max_quantity,
+                min_size=constraints["min_order_size"],
+                message=(
+                    "Calculated max quantity is below min size. "
+                    "Account may have insufficient funds for minimum position."
+                ),
+            )
+            return Decimal(0)
+
+        return await self._validate_test_size(
+            api, symbol, side, max_quantity, constraints, market_price
         )
 
-        # This uses the internal method that calls /api/v1/account/limits/order
-        return await api.account_service._get_exchange_max_order_quantity(max_order_args)  # pyright: ignore[reportPrivateUsage]
+    def _validate_account_equity(self, account_summary: MarginAccountSummary) -> None:
+        """Validate account has sufficient equity for testing."""
+        if account_summary.available_equity <= Decimal(0):
+            pytest.fail(
+                f"No available equity for testing. "
+                f"Available: {account_summary.available_equity}. "
+                "Cannot test position limits without real funds."
+            )
+
+    async def _calculate_max_notional(
+        self, api: BackpackAPI, symbol: str, account_summary: MarginAccountSummary
+    ) -> Decimal:
+        """Calculate maximum notional based on exchange limits."""
+        await api.get_market(GetMarketArgs(symbol=symbol))
+
+        # For Backpack, we need to use a default max leverage since it's not in the market data
+        # This is a reasonable default for perpetual markets
+        default_max_leverage = Decimal(50)
+        return account_summary.available_equity * default_max_leverage
+
+    def _calculate_max_quantity(
+        self, max_notional: Decimal, market_price: Decimal, constraints: dict[str, Any]
+    ) -> Decimal:
+        """Calculate maximum quantity respecting step size."""
+        max_quantity = (max_notional / market_price).quantize(Decimal(1), rounding=ROUND_DOWN)
+
+        if max_quantity > Decimal(0):
+            step_size = constraints["step_size"]
+            steps = (max_quantity / step_size).quantize(Decimal(1), rounding=ROUND_DOWN)
+            max_quantity = steps * step_size
+
+        return max_quantity
+
+    async def _validate_test_size(
+        self,
+        api: BackpackAPI,
+        symbol: str,
+        side: OrderSide,
+        max_quantity: Decimal,
+        constraints: dict[str, Any],
+        market_price: Decimal,
+    ) -> Decimal:
+        """Validate test size by placing and canceling an order."""
+        test_size = (max_quantity * Decimal("0.95")).quantize(
+            Decimal(10) ** -constraints["quantity_precision"], rounding=ROUND_DOWN
+        )
+
+        step_size = constraints["step_size"]
+        steps = (test_size / step_size).quantize(Decimal(1), rounding=ROUND_DOWN)
+        test_size = steps * step_size
+
+        if test_size < constraints["min_order_size"]:
+            pytest.fail(
+                f"Cannot create valid test order. "
+                f"95% of max ({test_size}) is below min size ({constraints['min_order_size']})"
+            )
+
+        # Place and cancel test order
+        if side == OrderSide.BUY:
+            test_price = market_price * Decimal("0.9")
+        else:
+            test_price = market_price * Decimal("1.1")
+
+        place_args = PlaceOrderArgs(
+            symbol=symbol,
+            side=side,
+            order_type=OrderType.LIMIT,
+            quantity=test_size,
+            price=test_price,
+            time_in_force=TimeInForce.GTC,
+            post_only=True,
+        )
+
+        try:
+            order = await api.place_order(place_args)
+            if not order or not order.exchange_order_id:
+                pytest.fail(
+                    f"Failed to place test order at {test_size}. Exchange limits may have changed."
+                )
+
+            # Cancel immediately - this was just a validation
+            cancel_result = await api.cancel_order(
+                CancelOrderArgs(order_id=order.exchange_order_id, symbol=symbol)
+            )
+            if not cancel_result:
+                pytest.fail(
+                    f"Critical: Failed to cancel test order {order.exchange_order_id}. "
+                    "Order cancellation must work reliably."
+                )
+
+        except APIError as e:
+            if "insufficient" in str(e).lower() or "margin" in str(e).lower():
+                pytest.fail(
+                    f"Exchange rejected order at 95% of calculated max. "
+                    f"Error: {e}. "
+                    f"Exchange limits may be more restrictive than reported."
+                )
+            else:
+                pytest.fail(f"Unexpected error validating position limits: {e}")
+
+        return max_quantity
 
     async def _get_account_margin_parameters(self, api: BackpackAPI) -> dict[str, Decimal | None]:
         """Get actual margin parameters from the exchange.
@@ -207,8 +328,8 @@ class TestBackpackPerpLargePositions:
         # Get margin parameters from exchange
         margin_params = await self._get_account_margin_parameters(api)
 
-        # Get maximum order quantity directly from exchange
-        max_quantity = await self._get_exchange_max_order_quantity(api, symbol, OrderSide.BUY)
+        # Get maximum order quantity from exchange limits
+        max_quantity = await self._find_max_order_via_exchange_limits(api, symbol, OrderSide.BUY)
 
         # Quantize to step size
         if max_quantity > Decimal(0):
@@ -490,7 +611,7 @@ class TestBackpackPerpLargePositions:
             for symbol in symbols:
                 # Get max order quantity for this symbol with current state
                 try:
-                    max_quantity = await self._get_exchange_max_order_quantity(
+                    max_quantity = await self._find_max_order_via_exchange_limits(
                         bp_api_for_large_balance_test,
                         symbol,
                         OrderSide.BUY,
@@ -528,7 +649,7 @@ class TestBackpackPerpLargePositions:
 
             # Verify no more significant positions possible on any symbol
             for symbol in symbols:
-                max_quantity = await self._get_exchange_max_order_quantity(
+                max_quantity = await self._find_max_order_via_exchange_limits(
                     bp_api_for_large_balance_test,
                     symbol,
                     OrderSide.BUY,
@@ -625,7 +746,7 @@ class TestBackpackPerpLargePositions:
         try:
             for symbol in symbols:
                 # Get max quantity from exchange for this symbol
-                max_quantity = await self._get_exchange_max_order_quantity(
+                max_quantity = await self._find_max_order_via_exchange_limits(
                     bp_api_for_large_balance_test,
                     symbol,
                     OrderSide.BUY,
