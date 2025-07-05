@@ -22,10 +22,8 @@ import pytest
 # Mypy=[import-untyped] Ruff=[]
 try:
     import plotly.graph_objects as go  # type: ignore [import-untyped]
-    from plotly.graph_objects import Figure  # pyright: ignore [reportMissingTypeStubs]
 except ImportError:
     go = None
-    Figure = Any
 
 from frontend.visualization.performance_visualizer import (
     PerformanceMetricsCalculator,
@@ -164,7 +162,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Figure = self.visualizer.create_returns_chart(self.returns_data)
+        fig = self.visualizer.create_returns_chart(self.returns_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -197,7 +195,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Figure = self.visualizer.create_drawdown_chart(self.returns_data)
+        fig = self.visualizer.create_drawdown_chart(self.returns_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -218,7 +216,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Figure = self.visualizer.create_trade_analysis_chart(self.trade_data)
+        fig = self.visualizer.create_trade_analysis_chart(self.trade_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -240,7 +238,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Figure = self.visualizer.create_funding_rate_heatmap(self.funding_data)
+        fig = self.visualizer.create_funding_rate_heatmap(self.funding_data)
         assert hasattr(fig, "data"), "Figure should have data attribute"
         if isinstance(fig.data, tuple):
             data: tuple[Any, ...] = fig.data
@@ -262,7 +260,7 @@ class TestPerformanceVisualizer:
         if go is None:
             pytest.skip("plotly not available")
 
-        fig: Figure = self.visualizer.create_performance_dashboard(
+        fig = self.visualizer.create_performance_dashboard(
             returns_data=self.returns_data,
             trade_data=self.trade_data,
             funding_data=self.funding_data,

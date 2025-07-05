@@ -219,7 +219,8 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
         # Mock the _create_market_from_asset_definition to raise an error for one asset
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
+            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper."
+            "HyperliquidMarketDataMapper._create_market_from_asset_definition",
             side_effect=ValueError("Invalid sz_decimals processing"),
         ):
             with structlog.testing.capture_logs() as captured_logs:
@@ -476,7 +477,8 @@ class TestTransformSingleAssetToMarket:
 
         # Mock the internal method using the full path
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
+            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper."
+            "HyperliquidMarketDataMapper._create_market_from_asset_definition",
         ) as mock_internal:
             # Create a minimal valid market for the mock
             mock_market = Market(
@@ -513,7 +515,8 @@ class TestMarketTransformationErrorHandling:
 
         # Mock asset definition to raise an error during processing
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.HyperliquidMarketDataMapper._create_market_from_asset_definition",
+            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper."
+            "HyperliquidMarketDataMapper._create_market_from_asset_definition",
             side_effect=ValueError("Corrupted asset definition"),
         ):
             raw_response = create_meta_and_asset_ctxs_response(asset_definitions, [])

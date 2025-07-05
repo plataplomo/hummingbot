@@ -28,7 +28,11 @@ class TestEIP712TypeField:
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are not allowed."""
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            EIP712TypeField(name="test", type="string", extra="not_allowed")  # type: ignore[call-arg] # Testing that extra fields raise error
+            EIP712TypeField(
+                name="test",
+                type="string",
+                extra="not_allowed",  # type: ignore[call-arg]
+            )  # Testing that extra fields raise error
 
 
 class TestHyperliquidAgentDomainData:

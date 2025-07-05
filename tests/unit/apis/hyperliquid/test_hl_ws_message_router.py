@@ -287,7 +287,8 @@ class TestHyperliquidWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_user_position_update_event_payload.assert_called_once()
-        mock_account_data_mapper.transform_ws_position_update_to_internal_position.assert_called_once()
+        pos_transform = mock_account_data_mapper.transform_ws_position_update_to_internal_position
+        pos_transform.assert_called_once()
         mock_app_handler.assert_called_once()
 
     @pytest.mark.asyncio

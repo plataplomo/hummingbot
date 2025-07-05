@@ -36,7 +36,7 @@ jobs:
         python scripts/time_fixtures_metrics.py --format json --output metrics.json
 
     - name: Upload metrics artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: time-fixtures-metrics
         path: metrics.json

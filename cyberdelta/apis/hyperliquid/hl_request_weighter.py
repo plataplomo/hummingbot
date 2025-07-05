@@ -10,7 +10,7 @@ the endpoint and payload.
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
@@ -67,8 +67,7 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    batch_length = len(cast("list[Any]", actions)) if actions else 1  # type: ignore [redundant-cast]
-
+                    batch_length = len(actions) if actions else 1
             base_weight = self.hl_exchange_config.exchange_action_base_ip_weight or 1
             ip_weight = base_weight + (batch_length // 40)
 
@@ -146,8 +145,7 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    action_count = len(cast("list[Any]", actions)) if actions else 1  # type: ignore [redundant-cast]
-
+                    action_count = len(actions) if actions else 1
             logger.debug(
                 "hyperliquid_exchange_request_weight",
                 action="calculate_weight",

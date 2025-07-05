@@ -90,7 +90,8 @@ class TestBackpackMarketDataServiceFunding:
                 endpoint_group="public",
                 request_weight=1,
             )
-            mock_response_handler.handle_get_historical_funding_rates_response.assert_called_once_with(
+            handler_method = mock_response_handler.handle_get_historical_funding_rates_response
+            handler_method.assert_called_once_with(
                 mock_raw_response_content,
                 symbol,
                 mock_status_code,

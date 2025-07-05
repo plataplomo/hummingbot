@@ -142,7 +142,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             user_address="0xTestWalletAddress",
             status_code=200,
         )
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_called_once_with(
+        transform_method = mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances
+        transform_method.assert_called_once_with(
             mock_processed_raw_clearinghouse_state_model,
         )
         assert result_balances == expected_internal_balances
@@ -204,7 +205,9 @@ class TestHyperliquidAccountServiceBalancesPositions:
         expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_not_called()
+        spot_transform = mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances
+
+        spot_transform.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_balances_http_client_returns_none_in_state_fetch(
@@ -239,7 +242,9 @@ class TestHyperliquidAccountServiceBalancesPositions:
             is_signed=False,  # Business logic uses is_signed=False for info endpoints
         )
         mock_response_handler.handle_info_user_state_response.assert_not_called()
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances.assert_not_called()
+        spot_transform = mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances
+
+        spot_transform.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_positions_success(
@@ -283,7 +288,10 @@ class TestHyperliquidAccountServiceBalancesPositions:
             user_address="0xTestWalletAddress",
             status_code=200,
         )
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.assert_called_once_with(
+        mapper = mock_hl_account_mapper
+        pos_transform = mapper.transform_raw_clearinghouse_state_to_derivative_positions
+
+        pos_transform.assert_called_once_with(
             mock_processed_raw_clearinghouse_state_model,
         )
         assert isinstance(result, list)
@@ -366,7 +374,10 @@ class TestHyperliquidAccountServiceBalancesPositions:
         expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()  # Verifies it was called before erroring
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.assert_not_called()
+        mapper = mock_hl_account_mapper
+        pos_transform = mapper.transform_raw_clearinghouse_state_to_derivative_positions
+
+        pos_transform.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_account_summary_success(
@@ -404,7 +415,10 @@ class TestHyperliquidAccountServiceBalancesPositions:
             status_code=200,
         )
         assert result == mock_summary_object
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
+        mapper = mock_hl_account_mapper
+        margin_transform = mapper.transform_raw_clearinghouse_state_to_margin_summary
+
+        margin_transform.assert_called_once_with(
             mock_processed_raw_clearinghouse_state_model,
         )
 
@@ -453,7 +467,10 @@ class TestHyperliquidAccountServiceBalancesPositions:
             user_address="0xTestWalletAddress",
             status_code=200,
         )
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_called_once_with(
+        mapper = mock_hl_account_mapper
+        margin_transform = mapper.transform_raw_clearinghouse_state_to_margin_summary
+
+        margin_transform.assert_called_once_with(
             mock_processed_state,
         )
 
@@ -476,4 +493,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         expected_args = GetUserStateArgs(wallet_address="0xTestWalletAddress")
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
-        mock_hl_account_mapper.transform_raw_clearinghouse_state_to_margin_summary.assert_not_called()
+        mapper = mock_hl_account_mapper
+        margin_transform = mapper.transform_raw_clearinghouse_state_to_margin_summary
+
+        margin_transform.assert_not_called()

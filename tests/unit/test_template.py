@@ -10,6 +10,10 @@ from unittest.mock import Mock
 import pytest
 
 
+class ServiceError(Exception):
+    """Custom service error for template."""
+
+
 # Dummy class for template demonstration
 class MyClass:
     """Example class for template purposes."""
@@ -40,8 +44,12 @@ class MyClass:
             raise ValueError("Invalid value")
         return value
 
-    def process_with_dependency(self, data: Mapping[str, Any]) -> dict[str, Any]:
-        """Process using dependency."""
+    def process_with_dependency(self, _data: Mapping[str, Any]) -> dict[str, Any]:
+        """Process using dependency.
+
+        Args:
+            _data: Input data (unused in this template example)
+        """
         if self.dependency is None:
             raise ServiceError("No dependency configured")
         try:
@@ -56,10 +64,6 @@ class MyClass:
         if self._internal_state != "valid":
             raise RuntimeError("Invalid state")
         return self.process(data)
-
-
-class ServiceError(Exception):
-    """Custom service error for template."""
 
 
 class TestMyComponent:
@@ -198,22 +202,18 @@ class TestMyComponent:
             MyClass.process(input_data)
 
     def test_component_failure_invalid_state(self) -> None:
-        """Test handling of invalid state conditions."""
-        # This test demonstrates testing error conditions through public interface
-        # Note: We should NOT directly access private attributes like _internal_state
-        # Instead, test the behavior that would result from invalid state
+        """Test handling of error conditions through public API."""
+        # This test demonstrates testing error conditions through public interface only
+        # We test dependency failures which can be triggered through public methods
 
-        # Arrange - create conditions that would lead to invalid state
-        instance = MyClass()
-        # For this template, we'll simulate invalid state by modifying internal state
-        # In real tests, you would trigger this through public methods
-        instance._internal_state = "invalid"  # noqa: SLF001 - Template demo requires private access
+        # Arrange - create instance without dependency to test error handling
+        instance = MyClass(dependency=None)
 
         # Act & Assert
-        # Test the public interface behavior when in invalid state
-        with pytest.raises(RuntimeError, match="Invalid state"):
-            # Call public method that would fail due to invalid state
-            instance.process_instance({"key": "value", "number": 42})
+        # Test the public interface behavior when dependency is missing
+        with pytest.raises(ServiceError, match="No dependency configured"):
+            # Call public method that requires dependency
+            instance.process_with_dependency({"key": "value", "number": 42})
 
     def test_component_failure_constraint_violation(self) -> None:
         """Test handling of business rule violations."""
@@ -246,7 +246,9 @@ def test_component_parametrized_scenarios(
     expected: str | float | type[Exception],
     description: str,
 ) -> None:
-    """Test multiple scenarios with parametrization: {description}."""
+    """Test multiple scenarios with parametrization."""
+    # Description is used for test documentation and debugging
+    assert description, "Test description should not be empty"
     if isinstance(expected, type):
         # This is a failure case
         with pytest.raises(expected):

@@ -239,7 +239,8 @@ class TestBackpackWsMessageRouter:
         mock_raw_ws_handler.handle_order_update_payload.assert_called_once_with(
             {"id": "order123", "status": "filled"},
         )
-        mock_trading_data_mapper.transform_ws_order_update_to_internal_order.assert_called_once_with(
+        transform_method = mock_trading_data_mapper.transform_ws_order_update_to_internal_order
+        transform_method.assert_called_once_with(
             {"mock": "order_data"},
         )
         mock_app_handler.assert_called_once()
@@ -264,7 +265,8 @@ class TestBackpackWsMessageRouter:
         mock_raw_ws_handler.handle_position_update_payload.assert_called_once_with(
             {"symbol": "SOL_USDC", "size": "10.0"},
         )
-        mock_account_data_mapper.transform_ws_position_update_to_internal_position.assert_called_once_with(
+        pos_transform = mock_account_data_mapper.transform_ws_position_update_to_internal_position
+        pos_transform.assert_called_once_with(
             {"mock": "position_data"},
         )
         mock_app_handler.assert_called_once()

@@ -240,9 +240,13 @@ class TestOrderBook:
         assert ob_empty.asks == []
 
         # Valid list with raw data needing parsing
-        # Ignore Mypy's list-item error: Intentionally providing list[tuple[str, str]]
-        # to test the validator's parsing from string to Decimal.
-        ob_raw = OrderBook(symbol="T", timestamp=now, bids=[valid_level_raw], asks=[])  # type: ignore[list-item]
+        # Test the validator's parsing from string to Decimal.
+        ob_raw = OrderBook.model_validate({
+            "symbol": "T",
+            "timestamp": now,
+            "bids": [valid_level_raw],
+            "asks": [],
+        })
         assert ob_raw.bids == [valid_level_parsed]
 
         # Valid list with pre-parsed Decimals and zero quantity
