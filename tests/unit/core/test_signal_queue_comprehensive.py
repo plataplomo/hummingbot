@@ -337,6 +337,7 @@ class TestAddFromOpportunity:
         # Arrange
         mock_breaker = Mock(spec=CircuitBreaker)
         mock_breaker.state = BreakerState.OPEN
+        mock_breaker.trip_reason = "Test trip reason"
         mock_circuit_breaker_system.get_breaker.return_value = mock_breaker
 
         # Act
@@ -954,6 +955,38 @@ class TestAsyncMethods:
         assert signal_queue.new_signal_event.is_set()
 
     @pytest.mark.asyncio
+    async def test_enqueue_signal_concurrent_producers(
+        self, signal_queue: PrioritySignalQueue
+    ) -> None:
+        """Test concurrent enqueue operations to verify lock handling in add_signal."""
+        # Arrange - Create multiple different signals
+        signals = []
+        for i in range(5):
+            signal = TradeSignal(
+                signal_id=f"test_signal_{i}",
+                symbol="BTC",
+                side=OrderSide.BUY,
+                signal_type=SignalType.ENTER_LONG,
+                price=Decimal(f"5000{i}"),
+                quantity=Decimal("1.0"),
+                exchange="hyperliquid",
+                timestamp=datetime.now(UTC),
+                expiration=datetime.now(UTC) + timedelta(minutes=10),
+            )
+            signals.append(signal)
+
+        # Act - Enqueue signals concurrently (this tests that add_signal handles locking internally)
+        tasks = [asyncio.create_task(signal_queue.enqueue_signal(signal)) for signal in signals]
+        await asyncio.gather(*tasks)
+
+        # Assert - All signals should be successfully added without race conditions
+        assert len(signal_queue.signal_queue) == 5
+        # Verify no signals were lost due to race conditions
+        enqueued_ids = {signal.signal_id for _, _, signal in signal_queue.signal_queue}
+        expected_ids = {f"test_signal_{i}" for i in range(5)}
+        assert enqueued_ids == expected_ids
+
+    @pytest.mark.asyncio
     async def test_stop_success(
         self, signal_queue: PrioritySignalQueue, sample_trade_signal: TradeSignal
     ) -> None:
@@ -1034,6 +1067,8 @@ class TestEdgeCases:
         async def cancel_after_delay() -> None:
             await asyncio.sleep(0.1)
             cancellation_token.set()
+            # Also trigger the signal event to unblock the wait
+            signal_queue.new_signal_event.set()
 
         # Run both tasks concurrently
         await asyncio.gather(

@@ -384,7 +384,7 @@ class TestRecordDiscrepancy:
             exchange="hyperliquid",
             symbol="BTC-PERP",
             side=OrderSide.SELL,  # Different side
-            size=Decimal("1.0"),
+            size=Decimal("-1.0"),  # Negative size for SELL side
             entry_price=Decimal("50000.0"),
             timestamp=datetime.now(UTC),
             hl_details=None,
@@ -445,10 +445,10 @@ class TestApplyCorrections:
         assert "discrepancies" in result
         assert len(result["discrepancies"]) > 0
         size_discrepancy = next(
-            (d for d in result["discrepancies"] if d.discrepancy_type == "size"), None
+            (d for d in result["discrepancies"] if d.detail.discrepancy_type == "size"), None
         )
         assert size_discrepancy is not None
-        assert size_discrepancy.symbol == "BTC-PERP"
+        assert size_discrepancy.detail.symbol == "BTC-PERP"
 
     # ==================== EDGE CASES ====================
 
@@ -507,7 +507,7 @@ class TestApplyCorrections:
 
         # Check if we have non-size discrepancies
         has_non_size_discrepancies = any(
-            d.discrepancy_type != "size" for d in result["discrepancies"]
+            d.detail.discrepancy_type != "size" for d in result["discrepancies"]
         )
         # Should detect entry price discrepancy since positions have different entry prices
         assert has_non_size_discrepancies, "Should detect non-size discrepancies (entry price)"
@@ -847,14 +847,15 @@ class TestRunReconciliation:
     ) -> None:
         """Test reconciliation skips when interval not passed."""
         # Arrange
-        # Set up recent run time
+        # Set up recent run time - need to set last_check_time for interval check to work
+        reconciliation_system.last_check_time = datetime.now(UTC)
         reconciliation_system.latest_results = {"cached": {"results": []}}
 
         # Act
         result = await reconciliation_system.run_reconciliation(force_run=False)
 
         # Assert
-        assert result == {"cached": True}
+        assert result == reconciliation_system.latest_results
 
     # ==================== FAILURE CASES ====================
 

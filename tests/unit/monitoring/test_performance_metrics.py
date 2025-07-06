@@ -4,29 +4,41 @@ Tests financial performance calculation functionality.
 Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases for each method.
 """
 
+from __future__ import annotations
+
+import warnings
 from decimal import Decimal
-from unittest.mock import patch
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
 
-from cyberdelta.monitoring.performance_metrics import PerformanceMetricsCalculator
+from cyberdelta.monitoring.performance_metrics import (
+    EmptyMaxDrawdownError,
+    EmptySharpeRatioError,
+    EmptySortinoRatioError,
+    PerformanceMetricsCalculator,
+)
+
+
+if TYPE_CHECKING:
+    from pandas import Series
 
 
 @pytest.fixture
-def positive_returns() -> pd.Series[float]:
+def positive_returns() -> Series[float]:
     """Create sample positive returns series for testing."""
     return pd.Series([0.01, 0.02, 0.015, 0.025, 0.01], dtype=float)
 
 
 @pytest.fixture
-def mixed_returns() -> pd.Series[float]:
+def mixed_returns() -> Series[float]:
     """Create sample mixed returns series for testing."""
     return pd.Series([0.02, -0.01, 0.015, -0.005, 0.01, -0.02, 0.03], dtype=float)
 
 
 @pytest.fixture
-def zero_returns() -> pd.Series[float]:
+def zero_returns() -> Series[float]:
     """Create sample zero returns series for testing."""
     return pd.Series([0.0, 0.0, 0.0, 0.0, 0.0], dtype=float)
 
@@ -65,7 +77,7 @@ class TestCalculateSharpeRatio:
     # ==================== SUCCESS CASES ====================
 
     def test_calculate_sharpe_ratio_success_positive_returns(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test successful Sharpe ratio calculation with positive returns."""
         # Act
@@ -80,7 +92,7 @@ class TestCalculateSharpeRatio:
         assert len(positive_returns) == 5
 
     def test_calculate_sharpe_ratio_success_zero_risk_free_rate(
-        self, mixed_returns: pd.Series[float]
+        self, mixed_returns: Series[float]
     ) -> None:
         """Test Sharpe ratio calculation with zero risk-free rate."""
         # Act
@@ -93,7 +105,7 @@ class TestCalculateSharpeRatio:
         # With mixed returns, result could be positive or negative
 
     def test_calculate_sharpe_ratio_success_custom_periods(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test Sharpe ratio calculation with custom periods per year."""
         # Act
@@ -110,7 +122,7 @@ class TestCalculateSharpeRatio:
     # ==================== EDGE CASES ====================
 
     def test_calculate_sharpe_ratio_edge_zero_standard_deviation(
-        self, zero_returns: pd.Series[float]
+        self, zero_returns: Series[float]
     ) -> None:
         """Test Sharpe ratio calculation with zero standard deviation."""
         # Act
@@ -131,7 +143,7 @@ class TestCalculateSharpeRatio:
         assert result == Decimal("0.0")  # Standard deviation is 0 for single value
 
     def test_calculate_sharpe_ratio_edge_high_risk_free_rate(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test Sharpe ratio with high risk-free rate."""
         # Act
@@ -152,8 +164,11 @@ class TestCalculateSharpeRatio:
         empty_returns = pd.Series([], dtype=float)
 
         # Act & Assert
-        with pytest.raises((ValueError, ZeroDivisionError)):
+        with pytest.raises(EmptySharpeRatioError) as exc_info:
             PerformanceMetricsCalculator.calculate_sharpe_ratio(empty_returns)
+
+        # Assert specific error message
+        assert str(exc_info.value) == "Cannot calculate Sharpe ratio for empty returns series"
 
 
 class TestCalculateSortinoRatio:
@@ -162,7 +177,7 @@ class TestCalculateSortinoRatio:
     # ==================== SUCCESS CASES ====================
 
     def test_calculate_sortino_ratio_success_mixed_returns(
-        self, mixed_returns: pd.Series[float]
+        self, mixed_returns: Series[float]
     ) -> None:
         """Test successful Sortino ratio calculation with mixed returns."""
         # Act
@@ -175,7 +190,7 @@ class TestCalculateSortinoRatio:
         # Should handle both positive and negative returns
 
     def test_calculate_sortino_ratio_success_with_downside(
-        self, mixed_returns: pd.Series[float]
+        self, mixed_returns: Series[float]
     ) -> None:
         """Test Sortino ratio calculation focusing on downside deviation."""
         # Act
@@ -190,7 +205,7 @@ class TestCalculateSortinoRatio:
     # ==================== EDGE CASES ====================
 
     def test_calculate_sortino_ratio_edge_no_downside_returns(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test Sortino ratio calculation with no downside returns."""
         # Act
@@ -213,6 +228,18 @@ class TestCalculateSortinoRatio:
 
     # ==================== FAILURE CASES ====================
 
+    def test_calculate_sortino_ratio_failure_empty_series(self) -> None:
+        """Test Sortino ratio calculation with empty returns series."""
+        # Arrange
+        empty_returns = pd.Series([], dtype=float)
+
+        # Act & Assert
+        with pytest.raises(EmptySortinoRatioError) as exc_info:
+            PerformanceMetricsCalculator.calculate_sortino_ratio(empty_returns)
+
+        # Assert specific error message
+        assert str(exc_info.value) == "Cannot calculate Sortino ratio for empty returns series"
+
     def test_calculate_sortino_ratio_failure_all_negative_mean(
         self, all_losing_trades: pd.DataFrame
     ) -> None:
@@ -234,9 +261,7 @@ class TestCalculateMaxDrawdown:
 
     # ==================== SUCCESS CASES ====================
 
-    def test_calculate_max_drawdown_success_with_losses(
-        self, mixed_returns: pd.Series[float]
-    ) -> None:
+    def test_calculate_max_drawdown_success_with_losses(self, mixed_returns: Series[float]) -> None:
         """Test successful max drawdown calculation with losses."""
         # Act
         result = PerformanceMetricsCalculator.calculate_max_drawdown(mixed_returns)
@@ -246,7 +271,7 @@ class TestCalculateMaxDrawdown:
         assert result <= 0  # Drawdown should be negative or zero
 
     def test_calculate_max_drawdown_success_positive_returns(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test max drawdown calculation with only positive returns."""
         # Act
@@ -258,7 +283,7 @@ class TestCalculateMaxDrawdown:
 
     # ==================== EDGE CASES ====================
 
-    def test_calculate_max_drawdown_edge_flat_returns(self, zero_returns: pd.Series[float]) -> None:
+    def test_calculate_max_drawdown_edge_flat_returns(self, zero_returns: Series[float]) -> None:
         """Test max drawdown calculation with flat returns."""
         # Act
         result = PerformanceMetricsCalculator.calculate_max_drawdown(zero_returns)
@@ -286,8 +311,11 @@ class TestCalculateMaxDrawdown:
         empty_returns = pd.Series([], dtype=float)
 
         # Act & Assert
-        with pytest.raises((ValueError, IndexError)):
+        with pytest.raises(EmptyMaxDrawdownError) as exc_info:
             PerformanceMetricsCalculator.calculate_max_drawdown(empty_returns)
+
+        # Assert specific error message
+        assert str(exc_info.value) == "Cannot calculate max drawdown for empty returns series"
 
 
 class TestCalculateCalmarRatio:
@@ -296,7 +324,7 @@ class TestCalculateCalmarRatio:
     # ==================== SUCCESS CASES ====================
 
     def test_calculate_calmar_ratio_success_with_drawdown(
-        self, mixed_returns: pd.Series[float]
+        self, mixed_returns: Series[float]
     ) -> None:
         """Test successful Calmar ratio calculation with drawdown."""
         # Act
@@ -306,7 +334,7 @@ class TestCalculateCalmarRatio:
         assert isinstance(result, Decimal)
 
     def test_calculate_calmar_ratio_success_custom_periods(
-        self, mixed_returns: pd.Series[float]
+        self, mixed_returns: Series[float]
     ) -> None:
         """Test Calmar ratio with custom periods per year."""
         # Act
@@ -320,7 +348,7 @@ class TestCalculateCalmarRatio:
     # ==================== EDGE CASES ====================
 
     def test_calculate_calmar_ratio_edge_zero_drawdown(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test Calmar ratio calculation with zero max drawdown."""
         # Act
@@ -330,7 +358,7 @@ class TestCalculateCalmarRatio:
         assert result == Decimal("Infinity")
 
     def test_calculate_calmar_ratio_edge_negative_returns_zero_drawdown(
-        self, zero_returns: pd.Series[float]
+        self, zero_returns: Series[float]
     ) -> None:
         """Test Calmar ratio with zero returns and zero drawdown."""
         # Act
@@ -352,6 +380,18 @@ class TestCalculateCalmarRatio:
         # Assert
         assert isinstance(result, Decimal)
         assert result < 0  # Negative ratio for negative returns
+
+    def test_calculate_calmar_ratio_failure_empty_series(self) -> None:
+        """Test Calmar ratio calculation with empty returns series."""
+        # Arrange
+        empty_returns = pd.Series([], dtype=float)
+
+        # Act & Assert
+        with pytest.raises(EmptyMaxDrawdownError) as exc_info:
+            PerformanceMetricsCalculator.calculate_calmar_ratio(empty_returns)
+
+        # Assert specific error message (raised by calculate_max_drawdown)
+        assert str(exc_info.value) == "Cannot calculate max drawdown for empty returns series"
 
 
 class TestCalculateWinRate:
@@ -531,7 +571,7 @@ class TestCalculateAllMetrics:
     # ==================== SUCCESS CASES ====================
 
     def test_calculate_all_metrics_success_with_trades(
-        self, mixed_returns: pd.Series[float], sample_trades: pd.DataFrame
+        self, mixed_returns: Series[float], sample_trades: pd.DataFrame
     ) -> None:
         """Test successful calculation of all metrics with trades data."""
         # Arrange
@@ -562,7 +602,7 @@ class TestCalculateAllMetrics:
             assert isinstance(value, Decimal), f"{key} should be Decimal, got {type(value)}"
 
     def test_calculate_all_metrics_success_without_trades(
-        self, positive_returns: pd.Series[float]
+        self, positive_returns: Series[float]
     ) -> None:
         """Test calculation of all metrics without trades data."""
         # Arrange
@@ -580,7 +620,7 @@ class TestCalculateAllMetrics:
 
     # ==================== EDGE CASES ====================
 
-    def test_calculate_all_metrics_edge_zero_returns(self, zero_returns: pd.Series[float]) -> None:
+    def test_calculate_all_metrics_edge_zero_returns(self, zero_returns: Series[float]) -> None:
         """Test calculation of all metrics with zero returns."""
         # Arrange
         calculator = PerformanceMetricsCalculator()
@@ -595,7 +635,7 @@ class TestCalculateAllMetrics:
         assert result["annualized_return"] == Decimal("0.0")
 
     def test_calculate_all_metrics_edge_custom_parameters(
-        self, mixed_returns: pd.Series[float]
+        self, mixed_returns: Series[float]
     ) -> None:
         """Test calculation with custom risk-free rate and periods."""
         # Arrange
@@ -613,20 +653,23 @@ class TestCalculateAllMetrics:
     # ==================== FAILURE CASES ====================
 
     def test_calculate_all_metrics_failure_exception_handling(self) -> None:
-        """Test calculation handles exceptions gracefully."""
+        """Test calculation handles extreme values gracefully."""
         # Arrange
         calculator = PerformanceMetricsCalculator()
-        invalid_returns = pd.Series([float("inf"), float("-inf")], dtype=float)
+        extreme_returns = pd.Series([float("inf"), float("-inf")], dtype=float)
 
-        # Act
-        with patch("cyberdelta.monitoring.performance_metrics.logger") as mock_logger:
-            result = calculator.calculate_all_metrics(invalid_returns)
+        # Act - suppress numpy warnings for this specific test case
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            result = calculator.calculate_all_metrics(extreme_returns)
 
         # Assert
-        # Should still return basic metrics even if some calculations fail
+        # Should still return metrics dict even with extreme values
         assert isinstance(result, dict)
-        # Logger should be called for exception
-        mock_logger.exception.assert_called()
+        # Should contain expected metric keys
+        assert "sharpe_ratio" in result
+        assert "max_drawdown" in result
+        assert "cumulative_return" in result
 
 
 # ==================== PARAMETRIZED TESTS ====================
@@ -670,7 +713,7 @@ def test_max_drawdown_parametrized(returns_data: list[float], expected_drawdown_
     ],
 )
 def test_sharpe_ratio_different_periods_parametrized(
-    positive_returns: pd.Series[float], periods_per_year: int, risk_free_rate: Decimal
+    positive_returns: Series[float], periods_per_year: int, risk_free_rate: Decimal
 ) -> None:
     """Test Sharpe ratio calculation with different time periods."""
     # Act

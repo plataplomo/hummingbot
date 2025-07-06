@@ -77,6 +77,7 @@ class TestBackpackAPIPublicBehavior:
         valid_secrets: ApiKeyAuthSecrets,
     ) -> None:
         """Test successful initialization with valid configuration."""
+        # HTTP client and WebSocket manager are patched globally in conftest.py
         api = BackpackAPI(exchange_config=active_bp_config, exchange_secrets=valid_secrets)
 
         # Verify that services are properly initialized
@@ -91,6 +92,7 @@ class TestBackpackAPIPublicBehavior:
     ) -> None:
         """Test that initialization logs warning when secrets are missing."""
         with patch("cyberdelta.apis.backpack.bp_api_components_factory.logger") as mock_logger:
+            # HTTP client and WebSocket manager are patched globally in conftest.py
             BackpackAPI(exchange_config=active_bp_config, exchange_secrets=invalid_secrets)
             # Should log warning about missing secrets
             mock_logger.warning.assert_called_once()

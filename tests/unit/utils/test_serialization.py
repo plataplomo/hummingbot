@@ -507,7 +507,7 @@ class TestSerializationIntegration:
         assert isinstance(loaded_data, dict)
 
         # Assert - access dict after type narrowing
-        loaded_dict = loaded_data
+        loaded_dict: dict[str, Any] = loaded_data
         assert loaded_dict["decimal"] == "123.456789"
         assert loaded_dict["datetime"] == dt.isoformat()
         assert loaded_dict["numpy_int"] == 42

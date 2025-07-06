@@ -6,7 +6,7 @@ Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases for each 
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, PropertyMock
 
 import pytest
 
@@ -91,6 +91,8 @@ class MockStrategy(Strategy):
         self.process_data_side_effect: Exception | None = None
         self.on_start_side_effect: Exception | None = None
         self.on_stop_side_effect: Exception | None = None
+        # Support configurable return value for process_data
+        self.process_data_return_value: TradeSignal | list[TradeSignal] | None = None
 
     @property
     def performance_metrics(self) -> dict[str, float | int]:
@@ -109,17 +111,17 @@ class MockStrategy(Strategy):
 
     def on_start(self) -> None:
         """Handle strategy start."""
+        self.on_start_called = True
         if self.on_start_side_effect:
             raise self.on_start_side_effect
         super().on_start()
-        self.on_start_called = True
 
     def on_stop(self) -> None:
         """Handle strategy stop."""
+        self.on_stop_called = True
         if self.on_stop_side_effect:
             raise self.on_stop_side_effect
         super().on_stop()
-        self.on_stop_called = True
 
     def update_historical_data(self, data: Candle, max_bars: int = 100) -> None:
         """Update historical data."""
@@ -128,12 +130,12 @@ class MockStrategy(Strategy):
         super().update_historical_data(data, max_bars)
         self.update_historical_data_calls.append(data)
 
-    async def process_data(self, candle: Candle) -> TradeSignal | None:
+    async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
         """Process market data."""
-        self.process_data_calls.append(candle)
+        self.process_data_calls.append(data)
         if self.process_data_side_effect:
             raise self.process_data_side_effect
-        return None
+        return self.process_data_return_value
 
     def get_required_history_size(self) -> int:
         """Get required history size."""
@@ -548,7 +550,7 @@ class TestProcessMarketData:
         # Arrange
         strategy_manager.register_strategy(mock_strategy)
         strategy_manager.enable_strategy("test_strategy")
-        mock_strategy.process_data.return_value = sample_trade_signal
+        mock_strategy.process_data_return_value = sample_trade_signal
 
         # Act
         await strategy_manager.process_market_data(sample_candle)
@@ -593,7 +595,7 @@ class TestProcessMarketData:
 
         strategy_manager.register_strategy(mock_strategy)
         strategy_manager.enable_strategy("test_strategy")
-        mock_strategy.process_data.return_value = [signal1, signal2]
+        mock_strategy.process_data_return_value = [signal1, signal2]
 
         # Act
         await strategy_manager.process_market_data(sample_candle)
@@ -892,7 +894,8 @@ class TestGetStrategyPerformance:
         strategy = Mock(spec=Strategy)
         strategy.name = "error_strategy"
         strategy.symbol = "BTC-PERP"
-        strategy.performance_metrics = Mock(side_effect=RuntimeError("Metrics error"))
+        # Mock the property to raise an exception when accessed
+        type(strategy).performance_metrics = PropertyMock(side_effect=RuntimeError("Metrics error"))
 
         strategy_manager.register_strategy(strategy)
 

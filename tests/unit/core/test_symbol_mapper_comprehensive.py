@@ -247,7 +247,7 @@ class TestSymbolMapperMethods:
     @pytest.fixture
     def mapper(self) -> SymbolMapper:
         """Create a SymbolMapper with test configuration."""
-        config = {
+        config: dict[str, dict[str, dict[str, str]]] = {
             "hyperliquid": {
                 "symbols": {
                     "BTC": "BTC-PERP",

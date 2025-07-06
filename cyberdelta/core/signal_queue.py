@@ -354,7 +354,16 @@ class PrioritySignalQueue:
 
         """
         # Clean expired signals
-        self._clean_expired_signals()
+        try:
+            self._clean_expired_signals()
+        except Exception as e:
+            self.logger.exception(
+                "error_cleaning_expired_signals",
+                error=str(e),
+                action="cleanup_error",
+                message=f"Error while cleaning expired signals: {e}",
+            )
+            # Continue execution even if cleanup fails
 
         # Return None if queue is empty
         if not self.signal_queue:
@@ -1113,9 +1122,6 @@ class PrioritySignalQueue:
             message=f"Added signal for {signal.symbol} to queue with score {priority_score}",
         )
 
-        # Signal the async wait event
-        self.new_signal_event.set()
-
     async def wait_for_signals(
         self,
         max_signals: int = 1,
@@ -1273,23 +1279,22 @@ class PrioritySignalQueue:
             signal: TradeSignal to enqueue.
 
         """
-        async with self.lock:
-            added = await self.add_signal(signal)
-            if added:
-                self.new_signal_event.set()
-                self.logger.info(
-                    "signal_enqueued_async",
-                    symbol=signal.symbol,
-                    action="signal_enqueue",
-                    message=f"Enqueued signal for {signal.symbol} (async)",
-                )
-            else:
-                self.logger.warning(
-                    "signal_enqueue_failed_async",
-                    symbol=signal.symbol,
-                    action="signal_enqueue_failure",
-                    message=f"Failed to enqueue signal for {signal.symbol} (async)",
-                )
+        # Don't acquire lock here since add_signal will handle locking
+        added = await self.add_signal(signal)
+        if added:
+            self.logger.info(
+                "signal_enqueued_async",
+                symbol=signal.symbol,
+                action="signal_enqueue",
+                message=f"Enqueued signal for {signal.symbol} (async)",
+            )
+        else:
+            self.logger.warning(
+                "signal_enqueue_failed_async",
+                symbol=signal.symbol,
+                action="signal_enqueue_failure",
+                message=f"Failed to enqueue signal for {signal.symbol} (async)",
+            )
 
     async def run(self, cancellation_token: asyncio.Event) -> None:
         """Asynchronous run loop for the signal queue. Waits for new signals and processes them.

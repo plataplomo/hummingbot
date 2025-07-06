@@ -1836,7 +1836,7 @@ class TestIntegrationScenarios:
         assert len(signals) == 2  # Should generate two signals (perp and spot)
 
         # Verify basic signal characteristics
-        symbols_found = set()
+        symbols_found: set[str] = set()
         for signal in signals:
             symbols_found.add(signal.symbol)
             assert signal.quantity is not None

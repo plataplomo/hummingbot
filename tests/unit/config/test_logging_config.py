@@ -9,6 +9,7 @@ import logging
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
@@ -75,12 +76,12 @@ class TestSetupLogging:
             assert len(root_logger.handlers) >= 1
 
             # Check console handler exists
-            console_handlers = [
+            console_handlers: list[logging.StreamHandler[Any]] = [
                 h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)
             ]
             assert len(console_handlers) >= 1
 
-            console_handler = console_handlers[0]
+            console_handler: logging.StreamHandler[Any] = console_handlers[0]
             assert console_handler.level == logging.INFO
             assert console_handler.stream == sys.stdout
 
@@ -285,7 +286,7 @@ class TestSetupLogging:
             # Assert - Should still configure console logging
             root_logger = logging.getLogger()
             assert root_logger.level == logging.INFO
-            console_handlers = [
+            console_handlers: list[logging.StreamHandler[Any]] = [
                 h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)
             ]
             assert len(console_handlers) >= 1
@@ -315,7 +316,7 @@ class TestSetupLogging:
             # Assert - Should still configure console logging
             root_logger = logging.getLogger()
             assert root_logger.level == logging.INFO
-            console_handlers = [
+            console_handlers: list[logging.StreamHandler[Any]] = [
                 h for h in root_logger.handlers if isinstance(h, logging.StreamHandler)
             ]
             assert len(console_handlers) >= 1
@@ -338,7 +339,7 @@ class TestSetupLogging:
         # Mock getLogger to raise an exception for problem_module
         original_getLogger = logging.getLogger
 
-        def mock_getLogger(name: str) -> logging.Logger:
+        def mock_getLogger(name: str | None = None) -> logging.Logger:
             if name == "problem_module":
                 raise OSError("Module logger creation failed")
             return original_getLogger(name)
@@ -401,7 +402,8 @@ class TestGetLogger:
 
         # Assert
         assert isinstance(logger, logging.Logger)
-        assert not logger.name
+        # Empty string returns root logger which has name "root"
+        assert logger.name == "root"
 
     def test_get_logger_edge_special_characters(self) -> None:
         """Test logger retrieval with special characters in name."""
@@ -557,6 +559,7 @@ class TestLogCapture:
         """Test capturing multiple log messages."""
         # Arrange
         test_logger = logging.getLogger("test_multiple")
+        test_logger.setLevel(logging.DEBUG)  # Ensure logger level allows debug messages
 
         # Act
         with LogCapture(level=logging.DEBUG) as capture:

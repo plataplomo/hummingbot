@@ -182,6 +182,7 @@ class CircuitBreaker:
 
             @wraps(func)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+                # Check state first (with lock)
                 async with self._lock:
                     # Check if circuit should be reset
                     if self._state == "open" and self._last_failure_time:
@@ -197,15 +198,10 @@ class CircuitBreaker:
                             code=APIErrorCode.SERVICE_UNAVAILABLE.value,
                         )
 
+                # Execute function outside lock to avoid deadlock
                 try:
                     async_func = cast("Callable[P, Awaitable[T]]", func)
                     result = await async_func(*args, **kwargs)
-
-                    # Success - reset failure count if in half-open state
-                    async with self._lock:
-                        if self._state == "half-open":
-                            self._state = "closed"
-                            self._failure_count = 0
 
                 except self.expected_exception:
                     async with self._lock:
@@ -225,8 +221,14 @@ class CircuitBreaker:
                                 ),
                             )
 
-                        raise
+                    raise
                 else:
+                    # Success - reset failure count if in half-open state
+                    async with self._lock:
+                        if self._state == "half-open":
+                            self._state = "closed"
+                            self._failure_count = 0
+
                     return result
 
             return cast("Callable[P, T]", async_wrapper)

@@ -78,7 +78,8 @@ class MultiTierFundingProvider:
         self.cache_ttl_seconds = config.get("cache_ttl_seconds", 300.0)  # 5 minutes default
 
         # Weight configuration for confidence scoring
-        weights = config.get("funding_data.weights", {})
+        funding_data = config.get("funding_data", {})
+        weights = funding_data.get("weights", {}) if isinstance(funding_data, dict) else {}
         if not isinstance(weights, dict):
             logger.warning(
                 "invalid_funding_weights_config",
@@ -119,7 +120,7 @@ class MultiTierFundingProvider:
         self.fallback_sources: dict[str, Callable[..., Any]] = {}
 
         # --- Threshold Configuration with Type Validation ---
-        thresholds = config.get("funding_data.thresholds", {})
+        thresholds = funding_data.get("thresholds", {}) if isinstance(funding_data, dict) else {}
         if not isinstance(thresholds, dict):
             logger.warning(
                 "invalid_funding_thresholds_config",

@@ -8,7 +8,7 @@ import asyncio
 import contextlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -28,6 +28,12 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.services.portfolio_orchestrator import PortfolioOrchestrator
+
+
+def _as_mock(obj: object) -> Mock:
+    """Helper function to assert an object is a Mock and return it typed."""
+    assert isinstance(obj, Mock)
+    return obj
 
 
 @pytest.fixture
@@ -282,7 +288,7 @@ class TestFetchAndUpdateBalances:
         """Test successful balance fetching and updating."""
         # Arrange
         balances = {"USDC": sample_spot_balance}
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
             return_value=balances
         )
 
@@ -291,7 +297,7 @@ class TestFetchAndUpdateBalances:
 
         # Assert
         assert result is True
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_balances.assert_awaited_once()
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_balances.assert_awaited_once()
         mock_portfolio_tracker.update_balances.assert_awaited_once_with("hyperliquid", balances)
         assert "hyperliquid" in orchestrator.last_reconciliation_time
 
@@ -303,9 +309,7 @@ class TestFetchAndUpdateBalances:
     ) -> None:
         """Test successful fetching with empty balances."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
-            return_value={}
-        )
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(return_value={})
 
         # Act
         result = await orchestrator.fetch_and_update_balances("hyperliquid")
@@ -329,7 +333,7 @@ class TestFetchAndUpdateBalances:
             await asyncio.sleep(0.1)
             return balances
 
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
             side_effect=slow_get_balances
         )
 
@@ -339,7 +343,7 @@ class TestFetchAndUpdateBalances:
 
         # Assert
         assert all(results)
-        assert cast(Mock, orchestrator.api_clients["hyperliquid"].get_balances).await_count == 5
+        assert _as_mock(orchestrator.api_clients["hyperliquid"].get_balances).await_count == 5
 
     @pytest.mark.asyncio
     async def test_fetch_and_update_balances_failure_no_client(
@@ -363,7 +367,7 @@ class TestFetchAndUpdateBalances:
     ) -> None:
         """Test balance fetching when API raises exception."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
             side_effect=Exception("API Error")
         )
 
@@ -388,7 +392,7 @@ class TestFetchAndUpdatePositions:
         """Test successful position fetching and updating."""
         # Arrange
         positions = [sample_derivative_position]
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
             return_value=positions
         )
 
@@ -397,7 +401,7 @@ class TestFetchAndUpdatePositions:
 
         # Assert
         assert result is True
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_positions.assert_awaited_once()
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_positions.assert_awaited_once()
         mock_portfolio_tracker.update_positions.assert_awaited_once_with("hyperliquid", positions)
         assert "hyperliquid" in orchestrator.last_reconciliation_time
 
@@ -409,9 +413,7 @@ class TestFetchAndUpdatePositions:
     ) -> None:
         """Test successful fetching with no positions."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
-            return_value=[]
-        )
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(return_value=[])
 
         # Act
         result = await orchestrator.fetch_and_update_positions("hyperliquid")
@@ -433,13 +435,13 @@ class TestFetchAndUpdatePositions:
                 exchange="hyperliquid",
                 symbol=f"{asset}-PERP",
                 side=OrderSide.BUY if i % 2 == 0 else OrderSide.SELL,
-                size=Decimal(str(i + 1)),
+                size=Decimal(str(i + 1)) if i % 2 == 0 else Decimal(str(-(i + 1))),
                 entry_price=Decimal(str(50000 + i * 1000)),
                 timestamp=datetime.now(UTC),
             )
             for i, asset in enumerate(["BTC", "ETH", "SOL"])
         ]
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
             return_value=positions
         )
 
@@ -472,7 +474,7 @@ class TestFetchAndUpdatePositions:
     ) -> None:
         """Test position fetching when API raises exception."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
             side_effect=RuntimeError("Connection failed")
         )
 
@@ -497,7 +499,7 @@ class TestFetchAndUpdateOrders:
         """Test successful order fetching and updating."""
         # Arrange
         orders = [sample_order]
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
             return_value=orders
         )
 
@@ -506,7 +508,7 @@ class TestFetchAndUpdateOrders:
 
         # Assert
         assert result is True
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_open_orders.assert_awaited_once()
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_open_orders.assert_awaited_once()
         mock_portfolio_tracker.update_orders.assert_awaited_once_with("hyperliquid", orders)
         assert "hyperliquid" in orchestrator.last_reconciliation_time
 
@@ -518,7 +520,7 @@ class TestFetchAndUpdateOrders:
     ) -> None:
         """Test successful fetching with no open orders."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
             return_value=[]
         )
 
@@ -556,7 +558,7 @@ class TestFetchAndUpdateOrders:
             )
             for i, status in enumerate([OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED])
         ]
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
             return_value=orders
         )
 
@@ -589,7 +591,7 @@ class TestFetchAndUpdateOrders:
     ) -> None:
         """Test order fetching when API times out."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
             side_effect=TimeoutError("Request timed out")
         )
 
@@ -613,7 +615,7 @@ class TestFetchAndUpdateAccountSummary:
     ) -> None:
         """Test successful account summary fetching and updating."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_account_summary = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_account_summary = AsyncMock(
             return_value=sample_margin_account_summary
         )
 
@@ -622,9 +624,7 @@ class TestFetchAndUpdateAccountSummary:
 
         # Assert
         assert result is True
-        cast(
-            Mock, orchestrator.api_clients["hyperliquid"]
-        ).get_account_summary.assert_awaited_once()
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_account_summary.assert_awaited_once()
         mock_portfolio_tracker.update_account_summary.assert_awaited_once_with(
             "hyperliquid", sample_margin_account_summary
         )
@@ -638,7 +638,7 @@ class TestFetchAndUpdateAccountSummary:
     ) -> None:
         """Test handling when API returns None for account summary."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_account_summary = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_account_summary = AsyncMock(
             return_value=None
         )
 
@@ -671,7 +671,7 @@ class TestFetchAndUpdateAccountSummary:
     ) -> None:
         """Test account summary fetching when API raises exception."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_account_summary = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_account_summary = AsyncMock(
             side_effect=ValueError("Invalid response format")
         )
 
@@ -695,7 +695,7 @@ class TestFetchTickerData:
     ) -> None:
         """Test successful ticker data fetching."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(
             return_value=sample_ticker
         )
 
@@ -704,7 +704,7 @@ class TestFetchTickerData:
 
         # Assert
         assert result == sample_ticker
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_ticker.assert_awaited_once_with(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_ticker.assert_awaited_once_with(
             "BTC-PERP"
         )
         mock_portfolio_tracker.update_ticker_data.assert_awaited_once_with(
@@ -719,9 +719,7 @@ class TestFetchTickerData:
     ) -> None:
         """Test handling when API returns None for ticker."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(
-            return_value=None
-        )
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(return_value=None)
 
         # Act
         result = await orchestrator.fetch_ticker_data("hyperliquid", "BTC-PERP")
@@ -752,7 +750,7 @@ class TestFetchTickerData:
     ) -> None:
         """Test ticker fetching when API raises exception."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(
+        _as_mock(orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(
             side_effect=Exception("Network error")
         )
 
@@ -792,10 +790,10 @@ class TestOrchestrateFullReconciliation:
 
         # Assert
         for exchange in ["hyperliquid", "backpack"]:
-            cast(Mock, orchestrator.api_clients[exchange]).get_balances.assert_awaited_once()
-            cast(Mock, orchestrator.api_clients[exchange]).get_positions.assert_awaited_once()
-            cast(Mock, orchestrator.api_clients[exchange]).get_open_orders.assert_awaited_once()
-            cast(Mock, orchestrator.api_clients[exchange]).get_account_summary.assert_awaited_once()
+            _as_mock(orchestrator.api_clients[exchange]).get_balances.assert_awaited_once()
+            _as_mock(orchestrator.api_clients[exchange]).get_positions.assert_awaited_once()
+            _as_mock(orchestrator.api_clients[exchange]).get_open_orders.assert_awaited_once()
+            _as_mock(orchestrator.api_clients[exchange]).get_account_summary.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_orchestrate_full_reconciliation_success_partial_failures(
@@ -825,8 +823,8 @@ class TestOrchestrateFullReconciliation:
         await orchestrator.orchestrate_full_reconciliation()
 
         # Assert - Should complete without raising exception
-        assert cast(Mock, hl_client.get_balances).await_count == 1
-        assert cast(Mock, bp_client.get_balances).await_count == 1
+        assert _as_mock(hl_client.get_balances).await_count == 1
+        assert _as_mock(bp_client.get_balances).await_count == 1
 
     @pytest.mark.asyncio
     async def test_orchestrate_full_reconciliation_edge_no_api_clients(
@@ -863,13 +861,16 @@ class TestOrchestrateFullReconciliation:
         orchestrator.api_clients["test_exchange"] = client
 
         # Act
-        with patch.object(orchestrator.logger, "error") as mock_error:
+        with patch.object(orchestrator.logger, "exception") as mock_exception:
             await orchestrator.orchestrate_full_reconciliation()
 
             # Assert
             # Check that exception was logged
+            # The first argument to logger.exception should be "balance_fetch_error"
+            assert mock_exception.called
             assert any(
-                "reconciliation_task_exception" in str(call) for call in mock_error.call_args_list
+                call.args and call.args[0] == "balance_fetch_error"
+                for call in mock_exception.call_args_list
             )
 
 
@@ -921,7 +922,7 @@ class TestOrchestratePeriodicUpdates:
         # Assert
         for exchange in orchestrator.api_clients.values():
             if hasattr(exchange, "get_balances"):
-                cast(Mock, exchange).get_balances.assert_not_awaited()
+                _as_mock(exchange).get_balances.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_orchestrate_periodic_updates_edge_mixed_timing(
@@ -1114,7 +1115,7 @@ class TestShutdown:
         # Arrange - Create some long-running operations that would normally take time
         mock_api = Mock()
 
-        async def slow_operation() -> dict:
+        async def slow_operation() -> dict[str, Any]:
             await asyncio.sleep(5)  # Long operation
             return {}
 
@@ -1181,20 +1182,25 @@ class TestIntegrationScenarios:
             orchestrator.api_clients[exchange] = client
 
         # Act - Fetch data from all exchanges concurrently
-        tasks = []
+        tasks: list[Any] = []
         for exchange in exchanges:
             tasks.extend([
                 orchestrator.fetch_and_update_balances(exchange),
                 orchestrator.fetch_and_update_positions(exchange),
             ])
 
-        results = await asyncio.gather(*tasks)
+        results: list[Any] = await asyncio.gather(*tasks)
 
         # Assert
         assert all(results)
         for exchange in exchanges:
-            assert cast(Mock, orchestrator.api_clients[exchange].get_balances).await_count == 1
-            assert cast(Mock, orchestrator.api_clients[exchange].get_positions).await_count == 1
+            balance_mock = orchestrator.api_clients[exchange].get_balances
+            assert isinstance(balance_mock, Mock)
+            assert balance_mock.await_count == 1
+
+            position_mock = orchestrator.api_clients[exchange].get_positions
+            assert isinstance(position_mock, Mock)
+            assert position_mock.await_count == 1
 
     @pytest.mark.asyncio
     async def test_error_isolation_between_exchanges(
@@ -1247,7 +1253,11 @@ class TestParametrizedScenarios:
     ) -> None:
         """Test various reconciliation timing scenarios."""
         # Arrange
-        if interval_seconds > 0:
+        if interval_seconds == 0:
+            # Just updated - set to current time
+            orchestrator.last_reconciliation_time["test_exchange"] = datetime.now(UTC)
+        else:
+            # Set update time based on interval
             update_time = datetime.now(UTC) - timedelta(seconds=interval_seconds)
             orchestrator.last_reconciliation_time["test_exchange"] = update_time
 
@@ -1277,9 +1287,13 @@ class TestParametrizedScenarios:
     ) -> None:
         """Test handling of various exception types."""
         # Arrange
-        cast(Mock, orchestrator.api_clients["test_exchange"]).get_balances = AsyncMock(
-            side_effect=exception_type("Test error")
-        )
+        # Add a test_exchange to the orchestrator
+        test_client = Mock(spec=ExchangeAPI)
+        test_client.get_balances = AsyncMock(side_effect=exception_type("Test error"))
+        test_client.get_positions = AsyncMock(return_value=[])
+        test_client.get_open_orders = AsyncMock(return_value=[])
+        test_client.get_account_summary = AsyncMock(return_value=None)
+        orchestrator.api_clients["test_exchange"] = test_client
 
         # Act
         result = await orchestrator.fetch_and_update_balances("test_exchange")

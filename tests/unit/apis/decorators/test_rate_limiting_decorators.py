@@ -179,8 +179,11 @@ class TestRateLimited:
         ):
 
             @decorator
-            def sync_func() -> str:
+            def _sync_func() -> str:  # Not called, just decorated to test validation
                 return "sync"
+
+            # Reference the function to satisfy linter
+            _ = _sync_func
 
 
 class TestRetryOnFailure:
@@ -345,8 +348,11 @@ class TestRetryOnFailure:
         ):
 
             @decorator
-            def sync_func() -> str:
+            def _sync_func() -> str:  # Not called, just decorated to test validation
                 return "sync"
+
+            # Reference the function to satisfy linter
+            _ = _sync_func
 
     @pytest.mark.asyncio
     async def test_retry_on_failure_failure_all_attempts_exhausted(self) -> None:
@@ -390,15 +396,18 @@ class TestRetryOnFailure:
         decorator = RetryOnFailure(max_attempts=1)
 
         # Mock the internal logic to simulate the edge case
-        with patch.object(decorator, "_max_attempts", 0):
+        with patch.object(decorator, "max_attempts", 0):
 
             @decorator
             async def test_func() -> str:
                 await asyncio.sleep(0)  # Make function truly async
                 return "test"
 
+            # Act & Assert
             # This would be very difficult to trigger naturally
-            # In practice, this exception should never occur
+            # With max_attempts=0, the loop won't execute and no exception will be captured
+            with pytest.raises(NoExceptionCapturedError):
+                await test_func()
 
 
 class TestCircuitBreaker:
@@ -444,7 +453,7 @@ class TestCircuitBreaker:
     async def test_circuit_breaker_success_recovery_after_timeout(self) -> None:
         """Test circuit breaker recovery after timeout."""
         # Arrange
-        decorator = CircuitBreaker(failure_threshold=1, recovery_timeout=0.01)
+        decorator = CircuitBreaker(failure_threshold=1, recovery_timeout=1.0)  # Longer timeout
 
         @decorator
         async def test_func(should_fail: bool = False) -> str:
@@ -458,11 +467,13 @@ class TestCircuitBreaker:
             await test_func(should_fail=True)
 
         # Test behavior: circuit should be open (calls should fail immediately)
+        # Add a small delay to ensure state propagation
+        await asyncio.sleep(0.001)
         with pytest.raises(APIError, match="Circuit breaker is open"):
             await test_func(should_fail=False)
 
         # Wait for recovery timeout
-        await asyncio.sleep(0.02)
+        await asyncio.sleep(1.1)  # Wait longer than recovery timeout
 
         # Now should work again
         result = await test_func(should_fail=False)
@@ -565,8 +576,11 @@ class TestCircuitBreaker:
         ):
 
             @decorator
-            def sync_func() -> str:
+            def _sync_func() -> str:  # Not called, just decorated to test validation
                 return "sync"
+
+            # Reference the function to satisfy linter
+            _ = _sync_func
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_failure_open_circuit(self) -> None:
@@ -703,8 +717,11 @@ class TestTimeout:
         ):
 
             @decorator
-            def sync_func() -> str:
+            def _sync_func() -> str:  # Not called, just decorated to test validation
                 return "sync"
+
+            # Reference the function to satisfy linter
+            _ = _sync_func
 
     @pytest.mark.asyncio
     async def test_timeout_failure_slow_operation(self) -> None:

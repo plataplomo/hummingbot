@@ -1258,8 +1258,25 @@ class DataHandler:
                 ),
             )
 
-    def unregister_observer(self, observer: Callable[..., Any]) -> None:
-        """Unregister an observer."""
+    def unregister_observer(self, observer: Callable[..., Any] | None) -> None:
+        """Unregister an observer.
+
+        Note: This method now accepts None observers and logs a warning.
+        This is a breaking change from previous versions that may have raised exceptions.
+
+        Args:
+            observer: The observer to unregister, or None (which logs a warning).
+        """
+        # Check for None observer
+        if observer is None:
+            logger.warning(
+                "observer_unregistration_none",
+                action="unregister_observer",
+                issue="none_observer",
+                message="Cannot unregister None observer",
+            )
+            return
+
         # Attempt to remove from all lists
         removed = False
         if observer in self._market_data_observers:
@@ -1273,20 +1290,21 @@ class DataHandler:
             removed = True
         # Add removal logic for other observer types
 
+        observer_name = getattr(observer, "__name__", str(observer))
         if removed:
             logger.info(
                 "observer_unregistered",
-                observer_name=observer.__name__,
+                observer_name=observer_name,
                 action="unregister_observer",
-                message=f"Unregistered observer: {observer.__name__}",
+                message=f"Unregistered observer: {observer_name}",
             )
         else:
             logger.warning(
                 "observer_unregistration_not_found",
-                observer_name=observer.__name__,
+                observer_name=observer_name,
                 action="unregister_observer",
                 issue="observer_not_found",
-                message=f"Observer not found for unregistration: {observer.__name__}",
+                message=f"Observer not found for unregistration: {observer_name}",
             )
 
     # --- Connection Management ---

@@ -5,9 +5,9 @@ Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases for each 
 """
 
 import asyncio
-import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -247,20 +247,22 @@ class TestGetTicker:
         assert cache_stats["total_entries"] == 1
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_get_ticker_edge_cache_expired(
         self,
         price_service: PriceDataService,
         sample_ticker: Ticker,
         mock_api_clients: dict[str, AsyncMock],
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test ticker fetch when cache entry is expired."""
         # Arrange
         # Add entry to cache using public API, then manipulate time by changing cache expiry
         price_service.cache_ticker("hyperliquid", "BTC-PERP", sample_ticker)
-        # Set short expiry to make it expired
-        price_service.cache_expiry_seconds = 1  # Short expiry
-        # Wait for expiry
-        await asyncio.sleep(0.002)
+
+        # Move time forward to make the cache entry expired
+        future_time = datetime.now(UTC) + timedelta(seconds=price_service.cache_expiry_seconds + 1)
+        frozen_time.move_to(future_time)
 
         new_ticker = Ticker(
             symbol="BTC-PERP",
@@ -915,16 +917,20 @@ class TestCleanupExpiredEntries:
         # Assert
         assert removed_count == 0
 
+    @pytest.mark.timing
     def test_cleanup_expired_entries_edge_zero_expiry_time(
         self,
         price_service: PriceDataService,
         sample_ticker: Ticker,
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test cleanup with zero expiry time (all should be expired)."""
         # Arrange
         price_service.cache_expiry_seconds = 0
         price_service.cache_ticker("hyperliquid", "BTC-PERP", sample_ticker)
-        time.sleep(0.01)  # Small delay to ensure timestamp difference
+        # Move time forward slightly to ensure cache entry is considered expired
+        future_time = datetime.now(UTC) + timedelta(milliseconds=1)
+        frozen_time.move_to(future_time)
 
         # Act
         removed_count = price_service.cleanup_expired_entries()
@@ -1003,7 +1009,7 @@ class TestConcurrentOperations:
     ) -> None:
         """Test concurrent cache operations."""
         # Arrange
-        tasks = []
+        tasks: list[Any] = []
 
         # Mix of cache operations
         for i in range(10):
@@ -1105,10 +1111,9 @@ class TestEdgeCasesAndErrorHandling:
         # We can't test exact boundaries without accessing private members,
         # so we test the behavior through normal cache operations
 
-        # Arrange - Set very short expiry for testing
-        price_service.cache_expiry_seconds = 1  # Short expiry
-
-        # Cache a ticker
+        # Arrange - Test cache behavior with different expiry values
+        # First test: normal cache operation
+        price_service.cache_expiry_seconds = 30  # Normal expiry
         price_service.cache_ticker("hyperliquid", "BTC-PERP", sample_ticker)
 
         # Configure mock to return None so we know if cache was used
@@ -1120,13 +1125,13 @@ class TestEdgeCasesAndErrorHandling:
         # Assert - Should get cached value
         assert result1 == sample_ticker
 
-        # Wait for expiry
-        await asyncio.sleep(0.15)
+        # Now test immediate expiry
+        price_service.cache_expiry_seconds = 0  # Immediate expiry
 
-        # Act - Get after expiry (should fetch from API)
+        # Act - Get with zero expiry (should fetch from API)
         result2 = await price_service.get_ticker("hyperliquid", "BTC-PERP")
 
-        # Assert - Should get None from API since cache expired
+        # Assert - Should get None from API since cache is considered expired
         assert result2 is None
         mock_api_clients["hyperliquid"].get_ticker.assert_called_with("BTC-PERP")
 
@@ -1143,12 +1148,14 @@ class TestParametrizedScenarios:
             (-1, False),  # Negative expiry (should expire immediately)
         ],
     )
+    @pytest.mark.timing
     def test_cache_expiry_scenarios(
         self,
         mock_app_settings: Mock,
         sample_ticker: Ticker,
         cache_expiry: int,
         should_be_valid: bool,
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test various cache expiry scenarios."""
         # Arrange
@@ -1158,8 +1165,9 @@ class TestParametrizedScenarios:
         )
         service.cache_ticker("test_exchange", "BTC-PERP", sample_ticker)
 
-        # Small delay to test immediate expiry
-        time.sleep(0.01)
+        # Move time forward slightly to test immediate expiry scenarios
+        future_time = datetime.now(UTC) + timedelta(milliseconds=10)
+        frozen_time.move_to(future_time)
 
         # Act - Test through public API by checking cache behavior
         # We can infer cache validity by whether cleanup removes the entry

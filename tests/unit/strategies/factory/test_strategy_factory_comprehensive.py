@@ -126,7 +126,9 @@ class TestValidateStrategyEnabled:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing."""
-        return Mock(spec=AppSettings)
+        config = Mock(spec=AppSettings)
+        config.strategies = Mock()
+        return config
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
@@ -141,6 +143,7 @@ class TestValidateStrategyEnabled:
         strategy_config = Mock()
         strategy_config.enabled = True
         strategy_config.params = Mock()
+        strategy_config.params.model_dump = Mock(return_value={})
         mock_config.strategies.hl_perp_bp_spot = strategy_config
 
         factory = StrategyFactory(mock_config)
@@ -171,6 +174,7 @@ class TestValidateStrategyEnabled:
         strategy_config = Mock()
         strategy_config.enabled = True
         strategy_config.params = Mock()
+        strategy_config.params.model_dump = Mock(return_value={})
         mock_config.strategies.hl_perp_bp_spot = strategy_config
 
         factory = StrategyFactory(mock_config)
@@ -200,6 +204,7 @@ class TestValidateStrategyEnabled:
         strategy_config = Mock()
         strategy_config.enabled = False  # Strategy is disabled
         strategy_config.params = Mock()
+        strategy_config.params.model_dump = Mock(return_value={})
         mock_config.strategies.hl_perp_bp_spot = strategy_config
 
         factory = StrategyFactory(mock_config)
@@ -346,7 +351,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_tracker,
                 risk_manager=None,
-                params={},
+                params={"param": "value"},
             )
 
     # ==================== EDGE CASES ====================
@@ -635,7 +640,9 @@ class TestConvertStrategyParamsToDict:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing."""
-        return Mock(spec=AppSettings)
+        config = Mock(spec=AppSettings)
+        config.strategies = Mock()
+        return config
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
@@ -684,15 +691,15 @@ class TestConvertStrategyParamsToDict:
             # Verify strategy was created with converted parameters
             assert result == mock_strategy_instance
             mock_strategy_class.assert_called_once()
-            call_args = mock_strategy_class.call_args[1]  # Get keyword arguments
+            call_args = mock_strategy_class.call_args
 
             # Verify Decimals were converted to floats
-            assert call_args["params"]["threshold"] == 0.01
-            assert call_args["max_position_size"] == 1000.0
+            assert call_args.kwargs["params"]["threshold"] == 0.01
+            assert call_args.kwargs["params"]["max_position_size"] == 1000.0
             # Other parameters should also be passed correctly
-            assert call_args["string_param"] == "test_value"
-            assert call_args["int_param"] == 42
-            assert call_args["bool_param"] is True
+            assert call_args.kwargs["params"]["string_param"] == "test_value"
+            assert call_args.kwargs["params"]["int_param"] == 42
+            assert call_args.kwargs["params"]["bool_param"] is True
 
     def test_convert_strategy_params_to_dict_success_no_decimals(self, mock_config: Mock) -> None:
         """Test successful conversion of parameters without Decimal values through create method."""
@@ -989,10 +996,9 @@ class TestValidateStrategyConfig:
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
 
-        # Configure to raise AttributeError when accessing enabled
-        type(config.strategies.hl_perp_bp_spot).enabled = Mock(
-            side_effect=AttributeError("Config error")
-        )
+        # Configure Mock to raise AttributeError when enabled is accessed
+        # Remove the enabled attribute to trigger AttributeError
+        del config.strategies.hl_perp_bp_spot.enabled
 
         factory = StrategyFactory(config)
         strategy_type = "hl_perp_bp_spot"

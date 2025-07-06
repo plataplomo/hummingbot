@@ -90,7 +90,8 @@ class StrategyFactory:
             Configured FundingRateArbitrageStrategy instance
 
         Raises:
-            StrategyCreationError: If strategy creation fails
+            StrategyCreationError: If strategy creation fails. The exception's
+                strategy_type attribute will be set to "hl_perp_bp_spot".
         """
         try:
             # Get validated strategy configuration
@@ -122,6 +123,9 @@ class StrategyFactory:
                 message=f"Created {name} strategy for {symbol} via factory",
             )
 
+        except StrategyCreationError:
+            # Re-raise StrategyCreationError as-is to preserve strategy_type
+            raise
         except Exception as e:
             error_msg = f"Failed to create HL Perp BP Spot strategy '{name}': {e}"
             logger.exception(
@@ -133,7 +137,7 @@ class StrategyFactory:
                 action="strategy_creation_error",
                 message=error_msg,
             )
-            raise StrategyCreationError(error_msg) from e
+            raise StrategyCreationError(error_msg, "hl_perp_bp_spot") from e
         else:
             return strategy
 

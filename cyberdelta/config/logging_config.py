@@ -60,15 +60,15 @@ def setup_logging(app_settings: AppSettings) -> None:
     if log_file_path_str:
         # Create the directory if it doesn't exist
         log_dir_path = Path(log_file_path_str).parent
-        if log_dir_path and not log_dir_path.exists():
-            try:
+        try:
+            if log_dir_path and not log_dir_path.exists():
                 log_dir_path.mkdir(parents=True, exist_ok=True)
-            except (OSError, PermissionError) as e:
-                root_logger.warning(
-                    "log_directory_creation_failed: Failed to create log directory %s: %s",
-                    str(log_dir_path),
-                    e,
-                )
+        except (OSError, PermissionError) as e:
+            root_logger.warning(
+                "log_directory_creation_failed: Failed to create log directory %s: %s",
+                str(log_dir_path),
+                e,
+            )
 
         try:
             file_handler = logging.FileHandler(log_file_path_str)

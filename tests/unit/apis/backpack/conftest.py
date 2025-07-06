@@ -1,9 +1,9 @@
 """Shared fixtures for BackpackRequestBuilder tests."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -276,11 +276,78 @@ def eth_asset() -> str:
 # Removed hardcoded active_bp_config fixture - now using centralized fixture from tests/conftest.py
 
 
+def _create_mock_account_service() -> MagicMock:
+    """Create a mock account service with async methods."""
+    mock_service = MagicMock()
+    mock_service.get_balances = AsyncMock()
+    mock_service.get_account_info = AsyncMock()
+    mock_service.get_positions = AsyncMock()
+    mock_service.get_order_history = AsyncMock()
+    mock_service.get_trade_history = AsyncMock()
+    mock_service.transfer = AsyncMock()
+    mock_service.withdraw = AsyncMock()
+    return mock_service
+
+
+def _create_mock_market_data_service() -> MagicMock:
+    """Create a mock market data service with async methods."""
+    mock_service = MagicMock()
+    mock_service.get_ticker = AsyncMock()
+    mock_service.get_order_book = AsyncMock()
+    mock_service.get_recent_trades = AsyncMock()
+    mock_service.get_funding_rate = AsyncMock()
+    mock_service.get_funding_rates = AsyncMock()
+    mock_service.get_market_data = AsyncMock()
+    mock_service.get_historical_funding_rates = AsyncMock()
+    return mock_service
+
+
+def _create_mock_trading_service() -> MagicMock:
+    """Create a mock trading service with async methods."""
+    mock_service = MagicMock()
+    mock_service.place_order = AsyncMock()
+    mock_service.cancel_order = AsyncMock()
+    mock_service.cancel_all_orders = AsyncMock()
+    mock_service.get_open_orders = AsyncMock()
+    mock_service.get_order = AsyncMock()
+    mock_service.get_order_status = AsyncMock()
+    mock_service.get_all_open_orders = AsyncMock()
+    return mock_service
+
+
+@pytest.fixture(autouse=True)
+def patch_http_websocket_for_tests() -> Generator[None]:
+    """Auto-use fixture to patch HTTP client and WebSocket manager for all tests in this module."""
+    with (
+        patch("cyberdelta.apis.connectivity.http_client.HttpClient") as mock_http_class,
+        patch("cyberdelta.apis.connectivity.ws_manager.WebSocketManager") as mock_ws_class,
+        patch("aiohttp.ClientSession") as mock_session_class,
+    ):
+        # Configure mock HTTP client
+        mock_http_client = MagicMock()
+        mock_http_client.close = AsyncMock()
+        mock_http_client.request = AsyncMock()
+        mock_http_class.return_value = mock_http_client
+
+        # Configure mock aiohttp session
+        mock_session = MagicMock()
+        mock_session.close = AsyncMock()
+        mock_session.request = AsyncMock()
+        mock_session_class.return_value = mock_session
+
+        # Configure mock WebSocket manager
+        mock_ws_manager = MagicMock()
+        mock_ws_manager.close = AsyncMock()
+        mock_ws_class.return_value = mock_ws_manager
+
+        yield
+
+
 @pytest.fixture
 def bp_api_with_di(
     active_bp_config: ExchangeSpecificConfig,
     active_bp_secrets: ApiKeyAuthSecrets,
-) -> Callable[..., BackpackAPI]:
+) -> Generator[Callable[..., BackpackAPI]]:
     """Create BackpackAPI instances with all dependencies mocked.
 
     This enables unit testing without accessing protected members.
@@ -288,6 +355,7 @@ def bp_api_with_di(
     Returns:
         Callable[..., BackpackAPI]: Factory function for creating BackpackAPI instances with mocks.
     """
+    created_apis: list[BackpackAPI] = []
 
     def _create_api(
         config: ExchangeSpecificConfig | None = None,
@@ -300,56 +368,27 @@ def bp_api_with_di(
             BackpackAPI: Configured BackpackAPI instance with mocked dependencies.
         """
         final_config = config or active_bp_config
+        final_secrets = secrets or active_bp_secrets
 
-        # Use active secrets as default if not provided
-        if secrets is None:
-            secrets = active_bp_secrets
+        # Create BackpackAPI - HTTP client and WebSocket manager are patched globally
+        api = BackpackAPI(exchange_config=final_config, exchange_secrets=final_secrets)
+        created_apis.append(api)
 
-        # Create BackpackAPI with standard configuration
-        api = BackpackAPI(exchange_config=final_config, exchange_secrets=secrets)
+        # Set up account service
+        api.account_service = overrides.get("account_service", _create_mock_account_service())
 
-        # Replace services with mocks
-        if "account_service" in overrides:
-            api.account_service = overrides["account_service"]
-        else:
-            api.account_service = MagicMock()
-            api.account_service.get_balances = AsyncMock()
-            api.account_service.get_account_info = AsyncMock()
-            api.account_service.get_positions = AsyncMock()
-            api.account_service.get_order_history = AsyncMock()
-            api.account_service.get_trade_history = AsyncMock()
-            api.account_service.transfer = AsyncMock()
-            api.account_service.withdraw = AsyncMock()
+        # Set up market data service
+        api.market_data_service = overrides.get(
+            "market_data_service", _create_mock_market_data_service()
+        )
 
-        if "market_data_service" in overrides:
-            api.market_data_service = overrides["market_data_service"]
-        else:
-            api.market_data_service = MagicMock()
-            api.market_data_service.get_ticker = AsyncMock()
-            api.market_data_service.get_order_book = AsyncMock()
-            api.market_data_service.get_recent_trades = AsyncMock()
-            api.market_data_service.get_funding_rate = AsyncMock()
-            api.market_data_service.get_funding_rates = AsyncMock()
-            api.market_data_service.get_market_data = AsyncMock()
-            api.market_data_service.get_historical_funding_rates = AsyncMock()
-            # Note: These are being set for test purposes
-            # Consider using dependency injection in the actual service
-            # to avoid accessing protected members in tests
-
-        if "trading_service" in overrides:
-            api.trading_service = overrides["trading_service"]
-        else:
-            api.trading_service = MagicMock()
-            api.trading_service.place_order = AsyncMock()
-            api.trading_service.cancel_order = AsyncMock()
-            api.trading_service.cancel_all_orders = AsyncMock()
-            api.trading_service.get_open_orders = AsyncMock()
-            api.trading_service.get_order = AsyncMock()
-            api.trading_service.get_order_status = AsyncMock()
-            api.trading_service.get_all_open_orders = AsyncMock()
-            # Note: Setting protected member for test purposes
-            # Consider refactoring to use dependency injection
+        # Set up trading service
+        api.trading_service = overrides.get("trading_service", _create_mock_trading_service())
 
         return api
 
-    return _create_api
+    yield _create_api
+
+    # Cleanup: Since we're using mocked HTTP clients and WS managers,
+    # no explicit cleanup is needed as mocks handle their own cleanup
+    created_apis.clear()

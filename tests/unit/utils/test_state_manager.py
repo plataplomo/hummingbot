@@ -427,7 +427,11 @@ class TestStateRecovery:
     def test_recover_from_backup_success(self, state_manager: StateManager) -> None:
         """Test successful recovery from backup through load_state."""
         # Arrange
-        # First save a valid state to create backup
+        # First save a valid state (creates state file but no backup yet)
+        initial_state = {"initial": "data"}
+        state_manager.save_state(initial_state)
+
+        # Second save to create a backup of the first state
         original_state = {"original": "data"}
         state_manager.save_state(original_state)
 
@@ -439,9 +443,10 @@ class TestStateRecovery:
 
         # Assert
         assert result is True
-        # Should have recovered the original state from backup
+        # Should have recovered from backup, which contains the initial state (not the original)
+        # because backup is created BEFORE writing new state
         current_state = state_manager.get_current_state()
-        assert current_state == original_state
+        assert current_state == initial_state
         # State file should be restored
         assert Path(state_manager.state_file).exists()
 

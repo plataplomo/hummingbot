@@ -721,13 +721,17 @@ def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | No
     # Check for empty strings in nested list structures
     if field == "b" and isinstance(value, list) and value:
         first_elem = value[0]
-        if isinstance(first_elem, list) and first_elem and not first_elem[0]:
-            return True
+        if isinstance(first_elem, list) and first_elem:
+            first_sub_elem = first_elem[0]
+            if not first_sub_elem:
+                return True
 
     if field == "a" and isinstance(value, list) and value:
         first_elem = value[0]
-        if isinstance(first_elem, list) and len(first_elem) > 1 and not first_elem[1]:
-            return True
+        if isinstance(first_elem, list) and len(first_elem) > 1:
+            second_elem = first_elem[1]
+            if not second_elem:
+                return True
 
     return False
 

@@ -226,7 +226,7 @@ def bp_api_with_di(
         if secrets is None:
             secrets = active_bp_secrets
 
-        # Create the API instance
+        # Create the API instance - HTTP client and WebSocket manager are patched globally
         api = BackpackAPI(exchange_config=config, exchange_secrets=secrets)
 
         # Inject service dependencies (these are public attributes)

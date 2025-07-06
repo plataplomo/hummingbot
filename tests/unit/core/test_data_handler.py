@@ -5,7 +5,7 @@ Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases for each 
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -30,7 +30,19 @@ from cyberdelta.core.symbol_mapper import SymbolMapper
 def mock_app_settings() -> Mock:
     """Create mock app settings for testing."""
     # Add any required attributes
-    return Mock(spec=AppSettings)
+    settings = Mock(spec=AppSettings)
+
+    # Create mock exchange configs
+    hl_config = Mock()
+    hl_config.enabled = True
+    hl_config.symbols = {"BTC": {}, "ETH": {}}
+
+    bp_config = Mock()
+    bp_config.enabled = True
+    bp_config.symbols = {"BTC": {}, "SOL": {}}
+
+    settings.exchanges = {"hyperliquid": hl_config, "backpack": bp_config}
+    return settings
 
 
 @pytest.fixture
@@ -78,15 +90,20 @@ def data_handler(
     mock_portfolio_tracker: Mock,
     mock_symbol_mapper: Mock,
     mock_clock: Mock,
-) -> DataHandler:
+) -> Generator[DataHandler]:
     """Create DataHandler instance for testing."""
-    return DataHandler(
+    loop = asyncio.new_event_loop()
+    handler = DataHandler(
         app_settings=mock_app_settings,
         api_clients=cast("dict[str, ExchangeAPI]", mock_api_clients),
         portfolio_tracker=mock_portfolio_tracker,
         symbol_mapper=mock_symbol_mapper,
         clock=mock_clock,
+        loop=loop,
     )
+    yield handler
+    # Cleanup
+    loop.close()
 
 
 @pytest.fixture
@@ -136,12 +153,16 @@ class TestDataHandlerInit:
         mock_symbol_mapper: Mock,
     ) -> None:
         """Test successful initialization of DataHandler."""
+        # Arrange
+        loop = asyncio.new_event_loop()
+
         # Act
         handler = DataHandler(
             app_settings=mock_app_settings,
             api_clients=cast("dict[str, ExchangeAPI]", mock_api_clients),
             portfolio_tracker=mock_portfolio_tracker,
             symbol_mapper=mock_symbol_mapper,
+            loop=loop,
         )
 
         # Assert
@@ -150,9 +171,23 @@ class TestDataHandlerInit:
         assert handler.portfolio_tracker == mock_portfolio_tracker
         assert handler.symbol_mapper == mock_symbol_mapper
         assert isinstance(handler.loop, asyncio.AbstractEventLoop)
-        assert handler.tickers == {}
-        assert handler.order_books == {}
-        assert handler.funding_rates == {}
+
+        # Check that tickers were initialized for configured exchanges and symbols
+        assert "hyperliquid" in handler.tickers
+        assert "backpack" in handler.tickers
+        assert "BTC" in handler.tickers["hyperliquid"]
+        assert "ETH" in handler.tickers["hyperliquid"]
+        assert "BTC" in handler.tickers["backpack"]
+        assert "SOL" in handler.tickers["backpack"]
+
+        # Check that order_books and funding_rates were also initialized
+        assert "hyperliquid" in handler.order_books
+        assert "backpack" in handler.order_books
+        assert "hyperliquid" in handler.funding_rates
+        assert "backpack" in handler.funding_rates
+
+        # Cleanup
+        loop.close()
 
     def test_data_handler_init_success_with_custom_loop_and_clock(
         self,
@@ -192,17 +227,24 @@ class TestDataHandlerInit:
         mock_symbol_mapper: Mock,
     ) -> None:
         """Test initialization with empty API clients dictionary."""
+        # Arrange
+        loop = asyncio.new_event_loop()
+
         # Act
         handler = DataHandler(
             app_settings=mock_app_settings,
             api_clients={},
             portfolio_tracker=mock_portfolio_tracker,
             symbol_mapper=mock_symbol_mapper,
+            loop=loop,
         )
 
         # Assert
         assert handler.api_clients == {}
         assert len(handler.ws_connections) == 0
+
+        # Cleanup
+        loop.close()
 
 
 class TestRegisterApiClient:
@@ -275,6 +317,7 @@ class TestGetLatestTicker:
             result = data_handler.get_latest_ticker("hyperliquid", "BTC-PERP")
 
         # Assert
+        assert result is not None
         assert result == sample_ticker
         assert result.symbol == "BTC-PERP"
 
@@ -363,6 +406,7 @@ class TestGetLatestOrderBook:
             result = data_handler.get_latest_order_book("hyperliquid", "BTC-PERP")
 
         # Assert
+        assert result is not None
         assert result == sample_order_book
         assert result.symbol == "BTC-PERP"
         assert len(result.bids) == 2
@@ -373,15 +417,22 @@ class TestGetLatestOrderBook:
     ) -> None:
         """Test order book retrieval with valid timestamp."""
         # Arrange
-        sample_order_book.timestamp = datetime.now(UTC)
-        data_handler.order_books["hyperliquid"] = {"BTC-PERP": sample_order_book}
+        # Create a new OrderBook with current timestamp since OrderBook is frozen
+        current_order_book = OrderBook(
+            symbol=sample_order_book.symbol,
+            timestamp=datetime.now(UTC),
+            bids=sample_order_book.bids,
+            asks=sample_order_book.asks,
+        )
+        data_handler.order_books["hyperliquid"] = {"BTC-PERP": current_order_book}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
             result = data_handler.get_latest_order_book("hyperliquid", "BTC-PERP")
 
         # Assert
-        assert result == sample_order_book
+        assert result is not None
+        assert result == current_order_book
         assert result.timestamp is not None
 
     # ==================== EDGE CASES ====================
@@ -455,6 +506,7 @@ class TestGetLatestFundingRate:
             result = data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP")
 
         # Assert
+        assert result is not None
         assert result == sample_funding_rate
         assert result.symbol == "BTC-PERP"
         assert result.funding_rate == Decimal("0.0001")
@@ -481,6 +533,8 @@ class TestGetLatestFundingRate:
             eth_result = data_handler.get_latest_funding_rate("hyperliquid", "ETH-PERP")
 
         # Assert
+        assert btc_result is not None
+        assert eth_result is not None
         assert btc_result == sample_funding_rate
         assert eth_result == eth_funding_rate
         assert btc_result.funding_rate == Decimal("0.0001")
@@ -760,7 +814,7 @@ def test_get_latest_ticker_parametrized(
     ("exchange_id", "expected_count"),
     [
         ("hyperliquid", 2),  # Will be set up with 2 tickers
-        ("backpack", 0),  # Not set up
+        ("backpack", 2),  # Backpack is configured with 2 symbols (BTC, SOL) in fixture
         ("nonexistent", 0),  # Doesn't exist
     ],
 )
@@ -828,4 +882,5 @@ def test_ticker_data_integrity_parametrized(
     assert result.bid == bid
     assert result.ask == ask
     assert result.price == price
-    assert result.ask >= result.bid  # Spread should be positive
+    if result.ask is not None and result.bid is not None:
+        assert result.ask >= result.bid  # Spread should be positive

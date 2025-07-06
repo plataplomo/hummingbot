@@ -1,6 +1,9 @@
 """Module for calculating various financial performance metrics."""
 
+from __future__ import annotations
+
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -8,7 +11,39 @@ import pandas as pd
 from cyberdelta.config.structlog_config import get_logger
 
 
+if TYPE_CHECKING:
+    from pandas import Series
+
+
 logger = get_logger(__name__)
+
+
+class EmptyReturnsError(ValueError):
+    """Raised when trying to calculate metrics on empty returns series."""
+
+
+class EmptySharpeRatioError(EmptyReturnsError):
+    """Raised when trying to calculate Sharpe ratio on empty returns series."""
+
+    def __init__(self) -> None:
+        """Initialize with specific message."""
+        super().__init__("Cannot calculate Sharpe ratio for empty returns series")
+
+
+class EmptySortinoRatioError(EmptyReturnsError):
+    """Raised when trying to calculate Sortino ratio on empty returns series."""
+
+    def __init__(self) -> None:
+        """Initialize with specific message."""
+        super().__init__("Cannot calculate Sortino ratio for empty returns series")
+
+
+class EmptyMaxDrawdownError(EmptyReturnsError):
+    """Raised when trying to calculate max drawdown on empty returns series."""
+
+    def __init__(self) -> None:
+        """Initialize with specific message."""
+        super().__init__("Cannot calculate max drawdown for empty returns series")
 
 
 class PerformanceMetricsCalculator:
@@ -16,7 +51,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_sharpe_ratio(
-        returns: pd.Series[float],
+        returns: Series[float],
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> Decimal:
@@ -31,17 +66,22 @@ class PerformanceMetricsCalculator:
             Annualized Sharpe ratio (Decimal).
 
         """
+        # Check for empty series
+        if len(returns) == 0:
+            raise EmptySharpeRatioError
+
         # Convert risk_free_rate to per-period rate (using Decimal for division)
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
 
         # Calculate excess returns (Series operations will convert to float internally)
-        excess_returns: pd.Series[float] = returns - float(per_period_rfr)
+        excess_returns: Series[float] = returns - float(per_period_rfr)
         mean_excess_return: float = excess_returns.mean()
         std_dev_excess_return: float = excess_returns.std()
 
-        if std_dev_excess_return == 0:
+        if std_dev_excess_return == 0 or np.isnan(std_dev_excess_return):
             logger.warning(
-                "Standard deviation of excess returns is zero. Cannot calculate Sharpe ratio.",
+                "Standard deviation of excess returns is zero or NaN. "
+                "Cannot calculate Sharpe ratio.",
             )
             return Decimal("0.0")  # Return a concrete Decimal value
 
@@ -54,7 +94,7 @@ class PerformanceMetricsCalculator:
 
     @staticmethod
     def calculate_sortino_ratio(
-        returns: pd.Series[float],
+        returns: Series[float],
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
     ) -> Decimal:
@@ -68,16 +108,22 @@ class PerformanceMetricsCalculator:
         Returns:
             Annualized Sortino ratio (Decimal).
 
+        Raises:
+            EmptySortinoRatioError: If returns series is empty.
+
         """
+        if len(returns) == 0:
+            raise EmptySortinoRatioError
+
         # Convert risk_free_rate to per-period rate
         per_period_rfr = risk_free_rate / Decimal(str(periods_per_year))
 
         # Calculate excess returns (Series operations will convert to float internally)
-        excess_returns: pd.Series[float] = returns - float(per_period_rfr)
+        excess_returns: Series[float] = returns - float(per_period_rfr)
         mean_excess_return: float = excess_returns.mean()
 
         # Calculate downside deviation
-        downside_returns: pd.Series[float] = excess_returns[excess_returns < 0]
+        downside_returns: Series[float] = excess_returns[excess_returns < 0]
         if downside_returns.empty:
             logger.warning("No downside returns found. Cannot calculate Sortino ratio.")
             return Decimal("Infinity")  # Return infinite as Decimal
@@ -99,7 +145,7 @@ class PerformanceMetricsCalculator:
         return Decimal(str(sortino_ratio)) * sqrt_periods
 
     @staticmethod
-    def calculate_max_drawdown(returns: pd.Series[float]) -> Decimal:
+    def calculate_max_drawdown(returns: Series[float]) -> Decimal:
         """Calculate the maximum drawdown.
 
         Args:
@@ -108,15 +154,22 @@ class PerformanceMetricsCalculator:
         Returns:
             Maximum drawdown as a negative percentage (e.g., -0.1 for -10%) (Decimal).
 
+        Raises:
+            EmptyMaxDrawdownError: If the returns series is empty.
+
         """
-        cumulative_returns: pd.Series[float] = (1 + returns).cumprod()
-        rolling_max: pd.Series[float] = cumulative_returns.cummax()
-        drawdown: pd.Series[float] = (cumulative_returns / rolling_max) - 1
+        # Check for empty series
+        if len(returns) == 0:
+            raise EmptyMaxDrawdownError
+
+        cumulative_returns: Series[float] = (1 + returns).cumprod()
+        rolling_max: Series[float] = cumulative_returns.cummax()
+        drawdown: Series[float] = (cumulative_returns / rolling_max) - 1
         max_drawdown: float = drawdown.min()
         return Decimal(str(max_drawdown))  # Convert to Decimal
 
     @staticmethod
-    def calculate_calmar_ratio(returns: pd.Series[float], periods_per_year: int = 252) -> Decimal:
+    def calculate_calmar_ratio(returns: Series[float], periods_per_year: int = 252) -> Decimal:
         """Calculate the Calmar ratio (Annualized Return / Abs(Max Drawdown)).
 
         Args:
@@ -125,6 +178,10 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Calmar ratio (Decimal).
+
+        Raises:
+            EmptyMaxDrawdownError: If the returns series is empty
+                (raised by calculate_max_drawdown).
 
         """
         # Calculate annualized return
@@ -178,6 +235,8 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Profit factor (Gross Profits / Gross Losses) (Decimal).
+            Returns NaN when gross profits are zero.
+            Returns Infinity when gross losses are zero but profits exist.
 
         """
         if trades.empty or "pnl" not in trades.columns:
@@ -194,11 +253,17 @@ class PerformanceMetricsCalculator:
             )
             return Decimal("Infinity") if gross_profits > 0 else Decimal("NaN")
 
+        if gross_profits == 0:
+            logger.warning(
+                "No profits recorded. Profit factor is undefined.",
+            )
+            return Decimal("NaN")
+
         return Decimal(str(gross_profits)) / Decimal(str(gross_losses))
 
     def calculate_all_metrics(
         self,
-        returns: pd.Series[float],
+        returns: Series[float],
         trades: pd.DataFrame | None = None,
         risk_free_rate: Decimal = Decimal("0.0"),
         periods_per_year: int = 252,
