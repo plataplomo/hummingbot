@@ -1,6 +1,5 @@
 """Unit tests for MarketOrderService."""
 
-import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -284,7 +283,8 @@ class TestMarketOrderService:
         ratio = service.calculate_liquidity_ratio(order_book, OrderSide.SELL, Decimal(10))
         assert ratio == Decimal("0.5")  # 5/10 = 0.5
 
-    def test_estimate_slippage_fallback(
+    @pytest.mark.asyncio
+    async def test_estimate_slippage_fallback(
         self,
         mock_exchange_api: AsyncMock,
         default_config: MarketOrderConfig,
@@ -313,12 +313,10 @@ class TestMarketOrderService:
 
         # When signal generator fails, it should fall back to config default
         # This is indirectly tested through the price calculation
-        price = asyncio.run(
-            service_with_failing_generator.calculate_aggressive_price(
-                symbol="BTC",
-                side=OrderSide.BUY,
-                quantity=Decimal(10),
-            )
+        price = await service_with_failing_generator.calculate_aggressive_price(
+            symbol="BTC",
+            side=OrderSide.BUY,
+            quantity=Decimal(10),
         )
 
         # Verify the price was calculated (indicating fallback worked)
@@ -326,7 +324,8 @@ class TestMarketOrderService:
         expected = Decimal(50010) * Decimal("1.005")
         assert abs(price - expected) < Decimal(1)
 
-    def test_estimate_slippage_no_generator(
+    @pytest.mark.asyncio
+    async def test_estimate_slippage_no_generator(
         self,
         mock_exchange_api: AsyncMock,
         default_config: MarketOrderConfig,
@@ -349,12 +348,10 @@ class TestMarketOrderService:
 
         # When no signal generator and insufficient liquidity, should raise error
         with pytest.raises(InsufficientLiquidityError):
-            asyncio.run(
-                service.calculate_aggressive_price(
-                    symbol="SOL",
-                    side=OrderSide.BUY,
-                    quantity=Decimal(100),
-                )
+            await service.calculate_aggressive_price(
+                symbol="SOL",
+                side=OrderSide.BUY,
+                quantity=Decimal(100),
             )
 
     @pytest.mark.asyncio

@@ -215,7 +215,7 @@ class TestAddSignal:
         """Test queue trimming when full."""
         # Arrange
         signal_queue.max_queue_size = 3
-        signals = []
+        signals: list[TradeSignal] = []
         for i in range(4):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
@@ -374,7 +374,7 @@ class TestGetNextSignal:
     ) -> None:
         """Test signals are returned in priority order."""
         # Arrange
-        signals = []
+        signals: list[TradeSignal] = []
         for i, score in enumerate([0.5, 0.9, 0.1]):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
@@ -510,7 +510,7 @@ class TestGetSignals:
     async def test_get_signals_success_all(self, signal_queue: PrioritySignalQueue) -> None:
         """Test getting all signals sorted by priority."""
         # Arrange
-        signals = []
+        signals: list[TradeSignal] = []
         for i, score in enumerate([0.5, 0.9, 0.1]):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
@@ -960,7 +960,7 @@ class TestAsyncMethods:
     ) -> None:
         """Test concurrent enqueue operations to verify lock handling in add_signal."""
         # Arrange - Create multiple different signals
-        signals = []
+        signals: list[TradeSignal] = []
         for i in range(5):
             signal = TradeSignal(
                 signal_id=f"test_signal_{i}",

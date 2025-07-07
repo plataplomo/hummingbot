@@ -98,7 +98,10 @@ class TestSymbolMapperInit:
     def test_init_edge_config_with_missing_symbols_key(self) -> None:
         """Test initialization when exchanges lack symbols key."""
         # Arrange
-        config = {"exchange1": {"enabled": True, "api_key": "test"}, "exchange2": {"symbols": {}}}
+        config: dict[str, dict[str, object]] = {
+            "exchange1": {"enabled": True, "api_key": "test"}, 
+            "exchange2": {"symbols": {}}
+        }
 
         # Act
         with patch("cyberdelta.core.symbol_mapper.logger") as mock_logger:

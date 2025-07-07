@@ -546,12 +546,41 @@ class RiskManager:
         return calculated_size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
 
     def _check_required_fields(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that all required fields are present in the opportunity.
+        """Check that all required fields are present and valid in the opportunity.
 
-        (Note: Pydantic validation handles this implicitly on creation/assignment).
+        Pydantic validation handles type constraints, but we need to check business logic.
         """
-        # Pydantic models validate on instantiation/assignment.
-        # No explicit method call needed here.
+        # Check that symbol is not empty
+        if not opportunity.symbol or not opportunity.symbol.strip():
+            self.logger.warning(
+                "opportunity_validation_failed_empty_symbol",
+                symbol=opportunity.symbol,
+                action="rejecting_opportunity",
+                message="Opportunity has empty or whitespace-only symbol",
+            )
+            return False
+
+        # Check that exchanges are not empty
+        if not opportunity.long_exchange or not opportunity.long_exchange.strip():
+            self.logger.warning(
+                "opportunity_validation_failed_empty_long_exchange",
+                symbol=opportunity.symbol,
+                long_exchange=opportunity.long_exchange,
+                action="rejecting_opportunity",
+                message="Opportunity has empty or whitespace-only long_exchange",
+            )
+            return False
+
+        if not opportunity.short_exchange or not opportunity.short_exchange.strip():
+            self.logger.warning(
+                "opportunity_validation_failed_empty_short_exchange",
+                symbol=opportunity.symbol,
+                short_exchange=opportunity.short_exchange,
+                action="rejecting_opportunity",
+                message="Opportunity has empty or whitespace-only short_exchange",
+            )
+            return False
+
         return True
 
     def _check_profitability(self, opportunity: ArbitrageOpportunity) -> bool:

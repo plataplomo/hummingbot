@@ -13,7 +13,8 @@ import structlog
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import TradeSignal
-    from cyberdelta.core.models.market.candle import Candle
+
+from cyberdelta.core.models.market.candle import Candle
 
 from .strategy import Strategy
 

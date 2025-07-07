@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import MagicMock  # Import patch
 from uuid import UUID
 
@@ -129,11 +130,10 @@ def create_test_signal(
         base_time if base_time is not None else datetime.now(UTC)
     )  # Use provided time or current UTC
     expiration = now + timedelta(seconds=expiration_offset)
-    metadata = {"utility_score": score}
+    metadata: dict[str, Any] = {"utility_score": score}
     if exchange_pair:
-        # Pyright might complain here as dict value is Any, ignoring.
-        metadata["long_exchange"] = exchange_pair[0]  # type: ignore
-        metadata["short_exchange"] = exchange_pair[1]  # type: ignore
+        metadata["long_exchange"] = exchange_pair[0]
+        metadata["short_exchange"] = exchange_pair[1]
 
     return TradeSignal(
         timestamp=now,

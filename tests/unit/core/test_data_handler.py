@@ -5,10 +5,9 @@ Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases for each 
 """
 
 import asyncio
-from collections.abc import Callable, Generator
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -22,17 +21,25 @@ from cyberdelta.core.data_handler import (
 )
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.symbol_mapper import SymbolMapper
+
+
+# Import shared fixtures from conftest.py - they will be automatically available
+# The following fixtures are imported:
+# - mock_app_settings (but we need to override it to add symbol configs)
+# - mock_portfolio_tracker
+# - mock_symbol_mapper
+# - sample_ticker
+# - sample_spot_balance
+# - sample_derivative_position
+# - sample_order
 
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing."""
-    # Add any required attributes
+    """Override mock app settings to add symbol configurations for data handler."""
     settings = Mock(spec=AppSettings)
 
-    # Create mock exchange configs
+    # Create mock exchange configs with symbols
     hl_config = Mock()
     hl_config.enabled = True
     hl_config.symbols = {"BTC": {}, "ETH": {}}
@@ -46,7 +53,7 @@ def mock_app_settings() -> Mock:
 
 
 @pytest.fixture
-def mock_api_clients() -> dict[str, Mock]:
+def mock_api_clients() -> dict[str, ExchangeAPI]:
     """Create mock API clients for testing."""
     hyperliquid_client = Mock(spec=ExchangeAPI)
     hyperliquid_client.exchange_id = "hyperliquid"
@@ -60,19 +67,8 @@ def mock_api_clients() -> dict[str, Mock]:
     }
 
 
-@pytest.fixture
-def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker for testing."""
-    return Mock(spec=PortfolioTracker)
-
-
-@pytest.fixture
-def mock_symbol_mapper() -> Mock:
-    """Create mock symbol mapper for testing."""
-    mapper = Mock(spec=SymbolMapper)
-    mapper.get_exchange_symbol = Mock(return_value="BTC-PERP")
-    mapper.get_canonical_symbol = Mock(return_value="BTC")
-    return mapper
+# mock_portfolio_tracker is imported from conftest.py
+# mock_symbol_mapper is imported from conftest.py
 
 
 @pytest.fixture
@@ -86,7 +82,7 @@ def mock_clock() -> Mock:
 @pytest.fixture
 def data_handler(
     mock_app_settings: Mock,
-    mock_api_clients: dict[str, Mock],
+    mock_api_clients: dict[str, ExchangeAPI],
     mock_portfolio_tracker: Mock,
     mock_symbol_mapper: Mock,
     mock_clock: Mock,
@@ -95,7 +91,7 @@ def data_handler(
     loop = asyncio.new_event_loop()
     handler = DataHandler(
         app_settings=mock_app_settings,
-        api_clients=cast("dict[str, ExchangeAPI]", mock_api_clients),
+        api_clients=mock_api_clients,
         portfolio_tracker=mock_portfolio_tracker,
         symbol_mapper=mock_symbol_mapper,
         clock=mock_clock,
@@ -106,16 +102,7 @@ def data_handler(
     loop.close()
 
 
-@pytest.fixture
-def sample_ticker() -> Ticker:
-    """Create sample ticker for testing."""
-    return Ticker(
-        symbol="BTC-PERP",
-        timestamp=datetime.now(UTC),
-        bid=Decimal("50000.0"),
-        ask=Decimal("50100.0"),
-        price=Decimal("50050.0"),
-    )
+# sample_ticker is imported from conftest.py
 
 
 @pytest.fixture
@@ -148,7 +135,7 @@ class TestDataHandlerInit:
     def test_data_handler_init_success(
         self,
         mock_app_settings: Mock,
-        mock_api_clients: dict[str, Mock],
+        mock_api_clients: dict[str, ExchangeAPI],
         mock_portfolio_tracker: Mock,
         mock_symbol_mapper: Mock,
     ) -> None:
@@ -159,7 +146,7 @@ class TestDataHandlerInit:
         # Act
         handler = DataHandler(
             app_settings=mock_app_settings,
-            api_clients=cast("dict[str, ExchangeAPI]", mock_api_clients),
+            api_clients=mock_api_clients,
             portfolio_tracker=mock_portfolio_tracker,
             symbol_mapper=mock_symbol_mapper,
             loop=loop,
@@ -192,7 +179,7 @@ class TestDataHandlerInit:
     def test_data_handler_init_success_with_custom_loop_and_clock(
         self,
         mock_app_settings: Mock,
-        mock_api_clients: dict[str, Mock],
+        mock_api_clients: dict[str, ExchangeAPI],
         mock_portfolio_tracker: Mock,
         mock_symbol_mapper: Mock,
         mock_clock: Mock,
@@ -204,7 +191,7 @@ class TestDataHandlerInit:
         # Act
         handler = DataHandler(
             app_settings=mock_app_settings,
-            api_clients=cast("dict[str, ExchangeAPI]", mock_api_clients),
+            api_clients=mock_api_clients,
             portfolio_tracker=mock_portfolio_tracker,
             symbol_mapper=mock_symbol_mapper,
             loop=custom_loop,
@@ -346,6 +333,8 @@ class TestGetLatestTicker:
         # Assert
         assert btc_result == sample_ticker
         assert eth_result == eth_ticker
+        assert btc_result is not None
+        assert eth_result is not None
         assert btc_result.symbol == "BTC-PERP"
         assert eth_result.symbol == "ETH-PERP"
 
@@ -743,7 +732,7 @@ class TestUnregisterObserver:
         # Act & Assert
         # This should either handle gracefully or raise appropriate error
         try:
-            data_handler.unregister_observer(cast("Callable[..., Any]", None))
+            data_handler.unregister_observer(None)
             assert True  # Handled gracefully
         except (TypeError, ValueError):
             assert True  # Raised appropriate error

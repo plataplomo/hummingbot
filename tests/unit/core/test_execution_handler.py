@@ -32,9 +32,7 @@ from cyberdelta.core.models import (
     OrderType,
     TimeInForce,
 )
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
-from cyberdelta.core.symbol_mapper import SymbolMapper
 from cyberdelta.validation.circuit_breaker import (
     CircuitBreakerSystem,
     CircuitBreakerTrippedError,
@@ -114,30 +112,22 @@ def _create_mock_order(
     return mock_order
 
 
+# Import shared fixtures from conftest.py - they will be automatically available
+# The following fixtures are imported:
+# - mock_portfolio_tracker
+# - mock_symbol_mapper
+# We override mock_app_settings to add execution-specific settings
+
+
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing."""
+    """Create mock app settings with execution-specific configuration."""
     settings = Mock(spec=AppSettings)
     settings.execution = Mock(spec=ExecutionSettings)
     settings.execution.max_slippage_pct = Decimal("0.01")
     settings.execution.max_retries = 3
     settings.execution.retry_delay_base_sec = 1
     return settings
-
-
-@pytest.fixture
-def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker."""
-    return Mock(spec=PortfolioTracker)
-
-
-@pytest.fixture
-def mock_symbol_mapper() -> Mock:
-    """Create mock symbol mapper."""
-    mapper = Mock(spec=SymbolMapper)
-    mapper.get_exchange_symbol = Mock(return_value="BTC-PERP")
-    mapper.get_internal_symbol = Mock(return_value="BTC")
-    return mapper
 
 
 @pytest.fixture
