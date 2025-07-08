@@ -115,9 +115,8 @@ class BalanceMonitor:
                 continue
 
             # Use balance monitoring thresholds from safety_systems
-            balance_thresholds = (
-                self.app_settings.safety_systems.balance_monitoring.min_balance_thresholds_usd
-            )
+            balance_monitoring = self.app_settings.safety_systems.balance_monitoring
+            balance_thresholds: dict[str, Decimal] = balance_monitoring.min_balance_thresholds_usd
 
             # Set default minimum USDC balance for each exchange
             min_usdc = balance_thresholds.get(exchange_id, self.min_usdc_balance)

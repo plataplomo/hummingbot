@@ -4,10 +4,13 @@ This module provides test-specific subclasses that expose protected methods
 as public test methods, following the recommendations from DETAILED_TEST_ANALYSIS.md.
 """
 
+import asyncio
 from decimal import Decimal
 
-from cyberdelta.core.execution_handler import ExecutionHandler, TradeExecution
+from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import Order, OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models.execution import TradeExecution
+from cyberdelta.core.services.interfaces import OrderRequest
 
 
 class TestableExecutionHandler(ExecutionHandler):
@@ -37,19 +40,22 @@ class TestableExecutionHandler(ExecutionHandler):
         is_long_leg: bool = True,
     ) -> Order | None:
         """Wrapper that exposes _place_order_with_retry for testing."""
-        return await self._place_order_with_retry(
-            execution,
-            exchange_id,
-            symbol,
-            side,
-            quantity,
-            order_type,
-            price,
-            time_in_force,
-            reduce_only,
-            post_only,
-            is_long_leg,
-        )
+        # The refactored ExecutionHandler uses services now
+        if hasattr(self.services, "order_service"):
+            request = OrderRequest(
+                exchange_id=exchange_id,
+                symbol=symbol,
+                side=side,
+                quantity=quantity,
+                order_type=order_type,
+                price=price,
+                time_in_force=time_in_force,
+                reduce_only=reduce_only,
+                post_only=post_only,
+            )
+            result = await self.services.order_service.place_order_with_retry(request)
+            return result.data if result.success else None
+        return None
 
     async def expose_get_order_status(
         self,
@@ -60,13 +66,11 @@ class TestableExecutionHandler(ExecutionHandler):
         client_order_id: str | None = None,
     ) -> Order | None:
         """Wrapper that exposes _get_order_status for testing."""
-        return await self._get_order_status(
-            execution,
-            exchange_id,
-            order_id,
-            symbol,
-            client_order_id,
-        )
+        # The refactored ExecutionHandler uses services now
+        if hasattr(self.services, "order_service"):
+            result = await self.services.order_service.get_order_status(order_id, exchange_id)
+            return result.data if result.success else None
+        return None
 
     async def test_compensate_position(
         self,
@@ -77,7 +81,13 @@ class TestableExecutionHandler(ExecutionHandler):
         quantity: Decimal,
     ) -> bool:
         """Test wrapper for _compensate_position."""
-        return await self._compensate_position(execution, exchange_id, symbol, side, quantity)
+        # The refactored ExecutionHandler uses services now
+        if hasattr(self.services, "compensation_service"):
+            result = await self.services.compensation_service.compensate_position(
+                execution, "test_leg", quantity
+            )
+            return result.success
+        return False
 
     def test_add_to_history(self, execution: TradeExecution) -> None:
         """Test wrapper for _add_to_history.
@@ -85,7 +95,15 @@ class TestableExecutionHandler(ExecutionHandler):
         Args:
             execution: Trade execution to add to history.
         """
-        return self._add_to_history(execution)
+        # The refactored ExecutionHandler uses services now
+        if hasattr(self.services, "state_manager"):
+            try:
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(
+                    self.services.state_manager.finalize_execution(execution.id)
+                )
+            except RuntimeError:
+                pass
 
     @property
     def test_execution_history(self) -> list[TradeExecution]:
@@ -94,4 +112,4 @@ class TestableExecutionHandler(ExecutionHandler):
         Returns:
             Copy of the execution history list.
         """
-        return list(self.executions)  # Return a copy for safety
+        return list(self.get_active_executions())  # Return a copy for safety

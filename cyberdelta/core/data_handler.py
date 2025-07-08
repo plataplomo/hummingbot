@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
 
-logger = structlog.get_logger(__name__)
+logger: Any = structlog.get_logger(__name__)
 sampled_logger = SampledLogger(logger, sample_rate=0.1)
 
 # Type alias for the observer callback

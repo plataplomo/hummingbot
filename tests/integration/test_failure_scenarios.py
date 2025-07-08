@@ -12,10 +12,11 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config import AppSettings  # Updated import
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.execution_handler import ExecutionHandler, ExecutionStatus, TradeExecution
+from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import (
     SpotBalance,
 )
+from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.validation import ArbitrageOpportunity

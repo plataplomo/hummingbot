@@ -3,9 +3,7 @@
 from .balance_monitor import BalanceMonitor
 from .data_handler import DataHandler
 from .engine import Engine
-
-# NOTE: ExecutionHandler removed from __init__ to avoid circular import
-# Import directly from cyberdelta.core.execution_handler instead
+from .execution_handler import ExecutionHandler
 from .portfolio_tracker import PortfolioTracker
 from .risk_manager import RiskManager
 from .signal_generator import SignalGenerator
@@ -18,6 +16,7 @@ __all__ = [
     "BalanceMonitor",
     "DataHandler",
     "Engine",
+    "ExecutionHandler",
     "PortfolioTracker",
     # "SignalQueue",  # Incorrect name
     "PrioritySignalQueue",  # Correct name

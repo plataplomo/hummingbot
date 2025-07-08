@@ -26,11 +26,7 @@ from cyberdelta.config.structlog_config import get_logger
 
 # Core Components
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.execution_handler import (  # Added TradeExecution
-    ExecutionHandler,
-    ExecutionStatus,
-    TradeExecution,
-)
+from cyberdelta.core.execution_handler import ExecutionHandler
 
 # Models
 from cyberdelta.core.models import (
@@ -44,6 +40,7 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,  # Add TradeSignal import
 )
+from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import (
     PortfolioTrackerProtocol,
