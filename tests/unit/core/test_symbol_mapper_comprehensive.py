@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.core.symbol_mapper import (
-    InvalidConfigurationError,
-    SymbolMapper,
+from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.exceptions import (
+    SymbolMappingConfigurationError as InvalidConfigurationError,
     SymbolMappingError,
 )
 
@@ -24,30 +24,27 @@ class TestInvalidConfigurationError:
     def test_invalid_configuration_error_success_creation(self) -> None:
         """Test successful creation of InvalidConfigurationError."""
         # Arrange
-        expected_type = "dict"
-        actual_type = list
+        message = "Configuration must be a dictionary"
 
         # Act
-        error = InvalidConfigurationError(expected_type, actual_type)
+        error = InvalidConfigurationError(message, config_type="test")
 
         # Assert
-        assert error.expected_type == expected_type
-        assert error.actual_type == actual_type
-        assert str(error) == f"Invalid configuration: Expected {expected_type}, got {actual_type}"
+        assert str(error) == message
+        assert error.config_type == "test"
         assert isinstance(error, SymbolMappingError)
 
     def test_invalid_configuration_error_success_with_complex_types(self) -> None:
         """Test error creation with complex type names."""
         # Arrange
-        expected_type = "Dict[str, Any]"
-        actual_type = tuple
+        message = "Expected Dict[str, Any], got tuple"
 
         # Act
-        error = InvalidConfigurationError(expected_type, actual_type)
+        error = InvalidConfigurationError(message, config_type="complex")
 
         # Assert
-        assert error.expected_type == expected_type
-        assert error.actual_type == actual_type
+        assert str(error) == message
+        assert error.config_type == "complex"
 
 
 class TestSymbolMapperInit:
@@ -78,7 +75,6 @@ class TestSymbolMapperInit:
 
         # Assert
         assert mapper is not None
-        assert mapper.raw_config == config
         assert len(mapper.get_all_internal_symbols()) == 3  # BTC, ETH, SOL
 
     def test_init_success_with_empty_config(self) -> None:
@@ -99,8 +95,8 @@ class TestSymbolMapperInit:
         """Test initialization when exchanges lack symbols key."""
         # Arrange
         config: dict[str, dict[str, object]] = {
-            "exchange1": {"enabled": True, "api_key": "test"}, 
-            "exchange2": {"symbols": {}}
+            "exchange1": {"enabled": True, "api_key": "test"},
+            "exchange2": {"symbols": {}},
         }
 
         # Act

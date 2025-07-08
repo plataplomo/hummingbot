@@ -875,7 +875,7 @@ class PortfolioTracker:
             )
         else:
             base_symbol = (
-                self.symbol_mapper.get_internal_symbol(exchange_id, trade.symbol)
+                self.symbol_mapper.get_internal_symbol(trade.symbol, exchange_id)
                 or trade.symbol.split("-")[0].split("/")[0]
             )
         return base_symbol

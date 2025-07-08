@@ -48,6 +48,11 @@ from cyberdelta.core.risk_manager import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.exceptions import (
+    ExchangeNotSupportedError,
+    SymbolMappingFieldError,
+    SymbolNotFoundError,
+)
 from cyberdelta.validation.funding_data import ArbitrageOpportunity  # Added Import
 
 # Mocks & Config
@@ -675,8 +680,9 @@ async def test_happy_path_full_cycle(
         # ex_id_key is exchange_id (e.g., 'mock_hl')
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             # We need to map ex_specific_sym back to internal_sym for sg_funding_data
-            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
-            if internal_sym is None:
+            try:
+                internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
                     "test_funding_prep_mapping_failed",
                     exchange_id=ex_id_key,
@@ -1288,8 +1294,9 @@ async def test_partial_fill(
         # ex_id_key is exchange_id (e.g., 'mock_hl')
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             # We need to map ex_specific_sym back to internal_sym for sg_funding_data
-            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
-            if internal_sym is None:
+            try:
+                internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
                     "test_funding_prep_mapping_failed_1",
                     exchange_id=ex_id_key,
@@ -1781,8 +1788,9 @@ def _prepare_funding_data(
     sg_funding_data: dict[str, dict[str, FundingRate | None]] = defaultdict(dict)
     for ex_id_key, sym_data_map in data_handler.funding_rates.items():
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
-            internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
-            if internal_sym is None:
+            try:
+                internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+            except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
                     "test_funding_prep_mapping_failed_2",
                     exchange_id=ex_id_key,

@@ -208,14 +208,64 @@ class ICircuitBreakerService(Protocol):
 
 @runtime_checkable
 class ISymbolMapper(Protocol):
-    """Interface for symbol mapping operations."""
+    """Comprehensive interface for symbol mapping operations."""
 
-    def get_exchange_symbol(self, internal_symbol: str, exchange_id: str) -> str | None:
-        """Get exchange-specific symbol from internal symbol."""
+    def get_exchange_symbol(self, internal_symbol: str, exchange_id: str) -> str:
+        """Get exchange-specific symbol from internal symbol.
+
+        Raises:
+            SymbolMappingError: If symbol not found or invalid parameters.
+        """
         ...
 
-    def get_internal_symbol(self, exchange_symbol: str, exchange_id: str) -> str | None:
-        """Get internal symbol from exchange-specific symbol."""
+    def get_internal_symbol(self, exchange_symbol: str, exchange_id: str) -> str:
+        """Get internal symbol from exchange-specific symbol.
+
+        Raises:
+            SymbolMappingError: If symbol not found or invalid parameters.
+        """
+        ...
+
+    def get_all_internal_symbols(self) -> list[str]:
+        """Get all configured internal symbols."""
+        ...
+
+    def get_exchange_symbols_for_internal(self, internal_symbol: str) -> dict[str, str]:
+        """Get all exchange symbols for an internal symbol.
+
+        Raises:
+            SymbolMappingError: If internal symbol not found.
+        """
+        ...
+
+    def get_internal_symbols_for_exchange(self, exchange_id: str) -> dict[str, str]:
+        """Get all internal symbols for an exchange.
+
+        Raises:
+            SymbolMappingError: If exchange not found.
+        """
+        ...
+
+    def is_symbol_supported(self, internal_symbol: str, exchange_id: str) -> bool:
+        """Check if symbol is supported on exchange."""
+        ...
+
+    def validate_symbol_pair(
+        self, internal_symbol: str, long_exchange: str, short_exchange: str
+    ) -> None:
+        """Validate symbol is available on both exchanges for arbitrage.
+
+        Raises:
+            SymbolMappingError: If symbol not available on either exchange.
+        """
+        ...
+
+    def get_symbol_coverage(self, internal_symbol: str) -> dict[str, bool]:
+        """Get symbol availability across all configured exchanges."""
+        ...
+
+    def get_supported_exchanges(self) -> list[str]:
+        """Get list of all supported exchange IDs."""
         ...
 
 

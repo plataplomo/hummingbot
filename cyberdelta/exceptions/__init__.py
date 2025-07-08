@@ -95,6 +95,17 @@ from .service_validation import (
     UnsupportedNetworkError,
 )
 
+# Symbol mapping exceptions
+from .symbol_mapping import (
+    ExchangeNotSupportedError,
+    InvalidSymbolFormatError,
+    SymbolMappingConfigurationError,
+    SymbolMappingError,
+    SymbolMappingErrorMessages,
+    SymbolMappingFieldError,
+    SymbolNotFoundError,
+)
+
 
 # Strategy exceptions moved to cyberdelta.apis.exceptions
 
@@ -117,6 +128,7 @@ __all__ = [
     "EmptyStringError",
     "EmptyStringParameterError",
     "EnumFieldError",
+    "ExchangeNotSupportedError",
     "FieldError",
     "FieldNameMissingError",
     "FundingError",
@@ -124,6 +136,7 @@ __all__ = [
     "IntegerConversionError",
     "InvalidAccountTypeError",
     "InvalidFormatError",
+    "InvalidSymbolFormatError",
     "ListFieldError",
     "MissingPriceError",
     "MissingStopPriceError",
@@ -151,6 +164,11 @@ __all__ = [
     "RequiredFieldError",
     "RequiredFieldNoneError",
     "ServiceValidationError",
+    "SymbolMappingConfigurationError",
+    "SymbolMappingError",
+    "SymbolMappingErrorMessages",
+    "SymbolMappingFieldError",
+    "SymbolNotFoundError",
     "TimeRangeError",
     "TimestampFieldError",
     "TimestampFormatError",

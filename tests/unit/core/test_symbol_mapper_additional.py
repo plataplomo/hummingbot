@@ -11,9 +11,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from cyberdelta.core.symbol_mapper import (
-    InvalidConfigurationError,
-    SymbolMapper,
+from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.exceptions import (
+    SymbolMappingConfigurationError as InvalidConfigurationError,
 )
 
 
@@ -210,8 +210,8 @@ class TestSymbolMapperInitialization:
         with pytest.raises(InvalidConfigurationError) as exc_info:
             SymbolMapper(invalid_config)
 
-        assert exc_info.value.expected_type == "a dictionary of exchanges"
-        assert exc_info.value.actual_type is str
+        # The new exception interface just checks that the error was raised
+        assert "Configuration must be a dictionary" in str(exc_info.value)
 
     def test_init_failure_none_config(self) -> None:
         """Test initialization with None config."""
