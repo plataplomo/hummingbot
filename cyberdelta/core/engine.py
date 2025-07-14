@@ -367,7 +367,7 @@ class Engine:
         for idx, row in df.iterrows():
             # Cast to ensure proper typing for pandas operations
             # Note: pandas iterrows returns (index, Series[Unknown]) due to dynamic nature
-            idx_typed: int = idx  # type: ignore
+            idx_typed = idx
             # DEFENSIVE CHECK: Handle pandas Series dynamic typing
             # Pyright=[reportUnknownVariableType] - pandas Series typing is inherently dynamic
             row_typed: pd.Series[Any] = row

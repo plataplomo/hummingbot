@@ -135,7 +135,10 @@ class SymbolMapper:
                 metadata={"exchange_id": exchange_id, "symbols_type": type(symbols_value).__name__},
             )
 
-        if not symbols_value:
+        # Type narrowing: we now know symbols_value is a dict
+        symbols_dict: dict[str, str] = symbols_value
+
+        if not symbols_dict:
             raise SymbolMappingConfigurationError(
                 ErrorMessages.SYMBOLS_EMPTY,
                 exchange_id=exchange_id,
@@ -148,13 +151,13 @@ class SymbolMapper:
         self._internal_to_exchange[exchange_id] = {}
 
         # Process each symbol mapping individually to avoid type issues
-        for internal_symbol, exchange_symbol in symbols_value.items():
+        for internal_symbol, exchange_symbol in symbols_dict.items():
             self._process_single_symbol_mapping(exchange_id, internal_symbol, exchange_symbol)
 
         logger.debug(
             "Processed symbol mappings for exchange",
             exchange_id=exchange_id,
-            symbol_count=len(symbols_value),
+            symbol_count=len(symbols_dict),
         )
 
     def _process_single_symbol_mapping(

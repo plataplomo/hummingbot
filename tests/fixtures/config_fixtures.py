@@ -25,6 +25,7 @@ from cyberdelta.config.models.config_models import (
     AppSettings,
     BalanceMonitoringSettings,
     CircuitBreakerSettings,
+    EnhancedRiskSettings,
     ExchangeSpecificConfig,
     ExecutionCompensationSettings,
     ExecutionSettings,
@@ -33,7 +34,6 @@ from cyberdelta.config.models.config_models import (
     MonitoringSettings,
     PortfolioTrackerConfig,
     PositionReconciliationSettings,
-    RiskSettings,
     SafetySystemsSettings,
 )
 from cyberdelta.config.models.funding_strategy_models import (
@@ -199,18 +199,16 @@ def mock_config() -> AppSettings:
                 ),
             ),
         ),
-        risk=RiskSettings(
-            **{
-                "global": GlobalRiskSettings(
-                    max_position_usd=Decimal("200.0"),
-                    max_total_exposure_usd=Decimal("1000.0"),
-                ),
-            },
-            use_simple_sizing_path=True,
-            simple_sizing_method="fixed_fraction",
-            simple_fixed_fraction=Decimal("0.1"),
-            simple_fixed_usd_size=Decimal("10.0"),
-        ),
+        risk=EnhancedRiskSettings.model_validate({
+            "global": GlobalRiskSettings(
+                max_position_usd=Decimal("200.0"),
+                max_total_exposure_usd=Decimal("1000.0"),
+            ),
+            "use_simple_sizing_path": True,
+            "simple_sizing_method": "fixed_fraction",
+            "simple_fixed_fraction": Decimal("0.1"),
+            "simple_fixed_usd_size": Decimal("10.0"),
+        }),
         execution=ExecutionSettings(
             max_slippage_pct=Decimal("0.001"),
             max_retries=3,

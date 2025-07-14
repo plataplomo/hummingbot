@@ -98,22 +98,8 @@ class FundingRateArbitrageStrategy(Strategy):
             )
         if not name:
             raise RequiredFieldError(field_name="name", context="strategy initialization")
-        if not isinstance(name, str):
-            raise TypeFieldError(
-                field_name="name",
-                expected_type="str",
-                actual_type=type(name).__name__,
-                actual_value=name,
-            )
         if not symbol:
             raise RequiredFieldError(field_name="symbol", context="strategy initialization")
-        if not isinstance(symbol, str):
-            raise TypeFieldError(
-                field_name="symbol",
-                expected_type="str",
-                actual_type=type(symbol).__name__,
-                actual_value=symbol,
-            )
 
         super().__init__(name, symbol, params)
         self.data_handler = data_handler

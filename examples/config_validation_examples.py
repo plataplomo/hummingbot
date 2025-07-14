@@ -13,6 +13,7 @@ from pydantic import HttpUrl
 
 from cyberdelta.config.models.config_models import (
     AppSettings,
+    EnhancedRiskSettings,
     ExchangeSpecificConfig,
     ExecutionCompensationSettings,
     ExecutionSettings,
@@ -20,7 +21,6 @@ from cyberdelta.config.models.config_models import (
     GlobalRiskSettings,
     MonitoringSettings,
     PortfolioTrackerConfig,
-    RiskSettings,
     SafetySystemsSettings,
 )
 from cyberdelta.config.models.funding_strategy_models import (
@@ -99,18 +99,16 @@ def example_1_valid_configuration() -> None:
                 ),
             ),
         ),
-        risk=RiskSettings(
-            **{
-                "global": GlobalRiskSettings(
-                    max_position_usd=Decimal(1000),
-                    max_total_exposure_usd=Decimal(5000),
-                )
-            },
-            use_simple_sizing_path=True,
-            simple_sizing_method="fixed_fraction",
-            simple_fixed_fraction=Decimal("0.1"),
-            simple_fixed_usd_size=Decimal(100),
-        ),
+        risk=EnhancedRiskSettings.model_validate({
+            "global": GlobalRiskSettings(
+                max_position_usd=Decimal(1000),
+                max_total_exposure_usd=Decimal(5000),
+            ),
+            "use_simple_sizing_path": True,
+            "simple_sizing_method": "fixed_fraction",
+            "simple_fixed_fraction": Decimal("0.1"),
+            "simple_fixed_usd_size": Decimal(100),
+        }),
         execution=ExecutionSettings(
             max_slippage_pct=Decimal("0.001"),  # 0.1%
             max_retries=3,
@@ -197,18 +195,16 @@ def example_2_critical_errors() -> None:
                 ),
             ),
         ),
-        risk=RiskSettings(
-            **{
-                "global": GlobalRiskSettings(
-                    max_position_usd=Decimal(1000),
-                    max_total_exposure_usd=Decimal(500),  # ❌ CRITICAL: Less than max_position_usd
-                )
-            },
-            use_simple_sizing_path=True,
-            simple_sizing_method="fixed_fraction",
-            simple_fixed_fraction=Decimal("1.5"),  # ❌ CRITICAL: > 1.0
-            simple_fixed_usd_size=Decimal(100),
-        ),
+        risk=EnhancedRiskSettings.model_validate({
+            "global": GlobalRiskSettings(
+                max_position_usd=Decimal(1000),
+                max_total_exposure_usd=Decimal(500),  # ❌ CRITICAL: Less than max_position_usd
+            ),
+            "use_simple_sizing_path": True,
+            "simple_sizing_method": "fixed_fraction",
+            "simple_fixed_fraction": Decimal("1.5"),  # ❌ CRITICAL: > 1.0
+            "simple_fixed_usd_size": Decimal(100),
+        }),
         execution=ExecutionSettings(
             max_slippage_pct=Decimal("1.5"),  # ❌ CRITICAL: 150% slippage
             max_retries=-1,  # ❌ CRITICAL: Negative retries
@@ -306,18 +302,16 @@ def example_3_warnings_only() -> None:
                 ),
             ),
         ),
-        risk=RiskSettings(
-            **{
-                "global": GlobalRiskSettings(
-                    max_position_usd=Decimal(5),  # ⚠️ WARNING: Very low position size
-                    max_total_exposure_usd=Decimal(5000),
-                )
-            },
-            use_simple_sizing_path=True,
-            simple_sizing_method="fixed_fraction",
-            simple_fixed_fraction=Decimal("0.1"),
-            simple_fixed_usd_size=Decimal(100),
-        ),
+        risk=EnhancedRiskSettings.model_validate({
+            "global": GlobalRiskSettings(
+                max_position_usd=Decimal(5),  # ⚠️ WARNING: Very low position size
+                max_total_exposure_usd=Decimal(5000),
+            ),
+            "use_simple_sizing_path": True,
+            "simple_sizing_method": "fixed_fraction",
+            "simple_fixed_fraction": Decimal("0.1"),
+            "simple_fixed_usd_size": Decimal(100),
+        }),
         execution=ExecutionSettings(
             max_slippage_pct=Decimal("0.08"),  # ⚠️ WARNING: High slippage (8%)
             max_retries=15,  # ⚠️ WARNING: Very high retry count
@@ -417,18 +411,16 @@ def example_4_testnet_configuration() -> None:
                 ),
             ),
         ),
-        risk=RiskSettings(
-            **{
-                "global": GlobalRiskSettings(
-                    max_position_usd=Decimal(100),  # Lower for testnet
-                    max_total_exposure_usd=Decimal(500),
-                )
-            },
-            use_simple_sizing_path=True,
-            simple_sizing_method="fixed_usd",
-            simple_fixed_fraction=Decimal("0.1"),
-            simple_fixed_usd_size=Decimal(10),  # Small for testnet
-        ),
+        risk=EnhancedRiskSettings.model_validate({
+            "global": GlobalRiskSettings(
+                max_position_usd=Decimal(100),  # Lower for testnet
+                max_total_exposure_usd=Decimal(500),
+            ),
+            "use_simple_sizing_path": True,
+            "simple_sizing_method": "fixed_usd",
+            "simple_fixed_fraction": Decimal("0.1"),
+            "simple_fixed_usd_size": Decimal(10),  # Small for testnet
+        }),
         execution=ExecutionSettings(
             max_slippage_pct=Decimal("0.01"),  # Higher for testnet
             max_retries=5,  # More retries for potentially flaky testnet

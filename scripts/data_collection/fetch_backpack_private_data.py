@@ -33,6 +33,12 @@ from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator  # noq
 from cyberdelta.config import get_app_settings, get_secrets_config  # noqa: E402
 from cyberdelta.config.logging_config import setup_logging  # noqa: E402
 from cyberdelta.config.structlog_config import get_logger  # noqa: E402
+from cyberdelta.exceptions.base import (  # noqa: E402
+    ConfigurationError,
+    InvalidAuthTypeError,
+    RequiredParameterError,
+    SecretsNotLoadedError,
+)
 
 
 logger = get_logger(__name__)
@@ -60,9 +66,9 @@ class BackpackPrivateDataCollector:
             app_settings = get_app_settings()
             backpack_config = app_settings.exchanges.get("backpack")
             if not backpack_config:
-                raise ValueError("Backpack exchange configuration not found")
+                raise ConfigurationError("Backpack exchange configuration not found")
             if not backpack_config.enabled:
-                raise ValueError("Backpack exchange is disabled in configuration")
+                raise ConfigurationError("Backpack exchange is disabled in configuration")
 
             self.api_base_url = str(backpack_config.active_api_base_url).rstrip("/")
             self.configured_symbols = backpack_config.symbols
@@ -70,14 +76,14 @@ class BackpackPrivateDataCollector:
             # Get authentication secrets
             secrets = get_secrets_config()
             if not secrets or not secrets.exchanges:
-                raise ValueError("Exchange secrets configuration not found")
+                raise SecretsNotLoadedError("secrets.json", False, True)
 
             backpack_secrets = secrets.exchanges.get("backpack")
             if not backpack_secrets:
-                raise ValueError("Backpack exchange secrets not found")
+                raise RequiredParameterError("backpack", "exchange secrets", "backpack")
 
             if backpack_secrets.auth_type != "api_key":
-                raise ValueError("Backpack authentication must be 'api_key' type")
+                raise InvalidAuthTypeError("backpack", "api_key", backpack_secrets.auth_type)
 
             # Initialize authenticator
             self.authenticator = authenticator_class(

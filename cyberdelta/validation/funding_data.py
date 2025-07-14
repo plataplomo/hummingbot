@@ -12,7 +12,15 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from cyberdelta.exceptions.funding import (
     NegativeLongPriceError,
@@ -263,6 +271,20 @@ class ArbitrageOpportunity(BaseModel):
     expiration_timestamp: float | None = Field(default=None)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
+    # Additional fields needed by risk checkers (aliased/computed from existing fields)
+    volatility: Decimal | None = Field(
+        default=None, ge=0, description="Volatility estimate (alias for basis_volatility)"
+    )
+    expected_profit_usd: Decimal | None = Field(
+        default=None, description="Expected profit in USD (alias for expected_profit)"
+    )
+    estimated_size_usd: Decimal | None = Field(
+        default=None, gt=0, description="Estimated trade size in USD (alias for optimal_size)"
+    )
+    expected_return_percentage: Decimal | None = Field(
+        default=None, description="Expected return as percentage"
+    )
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True, coerce_numbers_to_str=True)
 
     @field_validator(
@@ -273,6 +295,10 @@ class ArbitrageOpportunity(BaseModel):
         "net_funding_differential",
         "expected_profit",
         "optimal_size",
+        "volatility",
+        "expected_profit_usd",
+        "estimated_size_usd",
+        "expected_return_percentage",
         mode="before",
     )
     @classmethod
@@ -348,3 +374,46 @@ class ArbitrageOpportunity(BaseModel):
             raise NegativeSizeError(float(self.optimal_size))
         # No need to check for None or always-true conditions on required fields
         return self
+
+    @model_validator(mode="after")
+    def sync_aliased_fields(self) -> Self:
+        """Initialize aliased fields from their primary sources for backward compatibility.
+
+        This ensures that aliased fields have initial values derived from their
+        primary sources when not explicitly set. The aliased fields can still be
+        set independently after model creation.
+        """
+        # Initialize volatility from basis_volatility if not set
+        if self.volatility is None and self.basis_volatility is not None:
+            self.volatility = Decimal(str(self.basis_volatility))
+
+        # Initialize expected_profit_usd from expected_profit if not set
+        if self.expected_profit_usd is None and self.expected_profit is not None:
+            self.expected_profit_usd = self.expected_profit
+
+        # Initialize estimated_size_usd from optimal_size if not set
+        if self.estimated_size_usd is None and self.optimal_size is not None:
+            self.estimated_size_usd = self.optimal_size
+
+        return self
+
+    @field_serializer("basis_volatility")
+    def serialize_basis_volatility(self, value: float | None) -> float | None:
+        """Ensure basis_volatility reflects the current volatility value if set."""
+        if value is None and self.volatility is not None:
+            return float(self.volatility)
+        return value
+
+    @field_serializer("expected_profit")
+    def serialize_expected_profit(self, value: Decimal | None) -> Decimal | None:
+        """Ensure expected_profit reflects the current expected_profit_usd value if set."""
+        if value is None and self.expected_profit_usd is not None:
+            return self.expected_profit_usd
+        return value
+
+    @field_serializer("optimal_size")
+    def serialize_optimal_size(self, value: Decimal | None) -> Decimal | None:
+        """Ensure optimal_size reflects the current estimated_size_usd value if set."""
+        if value is None and self.estimated_size_usd is not None:
+            return self.estimated_size_usd
+        return value

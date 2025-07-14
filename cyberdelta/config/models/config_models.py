@@ -70,8 +70,8 @@ class GeneralSettings(BaseModel):
     safe_mode: bool = True
     state_file: NonEmptyConfigString = "data/state.json"
     state_backup_directory: NonEmptyConfigString = "data/state_backups"
-    state_save_interval: int = Field(300, gt=0)  # seconds
-    state_backup_count: int = Field(5, gt=0)  # Number of previous state files to keep
+    state_save_interval: int = Field(default=300, gt=0)  # seconds
+    state_backup_count: int = Field(default=5, gt=0)  # Number of previous state files to keep
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -376,16 +376,203 @@ class GlobalRiskSettings(BaseModel):
     max_total_exposure_usd: ConfigDecimal = Field(..., gt=Decimal(0))
 
 
-class RiskSettings(BaseModel):
-    """Risk management configuration."""
+class CheckerThresholds(BaseModel):
+    """Complete strongly typed checker thresholds covering all risk module needs."""
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
+    # Profitability thresholds
+    min_profitability: ConfigDecimal = Field(default=Decimal("0.001"), gt=Decimal(0))
+
+    # Price sanity thresholds
+    max_price_deviation: ConfigDecimal = Field(default=Decimal("0.1"), gt=Decimal(0), le=Decimal(1))
+    max_price_spread: ConfigDecimal = Field(default=Decimal("0.05"), gt=Decimal(0), le=Decimal(1))
+    min_price: ConfigDecimal = Field(default=Decimal("0.0000001"), gt=Decimal(0))
+    max_price: ConfigDecimal = Field(default=Decimal(1000000), gt=Decimal(0))
+    outlier_z_score_threshold: float = Field(default=3.0, gt=0, le=10)
+
+    # Funding rate thresholds
+    min_funding_rate: ConfigDecimal = Field(
+        default=Decimal("-0.01"), ge=Decimal(-1), le=Decimal(0)
+    )  # -1%
+    max_funding_rate: ConfigDecimal = Field(default=Decimal("0.01"), gt=Decimal(0), le=Decimal(1))
+    max_funding_rate_spread: ConfigDecimal = Field(default=Decimal("0.005"), gt=Decimal(0))
+    max_funding_rate_volatility: ConfigDecimal = Field(
+        default=Decimal("0.002"), gt=Decimal(0), le=Decimal(1)
+    )  # 0.2%
+    min_funding_rate_confidence: ConfigDecimal = Field(
+        default=Decimal("0.7"), ge=Decimal(0), le=Decimal(1)
+    )  # 70%
+
+    # Volatility thresholds
+    max_volatility: ConfigDecimal = Field(default=Decimal("0.2"), gt=Decimal(0), le=Decimal(2))
+    min_volatility: ConfigDecimal = Field(default=Decimal("0.001"), gt=Decimal(0))
+
+    # Balance thresholds
+    min_balance_ratio: ConfigDecimal = Field(default=Decimal("0.1"), gt=Decimal(0), le=Decimal(1))
+
+    @model_validator(mode="after")
+    def validate_threshold_relationships(self) -> Self:
+        """Validate logical relationships between thresholds."""
+        if self.min_profitability >= self.max_price_spread:
+            msg = "min_profitability must be less than max_price_spread"
+            raise ValueError(msg)
+        if self.min_price >= self.max_price:
+            msg = "min_price must be less than max_price"
+            raise ValueError(msg)
+        return self
+
+
+class CheckerSettings(BaseModel):
+    """Enhanced checker configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # Enable/disable flags
+    enable_required_fields: bool = True
+    enable_profitability: bool = True
+    enable_circuit_breaker: bool = True
+    enable_price_sanity: bool = True
+    enable_funding_rate: bool = True
+    enable_volatility: bool = True
+    enable_balance: bool = True
+
+    # Thresholds
+    thresholds: CheckerThresholds = Field(default_factory=CheckerThresholds)
+
+    # Pipeline configuration
+    fail_fast: bool = True
+    max_concurrent_checks: int = Field(default=5, gt=0, le=20)
+    check_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+
+    # Lookback periods
+    funding_rate_lookback_hours: int = Field(default=24, gt=0, le=168)
+    volatility_lookback_hours: int = Field(default=24, gt=0, le=168)
+
+    # Feature flags
+    include_fees_in_profitability: bool = True
+    enable_outlier_detection: bool = True
+    check_both_exchanges: bool = True
+
+    # Funding rate specific settings
+    enable_funding_rate_stability_check: bool = True
+    require_primary_funding_source: bool = True
+
+    # Extensibility (preserve from current CheckConfig)
+    extra_config: dict[str, Any] | None = None
+
+
+class SizingSettings(BaseModel):
+    """Enhanced sizing configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # Method selection
+    method: Literal["kelly", "simple"] = "simple"
+
+    # Kelly criterion parameters
+    kelly_multiplier: ConfigDecimal = Field(default=Decimal("0.25"), gt=Decimal(0), le=Decimal(1))
+    kelly_max_allocation: ConfigDecimal = Field(
+        default=Decimal("0.1"), gt=Decimal(0), le=Decimal(1)
+    )
+    kelly_min_allocation: ConfigDecimal = Field(
+        default=Decimal("0.01"), gt=Decimal(0), le=Decimal(1)
+    )
+    kelly_risk_free_rate: float = Field(default=0.02, ge=0, le=1)  # Annual rate
+
+    # Simple sizing parameters
+    simple_method: Literal["fixed_usd", "fixed_fraction"] = "fixed_fraction"
+    simple_fixed_usd: ConfigDecimal = Field(default=Decimal(1000), gt=Decimal(0))
+    simple_fixed_fraction: ConfigDecimal = Field(
+        default=Decimal("0.02"), gt=Decimal(0), le=Decimal(1)
+    )
+
+    # Position limits
+    min_position_size: ConfigDecimal = Field(default=Decimal(100), gt=Decimal(0))
+    max_position_size: ConfigDecimal = Field(default=Decimal(10000), gt=Decimal(0))
+    max_leverage: ConfigDecimal = Field(default=Decimal("5.0"), gt=Decimal(1))
+
+    # Portfolio limits
+    max_portfolio_allocation: ConfigDecimal = Field(
+        default=Decimal("0.5"), gt=Decimal(0), le=Decimal(1)
+    )
+    total_capital: ConfigDecimal | None = None
+
+    # Volatility bounds and adjustment factors
+    min_volatility: ConfigDecimal = Field(default=Decimal("0.001"), gt=Decimal(0))
+    max_volatility_bound: ConfigDecimal = Field(default=Decimal("1.0"), gt=Decimal(0))
+    volatility_lookback_hours: int = Field(default=24, gt=0, le=168)
+
+    # Validation factors
+    enable_validation_factors: bool = True
+    enable_volatility_adjustment: bool = True
+    enable_spread_adjustment: bool = True
+    base_validation_factor: ConfigDecimal = Field(
+        default=Decimal("0.8"), gt=Decimal(0), le=Decimal(1)
+    )
+
+    # Timing configuration
+    sizing_timeout_seconds: float = Field(default=10.0, gt=0)
+
+    @field_validator("method", mode="before")
+    @classmethod
+    def _validate_method(cls, v: str | float | bool, info: ValidationInfo) -> str:
+        return validate_enum_field(
+            v,
+            allowed={"kelly", "simple"},
+            field_name=info.field_name or "method",
+        )
+
+    @field_validator("simple_method", mode="before")
+    @classmethod
+    def _validate_simple_method(cls, v: str | float | bool, info: ValidationInfo) -> str:
+        return validate_enum_field(
+            v,
+            allowed={"fixed_usd", "fixed_fraction"},
+            field_name=info.field_name or "simple_method",
+        )
+
+    @model_validator(mode="after")
+    def validate_allocation_ranges(self) -> Self:
+        """Validate allocation ranges are logical."""
+        if self.kelly_min_allocation >= self.kelly_max_allocation:
+            msg = "kelly_min_allocation must be less than kelly_max_allocation"
+            raise ValueError(msg)
+        if self.min_position_size >= self.max_position_size:
+            msg = "min_position_size must be less than max_position_size"
+            raise ValueError(msg)
+        return self
+
+
+class EnhancedRiskSettings(BaseModel):
+    """Complete risk management configuration preserving existing GlobalRiskSettings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, validate_assignment=True)
+
+    # CRITICAL: Preserve existing GlobalRiskSettings integration
     global_risk: GlobalRiskSettings = Field(..., alias="global")
+
+    # Enhanced checker and sizing configuration
+    checkers: CheckerSettings = Field(default_factory=CheckerSettings)
+    sizing: SizingSettings = Field(default_factory=SizingSettings)
+
+    # BACKWARD COMPATIBILITY: Preserve legacy simple sizing fields during migration
     use_simple_sizing_path: bool = True
     simple_sizing_method: Literal["fixed_usd", "fixed_fraction"] = "fixed_fraction"
-    simple_fixed_fraction: ConfigDecimal = Field(Decimal("0.1"), gt=Decimal(0), lt=Decimal(1))
-    simple_fixed_usd_size: ConfigDecimal = Field(Decimal("10.0"), gt=Decimal(0))
+    simple_fixed_fraction: ConfigDecimal = Field(
+        default=Decimal("0.1"), gt=Decimal(0), lt=Decimal(1)
+    )
+    simple_fixed_usd_size: ConfigDecimal = Field(default=Decimal("10.0"), gt=Decimal(0))
+
+    # System configuration
+    enabled: bool = True
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    log_all_checks: bool = False
+    log_performance_metrics: bool = True
+
+    # Concurrency limits
+    max_concurrent_checks: int = Field(default=10, gt=0, le=50)
+    max_concurrent_sizing: int = Field(default=5, gt=0, le=20)
 
     @field_validator("simple_sizing_method", mode="before")
     @classmethod
@@ -396,6 +583,37 @@ class RiskSettings(BaseModel):
             field_name=info.field_name or "simple_sizing_method",
         )
 
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _validate_log_level(cls, v: str | float | bool, info: ValidationInfo) -> str:
+        return validate_enum_field(
+            v,
+            allowed={"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"},
+            field_name=info.field_name or "log_level",
+        )
+
+    @model_validator(mode="after")
+    def validate_cross_settings(self) -> Self:
+        """Validate relationships between different settings and GlobalRiskSettings."""
+        # Ensure system-level concurrency is higher than component level
+        if self.max_concurrent_checks < self.checkers.max_concurrent_checks:
+            msg = "System max_concurrent_checks must be >= checkers.max_concurrent_checks"
+            raise ValueError(msg)
+
+        # Validate sizing limits don't exceed global risk limits
+        if (
+            hasattr(self.global_risk, "max_position_usd")
+            and self.sizing.max_position_size > self.global_risk.max_position_usd
+        ):
+            msg = "Sizing max_position_size cannot exceed global_risk.max_position_usd"
+            raise ValueError(msg)
+
+        return self
+
+
+# Alias for backward compatibility during migration
+RiskSettings = EnhancedRiskSettings
+
 
 class ExecutionCompensationSettings(BaseModel):
     """Execution compensation settings."""
@@ -403,7 +621,7 @@ class ExecutionCompensationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     use_limit_orders: bool = True
-    limit_price_offset_pct: ConfigDecimal = Field(Decimal("0.05"), ge=Decimal(0))
+    limit_price_offset_pct: ConfigDecimal = Field(default=Decimal("0.05"), ge=Decimal(0))
 
 
 class ExecutionSettings(BaseModel):
@@ -412,9 +630,9 @@ class ExecutionSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     max_slippage_pct: ConfigDecimal = Field(..., gt=Decimal(0), lt=Decimal(1))
-    max_retries: int = Field(3, gt=0)
-    retry_delay_base_sec: ConfigDecimal = Field(Decimal("1.0"), gt=Decimal(0))
-    settlement_delay: ConfigDecimal = Field(Decimal("2.0"), ge=Decimal(0))
+    max_retries: int = Field(default=3, gt=0)
+    retry_delay_base_sec: ConfigDecimal = Field(default=Decimal("1.0"), gt=Decimal(0))
+    settlement_delay: ConfigDecimal = Field(default=Decimal("2.0"), ge=Decimal(0))
     compensation: ExecutionCompensationSettings
 
 
@@ -424,10 +642,10 @@ class CircuitBreakerSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: bool = True
-    global_consecutive_failures: int = Field(5, gt=0)
-    global_reset_timeout_sec: int = Field(300, gt=0)
-    exchange_consecutive_failures: int = Field(3, gt=0)
-    exchange_reset_timeout_sec: int = Field(180, gt=0)
+    global_consecutive_failures: int = Field(default=5, gt=0)
+    global_reset_timeout_sec: int = Field(default=300, gt=0)
+    exchange_consecutive_failures: int = Field(default=3, gt=0)
+    exchange_reset_timeout_sec: int = Field(default=180, gt=0)
 
 
 class PositionReconciliationSettings(BaseModel):
@@ -436,8 +654,10 @@ class PositionReconciliationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: bool = True
-    check_interval_sec: int = Field(600, gt=0)
-    max_discrepancy_pct: ConfigDecimal = Field(Decimal("0.01"), ge=Decimal(0), lt=Decimal(1))
+    check_interval_sec: int = Field(default=600, gt=0)
+    max_discrepancy_pct: ConfigDecimal = Field(
+        default=Decimal("0.01"), ge=Decimal(0), lt=Decimal(1)
+    )
 
 
 class BalanceMonitoringSettings(BaseModel):
@@ -446,7 +666,7 @@ class BalanceMonitoringSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     enabled: bool = True
-    check_interval_sec: int = Field(300, gt=0)
+    check_interval_sec: int = Field(default=300, gt=0)
     min_balance_thresholds_usd: dict[str, ConfigDecimal]
 
     @field_validator("min_balance_thresholds_usd", mode="before")
@@ -559,7 +779,7 @@ class PortfolioTrackerConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    data_freshness_seconds: int = Field(DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
+    data_freshness_seconds: int = Field(default=DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
     initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
     initial_positions: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -572,7 +792,7 @@ class AppSettings(BaseModel):
     general: GeneralSettings
     exchanges: dict[str, ExchangeSpecificConfig]
     strategies: StrategiesSettings
-    risk: RiskSettings
+    risk: EnhancedRiskSettings  # Using EnhancedRiskSettings directly
     execution: ExecutionSettings
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings

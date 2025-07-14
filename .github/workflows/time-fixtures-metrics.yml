@@ -1,5 +1,9 @@
 name: Time Fixtures Adoption Metrics
 
+permissions:
+  pull-requests: write
+  contents: read
+
 on:
   push:
     branches: [main, master]

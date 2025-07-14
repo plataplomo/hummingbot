@@ -56,6 +56,8 @@ repos:
           # Frontend dependencies
           - dash==3.0.4
           - dash-bootstrap-components==2.0.2
+          - psutil==7.0.0,<7.1.0
+          - types-psutil>=7.0.0.20250601,<7.1.0
         args: ["--show-error-codes"]
 
   # Custom hooks

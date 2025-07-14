@@ -52,6 +52,7 @@ dependencies = [
     "msgpack==1.1.0",
     "cryptography==45.0.3",
     "pre-commit>=4.2.0",
+    "psutil==7.0.0,<7.1.0",
 ]
 
 [project.optional-dependencies]
@@ -78,6 +79,7 @@ dev = [
     "pandas-stubs>=2.2.3.250308,<2.3",
     "msgpack-types==0.5.0,<=0.6.0",
     "types-requests==2.32.0.20250328,<2.40.0",
+    "types-psutil>=7.0.0.20250601,<7.1.0",
 ]
 
 [tool.pytest.ini_options]

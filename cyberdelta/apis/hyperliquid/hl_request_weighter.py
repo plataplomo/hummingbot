@@ -67,7 +67,9 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    batch_length = len(actions) if actions else 1
+                    # Type guard ensures actions is a list, but pyright still sees Unknown elements
+                    # This is acceptable since we're just getting the length
+                    batch_length = len(actions)
             base_weight = self.hl_exchange_config.exchange_action_base_ip_weight or 1
             ip_weight = base_weight + (batch_length // 40)
 
@@ -145,7 +147,9 @@ class HyperliquidRequestWeighter:
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
                 if isinstance(actions, list):
-                    action_count = len(actions) if actions else 1
+                    # Type guard ensures actions is a list, but pyright still sees Unknown elements
+                    # This is acceptable since we're just getting the length
+                    action_count = len(actions)
             logger.debug(
                 "hyperliquid_exchange_request_weight",
                 action="calculate_weight",
