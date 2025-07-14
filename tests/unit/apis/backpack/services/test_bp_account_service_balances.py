@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 class TestBackpackAccountServiceBalances:
@@ -29,7 +29,7 @@ class TestBackpackAccountServiceBalances:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_balances successfully retrieves and processes balance data."""
-        mock_raw_response_data_dict: RawJsonResponse = {
+        mock_raw_response_data_dict: ParsedJsonResponse = {
             "USDC": {"available": "1000.5", "locked": "10.0"},
         }
         mock_validated_raw_balances_dict: dict[str, BackpackRawBalance] = {
@@ -101,7 +101,7 @@ class TestBackpackAccountServiceBalances:
         mock_endpoint_path_for_get_balances = "/api/v1/capital"
         mock_params_from_builder_for_get_balances = BackpackRawGetBalancesParams()
 
-        mock_raw_response_dict: RawJsonResponse = {
+        mock_raw_response_dict: ParsedJsonResponse = {
             "USDC": {"available": "1000.5", "locked": "10.0"},
             "SOL": {"available": "50.2", "locked": "0.5"},
         }

@@ -129,7 +129,8 @@ class BackpackRawBalance(BaseModel):
         """
         field_name = info.field_name or "field"
         s = validate_str_field(v, field_name=field_name, max_length=64)
+        # parse_decimal_value with allow_none=False is guaranteed to return Decimal
         d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-        if d is None or not d.is_finite():
+        if not d.is_finite():
             raise DecimalFiniteError(field_name=field_name, value=str(v))
         return s

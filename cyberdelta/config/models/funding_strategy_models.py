@@ -55,9 +55,8 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
                 min_value=None,
                 max_value=float(MAX_FUNDING_THRESHOLD),
                 constraint=(
-                    f"funding_threshold {v} is too high "
-                    f"(max {MAX_FUNDING_THRESHOLD} for 10%)"
-                )
+                    f"funding_threshold {v} is too high (max {MAX_FUNDING_THRESHOLD} for 10%)"
+                ),
             )
         return v
 
@@ -72,9 +71,8 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
                 min_value=None,
                 max_value=float(MAX_PRICE_SPREAD_PCT),
                 constraint=(
-                    f"max_price_spread_pct {v} is too high "
-                    f"(max {MAX_PRICE_SPREAD_PCT} for 5%)"
-                )
+                    f"max_price_spread_pct {v} is too high (max {MAX_PRICE_SPREAD_PCT} for 5%)"
+                ),
             )
         return v
 
@@ -88,7 +86,7 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
                 value=v,
                 min_value=float(MIN_CHECK_INTERVAL_SECONDS),
                 max_value=None,
-                constraint=f"check_interval must be at least {MIN_CHECK_INTERVAL_SECONDS} second"
+                constraint=f"check_interval must be at least {MIN_CHECK_INTERVAL_SECONDS} second",
             )
         if v > MAX_CHECK_INTERVAL_SECONDS:
             raise RangeFieldError(
@@ -97,9 +95,8 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
                 min_value=None,
                 max_value=float(MAX_CHECK_INTERVAL_SECONDS),
                 constraint=(
-                    f"check_interval {v} is too long "
-                    f"(max {MAX_CHECK_INTERVAL_SECONDS} seconds)"
-                )
+                    f"check_interval {v} is too long (max {MAX_CHECK_INTERVAL_SECONDS} seconds)"
+                ),
             )
         return v
 
@@ -112,7 +109,7 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
                 field_name=info.field_name if info and info.field_name else "exchange",
                 value=v,
                 valid_values=list(SUPPORTED_EXCHANGES),
-                enum_name="SupportedExchange"
+                enum_name="SupportedExchange",
             )
         return v.lower()
 
@@ -124,7 +121,7 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
             raise OrderLogicError(
                 validation_type="exchange_combination",
                 message=msg,
-                fields={"perp_exchange": self.perp_exchange, "spot_exchange": self.spot_exchange}
+                fields={"perp_exchange": self.perp_exchange, "spot_exchange": self.spot_exchange},
             )
 
         # For HL Perp BP Spot strategy, validate specific combination
@@ -136,7 +133,7 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
             raise OrderLogicError(
                 validation_type="perp_exchange_validation",
                 message=msg,
-                fields={"perp_exchange": self.perp_exchange, "expected": EXPECTED_PERP_EXCHANGE}
+                fields={"perp_exchange": self.perp_exchange, "expected": EXPECTED_PERP_EXCHANGE},
             )
 
         if self.spot_exchange != EXPECTED_SPOT_EXCHANGE:
@@ -147,7 +144,7 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
             raise OrderLogicError(
                 validation_type="spot_exchange_validation",
                 message=msg,
-                fields={"spot_exchange": self.spot_exchange, "expected": EXPECTED_SPOT_EXCHANGE}
+                fields={"spot_exchange": self.spot_exchange, "expected": EXPECTED_SPOT_EXCHANGE},
             )
 
         return self

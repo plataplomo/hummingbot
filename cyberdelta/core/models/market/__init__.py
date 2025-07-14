@@ -14,13 +14,14 @@ from .candle import Candle
 from .funding_rate import FundingRate
 from .market import Market
 from .mid_prices import MidPrices
-from .order import Order
+from .order import CancelOrderResult, Order
 from .order_book import OrderBook
 from .ticker import Ticker
 from .trade import Trade
 
 
 __all__ = [
+    "CancelOrderResult",
     "Candle",
     "FundingRate",
     "Market",

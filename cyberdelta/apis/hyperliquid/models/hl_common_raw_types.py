@@ -436,7 +436,7 @@ def validate_and_return_finite_decimal_str(
     s = validate_str_field(raw_val, field_name=field_name, max_length=max_len, allow_empty=False)
     # Use existing parse_decimal_value for decimal properties
     d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-    if d is None or not d.is_finite():  # parse_decimal_value should raise, but defensive check.
+    if not d.is_finite():  # parse_decimal_value should raise, but defensive check.
         # Message adjusted for consistency
         raise DecimalFieldError(
             field_name=field_name,

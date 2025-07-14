@@ -2,7 +2,7 @@
 
 ---------------------------------------------------------------
 
-Comprehensive integration test suite for BackpackTradingDataMapper.
+Comprehensive integration test suite for BackpackOrderMapper.
 Tests complex scenarios, cross-method consistency, and advanced business logic including:
 - Integration between raw order and order data transformations
 - Data consistency validation across transformation methods
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # Project-specific imports
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
@@ -46,13 +46,13 @@ logger = get_logger(__name__)
 
 
 @pytest.fixture
-def trading_data_mapper() -> BackpackTradingDataMapper:
-    """Provide an instance of BackpackTradingDataMapper.
+def trading_data_mapper() -> BackpackOrderMapper:
+    """Provide an instance of BackpackOrderMapper.
 
     Returns:
-        BackpackTradingDataMapper: Configured mapper instance.
+        BackpackOrderMapper: Configured mapper instance.
     """
-    return BackpackTradingDataMapper()
+    return BackpackOrderMapper()
 
 
 def create_raw_order(
@@ -115,7 +115,7 @@ class TestTradingDataMapperIntegration:
 
     def test_complete_order_transformation_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that both transformation methods produce consistent results."""
         # Create raw order
@@ -161,13 +161,13 @@ class TestTradingDataMapperIntegration:
 
     def test_error_handling_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that error handling is consistent across different transformation methods."""
         # Mock to cause an exception in both methods
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 
@@ -188,7 +188,7 @@ class TestTradingDataMapperIntegration:
 
     def test_all_mapping_logic_works_together(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that all mapping logic works together properly in a transformation."""
         raw_order = create_raw_order(
@@ -219,7 +219,7 @@ class TestTradingDataMapperIntegration:
 
     def test_complex_order_scenario_with_all_fields(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation of a complex order with all fields populated."""
         created_at = datetime.now(UTC).isoformat()
@@ -277,7 +277,7 @@ class TestTradingDataMapperIntegration:
 
     def test_multiple_orders_transformation_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that multiple order transformations maintain consistency."""
         orders_data = [
@@ -337,7 +337,7 @@ class TestTradingDataMapperIntegration:
 
     def test_data_transformation_integrity(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that data transformation maintains mathematical integrity."""
         # Test with high precision values
@@ -365,7 +365,7 @@ class TestTradingDataMapperIntegration:
 
     def test_cross_symbol_transformation_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation consistency across different trading symbols."""
         symbols = ["BTC_USDC", "ETH_USDC", "SOL_USDC", "DOGE_USDT", "ADA_BTC"]
@@ -393,7 +393,7 @@ class TestTradingDataMapperIntegration:
 
     def test_time_field_transformation_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that time field transformations are consistent and valid."""
         base_time = datetime.now(UTC)
@@ -429,7 +429,7 @@ class TestTradingDataMapperIntegration:
 
     def test_business_logic_validation_integration(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test integration of business logic validation across transformations."""
         # Test that orders with fills have appropriate average fill prices

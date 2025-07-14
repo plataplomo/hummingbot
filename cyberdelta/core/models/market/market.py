@@ -125,11 +125,21 @@ class Market(BaseModel):
 
         """
         field_name = info.field_name if info.field_name is not None else "unknown_field"
+        parsed_decimal: Decimal | None
 
         # tick_size and step_size are required, others are optional
-        allow_none = field_name not in {"tick_size", "step_size"}
-
-        parsed_decimal = parse_decimal_value(v, allow_none=allow_none, field_name=field_name)
+        if field_name in {"tick_size", "step_size"}:
+            # For required fields, ensure we get a non-None Decimal
+            parsed_decimal = parse_decimal_value(v, allow_none=False, field_name=field_name)
+            # Ensure required field results are finite
+            if not parsed_decimal.is_finite():
+                raise DecimalFiniteError(
+                    field_name=field_name,
+                    value=parsed_decimal,
+                    context="for market configuration",
+                )
+            return parsed_decimal
+        parsed_decimal = parse_decimal_value(v, allow_none=True, field_name=field_name)
 
         # Ensure non-None results are finite
         if parsed_decimal is not None and not parsed_decimal.is_finite():

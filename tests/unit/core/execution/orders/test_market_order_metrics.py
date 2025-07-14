@@ -39,7 +39,7 @@ class TestMarketOrderExecutionMetric:
         """Test that metric initializes correctly with all required fields."""
         # Arrange
         timestamp = datetime.now(UTC)
-        
+
         # Act
         metric = MarketOrderExecutionMetric(
             timestamp=timestamp,
@@ -53,7 +53,7 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.PARTIALLY_FILLED,
             execution_time_ms=180.5,
         )
-        
+
         # Assert
         assert metric.timestamp == timestamp
         assert metric.symbol == "ETH-PERP"
@@ -72,7 +72,7 @@ class TestMarketOrderExecutionMetric:
         """Test fill rate calculation for completely filled order."""
         # Act
         fill_rate = filled_buy_metric.fill_rate
-        
+
         # Assert
         assert fill_rate == Decimal("100.0")
 
@@ -91,10 +91,10 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.PARTIALLY_FILLED,
             execution_time_ms=200.0,
         )
-        
+
         # Act
         fill_rate = metric.fill_rate
-        
+
         # Assert
         assert fill_rate == Decimal("75.0")
 
@@ -113,10 +113,10 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.REJECTED,
             execution_time_ms=10.0,
         )
-        
+
         # Act
         fill_rate = metric.fill_rate
-        
+
         # Assert
         assert fill_rate == Decimal(0)
 
@@ -135,10 +135,10 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.FILLED,
             execution_time_ms=300.0,
         )
-        
+
         # Act
         actual_slippage = metric.actual_slippage
-        
+
         # Assert - (50200 - 50000) / 50000 = 0.004
         assert actual_slippage == Decimal("0.004")
 
@@ -157,10 +157,10 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.FILLED,
             execution_time_ms=220.0,
         )
-        
+
         # Act
         actual_slippage = metric.actual_slippage
-        
+
         # Assert - (3000 - 2940) / 3000 = 0.02
         assert actual_slippage == Decimal("0.02")
 
@@ -179,10 +179,10 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.CANCELED,
             execution_time_ms=75.0,
         )
-        
+
         # Act
         actual_slippage = metric.actual_slippage
-        
+
         # Assert
         assert actual_slippage is None
 
@@ -201,10 +201,10 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.FILLED,
             execution_time_ms=180.0,
         )
-        
+
         # Act
         price_improvement = metric.price_improvement
-        
+
         # Assert
         # Expected slippage: 0.002, Actual slippage: 0.001, Improvement: 0.001
         assert price_improvement == Decimal("0.001")
@@ -224,29 +224,29 @@ class TestMarketOrderExecutionMetric:
             status=OrderStatus.CANCELED,
             execution_time_ms=50.0,
         )
-        
+
         # Act
         price_improvement = metric.price_improvement
-        
+
         # Assert
         assert price_improvement is None
 
 
 class TestMarketOrderMetrics:
     """Test MarketOrderMetrics aggregation and analysis class."""
-    
+
     @pytest.fixture
     def metrics_tracker(self) -> MarketOrderMetrics:
         """Create a MarketOrderMetrics instance for testing."""
         return MarketOrderMetrics(max_history=100)
-    
+
     def test_metrics_tracker_initializes_with_empty_state(
         self, metrics_tracker: MarketOrderMetrics
     ) -> None:
         """Test that metrics tracker starts with empty state."""
         # Act
         recent_metrics = metrics_tracker.get_recent_metrics()
-        
+
         # Assert
         assert len(recent_metrics) == 0
 
@@ -266,11 +266,11 @@ class TestMarketOrderMetrics:
             status=OrderStatus.FILLED,
             execution_time_ms=250.0,
         )
-        
+
         # Assert
         recent_metrics = metrics_tracker.get_recent_metrics()
         assert len(recent_metrics) == 1
-        
+
         metric = recent_metrics[0]
         assert metric.symbol == "BTC-PERP"
         assert metric.side == OrderSide.BUY
@@ -280,7 +280,7 @@ class TestMarketOrderMetrics:
         """Test that metrics tracker respects max history constraint."""
         # Arrange
         metrics_tracker = MarketOrderMetrics(max_history=2)
-        
+
         # Act - record 3 metrics
         for i in range(3):
             metrics_tracker.record_execution(
@@ -294,7 +294,7 @@ class TestMarketOrderMetrics:
                 status=OrderStatus.FILLED,
                 execution_time_ms=250.0,
             )
-        
+
         # Assert
         recent_metrics = metrics_tracker.get_recent_metrics()
         assert len(recent_metrics) == 2  # Only last 2 kept
@@ -317,10 +317,10 @@ class TestMarketOrderMetrics:
             status=OrderStatus.FILLED,
             execution_time_ms=200.0,
         )
-        
+
         # Act
         stats = metrics_tracker.get_symbol_stats("BTC-PERP")
-        
+
         # Assert
         assert "count" in stats
         assert "avg_fill_rate" in stats
@@ -354,10 +354,10 @@ class TestMarketOrderMetrics:
             status=OrderStatus.FILLED,
             execution_time_ms=250.0,
         )
-        
+
         # Act
         stats = metrics_tracker.get_overall_stats()
-        
+
         # Assert
         assert "total_count" in stats
         assert "avg_fill_rate" in stats
@@ -380,10 +380,10 @@ class TestMarketOrderMetrics:
             status=OrderStatus.FILLED,
             execution_time_ms=200.0,
         )
-        
+
         # Act
         analysis = metrics_tracker.get_slippage_analysis()
-        
+
         # Assert
         assert "samples" in analysis
         assert "avg_actual_slippage" in analysis
@@ -406,10 +406,10 @@ class TestMarketOrderMetrics:
             execution_time_ms=250.0,
         )
         assert len(metrics_tracker.get_recent_metrics()) == 1
-        
+
         # Act
         metrics_tracker.clear_metrics()
-        
+
         # Assert
         assert len(metrics_tracker.get_recent_metrics()) == 0
 
@@ -430,10 +430,10 @@ class TestMarketOrderMetrics:
                 status=OrderStatus.FILLED,
                 execution_time_ms=200.0,
             )
-        
+
         # Act
         recent_metrics = metrics_tracker.get_recent_metrics(count=3)
-        
+
         # Assert
         assert len(recent_metrics) == 3
         # Should return the 3 most recent

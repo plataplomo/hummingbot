@@ -17,13 +17,7 @@ import pytest_asyncio
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
-from cyberdelta.apis.backpack.mappers import (
-    BackpackAccountDataMapper,
-    BackpackMarketDataMapper,
-    BackpackTradingDataMapper,
-)
+from cyberdelta.apis.backpack.mappers import BackpackOrderMapper
 from cyberdelta.apis.backpack.services import (
     BackpackAccountService,
     BackpackMarketDataService,
@@ -85,53 +79,13 @@ def mock_bp_error_mapper() -> MagicMock:
 
 
 @pytest.fixture
-def mock_bp_request_builder() -> MagicMock:
-    """Provide mock BackpackRequestBuilder.
-
-    Returns:
-        MagicMock: Mock BackpackRequestBuilder instance.
-    """
-    return MagicMock(spec=BackpackRequestBuilder)
-
-
-@pytest.fixture
-def mock_bp_response_handler() -> MagicMock:
-    """Provide mock BackpackResponseHandler.
-
-    Returns:
-        MagicMock: Mock BackpackResponseHandler instance.
-    """
-    return MagicMock(spec=BackpackResponseHandler)
-
-
-@pytest.fixture
-def mock_bp_account_data_mapper() -> MagicMock:
-    """Provide mock BackpackAccountDataMapper.
-
-    Returns:
-        MagicMock: Mock BackpackAccountDataMapper instance.
-    """
-    return MagicMock(spec=BackpackAccountDataMapper)
-
-
-@pytest.fixture
-def mock_bp_market_data_mapper() -> MagicMock:
-    """Provide mock BackpackMarketDataMapper.
-
-    Returns:
-        MagicMock: Mock BackpackMarketDataMapper instance.
-    """
-    return MagicMock(spec=BackpackMarketDataMapper)
-
-
-@pytest.fixture
 def mock_bp_trading_data_mapper() -> MagicMock:
-    """Provide mock BackpackTradingDataMapper.
+    """Provide mock BackpackOrderMapper (used as trading data mapper).
 
     Returns:
-        MagicMock: Mock BackpackTradingDataMapper instance.
+        MagicMock: Mock BackpackOrderMapper instance.
     """
-    return MagicMock(spec=BackpackTradingDataMapper)
+    return MagicMock(spec=BackpackOrderMapper)
 
 
 @pytest.fixture
@@ -206,10 +160,6 @@ def bp_api_with_di(
     active_bp_secrets: ApiKeyAuthSecrets,
     mock_bp_authenticator: MagicMock,
     mock_bp_error_mapper: MagicMock,
-    mock_bp_request_builder: MagicMock,
-    mock_bp_response_handler: MagicMock,
-    mock_bp_account_data_mapper: MagicMock,
-    mock_bp_market_data_mapper: MagicMock,
     mock_bp_trading_data_mapper: MagicMock,
     mock_bp_account_service: MagicMock,
     mock_bp_market_data_service: MagicMock,
@@ -243,10 +193,6 @@ def bp_api_with_di(
             exchange_secrets=final_secrets,
             authenticator=overrides.get("authenticator", mock_bp_authenticator),
             error_mapper=overrides.get("error_mapper", mock_bp_error_mapper),
-            request_builder=overrides.get("request_builder", mock_bp_request_builder),
-            response_handler=overrides.get("response_handler", mock_bp_response_handler),
-            account_data_mapper=overrides.get("account_data_mapper", mock_bp_account_data_mapper),
-            market_data_mapper=overrides.get("market_data_mapper", mock_bp_market_data_mapper),
             trading_data_mapper=overrides.get("trading_data_mapper", mock_bp_trading_data_mapper),
             account_service=overrides.get("account_service", mock_bp_account_service),
             market_data_service=overrides.get("market_data_service", mock_bp_market_data_service),

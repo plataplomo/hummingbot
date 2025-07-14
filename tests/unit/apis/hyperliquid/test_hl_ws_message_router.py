@@ -14,9 +14,14 @@ from pydantic import ValidationError
 from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_position_mapper import HyperliquidPositionMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_transaction_mapper import (
+    HyperliquidTransactionMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper import (
+    HyperliquidOrderBookMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import HyperliquidRawWsSubscribeRequest
 
 
@@ -25,26 +30,36 @@ class TestHyperliquidWsMessageRouter:
 
     @pytest.fixture
     def mock_market_data_mapper(self) -> Mock:
-        """Create a mock market data mapper.
+        """Create a mock order book mapper.
 
         Returns:
-            Mock HyperliquidMarketDataMapper for testing.
+            Mock HyperliquidOrderBookMapper for testing.
         """
-        mapper = Mock(spec=HyperliquidMarketDataMapper)
+        mapper = Mock(spec=HyperliquidOrderBookMapper)
         mapper.transform_ws_book_update_to_internal = Mock(return_value=Mock())
         mapper.transform_ws_trade_event_to_internal = Mock(return_value=Mock())
         return mapper
 
     @pytest.fixture
-    def mock_account_data_mapper(self) -> Mock:
-        """Create a mock account data mapper.
+    def mock_position_mapper(self) -> Mock:
+        """Create a mock position mapper.
 
         Returns:
-            Mock HyperliquidAccountDataMapper for testing.
+            Mock HyperliquidPositionMapper for testing.
         """
-        mapper = Mock(spec=HyperliquidAccountDataMapper)
-        mapper.transform_ws_fill_event_to_internal = Mock(return_value=Mock())
+        mapper = Mock(spec=HyperliquidPositionMapper)
         mapper.transform_ws_position_update_to_internal_position = Mock(return_value=Mock())
+        return mapper
+
+    @pytest.fixture
+    def mock_transaction_mapper(self) -> Mock:
+        """Create a mock transaction mapper.
+
+        Returns:
+            Mock HyperliquidTransactionMapper for testing.
+        """
+        mapper = Mock(spec=HyperliquidTransactionMapper)
+        mapper.transform_ws_fill_event_to_internal = Mock(return_value=Mock())
         return mapper
 
     @pytest.fixture
@@ -52,9 +67,9 @@ class TestHyperliquidWsMessageRouter:
         """Create a mock trading data mapper.
 
         Returns:
-            Mock HyperliquidTradingDataMapper for testing.
+            Mock HyperliquidOrderMapper for testing.
         """
-        mapper = Mock(spec=HyperliquidTradingDataMapper)
+        mapper = Mock(spec=HyperliquidOrderMapper)
         mapper.transform_ws_order_update_to_internal_order = Mock(return_value=Mock())
         return mapper
 
@@ -79,7 +94,8 @@ class TestHyperliquidWsMessageRouter:
     def router(
         self,
         mock_market_data_mapper: Mock,
-        mock_account_data_mapper: Mock,
+        mock_position_mapper: Mock,
+        mock_transaction_mapper: Mock,
         mock_trading_data_mapper: Mock,
         mock_raw_ws_handler: Mock,
     ) -> HyperliquidWsMessageRouter:
@@ -89,9 +105,10 @@ class TestHyperliquidWsMessageRouter:
             HyperliquidWsMessageRouter instance with mock dependencies for testing.
         """
         return HyperliquidWsMessageRouter(
-            market_data_mapper=mock_market_data_mapper,
-            account_data_mapper=mock_account_data_mapper,
-            trading_data_mapper=mock_trading_data_mapper,
+            order_book_mapper=mock_market_data_mapper,
+            transaction_mapper=mock_transaction_mapper,
+            position_mapper=mock_position_mapper,
+            order_mapper=mock_trading_data_mapper,
             raw_ws_handler=mock_raw_ws_handler,
             exchange_name="Hyperliquid",
         )
@@ -231,7 +248,7 @@ class TestHyperliquidWsMessageRouter:
         self,
         router: HyperliquidWsMessageRouter,
         mock_raw_ws_handler: Mock,
-        mock_account_data_mapper: Mock,
+        mock_transaction_mapper: Mock,
         mock_app_handler: AsyncMock,
     ) -> None:
         """Test routing userEvents fill messages."""
@@ -244,7 +261,7 @@ class TestHyperliquidWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_user_fill_event_payload.assert_called_once()
-        mock_account_data_mapper.transform_ws_fill_event_to_internal.assert_called_once()
+        mock_transaction_mapper.transform_ws_fill_event_to_internal.assert_called_once()
         mock_app_handler.assert_called_once()
 
     @pytest.mark.asyncio
@@ -274,7 +291,7 @@ class TestHyperliquidWsMessageRouter:
         self,
         router: HyperliquidWsMessageRouter,
         mock_raw_ws_handler: Mock,
-        mock_account_data_mapper: Mock,
+        mock_position_mapper: Mock,
         mock_app_handler: AsyncMock,
     ) -> None:
         """Test routing userEvents positionUpdate messages."""
@@ -287,7 +304,7 @@ class TestHyperliquidWsMessageRouter:
         await router.route_message(message, ws_handlers)
 
         mock_raw_ws_handler.handle_user_position_update_event_payload.assert_called_once()
-        pos_transform = mock_account_data_mapper.transform_ws_position_update_to_internal_position
+        pos_transform = mock_position_mapper.transform_ws_position_update_to_internal_position
         pos_transform.assert_called_once()
         mock_app_handler.assert_called_once()
 

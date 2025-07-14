@@ -8,20 +8,25 @@ from pydantic import ValidationError
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import StructureTypeError
 from cyberdelta.apis.exceptions.parsing import ParsingError
-from cyberdelta.apis.hyperliquid.hl_response_handler import (
-    HyperliquidResponseHandler,
-    RawJsonResponse,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
+    HyperliquidRawFundingHistoryResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
+from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handler import (
+    HyperliquidMarketDataResponseHandler,
+)
 from cyberdelta.exceptions import ListFieldError
+from cyberdelta.utils.typing import ParsedJsonResponse as RawJsonResponse
+
+
+# Create an alias for backward compatibility
+HyperliquidResponseHandler = HyperliquidMarketDataResponseHandler
 
 
 # Import fixtures from the shared conftest
@@ -29,13 +34,13 @@ pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_response_handler"]
 
 
 class TestHandleInfoMetaAndAssetCtxsResponse:
-    """Tests for HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response."""
+    """Tests for HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response."""
 
     def test_valid(self, valid_raw_meta_and_asset_ctxs: list[Any]) -> None:
         """Test handling a valid meta and asset contexts response."""
         raw_data = valid_raw_meta_and_asset_ctxs
         response: HyperliquidRawMetaAndAssetCtxsResponse = (
-            HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+            HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
             )
         )
@@ -51,7 +56,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
         """Test meta and asset contexts response with wrong structure."""
         raw_data: list[dict[str, str]] = [{"invalid": "structure"}]  # Missing required fields
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+            HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -64,7 +69,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
             [],
         ]  # Missing universe field in meta
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+            HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -75,21 +80,20 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
         """Test meta and asset contexts response with wrong top-level type."""
         raw_data = {"invalid": "data"}
         with pytest.raises(StructureTypeError) as exc_info:
-            HyperliquidResponseHandler.handle_info_meta_and_asset_ctxs_response(
+            HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
             )
         assert "Expected a list, got dict" in str(exc_info.value)
 
 
 class TestHandleInfoFundingRateResponse:
-    """Tests for HyperliquidResponseHandler.handle_info_funding_rate_response."""
+    """Tests for HyperliquidResponseHandler().handle_info_funding_rate_response."""
 
     def test_valid(self, valid_raw_asset_ctx: dict[str, Any], symbol: str) -> None:
         """Test handling a valid funding rate response."""
         raw_data = valid_raw_asset_ctx
-        response = HyperliquidResponseHandler.handle_info_funding_rate_response(
+        response = HyperliquidResponseHandler().handle_info_funding_rate_response(
             cast("RawJsonResponse", raw_data),
-            symbol=symbol,
             status_code=200,
         )
         assert response.name == "ETH-PERP"
@@ -99,9 +103,8 @@ class TestHandleInfoFundingRateResponse:
         """Test funding rate response missing funding field."""
         raw_data = {"name": "ETH-PERP", "markPx": "3000.0"}  # Missing funding
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_funding_rate_response(
+            HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -116,9 +119,8 @@ class TestHandleInfoFundingRateResponse:
         """Test funding rate response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_funding_rate_response(
+            HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -130,14 +132,14 @@ class TestHandleInfoFundingRateResponse:
 
 
 class TestHandleInfoL2BookResponse:
-    """Tests for HyperliquidResponseHandler.handle_info_l2_book_response."""
+    """Tests for HyperliquidResponseHandler().handle_info_l2_book_response."""
 
     def test_valid(self, valid_raw_l2_book: dict[str, Any], symbol: str) -> None:
         """Test handling a valid L2 book response."""
         raw_data = valid_raw_l2_book
-        response: HyperliquidRawL2Book = HyperliquidResponseHandler.handle_info_l2_book_response(
+        response: HyperliquidRawL2Book = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
-            symbol=symbol,
+            symbol,
         )
         assert isinstance(response, HyperliquidRawL2Book)
         assert response.coin == "ETH-PERP"
@@ -148,9 +150,9 @@ class TestHandleInfoL2BookResponse:
         """Test L2 book response missing levels field."""
         raw_data = {"coin": "ETH-PERP", "time": 1678889300000}  # Missing levels
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_l2_book_response(
+            HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid L2 book ({symbol}) response from exchange:" in exc_info.value.message
@@ -161,9 +163,9 @@ class TestHandleInfoL2BookResponse:
         """Test L2 book response with wrong top-level type."""
         raw_data = "invalid"
         with pytest.raises(StructureTypeError) as exc_info:
-            HyperliquidResponseHandler.handle_info_l2_book_response(
+            HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         assert "Expected a dict, got str" in str(exc_info.value)
 
@@ -174,9 +176,9 @@ class TestHandleInfoL2BookResponse:
             "levels": [[], []],  # Empty bids and asks
             "time": 1678889300000,
         }
-        response = HyperliquidResponseHandler.handle_info_l2_book_response(
+        response = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
-            symbol=symbol,
+            symbol,
         )
         assert response.coin == "ETH-PERP"
         assert len(response.levels) == 2
@@ -185,15 +187,15 @@ class TestHandleInfoL2BookResponse:
 
 
 class TestHandleInfoRecentTradesResponse:
-    """Tests for HyperliquidResponseHandler.handle_info_recent_trades_response."""
+    """Tests for HyperliquidResponseHandler().handle_info_recent_trades_response."""
 
     def test_valid(self, valid_raw_public_trade: dict[str, Any], symbol: str) -> None:
         """Test handling a valid recent trades response."""
         raw_data = [valid_raw_public_trade, valid_raw_public_trade.copy()]
         response_list: list[HyperliquidRawPublicTrade] = (
-            HyperliquidResponseHandler.handle_info_recent_trades_response(
+            HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         )
         assert isinstance(response_list, list)
@@ -207,9 +209,9 @@ class TestHandleInfoRecentTradesResponse:
         invalid_trade = {"coin": "ETH-PERP"}  # Missing required fields
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_recent_trades_response(
+            HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
@@ -220,9 +222,9 @@ class TestHandleInfoRecentTradesResponse:
         raw_data = ["not_a_trade_dict"]
         # Handler should raise ListFieldError for invalid items as per business logic
         with pytest.raises(ListFieldError) as exc_info:
-            HyperliquidResponseHandler.handle_info_recent_trades_response(
+            HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         assert "Expected dict" in str(exc_info.value)
 
@@ -230,24 +232,24 @@ class TestHandleInfoRecentTradesResponse:
         """Test recent trades response with wrong top-level type."""
         raw_data = {"invalid": "data"}
         with pytest.raises(ListFieldError) as exc_info:
-            HyperliquidResponseHandler.handle_info_recent_trades_response(
+            HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         assert "Expected list" in str(exc_info.value)
 
 
 class TestHandleInfoCandleSnapshotResponse:
-    """Tests for HyperliquidResponseHandler.handle_info_candle_snapshot_response."""
+    """Tests for HyperliquidResponseHandler().handle_info_candle_snapshot_response."""
 
     def test_valid(self, valid_raw_candle_snapshot: dict[str, Any], symbol: str) -> None:
         """Test handling a valid candle snapshot response."""
         raw_data = valid_raw_candle_snapshot
         response: HyperliquidRawCandleSnapshot = (
-            HyperliquidResponseHandler.handle_info_candle_snapshot_response(
+            HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
-                interval="1m",
+                symbol,
+                "1m",
             )
         )
         assert isinstance(response, HyperliquidRawCandleSnapshot)
@@ -258,10 +260,10 @@ class TestHandleInfoCandleSnapshotResponse:
         """Test candle snapshot response missing timestamps."""
         raw_data = {"o": ["1200.0"], "h": ["1250.0"], "s": "ok"}  # Missing 't'
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_candle_snapshot_response(
+            HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
-                interval="1m",
+                symbol,
+                "1m",
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -275,10 +277,10 @@ class TestHandleInfoCandleSnapshotResponse:
         """Test candle snapshot response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(StructureTypeError) as exc_info:
-            HyperliquidResponseHandler.handle_info_candle_snapshot_response(
+            HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
-                interval="1m",
+                symbol,
+                "1m",
             )
         assert "Expected dict" in str(exc_info.value)
 
@@ -294,37 +296,36 @@ class TestHandleInfoCandleSnapshotResponse:
             "s": "ok",
         }
         with pytest.raises(ParsingError) as exc_info:
-            HyperliquidResponseHandler.handle_info_candle_snapshot_response(
+            HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
-                interval="1m",
+                symbol,
+                "1m",
             )
         assert "OHLCV data lists must all have the same length" in str(exc_info.value)
 
 
 class TestHandleHistoricalFundingRatesResponse:
-    """Tests for HyperliquidResponseHandler.handle_historical_funding_rates_response."""
+    """Tests for HyperliquidResponseHandler().handle_historical_funding_rates_response."""
 
     def test_valid(self, valid_raw_historical_funding_rates_data: list[dict[str, Any]]) -> None:
         """Test handling a valid historical funding rates response."""
         raw_data = valid_raw_historical_funding_rates_data
-        response_list: list[HyperliquidRawFundingHistoryItem] = (
-            HyperliquidResponseHandler.handle_historical_funding_rates_response(
-                cast("RawJsonResponse", raw_data),
-            )
+        response = HyperliquidResponseHandler().handle_historical_funding_rates_response(
+            cast("RawJsonResponse", raw_data),
         )
-        assert isinstance(response_list, list)
-        assert len(response_list) == 2
-        assert isinstance(response_list[0], HyperliquidRawFundingHistoryItem)
-        assert response_list[0].coin == "ETH"
-        assert response_list[1].coin == "BTC"
+        assert isinstance(response, HyperliquidRawFundingHistoryResponse)
+        assert isinstance(response.items, list)
+        assert len(response.items) == 2
+        assert isinstance(response.items[0], HyperliquidRawFundingHistoryItem)
+        assert response.items[0].coin == "ETH"
+        assert response.items[1].coin == "BTC"
 
     def test_validation_error_invalid_funding_item(self) -> None:
         """Test historical funding rates response with invalid funding item."""
         invalid_funding = {"coin": "ETH"}  # Missing required fields
         raw_data = [invalid_funding]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_historical_funding_rates_response(
+            HyperliquidResponseHandler().handle_historical_funding_rates_response(
                 cast("RawJsonResponse", raw_data),
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -335,7 +336,7 @@ class TestHandleHistoricalFundingRatesResponse:
         """Test historical funding rates response with non-dict item in list."""
         raw_data = ["not_a_funding_dict"]
         with pytest.raises(StructureTypeError) as exc_info:
-            HyperliquidResponseHandler.handle_historical_funding_rates_response(
+            HyperliquidResponseHandler().handle_historical_funding_rates_response(
                 cast("RawJsonResponse", raw_data),
             )
         assert "Expected dict" in str(exc_info.value)
@@ -344,7 +345,7 @@ class TestHandleHistoricalFundingRatesResponse:
         """Test historical funding rates response with wrong top-level type."""
         raw_data = {"invalid": "data"}
         with pytest.raises(StructureTypeError) as exc_info:
-            HyperliquidResponseHandler.handle_historical_funding_rates_response(
+            HyperliquidResponseHandler().handle_historical_funding_rates_response(
                 cast("RawJsonResponse", raw_data),
             )
         assert "expected list" in str(exc_info.value).lower()
@@ -352,11 +353,12 @@ class TestHandleHistoricalFundingRatesResponse:
     def test_empty_list_response(self) -> None:
         """Test historical funding rates response with empty list."""
         raw_data: list[Any] = []
-        response_list = HyperliquidResponseHandler.handle_historical_funding_rates_response(
+        response = HyperliquidResponseHandler().handle_historical_funding_rates_response(
             cast("RawJsonResponse", raw_data),
         )
-        assert isinstance(response_list, list)
-        assert len(response_list) == 0
+        assert isinstance(response, HyperliquidRawFundingHistoryResponse)
+        assert isinstance(response.items, list)
+        assert len(response.items) == 0
 
 
 class TestMarketDataEdgeCases:
@@ -375,9 +377,8 @@ class TestMarketDataEdgeCases:
             "extraField": "ignored",  # Should cause ValidationError
         }
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_funding_rate_response(
+            HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -390,9 +391,9 @@ class TestMarketDataEdgeCases:
             "levels": [[], []],  # Empty bids and asks
             "time": 1678889300000,
         }
-        response = HyperliquidResponseHandler.handle_info_l2_book_response(
+        response = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
-            symbol=symbol,
+            symbol,
         )
         assert response.coin == "ETH-PERP"
         assert len(response.levels) == 2
@@ -412,9 +413,9 @@ class TestMarketDataEdgeCases:
             valid_raw_public_trade.copy(),  # Valid but won't be processed due to error
         ]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_recent_trades_response(
+            HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol=symbol,
+                symbol,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "1.side" in exc_info.value.message  # Should fail on second item (index 1)

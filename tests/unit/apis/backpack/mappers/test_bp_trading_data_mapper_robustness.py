@@ -2,7 +2,7 @@
 
 --------------------------------------------------------------
 
-Comprehensive robustness test suite for BackpackTradingDataMapper.
+Comprehensive robustness test suite for BackpackOrderMapper.
 Tests edge cases, boundary conditions, and error handling including:
 - Boundary value testing with extreme inputs
 - Unicode and encoding support
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # Project-specific imports
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
 
@@ -48,9 +48,9 @@ logger = get_logger(__name__)
 
 
 @pytest.fixture
-def trading_data_mapper() -> BackpackTradingDataMapper:
-    """Provide an instance of BackpackTradingDataMapper."""
-    return BackpackTradingDataMapper()
+def trading_data_mapper() -> BackpackOrderMapper:
+    """Provide an instance of BackpackOrderMapper."""
+    return BackpackOrderMapper()
 
 
 def create_raw_order(
@@ -107,7 +107,7 @@ def create_raw_order(
 class TestBoundaryValueHandling:
     """Tests for boundary values and extreme inputs."""
 
-    def test_minimal_order_data(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_minimal_order_data(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test transformation with minimal required order data."""
         minimal_order = create_raw_order(
             side="Buy",
@@ -130,7 +130,7 @@ class TestBoundaryValueHandling:
         assert result.client_order_id is not None
         assert len(result.client_order_id) > 0
 
-    def test_boundary_values(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_boundary_values(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test transformation with boundary values."""
         boundary_order = create_raw_order(
             side="Sell",
@@ -159,7 +159,7 @@ class TestBoundaryValueHandling:
         assert result.stop_price == Decimal("999999.999999")
         assert result.time_in_force == TimeInForce.FOK
 
-    def test_extremely_large_values(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_extremely_large_values(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test transformation with extremely large numeric values."""
         large_order = create_raw_order(
             quantity="999999999999999.999999999999999",
@@ -174,7 +174,7 @@ class TestBoundaryValueHandling:
         assert result.price == Decimal("999999999999999.999999999999999")
         assert result.exchange_order_id == "99999999999999999999"
 
-    def test_extremely_small_values(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_extremely_small_values(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test transformation with extremely small numeric values."""
         small_order = create_raw_order(
             quantity="0.000000000000001",
@@ -187,7 +187,7 @@ class TestBoundaryValueHandling:
         assert result.quantity_requested == Decimal("0.000000000000001")
         assert result.price == Decimal("0.000000000000001")
 
-    def test_zero_values_handling(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_zero_values_handling(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test handling of zero values in various fields."""
         zero_order = create_raw_order(
             executed_quantity="0.0",
@@ -201,7 +201,7 @@ class TestBoundaryValueHandling:
 
     def test_maximum_precision_decimals(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with maximum precision decimal values."""
         precision_order = create_raw_order(
@@ -231,7 +231,7 @@ class TestUnicodeAndEncodingSupport:
 
     def test_unicode_symbols_in_symbol_field(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with Unicode characters in symbol field."""
         unicode_symbols = [
@@ -256,7 +256,7 @@ class TestUnicodeAndEncodingSupport:
 
     def test_unicode_in_client_order_id(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with Unicode characters in client order ID."""
         unicode_client_ids = [
@@ -273,7 +273,7 @@ class TestUnicodeAndEncodingSupport:
 
             assert result.client_order_id == client_id
 
-    def test_mixed_encoding_scenarios(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_mixed_encoding_scenarios(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test transformation with mixed encoding scenarios."""
         mixed_order = create_raw_order(
             symbol="BTC-USDC🚀",
@@ -287,7 +287,7 @@ class TestUnicodeAndEncodingSupport:
         assert result.client_order_id == "test_测试_🎯"
         assert result.exchange_order_id == "order_символ_123"
 
-    def test_empty_string_handling(self, trading_data_mapper: BackpackTradingDataMapper) -> None:
+    def test_empty_string_handling(self, trading_data_mapper: BackpackOrderMapper) -> None:
         """Test handling of empty strings in various fields."""
         # Test via order data method since raw model validation might prevent empty strings
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -311,13 +311,13 @@ class TestErrorHandlingAndRecovery:
 
     def test_invalid_decimal_conversion_handling(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of invalid decimal conversion errors."""
         # Mock parse_decimal_value to simulate parsing errors
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Invalid decimal format")
 
@@ -328,13 +328,13 @@ class TestErrorHandlingAndRecovery:
 
     def test_invalid_datetime_conversion_handling(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of invalid datetime conversion errors."""
         # Mock parse_datetime_utc to simulate parsing errors
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_datetime_utc",
         )
         mock_parse.side_effect = ValueError("Invalid datetime format")
 
@@ -345,16 +345,16 @@ class TestErrorHandlingAndRecovery:
 
     def test_multiple_parsing_errors_aggregation(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that multiple parsing errors are properly aggregated."""
         # Mock multiple parsing functions to fail
         mock_decimal = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_datetime = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_datetime_utc",
         )
 
         mock_decimal.side_effect = ValueError("Decimal parsing error")
@@ -367,7 +367,7 @@ class TestErrorHandlingAndRecovery:
 
     def test_graceful_degradation_with_partial_data(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test graceful handling when optional fields are missing or invalid."""
         # Create order with minimal data
@@ -386,12 +386,12 @@ class TestErrorHandlingAndRecovery:
 
     def test_transformation_error_message_clarity(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that transformation error messages are clear and informative."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Specific parsing error message")
 
@@ -411,7 +411,7 @@ class TestPerformanceAndMemoryConsiderations:
 
     def test_large_batch_transformation_efficiency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation efficiency with large batches of orders."""
         # Create a large number of orders
@@ -443,7 +443,7 @@ class TestPerformanceAndMemoryConsiderations:
 
     def test_memory_efficiency_with_large_objects(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test memory efficiency when handling large order objects."""
         # Create orders with large string fields but within validation limits
@@ -462,7 +462,7 @@ class TestPerformanceAndMemoryConsiderations:
 
     def test_concurrent_transformation_safety(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that transformations are safe for concurrent usage."""
         # Create multiple orders that could potentially interfere
@@ -506,7 +506,7 @@ class TestDataConsistencyAndValidation:
     )
     def test_status_mapping_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         status_input: str,
         expected_output: OrderStatus,
     ) -> None:
@@ -526,7 +526,7 @@ class TestDataConsistencyAndValidation:
 
     def test_case_insensitive_mappings_comprehensive(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that all enum mappings are case insensitive."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -546,7 +546,7 @@ class TestDataConsistencyAndValidation:
 
     def test_decimal_precision_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test that decimal precision is maintained consistently."""
         test_values = [
@@ -570,7 +570,7 @@ class TestDataConsistencyAndValidation:
 
     def test_none_value_handling_consistency(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test consistent handling of None values across transformations."""
         # Test with various None scenarios

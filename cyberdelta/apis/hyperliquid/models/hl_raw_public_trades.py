@@ -19,7 +19,8 @@ trade data.
   conversions and business logic.
 
 **References:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 

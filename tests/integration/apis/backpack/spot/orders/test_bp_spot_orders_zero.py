@@ -36,7 +36,6 @@ from cyberdelta.apis.models.service_args_models import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
-from cyberdelta.exceptions.parsing import EmptyStringError
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     TEST_SYMBOL_BTC_USDC,
     TEST_SYMBOL_SOL_USDC,
@@ -274,7 +273,7 @@ class TestBackpackOrdersZeroBalance:
         for malformed_symbol in truly_malformed_symbols:
             if not malformed_symbol:
                 # Empty string is validated at Pydantic level
-                with pytest.raises(EmptyStringError):
+                with pytest.raises(ValidationError):
                     PlaceOrderArgs(
                         symbol=malformed_symbol,
                         side=OrderSide.BUY,
@@ -283,7 +282,7 @@ class TestBackpackOrdersZeroBalance:
                         price=current_price,
                         time_in_force=TimeInForce.GTC,
                     )
-                # EmptyStringError is expected for empty string validation
+                # ValidationError is expected for empty string validation (wrapped by Pydantic)
             else:
                 # Other malformed symbols might pass Pydantic but fail at API level
                 place_args = PlaceOrderArgs(

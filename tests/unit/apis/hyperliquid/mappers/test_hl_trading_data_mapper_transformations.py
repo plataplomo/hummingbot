@@ -2,7 +2,7 @@
 
 -----------------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidTradingDataMapper transformation methods.
+Comprehensive test suite for HyperliquidOrderMapper transformation methods.
 Tests specific transformation scenarios including:
 - Raw order to internal order transformations
 - Historical order to internal order transformations
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import MissingRequiredFieldError
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -52,9 +52,9 @@ logger = get_logger(__name__)
 
 
 @pytest.fixture
-def trading_data_mapper() -> HyperliquidTradingDataMapper:
-    """Provide an instance of HyperliquidTradingDataMapper."""
-    return HyperliquidTradingDataMapper()
+def trading_data_mapper() -> HyperliquidOrderMapper:
+    """Provide an instance of HyperliquidOrderMapper."""
+    return HyperliquidOrderMapper()
 
 
 @pytest.fixture
@@ -159,7 +159,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_buy_limit_happy_path(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test successful transformation of a buy limit order."""
         raw_order = create_raw_order(
@@ -194,7 +194,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_sell_market_happy_path(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test successful transformation of a sell market order."""
         raw_order = create_raw_historical_order(
@@ -233,7 +233,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_missing_size_raises_error(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing or invalid size raises TransformationError."""
@@ -241,7 +241,7 @@ class TestTransformRawOrderToInternal:
 
         # Mock parse_decimal_value to return None for size
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.return_value = None
 
@@ -252,7 +252,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_missing_timestamp_raises_error(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing or invalid timestamp raises TransformationError."""
@@ -260,7 +260,7 @@ class TestTransformRawOrderToInternal:
 
         # Mock parse_datetime_utc to return None for timestamp
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_datetime_utc",
         )
         mock_parse.return_value = None
 
@@ -271,7 +271,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_parsing_exception_raises_transformation_error(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that parsing exceptions are wrapped in TransformationError."""
@@ -279,7 +279,7 @@ class TestTransformRawOrderToInternal:
 
         # Mock parse_decimal_value to raise an exception
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Invalid decimal format")
 
@@ -288,7 +288,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_edge_case_none_remaining_sz(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with None remaining size."""
@@ -308,7 +308,7 @@ class TestTransformRawOrderToInternal:
             return Decimal("1.0")
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = mock_parse_side_effect
 
@@ -319,7 +319,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_edge_case_none_limit_px(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with None limit price (market order scenario)."""
@@ -339,7 +339,7 @@ class TestTransformRawOrderToInternal:
             return Decimal("1.0")
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = mock_parse_side_effect
 
@@ -348,15 +348,12 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_with_trigger(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
     ) -> None:
         """Test transformation with trigger information."""
         raw_order = create_raw_order()
-        result = trading_data_mapper.transform_raw_order_to_internal(
-            raw_order,
-            hyperliquid_raw_trigger_info_stop_loss_fixture,
-        )
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert result.order_type == OrderType.STOP_LIMIT
         assert result.stop_price == Decimal("2900.00")
@@ -364,7 +361,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_with_trigger_mark_price(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with trigger that has mark price trigger type."""
@@ -374,13 +371,13 @@ class TestTransformRawOrderToInternal:
         trigger.trigger_type = "mark"
 
         raw_order = create_raw_order()
-        result = trading_data_mapper.transform_raw_order_to_internal(raw_order, trigger)
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert result.trigger_by == TriggerType.MARK_PRICE
 
     def test_transform_raw_order_with_trigger_last_price(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with trigger that has last price trigger type."""
@@ -390,7 +387,7 @@ class TestTransformRawOrderToInternal:
         trigger.trigger_type = "last"
 
         raw_order = create_raw_order()
-        result = trading_data_mapper.transform_raw_order_to_internal(raw_order, trigger)
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert result.trigger_by == TriggerType.LAST_PRICE
 
@@ -403,7 +400,7 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_happy_path(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test successful transformation of a historical order."""
         raw_order = create_raw_historical_order(
@@ -435,14 +432,14 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_missing_size_raises_error(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing size raises TransformationError for historical orders."""
         raw_order = create_raw_historical_order()
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.return_value = None
 
@@ -454,14 +451,14 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_missing_timestamp_raises_error(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing timestamp raises TransformationError for historical orders."""
         raw_order = create_raw_historical_order()
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_datetime_utc",
         )
         mock_parse.return_value = None
 
@@ -473,7 +470,7 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_no_status_timestamp_uses_created_at(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that if status timestamp is missing, created_at is used for updated_at."""
@@ -487,7 +484,7 @@ class TestTransformRawHistoricalOrderToInternal:
             return datetime.now(UTC)
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_datetime_utc",
         )
         mock_parse.side_effect = mock_parse_side_effect
 
@@ -501,7 +498,7 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_edge_case_no_cloid(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation of historical order with no client order ID."""
@@ -513,14 +510,14 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_exception_wrapping(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that exceptions during historical order transformation are wrapped."""
         raw_order = create_raw_historical_order()
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Parse error")
 
@@ -529,7 +526,7 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_edge_case_zero_remaining_sz(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with zero remaining size."""
@@ -542,7 +539,7 @@ class TestTransformRawHistoricalOrderToInternal:
 
     def test_transform_raw_historical_order_with_trigger(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hyperliquid_raw_trigger_info_take_profit_fixture: HyperliquidRawTriggerInfo,
     ) -> None:
         """Test transformation of historical order with trigger."""
@@ -564,7 +561,7 @@ class TestTransformationIntegration:
 
     def test_complete_order_lifecycle_transformation(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
     ) -> None:
         """Test transformation of orders at different lifecycle stages."""
@@ -599,10 +596,7 @@ class TestTransformationIntegration:
         open_result = trading_data_mapper.transform_raw_order_to_internal(open_order)
         partial_result = trading_data_mapper.transform_raw_order_to_internal(partial_order)
         filled_result = trading_data_mapper.transform_raw_historical_order_to_internal(filled_order)
-        trigger_result = trading_data_mapper.transform_raw_order_to_internal(
-            trigger_order,
-            hyperliquid_raw_trigger_info_stop_loss_fixture,
-        )
+        trigger_result = trading_data_mapper.transform_raw_order_to_internal(trigger_order)
 
         # Verify progression
         assert open_result.quantity_filled == Decimal("2.0")  # 5.0 - 3.0
@@ -620,7 +614,7 @@ class TestTransformationIntegration:
 
     def test_error_handling_consistency(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that error handling is consistent across transformation methods."""
@@ -629,7 +623,7 @@ class TestTransformationIntegration:
 
         # Mock to cause parsing error
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 
@@ -642,7 +636,7 @@ class TestTransformationIntegration:
 
     def test_all_mapping_logic_works_together(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that all mapping logic works together correctly."""
         # Use historical order for canceled status since HyperliquidRawOrder only allows "open"
@@ -681,7 +675,7 @@ class TestAdvancedScenarios:
 
     def test_high_precision_decimal_handling(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test transformation with high precision decimal values."""
         raw_order = create_raw_order(
@@ -698,7 +692,7 @@ class TestAdvancedScenarios:
 
     def test_large_order_ids_handling(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test transformation with very large order IDs."""
         large_oid = 999999999999999999
@@ -709,7 +703,7 @@ class TestAdvancedScenarios:
 
     def test_unicode_symbol_handling(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test transformation with Unicode characters in symbol names."""
         unicode_symbol = "BTC-PERP🚀"
@@ -720,7 +714,7 @@ class TestAdvancedScenarios:
 
     def test_very_long_client_order_ids(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test transformation with very long client order IDs."""
         long_cloid = "0x" + "a" * 32  # Valid 128-bit hex string
@@ -729,7 +723,7 @@ class TestAdvancedScenarios:
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
         assert result.client_order_id == long_cloid
 
-    def test_boundary_timestamps(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
+    def test_boundary_timestamps(self, trading_data_mapper: HyperliquidOrderMapper) -> None:
         """Test transformation with boundary timestamp values."""
         # Test with very old and very new timestamps
         old_timestamp = 946684800000  # Year 2000

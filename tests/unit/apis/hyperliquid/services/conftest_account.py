@@ -1,16 +1,21 @@
 """Shared fixtures for HyperliquidAccountService tests."""
 
 from collections.abc import Awaitable, Callable, Generator, Mapping
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
+from cyberdelta.apis.hyperliquid.request_builders.hl_account_request_builder import (
+    HyperliquidAccountRequestBuilder,
+)
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -36,9 +41,9 @@ def mock_request_builder() -> MagicMock:
     """Return mock request builder for testing.
 
     Returns:
-        MagicMock: Mock HyperliquidRequestBuilder instance.
+        MagicMock: Mock HyperliquidAccountRequestBuilder instance.
     """
-    return MagicMock(spec=HyperliquidRequestBuilder)
+    return MagicMock(spec=HyperliquidAccountRequestBuilder)
 
 
 @pytest.fixture
@@ -66,9 +71,9 @@ def mock_hl_account_mapper() -> MagicMock:  # For general user state to balance/
     """Return mock hl account mapper for testing.
 
     Returns:
-        MagicMock: Mock HyperliquidAccountDataMapper instance.
+        MagicMock: Mock account mapper instance.
     """
-    return MagicMock(spec=HyperliquidAccountDataMapper)
+    return MagicMock()
 
 
 @pytest.fixture
@@ -76,9 +81,9 @@ def mock_hl_trading_mapper() -> MagicMock:  # For order/fill related mappings
     """Return mock hl trading mapper for testing.
 
     Returns:
-        MagicMock: Mock HyperliquidTradingDataMapper instance.
+        MagicMock: Mock HyperliquidOrderMapper instance.
     """
-    return MagicMock(spec=HyperliquidTradingDataMapper)
+    return MagicMock(spec=HyperliquidOrderMapper)
 
 
 @pytest.fixture
@@ -86,9 +91,9 @@ def mock_hl_order_mapper() -> MagicMock:  # Backward compatibility alias
     """Return mock hl order mapper for testing.
 
     Returns:
-        MagicMock: Mock HyperliquidTradingDataMapper instance.
+        MagicMock: Mock HyperliquidOrderMapper instance.
     """
-    return MagicMock(spec=HyperliquidTradingDataMapper)
+    return MagicMock(spec=HyperliquidOrderMapper)
 
 
 @pytest.fixture
@@ -96,9 +101,9 @@ def mock_hl_user_fill_mapper() -> MagicMock:  # Backward compatibility alias
     """Return mock hl user fill mapper for testing.
 
     Returns:
-        MagicMock: Mock HyperliquidTradingDataMapper instance.
+        MagicMock: Mock HyperliquidOrderMapper instance.
     """
-    return MagicMock(spec=HyperliquidTradingDataMapper)
+    return MagicMock(spec=HyperliquidOrderMapper)
 
 
 @pytest.fixture
@@ -146,7 +151,23 @@ def hyperliquid_account_service(
         authenticator=mock_authenticator,
         exchange_name="hyperliquid_test_account",
         wallet_address="0xTestWalletAddress",
-        account_mapper=mock_hl_account_mapper,
-        trading_mapper=mock_hl_trading_mapper,
-        get_asset_index_callable=mock_get_asset_index_callable,
+        account_summary_mapper=mock_hl_account_mapper,
+        order_mapper=mock_hl_trading_mapper,
+    )
+
+
+@pytest.fixture
+def mock_trade() -> Trade:
+    """Create a mock trade for testing."""
+    return Trade(
+        id="trade_12345",
+        symbol="BTC-USD",
+        executed_at=datetime.now(UTC),
+        side=OrderSide.BUY,
+        order_id="order_67890",
+        exchange="hyperliquid",
+        price=Decimal("50000.0"),
+        quantity=Decimal("0.1"),
+        fee=Decimal("0.05"),
+        fee_asset="USD",
     )

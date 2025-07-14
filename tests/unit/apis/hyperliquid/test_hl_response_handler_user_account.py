@@ -31,12 +31,11 @@ class TestHandleInfoUserStateResponse:
     def test_valid(self, valid_raw_user_state: dict[str, Any], user_address: str) -> None:
         """Test handling a valid user state response."""
         raw_data = valid_raw_user_state
-        response: HyperliquidRawClearinghouseState = (
-            HyperliquidResponseHandler.handle_info_user_state_response(
-                cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                status_code=200,
-            )
+        handler = HyperliquidResponseHandler()
+        response: HyperliquidRawClearinghouseState = handler.handle_info_user_state_response(
+            cast("ParsedJsonResponse", raw_data),
+            user_address=user_address,
+            status_code=200,
         )
         assert isinstance(response, HyperliquidRawClearinghouseState)
         assert len(response.asset_positions) == 1
@@ -50,7 +49,7 @@ class TestHandleInfoUserStateResponse:
             "withdrawable": "4700.0",
         }  # Missing assetPositions
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_state_response(
+            HyperliquidResponseHandler().handle_info_user_state_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -72,7 +71,7 @@ class TestHandleInfoUserStateResponse:
             "withdrawable": "4700.0",
         }
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_state_response(
+            HyperliquidResponseHandler().handle_info_user_state_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -88,7 +87,7 @@ class TestHandleInfoUserStateResponse:
         """Test user state response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_state_response(
+            HyperliquidResponseHandler().handle_info_user_state_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -108,7 +107,7 @@ class TestHandleInfoOpenOrdersResponse:
         """Test handling a valid open orders response."""
         raw_data = [valid_raw_open_order_item, valid_raw_open_order_item.copy()]
         response: HyperliquidRawOpenOrdersResponse = (
-            HyperliquidResponseHandler.handle_info_open_orders_response(
+            HyperliquidResponseHandler().handle_info_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -122,7 +121,7 @@ class TestHandleInfoOpenOrdersResponse:
     def test_empty_orders_list(self, user_address: str) -> None:
         """Test handling empty open orders response."""
         raw_data: list[Any] = []
-        response = HyperliquidResponseHandler.handle_info_open_orders_response(
+        response = HyperliquidResponseHandler().handle_info_open_orders_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
             status_code=200,
@@ -135,7 +134,7 @@ class TestHandleInfoOpenOrdersResponse:
         invalid_order = {"asset": "ETH-PERP"}  # Missing required fields
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_open_orders_response(
+            HyperliquidResponseHandler().handle_info_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -151,7 +150,7 @@ class TestHandleInfoOpenOrdersResponse:
         """Test open orders response with non-dict item in list."""
         raw_data = ["not_an_order_dict"]
         with pytest.raises(TypeError) as exc_info:
-            HyperliquidResponseHandler.handle_info_open_orders_response(
+            HyperliquidResponseHandler().handle_info_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -162,7 +161,7 @@ class TestHandleInfoOpenOrdersResponse:
         """Test open orders response with wrong top-level type."""
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_open_orders_response(
+            HyperliquidResponseHandler().handle_info_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -186,7 +185,7 @@ class TestHandleInfoOpenOrdersResponse:
             invalid_order,  # Invalid
         ]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_open_orders_response(
+            HyperliquidResponseHandler().handle_info_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -206,7 +205,7 @@ class TestHandleInfoUserFillsResponse:
         """Test handling a valid user fills response."""
         raw_data = [valid_raw_user_fill, valid_raw_user_fill.copy()]
         response: HyperliquidRawUserFillsResponse = (
-            HyperliquidResponseHandler.handle_info_user_fills_response(
+            HyperliquidResponseHandler().handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -221,7 +220,7 @@ class TestHandleInfoUserFillsResponse:
     def test_empty_fills_list(self, user_address: str) -> None:
         """Test handling empty user fills response."""
         raw_data: list[Any] = []
-        response = HyperliquidResponseHandler.handle_info_user_fills_response(
+        response = HyperliquidResponseHandler().handle_info_user_fills_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
             status_code=200,
@@ -234,7 +233,7 @@ class TestHandleInfoUserFillsResponse:
         invalid_fill = {"coin": "ETH"}  # Missing required fields
         raw_data = [invalid_fill]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_fills_response(
+            HyperliquidResponseHandler().handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -250,7 +249,7 @@ class TestHandleInfoUserFillsResponse:
         """Test user fills response with non-dict item in list."""
         raw_data = ["not_a_fill_dict"]
         with pytest.raises(ListFieldError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_fills_response(
+            HyperliquidResponseHandler().handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -261,7 +260,7 @@ class TestHandleInfoUserFillsResponse:
         """Test user fills response with wrong top-level type."""
         raw_data = {"invalid": "data"}
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_fills_response(
+            HyperliquidResponseHandler().handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -303,7 +302,7 @@ class TestUserAccountEdgeCases:
             },
             "withdrawable": "5000.0",
         }
-        response = HyperliquidResponseHandler.handle_info_user_state_response(
+        response = HyperliquidResponseHandler().handle_info_user_state_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
             status_code=200,
@@ -337,7 +336,7 @@ class TestUserAccountEdgeCases:
             },
             "withdrawable": "1000.0",
         }
-        response = HyperliquidResponseHandler.handle_info_user_state_response(
+        response = HyperliquidResponseHandler().handle_info_user_state_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
             status_code=200,
@@ -357,7 +356,7 @@ class TestUserAccountEdgeCases:
             invalid_fill,  # Invalid
         ]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_user_fills_response(
+            HyperliquidResponseHandler().handle_info_user_fills_response(
                 cast("ParsedJsonResponse", raw_data),
                 user_address=user_address,
                 status_code=200,
@@ -426,7 +425,7 @@ class TestUserAccountEdgeCases:
             },
             "withdrawable": "12000.0",
         }
-        response = HyperliquidResponseHandler.handle_info_user_state_response(
+        response = HyperliquidResponseHandler().handle_info_user_state_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
             status_code=200,
@@ -449,7 +448,7 @@ class TestUserAccountEdgeCases:
             "origSz": "0.1",
         }
         raw_data = [trigger_order]
-        response = HyperliquidResponseHandler.handle_info_open_orders_response(
+        response = HyperliquidResponseHandler().handle_info_open_orders_response(
             cast("ParsedJsonResponse", raw_data),
             user_address=user_address,
             status_code=200,

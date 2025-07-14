@@ -4,8 +4,8 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 - REST and WebSocket API client (`BackpackAPI`)
 - Centralized error mapping and normalization (`BackpackErrorMapper`)
 
-- Domain-specific data transformation mappers (`BackpackAccountDataMapper`,
-  `BackpackMarketDataMapper`, `BackpackTradingDataMapper`)
+- Domain-specific data transformation mappers (decomposed account mappers,
+  decomposed market data mappers, `BackpackOrderMapper`)
 
 **Key architectural patterns:**
 - All external (exchange) errors are mapped to canonical APIErrorCode values, validated and
@@ -27,16 +27,16 @@ from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPICompon
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
+
+# Note: Request builders and response handlers are now created by the factory
 from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
-from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
-from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
+from cyberdelta.apis.backpack.services.bp_market_data_service import (
+    BackpackMarketDataService,
+)
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import MessageHandler
@@ -116,12 +116,9 @@ class BackpackAPI(ExchangeAPI):
         # Optional dependency injection parameters for testing
         authenticator: BackpackEd25519Authenticator | None = None,
         error_mapper: BackpackErrorMapper | None = None,
-        response_handler: BackpackResponseHandler | None = None,
-        request_builder: BackpackRequestBuilder | None = None,
+        # Note: request_builder and response_handler are now created by factory
         # New domain-specific mappers
-        account_data_mapper: BackpackAccountDataMapper | None = None,
-        market_data_mapper: BackpackMarketDataMapper | None = None,
-        trading_data_mapper: BackpackTradingDataMapper | None = None,
+        trading_data_mapper: BackpackOrderMapper | None = None,
         # Services
         account_service: BackpackAccountService | None = None,
         trading_service: BackpackTradingService | None = None,
@@ -134,11 +131,7 @@ class BackpackAPI(ExchangeAPI):
             exchange_secrets: Exchange secrets configuration model.
             authenticator: Optional authenticator instance for dependency injection
             error_mapper: Optional error mapper instance for dependency injection
-            response_handler: Optional response handler instance for dependency injection
-            request_builder: Optional request builder instance for dependency injection
 
-            account_data_mapper: Optional account data mapper instance for dependency injection
-            market_data_mapper: Optional market data mapper instance for dependency injection
             trading_data_mapper: Optional trading data mapper instance for dependency injection
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
@@ -155,12 +148,10 @@ class BackpackAPI(ExchangeAPI):
         # Use injected components or create them via factory
         self._bp_authenticator = authenticator or factory.create_authenticator()
         self._backpack_error_mapper = error_mapper or factory.create_error_mapper()
-        self._bp_request_builder = request_builder or factory.create_request_builder()
-        self._bp_response_handler = response_handler or factory.create_response_handler()
+        # Note: request builders are now created by individual services
+        # Note: response handlers are now created by individual services
 
         # Create instances of the new domain-specific mappers
-        self._bp_account_data_mapper = account_data_mapper or factory.create_account_data_mapper()
-        self._bp_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
         self._bp_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
 
         # Validate URLs based on environment
@@ -198,8 +189,6 @@ class BackpackAPI(ExchangeAPI):
 
         # Initialize WebSocket message router
         self._bp_ws_router = BackpackWsMessageRouter(
-            market_data_mapper=self._bp_market_data_mapper,
-            account_data_mapper=self._bp_account_data_mapper,
             trading_data_mapper=self._bp_trading_data_mapper,
             raw_ws_handler=BackpackWsRawMessageHandler(),
             exchange_name=self.exchange_name,
@@ -214,9 +203,6 @@ class BackpackAPI(ExchangeAPI):
         else:
             self.market_data_service = factory.create_market_data_service(
                 http_client_requester=service_requester,
-                market_data_mapper=self._bp_market_data_mapper,
-                request_builder=self._bp_request_builder,
-                response_handler=self._bp_response_handler,
                 exchange_name=self.exchange_name,
             )
 
@@ -226,9 +212,6 @@ class BackpackAPI(ExchangeAPI):
             self.account_service = factory.create_account_service(
                 http_client_requester=service_requester,
                 authenticator=self._bp_authenticator,
-                account_data_mapper=self._bp_account_data_mapper,
-                request_builder=self._bp_request_builder,
-                response_handler=self._bp_response_handler,
                 exchange_name=self.exchange_name,
             )
 
@@ -238,9 +221,6 @@ class BackpackAPI(ExchangeAPI):
             self.trading_service = factory.create_trading_service(
                 http_client_requester=service_requester,
                 authenticator=self._bp_authenticator,
-                trading_data_mapper=self._bp_trading_data_mapper,
-                request_builder=self._bp_request_builder,
-                response_handler=self._bp_response_handler,
                 exchange_name=self.exchange_name,
             )
 
@@ -319,7 +299,7 @@ class BackpackAPI(ExchangeAPI):
             Ticker information for the specified symbol
 
         """
-        return await self.market_data_service.get_ticker(symbol=symbol)
+        return await self.market_data_service.get_ticker(symbol)
 
     async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
         """Get order book for a specific symbol.
@@ -332,7 +312,7 @@ class BackpackAPI(ExchangeAPI):
             Order book containing bids and asks for the specified symbol
 
         """
-        return await self.market_data_service.get_order_book(symbol=symbol, limit=depth)
+        return await self.market_data_service.get_order_book(symbol, depth)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
         """Get recent trades for a specific symbol.
@@ -345,7 +325,7 @@ class BackpackAPI(ExchangeAPI):
             List of recent trades for the specified symbol
 
         """
-        return await self.market_data_service.get_recent_trades(symbol=symbol, limit=limit)
+        return await self.market_data_service.get_recent_trades(symbol, limit)
 
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """Get current funding rate for a specific symbol.
@@ -369,7 +349,7 @@ class BackpackAPI(ExchangeAPI):
             List of candlestick data for the specified parameters
 
         """
-        return await self.market_data_service.get_market_data(args=args)
+        return await self.market_data_service.get_market_data(args)
 
     async def get_market(self, args: GetMarketArgs) -> Market:
         """Get market metadata for a specific symbol.
@@ -381,7 +361,7 @@ class BackpackAPI(ExchangeAPI):
             Market metadata for the specified symbol
 
         """
-        return await self.market_data_service.get_market(args=args)
+        return await self.market_data_service.get_market(args)
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
         """Get market metadata for all available markets.
@@ -393,7 +373,7 @@ class BackpackAPI(ExchangeAPI):
             List of market metadata for all matching markets
 
         """
-        return await self.market_data_service.get_markets(args=args)
+        return await self.market_data_service.get_markets(args)
 
     # --- Account Methods --- #
 
@@ -430,7 +410,7 @@ class BackpackAPI(ExchangeAPI):
             Order object representing the placed order
 
         """
-        return await self.trading_service.place_order(args=args)
+        return await self.trading_service.place_order(args)
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Cancel an existing order.
@@ -442,7 +422,7 @@ class BackpackAPI(ExchangeAPI):
             Result of the cancellation operation
 
         """
-        return await self.trading_service.cancel_order(args=args)
+        return await self.trading_service.cancel_order(args)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
         """Get all open orders.
@@ -454,7 +434,7 @@ class BackpackAPI(ExchangeAPI):
             List of currently open orders
 
         """
-        return await self.trading_service.get_open_orders(symbol=symbol)
+        return await self.trading_service.get_open_orders(symbol)
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Get funding rates for specified symbols or all symbols.
@@ -466,7 +446,7 @@ class BackpackAPI(ExchangeAPI):
             List of funding rates for the requested symbols
 
         """
-        return await self.market_data_service.get_funding_rates(args=args)
+        return await self.market_data_service.get_funding_rates(args)
 
     async def get_account_summary(self) -> MarginAccountSummary:
         """Get comprehensive account margin information.
@@ -496,7 +476,18 @@ class BackpackAPI(ExchangeAPI):
             Updated account settings
 
         """
-        return await self.account_service.update_account_settings(args=args)
+        return await self.account_service.update_account_settings(args)
+
+    async def invalidate_account_cache(self, subaccount_id: int | None = None) -> None:
+        """Invalidate cached account state data.
+
+        This should be called after operations that modify account state
+        (like placing orders) to ensure fresh data on subsequent queries.
+
+        Args:
+            subaccount_id: Optional subaccount ID (None for main account)
+        """
+        await self.account_service.invalidate_account_cache(subaccount_id)
 
     async def transfer(self, args: TransferArgs) -> Transfer:
         """Transfer funds between account types.
@@ -508,7 +499,7 @@ class BackpackAPI(ExchangeAPI):
             Transfer object with transaction details
 
         """
-        return await self.account_service.transfer(args=args)
+        return await self.account_service.transfer(args)
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """Withdraw funds to an external address.
@@ -520,7 +511,7 @@ class BackpackAPI(ExchangeAPI):
             Withdrawal object with transaction details
 
         """
-        return await self.account_service.withdraw(args=args)
+        return await self.account_service.withdraw(args)
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Subscribe to order book updates for a symbol."""
@@ -583,7 +574,7 @@ class BackpackAPI(ExchangeAPI):
             List of historical orders
 
         """
-        return await self.account_service.get_order_history(args=args)
+        return await self.account_service.get_order_history(args)
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Get recent trade history.
@@ -595,7 +586,7 @@ class BackpackAPI(ExchangeAPI):
             List of recent trades
 
         """
-        return await self.account_service.get_trade_history(args=args)
+        return await self.account_service.get_trade_history(args)
 
     async def connect_websocket(self) -> None:
         """Establish the WebSocket connection using the base class logic."""
@@ -620,7 +611,7 @@ class BackpackAPI(ExchangeAPI):
                 context="get_order",
                 exchange="Backpack",
             )
-        return await self.trading_service.get_order(args=args)
+        return await self.trading_service.get_order(args)
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         """Fetch the status of a specific order.
@@ -642,7 +633,7 @@ class BackpackAPI(ExchangeAPI):
                 exchange="Backpack",
             )
         # Return type changed to Order | None to align with abstract method
-        return await self.trading_service.get_order_status(args=args)
+        return await self.trading_service.get_order(args)
 
     # All abstract methods should now be implemented.
 
@@ -687,7 +678,9 @@ class BackpackAPI(ExchangeAPI):
             List of all open orders
 
         """
-        return await self.trading_service.get_all_open_orders(args=args)
+        # Convert GetAllOpenOrdersArgs to simple parameter
+        symbol = args.symbol if args else None
+        return await self.trading_service.get_open_orders(symbol)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
@@ -725,7 +718,7 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             List of funding rates for the specified symbol and time range.
         """
-        return await self.market_data_service.get_historical_funding_rates(args=args)
+        return await self.market_data_service.get_historical_funding_rates(args)
 
     async def close(self) -> None:
         """Close the API client and clean up resources."""
@@ -737,7 +730,7 @@ class BackpackAPI(ExchangeAPI):
         Returns:
             List of cancel order results for each cancelled order.
         """
-        return await self.trading_service.cancel_all_orders(symbol=symbol)
+        return await self.trading_service.cancel_all_orders(symbol)
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
         """Place multiple orders in a single batch request.

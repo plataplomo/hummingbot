@@ -15,10 +15,14 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
+)
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
+)
+from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handler import (
+    HyperliquidMarketDataResponseHandler,
 )
 
 
@@ -32,13 +36,13 @@ class TestHyperliquidAssetIndexResolver:
 
     @pytest.fixture
     def mock_response_handler(self) -> MagicMock:
-        """Mock for HyperliquidResponseHandler."""
-        return MagicMock(spec=HyperliquidResponseHandler)
+        """Mock for HyperliquidMarketDataResponseHandler."""
+        return MagicMock(spec=HyperliquidMarketDataResponseHandler)
 
     @pytest.fixture
     def mock_request_builder(self) -> MagicMock:
-        """Mock for HyperliquidRequestBuilder."""
-        mock_builder = MagicMock(spec=HyperliquidRequestBuilder)
+        """Mock for HyperliquidMarketDataRequestBuilder."""
+        mock_builder = MagicMock(spec=HyperliquidMarketDataRequestBuilder)
         # Setup the build_info_request_payload method
         mock_payload = MagicMock()
         mock_payload.model_dump.return_value = {"type": "metaAndAssetCtxs"}

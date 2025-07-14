@@ -2,7 +2,7 @@
 
 -----------------------------------------------------------
 
-Comprehensive test suite for HyperliquidTradingDataMapper core transformation methods.
+Comprehensive test suite for HyperliquidOrderMapper core transformation methods.
 Tests fundamental transformation logic including:
 - Order side mapping (B/A -> BUY/SELL)
 - Order status mapping (open/filled/canceled -> OPEN/FILLED/CANCELED)
@@ -21,7 +21,7 @@ import structlog.testing
 from _pytest.logging import LogCaptureFixture
 from pydantic import ValidationError
 
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -45,9 +45,9 @@ logger = get_logger(__name__)
 
 
 @pytest.fixture
-def trading_data_mapper() -> HyperliquidTradingDataMapper:
-    """Provide an instance of HyperliquidTradingDataMapper."""
-    return HyperliquidTradingDataMapper()
+def trading_data_mapper() -> HyperliquidOrderMapper:
+    """Provide an instance of HyperliquidOrderMapper."""
+    return HyperliquidOrderMapper()
 
 
 def create_raw_order(
@@ -172,7 +172,7 @@ class TestOrderSideMapping:
 
     def test_raw_order_side_mapping(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hl_side: str,
         expected_side: OrderSide,
     ) -> None:
@@ -183,7 +183,7 @@ class TestOrderSideMapping:
 
     def test_historical_order_side_mapping(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hl_side: str,
         expected_side: OrderSide,
     ) -> None:
@@ -205,7 +205,7 @@ class TestOrderSideMapping:
     ],
 )
 def test_invalid_order_side_raises_error(
-    trading_data_mapper: HyperliquidTradingDataMapper,
+    trading_data_mapper: HyperliquidOrderMapper,
     invalid_side: str,
     expected_exception: type,
 ) -> None:
@@ -233,7 +233,7 @@ class TestOrderStatusMapping:
 
     def test_raw_order_status_mapping(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hl_status: str,
         expected_status: OrderStatus,
     ) -> None:
@@ -254,7 +254,7 @@ class TestOrderStatusMapping:
 
     def test_historical_order_status_mapping(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         hl_status: str,
         expected_status: OrderStatus,
     ) -> None:
@@ -282,7 +282,7 @@ class TestOrderTypeMapping:
 
     def test_order_type_mapping_via_raw_order(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         order_type_dict: dict[str, Any],
         expected_type: OrderType,
     ) -> None:
@@ -293,7 +293,7 @@ class TestOrderTypeMapping:
 
     def test_order_type_mapping_via_historical_order(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         order_type_dict: dict[str, Any],
         expected_type: OrderType,
     ) -> None:
@@ -320,7 +320,7 @@ class TestOrderTypeMapping:
     ],
 )
 def test_order_type_mapping_with_triggers(
-    trading_data_mapper: HyperliquidTradingDataMapper,
+    trading_data_mapper: HyperliquidOrderMapper,
     order_type_dict: dict[str, Any],
     trigger_tpsl: str | None,
     expected_type: OrderType,
@@ -328,15 +328,9 @@ def test_order_type_mapping_with_triggers(
     """Test order type mapping with and without triggers."""
     raw_order = create_raw_order(order_type=order_type_dict)
 
-    trigger = None
-    if trigger_tpsl:
-        trigger = HyperliquidRawTriggerInfo(
-            triggerPx="2900.00",
-            isMarket=True,
-            tpsl=trigger_tpsl,
-        )
+    # Note: trigger_tpsl parameter is used in test parameterization but not in the test logic
 
-    result = trading_data_mapper.transform_raw_order_to_internal(raw_order, trigger)
+    result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
     assert result.order_type == expected_type
 
 
@@ -349,7 +343,7 @@ def test_order_type_mapping_with_triggers(
     ],
 )
 def test_unknown_order_type_defaults_to_limit(
-    trading_data_mapper: HyperliquidTradingDataMapper,
+    trading_data_mapper: HyperliquidOrderMapper,
     unknown_order_type: dict[str, Any],
     caplog: LogCaptureFixture,
 ) -> None:
@@ -395,7 +389,7 @@ class TestTimeInForceMapping:
 
     def test_time_in_force_mapping_via_raw_order(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         order_type_dict: dict[str, Any],
         expected_tif: TimeInForce,
     ) -> None:
@@ -406,7 +400,7 @@ class TestTimeInForceMapping:
 
     def test_time_in_force_mapping_via_historical_order(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         order_type_dict: dict[str, Any],
         expected_tif: TimeInForce,
     ) -> None:
@@ -439,7 +433,7 @@ class TestCoreValidationLogic:
 
     def test_consistent_transformation_across_methods(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that transformation methods produce consistent results."""
         # Use historical order for filled status since HyperliquidRawOrder only allows "open"
@@ -468,7 +462,7 @@ class TestCoreValidationLogic:
 
     def test_symbol_consistency_across_transformations(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that symbol names are consistently handled across different transformations."""
         test_symbols = [
@@ -493,7 +487,7 @@ class TestCoreValidationLogic:
 
     def test_decimal_precision_handling(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that decimal precision is maintained consistently."""
         high_precision_price = "1234.123456789012345"
@@ -513,7 +507,7 @@ class TestCoreValidationLogic:
 
     def test_exchange_assignment_consistency(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that exchange name is consistently assigned."""
         raw_order = create_raw_order()

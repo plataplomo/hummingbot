@@ -2,7 +2,7 @@
 
 --------------------------------------------------------------
 
-Comprehensive test suite for BackpackMarketDataMapper edge cases and robustness.
+Comprehensive test suite for BackpackTickerMapper edge cases and robustness.
 Tests boundary conditions, error handling, unicode support, and stress scenarios including:
 - Boundary value testing
 - Unicode and encoding edge cases
@@ -17,7 +17,11 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
+    BackpackOrderBookMapper,
+)
+from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
@@ -26,9 +30,21 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 
 
 @pytest.fixture
-def mapper() -> BackpackMarketDataMapper:
-    """Fixture providing a BackpackMarketDataMapper instance."""
-    return BackpackMarketDataMapper()
+def ticker_mapper() -> BackpackTickerMapper:
+    """Fixture providing a BackpackTickerMapper instance."""
+    return BackpackTickerMapper()
+
+
+@pytest.fixture
+def order_book_mapper() -> BackpackOrderBookMapper:
+    """Fixture providing a BackpackOrderBookMapper instance."""
+    return BackpackOrderBookMapper()
+
+
+@pytest.fixture
+def trade_mapper() -> BackpackTradeMapper:
+    """Fixture providing a BackpackTradeMapper instance."""
+    return BackpackTradeMapper()
 
 
 @pytest.fixture
@@ -107,7 +123,7 @@ class TestBoundaryValueHandling:
 
     def test_decimal_precision_boundaries(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of extreme decimal precision values."""
@@ -117,14 +133,14 @@ class TestBoundaryValueHandling:
             last_price=max_precision_price,
         )
 
-        result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+        result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         # Should handle high precision gracefully
         assert result.price == Decimal(max_precision_price)
 
     def test_very_large_numeric_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of very large numeric values."""
@@ -136,14 +152,14 @@ class TestBoundaryValueHandling:
             volume=large_volume,
         )
 
-        result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+        result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         assert result.price == Decimal(large_price)
         assert result.volume == Decimal(large_volume)
 
     def test_very_small_numeric_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of very small numeric values."""
@@ -155,14 +171,14 @@ class TestBoundaryValueHandling:
             volume=small_volume,
         )
 
-        result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+        result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         assert result.price == Decimal(small_price)
         assert result.volume == Decimal(small_volume)
 
     def test_zero_and_negative_value_handling(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of zero and negative values where applicable."""
@@ -172,7 +188,7 @@ class TestBoundaryValueHandling:
             volume="0",
         )
 
-        result_zero = mapper.transform_raw_ticker_to_internal(raw_ticker_zero)
+        result_zero = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker_zero)
 
         assert result_zero.price == Decimal(0)
         assert result_zero.bid is None  # Not available from Backpack ticker endpoint
@@ -181,7 +197,7 @@ class TestBoundaryValueHandling:
 
     def test_massive_order_book_levels(
         self,
-        mapper: BackpackMarketDataMapper,
+        order_book_mapper: BackpackOrderBookMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of order books with very large numbers of levels."""
@@ -195,7 +211,7 @@ class TestBoundaryValueHandling:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
 
         assert len(result.bids) == 1000
         assert len(result.asks) == 1000
@@ -205,7 +221,8 @@ class TestBoundaryValueHandling:
 
     def test_maximum_string_length_handling(
         self,
-        mapper: BackpackMarketDataMapper,
+        trade_mapper: BackpackTradeMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of maximum allowed string lengths."""
@@ -215,7 +232,7 @@ class TestBoundaryValueHandling:
             trade_id=max_trade_id,
         )
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        result = trade_mapper.transform_raw_trade_to_internal(raw_trade)
 
         assert result.id == max_trade_id
 
@@ -225,7 +242,7 @@ class TestBoundaryValueHandling:
             symbol=max_symbol,
         )
 
-        result_ticker = mapper.transform_raw_ticker_to_internal(raw_ticker)
+        result_ticker = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
         assert result_ticker.symbol == max_symbol
 
 
@@ -234,7 +251,7 @@ class TestUnicodeAndEncodingSupport:
 
     def test_unicode_symbols_comprehensive(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test comprehensive unicode symbol support."""
@@ -252,12 +269,12 @@ class TestUnicodeAndEncodingSupport:
                 symbol=symbol,
             )
 
-            result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+            result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
             assert result.symbol == symbol
 
     def test_unicode_in_trade_ids(
         self,
-        mapper: BackpackMarketDataMapper,
+        trade_mapper: BackpackTradeMapper,
         test_timestamp: str,
     ) -> None:
         """Test unicode characters in trade IDs."""
@@ -272,12 +289,12 @@ class TestUnicodeAndEncodingSupport:
                 trade_id=trade_id,
             )
 
-            result = mapper.transform_raw_trade_to_internal(raw_trade)
+            result = trade_mapper.transform_raw_trade_to_internal(raw_trade)
             assert result.id == trade_id
 
     def test_mixed_unicode_ascii_handling(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test mixed unicode and ASCII character handling."""
@@ -286,12 +303,12 @@ class TestUnicodeAndEncodingSupport:
             symbol=mixed_symbol,
         )
 
-        result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+        result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
         assert result.symbol == mixed_symbol
 
     def test_special_characters_in_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of special characters in various fields."""
@@ -308,7 +325,7 @@ class TestUnicodeAndEncodingSupport:
                 symbol=symbol,
             )
 
-            result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+            result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
             assert result.symbol == symbol
 
 
@@ -317,7 +334,7 @@ class TestErrorHandlingAndRecovery:
 
     def test_malformed_decimal_recovery(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test recovery from malformed decimal values."""
@@ -325,16 +342,16 @@ class TestErrorHandlingAndRecovery:
 
         # Mock parse_decimal_value to simulate malformed data
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal format")
 
             with pytest.raises(TransformationError, match="Failed to transform"):
-                mapper.transform_raw_ticker_to_internal(raw_ticker)
+                ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
     def test_timestamp_parsing_fallback(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         frozen_time: FreezerProtocol,
     ) -> None:
         """Test timestamp parsing fallback to current time."""
@@ -346,18 +363,18 @@ class TestErrorHandlingAndRecovery:
         frozen_time.move_to(mock_now)
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_datetime_utc",
         ) as mock_parse_datetime:
             mock_parse_datetime.return_value = None
 
-            result = mapper.transform_raw_ticker_to_internal(raw_ticker)
+            result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
             # Should fall back to current time
             assert result.timestamp == mock_now
 
     def test_partial_data_handling(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of ticker with minimal/zero data."""
@@ -375,7 +392,7 @@ class TestErrorHandlingAndRecovery:
             trades="0",
         )
 
-        result = mapper.transform_raw_ticker_to_internal(minimal_ticker)
+        result = ticker_mapper.transform_raw_ticker_to_internal(minimal_ticker)
 
         # Should handle zero values correctly
         assert result.symbol == "SOL-USDC"
@@ -386,7 +403,7 @@ class TestErrorHandlingAndRecovery:
 
     def test_empty_order_book_handling(
         self,
-        mapper: BackpackMarketDataMapper,
+        order_book_mapper: BackpackOrderBookMapper,
         test_timestamp: str,
     ) -> None:
         """Test handling of completely empty order books."""
@@ -396,7 +413,7 @@ class TestErrorHandlingAndRecovery:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", empty_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", empty_book)
 
         assert len(result.bids) == 0
         assert len(result.asks) == 0
@@ -404,7 +421,7 @@ class TestErrorHandlingAndRecovery:
 
     def test_transformation_error_context_preservation(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test that transformation errors preserve context information."""
@@ -414,12 +431,12 @@ class TestErrorHandlingAndRecovery:
         original_error = ValueError("Specific parsing error with context")
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = original_error
 
             with pytest.raises(TransformationError) as exc_info:
-                mapper.transform_raw_ticker_to_internal(raw_ticker)
+                ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
             # Verify error context is preserved
             assert "Failed to transform BackpackRawTicker to Ticker" in str(exc_info.value)
@@ -431,7 +448,7 @@ class TestPerformanceAndMemoryConsiderations:
 
     def test_large_dataset_transformation(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test transformation of large datasets efficiently."""
@@ -447,7 +464,7 @@ class TestPerformanceAndMemoryConsiderations:
         # Transform all tickers
         results: list[Ticker] = []
         for ticker in tickers:
-            result = mapper.transform_raw_ticker_to_internal(ticker)
+            result = ticker_mapper.transform_raw_ticker_to_internal(ticker)
             results.append(result)
 
         # Verify all transformations completed correctly
@@ -458,7 +475,7 @@ class TestPerformanceAndMemoryConsiderations:
 
     def test_memory_efficient_order_book_processing(
         self,
-        mapper: BackpackMarketDataMapper,
+        order_book_mapper: BackpackOrderBookMapper,
         test_timestamp: str,
     ) -> None:
         """Test memory-efficient processing of large order books."""
@@ -473,7 +490,7 @@ class TestPerformanceAndMemoryConsiderations:
         )
 
         # Should process without memory issues
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
 
         assert len(result.bids) == 500
         assert len(result.asks) == 500
@@ -484,7 +501,8 @@ class TestPerformanceAndMemoryConsiderations:
 
     def test_concurrent_transformation_safety(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
+        trade_mapper: BackpackTradeMapper,
         test_timestamp: str,
     ) -> None:
         """Test that transformations are safe for concurrent usage."""
@@ -506,10 +524,10 @@ class TestPerformanceAndMemoryConsiderations:
         )
 
         # Transform in interleaved pattern
-        result_ticker1 = mapper.transform_raw_ticker_to_internal(ticker1)
-        result_trade1 = mapper.transform_raw_trade_to_internal(trade1)
-        result_ticker2 = mapper.transform_raw_ticker_to_internal(ticker2)
-        result_trade2 = mapper.transform_raw_trade_to_internal(trade2)
+        result_ticker1 = ticker_mapper.transform_raw_ticker_to_internal(ticker1)
+        result_trade1 = trade_mapper.transform_raw_trade_to_internal(trade1)
+        result_ticker2 = ticker_mapper.transform_raw_ticker_to_internal(ticker2)
+        result_trade2 = trade_mapper.transform_raw_trade_to_internal(trade2)
 
         # Verify no cross-contamination
         assert result_ticker1.symbol == "BTC-USDC"
@@ -527,7 +545,7 @@ class TestDataConsistencyAndValidation:
 
     def test_cross_field_consistency_validation(
         self,
-        mapper: BackpackMarketDataMapper,
+        order_book_mapper: BackpackOrderBookMapper,
         test_timestamp: str,
     ) -> None:
         """Test validation of cross-field consistency."""
@@ -539,12 +557,17 @@ class TestDataConsistencyAndValidation:
         )
 
         # Mapper should still process but preserve the raw data
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", invalid_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", invalid_book)
 
         assert result.bids[0] == (Decimal("102.00"), Decimal("10.0"))
         assert result.asks[0] == (Decimal("101.00"), Decimal("8.0"))
 
-    def test_timestamp_consistency(self, mapper: BackpackMarketDataMapper) -> None:
+    def test_timestamp_consistency(
+        self,
+        ticker_mapper: BackpackTickerMapper,
+        trade_mapper: BackpackTradeMapper,
+        order_book_mapper: BackpackOrderBookMapper,
+    ) -> None:
         """Test timestamp consistency across transformations."""
         fixed_timestamp = "2024-01-15T10:30:00Z"
         expected_datetime = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
@@ -557,9 +580,9 @@ class TestDataConsistencyAndValidation:
         # Record time before transformations
         start_time = datetime.now(UTC)
 
-        ticker_result = mapper.transform_raw_ticker_to_internal(ticker)
-        trade_result = mapper.transform_raw_trade_to_internal(trade)
-        book_result = mapper.transform_raw_order_book_to_internal("SOL-USDC", order_book)
+        ticker_result = ticker_mapper.transform_raw_ticker_to_internal(ticker)
+        trade_result = trade_mapper.transform_raw_trade_to_internal(trade)
+        book_result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", order_book)
 
         # Record time after transformations
         end_time = datetime.now(UTC)
@@ -573,7 +596,7 @@ class TestDataConsistencyAndValidation:
 
     def test_decimal_precision_consistency(
         self,
-        mapper: BackpackMarketDataMapper,
+        ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
         """Test that decimal precision is consistently maintained."""
@@ -584,7 +607,7 @@ class TestDataConsistencyAndValidation:
             volume=high_precision_value,
         )
 
-        result = mapper.transform_raw_ticker_to_internal(ticker)
+        result = ticker_mapper.transform_raw_ticker_to_internal(ticker)
 
         # All decimal fields should maintain the same precision
         expected_decimal = Decimal(high_precision_value)

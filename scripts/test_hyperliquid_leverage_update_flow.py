@@ -6,9 +6,12 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.hyperliquid.services.hl_account_service import MAX_LEVERAGE_VALUE
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
+
+
+# MAX_LEVERAGE_VALUE constant not found, defining locally
+MAX_LEVERAGE_VALUE = 50
 
 
 logger = get_logger(__name__)

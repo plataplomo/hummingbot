@@ -17,11 +17,11 @@ class BaseCheckerInterface(Protocol):
         context: CheckContext,
     ) -> CheckResult:
         """Check an opportunity against specific criteria.
-        
+
         Args:
             opportunity: The arbitrage opportunity to check
             context: Context information for the check
-            
+
         Returns:
             CheckResult indicating success/failure with details
         """
@@ -43,10 +43,10 @@ class OpportunityCheckerInterface(Protocol):
         opportunity: ArbitrageOpportunity,
     ) -> CheckResult:
         """Check an opportunity through the full pipeline.
-        
+
         Args:
             opportunity: The arbitrage opportunity to check
-            
+
         Returns:
             CheckResult indicating overall success/failure
         """
@@ -58,10 +58,10 @@ class OpportunityCheckerInterface(Protocol):
         opportunities: list[ArbitrageOpportunity],
     ) -> list[CheckResult]:
         """Check multiple opportunities in batch.
-        
+
         Args:
             opportunities: List of arbitrage opportunities to check
-            
+
         Returns:
             List of CheckResult objects
         """
@@ -78,11 +78,11 @@ class CheckPipelineInterface(Protocol):
         checkers: list[BaseCheckerInterface],
     ) -> CheckResult:
         """Run a pipeline of checkers against an opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity to check
             checkers: List of checkers to run
-            
+
         Returns:
             CheckResult indicating overall pipeline success/failure
         """

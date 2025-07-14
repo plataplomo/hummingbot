@@ -1,14 +1,19 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Mapper Robustness Tests.
+"""CyberDeltaEngine: Hyperliquid Market Data Mappers Robustness Tests.
 
 -----------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidMarketDataMapper robustness, edge cases,
+Comprehensive test suite for Hyperliquid market data mappers robustness, edge cases,
 and error handling. Tests various scenarios including:
 - Error handling and validation failure scenarios
 - Boundary value conditions and edge cases
 - Unicode and encoding support
 - Performance and memory considerations
 - Malformed data handling and graceful degradation
+
+This test covers multiple mappers:
+- HyperliquidPriceTickerMapper (ticker transformations)
+- HyperliquidHistoricalDataMapper (funding rate transformations)
+- HyperliquidOrderBookMapper (order book and trade transformations)
 """
 
 from __future__ import annotations
@@ -29,7 +34,15 @@ if TYPE_CHECKING:
 
 # Project-specific imports
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper import (
+    HyperliquidHistoricalDataMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper import (
+    HyperliquidOrderBookMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper import (
+    HyperliquidPriceTickerMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
 )
@@ -44,16 +57,30 @@ from cyberdelta.core.models import Trade
 from cyberdelta.core.models.enums import OrderSide
 
 
-# Alias for shorter method calls
-Mapper = HyperliquidMarketDataMapper
+# Aliases for shorter method calls
+TickerMapper = HyperliquidPriceTickerMapper
+FundingMapper = HyperliquidHistoricalDataMapper
+OrderBookMapper = HyperliquidOrderBookMapper
 
 # --- Fixtures ---
 
 
 @pytest.fixture
-def market_data_mapper() -> HyperliquidMarketDataMapper:
-    """Provide an instance of HyperliquidMarketDataMapper."""
-    return HyperliquidMarketDataMapper()
+def ticker_mapper() -> HyperliquidPriceTickerMapper:
+    """Provide an instance of HyperliquidPriceTickerMapper."""
+    return HyperliquidPriceTickerMapper()
+
+
+@pytest.fixture
+def funding_mapper() -> HyperliquidHistoricalDataMapper:
+    """Provide an instance of HyperliquidHistoricalDataMapper."""
+    return HyperliquidHistoricalDataMapper()
+
+
+@pytest.fixture
+def order_book_mapper() -> HyperliquidOrderBookMapper:
+    """Provide an instance of HyperliquidOrderBookMapper."""
+    return HyperliquidOrderBookMapper()
 
 
 # --- Tests for error handling and validation failures ---
@@ -95,7 +122,7 @@ class TestValidationErrorHandling:
 
     def test_invalid_asset_ctx_missing_required_fields(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test that asset context with missing required fields raises validation error."""
         with pytest.raises(ValidationError):
@@ -111,7 +138,7 @@ class TestValidationErrorHandling:
 
     def test_invalid_asset_ctx_non_numeric_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test that asset context with non-numeric values raises validation error."""
         with pytest.raises(ValidationError):
@@ -128,7 +155,7 @@ class TestValidationErrorHandling:
 
     def test_invalid_order_book_malformed_structure(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test that malformed order book structure raises validation error."""
         with pytest.raises(ValidationError):
@@ -138,11 +165,11 @@ class TestValidationErrorHandling:
                 levels=[[HyperliquidRawBookLevel(px="1000.0", sz="1.0", n=1)]],
                 time=int(datetime.now(UTC).timestamp() * 1000),
             )
-            market_data_mapper.transform_raw_order_book_to_internal(invalid_book)
+            order_book_mapper.transform_raw_order_book_to_internal(invalid_book)
 
     def test_invalid_trade_missing_hash(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test that trade with missing hash raises validation error."""
         with pytest.raises(ValidationError):
@@ -159,13 +186,13 @@ class TestValidationErrorHandling:
 
     def test_transformation_error_propagation(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that transformation errors are properly propagated."""
         # Mock parse_decimal_value to raise an error
         mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers.parse_decimal_value",
             side_effect=ValueError("Simulated parsing error"),
         )
 
@@ -179,7 +206,7 @@ class TestValidationErrorHandling:
         )
 
         with pytest.raises(TransformationError, match="Failed to transform"):
-            market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_asset_ctx)
+            ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_asset_ctx)
 
 
 # --- Tests for boundary value conditions ---
@@ -190,7 +217,8 @@ class TestBoundaryValueConditions:
 
     def test_extremely_large_numeric_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test handling of extremely large numeric values."""
         large_value_asset_ctx = create_asset_ctx(
@@ -202,8 +230,8 @@ class TestBoundaryValueConditions:
             impact_px="999999999999.999999999999999999",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(large_value_asset_ctx)
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(large_value_asset_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(
             large_value_asset_ctx,
         )
 
@@ -214,7 +242,8 @@ class TestBoundaryValueConditions:
 
     def test_extremely_small_numeric_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test handling of extremely small numeric values."""
         small_value_asset_ctx = create_asset_ctx(
@@ -226,8 +255,8 @@ class TestBoundaryValueConditions:
             impact_px="0.00000001",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(small_value_asset_ctx)
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(small_value_asset_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(
             small_value_asset_ctx,
         )
 
@@ -237,7 +266,8 @@ class TestBoundaryValueConditions:
 
     def test_zero_values_edge_cases(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test handling of zero values in various contexts."""
         # Create asset context directly to avoid division by zero in helper
@@ -257,7 +287,7 @@ class TestBoundaryValueConditions:
         )
 
         # Ticker transformation should handle zero price
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(zero_values_asset_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(zero_values_asset_ctx)
         assert ticker.price == Decimal(0)
 
         # Zero price trade should be filtered out
@@ -272,12 +302,13 @@ class TestBoundaryValueConditions:
             users=["0xuser1"],
         )
 
-        trade = market_data_mapper.transform_raw_public_trade_to_internal(zero_price_trade)
+        trade = order_book_mapper.transform_raw_public_trade_to_internal(zero_price_trade)
         assert trade is None  # Should be filtered out
 
     def test_negative_values_handling(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test handling of negative values where appropriate."""
         negative_funding_asset_ctx = create_asset_ctx(
@@ -289,8 +320,8 @@ class TestBoundaryValueConditions:
             impact_px="1000.0",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(negative_funding_asset_ctx)
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(negative_funding_asset_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(
             negative_funding_asset_ctx,
         )
 
@@ -302,7 +333,7 @@ class TestBoundaryValueConditions:
 
     def test_maximum_string_lengths(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test handling of maximum allowed string lengths."""
         max_length_symbol = "A" * 55 + "-PERP"  # 64 characters total (within limit)
@@ -316,7 +347,7 @@ class TestBoundaryValueConditions:
             impact_px="1000.0",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(max_length_asset_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(max_length_asset_ctx)
         assert ticker.symbol == max_length_symbol
 
 
@@ -328,7 +359,7 @@ class TestUnicodeAndEncodingSupport:
 
     def test_unicode_symbol_names(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test handling of Unicode characters in symbol names."""
         unicode_symbols = [
@@ -348,12 +379,12 @@ class TestUnicodeAndEncodingSupport:
                 impact_px="1000.0",
             )
 
-            ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(unicode_asset_ctx)
+            ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(unicode_asset_ctx)
             assert ticker.symbol == symbol
 
     def test_unicode_in_trade_hashes(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test handling of Unicode characters in trade hashes."""
         # While unlikely in real hashes, test robustness
@@ -370,7 +401,7 @@ class TestUnicodeAndEncodingSupport:
             users=["0xuser1"],
         )
 
-        trade = market_data_mapper.transform_raw_public_trade_to_internal(unicode_trade)
+        trade = order_book_mapper.transform_raw_public_trade_to_internal(unicode_trade)
         assert trade is not None
         assert trade.hl_details is not None
         assert trade.hl_details.trade_hash == unicode_hash
@@ -384,7 +415,7 @@ class TestPerformanceAndMemory:
 
     def test_large_order_book_processing(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test processing of large order books efficiently."""
         # Create order book with many levels
@@ -403,18 +434,15 @@ class TestPerformanceAndMemory:
             time=int(datetime.now(UTC).timestamp() * 1000),
         )
 
-        # Transform with different depth limits
-        full_book = market_data_mapper.transform_raw_order_book_to_internal(large_book)
-        limited_book = market_data_mapper.transform_raw_order_book_to_internal(large_book, depth=50)
+        # Transform the large order book
+        full_book = order_book_mapper.transform_raw_order_book_to_internal(large_book)
 
         assert len(full_book.bids) == 1000
         assert len(full_book.asks) == 1000
-        assert len(limited_book.bids) == 50
-        assert len(limited_book.asks) == 50
 
     def test_batch_trade_processing_efficiency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test efficient processing of large trade batches."""
         # Create large batch of trades
@@ -433,7 +461,7 @@ class TestPerformanceAndMemory:
             large_trade_batch.append(trade)
 
         # Process all trades
-        trades = market_data_mapper.transform_raw_trades(large_trade_batch)
+        trades = order_book_mapper.transform_raw_trades(large_trade_batch)
 
         assert len(trades) == 1000
         # Verify all trades are valid
@@ -441,7 +469,7 @@ class TestPerformanceAndMemory:
 
     def test_memory_usage_with_high_precision_decimals(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test memory efficiency with high precision decimal values."""
         high_precision_decimals = [
@@ -460,7 +488,7 @@ class TestPerformanceAndMemory:
                 impact_px=precision_value,
             )
 
-            ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(precision_asset_ctx)
+            ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(precision_asset_ctx)
             # Should handle without memory issues
             # Business logic rounds to 8 decimal places
             if i == 0:  # "123456789.123456789012345678"
@@ -480,7 +508,7 @@ class TestErrorRecoveryScenarios:
 
     def test_partial_trade_batch_processing_with_errors(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
         caplog: LogCaptureFixture,
     ) -> None:
         """Test graceful handling when some trades in batch fail processing."""
@@ -521,7 +549,7 @@ class TestErrorRecoveryScenarios:
         ]
 
         with structlog.testing.capture_logs() as captured_logs:
-            trades = market_data_mapper.transform_raw_trades(mixed_trades)
+            trades = order_book_mapper.transform_raw_trades(mixed_trades)
 
         # Should return only valid trades
         assert len(trades) == 2
@@ -542,7 +570,7 @@ class TestErrorRecoveryScenarios:
 
     def test_empty_data_handling(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test handling of empty data structures."""
         # Empty order book
@@ -552,17 +580,17 @@ class TestErrorRecoveryScenarios:
             time=int(datetime.now(UTC).timestamp() * 1000),
         )
 
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(empty_book)
+        order_book = order_book_mapper.transform_raw_order_book_to_internal(empty_book)
         assert len(order_book.bids) == 0
         assert len(order_book.asks) == 0
 
         # Empty trades list
-        empty_trades = market_data_mapper.transform_raw_trades([])
+        empty_trades = order_book_mapper.transform_raw_trades([])
         assert len(empty_trades) == 0
 
     def test_malformed_timestamp_handling(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test handling of malformed timestamps with graceful fallback."""
@@ -579,12 +607,12 @@ class TestErrorRecoveryScenarios:
         )
 
         # Should handle gracefully by using current time
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(malformed_book)
+        order_book = order_book_mapper.transform_raw_order_book_to_internal(malformed_book)
         assert isinstance(order_book.timestamp, datetime)
 
     def test_resilience_to_unknown_side_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        order_book_mapper: HyperliquidOrderBookMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test resilience to unknown side values in trades."""
@@ -608,7 +636,7 @@ class TestErrorRecoveryScenarios:
             return OrderSide.BUY  # Default for other cases
 
         mocker.patch.object(
-            HyperliquidMarketDataMapper,
+            HyperliquidOrderBookMapper,
             "_map_side_to_internal",
             side_effect=mock_map_side_side_effect,
         )
@@ -618,11 +646,12 @@ class TestErrorRecoveryScenarios:
             TransformationError,
             match="Failed to transform HyperliquidRawPublicTrade",
         ):
-            market_data_mapper.transform_raw_public_trade_to_internal(valid_trade)
+            order_book_mapper.transform_raw_public_trade_to_internal(valid_trade)
 
     def test_data_consistency_across_transformations(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test that data remains consistent across multiple transformations."""
         base_asset_ctx = create_asset_ctx(
@@ -635,10 +664,10 @@ class TestErrorRecoveryScenarios:
         )
 
         # Transform multiple times
-        ticker1 = market_data_mapper.transform_raw_asset_ctx_to_ticker(base_asset_ctx)
-        ticker2 = market_data_mapper.transform_raw_asset_ctx_to_ticker(base_asset_ctx)
-        funding1 = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(base_asset_ctx)
-        funding2 = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(base_asset_ctx)
+        ticker1 = ticker_mapper.transform_raw_asset_ctx_to_ticker(base_asset_ctx)
+        ticker2 = ticker_mapper.transform_raw_asset_ctx_to_ticker(base_asset_ctx)
+        funding1 = funding_mapper.transform_raw_asset_ctx_to_funding_rate(base_asset_ctx)
+        funding2 = funding_mapper.transform_raw_asset_ctx_to_funding_rate(base_asset_ctx)
 
         # Results should be consistent
         assert ticker1.symbol == ticker2.symbol

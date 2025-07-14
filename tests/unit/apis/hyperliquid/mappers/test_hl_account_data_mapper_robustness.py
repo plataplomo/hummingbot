@@ -1,14 +1,19 @@
-"""CyberDeltaEngine: Hyperliquid Account Data Mapper Robustness Tests.
+"""CyberDeltaEngine: Hyperliquid Account Mappers Robustness Tests.
 
 -----------------------------------------------------------------
 
-Comprehensive robustness test suite for HyperliquidAccountDataMapper.
+Comprehensive robustness test suite for Hyperliquid account mappers.
 Tests edge cases, boundary conditions, and error handling including:
 - Invalid data validation and error recovery
 - Boundary value testing with extreme inputs
 - Unicode and encoding support
 - Performance and memory considerations
 - Error handling and recovery scenarios
+
+This test covers multiple mappers:
+- HyperliquidAccountSummaryMapper (margin summary transformations)
+- HyperliquidPositionMapper (position transformations)
+- HyperliquidTransactionMapper (fill/trade transformations)
 """
 
 from __future__ import annotations
@@ -21,7 +26,14 @@ from pydantic import ValidationError
 
 # Third-party imports for type checking only
 # Project-specific imports
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
+    HyperliquidAccountSummaryMapper,
+)
+from cyberdelta.apis.hyperliquid.mappers.account.hl_balance_mapper import HyperliquidBalanceMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_position_mapper import HyperliquidPositionMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_transaction_mapper import (
+    HyperliquidTransactionMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
@@ -36,16 +48,37 @@ from cyberdelta.core.models import (
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-# Alias for shorter method calls
-Mapper = HyperliquidAccountDataMapper
+# Aliases for shorter method calls
+AccountSummaryMapper = HyperliquidAccountSummaryMapper
+BalanceMapper = HyperliquidBalanceMapper
+PositionMapper = HyperliquidPositionMapper
+TransactionMapper = HyperliquidTransactionMapper
 
 # --- Fixtures ---
 
 
 @pytest.fixture
-def account_data_mapper() -> HyperliquidAccountDataMapper:
-    """Provide an instance of HyperliquidAccountDataMapper."""
-    return HyperliquidAccountDataMapper()
+def account_summary_mapper() -> HyperliquidAccountSummaryMapper:
+    """Provide an instance of HyperliquidAccountSummaryMapper."""
+    return HyperliquidAccountSummaryMapper()
+
+
+@pytest.fixture
+def balance_mapper() -> HyperliquidBalanceMapper:
+    """Provide an instance of HyperliquidBalanceMapper."""
+    return HyperliquidBalanceMapper()
+
+
+@pytest.fixture
+def position_mapper() -> HyperliquidPositionMapper:
+    """Provide an instance of HyperliquidPositionMapper."""
+    return HyperliquidPositionMapper()
+
+
+@pytest.fixture
+def transaction_mapper() -> HyperliquidTransactionMapper:
+    """Provide an instance of HyperliquidTransactionMapper."""
+    return HyperliquidTransactionMapper()
 
 
 @pytest.fixture
@@ -107,7 +140,7 @@ class TestValidationErrorHandling:
         )
 
         with pytest.raises(ValueError) as exc_info:
-            Mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
                 current_raw_state_invalid,
             )
         assert "withdrawable" in str(exc_info.value).lower()
@@ -134,8 +167,10 @@ class TestValidationErrorHandling:
             updated_data_python_names,
         )
 
-        summary_updated_mmr = Mapper.transform_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state_updated_mmr,
+        summary_updated_mmr = (
+            AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state_updated_mmr,
+            )
         )
         assert summary_updated_mmr.total_maintenance_margin_required == Decimal("25.0")
 
@@ -239,7 +274,7 @@ class TestBoundaryValueConditions:
         )
 
         # Should handle large values without error
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -304,7 +339,7 @@ class TestBoundaryValueConditions:
         )
 
         # Should handle small values without error
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -371,7 +406,7 @@ class TestBoundaryValueConditions:
                 time=1640995200000,
             )
 
-            positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -435,7 +470,7 @@ class TestBoundaryValueConditions:
                 time=1640995200000,
             )
 
-            positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -510,7 +545,7 @@ class TestUnicodeAndEncodingSupport:
             )
 
             # Should handle Unicode symbols without error
-            positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -546,7 +581,7 @@ class TestUnicodeAndEncodingSupport:
                 cloid=client_id,
             )
 
-            trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+            trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
             assert trade.client_order_id == client_id
 
     def test_very_long_string_fields(self) -> None:
@@ -603,7 +638,7 @@ class TestUnicodeAndEncodingSupport:
             time=1640995200000,
         )
 
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -629,7 +664,7 @@ class TestUnicodeAndEncodingSupport:
             cloid=long_client_id,
         )
 
-        trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
         assert trade.symbol == long_symbol
         assert trade.client_order_id == long_client_id
         assert trade.hl_details is not None
@@ -644,7 +679,7 @@ class TestPerformanceAndMemory:
 
     def test_large_batch_transformation_efficiency(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        account_data_mapper: HyperliquidBalanceMapper,
     ) -> None:
         """Test transformation efficiency with large batches of data."""
         # Create a large number of positions
@@ -698,7 +733,7 @@ class TestPerformanceAndMemory:
         )
 
         # Transform all positions efficiently
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -712,7 +747,7 @@ class TestPerformanceAndMemory:
             assert position.hl_details.leverage_type in ["cross", "isolated"]
 
         # Test margin summary transformation with large data set
-        margin_summary = Mapper.transform_raw_clearinghouse_state_to_margin_summary(
+        margin_summary = AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
             raw_state,
         )
 
@@ -722,7 +757,7 @@ class TestPerformanceAndMemory:
 
     def test_memory_efficient_transformation_patterns(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        account_data_mapper: HyperliquidBalanceMapper,
     ) -> None:
         """Test that transformations use memory efficiently."""
         # Create state with various types of data
@@ -753,15 +788,15 @@ class TestPerformanceAndMemory:
         )
 
         # Test multiple transformation methods on same data
-        margin_summary = Mapper.transform_raw_clearinghouse_state_to_margin_summary(
+        margin_summary = AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
             raw_state,
         )
 
-        spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        spot_balances = BalanceMapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state,
         )
 
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -827,7 +862,7 @@ class TestErrorRecoveryScenarios:
         )
 
         # Should handle missing optional fields gracefully
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -892,7 +927,7 @@ class TestErrorRecoveryScenarios:
         )
 
         # Should process all non-zero positions
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 

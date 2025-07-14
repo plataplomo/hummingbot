@@ -19,12 +19,13 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 from cyberdelta.apis.hyperliquid.mappers import (
-    HyperliquidAccountDataMapper,
-    HyperliquidMarketDataMapper,
-    HyperliquidTradingDataMapper,
+    HyperliquidOrderMapper,
+    HyperliquidOrderResponseMapper,
+)
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
@@ -79,12 +80,12 @@ def mock_hl_error_mapper() -> MagicMock:
 
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
-    """Provide mock HyperliquidRequestBuilder.
+    """Provide mock HyperliquidMarketDataRequestBuilder.
 
     Returns:
         MagicMock: Mock request builder for constructing Hyperliquid API requests.
     """
-    return MagicMock(spec=HyperliquidRequestBuilder)
+    return MagicMock(spec=HyperliquidMarketDataRequestBuilder)
 
 
 @pytest.fixture
@@ -98,53 +99,23 @@ def mock_hl_response_handler() -> MagicMock:
 
 
 @pytest.fixture
-def mock_hl_mapper() -> MagicMock:
-    """Provide mock HyperliquidMarketDataMapper (for backwards compatibility).
-
-    Returns:
-        MagicMock: Mock market data mapper for transforming Hyperliquid market data.
-    """
-    return MagicMock(spec=HyperliquidMarketDataMapper)
-
-
-@pytest.fixture
-def mock_hl_account_mapper() -> MagicMock:
-    """Provide mock HyperliquidAccountDataMapper.
-
-    Returns:
-        MagicMock: Mock account data mapper for processing Hyperliquid account data.
-    """
-    return MagicMock(spec=HyperliquidAccountDataMapper)
-
-
-@pytest.fixture
 def mock_hl_order_mapper() -> MagicMock:
-    """Provide mock HyperliquidTradingDataMapper (legacy order mapper).
+    """Provide mock HyperliquidOrderMapper.
 
     Returns:
-        MagicMock: Mock trading data mapper for legacy order data processing.
+        MagicMock: Mock order mapper for transforming Hyperliquid order data.
     """
-    return MagicMock(spec=HyperliquidTradingDataMapper)
+    return MagicMock(spec=HyperliquidOrderMapper)
 
 
 @pytest.fixture
-def mock_hl_trading_mapper() -> MagicMock:
-    """Provide mock HyperliquidTradingDataMapper.
+def mock_hl_order_response_mapper() -> MagicMock:
+    """Provide mock HyperliquidOrderResponseMapper.
 
     Returns:
-        MagicMock: Mock trading data mapper for processing Hyperliquid trading data.
+        MagicMock: Mock order response mapper for processing Hyperliquid order responses.
     """
-    return MagicMock(spec=HyperliquidTradingDataMapper)
-
-
-@pytest.fixture
-def mock_hl_user_fill_mapper() -> MagicMock:
-    """Provide mock HyperliquidAccountDataMapper (for user fills).
-
-    Returns:
-        MagicMock: Mock account data mapper specialized for user fill data processing.
-    """
-    return MagicMock(spec=HyperliquidAccountDataMapper)
+    return MagicMock(spec=HyperliquidOrderResponseMapper)
 
 
 @pytest.fixture
@@ -195,11 +166,8 @@ def hl_api_with_di(
     mock_hl_error_mapper: MagicMock,
     mock_hl_request_builder: MagicMock,
     mock_hl_response_handler: MagicMock,
-    mock_hl_mapper: MagicMock,
-    mock_hl_account_mapper: MagicMock,
     mock_hl_order_mapper: MagicMock,
-    mock_hl_trading_mapper: MagicMock,
-    mock_hl_user_fill_mapper: MagicMock,
+    mock_hl_order_response_mapper: MagicMock,
     mock_hl_http_client: MagicMock,
     mock_hl_account_service: MagicMock,
     mock_hl_trading_service: MagicMock,
@@ -241,9 +209,10 @@ def hl_api_with_di(
             error_mapper=overrides.get("error_mapper", mock_hl_error_mapper),
             request_builder=overrides.get("request_builder", mock_hl_request_builder),
             response_handler=overrides.get("response_handler", mock_hl_response_handler),
-            market_data_mapper=overrides.get("market_data_mapper", mock_hl_mapper),
-            account_data_mapper=overrides.get("account_data_mapper", mock_hl_account_mapper),
-            trading_data_mapper=overrides.get("trading_data_mapper", mock_hl_trading_mapper),
+            order_mapper=overrides.get("order_mapper", mock_hl_order_mapper),
+            order_response_mapper=overrides.get(
+                "order_response_mapper", mock_hl_order_response_mapper
+            ),
             http_client=overrides.get("http_client", mock_hl_http_client),
             account_service=overrides.get("account_service", mock_hl_account_service),
             trading_service=overrides.get("trading_service", mock_hl_trading_service),

@@ -12,9 +12,9 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
-from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.common import APIError, MessageHandler, TransformationError
 
@@ -27,9 +27,9 @@ class TestBackpackWsMessageRouter:
         """Create a mock market data mapper.
 
         Returns:
-            Mock BackpackMarketDataMapper for testing.
+            Mock BackpackTickerMapper for testing.
         """
-        mapper = Mock(spec=BackpackMarketDataMapper)
+        mapper = Mock(spec=BackpackTickerMapper)
         mapper.transform_ws_depth_event_to_internal = Mock(return_value=Mock())
         mapper.transform_ws_ticker_event_to_internal = Mock(return_value=Mock())
         return mapper
@@ -39,9 +39,9 @@ class TestBackpackWsMessageRouter:
         """Create a mock account data mapper.
 
         Returns:
-            Mock BackpackAccountDataMapper for testing.
+            Mock BackpackBalanceMapper for testing.
         """
-        mapper = Mock(spec=BackpackAccountDataMapper)
+        mapper = Mock(spec=BackpackBalanceMapper)
         mapper.transform_ws_fill_event_to_internal_trade = Mock(return_value=Mock())
         mapper.transform_ws_position_update_to_internal_position = Mock(return_value=Mock())
         return mapper
@@ -51,9 +51,9 @@ class TestBackpackWsMessageRouter:
         """Create a mock trading data mapper.
 
         Returns:
-            Mock BackpackTradingDataMapper for testing.
+            Mock BackpackOrderMapper for testing.
         """
-        mapper = Mock(spec=BackpackTradingDataMapper)
+        mapper = Mock(spec=BackpackOrderMapper)
         mapper.transform_ws_order_update_to_internal_order = Mock(return_value=Mock())
         return mapper
 
@@ -86,8 +86,6 @@ class TestBackpackWsMessageRouter:
             BackpackWsMessageRouter instance with mock dependencies for testing.
         """
         return BackpackWsMessageRouter(
-            market_data_mapper=mock_market_data_mapper,
-            account_data_mapper=mock_account_data_mapper,
             trading_data_mapper=mock_trading_data_mapper,
             raw_ws_handler=mock_raw_ws_handler,
             exchange_name="Backpack",

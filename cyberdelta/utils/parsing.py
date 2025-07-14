@@ -8,6 +8,7 @@ greatly improving error traceability.
 
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from typing import Literal, overload
 
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
@@ -182,6 +183,22 @@ def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: Value
             value=value,
             reason=f"Cannot parse as ISO datetime ({iso_error}) or as numeric timestamp ({e_num})",
         ) from e_num
+
+
+@overload
+def parse_decimal_value(
+    value: Decimal | str | float | None,
+    allow_none: Literal[True] = True,
+    field_name: str = "",
+) -> Decimal | None: ...
+
+
+@overload
+def parse_decimal_value(
+    value: Decimal | str | float | None,
+    allow_none: Literal[False],
+    field_name: str = "",
+) -> Decimal: ...
 
 
 def parse_decimal_value(

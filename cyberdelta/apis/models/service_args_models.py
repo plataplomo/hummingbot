@@ -9,11 +9,14 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from cyberdelta.apis.exceptions.field_validation import (
+    EmptyStringFieldError,
+    TypeFieldError,
+)
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     RequiredFieldError,
-    TypeFieldError,
 )
 from cyberdelta.exceptions.service_validation import (
     IntegerConversionError,
@@ -24,8 +27,59 @@ from cyberdelta.exceptions.service_validation import (
     TimeRangeError,
     TransferAccountError,
 )
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.typing import PotentialDecimalInput, is_potential_decimal_input
+
+
+def validate_api_str_field(
+    value: object,
+    *,
+    field_name: str,
+    max_length: int | None = None,
+    allow_empty: bool = True,
+) -> str:
+    """Validate string field using API-specific exceptions.
+
+    Args:
+        value: Value to validate
+        field_name: Name of the field being validated
+        max_length: Maximum allowed length
+        allow_empty: Whether empty strings are allowed
+
+    Returns:
+        Validated string value
+
+    Raises:
+        TypeFieldError: If value is not a string or exceeds max_length
+        EmptyStringFieldError: If value is empty and allow_empty is False
+    """
+    if not isinstance(value, str):
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="str",
+            actual_type=type(value).__name__,
+        )
+
+    if not allow_empty and not value.strip():
+        raise EmptyStringFieldError(field_name=field_name)
+
+    if max_length is not None and len(value) > max_length:
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type=f"string with max length {max_length}",
+            actual_type=f"string with length {len(value)}",
+        )
+
+    try:
+        value.encode("utf-8", "strict")
+    except UnicodeEncodeError as e:
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="valid UTF-8 string",
+            actual_type="string with invalid UTF-8",
+        ) from e
+
+    return value
 
 
 class PlaceOrderArgs(BaseModel):
@@ -53,7 +107,7 @@ class PlaceOrderArgs(BaseModel):
     def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
         """Validate symbol is a non-empty string with max length 64."""
         # field_name is guaranteed by Pydantic to be correct here.
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -66,7 +120,7 @@ class PlaceOrderArgs(BaseModel):
         """Validate client_order_id is None or a non-empty string with max length 64."""
         if v is None:
             return None
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -90,12 +144,13 @@ class PlaceOrderArgs(BaseModel):
                 field_name=field_name,
                 expected_type="string, int, float, or Decimal",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
 
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=not is_required)
-        if parsed is None and is_required:
-            raise RequiredFieldError(field_name=field_name, context="order placement")
+        parsed: Decimal | None
+        if is_required:
+            parsed = parse_decimal_value(v, allow_none=False, field_name=field_name)
+        else:
+            parsed = parse_decimal_value(v, allow_none=True, field_name=field_name)
         if parsed is not None and not parsed.is_finite():
             raise DecimalFieldError(
                 field_name=field_name,
@@ -142,7 +197,7 @@ class TransferArgs(BaseModel):
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with max length 64."""
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -155,7 +210,7 @@ class TransferArgs(BaseModel):
         """Validate optional string fields."""
         if v is None:
             return None
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=128,
@@ -174,12 +229,9 @@ class TransferArgs(BaseModel):
                 field_name=field_name,
                 expected_type="string, int, float, or Decimal",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-        if parsed is None:  # Should be caught by parse_decimal_value
-            raise RequiredFieldError(field_name=field_name, context="transfer")
         if not parsed.is_finite():
             raise DecimalFieldError(
                 field_name=field_name,
@@ -223,7 +275,7 @@ class WithdrawArgs(BaseModel):
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields."""
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=128,
@@ -237,7 +289,7 @@ class WithdrawArgs(BaseModel):
         if v is None:
             return None
         # Shorter max_length for network/tag unless specific exchanges require longer
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -256,12 +308,9 @@ class WithdrawArgs(BaseModel):
                 field_name=field_name,
                 expected_type="string, int, float, or Decimal",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
 
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-        if parsed is None:  # Should be caught by parse_decimal_value
-            raise RequiredFieldError(field_name=field_name, context="withdrawal")
         if not parsed.is_finite():
             raise DecimalFieldError(
                 field_name=field_name,
@@ -303,7 +352,7 @@ class GetOrderHistoryArgs(BaseModel):
         if v is None:
             return None
         # Assuming generic string validation for these, max_length can be adjusted
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -336,7 +385,6 @@ class GetOrderHistoryArgs(BaseModel):
                 field_name=field_name,
                 expected_type="integer or convertible to one",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
         try:
             return int(v)
@@ -377,7 +425,7 @@ class GetMarketDataArgs(BaseModel):
     @classmethod
     def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with reasonable max length."""
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -394,7 +442,6 @@ class GetMarketDataArgs(BaseModel):
                 field_name=field_name,
                 expected_type="integer or convertible to one",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
         try:
             return int(v)
@@ -415,7 +462,6 @@ class GetMarketDataArgs(BaseModel):
                 field_name=field_name,
                 expected_type="integer or convertible to one",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
         try:
             int_val = int(v)
@@ -473,7 +519,7 @@ class CancelOrderArgs(BaseModel):
 
         # Assuming generic string validation, max_length can be adjusted
         # allow_empty should be False for IDs and symbols if they are provided
-        return validate_str_field(v, field_name=field_name, max_length=128, allow_empty=False)
+        return validate_api_str_field(v, field_name=field_name, max_length=128, allow_empty=False)
 
     @model_validator(mode="after")
     def check_identifiers_logic(self) -> "CancelOrderArgs":
@@ -520,7 +566,7 @@ class GetFundingRatesArgs(BaseModel):
         validated_symbols: list[str] = []
         for i, item in enumerate(v):
             # Ensure item is a non-empty string
-            item_str = validate_str_field(
+            item_str = validate_api_str_field(
                 str(item),
                 field_name=f"{info.field_name!s}[{i}]",
                 max_length=64,
@@ -548,7 +594,7 @@ class GetTradeHistoryArgs(BaseModel):
         """Validate optional string fields."""
         if v is None:
             return None
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -567,7 +613,6 @@ class GetTradeHistoryArgs(BaseModel):
                 field_name=field_name,
                 expected_type="integer or convertible",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
         try:
             return int(v)
@@ -594,7 +639,7 @@ class GetAllOpenOrdersArgs(BaseModel):
         """Validate optional symbol field."""
         if v is None:
             return None
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -630,7 +675,9 @@ class GetOrderArgs(BaseModel):
 
         # Max length for order_id can be quite long for some exchanges (e.g. UUIDs)
         max_len = 128 if field_name in {"order_id", "client_order_id"} else 64
-        return validate_str_field(v, field_name=field_name, max_length=max_len, allow_empty=False)
+        return validate_api_str_field(
+            v, field_name=field_name, max_length=max_len, allow_empty=False
+        )
 
     @model_validator(mode="after")
     def check_identifier_logic(self) -> "GetOrderArgs":
@@ -679,7 +726,7 @@ class GetHistoricalFundingRatesArgs(BaseModel):
     @classmethod
     def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
         """Validate symbol is a non-empty string with max length."""
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -709,7 +756,6 @@ class GetHistoricalFundingRatesArgs(BaseModel):
                 field_name=str(info.field_name),
                 expected_type="integer or convertible",
                 actual_type=type(v).__name__,
-                actual_value=v,
             )
         try:
             return int(v)
@@ -744,7 +790,7 @@ class GetMarketArgs(BaseModel):
     @classmethod
     def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
         """Validate symbol is a non-empty string with max length 64."""
-        return validate_str_field(
+        return validate_api_str_field(
             v,
             field_name=str(info.field_name),
             max_length=64,
@@ -763,6 +809,87 @@ class GetMarketsArgs(BaseModel):
 
     # Currently no parameters needed, but model provides consistency and future extensibility
     # Could potentially add filters like market_type, status, etc. in the future
+
+
+class GetTickerArgs(BaseModel):
+    """Encapsulates arguments for fetching ticker data for a specific symbol.
+
+    This model centralizes validation for ticker requests, ensuring consistent
+    handling of symbol parameters across all exchanges.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
+        """Validate symbol is a non-empty string with max length 64."""
+        return validate_api_str_field(
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
+        )
+
+
+class GetOrderBookArgs(BaseModel):
+    """Encapsulates arguments for fetching order book data for a specific symbol.
+
+    This model centralizes validation for order book requests, ensuring consistent
+    handling of symbol and optional depth parameters across all exchanges.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str
+    depth: int | None = Field(default=None, gt=0)
+    limit: int | None = Field(default=None, gt=0)
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
+        """Validate symbol is a non-empty string with max length 64."""
+        return validate_api_str_field(
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
+        )
+
+    @field_validator("depth", mode="before")
+    @classmethod
+    def parse_optional_depth_int(cls, v: object, info: ValidationInfo) -> int | None:
+        """Parse optional depth field as positive integer."""
+        if v is None:
+            return None
+        if not isinstance(v, int | str | float):
+            field_name = str(info.field_name)
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="integer or convertible to one",
+                actual_type=type(v).__name__,
+            )
+        try:
+            return int(v)
+            # Positivity (gt=0) is handled by Field constraint
+        except ValueError as e:
+            field_name = str(info.field_name)
+            raise IntegerConversionError(field_name=field_name, value=v) from e
+
+
+class GetAllMidsArgs(BaseModel):
+    """Encapsulates arguments for fetching mid prices for all available symbols.
+
+    This model provides a consistent interface for fetching mid prices across
+    all symbols, even though most implementations require no parameters.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    # Currently no parameters needed, but model provides consistency and future extensibility
+    # Could potentially add filters like market_type, active_only, etc. in the future
 
 
 # --- Account Limits Args Models (INTERNAL USE ONLY) ---
@@ -829,6 +956,7 @@ class GetRecentTradesArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     symbol: str = Field(..., min_length=1, max_length=64)
+    limit: int | None = Field(default=100, gt=0)
 
 
 class TransferL2UsdArgs(BaseModel):
@@ -861,7 +989,8 @@ class GetOpenOrdersArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    wallet_address: str = Field(..., min_length=1, max_length=128)
+    symbol: str | None = Field(default=None, description="Optional symbol to filter orders")
+    wallet_address: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class UpdateLeverageArgs(BaseModel):
@@ -927,3 +1056,29 @@ class GetOrderHistoryArgsHL(BaseModel):
                 end_value=self.end_time_ms,
             )
         return self
+
+
+class CancelAllOrdersArgs(BaseModel):
+    """Arguments for canceling all orders.
+
+    This model handles cancellation of all open orders for a symbol or all symbols,
+    with optional filtering by order side.
+    """
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    symbol: str | None = Field(default=None, max_length=64)
+    side: OrderSide | None = Field(default=None)
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_str(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate symbol is None or a non-empty string with max length 64."""
+        if v is None:
+            return None
+        return validate_api_str_field(
+            v,
+            field_name=str(info.field_name),
+            max_length=64,
+            allow_empty=False,
+        )

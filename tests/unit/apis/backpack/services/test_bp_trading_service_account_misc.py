@@ -15,7 +15,6 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
-    GetAllOpenOrdersArgs,
     GetOrderArgs,
     PlaceOrderArgs,
 )
@@ -46,7 +45,7 @@ class TestBackpackTradingServiceAccountMisc:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="test_exchange",
-            mapper=mock_order_mapper,
+            order_mapper=mock_order_mapper,
         )
 
         # Set up mocks for a get_open_orders call
@@ -109,7 +108,7 @@ class TestBackpackTradingServiceAccountMisc:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="test_exchange",
-            mapper=None,
+            order_mapper=None,
         )
 
         # Set up mocks for a get_open_orders call
@@ -264,10 +263,10 @@ class TestBackpackTradingServiceAccountMisc:
             symbol=symbol,
         )
         mock_http_client_requester.return_value = ({"id": order_id}, 200, {})
-        mock_response_handler.handle_get_order_status_response.return_value = mock_raw_order
+        mock_response_handler.handle_get_order_response.return_value = mock_raw_order
 
         # Test that the service can query order status
-        result = await bp_trading_service.get_order_status(
+        result = await bp_trading_service.get_order(
             args=GetOrderArgs(order_id=order_id, symbol=symbol),
         )
 
@@ -392,7 +391,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler.handle_get_open_orders_response.return_value = mock_raw_orders
 
         # Test that the service can get all open orders
-        result = await bp_trading_service.get_all_open_orders(args=GetAllOpenOrdersArgs())
+        result = await bp_trading_service.get_open_orders()
 
         # Verify the bulk query request was made correctly
         mock_http_client_requester.assert_called_once()

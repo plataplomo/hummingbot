@@ -344,12 +344,27 @@ class InternalWithdrawalStatus(Enum):
     UNKNOWN = "UNKNOWN"  # Status cannot be determined.
 
 
+class MarketDataInterval(Enum):
+    """Enum representing time intervals for market data (candlesticks, OHLCV data)."""
+
+    ONE_MINUTE = "1m"
+    FIVE_MINUTES = "5m"
+    FIFTEEN_MINUTES = "15m"
+    THIRTY_MINUTES = "30m"
+    ONE_HOUR = "1h"
+    FOUR_HOURS = "4h"
+    ONE_DAY = "1d"
+    ONE_WEEK = "1w"
+    ONE_MONTH = "1M"
+
+
 __all__ = [
     "Blockchain",
     "CancelOrderResultStatus",
     # New Operation Status Enums
     "InternalTransferStatus",
     "InternalWithdrawalStatus",
+    "MarketDataInterval",
     "MarketType",
     "OrderExpiryReason",
     "OrderSide",

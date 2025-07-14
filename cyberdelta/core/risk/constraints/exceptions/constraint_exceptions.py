@@ -13,7 +13,7 @@ class ConstraintViolationError(ConstraintError):
 
 class PositionConstraintError(ConstraintError):
     """Exception for position constraint errors."""
-    
+
     # Predefined error messages
     MIN_SIZE_MUST_BE_LESS_THAN_MAX_SIZE = "min_size must be less than max_size"
     MIN_ALLOCATION_MUST_BE_LESS_THAN_MAX_ALLOCATION = (
@@ -25,7 +25,7 @@ class PositionConstraintError(ConstraintError):
 
 class PortfolioConstraintError(ConstraintError):
     """Exception for portfolio constraint errors."""
-    
+
     # Predefined error messages
     ALLOCATION_LIMITS_MUST_BE_POSITIVE = "Allocation limits must be positive"
     POSITION_LIMITS_MUST_BE_POSITIVE = "Position limits must be positive"
@@ -34,7 +34,7 @@ class PortfolioConstraintError(ConstraintError):
 
 class ExchangeConstraintError(ConstraintError):
     """Exception for exchange constraint errors."""
-    
+
     # Predefined error messages
     INVALID_ORDER_SIZE_RANGE = "Invalid order size range"
     INVALID_LEVERAGE_VALUE = "Invalid leverage value"
@@ -44,7 +44,7 @@ class ExchangeConstraintError(ConstraintError):
 
 class LeverageConstraintError(ConstraintError):
     """Exception for leverage constraint errors."""
-    
+
     # Predefined error messages
     LEVERAGE_LIMITS_MUST_BE_POSITIVE = "Leverage limits must be positive"
 

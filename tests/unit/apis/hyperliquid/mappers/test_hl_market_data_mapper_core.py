@@ -1,11 +1,11 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Mapper Core Tests.
+"""CyberDeltaEngine: Hyperliquid Price Ticker and Funding Rate Mapper Tests.
 
 -----------------------------------------------------------
 
-Comprehensive test suite for HyperliquidMarketDataMapper core transformation methods.
+Comprehensive test suite for HyperliquidPriceTickerMapper and HyperliquidHistoricalDataMapper.
 Tests fundamental transformation logic including:
-- Asset context to ticker transformations
-- Asset context to funding rate transformations
+- Asset context to ticker transformations (HyperliquidPriceTickerMapper)
+- Asset context to funding rate transformations (HyperliquidHistoricalDataMapper)
 - Core business logic validation
 - Timestamp generation and precision handling
 - Exchange-specific field mapping
@@ -18,9 +18,15 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper import (
+    HyperliquidHistoricalDataMapper,
+)
+
 # Third-party imports for type checking only
 # Project-specific imports
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper import (
+    HyperliquidPriceTickerMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
 )
@@ -31,8 +37,9 @@ from cyberdelta.core.models.market.funding_rate import (
 )
 
 
-# Alias for shorter method calls
-Mapper = HyperliquidMarketDataMapper
+# Aliases for shorter method calls
+TickerMapper = HyperliquidPriceTickerMapper
+FundingMapper = HyperliquidHistoricalDataMapper
 
 # --- Fixtures ---
 
@@ -70,9 +77,15 @@ def create_asset_ctx(
 
 
 @pytest.fixture
-def market_data_mapper() -> HyperliquidMarketDataMapper:
-    """Provide an instance of HyperliquidMarketDataMapper."""
-    return HyperliquidMarketDataMapper()
+def ticker_mapper() -> HyperliquidPriceTickerMapper:
+    """Provide an instance of HyperliquidPriceTickerMapper."""
+    return HyperliquidPriceTickerMapper()
+
+
+@pytest.fixture
+def funding_mapper() -> HyperliquidHistoricalDataMapper:
+    """Provide an instance of HyperliquidHistoricalDataMapper."""
+    return HyperliquidHistoricalDataMapper()
 
 
 @pytest.fixture
@@ -121,12 +134,12 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_transformation_eth_happy_path(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
         hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test successful ticker transformation for ETH-PERP with all fields."""
         raw_ctx = hyperliquid_raw_asset_ctx_eth_fixture
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         assert isinstance(ticker, Ticker)
         assert ticker.symbol == raw_ctx.name
@@ -142,12 +155,12 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_transformation_btc_no_impact_price(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
         hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test ticker transformation for BTC-PERP with no impact price."""
         raw_ctx = hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         assert isinstance(ticker, Ticker)
         assert ticker.symbol == raw_ctx.name
@@ -156,7 +169,7 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_transformation_high_precision_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test ticker transformation with high precision decimal values."""
         raw_ctx = create_asset_ctx(
@@ -168,7 +181,7 @@ class TestTransformRawAssetCtxToTicker:
             impact_px="3009.999999999999999",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         # Verify precision is maintained (8 decimal places)
         assert ticker.price == Decimal("3010.12345679")
@@ -177,7 +190,7 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_transformation_zero_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test ticker transformation with zero values."""
         raw_ctx = create_asset_ctx(
@@ -189,7 +202,7 @@ class TestTransformRawAssetCtxToTicker:
             impact_px=None,
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         assert ticker.price == Decimal("0.0")
         assert ticker.volume == Decimal("0.0")
@@ -197,14 +210,14 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_timestamp_generation_consistency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
         hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test that ticker timestamps are generated consistently and recently."""
         # Transform multiple times and verify timestamps are recent and consistent
         tickers: list[Ticker] = []
         for _ in range(5):
-            ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(
+            ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(
                 hyperliquid_raw_asset_ctx_eth_fixture,
             )
             tickers.append(ticker)
@@ -223,7 +236,7 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_transformation_with_negative_funding(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test ticker transformation with negative funding rate."""
         raw_ctx = create_asset_ctx(
@@ -235,7 +248,7 @@ class TestTransformRawAssetCtxToTicker:
             impact_px="1500.25",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         # Ticker transformation should not be affected by negative funding
         assert ticker.symbol == "NEGATIVE-FUND-PERP"
@@ -244,7 +257,7 @@ class TestTransformRawAssetCtxToTicker:
 
     def test_ticker_transformation_with_large_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
     ) -> None:
         """Test ticker transformation with very large values."""
         raw_ctx = create_asset_ctx(
@@ -256,7 +269,7 @@ class TestTransformRawAssetCtxToTicker:
             impact_px="999999.50",
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         assert ticker.price == Decimal("999999.99")
         # Business logic may introduce small precision differences for large volumes
@@ -272,12 +285,12 @@ class TestTransformRawAssetCtxToFundingRate:
 
     def test_funding_rate_transformation_eth_positive_funding(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
         hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test funding rate transformation for ETH with positive funding."""
         raw_ctx = hyperliquid_raw_asset_ctx_eth_fixture
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
         assert funding_rate is not None
         assert isinstance(funding_rate, FundingRate)
@@ -309,12 +322,12 @@ class TestTransformRawAssetCtxToFundingRate:
 
     def test_funding_rate_transformation_btc_negative_funding(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
         hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test funding rate transformation for BTC with negative funding and no impact price."""
         raw_ctx = hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
         assert funding_rate is not None
         assert isinstance(funding_rate, FundingRate)
@@ -332,11 +345,11 @@ class TestTransformRawAssetCtxToFundingRate:
 
     def test_funding_rate_next_funding_time_calculation(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
         hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test that next funding time is calculated correctly."""
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(
             hyperliquid_raw_asset_ctx_eth_fixture,
         )
 
@@ -361,7 +374,7 @@ class TestTransformRawAssetCtxToFundingRate:
 
     def test_funding_rate_transformation_high_precision_funding(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test funding rate transformation with high precision funding values."""
         raw_ctx = create_asset_ctx(
@@ -373,7 +386,7 @@ class TestTransformRawAssetCtxToFundingRate:
             impact_px="2000.111111111111111",
         )
 
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
         assert funding_rate is not None
         # Verify precision (8 decimal places for most fields)
@@ -386,7 +399,7 @@ class TestTransformRawAssetCtxToFundingRate:
 
     def test_funding_rate_transformation_zero_funding(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test funding rate transformation with zero funding rate."""
         raw_ctx = create_asset_ctx(
@@ -398,7 +411,7 @@ class TestTransformRawAssetCtxToFundingRate:
             impact_px="1000.0",
         )
 
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
         assert funding_rate is not None
         assert funding_rate.hl_details is not None
@@ -407,7 +420,7 @@ class TestTransformRawAssetCtxToFundingRate:
 
     def test_funding_rate_transformation_extreme_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test funding rate transformation with extreme funding values."""
         test_cases = [
@@ -427,7 +440,7 @@ class TestTransformRawAssetCtxToFundingRate:
                 impact_px="1500.0",
             )
 
-            funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+            funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
             assert funding_rate is not None
 
@@ -450,14 +463,15 @@ class TestCoreBusinessLogicValidation:
 
     def test_exchange_assignment_consistency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
         hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test that transformations are consistent (exchange info handled by mapper internally)."""
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(
             hyperliquid_raw_asset_ctx_eth_fixture,
         )
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(
             hyperliquid_raw_asset_ctx_eth_fixture,
         )
 
@@ -468,7 +482,8 @@ class TestCoreBusinessLogicValidation:
 
     def test_symbol_name_consistency_across_transformations(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test that symbol names are consistent across different transformations."""
         symbol_test_cases = [
@@ -489,8 +504,8 @@ class TestCoreBusinessLogicValidation:
                 impact_px="1000.0",
             )
 
-            ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
-            funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+            ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+            funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
             # Symbol names should be identical across transformations
             assert ticker.symbol == symbol
@@ -499,14 +514,15 @@ class TestCoreBusinessLogicValidation:
 
     def test_timestamp_generation_proximity(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
         hyperliquid_raw_asset_ctx_eth_fixture: HyperliquidRawAssetCtx,
     ) -> None:
         """Test that timestamps generated for different transformations are close to each other."""
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(
             hyperliquid_raw_asset_ctx_eth_fixture,
         )
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(
             hyperliquid_raw_asset_ctx_eth_fixture,
         )
 
@@ -521,7 +537,8 @@ class TestCoreBusinessLogicValidation:
 
     def test_decimal_precision_consistency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test that decimal precision is handled consistently across transformations."""
         high_precision_value = "1234.123456789012345"
@@ -534,8 +551,8 @@ class TestCoreBusinessLogicValidation:
             impact_px=high_precision_value,
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
         # Both should maintain the same precision for mark price (8 decimal places)
         expected_mark_price = Decimal("1234.12345679")
@@ -545,7 +562,8 @@ class TestCoreBusinessLogicValidation:
 
     def test_optional_field_handling_consistency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        ticker_mapper: HyperliquidPriceTickerMapper,
+        funding_mapper: HyperliquidHistoricalDataMapper,
     ) -> None:
         """Test that optional fields are handled consistently across transformations."""
         # Test with None impact price
@@ -558,8 +576,8 @@ class TestCoreBusinessLogicValidation:
             impact_px=None,
         )
 
-        ticker = market_data_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx_no_impact)
-        funding_rate = market_data_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx_no_impact)
+        ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx_no_impact)
+        funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx_no_impact)
 
         # Ticker transformation should work regardless of impact price
         assert ticker.symbol == "NO-IMPACT-PERP"

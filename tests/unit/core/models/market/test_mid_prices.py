@@ -290,7 +290,7 @@ class TestMidPricesUtilityMethods:
         # Arrange
         timestamp = datetime.now(UTC)
         prices = {"BTC-PERP": Decimal("50000.0")}
-        
+
         mid_prices1 = MidPrices(
             prices=prices,
             exchange="test_exchange",

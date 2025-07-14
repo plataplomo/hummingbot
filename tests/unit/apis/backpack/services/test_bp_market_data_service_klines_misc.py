@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_candle_mapper import BackpackCandleMapper
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetMarketDataParams,
@@ -376,7 +376,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             exchange_name="test_exchange",
-            mapper=mock_mapper,
+            candle_mapper=mock_mapper,
         )
 
         # Test behavior that uses the mapper to verify it was set correctly
@@ -407,7 +407,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             exchange_name="test_exchange",
-            mapper=None,
+            # No mapper parameters needed
         )
 
         # Test behavior that uses the mapper to verify it's working
@@ -419,7 +419,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         # Mock the static method on the class
         with patch.object(
-            BackpackMarketDataMapper,
+            BackpackCandleMapper,
             "transform_raw_ticker_to_internal",
         ) as mock_transform:
             mock_transform.return_value = MagicMock()

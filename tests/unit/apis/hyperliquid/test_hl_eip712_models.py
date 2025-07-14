@@ -158,13 +158,17 @@ class TestHyperliquidAgentTypes:
         assert isinstance(dumped["Agent"], list)
 
         # Check domain fields
-        domain_fields: list[dict[str, str]] = dumped["EIP712Domain"]  # pyright: ignore[reportUnknownVariableType]
+        domain_fields: list[dict[str, str]] = dumped[  # pyright: ignore[reportUnknownVariableType]
+            "EIP712Domain"
+        ]
         assert len(domain_fields) == 4
         assert domain_fields[0]["name"] == "name"
         assert domain_fields[0]["type"] == "string"
 
         # Check agent fields
-        agent_fields: list[dict[str, str]] = dumped["Agent"]  # pyright: ignore[reportUnknownVariableType]
+        agent_fields: list[dict[str, str]] = dumped[  # pyright: ignore[reportUnknownVariableType]
+            "Agent"
+        ]
         assert len(agent_fields) == 2
         assert agent_fields[0]["name"] == "source"
         assert agent_fields[0]["type"] == "string"

@@ -12,12 +12,13 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
     RawJsonResponse,
 )
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper import (
+    HyperliquidPriceTickerMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -39,6 +40,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
+)
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args_models import (
@@ -67,7 +71,7 @@ def mock_http_client_requester() -> AsyncMock:
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
     """Return mock hl request builder for testing."""
-    return MagicMock(spec=HyperliquidRequestBuilder)
+    return MagicMock(spec=HyperliquidMarketDataRequestBuilder)
 
 
 @pytest.fixture
@@ -79,7 +83,7 @@ def mock_hl_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_hl_mapper() -> MagicMock:
     """Return mock hl mapper for testing."""
-    return MagicMock(spec=HyperliquidMarketDataMapper)
+    return MagicMock()
 
 
 @pytest.fixture
@@ -94,8 +98,11 @@ def hyperliquid_market_data_service(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_hl_request_builder,
         response_handler=mock_hl_response_handler,
-        mapper=mock_hl_mapper,
         exchange_name="hyperliquid_test",
+        price_ticker_mapper=mock_hl_mapper,
+        order_book_mapper=mock_hl_mapper,
+        historical_data_mapper=mock_hl_mapper,
+        market_metadata_mapper=mock_hl_mapper,
     )
 
 
@@ -145,45 +152,39 @@ class TestHyperliquidMarketDataService:
         mock_payload_from_builder = HyperliquidRawMetaAndAssetCtxsRequestPayload(
             type="metaAndAssetCtxs",
         )
-        expected_data_dict = mock_payload_from_builder.model_dump(by_alias=True, exclude_none=True)
+        _ = mock_payload_from_builder.model_dump(
+            by_alias=True, exclude_none=True
+        )  # expected_data_dict not used
 
-        mock_raw_response_content: list[RawJsonResponse] = [
+        _ = [  # mock_raw_response_content not used
             {"universe": []},
             [],
         ]
-        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
-            {"universe": [], "marginTables": None},
-            [],
-        ])
+        # Mock the market metadata service that get_markets now delegates to
 
-        mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_from_builder
-        mock_headers: dict[str, str] = {}
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            200,
-            mock_headers,
-        )
-        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
-            mock_validated_response
-        )
+        mock_markets = [
+            Market(
+                symbol="BTC",
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.00001"),
+                status="Trading",
+            )
+        ]
 
-        result = await hyperliquid_market_data_service.get_all_asset_contexts_raw()
+        # Mock the market metadata service using pytest
+        mock_market_metadata_service = AsyncMock()
+        mock_market_metadata_service.get_markets.return_value = mock_markets
+        hyperliquid_market_data_service._market_metadata_service = mock_market_metadata_service
 
-        mock_hl_request_builder.build_info_request_payload.assert_called_once()
-        mock_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint="/info",
-            data=expected_data_dict,
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=1,
-        )
-        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content,
-            status_code=200,
-            headers=mock_headers,
-        )
-        assert result == mock_validated_response
+        args = GetMarketsArgs()
+        result = await hyperliquid_market_data_service.get_markets(args)
+
+        assert result == mock_markets
+        assert len(result) == 1
+        assert result[0].symbol == "BTC"
 
     @pytest.mark.asyncio
     async def test_get_ticker_success(
@@ -242,7 +243,7 @@ class TestHyperliquidMarketDataService:
         mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new=mock_get_all_asset_contexts,
         ):
             expected_internal_ticker = Ticker(
@@ -279,11 +280,11 @@ class TestHyperliquidMarketDataService:
         with (
             patch.object(
                 hyperliquid_market_data_service,
-                "get_all_asset_contexts_raw",
+                "get_markets",
                 new=AsyncMock(return_value=mock_all_contexts_response),
             ),
             patch.object(
-                HyperliquidMarketDataMapper,
+                HyperliquidPriceTickerMapper,
                 "transform_raw_asset_ctx_to_ticker",
                 return_value=None,
             ),
@@ -360,7 +361,7 @@ class TestHyperliquidMarketDataService:
         mock_get_all_asset_contexts = AsyncMock(return_value=mock_all_contexts_response)
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new=mock_get_all_asset_contexts,
         ):
             expected_internal_funding_rate = FundingRate(
@@ -825,18 +826,18 @@ class TestHyperliquidMarketDataService:
         # Mapper should not be called since HTTP client returned None
 
     @pytest.mark.asyncio
-    async def test_get_all_asset_contexts_raw_success(
+    async def test_get_markets_success(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
     ) -> None:
-        """Test the get_all_asset_contexts_raw method more directly."""
-        mock_payload_model = MagicMock()
-        mock_payload_dict = {"type": "metaAndAssetCtxs"}
+        """Test the get_markets method more directly."""
+        _payload_model = MagicMock()  # mock_payload_model not used
+        _payload_dict = {"type": "metaAndAssetCtxs"}  # mock_payload_dict not used
 
-        mock_raw_response_content = [
+        _raw_response_content = [  # mock_raw_response_content not used
             {
                 "universe": [
                     {"name": "BTC", "szDecimals": 5, "maxLeverage": 100, "onlyIsolated": False},
@@ -853,74 +854,45 @@ class TestHyperliquidMarketDataService:
                 },
             ],
         ]
-        mock_status_code = 200
-        mock_headers: dict[Any, Any] = {}
+        _status_code = 200  # mock_status_code not used
+        _headers: dict[Any, Any] = {}  # mock_headers not used
 
-        mock_validated_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
-            {
-                "marginTables": None,
-                "universe": [
-                    {
-                        "name": "BTC",
-                        "szDecimals": 5,
-                        "maxLeverage": 100,
-                        "onlyIsolated": False,
-                        "marginTableId": None,
-                        "isDelisted": None,
-                    },
-                ],
-            },
-            [
-                create_asset_ctx(
-                    name="BTC",
-                    funding="0.0001",
-                    mark_px="50000",
-                    prev_day_px="49000",
-                    day_ntl_vlm="100",
-                    impact_px="50001",
-                ).model_dump(by_alias=True),
-            ],
-        ])
+        # Mock the market metadata service that get_markets now delegates to
 
-        mock_hl_request_builder.build_info_request_payload.return_value = mock_payload_model
-        mock_payload_model.model_dump.return_value = mock_payload_dict
+        mock_markets = [
+            Market(
+                symbol="BTC",
+                base_symbol="BTC",
+                quote_symbol="USD",
+                market_type="perpetual",
+                tick_size=Decimal("0.01"),
+                step_size=Decimal("0.00001"),
+                status="Trading",
+            )
+        ]
 
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            mock_status_code,
-            mock_headers,
-        )
-        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
-            mock_validated_response
-        )
+        # Mock the market metadata service using pytest
+        mock_market_metadata_service = AsyncMock()
+        mock_market_metadata_service.get_markets.return_value = mock_markets
+        hyperliquid_market_data_service._market_metadata_service = mock_market_metadata_service
 
-        result = await hyperliquid_market_data_service.get_all_asset_contexts_raw()
+        args = GetMarketsArgs()
+        result = await hyperliquid_market_data_service.get_markets(args)
 
-        mock_hl_request_builder.build_info_request_payload.assert_called_once()
-        mock_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint="/info",
-            data=mock_payload_dict,
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=1,
-        )
-        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once_with(
-            mock_raw_response_content,
-            status_code=mock_status_code,
-            headers=mock_headers,
-        )
-        assert result == mock_validated_response
+        assert result == mock_markets
+        assert len(result) == 1
+        assert result[0].symbol == "BTC"
+        assert result[0].market_type == "perpetual"
 
     @pytest.mark.asyncio
-    async def test_get_all_asset_contexts_raw_http_client_returns_none(
+    async def test_get_markets_http_client_returns_none(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
     ) -> None:
-        """Test get_all_asset_contexts_raw when HTTP client returns None content."""
+        """Test get_markets when HTTP client returns None content."""
         mock_payload_from_builder = HyperliquidRawMetaAndAssetCtxsRequestPayload(
             type="metaAndAssetCtxs",
         )
@@ -930,7 +902,8 @@ class TestHyperliquidMarketDataService:
         mock_http_client_requester.return_value = (None, 200, MagicMock())
 
         with pytest.raises(APIError) as exc_info:
-            await hyperliquid_market_data_service.get_all_asset_contexts_raw()
+            args = GetMarketsArgs()
+            await hyperliquid_market_data_service.get_markets(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for metaAndAssetCtxs, status: 200" in exc_info.value.message
@@ -1089,7 +1062,7 @@ class TestHyperliquidMarketDataService:
         mock_hl_response_handler.handle_historical_funding_rates_response.assert_not_called()
         # Since the mapper method is static, direct check on mock_hl_mapper instance method
         # won't work
-        # To check if HyperliquidMarketDataMapper.transform_raw_funding_history_item_to_internal
+        # To check if mapper.transform_raw_funding_history_item_to_internal
         # was called, we would need to patch it directly if this test was for a success case
         # involving mapping. For a None response, the handler isn't called, so mapping isn't
         # reached. So, no specific assert_not_called for the static mapper method here is needed
@@ -1576,7 +1549,7 @@ class TestHyperliquidMarketDataService:
 
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new=AsyncMock(return_value=mock_all_contexts_response),
         ):
             # Mock mapper to raise unexpected exception
@@ -1854,10 +1827,10 @@ class TestHyperliquidMarketDataService:
         """Test get_funding_rate error handling through complete call chain."""
         symbol = "ETH"
 
-        # Test scenario where get_all_asset_contexts_raw raises APIError
+        # Test scenario where get_markets raises APIError
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new=AsyncMock(
                 side_effect=APIError(
                     message="Asset contexts request failed",
@@ -2009,7 +1982,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         # Setup mocks
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.return_value = mock_raw_response
@@ -2032,7 +2005,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
         mock_hl_mapper: MagicMock,
     ) -> None:
-        """Test that APIErrors from get_all_asset_contexts_raw are propagated."""
+        """Test that APIErrors from get_markets are propagated."""
         # Setup mock to raise APIError
         api_error = APIError(
             message="Failed to get asset contexts",
@@ -2041,7 +2014,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
 
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.side_effect = api_error
@@ -2093,7 +2066,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         # Setup mocks - raw response succeeds, transformation fails
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.return_value = mock_raw_response
@@ -2132,7 +2105,7 @@ class TestHyperliquidMarketDataServiceGetMarkets:
         # Setup mocks
         with patch.object(
             hyperliquid_market_data_service,
-            "get_all_asset_contexts_raw",
+            "get_markets",
             new_callable=AsyncMock,
         ) as mock_get_contexts:
             mock_get_contexts.return_value = mock_raw_response

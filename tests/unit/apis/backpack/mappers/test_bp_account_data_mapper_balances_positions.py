@@ -16,7 +16,11 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
+from cyberdelta.apis.backpack.mappers.account.bp_account_summary_mapper import (
+    BackpackAccountSummaryMapper,
+)
+from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
+from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
@@ -35,14 +39,58 @@ from cyberdelta.enums.exchange_names import ExchangeName
 pytestmark = pytest.mark.timing
 
 
+class CompositeAccountMapper:
+    """Composite mapper that provides all account mapping functionality for testing."""
+
+    def __init__(self) -> None:
+        """Initialize the composite mapper with all sub-mappers."""
+        self.balance_mapper = BackpackBalanceMapper()
+        self.position_mapper = BackpackPositionMapper()
+        self.account_summary_mapper = BackpackAccountSummaryMapper()
+
+    # Delegate balance methods
+    def transform_balance_data_to_spot_balance(
+        self, asset: str, total_balance: str, available_balance: str
+    ) -> SpotBalance:
+        """Transform balance data to spot balance."""
+        return self.balance_mapper.transform_balance_data_to_spot_balance(
+            asset, total_balance, available_balance
+        )
+
+    def transform_raw_balance_to_internal(
+        self, asset: str, raw_balance: BackpackRawBalance
+    ) -> SpotBalance:
+        """Transform raw balance to internal format."""
+        return self.balance_mapper.transform_raw_balance_to_internal(asset, raw_balance)
+
+    # Delegate position methods
+    def transform_raw_position_to_internal(
+        self, raw_position: BackpackRawPosition
+    ) -> DerivativePosition:
+        """Transform raw position to internal format."""
+        return self.position_mapper.transform_raw_position_to_internal(raw_position)
+
+    # Delegate account summary methods
+    def transform_raw_account_summary_to_internal(
+        self,
+        raw_summary: BackpackRawAccountSummary,
+        spot_balances: dict[str, BackpackRawBalance],
+        positions: list[BackpackRawPosition],
+    ) -> MarginAccountSummary:
+        """Transform raw account summary to internal format."""
+        return self.account_summary_mapper.transform_raw_account_summary_to_internal(
+            raw_summary, spot_balances, positions
+        )
+
+
 @pytest.fixture
-def mapper() -> BackpackAccountDataMapper:
-    """Fixture providing a BackpackAccountDataMapper instance.
+def mapper() -> CompositeAccountMapper:
+    """Fixture providing a composite account mapper instance for testing.
 
     Returns:
-        BackpackAccountDataMapper: Mapper instance for testing.
+        CompositeAccountMapper: Mapper instance for testing.
     """
-    return BackpackAccountDataMapper()
+    return CompositeAccountMapper()
 
 
 def create_raw_balance(
@@ -166,7 +214,7 @@ class TestBalanceTransformation:
 
     def test_transform_balance_data_to_spot_balance_happy_path(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test successful transformation of balance data to SpotBalance."""
         result = mapper.transform_balance_data_to_spot_balance(
@@ -183,7 +231,7 @@ class TestBalanceTransformation:
         assert result.bp_details is not None
         assert isinstance(result.timestamp, datetime)
 
-    def test_transform_balance_data_zero_values(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_transform_balance_data_zero_values(self, mapper: CompositeAccountMapper) -> None:
         """Test balance transformation with zero values."""
         result = mapper.transform_balance_data_to_spot_balance(
             asset="BTC",
@@ -197,12 +245,12 @@ class TestBalanceTransformation:
 
     def test_transform_balance_data_transformation_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Mock parse_decimal_value to raise an error
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
@@ -220,7 +268,7 @@ class TestBalanceTransformation:
 
     def test_transform_raw_balance_to_internal_happy_path(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test successful transformation of BackpackRawBalance to SpotBalance."""
         raw_balance = create_raw_balance(available="900.0", locked="100.0", staked="100.0")
@@ -236,7 +284,7 @@ class TestBalanceTransformation:
 
     def test_transform_raw_balance_different_assets(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test balance transformation with different asset types."""
         assets = ["BTC", "ETH", "SOL", "AVAX"]
@@ -251,14 +299,14 @@ class TestBalanceTransformation:
 
     def test_transform_raw_balance_missing_locked_raises_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that missing locked balance raises TransformationError."""
         raw_balance = create_raw_balance()
 
         # Mock parse_decimal_value to return None for locked
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
@@ -278,20 +326,20 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "raw balance" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
             assert "locked is required for USDC balance" in str(exc_info.value)
 
     def test_transform_raw_balance_missing_available_raises_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that missing available raises TransformationError."""
         raw_balance = create_raw_balance()
 
         # Mock parse_decimal_value to return None for available
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
@@ -311,20 +359,20 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "raw balance" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
             assert "available is required for USDC balance" in str(exc_info.value)
 
     def test_transform_raw_balance_missing_staked_raises_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that missing staked balance raises TransformationError."""
         raw_balance = create_raw_balance()
 
         # Mock parse_decimal_value to return None for staked
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
@@ -344,11 +392,11 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "raw balance" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
             assert "staked is required for USDC balance" in str(exc_info.value)
 
-    def test_transform_raw_balance_boundary_values(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_transform_raw_balance_boundary_values(self, mapper: CompositeAccountMapper) -> None:
         """Test balance transformation with boundary decimal values."""
         raw_balance = create_raw_balance(
             available="0.000001",  # Very small available
@@ -363,7 +411,7 @@ class TestBalanceTransformation:
 
     def test_transform_raw_balance_high_precision_decimals(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test balance transformation with high precision decimal values."""
         raw_balance = create_raw_balance(
@@ -383,7 +431,7 @@ class TestPositionTransformation:
 
     def test_transform_raw_position_to_internal_happy_path(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test successful transformation of BackpackRawPosition to DerivativePosition."""
         raw_position = create_raw_position(
@@ -422,7 +470,7 @@ class TestPositionTransformation:
         assert result.bp_details.imf_base == Decimal("0.1")
         assert result.bp_details.mmf_base == Decimal("0.05")
 
-    def test_transform_raw_position_short_position(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_transform_raw_position_short_position(self, mapper: CompositeAccountMapper) -> None:
         """Test position transformation for short position."""
         raw_position = create_raw_position(
             net_quantity="-10.0",  # Short position
@@ -437,7 +485,7 @@ class TestPositionTransformation:
 
     def test_transform_raw_position_zero_size_no_entry_price(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test position transformation with zero size sets entry price to None."""
         raw_position = create_raw_position(
@@ -453,14 +501,14 @@ class TestPositionTransformation:
 
     def test_transform_raw_position_missing_net_quantity_raises_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that missing net_quantity raises TransformationError."""
         raw_position = create_raw_position()
 
         # Mock parse_decimal_value to return None for net_quantity
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
@@ -483,20 +531,20 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
             # Verify the error details
-            assert "BackpackRawPosition" in str(exc_info.value)
+            assert "raw position" in str(exc_info.value)
             assert "DerivativePosition" in str(exc_info.value)
             assert "net_quantity is required for BackpackRawPosition" in str(exc_info.value)
 
     def test_transform_raw_position_transformation_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         raw_position = create_raw_position()
 
         # Mock parse_decimal_value to raise an error during transformation
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
@@ -504,13 +552,13 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
             # Verify the error details
-            assert "BackpackRawPosition" in str(exc_info.value)
+            assert "raw position" in str(exc_info.value)
             assert "DerivativePosition" in str(exc_info.value)
             assert "Invalid decimal value" in str(exc_info.value)
 
     def test_transform_raw_position_negative_values(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test position transformation with negative cost and PnL values."""
         raw_position = create_raw_position(
@@ -529,7 +577,7 @@ class TestPositionTransformation:
         assert result.bp_details is not None, "Expected bp_details but got None"
         assert result.bp_details.cumulative_funding == Decimal("-0.5")
 
-    def test_transform_raw_position_large_values(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_transform_raw_position_large_values(self, mapper: CompositeAccountMapper) -> None:
         """Test position transformation with large position values."""
         raw_position = create_raw_position(
             net_quantity="1000000.0",  # Large position
@@ -546,7 +594,7 @@ class TestPositionTransformation:
 
     def test_transform_raw_position_high_precision_decimals(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test position transformation with high precision decimal values."""
         raw_position = create_raw_position(
@@ -563,7 +611,7 @@ class TestPositionTransformation:
 
     def test_transform_raw_position_optional_fields_none(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test position transformation when optional fields can be parsed as None."""
         # The raw model doesn't allow empty strings, but parse_decimal_value can return None
@@ -572,7 +620,7 @@ class TestPositionTransformation:
 
         # Mock parse_decimal_value to return None for specific optional fields
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
@@ -610,7 +658,7 @@ class TestPositionTransformation:
             # These tests show that the method handles None values gracefully
             assert isinstance(result, DerivativePosition)
 
-    def test_edge_case_very_long_position_ids(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_edge_case_very_long_position_ids(self, mapper: CompositeAccountMapper) -> None:
         """Test transformation with long position IDs (within valid limits)."""
         # Create a 60-character position ID (under the 64 char limit but still long)
         long_position_id = "pos_" + "a" * 56  # 4 + 56 = 60 chars total
@@ -627,7 +675,7 @@ class TestAccountSummaryTransformation:
 
     def test_transform_raw_account_summary_to_internal_happy_path(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test successful transformation of account summary data to MarginAccountSummary."""
         raw_summary = create_raw_account_summary()
@@ -650,7 +698,7 @@ class TestAccountSummaryTransformation:
 
     def test_transform_raw_account_summary_empty_collections(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test account summary transformation with empty balances and positions."""
         raw_summary = create_raw_account_summary()
@@ -664,7 +712,7 @@ class TestAccountSummaryTransformation:
 
     def test_transform_raw_account_summary_multiple_balances(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test account summary with multiple USD-like balances."""
         raw_summary = create_raw_account_summary()
@@ -682,7 +730,7 @@ class TestAccountSummaryTransformation:
 
     def test_transform_raw_account_summary_multiple_positions(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test account summary with multiple positions."""
         raw_summary = create_raw_account_summary()
@@ -716,7 +764,7 @@ class TestAccountSummaryTransformation:
 
     def test_transform_raw_account_summary_none_unrealized_pnl_handled(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test account summary when positions have None unrealized PnL."""
         raw_summary = create_raw_account_summary()
@@ -752,7 +800,7 @@ class TestAccountSummaryTransformation:
 
     def test_transform_raw_account_summary_none_entry_price_handled(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test account summary when positions have zero size (which sets entry_price to None)."""
         raw_summary = create_raw_account_summary()
@@ -777,7 +825,7 @@ class TestAccountSummaryTransformation:
 class TestErrorHandling:
     """Test cases for error handling and edge cases."""
 
-    def test_edge_case_unicode_asset_names(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_edge_case_unicode_asset_names(self, mapper: CompositeAccountMapper) -> None:
         """Test transformation with Unicode asset names."""
         raw_balance = create_raw_balance()
 
@@ -785,7 +833,7 @@ class TestErrorHandling:
 
         assert result.asset == "USDC🚀"
 
-    def test_edge_case_high_user_ids(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_edge_case_high_user_ids(self, mapper: CompositeAccountMapper) -> None:
         """Test transformation with very high user IDs."""
         high_user_id = 999999999999999999  # Very large user ID
         raw_position = create_raw_position(user_id=high_user_id)
@@ -795,11 +843,11 @@ class TestErrorHandling:
         # User ID is not directly exposed but should not cause errors
         assert result.symbol == "SOL-USDC"
 
-    def test_balance_data_none_total_raises_error(self, mapper: BackpackAccountDataMapper) -> None:
+    def test_balance_data_none_total_raises_error(self, mapper: CompositeAccountMapper) -> None:
         """Test that None total balance raises TransformationError."""
         # Mock parse_decimal_value to return None for total_balance
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(
@@ -828,12 +876,12 @@ class TestErrorHandling:
 
     def test_balance_data_none_available_raises_error(
         self,
-        mapper: BackpackAccountDataMapper,
+        mapper: CompositeAccountMapper,
     ) -> None:
         """Test that None available balance raises TransformationError."""
         # Mock parse_decimal_value to return None for available_balance
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_account_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
         ) as mock_parse:
 
             def side_effect(

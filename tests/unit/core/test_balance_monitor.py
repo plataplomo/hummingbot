@@ -20,7 +20,7 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 def mock_app_settings() -> Mock:
     """Create mock app settings with balance monitoring configuration."""
     settings = Mock(spec=AppSettings)
-    
+
     # Configure exchanges as a dict with ExchangeSpecificConfig objects
     mock_exchange_config = Mock()
     mock_exchange_config.enabled = True
@@ -28,7 +28,7 @@ def mock_app_settings() -> Mock:
         "hyperliquid": mock_exchange_config,
         "backpack": mock_exchange_config,
     }
-    
+
     # Configure balance monitoring thresholds
     safety_systems = Mock()
     balance_monitoring = Mock()
@@ -38,11 +38,11 @@ def mock_app_settings() -> Mock:
     }
     safety_systems.balance_monitoring = balance_monitoring
     settings.safety_systems = safety_systems
-    
+
     return settings
 
 
-@pytest.fixture 
+@pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create a mock portfolio tracker."""
     tracker = Mock(spec=PortfolioTracker)
@@ -65,7 +65,7 @@ def sufficient_balance() -> SpotBalance:
         asset="USDC",
         timestamp=datetime.now(tz=UTC),
         total_quantity=Decimal(200),  # Above both exchange minimums
-        available_quantity=Decimal(200)
+        available_quantity=Decimal(200),
     )
 
 
@@ -77,7 +77,7 @@ def low_balance() -> SpotBalance:
         asset="USDC",
         timestamp=datetime.now(tz=UTC),
         total_quantity=Decimal(120),  # Above min balance (100) but below low threshold (100)
-        available_quantity=Decimal(120)
+        available_quantity=Decimal(120),
     )
 
 
@@ -89,16 +89,14 @@ def critical_balance() -> SpotBalance:
         asset="USDC",
         timestamp=datetime.now(tz=UTC),
         total_quantity=Decimal(30),  # Below minimum requirements
-        available_quantity=Decimal(30)
+        available_quantity=Decimal(30),
     )
 
 
 class TestBalanceMonitorInitialization:
     """Test balance monitor initialization."""
 
-    def test_initializes_with_exchange_requirements(
-        self, balance_monitor: BalanceMonitor
-    ) -> None:
+    def test_initializes_with_exchange_requirements(self, balance_monitor: BalanceMonitor) -> None:
         """Test that balance monitor loads exchange-specific requirements."""
         # Assert - requirements loaded from config
         assert len(balance_monitor.exchange_min_balances) == 2
@@ -142,7 +140,7 @@ class TestBalanceChecking:
             asset="USDC",
             timestamp=datetime.now(tz=UTC),
             total_quantity=Decimal(110),  # Above min (100) but below warning threshold (100)
-            available_quantity=Decimal(80)  # Actually below warning threshold
+            available_quantity=Decimal(80),  # Actually below warning threshold
         )
         mock_portfolio_tracker.get_exchange_balance.return_value = low_warning_balance
 
@@ -267,11 +265,7 @@ class TestAlertManagement:
     def test_add_alert_adds_to_active_alerts(self, balance_monitor: BalanceMonitor) -> None:
         """Test that add_alert adds alert to active alerts list."""
         # Arrange
-        alert = BalanceAlert(
-            asset="USDC",
-            threshold_type="low",
-            threshold_value=Decimal(100)
-        )
+        alert = BalanceAlert(asset="USDC", threshold_type="low", threshold_value=Decimal(100))
 
         # Act
         balance_monitor.add_alert(alert)
@@ -354,11 +348,7 @@ class TestBalanceAlertDataClass:
     def test_balance_alert_initializes_with_required_fields(self) -> None:
         """Test BalanceAlert can be created with required fields."""
         # Act
-        alert = BalanceAlert(
-            asset="USDC",
-            threshold_type="low", 
-            threshold_value=Decimal(100)
-        )
+        alert = BalanceAlert(asset="USDC", threshold_type="low", threshold_value=Decimal(100))
 
         # Assert
         assert alert.asset == "USDC"

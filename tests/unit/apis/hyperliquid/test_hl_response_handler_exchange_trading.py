@@ -8,17 +8,25 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import StructureTypeError
-from cyberdelta.apis.hyperliquid.hl_response_handler import (
-    HyperliquidResponseHandler,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeStatusObject,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrderResponse,
+    HyperliquidRawHistoricalOrdersResponse,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
+    HyperliquidRawOrderStatusResponse,
+)
+from cyberdelta.apis.hyperliquid.response_handlers.hl_trading_response_handler import (
+    HyperliquidTradingResponseHandler,
 )
 from cyberdelta.utils.typing import ParsedJsonResponse
+
+
+# Create an alias for backward compatibility
+HyperliquidResponseHandler = HyperliquidTradingResponseHandler
 
 
 # Import fixtures from the shared conftest
@@ -26,15 +34,14 @@ pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_response_handler"]
 
 
 class TestHandleExchangeResponse:
-    """Tests for HyperliquidResponseHandler.handle_exchange_response."""
+    """Tests for HyperliquidResponseHandler().handle_exchange_response."""
 
     def test_valid(self, valid_raw_exchange_response: dict[str, Any]) -> None:
         """Test handling a valid raw exchange response."""
         raw_data = valid_raw_exchange_response
         response: HyperliquidRawExchangeResponse = (
-            HyperliquidResponseHandler.handle_exchange_response(
+            HyperliquidResponseHandler().handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
-                action_type="order",
                 status_code=200,
             )
         )
@@ -55,9 +62,8 @@ class TestHandleExchangeResponse:
         """Test exchange response dict missing required 'status' field."""
         raw_data = {"data": {"type": "order", "statuses": [{"resting": {"oid": 12345}}]}}
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_exchange_response(
+            HyperliquidResponseHandler().handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
-                action_type="order",
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -69,9 +75,8 @@ class TestHandleExchangeResponse:
         """Test exchange response with status != 'ok'."""
         raw_data = {"status": "error", "error": "Invalid order size"}
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_exchange_response(
+            HyperliquidResponseHandler().handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
-                action_type="order",
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -84,9 +89,8 @@ class TestHandleExchangeResponse:
         """Test exchange response status='ok' but missing 'data' field."""
         raw_data = {"status": "ok", "data": "not a valid data structure"}
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_exchange_response(
+            HyperliquidResponseHandler().handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
-                action_type="order",
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -99,9 +103,8 @@ class TestHandleExchangeResponse:
         """Test exchange response with wrong top-level type (list instead of dict)."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_exchange_response(
+            HyperliquidResponseHandler().handle_exchange_response(
                 cast("ParsedJsonResponse", raw_data),
-                action_type="order",
                 status_code=200,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -112,7 +115,7 @@ class TestHandleExchangeResponse:
 
 
 class TestHandleQueryOrderHistoryResponse:
-    """Tests for HyperliquidResponseHandler.handle_historical_orders_response."""
+    """Tests for HyperliquidResponseHandler().handle_historical_orders_response."""
 
     def test_valid(
         self,
@@ -121,16 +124,15 @@ class TestHandleQueryOrderHistoryResponse:
     ) -> None:
         """Test handling a valid raw order history response."""
         raw_data = [valid_raw_historical_order_response, valid_raw_historical_order_response.copy()]
-        response_list: list[HyperliquidRawHistoricalOrderResponse] = (
-            HyperliquidResponseHandler.handle_historical_orders_response(
+        response_list: HyperliquidRawHistoricalOrdersResponse = (
+            HyperliquidResponseHandler().handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
             )
         )
-        assert isinstance(response_list, list)
-        assert len(response_list) == 2
-        assert isinstance(response_list[0], HyperliquidRawHistoricalOrderResponse)
-        assert response_list[0].order.oid == 7001
+        assert isinstance(response_list.root, list)
+        assert len(response_list.root) == 2
+        assert isinstance(response_list.root[0], HyperliquidRawHistoricalOrderResponse)
+        assert response_list.root[0].order.oid == 7001
 
     def test_invalid_item_type_in_list(
         self,
@@ -140,13 +142,12 @@ class TestHandleQueryOrderHistoryResponse:
         """Test list containing a non-dict item. Handler should skip it."""
         raw_data = [valid_raw_historical_order_response.copy(), "not_an_order_dict"]
         # Handler skips invalid items, so no exception is raised
-        response_list = HyperliquidResponseHandler.handle_historical_orders_response(
+        response_list = HyperliquidResponseHandler().handle_historical_orders_response(
             cast("ParsedJsonResponse", raw_data),
-            user_address=user_address,
         )
-        assert isinstance(response_list, list)
-        assert len(response_list) == 1  # Only the valid item remains
-        assert isinstance(response_list[0], HyperliquidRawHistoricalOrderResponse)
+        assert isinstance(response_list.root, list)
+        assert len(response_list.root) == 1  # Only the valid item remains
+        assert isinstance(response_list.root[0], HyperliquidRawHistoricalOrderResponse)
 
     def test_item_validation_error(
         self,
@@ -171,16 +172,14 @@ class TestHandleQueryOrderHistoryResponse:
                 "Fixture valid_raw_historical_order_response does not have expected "
                 "'order'.'oid' structure or 'order' is not a dict.",
             )
-
         # Also use deepcopy for the "valid" item in the list to ensure it's pristine
         raw_data = [
             copy.deepcopy(valid_raw_historical_order_response),  # First item is a clean copy
             invalid_item,  # Second item is the modified one (missing oid)
         ]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_historical_orders_response(
+            HyperliquidResponseHandler().handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -194,15 +193,14 @@ class TestHandleQueryOrderHistoryResponse:
         """Test order history response with wrong top-level type (dict instead of list)."""
         raw_data = {"invalid": "data"}
         with pytest.raises(StructureTypeError) as exc_info:
-            HyperliquidResponseHandler.handle_historical_orders_response(
+            HyperliquidResponseHandler().handle_historical_orders_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
             )
         assert "Expected list, got dict" in str(exc_info.value)
 
 
 class TestHandleInfoOrderStatusResponse:
-    """Tests for HyperliquidResponseHandler.handle_info_order_status_response."""
+    """Tests for HyperliquidResponseHandler().handle_info_order_status_response."""
 
     def test_valid(
         self,
@@ -213,23 +211,19 @@ class TestHandleInfoOrderStatusResponse:
         """Test handling a valid order status response (list with one dict item)."""
         # The API returns a list containing the order status dict
         raw_data = [valid_raw_historical_order_response]
-        response = HyperliquidResponseHandler.handle_info_order_status_response(
+        response = HyperliquidResponseHandler().handle_info_order_status_response(
             cast("ParsedJsonResponse", raw_data),
-            user_address=user_address,
-            order_id=order_id,
         )
-        assert isinstance(response, HyperliquidRawHistoricalOrderResponse)
-        assert response.order.oid == 7001
-        assert response.status == "filled"
+        assert isinstance(response, HyperliquidRawOrderStatusResponse)
+        assert response.order.order.oid == 7001
+        assert response.order.status == "filled"
 
     def test_order_not_found_string_direct(self, user_address: str, order_id: int) -> None:
         """Test handling 'Order not found' string directly."""
         raw_data = "Order not found"
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
         expected_message = f"Order not found (direct string: {raw_data!r})"
@@ -240,10 +234,8 @@ class TestHandleInfoOrderStatusResponse:
         """Test handling ['Order not found'] list."""
         raw_data = ["Order not found"]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
         # The handler identifies the string item within the list, so the message reflects that.
@@ -258,10 +250,9 @@ class TestHandleInfoOrderStatusResponse:
         """Test handling [] empty list response."""
         raw_data: ParsedJsonResponse = []  # Using ParsedJsonResponse
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 raw_data,
-                user_address=user_address,
-                order_id=order_id,  # No cast
+                # No cast
             )
         assert exc_info.value.code == APIErrorCode.ORDER_NOT_FOUND.value
         assert exc_info.value.message == "Order not found (empty list)."
@@ -270,10 +261,8 @@ class TestHandleInfoOrderStatusResponse:
         """Test handling None response."""
         raw_data = None
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert exc_info.value.message == "Order status response is None"
@@ -282,10 +271,8 @@ class TestHandleInfoOrderStatusResponse:
         """Test handling unexpected string inside the list."""
         raw_data = ["Some other error string"]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert exc_info.value.message == "Unexpected order status response: Some other error string"
@@ -295,10 +282,8 @@ class TestHandleInfoOrderStatusResponse:
         """Test handling non-dict, non-string item inside the list."""
         raw_data = [12345]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert exc_info.value.message == "Order status response list: expected dict, got int"
@@ -315,10 +300,8 @@ class TestHandleInfoOrderStatusResponse:
         del invalid_item["order"]["oid"]
         raw_data = [invalid_item]
         with pytest.raises(APIError) as exc_info:
-            HyperliquidResponseHandler.handle_info_order_status_response(
+            HyperliquidResponseHandler().handle_info_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
-                user_address=user_address,
-                order_id=order_id,
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"order status (user: {user_address}, order: {order_id})" in exc_info.value.message

@@ -173,7 +173,7 @@ def _validate_financial_fields(data: dict[str, Any], financial_fields: list[str]
                         actual_type=type(raw_value).__name__,
                     )
                 value = parse_decimal_value(raw_value, allow_none=False, field_name=field)
-                if value is not None and value < 0:
+                if value < 0:
                     raise FinancialFieldError(
                         field_name=field,
                         value=value,

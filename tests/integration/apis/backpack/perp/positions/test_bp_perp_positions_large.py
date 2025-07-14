@@ -141,17 +141,14 @@ class TestBackpackPerpLargePositions:
         max_notional = await self._calculate_max_notional(api, symbol, account_summary)
         max_quantity = self._calculate_max_quantity(max_notional, market_price, constraints)
 
-        if max_quantity < constraints["min_order_size"]:
-            logger.info(
-                "max_quantity_below_min_size",
-                max_quantity=max_quantity,
-                min_size=constraints["min_order_size"],
-                message=(
-                    "Calculated max quantity is below min size. "
-                    "Account may have insufficient funds for minimum position."
-                ),
+        min_order_size = constraints.get("min_quantity", constraints["step_size"])
+        if max_quantity < min_order_size:
+            # Raise ValueError to indicate insufficient margin - this is expected behavior
+            # when exhausting margin across multiple symbols
+            raise ValueError(
+                f"Insufficient margin: max quantity {max_quantity} is below "
+                f"minimum order size {min_order_size} for {symbol}"
             )
-            return Decimal(0)
 
         return await self._validate_test_size(
             api, symbol, side, max_quantity, constraints, market_price
@@ -172,21 +169,74 @@ class TestBackpackPerpLargePositions:
         """Calculate maximum notional based on exchange limits."""
         await api.get_market(GetMarketArgs(symbol=symbol))
 
-        # For Backpack, we need to use a default max leverage since it's not in the market data
-        # This is a reasonable default for perpetual markets
-        default_max_leverage = Decimal(50)
-        return account_summary.available_equity * default_max_leverage
+        logger.debug(
+            "calculating_max_notional",
+            symbol=symbol,
+            available_equity=str(account_summary.available_equity),
+            bp_details_exists=account_summary.bp_details is not None,
+            leverage_limit=str(account_summary.bp_details.leverage_limit)
+            if account_summary.bp_details
+            else None,
+            message="Debug: Calculating max notional for symbol",
+        )
+
+        # Use the actual leverage limit from the account summary
+        # This comes from the account's leverageLimit field in the API response
+        if not account_summary.bp_details or not account_summary.bp_details.leverage_limit:
+            pytest.fail(
+                f"No leverage limit available in account summary for {symbol}. "
+                f"BP details: {account_summary.bp_details}. "
+                "Position limit tests require real leverage data from exchange."
+            )
+
+        max_leverage = account_summary.bp_details.leverage_limit
+        max_notional = account_summary.available_equity * max_leverage
+
+        logger.debug(
+            "max_notional_calculated",
+            symbol=symbol,
+            available_equity=str(account_summary.available_equity),
+            leverage=str(max_leverage),
+            max_notional=str(max_notional),
+            message="Debug: Max notional calculated",
+        )
+
+        return max_notional
 
     def _calculate_max_quantity(
         self, max_notional: Decimal, market_price: Decimal, constraints: dict[str, Any]
     ) -> Decimal:
         """Calculate maximum quantity respecting step size."""
-        max_quantity = (max_notional / market_price).quantize(Decimal(1), rounding=ROUND_DOWN)
+        # Calculate raw quantity without premature rounding
+        raw_quantity = max_notional / market_price
 
-        if max_quantity > Decimal(0):
-            step_size = constraints["step_size"]
-            steps = (max_quantity / step_size).quantize(Decimal(1), rounding=ROUND_DOWN)
+        logger.debug(
+            "calculating_max_quantity",
+            max_notional=str(max_notional),
+            market_price=str(market_price),
+            raw_quantity=str(raw_quantity),
+            step_size=str(constraints["step_size"]),
+            message="Debug: Calculating max quantity",
+        )
+
+        if raw_quantity > Decimal(0):
+            step_size = Decimal(constraints["step_size"])
+            # Calculate how many steps fit, then multiply back by step size
+            steps = (raw_quantity / step_size).quantize(Decimal(1), rounding=ROUND_DOWN)
             max_quantity = steps * step_size
+            steps_str = str(steps)
+        else:
+            max_quantity = Decimal(0)
+            steps_str = "0"
+
+        logger.debug(
+            "max_quantity_calculated",
+            raw_quantity=str(raw_quantity),
+            step_size=str(constraints["step_size"]),
+            steps=steps_str,
+            max_quantity=str(max_quantity),
+            message="Debug: Max quantity calculated",
+        )
 
         return max_quantity
 
@@ -200,25 +250,31 @@ class TestBackpackPerpLargePositions:
         market_price: Decimal,
     ) -> Decimal:
         """Validate test size by placing and canceling an order."""
+        # Calculate precision from step_size (e.g., 0.01 -> 2 decimal places)
+        step_size = constraints["step_size"]
+        precision = -step_size.as_tuple().exponent
         test_size = (max_quantity * Decimal("0.95")).quantize(
-            Decimal(10) ** -constraints["quantity_precision"], rounding=ROUND_DOWN
+            Decimal(10) ** -precision, rounding=ROUND_DOWN
         )
 
         step_size = constraints["step_size"]
         steps = (test_size / step_size).quantize(Decimal(1), rounding=ROUND_DOWN)
         test_size = steps * step_size
 
-        if test_size < constraints["min_order_size"]:
-            pytest.fail(
+        min_order_size = constraints.get("min_quantity", constraints["step_size"])
+        if test_size < min_order_size:
+            # Raise ValueError to indicate insufficient margin for test order
+            raise ValueError(
                 f"Cannot create valid test order. "
-                f"95% of max ({test_size}) is below min size ({constraints['min_order_size']})"
+                f"95% of max ({test_size}) is below min size ({min_order_size})"
             )
 
         # Place and cancel test order
+        tick_size = constraints["tick_size"]
         if side == OrderSide.BUY:
-            test_price = market_price * Decimal("0.9")
+            test_price = (market_price * Decimal("0.9")).quantize(tick_size, rounding=ROUND_DOWN)
         else:
-            test_price = market_price * Decimal("1.1")
+            test_price = (market_price * Decimal("1.1")).quantize(tick_size, rounding=ROUND_DOWN)
 
         place_args = PlaceOrderArgs(
             symbol=symbol,
@@ -638,6 +694,8 @@ class TestBackpackPerpLargePositions:
                             time_in_force=TimeInForce.IOC,
                         )
                         await bp_api_for_large_balance_test.place_order(place_args)
+                        # Invalidate account cache to ensure fresh equity data for next iteration
+                        await bp_api_for_large_balance_test.invalidate_account_cache()
                         # Position update handled by proper polling
                         positions_created.append(symbol)
                 except (APIError, ValueError, TypeError, KeyError):
@@ -649,22 +707,30 @@ class TestBackpackPerpLargePositions:
 
             # Verify no more significant positions possible on any symbol
             for symbol in symbols:
-                max_quantity = await self._find_max_order_via_exchange_limits(
-                    bp_api_for_large_balance_test,
-                    symbol,
-                    OrderSide.BUY,
-                )
-                constraints = await get_market_constraints(bp_api_for_large_balance_test, symbol)
+                try:
+                    max_quantity = await self._find_max_order_via_exchange_limits(
+                        bp_api_for_large_balance_test,
+                        symbol,
+                        OrderSide.BUY,
+                    )
+                    constraints = await get_market_constraints(
+                        bp_api_for_large_balance_test, symbol
+                    )
 
-                # The exchange should report very limited or no capacity left (less than 10 steps)
-                max_steps = (max_quantity / constraints["step_size"]).quantize(
-                    Decimal(1),
-                    rounding=ROUND_DOWN,
-                )
-                assert max_steps < Decimal(10), (
-                    f"Should have less than 10 steps of capacity left for {symbol}, "
-                    f"but have {max_steps} steps"
-                )
+                    # The exchange should report very limited or no capacity left
+                    # (less than 10 steps)
+                    max_steps = (max_quantity / constraints["step_size"]).quantize(
+                        Decimal(1),
+                        rounding=ROUND_DOWN,
+                    )
+                    assert max_steps < Decimal(10), (
+                        f"Should have less than 10 steps of capacity left for {symbol}, "
+                        f"but have {max_steps} steps"
+                    )
+                except ValueError:
+                    # Expected - insufficient margin to create even minimum position
+                    # This is what we want - margin is exhausted
+                    pass
 
         finally:
             await self._close_all_positions(bp_api_for_large_balance_test)

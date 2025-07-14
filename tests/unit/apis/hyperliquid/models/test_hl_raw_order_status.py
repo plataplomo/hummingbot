@@ -11,34 +11,45 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 )
 
 
-# Data structure matching HyperliquidRawOrder fields
-VALID_RAW_ORDER_DATA = {
+# Data structure matching HyperliquidRawOrderStatusOrder fields
+VALID_RAW_ORDER_DATA: dict[str, Any] = {
     "oid": 12345,
     "cloid": None,  # Optional client order ID
-    "asset": "ETH",
+    "coin": "ETH",
     "side": "B",  # 'B' for Buy
     "limitPx": "2000.50",
     "sz": "0.5",
     "timestamp": 1700000000000,
-    "orderType": {"limit": {"tif": "Gtc"}},  # Example valid orderType
+    "triggerCondition": "",  # Required field
+    "isTrigger": False,
+    "triggerPx": "0.0",
+    "children": [],
+    "isPositionTpsl": False,
     "reduceOnly": False,
-    "remainingSz": "0.5",  # Required by HLRawOrder
-    "status": "open",  # Required by HLRawOrder
-    "statusTimestamp": 1700000000000,  # Required by HLRawOrder
+    "orderType": "limit",  # Simple string for order type
+    "origSz": "0.5",
+    "tif": "Gtc",
 }
 
 
 def test_valid_order_status_response() -> None:
     """Test successful parsing of a valid order status response."""
-    valid_data = {"order": VALID_RAW_ORDER_DATA}
+    valid_data = {
+        "status": "open",
+        "order": {
+            "order": VALID_RAW_ORDER_DATA,
+            "status": "open",
+            "statusTimestamp": 1700000000000,
+        },
+    }
     obj = HyperliquidRawOrderStatusResponse.model_validate(valid_data)
     assert obj.order is not None
-    assert obj.order.oid == 12345
-    assert obj.order.asset == "ETH"
-    assert obj.order.limit_px == "2000.5"  # Business logic normalizes decimal strings
-    assert obj.order.sz == "0.5"
-    assert obj.order.side == "B"
-    assert obj.order.status == "open"
+    assert obj.order.order.oid == 12345
+    assert obj.order.order.coin == "ETH"
+    assert obj.order.order.limit_px == "2000.50"  # Keep original precision
+    assert obj.order.order.sz == "0.5"
+    assert obj.order.order.side == "B"
+    assert obj.status == "open"  # Status is on the parent object
     assert obj.model_config.get("extra") == "forbid"
     assert obj.model_config.get("frozen") is True
 

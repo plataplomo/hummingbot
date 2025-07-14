@@ -51,11 +51,7 @@ class TestStrategyInitialization:
         params = {"threshold": 0.01, "window": 20, "enabled": True}
 
         # Act
-        strategy = ConcreteStrategy(
-            name="ParamStrategy", 
-            symbol="ETH-PERP", 
-            params=params
-        )
+        strategy = ConcreteStrategy(name="ParamStrategy", symbol="ETH-PERP", params=params)
 
         # Assert
         assert strategy.name == "ParamStrategy"
@@ -66,11 +62,7 @@ class TestStrategyInitialization:
     def test_strategy_init_success_with_none_params(self) -> None:
         """Test initialization with None params defaults to empty dict."""
         # Act
-        strategy = ConcreteStrategy(
-            name="NoneParamStrategy", 
-            symbol="SOL-PERP", 
-            params=None
-        )
+        strategy = ConcreteStrategy(name="NoneParamStrategy", symbol="SOL-PERP", params=None)
 
         # Assert
         assert strategy.params == {}
@@ -178,23 +170,23 @@ class TestStrategyLifecycle:
         # Test initial state
         initial_state = strategy.enabled
         assert initial_state is False
-        
+
         # Test first enable
         strategy.enable()
-        first_enable_state = strategy.enabled  
+        first_enable_state = strategy.enabled
         assert first_enable_state is True
-        
+
         # Test second enable (idempotent)
         strategy.enable()
         second_enable_state = strategy.enabled
         assert second_enable_state is True
-        
+
         # Test first disable
         strategy.disable()
         first_disable_state = strategy.enabled
         assert first_disable_state is False
-        
-        # Test second disable (idempotent)  
+
+        # Test second disable (idempotent)
         strategy.disable()
         second_disable_state = strategy.enabled
         assert second_disable_state is False
@@ -326,7 +318,7 @@ class TestStrategyHistoricalData:
     ) -> None:
         """Test updating historical data with matching symbol."""
         # Arrange - strategy starts with no data
-        
+
         # Act
         strategy.update_historical_data(sample_candle)
 
@@ -425,9 +417,7 @@ class TestStrategyHistoricalData:
         # Test that zero max_bars executes successfully without error
         assert True  # Method completed without exception
 
-    def test_update_historical_data_edge_max_bars_one(
-        self, strategy: ConcreteStrategy
-    ) -> None:
+    def test_update_historical_data_edge_max_bars_one(self, strategy: ConcreteStrategy) -> None:
         """Test historical data with max_bars=1 keeps only latest."""
         # Arrange
         candle1 = Candle(
@@ -568,7 +558,7 @@ class TestStrategyAbstractMethod:
         """Test that concrete strategy must implement process_data method."""
         # This test verifies the ConcreteStrategy implementation exists
         # and can be instantiated (proving abstract method is implemented)
-        
+
         # Act
         strategy = ConcreteStrategy(name="ConcreteTest", symbol="BTC-PERP")
 

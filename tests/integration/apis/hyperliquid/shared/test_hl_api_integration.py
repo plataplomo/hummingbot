@@ -677,6 +677,7 @@ class TestHyperliquidAPIConcurrentOperations:
         assert market_exc.value.code in [
             APIErrorCode.INVALID_SYMBOL.value,
             APIErrorCode.SYMBOL_NOT_FOUND.value,
+            APIErrorCode.INVALID_RESPONSE.value,  # Empty response for invalid symbol
         ], f"Market service returned unexpected error code: {market_exc.value.code}"
 
         # Ticker service should handle invalid symbol by returning None
@@ -699,5 +700,6 @@ class TestHyperliquidAPIConcurrentOperations:
                 APIErrorCode.INVALID_SYMBOL.value,
                 APIErrorCode.SYMBOL_NOT_FOUND.value,
                 APIErrorCode.INVALID_REQUEST.value,  # Hyperliquid may return this
+                APIErrorCode.INVALID_RESPONSE.value,  # Empty response for invalid symbol
             ]:
                 pytest.fail(f"Trading service returned unexpected error code: {e.code}")

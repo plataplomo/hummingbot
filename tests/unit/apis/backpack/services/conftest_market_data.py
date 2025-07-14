@@ -6,9 +6,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
+from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
+    BackpackMarketDataRequestBuilder,
+)
+from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler import (
+    BackpackMarketDataResponseHandler,
+)
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 
 
@@ -23,14 +27,14 @@ def mock_http_client_requester() -> AsyncMock:
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Return a mock BackpackRequestBuilder for testing."""
-    return MagicMock(spec=BackpackRequestBuilder)
+    """Return a mock BackpackMarketDataRequestBuilder for testing."""
+    return MagicMock(spec=BackpackMarketDataRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Return a mock BackpackResponseHandler for testing."""
-    return MagicMock(spec=BackpackResponseHandler)
+    """Return a mock BackpackMarketDataResponseHandler for testing."""
+    return MagicMock(spec=BackpackMarketDataResponseHandler)
 
 
 # @pytest.fixture
@@ -41,8 +45,8 @@ def mock_response_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Return a mock BackpackMarketDataMapper for testing market data operations."""
-    return MagicMock(spec=BackpackMarketDataMapper)
+    """Return a mock BackpackTickerMapper for testing market data operations."""
+    return MagicMock(spec=BackpackTickerMapper)
 
 
 @pytest.fixture

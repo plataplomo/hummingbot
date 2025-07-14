@@ -15,7 +15,7 @@ class BaseChecker(ABC):
 
     def __init__(self, config: dict[str, Any] | None = None) -> None:
         """Initialize the checker.
-        
+
         Args:
             config: Configuration dictionary for the checker
         """
@@ -36,14 +36,14 @@ class BaseChecker(ABC):
         context: CheckContext,
     ) -> CheckResult:
         """Perform the actual check logic.
-        
+
         This method should be implemented by subclasses to perform
         the specific check logic.
-        
+
         Args:
             opportunity: The arbitrage opportunity to check
             context: Context information for the check
-            
+
         Returns:
             CheckResult indicating success/failure
         """
@@ -55,11 +55,11 @@ class BaseChecker(ABC):
         context: CheckContext,
     ) -> CheckResult:
         """Check an opportunity with error handling and timing.
-        
+
         Args:
             opportunity: The arbitrage opportunity to check
             context: Context information for the check
-            
+
         Returns:
             CheckResult indicating success/failure with timing info
         """
@@ -84,9 +84,7 @@ class BaseChecker(ABC):
             # Log the result
             if result.passed:
                 self.logger.debug(
-                    "Check passed", 
-                    checker_name=self.name, 
-                    execution_time_ms=execution_time_ms
+                    "Check passed", checker_name=self.name, execution_time_ms=execution_time_ms
                 )
             elif result.failed:
                 self.logger.warning("Check failed", checker_name=self.name, reason=result.message)
@@ -137,11 +135,11 @@ class BaseChecker(ABC):
 
     def get_config_value(self, key: str, default: object = None) -> object:
         """Get a configuration value.
-        
+
         Args:
             key: Configuration key
             default: Default value if key not found
-            
+
         Returns:
             Configuration value or default
         """
@@ -149,7 +147,7 @@ class BaseChecker(ABC):
 
     def update_config(self, config: dict[str, Any]) -> None:
         """Update the checker configuration.
-        
+
         Args:
             config: New configuration dictionary
         """

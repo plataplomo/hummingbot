@@ -5,12 +5,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetDefinition,
     HyperliquidRawMetaAndAssetCtxsResponse,
     HyperliquidRawMetaResponse,
+)
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -29,7 +31,7 @@ async def test_asset_index_resolution() -> None:
     # Create mock dependencies
     mock_requester = AsyncMock()
     mock_response_handler = MagicMock(spec=HyperliquidResponseHandler)
-    mock_request_builder = MagicMock(spec=HyperliquidRequestBuilder)
+    mock_request_builder = MagicMock(spec=HyperliquidMarketDataRequestBuilder)
 
     # Create the asset indexer
     indexer = HyperliquidAssetIndexResolver(

@@ -330,6 +330,12 @@ class InvalidAccountTypeError(ServiceValidationError):
             method_name=method_name,
         )
 
+        # Set instance attributes for test access
+        self.account_type = account_type
+        self.parameter_name = parameter_name
+        self.valid_types = valid_types
+        self.method_name = method_name
+
 
 class NetworkRequiredError(ServiceValidationError):
     """Raised when network parameter is required but not provided."""
@@ -356,6 +362,10 @@ class NetworkRequiredError(ServiceValidationError):
             operation=operation,
             method_name=method_name,
         )
+
+        # Set instance attributes for test access
+        self.operation = operation
+        self.method_name = method_name
 
 
 class UnsupportedNetworkError(ServiceValidationError):
@@ -385,3 +395,8 @@ class UnsupportedNetworkError(ServiceValidationError):
             supported_networks=supported_networks,
             method_name=method_name,
         )
+
+        # Set instance attributes for test access
+        self.network = network
+        self.supported_networks = supported_networks
+        self.method_name = method_name

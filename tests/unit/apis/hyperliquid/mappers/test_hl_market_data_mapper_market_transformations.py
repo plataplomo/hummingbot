@@ -1,8 +1,8 @@
-"""CyberDeltaEngine: Hyperliquid Market Data Mapper Market Transformation Tests.
+"""CyberDeltaEngine: Hyperliquid Market Metadata Mapper Tests.
 
 ------------------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidMarketDataMapper market transformation methods.
+Comprehensive test suite for HyperliquidMarketMetadataMapper market transformation methods.
 Tests the new market-related transformation methods including:
 - Meta and asset contexts to markets transformation
 - Single asset to market transformation
@@ -21,7 +21,9 @@ import structlog.testing
 
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import MissingRequiredFieldError
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper import (
+    HyperliquidMarketMetadataMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawAssetDefinition,
@@ -32,13 +34,13 @@ from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Marke
 
 
 # Alias for shorter method calls
-Mapper = HyperliquidMarketDataMapper
+Mapper = HyperliquidMarketMetadataMapper
 
 
 @pytest.fixture
-def mapper() -> HyperliquidMarketDataMapper:
-    """Provide an instance of HyperliquidMarketDataMapper."""
-    return HyperliquidMarketDataMapper()
+def mapper() -> HyperliquidMarketMetadataMapper:
+    """Provide an instance of HyperliquidMarketMetadataMapper."""
+    return HyperliquidMarketMetadataMapper()
 
 
 def create_asset_definition(
@@ -116,7 +118,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
     def test_transform_meta_and_asset_ctxs_happy_path(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test successful transformation of meta and asset contexts to markets."""
         raw_response = create_meta_and_asset_ctxs_response()
@@ -159,7 +161,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
     def test_transform_meta_and_asset_ctxs_missing_asset_context(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test transformation when asset context is missing for some assets."""
@@ -194,7 +196,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
     def test_transform_meta_and_asset_ctxs_empty_universe(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test transformation with empty universe."""
         raw_response = create_meta_and_asset_ctxs_response([], [])
@@ -206,7 +208,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
     def test_transform_meta_and_asset_ctxs_with_invalid_asset_definition(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test transformation with one invalid asset definition."""
@@ -219,8 +221,8 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
         # Mock the _create_market_from_asset_definition to raise an error for one asset
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper."
-            "HyperliquidMarketDataMapper._create_market_from_asset_definition",
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper."
+            "HyperliquidMarketMetadataMapper._create_market_from_asset_definition",
             side_effect=ValueError("Invalid sz_decimals processing"),
         ):
             with structlog.testing.capture_logs() as captured_logs:
@@ -246,7 +248,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
     def test_transform_meta_and_asset_ctxs_transformation_error(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a corrupted response that will cause a system error
@@ -254,12 +256,16 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
             TransformationError,
             match="Failed to transform meta and asset contexts",
         ):
-            # Pass invalid input that will cause the method to fail at the top level
-            mapper.transform_raw_meta_and_asset_ctxs_to_markets(None)  # type: ignore
+            # Pass corrupted input that will cause the method to fail
+            corrupted_response = HyperliquidRawMetaAndAssetCtxsResponse(
+                meta=HyperliquidRawMetaResponse(universe=[], marginTables=None), asset_ctxs=[]
+            )
+            # This should cause an internal transformation error
+            mapper.transform_raw_meta_and_asset_ctxs_to_markets(corrupted_response)
 
     def test_transform_meta_and_asset_ctxs_extreme_values(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test transformation with extreme values."""
         # Create asset definitions with extreme values
@@ -302,7 +308,7 @@ class TestCreateMarketFromAssetDefinition:
 
     def test_create_market_from_asset_definition_with_context(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test creating market from asset definition with context."""
         asset_def = create_asset_definition("SOL-PERP", max_leverage=75, sz_decimals=3)
@@ -333,7 +339,7 @@ class TestCreateMarketFromAssetDefinition:
 
     def test_create_market_from_asset_definition_without_context(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test creating market from asset definition without context."""
         asset_def = create_asset_definition("AVAX-PERP", max_leverage=25, sz_decimals=2)
@@ -354,7 +360,7 @@ class TestCreateMarketFromAssetDefinition:
 
     def test_create_market_from_asset_definition_invalid_sz_decimals(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test error handling for invalid sz_decimals."""
         asset_def = create_asset_definition(
@@ -376,7 +382,7 @@ class TestCreateMarketFromAssetDefinition:
 
     def test_create_market_from_asset_definition_extreme_sz_decimals(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test handling of extreme sz_decimals values."""
         # Test minimum value
@@ -395,7 +401,7 @@ class TestCreateMarketFromAssetDefinition:
 
     def test_create_market_from_asset_definition_malformed_context_data(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test handling of malformed context data."""
         asset_def = create_asset_definition("MALFORMED-PERP")
@@ -425,7 +431,7 @@ class TestCreateMarketFromAssetDefinition:
 
     def test_create_market_from_asset_definition_only_isolated_true(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test market creation with only_isolated=True."""
         asset_def = create_asset_definition("ISOLATED-PERP", only_isolated=True)
@@ -441,7 +447,7 @@ class TestTransformSingleAssetToMarket:
 
     def test_transform_single_asset_to_market_with_context(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test transforming single asset with context."""
         asset_def = create_asset_definition("DOT-PERP")
@@ -456,7 +462,7 @@ class TestTransformSingleAssetToMarket:
 
     def test_transform_single_asset_to_market_without_context(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test transforming single asset without context."""
         asset_def = create_asset_definition("ADA-PERP")
@@ -470,15 +476,15 @@ class TestTransformSingleAssetToMarket:
 
     def test_transform_single_asset_delegates_to_internal_method(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test that single asset transform delegates to internal method."""
         asset_def = create_asset_definition("LINK-PERP")
 
         # Mock the internal method using the full path
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper."
-            "HyperliquidMarketDataMapper._create_market_from_asset_definition",
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper."
+            "HyperliquidMarketMetadataMapper._create_market_from_asset_definition",
         ) as mock_internal:
             # Create a minimal valid market for the mock
             mock_market = Market(
@@ -504,7 +510,7 @@ class TestMarketTransformationErrorHandling:
 
     def test_error_handling_with_corrupted_asset_definition(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test error handling with corrupted asset definition data."""
@@ -515,8 +521,8 @@ class TestMarketTransformationErrorHandling:
 
         # Mock asset definition to raise an error during processing
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper."
-            "HyperliquidMarketDataMapper._create_market_from_asset_definition",
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper."
+            "HyperliquidMarketMetadataMapper._create_market_from_asset_definition",
             side_effect=ValueError("Corrupted asset definition"),
         ):
             raw_response = create_meta_and_asset_ctxs_response(asset_definitions, [])
@@ -544,7 +550,7 @@ class TestMarketTransformationErrorHandling:
 
     def test_error_handling_with_none_asset_contexts(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test error handling with None asset contexts list."""
         asset_definitions = [create_asset_definition("TEST-PERP")]
@@ -565,7 +571,7 @@ class TestMarketTransformationErrorHandling:
 
     def test_error_handling_large_batch_processing(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test that large batches can be processed efficiently."""
         # Create large batch of assets
@@ -590,7 +596,7 @@ class TestMarketTransformationErrorHandling:
 
     def test_memory_efficiency_with_large_datasets(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test memory efficiency when processing large datasets."""
         # Create large dataset
@@ -615,7 +621,7 @@ class TestMarketTransformationErrorHandling:
 
     def test_thread_safety_considerations(
         self,
-        mapper: HyperliquidMarketDataMapper,
+        mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test that market transformations are thread-safe."""
         # Since the mapper methods are static, they should be thread-safe

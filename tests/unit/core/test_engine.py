@@ -30,14 +30,14 @@ def mock_strategy() -> Mock:
     strategy.name = "test_strategy"
     strategy.symbol = "BTC-PERP"  # Single symbol, not symbols list
     strategy.enabled = False
-    
+
     # Mock the actual public methods that engine calls
     strategy.enable = Mock()
     strategy.disable = Mock()
     strategy.on_start = Mock()  # Synchronous, not async
-    strategy.on_stop = Mock()   # Synchronous, not async
+    strategy.on_stop = Mock()  # Synchronous, not async
     strategy.process_data = AsyncMock(return_value=None)  # This is the async method
-    
+
     return strategy
 
 
@@ -52,7 +52,7 @@ def sample_candle() -> Candle:
         high=Decimal(51000),
         low=Decimal(49000),
         close=Decimal(50500),
-        volume=Decimal(100)
+        volume=Decimal(100),
     )
 
 
@@ -66,7 +66,7 @@ def sample_signal() -> TradeSignal:
         side=OrderSide.BUY,
         price=Decimal(50000),
         exchange="test_exchange",
-        timestamp=datetime.now(UTC)
+        timestamp=datetime.now(UTC),
     )
 
 
@@ -124,7 +124,7 @@ class TestStrategyManagement:
         """Test that enabling non-existent strategy logs warning and returns without error."""
         # Act - should not raise exception
         engine.enable_strategy("nonexistent")
-        
+
         # Assert - strategy not added to enabled list
         assert "nonexistent" not in engine.enabled_strategies
 
@@ -143,9 +143,7 @@ class TestStrategyManagement:
         # disable should be called twice: once on add, once on disable
         assert mock_strategy.disable.call_count == 2
 
-    def test_remove_strategy_removes_from_engine(
-        self, engine: Engine, mock_strategy: Mock
-    ) -> None:
+    def test_remove_strategy_removes_from_engine(self, engine: Engine, mock_strategy: Mock) -> None:
         """Test removing a strategy removes it from the engine."""
         # Arrange
         engine.add_strategy(mock_strategy)
@@ -223,11 +221,7 @@ class TestMarketDataProcessing:
 
     @pytest.mark.asyncio
     async def test_process_market_data_routes_to_enabled_strategies(
-        self,
-        engine: Engine,
-        mock_strategy: Mock,
-        sample_candle: Candle,
-        sample_signal: TradeSignal
+        self, engine: Engine, mock_strategy: Mock, sample_candle: Candle, sample_signal: TradeSignal
     ) -> None:
         """Test that market data is routed to enabled strategies matching symbol."""
         # Arrange
@@ -247,10 +241,7 @@ class TestMarketDataProcessing:
 
     @pytest.mark.asyncio
     async def test_process_market_data_ignores_disabled_strategies(
-        self,
-        engine: Engine,
-        mock_strategy: Mock,
-        sample_candle: Candle
+        self, engine: Engine, mock_strategy: Mock, sample_candle: Candle
     ) -> None:
         """Test that disabled strategies don't receive market data."""
         # Arrange
@@ -267,10 +258,7 @@ class TestMarketDataProcessing:
 
     @pytest.mark.asyncio
     async def test_process_market_data_handles_strategy_returning_none(
-        self,
-        engine: Engine,
-        mock_strategy: Mock,
-        sample_candle: Candle
+        self, engine: Engine, mock_strategy: Mock, sample_candle: Candle
     ) -> None:
         """Test that strategies returning None don't cause signals to be sent."""
         # Arrange
@@ -290,10 +278,7 @@ class TestMarketDataProcessing:
 
     @pytest.mark.asyncio
     async def test_process_market_data_when_engine_not_running_does_nothing(
-        self,
-        engine: Engine,
-        mock_strategy: Mock,
-        sample_candle: Candle
+        self, engine: Engine, mock_strategy: Mock, sample_candle: Candle
     ) -> None:
         """Test that market data processing is ignored when engine not running."""
         # Arrange
@@ -363,10 +348,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_strategy_exception_during_data_processing_is_handled(
-        self,
-        engine: Engine,
-        mock_strategy: Mock,
-        sample_candle: Candle
+        self, engine: Engine, mock_strategy: Mock, sample_candle: Candle
     ) -> None:
         """Test that strategy exceptions during data processing don't crash engine."""
         # Arrange

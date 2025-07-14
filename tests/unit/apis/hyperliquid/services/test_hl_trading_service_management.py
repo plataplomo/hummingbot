@@ -74,7 +74,7 @@ class TestHyperliquidTradingServiceManagement:
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
         mock_get_asset_index_callable: AsyncMock,
-        mock_hl_trading_mapper: MagicMock,
+        mock_hl_order_mapper: MagicMock,
     ) -> None:
         """Test successful cancel_all_orders operation with symbol filtering."""
         wallet_address = "0xCancelAllWallet"
@@ -211,7 +211,7 @@ class TestHyperliquidTradingServiceManagement:
         )
 
         # Configure the trading mapper to return these orders in sequence
-        mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.side_effect = [
+        mock_hl_order_mapper.transform_raw_simple_open_order_to_internal.side_effect = [
             btc_order_1,
             eth_order,
             btc_order_2,
@@ -240,7 +240,7 @@ class TestHyperliquidTradingServiceManagement:
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
         mock_get_asset_index_callable: AsyncMock,
-        mock_hl_trading_mapper: MagicMock,
+        mock_hl_order_mapper: MagicMock,
     ) -> None:
         """Test successful cancel_all_orders operation without symbol filtering (cancel all)."""
         wallet_address = "0xCancelAllNoFilterWallet"
@@ -353,7 +353,7 @@ class TestHyperliquidTradingServiceManagement:
         )
 
         # Configure the trading mapper to return these orders in sequence
-        mock_hl_trading_mapper.transform_raw_simple_open_order_to_internal.side_effect = [
+        mock_hl_order_mapper.transform_raw_simple_open_order_to_internal.side_effect = [
             btc_order_1,
             eth_order,
         ]
@@ -376,7 +376,7 @@ class TestHyperliquidTradingServiceManagement:
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
         mock_authenticator: MagicMock,
-        mock_hl_trading_mapper: MagicMock,
+        mock_hl_order_mapper: MagicMock,
     ) -> None:
         """Test cancel_all_orders when there are no open orders."""
         wallet_address = "0xNoOrdersWallet"

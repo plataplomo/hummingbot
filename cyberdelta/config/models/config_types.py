@@ -24,9 +24,7 @@ def _parse_yaml_input_to_required_decimal(
     # allow_none=False because this is for fields that are expected to be Decimal.
     # Optionality of the field itself is handled by Pydantic's Optional[ConfigDecimal] typing.
     parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-    if parsed is None:  # Defensive, should be caught by parse_decimal_value
-        msg = f"Field '{field_name}': Required Decimal value is missing or invalid."
-        raise ValueError(msg)
+    # Note: parsed cannot be None when allow_none=False
     if not parsed.is_finite():
         msg = f"Field '{field_name}': Decimal value must be finite, got '{v}'."
         raise ValueError(msg)

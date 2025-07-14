@@ -16,7 +16,16 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_candle_mapper import BackpackCandleMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_funding_rate_mapper import (
+    BackpackFundingRateMapper,
+)
+from cyberdelta.apis.backpack.mappers.market_data.bp_market_mapper import BackpackMarketMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
+    BackpackOrderBookMapper,
+)
+from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
     BackpackRawFundingRate,
@@ -48,14 +57,68 @@ from cyberdelta.exceptions.field_validation import DecimalFieldError
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 
+class CompositeMarketDataMapper:
+    """Composite mapper that provides all market data mapping functionality for testing."""
+
+    def __init__(self) -> None:
+        """Initialize the composite mapper with all sub-mappers."""
+        self.ticker_mapper = BackpackTickerMapper()
+        self.market_mapper = BackpackMarketMapper()
+        self.order_book_mapper = BackpackOrderBookMapper()
+        self.trade_mapper = BackpackTradeMapper()
+        self.funding_rate_mapper = BackpackFundingRateMapper()
+        self.candle_mapper = BackpackCandleMapper()
+
+    # Delegate methods
+    def transform_raw_ticker_to_internal(
+        self, raw_ticker: BackpackRawTicker, symbol_override: str | None = None
+    ) -> Ticker:
+        """Transform raw ticker to internal format."""
+        return self.ticker_mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override)
+
+    def transform_raw_market_to_internal(self, raw_market: BackpackRawMarket) -> Market:
+        """Transform raw market to internal format."""
+        return self.market_mapper.transform_raw_market_to_internal(raw_market)
+
+    def transform_raw_order_book_to_internal(
+        self, symbol: str, raw_order_book: BackpackRawOrderBook
+    ) -> OrderBook:
+        """Transform raw order book to internal format."""
+        return self.order_book_mapper.transform_raw_order_book_to_internal(symbol, raw_order_book)
+
+    def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Trade:
+        """Transform raw trade to internal format."""
+        return self.trade_mapper.transform_raw_trade_to_internal(raw_trade)
+
+    def transform_raw_funding_rate_to_internal(
+        self, raw_funding_rate: BackpackRawFundingRate
+    ) -> FundingRate:
+        """Transform raw funding rate to internal format."""
+        return self.funding_rate_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
+
+    def transform_raw_funding_interval_rate_to_internal(
+        self, raw_funding_rate: BackpackRawFundingIntervalRate, symbol: str
+    ) -> FundingRate:
+        """Transform raw funding interval rate to internal format."""
+        return self.funding_rate_mapper.transform_raw_funding_interval_rate_to_internal(
+            raw_funding_rate, symbol
+        )
+
+    def transform_raw_kline_to_internal(
+        self, symbol: str, interval: str, raw_kline: BackpackRawKline
+    ) -> Candle:
+        """Transform raw kline to internal format."""
+        return self.candle_mapper.transform_raw_kline_to_internal(symbol, interval, raw_kline)
+
+
 @pytest.fixture
-def mapper() -> BackpackMarketDataMapper:
-    """Fixture providing a BackpackMarketDataMapper instance.
+def mapper() -> CompositeMarketDataMapper:
+    """Fixture providing a composite market data mapper instance for testing.
 
     Returns:
-        BackpackMarketDataMapper: Mapper instance for testing.
+        CompositeMarketDataMapper: Mapper instance for testing.
     """
-    return BackpackMarketDataMapper()
+    return CompositeMarketDataMapper()
 
 
 @pytest.fixture
@@ -274,7 +337,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test successful transformation of BackpackRawMarket to internal Market."""
         raw_market = create_raw_market(
@@ -300,7 +363,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_with_all_optional_fields(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test market transformation with all optional fields populated."""
         raw_market = create_raw_market(
@@ -321,7 +384,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_with_extreme_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test market transformation with extreme decimal values."""
         raw_market = create_raw_market(
@@ -344,7 +407,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_with_none_optional_fields(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test market transformation with None optional fields."""
         # Create market with None optional fields (only maxPrice and maxQuantity can be None)
@@ -380,7 +443,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_backpack_details(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that Backpack-specific details are properly created."""
         raw_market = create_raw_market(
@@ -398,7 +461,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_perp_type(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test market transformation with perpetual contract type."""
         raw_market = create_raw_market(
@@ -413,14 +476,14 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_transformation_error(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         raw_market = create_raw_market()
 
         # Mock parse_decimal_value to raise an error for tick_size
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_market_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="tickSize",
@@ -436,14 +499,14 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_invalid_timestamp(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test market transformation with invalid timestamp."""
         raw_market = create_raw_market(created_at="invalid-timestamp")
 
         # Mock parse_datetime_utc to return None for invalid timestamp
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_market_mapper.parse_datetime_utc",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -454,7 +517,7 @@ class TestMarketTransformation:
 
     def test_transform_raw_market_symbol_consistency(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that symbol parsing is consistent with base/quote symbols."""
         raw_market = create_raw_market(
@@ -476,7 +539,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawTicker to internal Ticker."""
@@ -499,7 +562,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_with_symbol_override(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test ticker transformation with symbol override."""
@@ -511,7 +574,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_with_none_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test ticker transformation with zero values for optional fields."""
@@ -539,7 +602,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_with_none_timestamp(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         frozen_time: FreezerProtocol,
     ) -> None:
         """Test ticker transformation with None timestamp uses current time."""
@@ -567,7 +630,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_transformation_error(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid ticker but patch parsing to cause error
@@ -576,7 +639,7 @@ class TestTickerTransformation:
         # This test relies on the actual transformation logic to cause an error
         # We'll use an invalid decimal that passes basic validation but fails transformation
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="lastPrice",
@@ -592,7 +655,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_with_extreme_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test ticker transformation with extreme decimal values."""
@@ -608,7 +671,7 @@ class TestTickerTransformation:
 
     def test_transform_raw_ticker_with_zero_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test ticker transformation with zero values."""
@@ -628,7 +691,7 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawOrderBook to internal OrderBook."""
@@ -650,7 +713,7 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_empty_levels(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test order book transformation with empty bid/ask levels."""
@@ -667,7 +730,7 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_large_number_of_levels(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test order book transformation with large number of levels."""
@@ -690,7 +753,7 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_with_none_timestamp(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         frozen_time: FreezerProtocol,
     ) -> None:
         """Test order book transformation with None timestamp uses current time."""
@@ -705,7 +768,7 @@ class TestOrderBookTransformation:
         )
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_datetime_utc",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -716,14 +779,14 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_transformation_error(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid order book and mock parsing to cause error
         raw_book = create_raw_order_book(bids=[("100.25", "10.0")])
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",
@@ -739,7 +802,7 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_with_extreme_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test order book transformation with extreme price and quantity values."""
@@ -760,7 +823,7 @@ class TestOrderBookTransformation:
 
     def test_transform_raw_order_book_with_unicode_symbol(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test order book transformation with unicode symbol."""
@@ -776,7 +839,7 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawPublicTrade to internal Trade."""
@@ -803,7 +866,7 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_missing_price(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test that missing price raises TransformationError."""
@@ -811,7 +874,7 @@ class TestTradeTransformation:
         raw_trade = create_raw_trade(price="100.50", time=test_timestamp)
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -823,7 +886,7 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_missing_quantity(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test that missing quantity raises TransformationError."""
@@ -831,7 +894,7 @@ class TestTradeTransformation:
         raw_trade = create_raw_trade(qty="10.0", time=test_timestamp)
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
         ) as mock_parse:
             # Return None only for quantity field
             def mock_parse_side_effect(
@@ -854,7 +917,7 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_with_none_timestamp(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         frozen_time: FreezerProtocol,
     ) -> None:
         """Test trade transformation with None timestamp uses current time."""
@@ -872,7 +935,7 @@ class TestTradeTransformation:
         )
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_datetime_utc",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -883,13 +946,13 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_transformation_error(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         raw_trade = create_raw_trade(price="100.50")
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",
@@ -905,7 +968,7 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_with_extreme_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test trade transformation with extreme decimal values."""
@@ -922,7 +985,7 @@ class TestTradeTransformation:
 
     def test_transform_raw_trade_with_very_long_id(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test trade transformation with maximum allowed trade ID length."""
@@ -942,7 +1005,7 @@ class TestFundingRateTransformation:
 
     def test_transform_raw_funding_rate_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawFundingRate to internal FundingRate."""
@@ -964,7 +1027,7 @@ class TestFundingRateTransformation:
 
     def test_transform_raw_funding_interval_rate_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
         """Test successful transformation of BackpackRawFundingIntervalRate to FundingRate."""
@@ -984,7 +1047,7 @@ class TestFundingRateTransformation:
 
     def test_transform_raw_funding_rate_with_extreme_rates(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test funding rate transformation with extreme rate values."""
         # Very high positive rate
@@ -1004,13 +1067,14 @@ class TestFundingRateTransformation:
 
     def test_transform_raw_funding_rate_transformation_error(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that funding rate transformation errors are properly wrapped."""
         raw_funding = create_raw_funding_rate()
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_funding_rate_mapper"
+            ".parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",
@@ -1030,7 +1094,7 @@ class TestKlineTransformation:
 
     def test_transform_raw_kline_to_internal_happy_path(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawKline to internal Candle."""
@@ -1057,7 +1121,7 @@ class TestKlineTransformation:
 
     def test_transform_raw_kline_to_internal_transformation_error(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
         # Create a valid raw kline
@@ -1065,7 +1129,7 @@ class TestKlineTransformation:
 
         # Mock parse_decimal_value to raise an error during transformation
         with patch(
-            "cyberdelta.apis.backpack.mappers.bp_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_candle_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="open_price",
@@ -1081,7 +1145,7 @@ class TestKlineTransformation:
 
     def test_transform_raw_kline_with_extreme_values(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test kline transformation with extreme price and volume values."""
@@ -1104,7 +1168,7 @@ class TestKlineTransformation:
 
     def test_transform_raw_kline_with_different_intervals(
         self,
-        mapper: BackpackMarketDataMapper,
+        mapper: CompositeMarketDataMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test kline transformation with different interval values."""

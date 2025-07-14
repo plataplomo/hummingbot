@@ -3,7 +3,9 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
+    HyperliquidAccountSummaryMapper,
+)
 from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 
@@ -35,7 +37,7 @@ def test_hyperliquid_account_settings() -> None:
         5: 20,  # SOL
     }
 
-    settings = HyperliquidAccountDataMapper.transform_account_settings_update_to_internal(
+    settings = HyperliquidAccountSummaryMapper.transform_account_settings_update_to_internal(
         args=args,
         exchange_name="hyperliquid",
         asset_leverage_settings=asset_leverage_settings,

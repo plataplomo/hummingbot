@@ -290,6 +290,7 @@ class BackpackRawGetMarketDataParams(BaseModel):
         "1d",
         "3d",
         "1w",
+        "1M",
     ] = Field(alias="interval")
     startTime: int | None = Field(default=None, alias="startTime")
     endTime: int | None = Field(default=None, alias="endTime")

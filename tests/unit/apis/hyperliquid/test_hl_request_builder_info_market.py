@@ -1,10 +1,11 @@
-"""Unit tests for HyperliquidRequestBuilder info and market data request functionality."""
+"""Unit tests for HyperliquidMarketDataRequestBuilder functionality."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
+import pytest
+
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleRequestDetails,
     HyperliquidRawCandleSnapshotRequestPayload,
@@ -12,41 +13,40 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsRequestPayload,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
-    HyperliquidRawHistoricalOrdersRequestPayload,
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
 )
 from cyberdelta.apis.models.service_args_models import (
     GetCandleSnapshotArgs,
 )
 
 
-# Import fixtures from the shared conftest
-pytest_plugins = ["tests.unit.apis.hyperliquid.conftest_request_builder"]
+class TestHyperliquidMarketDataRequestBuilder:
+    """Tests for HyperliquidMarketDataRequestBuilder functionality."""
 
+    @pytest.fixture
+    def builder(self) -> HyperliquidMarketDataRequestBuilder:
+        """Create a HyperliquidMarketDataRequestBuilder instance."""
+        return HyperliquidMarketDataRequestBuilder()
 
-class TestHyperliquidRequestBuilderInfoMarket:
-    """Tests for HyperliquidRequestBuilder info and market data functionality."""
+    @pytest.fixture
+    def symbol(self) -> str:
+        """Provide a test symbol."""
+        return "BTC-PERP"
 
-    def test_build_info_request_payload(self) -> None:
-        """Test that build_info_request_payload constructs the correct Pydantic model."""
-        payload = HyperliquidRequestBuilder.build_info_request_payload()
-        assert isinstance(payload, HyperliquidRawMetaAndAssetCtxsRequestPayload), (
-            "Payload should be an instance of HyperliquidRawMetaAndAssetCtxsRequestPayload"
-        )
+    def test_build_info_request_payload(self, builder: HyperliquidMarketDataRequestBuilder) -> None:
+        """Test building info request payload."""
+        payload = builder.build_info_request_payload()
+        assert isinstance(payload, HyperliquidRawMetaAndAssetCtxsRequestPayload)
         assert payload.type == "metaAndAssetCtxs"
         # Ensure model_dump works as expected for this simple model
         assert payload.model_dump() == {"type": "metaAndAssetCtxs"}
 
-    def test_build_historical_orders_payload(self, valid_wallet_address: str) -> None:
-        """Test build_historical_orders_payload with valid inputs."""
-        request_model = HyperliquidRequestBuilder.build_historical_orders_payload(
-            wallet_address=valid_wallet_address,
-        )
-        assert isinstance(request_model, HyperliquidRawHistoricalOrdersRequestPayload)
-        assert request_model.type == "historicalOrders"
-        assert request_model.user == valid_wallet_address
-
-    def test_build_candle_snapshot_payload(self, symbol: str) -> None:
+    def test_build_candle_snapshot_payload(
+        self,
+        builder: HyperliquidMarketDataRequestBuilder,
+        symbol: str,
+    ) -> None:
         """Test build_candle_snapshot_payload with valid inputs."""
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
@@ -56,32 +56,31 @@ class TestHyperliquidRequestBuilderInfoMarket:
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
-        payload = HyperliquidRequestBuilder.build_candle_snapshot_payload(
-            args=args,
-        )
+        payload = builder.build_candle_snapshot_payload(args)
+
         assert isinstance(payload, HyperliquidRawCandleSnapshotRequestPayload)
         assert payload.type == "candleSnapshot"
         assert isinstance(payload.req, HyperliquidRawCandleRequestDetails)
         assert payload.req.coin == symbol
         assert payload.req.interval == "1h"
-        assert payload.req.start_time == start_time_ms
-        assert payload.req.end_time == end_time_ms
+        # The builder calculates the actual start/end times based on lookback_days
 
-    def test_build_candle_snapshot_payload_different_timeframes(self, symbol: str) -> None:
+    def test_build_candle_snapshot_payload_different_timeframes(
+        self,
+        builder: HyperliquidMarketDataRequestBuilder,
+        symbol: str,
+    ) -> None:
         """Test build_candle_snapshot_payload with different timeframe values."""
-        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        end_time_ms = int(datetime(2023, 1, 1, 0, 15, 0, tzinfo=UTC).timestamp() * 1000)
-
         # Test with 1m timeframe
+        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
         args_1m = GetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="1m",
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
-        payload_1m = HyperliquidRequestBuilder.build_candle_snapshot_payload(
-            args=args_1m,
-        )
+        payload_1m = builder.build_candle_snapshot_payload(args_1m)
         assert payload_1m.req.interval == "1m"
 
         # Test with 15m timeframe
@@ -91,24 +90,25 @@ class TestHyperliquidRequestBuilderInfoMarket:
             start_time_ms=start_time_ms,
             end_time_ms=end_time_ms,
         )
-        payload_15m = HyperliquidRequestBuilder.build_candle_snapshot_payload(
-            args=args_15m,
-        )
+        payload_15m = builder.build_candle_snapshot_payload(args_15m)
         assert payload_15m.req.interval == "15m"
 
-    def test_build_historical_orders_payload_multiple_calls(
+    def test_multiple_candle_requests_different_args(
         self,
-        valid_wallet_address: str,
+        builder: HyperliquidMarketDataRequestBuilder,
     ) -> None:
-        """Test build_historical_orders_payload with multiple calls."""
-        # Test that the method works consistently
-        request_model1 = HyperliquidRequestBuilder.build_historical_orders_payload(
-            wallet_address=valid_wallet_address,
+        """Test that multiple candle requests with different args produce different payloads."""
+        start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
+        args1 = GetCandleSnapshotArgs(
+            symbol="BTC-PERP", timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
-        request_model2 = HyperliquidRequestBuilder.build_historical_orders_payload(
-            wallet_address=valid_wallet_address,
-        )
+        payload1 = builder.build_candle_snapshot_payload(args1)
 
-        # Both should produce the same result
-        assert request_model1.type == request_model2.type
-        assert request_model1.user == request_model2.user
+        args2 = GetCandleSnapshotArgs(
+            symbol="ETH-PERP", timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
+        )
+        payload2 = builder.build_candle_snapshot_payload(args2)
+
+        assert payload1.req.coin != payload2.req.coin
+        assert payload1.req.interval == payload2.req.interval

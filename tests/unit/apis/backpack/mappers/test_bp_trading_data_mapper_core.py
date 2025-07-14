@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # Project-specific imports
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
 
@@ -49,9 +49,9 @@ logger = get_logger(__name__)
 
 
 @pytest.fixture
-def trading_data_mapper() -> BackpackTradingDataMapper:
-    """Provide an instance of BackpackTradingDataMapper."""
-    return BackpackTradingDataMapper()
+def trading_data_mapper() -> BackpackOrderMapper:
+    """Provide an instance of BackpackOrderMapper."""
+    return BackpackOrderMapper()
 
 
 @pytest.fixture
@@ -127,7 +127,7 @@ class TestOrderSideMapping:
 
     def test_raw_order_side_mapping(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         bp_side: str,
         expected_side: OrderSide,
     ) -> None:
@@ -138,7 +138,7 @@ class TestOrderSideMapping:
 
     def test_order_data_side_mapping(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         bp_side: str,
         expected_side: OrderSide,
     ) -> None:
@@ -160,7 +160,7 @@ class TestOrderSideMapping:
     ["X", "", "b", "s", "invalid", "Long", "Short", "UP", "DOWN"],
 )
 def test_invalid_order_side_raises_error(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
     invalid_side: str,
 ) -> None:
     """Test that invalid order sides raise TransformationError."""
@@ -194,7 +194,7 @@ def test_invalid_order_side_raises_error(
     ],
 )
 def test_order_status_mapping(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
     bp_status: str,
     expected_status: OrderStatus,
 ) -> None:
@@ -206,7 +206,7 @@ def test_order_status_mapping(
 
 # Add separate test for unsupported statuses using order_data method
 def test_unsupported_order_status_via_data_method(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
 ) -> None:
     """Test unsupported order statuses via order data method."""
     # Test "pending" which actually maps to OPEN according to the mapper
@@ -241,7 +241,7 @@ def test_unsupported_order_status_via_data_method(
     ["UNKNOWN_STATUS", "INVALID", "", "xyz", "123"],
 )
 def test_invalid_order_status_defaults_to_unknown(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
     invalid_status: str,
 ) -> None:
     """Test that invalid order statuses default to UNKNOWN."""
@@ -270,7 +270,7 @@ def test_invalid_order_status_defaults_to_unknown(
     ],
 )
 def test_order_type_mapping(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
     bp_type: str,
     expected_type: OrderType,
 ) -> None:
@@ -295,7 +295,7 @@ def test_order_type_mapping(
     ],
 )
 def test_stop_order_type_mapping(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
     bp_type: str,
     expected_type: OrderType,
 ) -> None:
@@ -326,7 +326,7 @@ def test_stop_order_type_mapping(
     ],
 )
 def test_time_in_force_mapping(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
     bp_tif: str | None,
     expected_tif: TimeInForce,
 ) -> None:
@@ -338,7 +338,7 @@ def test_time_in_force_mapping(
 
 # Test empty string TIF separately using order data method
 def test_empty_time_in_force_mapping(
-    trading_data_mapper: BackpackTradingDataMapper,
+    trading_data_mapper: BackpackOrderMapper,
 ) -> None:
     """Test empty string time in force mapping via order data method."""
     result = trading_data_mapper.transform_order_data_to_internal(
@@ -362,7 +362,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_buy_limit_happy_path(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test successful transformation of a BUY limit order."""
         raw_order = create_raw_order(
@@ -396,7 +396,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_sell_market_happy_path(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test successful transformation of a SELL market order."""
         raw_order = create_raw_order(
@@ -430,7 +430,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_with_stop_price(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with stop price."""
         raw_order = create_raw_order(order_type="STOP", price="3000.00")
@@ -443,7 +443,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_with_average_fill_price(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with average fill price."""
         raw_order = create_raw_order(executed_quantity="1.0")
@@ -455,12 +455,12 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_missing_quantity_raises_error(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing quantity raises TransformationError."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.return_value = None
 
@@ -470,12 +470,12 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_missing_created_at_raises_error(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing created_at raises TransformationError."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_datetime_utc",
         )
         mock_parse.return_value = None
 
@@ -485,12 +485,12 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_parsing_exception_raises_transformation_error(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that parsing exceptions are wrapped in TransformationError."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Mock parsing error")
 
@@ -503,7 +503,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_with_triggered_at(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with triggered timestamp."""
         triggered_time = datetime.now(UTC).isoformat()
@@ -523,7 +523,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_reduce_only_and_post_only(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with reduce_only and post_only flags."""
         raw_order = create_raw_order()
@@ -536,7 +536,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_high_precision_values(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with high precision decimal values."""
         raw_order = create_raw_order(
@@ -555,7 +555,7 @@ class TestTransformRawOrderToInternal:
 
     def test_transform_raw_order_zero_values_handled(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with zero values."""
         raw_order = create_raw_order(
@@ -574,7 +574,7 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_happy_path(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test successful transformation of order data."""
         created_at = datetime.now(UTC).isoformat()
@@ -611,7 +611,7 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_minimal_params(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with minimal required parameters."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -640,7 +640,7 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_with_price(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with price parameter."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -657,12 +657,12 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_missing_quantity_raises_error(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that missing quantity raises TransformationError."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.return_value = None
 
@@ -678,12 +678,12 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_exception_wrapping(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that exceptions are properly wrapped in TransformationError."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.bp_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Mock parsing error")
 
@@ -702,7 +702,7 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_case_insensitive_mappings(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with case insensitive enum values."""
         result = trading_data_mapper.transform_order_data_to_internal(
@@ -722,7 +722,7 @@ class TestTransformOrderDataToInternal:
 
     def test_transform_order_data_with_optional_fields(
         self,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation with all optional fields provided."""
         created_at = datetime.now(UTC).isoformat()

@@ -22,26 +22,25 @@ from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexRe
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
 
-# Create instances of the new domain-specific mappers
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import (
-    HyperliquidAccountDataMapper,
-)
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import (
-    HyperliquidMarketDataMapper,
-)
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import (
-    HyperliquidTradingDataMapper,
+# Import decomposed mappers that are used directly
+from cyberdelta.apis.hyperliquid.mappers import (
+    HyperliquidOrderMapper,
+    HyperliquidOrderResponseMapper,
 )
 from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import HyperliquidRawWsSubscribeRequest
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
+)
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
-from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
+from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
+    HyperliquidMarketDataService,
+)
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -97,12 +96,11 @@ class HyperliquidAPI(ExchangeAPI):
         # Optional dependency injection parameters for testing
         authenticator: HyperliquidEip712Authenticator | None = None,
         error_mapper: HyperliquidErrorMapper | None = None,
-        request_builder: HyperliquidRequestBuilder | None = None,
+        request_builder: HyperliquidMarketDataRequestBuilder | None = None,
         response_handler: HyperliquidResponseHandler | None = None,
-        # Domain-specific mappers
-        account_data_mapper: HyperliquidAccountDataMapper | None = None,
-        market_data_mapper: HyperliquidMarketDataMapper | None = None,
-        trading_data_mapper: HyperliquidTradingDataMapper | None = None,
+        # Decomposed mappers for direct usage
+        order_mapper: HyperliquidOrderMapper | None = None,
+        order_response_mapper: HyperliquidOrderResponseMapper | None = None,
         # HTTP client
         http_client: HttpClient | None = None,
         # Services
@@ -119,9 +117,8 @@ class HyperliquidAPI(ExchangeAPI):
             error_mapper: Optional error mapper instance for dependency injection
             request_builder: Optional request builder instance for dependency injection
             response_handler: Optional response handler instance for dependency injection
-            account_data_mapper: Optional account data mapper instance for dependency injection
-            market_data_mapper: Optional market data mapper instance for dependency injection
-            trading_data_mapper: Optional trading data mapper instance for dependency injection
+            order_mapper: Optional order mapper instance for dependency injection
+            order_response_mapper: Optional order response mapper instance for dependency injection
             http_client: Optional HTTP client instance for dependency injection
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
@@ -202,13 +199,14 @@ class HyperliquidAPI(ExchangeAPI):
         # Use injected components or create them via factory
         self._hl_authenticator = authenticator or factory.create_authenticator()
         self._hyperliquid_error_mapper = error_mapper or factory.create_error_mapper()
-        self._hl_request_builder = request_builder or factory.create_request_builder()
+        # Note: request_builder parameter is deprecated - services create their own builders
         self._hl_response_handler = response_handler or factory.create_response_handler()
 
         # Use injected mappers or create them via factory
-        self._hl_account_data_mapper = account_data_mapper or factory.create_account_data_mapper()
-        self._hl_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
-        self._hl_market_data_mapper = market_data_mapper or factory.create_market_data_mapper()
+        self._hl_order_mapper = order_mapper or factory.create_order_mapper()
+        self._hl_order_response_mapper = (
+            order_response_mapper or factory.create_order_response_mapper()
+        )
 
         # Create serialization strategy via factory
         self._hl_serialization_strategy = factory.create_serialization_strategy()
@@ -257,13 +255,29 @@ class HyperliquidAPI(ExchangeAPI):
             )
             self._http_client = HttpClient(self.exchange_name, http_client_config_obj)
 
-        # Initialize asset index resolver
+        # Initialize asset index resolver with concrete instances
+        # The asset indexer needs concrete implementations
+        market_data_response_handler = factory.create_market_data_response_handler()
+        market_data_request_builder = factory.create_market_data_request_builder()
+
         self._asset_indexer = HyperliquidAssetIndexResolver(
             requester=self._request,
-            response_handler=self._hl_response_handler,
-            request_builder=self._hl_request_builder,
+            response_handler=market_data_response_handler,
+            request_builder=market_data_request_builder,
             exchange_name_for_log=self.exchange_name,
         )
+
+        # Create order book service to share between market data and trading services
+        # Only create if both services are being created by factory
+        shared_order_book_service = None
+        if market_data_service is None and trading_service is None:
+            shared_order_book_service = factory.create_order_book_service(
+                http_client_requester=self._request,
+                mapper=factory.create_order_book_mapper(),
+                request_builder=factory.create_market_data_request_builder(),
+                response_handler=factory.create_market_data_response_handler(),
+                exchange_name=self.exchange_name,
+            )
 
         # Use injected market data service or create one via factory
         if market_data_service is not None:
@@ -271,10 +285,10 @@ class HyperliquidAPI(ExchangeAPI):
         else:
             self.market_data_service = factory.create_market_data_service(
                 http_client_requester=self._request,
-                market_data_mapper=self._hl_market_data_mapper,
-                request_builder=self._hl_request_builder,
-                response_handler=self._hl_response_handler,
+                request_builder=factory.create_market_data_request_builder(),
+                response_handler=factory.create_market_data_response_handler(),
                 exchange_name=self.exchange_name,
+                order_book_service=shared_order_book_service,
             )
 
         # Use injected account service or create one via factory
@@ -284,10 +298,8 @@ class HyperliquidAPI(ExchangeAPI):
             self.account_service = factory.create_account_service(
                 http_client_requester=self._request,
                 authenticator=self._hl_authenticator,
-                account_data_mapper=self._hl_account_data_mapper,
-                trading_data_mapper=self._hl_trading_data_mapper,
-                request_builder=self._hl_request_builder,
-                response_handler=self._hl_response_handler,
+                request_builder=factory.create_account_request_builder(),
+                response_handler=factory.create_account_response_handler(),
                 exchange_name=self.exchange_name,
                 wallet_address=self._wallet_address,
                 get_asset_index_callable=self._get_asset_index,
@@ -300,13 +312,13 @@ class HyperliquidAPI(ExchangeAPI):
             self.trading_service = factory.create_trading_service(
                 http_client_requester=self._request,
                 authenticator=self._hl_authenticator,
-                trading_data_mapper=self._hl_trading_data_mapper,
+                order_mapper=self._hl_order_mapper,
+                order_response_mapper=self._hl_order_response_mapper,
                 error_mapper=self._hyperliquid_error_mapper,
-                request_builder=self._hl_request_builder,
-                response_handler=self._hl_response_handler,
                 exchange_name=self.exchange_name,
                 wallet_address=self._wallet_address,
                 get_asset_index_callable=self._get_asset_index,
+                order_book_service=shared_order_book_service,
             )
 
         self.default_headers: dict[str, str] = {
@@ -327,10 +339,12 @@ class HyperliquidAPI(ExchangeAPI):
         self._is_connected = False
 
         # Initialize WebSocket message router
+        # Create WebSocket mappers
         self._hl_ws_router = HyperliquidWsMessageRouter(
-            market_data_mapper=self._hl_market_data_mapper,
-            account_data_mapper=self._hl_account_data_mapper,
-            trading_data_mapper=self._hl_trading_data_mapper,
+            order_book_mapper=factory.create_order_book_mapper(),
+            transaction_mapper=factory.create_transaction_mapper(),
+            position_mapper=factory.create_position_mapper(),
+            order_mapper=self._hl_order_mapper,
             raw_ws_handler=HyperliquidWsRawMessageHandler(),
             exchange_name=self.exchange_name,
         )
@@ -408,13 +422,13 @@ class HyperliquidAPI(ExchangeAPI):
             "data": auth_components.data,
         }
 
-    async def _get_asset_index(self, symbol: str) -> int:
+    async def _get_asset_index(self, symbol: str) -> int | None:
         """Fetch or retrieve from cache the asset_index for a given symbol.
 
         Returns:
-            Integer asset index for the given symbol.
+            Integer asset index for the given symbol, or None if symbol not found.
         """
-        return await self._asset_indexer.get_asset_index(symbol)
+        return await self._asset_indexer.get_asset_index_or_none(symbol)
 
     def _update_rate_limit_from_headers(
         self,

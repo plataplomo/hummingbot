@@ -14,6 +14,7 @@ to convert them into internal domain models.
 
 from .hl_account_service import HyperliquidAccountService
 from .hl_market_data_service import HyperliquidMarketDataService
+from .hl_trading_service import HyperliquidTradingService
 
 
 # Placeholder for HyperliquidTradingService, to be added in this step
@@ -21,7 +22,7 @@ from .hl_market_data_service import HyperliquidMarketDataService
 __all__ = [
     "HyperliquidAccountService",
     "HyperliquidMarketDataService",
-    # "HyperliquidTradingService", # Uncomment when implemented
+    "HyperliquidTradingService",
 ]
 
 # This file makes Python treat the directory as a package.

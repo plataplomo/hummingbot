@@ -303,6 +303,7 @@ class TestBackpackSpotOrdersPositiveBalance:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Take profit orders are only supported on perpetual markets, not spot")
     async def test_take_profit_market_order_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,
@@ -380,6 +381,7 @@ class TestBackpackSpotOrdersPositiveBalance:
 
     @pytest.mark.vcr
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Take profit orders are only supported on perpetual markets, not spot")
     async def test_take_profit_limit_order_comprehensive(
         self,
         bp_api_for_test_env: BackpackAPI,

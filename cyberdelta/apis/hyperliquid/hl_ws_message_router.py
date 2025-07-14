@@ -25,9 +25,6 @@ from cyberdelta.apis.exceptions import (
     WebSocketSubscriptionError,
 )
 from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
 from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsAllMidsSubscriptionPayload,
     HyperliquidRawWsCandleSubscriptionPayload,
@@ -35,6 +32,12 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsSubscribeRequest,
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
+)
+from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
+    OrderBookMapperProtocol,
+    OrderMapperProtocol,
+    PositionMapperProtocol,
+    TransactionMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
 
@@ -56,25 +59,28 @@ class HyperliquidWsMessageRouter:
 
     def __init__(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
-        account_data_mapper: HyperliquidAccountDataMapper,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        order_book_mapper: OrderBookMapperProtocol,
+        transaction_mapper: TransactionMapperProtocol,
+        position_mapper: PositionMapperProtocol,
+        order_mapper: OrderMapperProtocol,
         raw_ws_handler: HyperliquidWsRawMessageHandler,
         exchange_name: str,
     ) -> None:
         """Initialize the WebSocket message router.
 
         Args:
-            market_data_mapper: Mapper for market data transformations
-            account_data_mapper: Mapper for account data transformations
-            trading_data_mapper: Mapper for trading data transformations
+            order_book_mapper: Mapper for order book and trade transformations
+            transaction_mapper: Mapper for transaction/fill transformations
+            position_mapper: Mapper for position transformations
+            order_mapper: Mapper for order transformations
             raw_ws_handler: Handler for raw WebSocket message validation
             exchange_name: Name of the exchange for logging purposes
 
         """
-        self._market_data_mapper = market_data_mapper
-        self._account_data_mapper = account_data_mapper
-        self._trading_data_mapper = trading_data_mapper
+        self._order_book_mapper = order_book_mapper
+        self._transaction_mapper = transaction_mapper
+        self._position_mapper = position_mapper
+        self._order_mapper = order_mapper
         self._raw_ws_handler = raw_ws_handler
         self._exchange_name = exchange_name
         self.logger = get_logger(__name__)
@@ -395,7 +401,7 @@ class HyperliquidWsMessageRouter:
 
         try:
             # Transform raw validated model to internal domain model
-            internal_orderbook = self._market_data_mapper.transform_ws_book_update_to_internal(
+            internal_orderbook = self._order_book_mapper.transform_ws_book_update_to_internal(
                 validated_book_model,
             )
             # Convert internal model to dict for handler compatibility
@@ -445,7 +451,7 @@ class HyperliquidWsMessageRouter:
             for validated_trade_model in validated_trade_models:
                 try:
                     # Transform raw validated model to internal domain model
-                    internal_trade = self._market_data_mapper.transform_ws_trade_event_to_internal(
+                    internal_trade = self._order_book_mapper.transform_ws_trade_event_to_internal(
                         validated_trade_model,
                     )
                     # Convert internal model to dict for handler compatibility
@@ -559,7 +565,7 @@ class HyperliquidWsMessageRouter:
         )
         try:
             # Transform raw validated model to internal domain model
-            transform_method = self._account_data_mapper.transform_ws_fill_event_to_internal
+            transform_method = self._transaction_mapper.transform_ws_fill_event_to_internal
             internal_trade = transform_method(validated_fill)
             # Convert internal model to dict for handler compatibility
             trade_dict = internal_trade.model_dump(mode="json")
@@ -587,9 +593,7 @@ class HyperliquidWsMessageRouter:
         validated_order_details = handle_order_event(order_update_wrapper.data)
         try:
             # Transform raw validated model to internal domain model
-            order_transform_method = (
-                self._trading_data_mapper.transform_ws_order_update_to_internal_order
-            )
+            order_transform_method = self._order_mapper.transform_ws_order_update_to_internal_order
             internal_order = order_transform_method(validated_order_details)
             # Convert internal model to dict for handler compatibility
             order_dict = internal_order.model_dump(mode="json")
@@ -616,7 +620,7 @@ class HyperliquidWsMessageRouter:
         try:
             # Transform raw validated model to internal domain model
             position_transform_method = (
-                self._account_data_mapper.transform_ws_position_update_to_internal_position
+                self._position_mapper.transform_ws_position_update_to_internal_position
             )
             internal_position = position_transform_method(
                 validated_position_update,

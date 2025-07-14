@@ -1,12 +1,12 @@
-"""CyberDeltaEngine: Hyperliquid Account Data Mapper Positions & Trades Tests.
+"""CyberDeltaEngine: Hyperliquid Position & Transaction Mapper Tests.
 
 --------------------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidAccountDataMapper position and trade transformations.
+Comprehensive test suite for HyperliquidPositionMapper and HyperliquidTransactionMapper.
 
 Tests complex scenarios and advanced business logic including:
-- Derivative position transformations with various leverage types
-- Fill/trade transformations with detailed trade data
+- Derivative position transformations with various leverage types (PositionMapper)
+- Fill/trade transformations with detailed trade data (TransactionMapper)
 - Integration scenarios with multiple positions
 - Side determination and position sizing logic
 - Cross-method transformation consistency
@@ -21,7 +21,10 @@ import pytest
 
 # Third-party imports for type checking only
 # Project-specific imports
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_position_mapper import HyperliquidPositionMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_transaction_mapper import (
+    HyperliquidTransactionMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
@@ -40,16 +43,23 @@ from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
-# Alias for shorter method calls
-Mapper = HyperliquidAccountDataMapper
+# Aliases for shorter method calls
+PositionMapper = HyperliquidPositionMapper
+TransactionMapper = HyperliquidTransactionMapper
 
 # --- Fixtures ---
 
 
 @pytest.fixture
-def account_data_mapper() -> HyperliquidAccountDataMapper:
-    """Provide an instance of HyperliquidAccountDataMapper."""
-    return HyperliquidAccountDataMapper()
+def position_mapper() -> HyperliquidPositionMapper:
+    """Provide an instance of HyperliquidPositionMapper."""
+    return HyperliquidPositionMapper()
+
+
+@pytest.fixture
+def transaction_mapper() -> HyperliquidTransactionMapper:
+    """Provide an instance of HyperliquidTransactionMapper."""
+    return HyperliquidTransactionMapper()
 
 
 @pytest.fixture
@@ -189,7 +199,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
             time=1640995200000,
         )
 
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_empty,
         )
         assert isinstance(positions, dict)
@@ -200,7 +210,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         raw_user_state_with_positions: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test mapping with ETH long and BTC short positions."""
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_with_positions,
         )
 
@@ -305,7 +315,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 time=1640995200000,
             )
 
-            positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -373,7 +383,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 time=1640995200000,
             )
 
-            positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -430,7 +440,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
             time=1640995200000,
         )
 
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -449,7 +459,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         raw_user_state_with_positions: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test that position transformations generate appropriate timestamps."""
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_with_positions,
         )
 
@@ -475,7 +485,7 @@ class TestTransformRawFillToInternal:
     ) -> None:
         """Test transforming a raw BUY TAKER fill to an internal Trade model."""
         raw_fill = hyperliquid_raw_fill_buy_fixture
-        trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
 
         assert isinstance(trade, Trade)
         assert trade.id == str(raw_fill.tid)
@@ -506,7 +516,7 @@ class TestTransformRawFillToInternal:
     ) -> None:
         """Test transforming a raw SELL MAKER fill to an internal Trade model."""
         raw_fill = hyperliquid_raw_fill_sell_maker_fixture
-        trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
 
         assert isinstance(trade, Trade)
         assert trade.id == str(raw_fill.tid)
@@ -557,7 +567,7 @@ class TestTransformRawFillToInternal:
                 cloid="test",
             )
 
-            trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+            trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
             assert trade.side == expected_order_side
 
     def test_fill_with_high_precision_values(self) -> None:
@@ -579,7 +589,7 @@ class TestTransformRawFillToInternal:
             cloid="precision_test",
         )
 
-        trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
 
         # Verify precision is maintained (8 decimal places for most fields)
         assert trade.price == Decimal("1000.12345679")
@@ -608,7 +618,7 @@ class TestTransformRawFillToInternal:
             cloid="zero_fee_test",
         )
 
-        trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
 
         assert trade.fee == Decimal("0.0")
         assert trade.is_maker is True
@@ -636,7 +646,7 @@ class TestTransformRawFillToInternal:
             cloid="timestamp_test",
         )
 
-        trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
 
         assert trade.executed_at == expected_datetime
 
@@ -667,7 +677,7 @@ class TestTransformRawFillToInternal:
                 cloid=input_cloid,
             )
 
-            trade = Mapper.transform_raw_fill_to_internal(raw_fill)
+            trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
             assert trade.client_order_id == expected_cloid
 
 
@@ -684,12 +694,12 @@ class TestPositionAndTradeIntegration:
     ) -> None:
         """Test that position and trade transformations are consistent."""
         # Get positions
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_with_positions,
         )
 
         # Get trade
-        trade = Mapper.transform_raw_fill_to_internal(hyperliquid_raw_fill_buy_fixture)
+        trade = TransactionMapper.transform_raw_fill_to_internal(hyperliquid_raw_fill_buy_fixture)
 
         # Both should have consistent exchange assignments
         for position in positions.values():
@@ -757,7 +767,7 @@ class TestPositionAndTradeIntegration:
         )
 
         # Transform all positions
-        positions = Mapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 

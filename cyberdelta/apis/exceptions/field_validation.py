@@ -100,3 +100,28 @@ class ListFieldError(ValueError, FieldError):
             field_name=field_name,
             code="LIST_VALIDATION_FAILED",
         )
+
+
+class EmptyStringFieldError(ValueError, FieldError):
+    """Raised when an empty string is provided where non-empty is required."""
+
+    def __init__(
+        self,
+        field_name: str,
+        *,
+        context: str | None = None,
+    ) -> None:
+        """Initialize empty string field error."""
+        if context:
+            message = f"Field '{field_name}': {context}"
+        else:
+            message = f"Field '{field_name}': String cannot be empty"
+
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=field_name,
+            source_value="",
+            code="EMPTY_STRING_NOT_ALLOWED",
+        )

@@ -53,4 +53,5 @@ class APIErrorCode(Enum):
     UNKNOWN = 200
     EXCHANGE_SPECIFIC = 201
     TRANSFORMATION_FAILED = 202
+    RESPONSE_VALIDATION_FAILED = 203
     # (Add future catch-alls or unmapped errors here)

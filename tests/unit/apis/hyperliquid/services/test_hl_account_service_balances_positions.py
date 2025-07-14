@@ -138,9 +138,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             is_signed=False,  # Business logic uses is_signed=False for info endpoints
         )
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
-            raw_response_content=mock_raw_user_state_response_list[0],
-            user_address="0xTestWalletAddress",
-            status_code=200,
+            mock_raw_user_state_response_list[0],
+            200,
         )
         transform_method = mock_hl_account_mapper.transform_raw_clearinghouse_state_to_spot_balances
         transform_method.assert_called_once_with(
@@ -160,7 +159,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
     ) -> None:
         """Test get_balances raises APIError if wallet_address is not set in service."""
         # Create mock for get_asset_index_callable
-        mock_get_asset_index = AsyncMock(return_value=0)
+        _ = AsyncMock(return_value=0)  # mock_get_asset_index not used
 
         # Instantiate service directly with wallet_address=None
         service_no_wallet = HyperliquidAccountService(
@@ -170,9 +169,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
             authenticator=mock_authenticator,
             exchange_name="hyperliquid_test_no_wallet",
             wallet_address=None,  # Key change here
-            account_mapper=mock_hl_account_mapper,
-            trading_mapper=mock_hl_trading_mapper,
-            get_asset_index_callable=mock_get_asset_index,
+            account_summary_mapper=mock_hl_account_mapper,
+            order_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo:
             await service_no_wallet.get_balances()
@@ -284,9 +282,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
-            raw_response_content=mock_raw_user_state_response_list[0],
-            user_address="0xTestWalletAddress",
-            status_code=200,
+            mock_raw_user_state_response_list[0],
+            200,
         )
         mapper = mock_hl_account_mapper
         pos_transform = mapper.transform_raw_clearinghouse_state_to_derivative_positions
@@ -340,9 +337,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         assert mock_http_client_requester.call_count == 2
         assert mock_response_handler.handle_info_user_state_response.call_count == 2
         mock_response_handler.handle_info_user_state_response.assert_any_call(
-            raw_response_content=mock_raw_user_state_response_list[0],
-            user_address="0xTestWalletAddress",
-            status_code=200,
+            mock_raw_user_state_response_list[0],
+            200,
         )
         assert (
             mock_hl_account_mapper.transform_raw_clearinghouse_state_to_derivative_positions.call_count
@@ -410,9 +406,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
-            raw_response_content=mock_raw_user_state_response_list[0],
-            user_address="0xTestWalletAddress",
-            status_code=200,
+            mock_raw_user_state_response_list[0],
+            200,
         )
         assert result == mock_summary_object
         mapper = mock_hl_account_mapper
@@ -463,9 +458,8 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_request_builder.build_user_state_payload.assert_called_once_with(expected_args)
         mock_http_client_requester.assert_called_once()
         mock_response_handler.handle_info_user_state_response.assert_called_once_with(
-            raw_response_content=mock_raw_user_state_response_list[0],
-            user_address="0xTestWalletAddress",
-            status_code=200,
+            mock_raw_user_state_response_list[0],
+            200,
         )
         mapper = mock_hl_account_mapper
         margin_transform = mapper.transform_raw_clearinghouse_state_to_margin_summary

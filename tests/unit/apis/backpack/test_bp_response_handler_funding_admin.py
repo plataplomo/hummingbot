@@ -1,12 +1,14 @@
-"""Unit tests for BackpackResponseHandler funding rates response functionality."""
+"""Unit tests for BackpackMarketDataResponseHandler funding rates response functionality."""
 
 from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler import (
+    BackpackMarketDataResponseHandler,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -21,12 +23,12 @@ type RawJsonResponse = RawJson
 
 
 class TestHandleGetFundingRateResponse:
-    """Tests for BackpackResponseHandler.handle_get_funding_rate_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_funding_rate_response."""
 
     def test_valid(self, valid_raw_funding_rate: dict[str, Any], symbol_perp: str) -> None:
         """Test handling a valid raw funding rate response."""
         funding_rate: BackpackRawFundingRate = (
-            BackpackResponseHandler.handle_get_funding_rate_response(
+            BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
                 cast("ParsedJsonResponse", valid_raw_funding_rate),
                 symbol_perp,
                 200,
@@ -50,7 +52,7 @@ class TestHandleGetFundingRateResponse:
             "time": 1678887000000,
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_funding_rate_response(
+            BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 200,
@@ -70,7 +72,7 @@ class TestHandleGetFundingRateResponse:
             "time": 1678887000000,
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_funding_rate_response(
+            BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 200,
@@ -83,7 +85,7 @@ class TestHandleGetFundingRateResponse:
         """Test funding rate response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_funding_rate_response(
+            BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 400,
@@ -107,7 +109,7 @@ class TestHandleGetFundingRateResponse:
             "extraField": "should_be_ignored",
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_funding_rate_response(
+            BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_perp,
                 200,
@@ -129,7 +131,7 @@ class TestFundingRateEdgeCases:
             "indexPrice": "139.90",
             "time": 1678887000000,
         }
-        funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
+        funding_rate = BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_perp,
             200,
@@ -146,7 +148,7 @@ class TestFundingRateEdgeCases:
             "indexPrice": "139.90",
             "time": 1678887000000,
         }
-        funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
+        funding_rate = BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_perp,
             200,
@@ -163,7 +165,7 @@ class TestFundingRateEdgeCases:
             "indexPrice": "139.987654321",
             "time": 1678887000000,
         }
-        funding_rate = BackpackResponseHandler.handle_get_funding_rate_response(
+        funding_rate = BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_perp,
             200,

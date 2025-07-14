@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_response_handler import RawJsonResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import TransferArgs
 from cyberdelta.core.models.enums import InternalTransferStatus
 from cyberdelta.core.models.operations import BackpackTransferDetails, Transfer
+from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 class TestBackpackAccountServiceTransfers:
@@ -44,7 +44,7 @@ class TestBackpackAccountServiceTransfers:
             "toAccount": to_account,
             "clientId": client_transfer_id,
         }
-        mock_raw_response_content: RawJsonResponse = {
+        mock_raw_response_content: ParsedJsonResponse = {
             "id": "transfer789",
             "status": "COMPLETED",
             "message": "Transfer completed",

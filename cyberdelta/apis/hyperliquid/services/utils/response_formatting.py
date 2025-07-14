@@ -1,0 +1,362 @@
+"""Response formatting utilities for Hyperliquid API responses.
+
+This module provides utilities for formatting and transforming API responses
+into internal domain models, extracted to improve code organization and reusability.
+"""
+
+from decimal import Decimal
+from typing import Any, TypeGuard
+
+from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.exceptions import InvalidBatchResponseError
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models.enums import CancelOrderResultStatus
+from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.utils.parsing import parse_decimal_value
+
+
+logger = get_logger(__name__)
+
+
+def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
+    """Type guard to check if value is a dict[str, Any].
+
+    This helps pyright understand that after this check,
+    the value is definitely a dict with string keys.
+    """
+    return isinstance(value, dict)
+
+
+def format_cancel_order_result(
+    cancel_status: dict[str, Any],
+    symbol: str,
+    order_id: str | None = None,
+) -> CancelOrderResult:
+    """Format cancellation status into CancelOrderResult.
+
+    Args:
+        cancel_status: Processed cancellation status from status processing
+        symbol: Trading symbol
+        order_id: Optional order ID
+
+    Returns:
+        Formatted cancel order result
+    """
+    if "success" in cancel_status:
+        return CancelOrderResult(
+            status=CancelOrderResultStatus.SUCCESS,
+            success=True,
+            symbol=symbol,
+            order_id=order_id,
+            message="Order canceled successfully",
+        )
+
+    if "canceled" in cancel_status:
+        return CancelOrderResult(
+            status=CancelOrderResultStatus.SUCCESS,
+            success=True,
+            symbol=symbol,
+            order_id=order_id,
+            message="Order was already canceled",
+        )
+
+    if "error" in cancel_status:
+        error_message = str(cancel_status["error"])
+        return CancelOrderResult(
+            status=CancelOrderResultStatus.FAILED,
+            success=False,
+            symbol=symbol,
+            order_id=order_id,
+            message=f"Failed to cancel order: {error_message}",
+        )
+
+    # Unknown status
+    return CancelOrderResult(
+        status=CancelOrderResultStatus.FAILED,
+        success=False,
+        symbol=symbol,
+        order_id=order_id,
+        message=f"Unknown cancellation status: {cancel_status}",
+    )
+
+
+def format_batch_cancel_results(
+    batch_statuses: list[dict[str, Any]],
+    symbols: list[str],
+    order_ids: list[str] | None = None,
+) -> list[CancelOrderResult]:
+    """Format batch cancellation statuses into CancelOrderResult list.
+
+    Args:
+        batch_statuses: List of processed cancellation statuses
+        symbols: List of trading symbols
+        order_ids: Optional list of order IDs
+
+    Returns:
+        List of formatted cancel order results
+
+    Raises:
+        ValueError: If array lengths don't match
+    """
+    if len(batch_statuses) != len(symbols):
+        raise InvalidBatchResponseError(
+            operation="batch cancel results formatting",
+            expected_data=f"{len(symbols)} statuses to match {len(symbols)} symbols",
+            response_data={"statuses_count": len(batch_statuses), "symbols_count": len(symbols)},
+        )
+
+    if order_ids and len(order_ids) != len(symbols):
+        raise InvalidBatchResponseError(
+            operation="batch cancel results formatting",
+            expected_data=f"{len(symbols)} order IDs to match {len(symbols)} symbols",
+            response_data={"order_ids_count": len(order_ids), "symbols_count": len(symbols)},
+        )
+
+    results: list[CancelOrderResult] = []
+    for i, (status, symbol) in enumerate(zip(batch_statuses, symbols, strict=False)):
+        order_id = order_ids[i] if order_ids else None
+        result = format_cancel_order_result(status, symbol, order_id)
+        results.append(result)
+
+    return results
+
+
+def validate_decimal_field(
+    value: object,
+    field_name: str,
+    context: str,
+    allow_none: bool = False,
+) -> Decimal | None:
+    """Validate and parse a decimal field from API response.
+
+    Args:
+        value: Value to validate and parse
+        field_name: Name of the field for error messages
+        context: Context description for error messages
+        allow_none: Whether None values are allowed
+
+    Returns:
+        Parsed decimal value or None if allowed
+
+    Raises:
+        APIError: If value is invalid
+    """
+    if value is None:
+        if allow_none:
+            return None
+        raise APIError(
+            message=f"Missing required field '{field_name}' in {context}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    try:
+        # Type check for parse_decimal_value compatibility
+        if not isinstance(value, (Decimal, str, float)):
+            _raise_invalid_decimal_type_error(value, field_name)
+        # Use helper function for proper type handling
+        return _parse_validated_decimal(value)
+    except (ValueError, TypeError) as e:
+        logger.exception(
+            "decimal_field_validation_failed",
+            field_name=field_name,
+            context=context,
+            value=str(value),
+            error=str(e),
+        )
+        raise APIError(
+            message=f"Invalid {field_name} in {context}: {value}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        ) from e
+
+
+def validate_string_field(
+    value: object,
+    field_name: str,
+    context: str,
+    allow_none: bool = False,
+    min_length: int = 0,
+) -> str | None:
+    """Validate a string field from API response.
+
+    Args:
+        value: Value to validate
+        field_name: Name of the field for error messages
+        context: Context description for error messages
+        allow_none: Whether None values are allowed
+        min_length: Minimum required string length
+
+    Returns:
+        Validated string or None if allowed
+
+    Raises:
+        APIError: If value is invalid
+    """
+    if value is None:
+        if allow_none:
+            return None
+        raise APIError(
+            message=f"Missing required field '{field_name}' in {context}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    if not isinstance(value, str):
+        raise APIError(
+            message=f"Field '{field_name}' must be string in {context}, got {type(value).__name__}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    if len(value) < min_length:
+        raise APIError(
+            message=f"Field '{field_name}' too short in {context}: minimum {min_length} characters",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    return value
+
+
+def validate_integer_field(
+    value: object,
+    field_name: str,
+    context: str,
+    allow_none: bool = False,
+    min_value: int | None = None,
+) -> int | None:
+    """Validate an integer field from API response.
+
+    Args:
+        value: Value to validate
+        field_name: Name of the field for error messages
+        context: Context description for error messages
+        allow_none: Whether None values are allowed
+        min_value: Minimum allowed value
+
+    Returns:
+        Validated integer or None if allowed
+
+    Raises:
+        APIError: If value is invalid
+    """
+    if value is None:
+        if allow_none:
+            return None
+        raise APIError(
+            message=f"Missing required field '{field_name}' in {context}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    if not isinstance(value, int):
+        raise APIError(
+            message=f"Field '{field_name}' must be integer in {context}, "
+            f"got {type(value).__name__}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    if min_value is not None and value < min_value:
+        raise APIError(
+            message=f"Field '{field_name}' too small in {context}: minimum {min_value}",
+            code=APIErrorCode.INVALID_RESPONSE.value,
+        )
+
+    return value
+
+
+def safe_extract_nested_field(
+    data: dict[str, Any],
+    field_path: list[str],
+    context: str,
+    default: object = None,
+) -> object:
+    """Safely extract a nested field from dictionary data.
+
+    Args:
+        data: Dictionary to extract from
+        field_path: List of keys representing the path to the field
+        context: Context description for error messages
+        default: Default value if field is not found
+
+    Returns:
+        Extracted value or default
+    """
+    current: object = data
+    for i, key in enumerate(field_path):
+        if not _is_dict_str_any(current):
+            logger.debug(
+                "nested_field_not_found",
+                context=context,
+                field_path=".".join(field_path[: i + 1]),
+                available_keys="not_dict",
+            )
+            return default
+
+        # Now pyright knows current is dict[str, Any]
+        if key not in current:
+            available_keys: list[str] = list(current.keys())
+            logger.debug(
+                "nested_field_not_found",
+                context=context,
+                field_path=".".join(field_path[: i + 1]),
+                available_keys=available_keys,
+            )
+            return default
+
+        # Extract the value from the dict
+        current = current[key]
+
+    return current
+
+
+def _parse_validated_decimal(value: object) -> Decimal | None:
+    """Parse a value that has been validated to be a decimal type.
+
+    Args:
+        value: Value that is guaranteed to be Decimal | str | float
+
+    Returns:
+        Parsed decimal value
+    """
+    # Double-check type for mypy (should already be validated by caller)
+    if not isinstance(value, (Decimal, str, float)):
+        msg = f"Internal error: expected decimal-compatible type, got {type(value)}"
+        raise TypeError(msg)
+    return parse_decimal_value(value)
+
+
+def _raise_invalid_decimal_type_error(value: object, field_name: str) -> None:
+    """Raise TypeError for invalid decimal field type.
+
+    Args:
+        value: The invalid value
+        field_name: Name of the field for error context
+    """
+    msg = f"Invalid type for decimal field '{field_name}': {type(value)}"
+    raise TypeError(msg)
+
+
+def create_batch_response_error(
+    operation: str,
+    expected_count: int,
+    actual_count: int,
+    details: str = "",
+) -> InvalidBatchResponseError:
+    """Create a standardized batch response error.
+
+    Args:
+        operation: Description of the batch operation
+        expected_count: Expected number of responses
+        actual_count: Actual number of responses
+        details: Additional error details
+
+    Returns:
+        Configured InvalidBatchResponseError
+    """
+    message = (
+        f"Batch {operation} response count mismatch: expected {expected_count}, got {actual_count}"
+    )
+
+    if details:
+        message += f". {details}"
+
+    return InvalidBatchResponseError(
+        operation=operation,
+        expected_data=f"{expected_count} responses",
+    )

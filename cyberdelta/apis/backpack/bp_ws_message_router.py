@@ -17,9 +17,13 @@ import time
 from typing import Any, Literal
 
 from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
-from cyberdelta.apis.backpack.mappers.bp_account_data_mapper import BackpackAccountDataMapper
-from cyberdelta.apis.backpack.mappers.bp_market_data_mapper import BackpackMarketDataMapper
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
+from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
+    BackpackOrderBookMapper,
+)
+from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackRawWsSubscriptionRequest,
     BackpackWsSignatureComponents,
@@ -42,24 +46,18 @@ class BackpackWsMessageRouter:
 
     def __init__(
         self,
-        market_data_mapper: BackpackMarketDataMapper,
-        account_data_mapper: BackpackAccountDataMapper,
-        trading_data_mapper: BackpackTradingDataMapper,
+        trading_data_mapper: BackpackOrderMapper,
         raw_ws_handler: BackpackWsRawMessageHandler,
         exchange_name: str,
     ) -> None:
         """Initialize the WebSocket message router.
 
         Args:
-            market_data_mapper: Mapper for market data transformations
-            account_data_mapper: Mapper for account data transformations
-            trading_data_mapper: Mapper for trading data transformations
+            trading_data_mapper: Mapper for order data transformations
             raw_ws_handler: Handler for raw WebSocket message validation
             exchange_name: Name of the exchange for logging purposes
 
         """
-        self._market_data_mapper = market_data_mapper
-        self._account_data_mapper = account_data_mapper
         self._trading_data_mapper = trading_data_mapper
         self._raw_ws_handler = raw_ws_handler
         self._exchange_name = exchange_name
@@ -206,18 +204,18 @@ class BackpackWsMessageRouter:
             validated_payload = self._raw_ws_handler.handle_depth_payload(data_payload)
             # Extract symbol from topic (e.g., "depth.SOL_USDC" -> "SOL_USDC")
             symbol_from_topic = topic_str.split(".", 1)[1] if "." in topic_str else "UNKNOWN"
-            internal_model = self._market_data_mapper.transform_ws_depth_event_to_internal(
+            internal_model = BackpackOrderBookMapper.transform_ws_depth_event_to_internal(
                 symbol_from_topic,
                 validated_payload,
             )
         elif base_topic == "ticker":
             validated_payload = self._raw_ws_handler.handle_ticker_payload(data_payload)
-            internal_model = self._market_data_mapper.transform_ws_ticker_event_to_internal(
+            internal_model = BackpackTickerMapper.transform_ws_ticker_event_to_internal(
                 validated_payload,
             )
         elif base_topic == "fills":
             validated_payload = self._raw_ws_handler.handle_trade_event_payload(data_payload)
-            internal_model = self._account_data_mapper.transform_ws_fill_event_to_internal_trade(
+            internal_model = BackpackTransactionMapper.transform_ws_fill_event_to_internal_trade(
                 validated_payload,
             )
         elif base_topic == "orders":
@@ -230,7 +228,7 @@ class BackpackWsMessageRouter:
                 data_payload,
             )
             internal_model = (
-                self._account_data_mapper.transform_ws_position_update_to_internal_position(
+                BackpackPositionMapper.transform_ws_position_update_to_internal_position(
                     validated_payload,
                 )
             )

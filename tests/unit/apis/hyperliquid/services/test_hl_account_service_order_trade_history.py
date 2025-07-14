@@ -1,6 +1,7 @@
 """Unit tests for HyperliquidAccountService order and trade history functionality."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,11 +9,11 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.service_args_models import (
-    GetOpenOrdersArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     GetUserFillsArgs,
 )
+from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
@@ -316,7 +317,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         and when the underlying HTTP requester raises APIError exceptions.
         """
         # Create mock for get_asset_index_callable
-        mock_get_asset_index = AsyncMock(return_value=0)
+        _ = AsyncMock(return_value=0)  # mock_get_asset_index not used
 
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet = HyperliquidAccountService(
@@ -326,9 +327,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             authenticator=mock_authenticator,
             exchange_name="hyperliquid_test_no_wallet",
             wallet_address=None,  # Key change here
-            account_mapper=mock_hl_account_mapper,
-            trading_mapper=mock_hl_trading_mapper,
-            get_asset_index_callable=mock_get_asset_index,
+            account_summary_mapper=mock_hl_account_mapper,
+            order_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet.get_order_history(
@@ -543,7 +543,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
     ) -> None:
         """Test get_trade_history error handling for missing wallet and APIError from requester."""
         # Create mock for get_asset_index_callable
-        mock_get_asset_index = AsyncMock(return_value=0)
+        _ = AsyncMock(return_value=0)  # mock_get_asset_index not used
 
         # No wallet address case: Instantiate service with wallet_address=None
         service_no_wallet_trade_hist = HyperliquidAccountService(
@@ -553,9 +553,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             authenticator=mock_authenticator,
             exchange_name="hyperliquid_test_no_wallet_trade_hist",
             wallet_address=None,  # Key: Instantiate with None
-            account_mapper=mock_hl_account_mapper,
-            trading_mapper=mock_hl_trading_mapper,
-            get_asset_index_callable=mock_get_asset_index,
+            account_summary_mapper=mock_hl_account_mapper,
+            order_mapper=mock_hl_trading_mapper,
         )
         with pytest.raises(APIError) as excinfo_no_wallet:
             await service_no_wallet_trade_hist.get_trade_history(
@@ -624,47 +623,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         mock_response_handler.handle_info_user_fills_response.assert_not_called()
         # Note: We expect the account mapper to not be called since HTTP client returned None
 
-    @pytest.mark.asyncio
-    async def test_get_open_orders_http_client_returns_none(
-        self,
-        hyperliquid_account_service: HyperliquidAccountService,
-        mock_http_client_requester: AsyncMock,
-        mock_request_builder: MagicMock,
-        mock_response_handler: MagicMock,
-        mock_hl_order_mapper: MagicMock,
-        mock_authenticator: MagicMock,
-    ) -> None:
-        """Test get_open_orders when the specific HTTP client call for open orders returns None."""
-        wallet_address = "0xTestWalletAddress"
-
-        # Setup for the open_orders specific payload and HTTP call
-        mock_open_orders_payload_model = MagicMock()
-        mock_open_orders_payload_dict = {"type": "openOrders", "user": wallet_address}
-        mock_open_orders_payload_model.model_dump.return_value = mock_open_orders_payload_dict
-
-        mock_request_builder.build_open_orders_payload.return_value = mock_open_orders_payload_model
-
-        mock_http_client_requester.return_value = (
-            None,
-            200,
-            MagicMock(),
-        )  # HTTP client returns None
-
-        with pytest.raises(APIError) as exc_info:
-            await hyperliquid_account_service.get_open_orders()
-
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "No data received for open orders" in exc_info.value.message
-
-        expected_args = GetOpenOrdersArgs(wallet_address=wallet_address)
-        mock_request_builder.build_open_orders_payload.assert_called_once_with(expected_args)
-        mock_http_client_requester.assert_called_once_with(
-            method="POST",
-            endpoint="/info",
-            data=mock_open_orders_payload_dict,
-            is_signed=False,
-        )
-        mock_response_handler.handle_info_open_orders_response.assert_not_called()
+    # get_open_orders method moved to HyperliquidTradingService in architecture refactor
 
     @pytest.mark.asyncio
     async def test_get_order_history_comprehensive_filtering_and_edge_cases(
@@ -851,3 +810,117 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Verify the mapper was called for all fills
         assert mock_hl_account_mapper.transform_raw_user_fill_to_internal.call_count == 3
+
+    # ======================================
+    # RESTORED TESTS - Moved from order query service
+    # ======================================
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_success_basic(
+        self,
+        hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
+        mock_trade: Trade,
+    ) -> None:
+        """Test successful retrieval of trade history (basic case)."""
+        # Arrange
+        _ = GetOrderHistoryArgs()  # args not used
+
+        mock_request_builder.build_user_fills_request_payload.return_value = {"type": "userFills"}
+
+        mock_raw_response = [
+            {
+                "coin": "BTC-USD",
+                "side": "B",
+                "px": "50000.0",
+                "sz": "0.1",
+                "oid": 12345,
+                "time": int(datetime.now(UTC).timestamp() * 1000),
+                "fee": "0.05",
+            }
+        ]
+        mock_response_handler.handle_user_fills_response.return_value = mock_raw_response
+
+        mock_http_response: tuple[Any, int, dict[str, str]] = (mock_raw_response, 200, {})
+        mock_http_client_requester.return_value = mock_http_response
+
+        mock_hl_trading_mapper.transform_raw_user_fill_to_trade.return_value = mock_trade
+
+        # Act
+        result = await hyperliquid_account_service.get_trade_history(GetTradeHistoryArgs())
+
+        # Assert
+        assert len(result) == 1
+        assert result[0] == mock_trade
+        mock_request_builder.build_user_fills_request_payload.assert_called_once()
+        mock_http_client_requester.assert_called_once()
+        mock_response_handler.handle_user_fills_response.assert_called_once()
+        mock_hl_trading_mapper.transform_raw_user_fill_to_trade.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_with_time_filters(
+        self,
+        hyperliquid_account_service: HyperliquidAccountService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+        mock_hl_trading_mapper: MagicMock,
+        mock_trade: Trade,
+    ) -> None:
+        """Test trade history retrieval with time filters."""
+        # Arrange
+        start_time = datetime.now(UTC) - timedelta(days=1)
+        end_time = datetime.now(UTC)
+        _ = GetOrderHistoryArgs(  # args not used
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        mock_request_builder.build_user_fills_request_payload.return_value = {"type": "userFills"}
+
+        # Return trades both within and outside time range
+        mock_raw_response = [
+            {
+                "coin": "BTC-USD",
+                "side": "B",
+                "px": "50000.0",
+                "sz": "0.1",
+                "oid": 12345,
+                "time": int(datetime.now(UTC).timestamp() * 1000),
+                "fee": "0.05",
+            },
+            {
+                "coin": "BTC-USD",
+                "side": "S",
+                "px": "51000.0",
+                "sz": "0.1",
+                "oid": 12346,
+                "time": int((datetime.now(UTC) - timedelta(days=2)).timestamp() * 1000),
+                "fee": "0.05",
+            },
+        ]
+        mock_response_handler.handle_user_fills_response.return_value = mock_raw_response
+
+        mock_http_response: tuple[Any, int, dict[str, str]] = (mock_raw_response, 200, {})
+        mock_http_client_requester.return_value = mock_http_response
+
+        # Only return trade within time range
+        mock_hl_trading_mapper.transform_raw_user_fill_to_trade.side_effect = [
+            mock_trade,  # Within range
+            None,  # Outside range (filtered out)
+        ]
+
+        # Act
+        result = await hyperliquid_account_service.get_trade_history(
+            GetTradeHistoryArgs(
+                symbol="BTC-USD",
+                limit=100,
+            )
+        )
+
+        # Assert
+        assert len(result) == 1  # Only one trade within time range
+        assert result[0] == mock_trade

@@ -1,4 +1,4 @@
-"""Unit tests for BackpackResponseHandler account and trading response functionality."""
+"""Unit tests for BackpackAccountResponseHandler account and trading response functionality."""
 
 from decimal import Decimal
 from typing import Any, cast
@@ -6,12 +6,17 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
+from cyberdelta.apis.backpack.response_handlers.bp_account_response_handler import (
+    BackpackAccountResponseHandler,
+)
+from cyberdelta.apis.backpack.response_handlers.bp_trading_response_handler import (
+    BackpackTradingResponseHandler,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -26,12 +31,12 @@ type RawJsonResponse = RawJson
 
 
 class TestHandleGetBalancesResponse:
-    """Tests for BackpackResponseHandler.handle_get_balances_response."""
+    """Tests for BackpackAccountResponseHandler.handle_get_balances_response."""
 
     def test_valid(self, valid_raw_balances: dict[str, Any]) -> None:
         """Test handling a valid raw balances response."""
         balances: dict[str, BackpackRawBalance] = (
-            BackpackResponseHandler.handle_get_balances_response(
+            BackpackAccountResponseHandler.handle_get_balances_response(
                 cast("ParsedJsonResponse", valid_raw_balances),
                 status_code=200,
             )
@@ -58,7 +63,7 @@ class TestHandleGetBalancesResponse:
     def test_empty_balances(self) -> None:
         """Test handling empty balances response."""
         raw_data: dict[str, Any] = {}
-        balances = BackpackResponseHandler.handle_get_balances_response(
+        balances = BackpackAccountResponseHandler.handle_get_balances_response(
             cast("ParsedJsonResponse", raw_data),
             status_code=200,
         )
@@ -75,7 +80,7 @@ class TestHandleGetBalancesResponse:
             },
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_balances_response(
+            BackpackAccountResponseHandler.handle_get_balances_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -88,7 +93,7 @@ class TestHandleGetBalancesResponse:
         """Test balances response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_balances_response(
+            BackpackAccountResponseHandler.handle_get_balances_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -107,7 +112,7 @@ class TestHandleGetBalancesResponse:
             "INVALID": "not_a_dict",  # Invalid item
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_balances_response(
+            BackpackAccountResponseHandler.handle_get_balances_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -117,12 +122,12 @@ class TestHandleGetBalancesResponse:
 
 
 class TestHandleGetPositionsResponse:
-    """Tests for BackpackResponseHandler.handle_get_positions_response."""
+    """Tests for BackpackAccountResponseHandler.handle_get_positions_response."""
 
     def test_valid(self, valid_raw_positions: list[dict[str, Any]]) -> None:
         """Test handling a valid raw positions response."""
         positions: list[BackpackRawPosition] = (
-            BackpackResponseHandler.handle_get_positions_response(
+            BackpackAccountResponseHandler.handle_get_positions_response(
                 cast("ParsedJsonResponse", valid_raw_positions),
                 None,
                 status_code=200,
@@ -154,7 +159,7 @@ class TestHandleGetPositionsResponse:
     def test_empty_positions_list(self) -> None:
         """Test handling empty positions response."""
         raw_data: list[Any] = []
-        positions = BackpackResponseHandler.handle_get_positions_response(
+        positions = BackpackAccountResponseHandler.handle_get_positions_response(
             cast("ParsedJsonResponse", raw_data),
             None,
             status_code=200,
@@ -188,7 +193,7 @@ class TestHandleGetPositionsResponse:
         }
         raw_data = [valid_position, "not_a_dict"]  # Invalid item
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_positions_response(
+            BackpackAccountResponseHandler.handle_get_positions_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -220,7 +225,7 @@ class TestHandleGetPositionsResponse:
         }
         raw_data = [invalid_position]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_positions_response(
+            BackpackAccountResponseHandler.handle_get_positions_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -233,7 +238,7 @@ class TestHandleGetPositionsResponse:
         """Test positions response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_positions_response(
+            BackpackAccountResponseHandler.handle_get_positions_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -244,12 +249,12 @@ class TestHandleGetPositionsResponse:
 
 
 class TestHandleGetAccountInfoResponse:
-    """Tests for BackpackResponseHandler.handle_get_account_info_response."""
+    """Tests for BackpackAccountResponseHandler.handle_get_account_info_response."""
 
     def test_valid(self, valid_raw_account_summary: dict[str, Any]) -> None:
         """Test handling a valid raw account summary response."""
         summary: BackpackRawAccountSummary = (
-            BackpackResponseHandler.handle_get_account_info_response(
+            BackpackAccountResponseHandler.handle_get_account_info_response(
                 cast("ParsedJsonResponse", valid_raw_account_summary),
                 status_code=200,
             )
@@ -289,7 +294,7 @@ class TestHandleGetAccountInfoResponse:
             "trigger_orders": 20,
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_account_info_response(
+            BackpackAccountResponseHandler.handle_get_account_info_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -301,7 +306,7 @@ class TestHandleGetAccountInfoResponse:
         """Test account summary response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_account_info_response(
+            BackpackAccountResponseHandler.handle_get_account_info_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -311,14 +316,16 @@ class TestHandleGetAccountInfoResponse:
 
 
 class TestHandleGetOpenOrdersResponse:
-    """Tests for BackpackResponseHandler.handle_get_open_orders_response."""
+    """Tests for BackpackTradingResponseHandler.handle_get_open_orders_response."""
 
     def test_valid(self, valid_raw_open_orders: list[dict[str, Any]]) -> None:
         """Test handling a valid raw open orders response."""
-        orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_open_orders_response(
-            cast("ParsedJsonResponse", valid_raw_open_orders),
-            None,
-            status_code=200,
+        orders: list[BackpackRawOrder] = (
+            BackpackTradingResponseHandler.handle_get_open_orders_response(
+                cast("ParsedJsonResponse", valid_raw_open_orders),
+                None,
+                status_code=200,
+            )
         )
         assert isinstance(orders, list)
         assert len(orders) == 2
@@ -347,7 +354,7 @@ class TestHandleGetOpenOrdersResponse:
     def test_empty_orders_list(self) -> None:
         """Test handling empty open orders response."""
         raw_data: list[Any] = []
-        orders = BackpackResponseHandler.handle_get_open_orders_response(
+        orders = BackpackTradingResponseHandler.handle_get_open_orders_response(
             cast("ParsedJsonResponse", raw_data),
             None,
             status_code=200,
@@ -373,7 +380,7 @@ class TestHandleGetOpenOrdersResponse:
         }
         raw_data = [valid_order, "not_a_dict"]  # Invalid item
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_open_orders_response(
+            BackpackTradingResponseHandler.handle_get_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -399,7 +406,7 @@ class TestHandleGetOpenOrdersResponse:
         }
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_open_orders_response(
+            BackpackTradingResponseHandler.handle_get_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -412,7 +419,7 @@ class TestHandleGetOpenOrdersResponse:
         """Test open orders response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_open_orders_response(
+            BackpackTradingResponseHandler.handle_get_open_orders_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -423,14 +430,16 @@ class TestHandleGetOpenOrdersResponse:
 
 
 class TestHandleGetOrderHistoryResponse:
-    """Tests for BackpackResponseHandler.handle_get_order_history_response."""
+    """Tests for BackpackTradingResponseHandler.handle_get_order_history_response."""
 
     def test_valid(self, valid_raw_order_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw order history response."""
-        orders: list[BackpackRawOrder] = BackpackResponseHandler.handle_get_order_history_response(
-            cast("ParsedJsonResponse", valid_raw_order_history),
-            None,
-            status_code=200,
+        orders: list[BackpackRawOrder] = (
+            BackpackTradingResponseHandler.handle_get_order_history_response(
+                cast("ParsedJsonResponse", valid_raw_order_history),
+                None,
+                status_code=200,
+            )
         )
         assert isinstance(orders, list)
         assert len(orders) == 2
@@ -456,7 +465,7 @@ class TestHandleGetOrderHistoryResponse:
     def test_empty_order_history_list(self) -> None:
         """Test handling empty order history response."""
         raw_data: list[Any] = []
-        orders = BackpackResponseHandler.handle_get_order_history_response(
+        orders = BackpackTradingResponseHandler.handle_get_order_history_response(
             cast("ParsedJsonResponse", raw_data),
             None,
             status_code=200,
@@ -482,7 +491,7 @@ class TestHandleGetOrderHistoryResponse:
         }
         raw_data = [valid_order, "not_a_dict"]  # Invalid item
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_history_response(
+            BackpackTradingResponseHandler.handle_get_order_history_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -509,7 +518,7 @@ class TestHandleGetOrderHistoryResponse:
         }
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_history_response(
+            BackpackTradingResponseHandler.handle_get_order_history_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -522,7 +531,7 @@ class TestHandleGetOrderHistoryResponse:
         """Test order history response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_history_response(
+            BackpackTradingResponseHandler.handle_get_order_history_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -533,12 +542,12 @@ class TestHandleGetOrderHistoryResponse:
 
 
 class TestHandleGetTradeHistoryResponse:
-    """Tests for BackpackResponseHandler.handle_get_trade_history_response."""
+    """Tests for BackpackAccountResponseHandler.handle_get_trade_history_response."""
 
     def test_valid(self, valid_raw_trade_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw trade history response."""
         trades: list[BackpackRawPublicTrade] = (
-            BackpackResponseHandler.handle_get_trade_history_response(
+            BackpackTradingResponseHandler.handle_get_trade_history_response(
                 cast("ParsedJsonResponse", valid_raw_trade_history),
                 None,
                 status_code=200,
@@ -566,7 +575,7 @@ class TestHandleGetTradeHistoryResponse:
     def test_empty_trade_history_list(self) -> None:
         """Test handling empty trade history response."""
         raw_data: list[Any] = []
-        trades = BackpackResponseHandler.handle_get_trade_history_response(
+        trades = BackpackTradingResponseHandler.handle_get_trade_history_response(
             cast("ParsedJsonResponse", raw_data),
             None,
             status_code=200,
@@ -586,7 +595,7 @@ class TestHandleGetTradeHistoryResponse:
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_trade_history_response(
+            BackpackTradingResponseHandler.handle_get_trade_history_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -607,7 +616,7 @@ class TestHandleGetTradeHistoryResponse:
         }
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_trade_history_response(
+            BackpackTradingResponseHandler.handle_get_trade_history_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -620,7 +629,7 @@ class TestHandleGetTradeHistoryResponse:
         """Test trade history response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_trade_history_response(
+            BackpackTradingResponseHandler.handle_get_trade_history_response(
                 cast("ParsedJsonResponse", raw_data),
                 None,
                 status_code=200,
@@ -631,11 +640,11 @@ class TestHandleGetTradeHistoryResponse:
 
 
 class TestHandleGetOrderStatusResponse:
-    """Tests for BackpackResponseHandler.handle_get_order_status_response."""
+    """Tests for BackpackTradingResponseHandler.handle_get_order_status_response."""
 
     def test_valid(self, valid_raw_order_status: dict[str, Any], order_id: str) -> None:
         """Test handling a valid raw order status response."""
-        order: BackpackRawOrder = BackpackResponseHandler.handle_get_order_status_response(
+        order: BackpackRawOrder = BackpackTradingResponseHandler.handle_get_order_status_response(
             cast("ParsedJsonResponse", valid_raw_order_status),
             order_id,
             status_code=200,
@@ -666,7 +675,7 @@ class TestHandleGetOrderStatusResponse:
             "avgFillPrice": "142.00",
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_status_response(
+            BackpackTradingResponseHandler.handle_get_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
                 order_id,
                 status_code=200,
@@ -679,7 +688,7 @@ class TestHandleGetOrderStatusResponse:
         """Test order status response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_status_response(
+            BackpackTradingResponseHandler.handle_get_order_status_response(
                 cast("ParsedJsonResponse", raw_data),
                 order_id,
                 status_code=200,
@@ -701,7 +710,7 @@ class TestAccountTradingEdgeCases:
                 "staked": "0.0",
             },
         }
-        balances = BackpackResponseHandler.handle_get_balances_response(
+        balances = BackpackAccountResponseHandler.handle_get_balances_response(
             cast("ParsedJsonResponse", raw_data),
             status_code=200,
         )
@@ -736,7 +745,7 @@ class TestAccountTradingEdgeCases:
                 "subaccountId": 0,
             },
         ]
-        positions = BackpackResponseHandler.handle_get_positions_response(
+        positions = BackpackAccountResponseHandler.handle_get_positions_response(
             cast("ParsedJsonResponse", raw_data),
             None,
             status_code=200,
@@ -764,7 +773,7 @@ class TestAccountTradingEdgeCases:
                 "avgFillPrice": "140.25",
             },
         ]
-        orders = BackpackResponseHandler.handle_get_open_orders_response(
+        orders = BackpackTradingResponseHandler.handle_get_open_orders_response(
             cast("ParsedJsonResponse", raw_data),
             None,
             status_code=200,
@@ -793,7 +802,7 @@ class TestAccountTradingEdgeCases:
             "spot_taker_fee": "0.0001",
             "trigger_orders": 0,  # No trigger orders
         }
-        summary = BackpackResponseHandler.handle_get_account_info_response(
+        summary = BackpackAccountResponseHandler.handle_get_account_info_response(
             cast("ParsedJsonResponse", raw_data),
             status_code=200,
         )

@@ -2,7 +2,7 @@
 
 ------------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidTradingDataMapper robustness and edge cases.
+Comprehensive test suite for HyperliquidOrderMapper robustness and edge cases.
 Tests various scenarios including:
 - Boundary value testing and edge cases
 - Error handling and exception scenarios
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
@@ -47,9 +47,9 @@ logger = get_logger(__name__)
 
 
 @pytest.fixture
-def trading_data_mapper() -> HyperliquidTradingDataMapper:
-    """Provide an instance of HyperliquidTradingDataMapper."""
-    return HyperliquidTradingDataMapper()
+def trading_data_mapper() -> HyperliquidOrderMapper:
+    """Provide an instance of HyperliquidOrderMapper."""
+    return HyperliquidOrderMapper()
 
 
 def create_raw_order(
@@ -126,7 +126,7 @@ def create_raw_historical_order(
 class TestEdgeCasesAndBoundaryValues:
     """Tests for edge cases and boundary value scenarios."""
 
-    def test_minimal_order_data(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
+    def test_minimal_order_data(self, trading_data_mapper: HyperliquidOrderMapper) -> None:
         """Test transformation with minimal required order data."""
         minimal_order = create_raw_order(
             side="B",
@@ -150,7 +150,7 @@ class TestEdgeCasesAndBoundaryValues:
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.MARKET
 
-    def test_boundary_values(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
+    def test_boundary_values(self, trading_data_mapper: HyperliquidOrderMapper) -> None:
         """Test transformation with boundary values."""
         # Very large values
         large_order = create_raw_order(
@@ -182,7 +182,7 @@ class TestEdgeCasesAndBoundaryValues:
 
     def test_complex_trigger_scenarios(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test complex trigger scenarios and edge cases."""
@@ -209,7 +209,7 @@ class TestEdgeCasesAndBoundaryValues:
     )
     def test_status_edge_cases(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         status_input: str,
         expected_output: OrderStatus,
     ) -> None:
@@ -233,7 +233,7 @@ class TestEdgeCasesAndBoundaryValues:
 class TestUnicodeAndSpecialCharacters:
     """Tests for Unicode and special character handling."""
 
-    def test_unicode_asset_symbols(self, trading_data_mapper: HyperliquidTradingDataMapper) -> None:
+    def test_unicode_asset_symbols(self, trading_data_mapper: HyperliquidOrderMapper) -> None:
         """Test transformation with Unicode characters in asset symbols."""
         unicode_symbols = [
             "BTC-PERP🚀",
@@ -252,7 +252,7 @@ class TestUnicodeAndSpecialCharacters:
 
     def test_unicode_client_order_ids(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test transformation with None client order IDs generates valid UUIDs.
 
@@ -276,7 +276,7 @@ class TestUnicodeAndSpecialCharacters:
 
     def test_special_characters_in_strings(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test transformation with special characters in asset symbols.
 
@@ -318,7 +318,7 @@ class TestErrorHandlingAndExceptions:
 
     def test_transformation_error_with_nested_exceptions(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that nested exceptions are properly wrapped in TransformationError."""
@@ -326,7 +326,7 @@ class TestErrorHandlingAndExceptions:
 
         # Mock to raise a nested exception chain
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers.parse_decimal_value",
         )
 
         original_exception = ValueError("Original error")
@@ -342,7 +342,7 @@ class TestErrorHandlingAndExceptions:
 
     def test_logging_during_error_scenarios(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         caplog: LogCaptureFixture,
     ) -> None:
         """Test that appropriate logging occurs during error scenarios."""
@@ -380,14 +380,14 @@ class TestErrorHandlingAndExceptions:
 
     def test_multiple_consecutive_errors(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that multiple consecutive transformation errors are handled properly."""
         orders = [create_raw_order(oid=i) for i in range(5)]
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 
@@ -405,7 +405,7 @@ class TestPerformanceAndMemory:
 
     def test_large_batch_transformation_stability(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that large batches of transformations remain stable."""
         # Create a large number of orders
@@ -431,7 +431,7 @@ class TestPerformanceAndMemory:
 
     def test_memory_efficiency_with_large_strings(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test memory efficiency with large asset name strings.
 
@@ -453,7 +453,7 @@ class TestPerformanceAndMemory:
 
     def test_high_precision_calculation_stability(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test stability with high precision decimal calculations."""
         # Create orders with maximum precision decimals that don't round to zero
@@ -484,7 +484,7 @@ class TestComplexIntegrationScenarios:
 
     def test_rapid_status_changes_simulation(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test simulation of rapid order status changes."""
         # Simulate order lifecycle: open -> partially filled -> filled
@@ -523,7 +523,7 @@ class TestComplexIntegrationScenarios:
 
     def test_concurrent_transformation_consistency(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that concurrent-like transformations maintain consistency."""
         # Create identical orders to simulate concurrent processing
@@ -554,7 +554,7 @@ class TestComplexIntegrationScenarios:
 
     def test_mixed_order_types_batch_processing(
         self,
-        trading_data_mapper: HyperliquidTradingDataMapper,
+        trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test batch processing of mixed order types and configurations."""
         mixed_orders = [

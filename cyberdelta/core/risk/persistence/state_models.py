@@ -11,6 +11,7 @@ from cyberdelta.core.risk.orchestrator.risk_manager_orchestrator import Processi
 
 class CheckStatus(Enum):
     """Status of individual checks."""
+
     PENDING = "pending"
     RUNNING = "running"
     PASSED = "passed"
@@ -22,6 +23,7 @@ class CheckStatus(Enum):
 @dataclass
 class CheckResult:
     """Result of an individual risk check."""
+
     checker_name: str
     status: CheckStatus
     message: str
@@ -56,6 +58,7 @@ class CheckResult:
 @dataclass
 class SizingResult:
     """Result of position sizing calculation."""
+
     strategy_name: str
     recommended_size: Decimal
     max_allowed_size: Decimal
@@ -102,6 +105,7 @@ class SizingResult:
 @dataclass
 class ConstraintResult:
     """Result of constraint validation."""
+
     validator_name: str
     is_valid: bool
     violations: list[str]
@@ -139,6 +143,7 @@ class ConstraintResult:
 @dataclass
 class PerformanceMetrics:
     """Performance metrics for risk manager operations."""
+
     total_opportunities_processed: int
     successful_processing: int
     failed_processing: int
@@ -194,6 +199,7 @@ class PerformanceMetrics:
 @dataclass
 class RiskManagerState:
     """Complete state of the risk manager."""
+
     session_id: str
     configuration_hash: str
     start_time: datetime
@@ -266,6 +272,7 @@ class RiskManagerState:
 @dataclass
 class StateSnapshot:
     """Point-in-time snapshot of risk manager state."""
+
     timestamp: datetime
     opportunity_id: str
     processing_stage: str
@@ -299,12 +306,12 @@ class StateSnapshot:
             processing_stage=data["processing_stage"],
             check_results=[CheckResult.from_dict(r) for r in data["check_results"]],
             sizing_result=(
-                SizingResult.from_dict(data["sizing_result"]) 
-                if data["sizing_result"] else None
+                SizingResult.from_dict(data["sizing_result"]) if data["sizing_result"] else None
             ),
             constraint_result=(
-                ConstraintResult.from_dict(data["constraint_result"]) 
-                if data["constraint_result"] else None
+                ConstraintResult.from_dict(data["constraint_result"])
+                if data["constraint_result"]
+                else None
             ),
             final_decision=data["final_decision"],
             execution_metrics=data["execution_metrics"],

@@ -10,7 +10,7 @@ the endpoint and payload.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeGuard
 
 from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
@@ -18,6 +18,15 @@ from cyberdelta.config.structlog_config import get_logger
 
 
 logger = get_logger(__name__)
+
+
+def _is_list_of_any(value: object) -> TypeGuard[list[Any]]:
+    """Type guard to check if value is a list.
+
+    This helps pyright understand that after this check,
+    the value is definitely a list with proper type information.
+    """
+    return isinstance(value, list)
 
 
 class HyperliquidRequestWeighter:
@@ -66,10 +75,11 @@ class HyperliquidRequestWeighter:
             batch_length = 1  # Default for single action
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
-                if isinstance(actions, list):
-                    # Type guard ensures actions is a list, but pyright still sees Unknown elements
-                    # This is acceptable since we're just getting the length
-                    batch_length = len(actions)
+
+                if _is_list_of_any(actions):
+                    # Now pyright knows actions is list[Any]
+                    batch_length = len(actions) if actions else 1
+
             base_weight = self.hl_exchange_config.exchange_action_base_ip_weight or 1
             ip_weight = base_weight + (batch_length // 40)
 
@@ -146,10 +156,11 @@ class HyperliquidRequestWeighter:
             action_count = 1  # Default for single action
             if action_payload and "actions" in action_payload:
                 actions = action_payload["actions"]
-                if isinstance(actions, list):
-                    # Type guard ensures actions is a list, but pyright still sees Unknown elements
-                    # This is acceptable since we're just getting the length
-                    action_count = len(actions)
+
+                if _is_list_of_any(actions):
+                    # Now pyright knows actions is list[Any]
+                    action_count = len(actions) if actions else 1
+
             logger.debug(
                 "hyperliquid_exchange_request_weight",
                 action="calculate_weight",

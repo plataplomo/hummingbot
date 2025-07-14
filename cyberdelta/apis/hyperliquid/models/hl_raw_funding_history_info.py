@@ -108,7 +108,7 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
 
         This validator handles:
         - Type checking that input is a list
-        - Validating each item is a dictionary
+        - Validating each item is a dictionary or flattening nested lists
         - Providing detailed error messages for malformed items
         """
         if not is_list_any(v):
@@ -121,15 +121,27 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
 
         validated_items: list[dict[str, Any]] = []
         for i, item in enumerate(v):
-            if not is_dict_str_any(item):
+            if is_dict_str_any(item):
+                # item is now properly typed as dict[str, Any] due to TypeGuard
+                validated_items.append(item)
+            elif is_list_any(item):
+                # Handle nested lists - flatten them and add all dict items
+                for j, nested_item in enumerate(item):
+                    if is_dict_str_any(nested_item):
+                        validated_items.append(nested_item)
+                    else:
+                        raise StructureTypeError(
+                            field_name="historical_funding_rates",
+                            expected_structure="dict",
+                            actual_type=type(nested_item).__name__,
+                            element_info=f"nested item at index {i}[{j}]",
+                        )
+            else:
                 raise StructureTypeError(
                     field_name="historical_funding_rates",
-                    expected_structure="dict",
+                    expected_structure="dict or list",
                     actual_type=type(item).__name__,
                     element_info=f"item at index {i}",
                 )
-
-            # item is now properly typed as dict[str, Any] due to TypeGuard
-            validated_items.append(item)
 
         return validated_items

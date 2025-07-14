@@ -4,9 +4,11 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetTradeHistoryParams,
+)
+from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
+    BackpackTradingRequestBuilder,
 )
 
 
@@ -20,11 +22,11 @@ class TestBuildGetTradeHistoryParams:
         past_timestamp_ms: int,
     ) -> None:
         """Test build_get_trade_history_params with basic parameters."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
             symbol=symbol_btc_spot,
             limit=25,
-            start_time_ms=past_timestamp_ms,
-            end_time_ms=None,
+            start_time=past_timestamp_ms,
+            end_time=None,
             from_id="fillIdStart",
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
@@ -44,11 +46,11 @@ class TestBuildGetTradeHistoryParams:
         past_timestamp_ms: int,
     ) -> None:
         """Test build_get_trade_history_params with all fields."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
             symbol=symbol_spot,
             limit=50,
-            start_time_ms=past_timestamp_ms,
-            end_time_ms=current_timestamp_ms,
+            start_time=past_timestamp_ms,
+            end_time=current_timestamp_ms,
             from_id="fillId123",
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
@@ -64,12 +66,8 @@ class TestBuildGetTradeHistoryParams:
 
     def test_build_get_trade_history_params_minimal(self, symbol_eth_spot: str) -> None:
         """Test build_get_trade_history_params with minimal parameters."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol=symbol_eth_spot,
-            limit=None,
-            start_time_ms=None,
-            end_time_ms=None,
-            from_id=None,
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+            symbol=symbol_eth_spot
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -78,12 +76,8 @@ class TestBuildGetTradeHistoryParams:
 
     def test_build_get_trade_history_params_formats_symbol(self) -> None:
         """Test build_get_trade_history_params formats symbol correctly."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol="BTC-USDT",
-            limit=100,
-            start_time_ms=None,
-            end_time_ms=None,
-            from_id=None,
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+            symbol="BTC-USDT", limit=100
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -92,12 +86,8 @@ class TestBuildGetTradeHistoryParams:
 
     def test_build_get_trade_history_params_only_limit(self, symbol_spot: str) -> None:
         """Test build_get_trade_history_params with only limit."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol=symbol_spot,
-            limit=75,
-            start_time_ms=None,
-            end_time_ms=None,
-            from_id=None,
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+            symbol=symbol_spot, limit=75
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -106,12 +96,8 @@ class TestBuildGetTradeHistoryParams:
 
     def test_build_get_trade_history_params_only_from_id(self, symbol_spot: str) -> None:
         """Test build_get_trade_history_params with only from_id."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol=symbol_spot,
-            limit=None,
-            start_time_ms=None,
-            end_time_ms=None,
-            from_id="startFillId",
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+            symbol=symbol_spot, from_id="startFillId"
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -125,12 +111,8 @@ class TestBuildGetTradeHistoryParams:
         past_timestamp_ms: int,
     ) -> None:
         """Test build_get_trade_history_params with time range only."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol=symbol_spot,
-            limit=None,
-            start_time_ms=past_timestamp_ms,
-            end_time_ms=current_timestamp_ms,
-            from_id=None,
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+            symbol=symbol_spot, start_time=past_timestamp_ms, end_time=current_timestamp_ms
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -158,13 +140,17 @@ class TestBuildGetTradeHistoryParams:
         expected_base: dict[str, Any],
     ) -> None:
         """Test build_get_trade_history_params with various combinations."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol=symbol,
-            limit=limit,
-            start_time_ms=None,
-            end_time_ms=None,
-            from_id=from_id,
-        )
+        if limit is None:
+            params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+                symbol=symbol,
+                from_id=from_id,
+            )
+        else:
+            params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+                symbol=symbol,
+                limit=limit,
+                from_id=from_id,
+            )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == expected_base
@@ -186,12 +172,8 @@ class TestBuildGetTradeHistoryParams:
         expected_time_params: dict[str, Any],
     ) -> None:
         """Test build_get_trade_history_params with various time combinations."""
-        params = BackpackRequestBuilder.build_get_trade_history_params(
-            symbol=symbol_spot,
-            limit=None,
-            start_time_ms=start_time,
-            end_time_ms=end_time,
-            from_id=None,
+        params = BackpackTradingRequestBuilder.build_get_trade_history_params(
+            symbol=symbol_spot, start_time=start_time, end_time=end_time
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)

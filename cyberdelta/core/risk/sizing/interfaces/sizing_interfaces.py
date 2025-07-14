@@ -18,11 +18,11 @@ class BaseSizerInterface(Protocol):
         context: SizingContext,
     ) -> SizingResult:
         """Calculate position size for an opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity to size
             context: Context information for sizing
-            
+
         Returns:
             SizingResult with position size and details
         """
@@ -51,11 +51,11 @@ class PositionSizerInterface(Protocol):
         available_capital: Decimal,
     ) -> SizingResult:
         """Size an opportunity with available capital.
-        
+
         Args:
             opportunity: The arbitrage opportunity to size
             available_capital: Available capital for sizing
-            
+
         Returns:
             SizingResult with position size and details
         """
@@ -68,11 +68,11 @@ class PositionSizerInterface(Protocol):
         available_capital: Decimal,
     ) -> list[SizingResult]:
         """Size multiple opportunities with capital allocation.
-        
+
         Args:
             opportunities: List of arbitrage opportunities to size
             available_capital: Total available capital
-            
+
         Returns:
             List of SizingResult objects
         """
@@ -100,12 +100,12 @@ class KellyCalculatorInterface(Protocol):
         win_probability: Decimal | None = None,
     ) -> Decimal:
         """Calculate Kelly fraction for given parameters.
-        
+
         Args:
             expected_return: Expected return of the opportunity
             volatility: Volatility of the opportunity
             win_probability: Optional win probability (defaults to calculated value)
-            
+
         Returns:
             Kelly fraction (0-1)
         """
@@ -120,13 +120,13 @@ class KellyCalculatorInterface(Protocol):
         min_allocation: Decimal,
     ) -> Decimal:
         """Calculate optimal position size from Kelly fraction.
-        
+
         Args:
             kelly_fraction: Kelly fraction from calculation
             available_capital: Available capital for sizing
             max_allocation: Maximum allocation limit
             min_allocation: Minimum allocation limit
-            
+
         Returns:
             Optimal position size in USD
         """
@@ -143,11 +143,11 @@ class VolatilityCalculatorInterface(Protocol):
         lookback_hours: int = 24,
     ) -> Decimal:
         """Calculate volatility for an opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity
             lookback_hours: Hours to look back for volatility calculation
-            
+
         Returns:
             Volatility estimate
         """
@@ -161,12 +161,12 @@ class VolatilityCalculatorInterface(Protocol):
         lookback_hours: int = 24,
     ) -> Decimal | None:
         """Get historical volatility for a symbol on an exchange.
-        
+
         Args:
             symbol: Trading symbol
             exchange: Exchange name
             lookback_hours: Hours to look back
-            
+
         Returns:
             Historical volatility or None if not available
         """
@@ -183,11 +183,11 @@ class ValidationFactorInterface(Protocol):
         base_factor: Decimal = Decimal("1.0"),
     ) -> Decimal:
         """Calculate validation factor for an opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity
             base_factor: Base validation factor
-            
+
         Returns:
             Validation factor (0-1)
         """
@@ -200,11 +200,11 @@ class ValidationFactorInterface(Protocol):
         validation_factor: Decimal,
     ) -> Decimal:
         """Apply validation factor to base size.
-        
+
         Args:
             base_size: Base position size
             validation_factor: Validation factor to apply
-            
+
         Returns:
             Adjusted position size
         """
@@ -222,12 +222,12 @@ class SizingConstraintInterface(Protocol):
         available_capital: Decimal,
     ) -> tuple[bool, str | None]:
         """Check if proposed size meets constraints.
-        
+
         Args:
             opportunity: The arbitrage opportunity
             proposed_size: Proposed position size
             available_capital: Available capital
-            
+
         Returns:
             Tuple of (constraint_met, reason_if_failed)
         """
@@ -241,12 +241,12 @@ class SizingConstraintInterface(Protocol):
         available_capital: Decimal,
     ) -> Decimal:
         """Adjust size to meet constraints.
-        
+
         Args:
             opportunity: The arbitrage opportunity
             proposed_size: Proposed position size
             available_capital: Available capital
-            
+
         Returns:
             Adjusted position size that meets constraints
         """

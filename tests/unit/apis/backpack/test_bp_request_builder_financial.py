@@ -1,14 +1,16 @@
-"""Unit tests for BackpackRequestBuilder financial operations methods."""
+"""Unit tests for BackpackAccountRequestBuilder financial operations methods."""
 
 from decimal import Decimal
 from typing import Any
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawAccountWithdrawalRequest,
     BackpackRawInternalTransferRequest,
+)
+from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
+    BackpackAccountRequestBuilder,
 )
 
 
@@ -23,8 +25,8 @@ class TestBuildWithdrawPayload:
         solana_network: str,
     ) -> None:
         """Test build_withdraw_payload with minimal required fields."""
-        payload = BackpackRequestBuilder.build_withdraw_payload(
-            asset=usdc_asset,
+        payload = BackpackAccountRequestBuilder.build_withdraw_payload(
+            asset_symbol=usdc_asset,
             amount=withdrawal_amount,
             address=withdrawal_address,
             network=solana_network,
@@ -41,14 +43,13 @@ class TestBuildWithdrawPayload:
 
     def test_build_withdraw_payload_full(self, eth_asset: str, ethereum_network: str) -> None:
         """Test build_withdraw_payload with all optional fields."""
-        payload = BackpackRequestBuilder.build_withdraw_payload(
-            asset=eth_asset,
+        payload = BackpackAccountRequestBuilder.build_withdraw_payload(
+            asset_symbol=eth_asset,
             amount=Decimal("1.5"),
             address="0x123",
             network=ethereum_network,
             tag="myTag",
-            client_withdrawal_id="wdId789",
-            two_factor_token="123456",
+            client_withdraw_id="wdId789",
         )
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -59,7 +60,6 @@ class TestBuildWithdrawPayload:
             "address": "0x123",
             "addressTag": "myTag",
             "clientId": "wdId789",
-            "twoFactorToken": "123456",
         }
         assert payload_dict == expected_payload
 
@@ -71,8 +71,8 @@ class TestBuildWithdrawPayload:
         solana_network: str,
     ) -> None:
         """Test build_withdraw_payload with address tag."""
-        payload = BackpackRequestBuilder.build_withdraw_payload(
-            asset=usdc_asset,
+        payload = BackpackAccountRequestBuilder.build_withdraw_payload(
+            asset_symbol=usdc_asset,
             amount=withdrawal_amount,
             address=withdrawal_address,
             network=solana_network,
@@ -96,12 +96,12 @@ class TestBuildWithdrawPayload:
         solana_network: str,
     ) -> None:
         """Test build_withdraw_payload with client withdrawal ID."""
-        payload = BackpackRequestBuilder.build_withdraw_payload(
-            asset=sol_asset,
+        payload = BackpackAccountRequestBuilder.build_withdraw_payload(
+            asset_symbol=sol_asset,
             amount=Decimal("5.0"),
             address=withdrawal_address,
             network=solana_network,
-            client_withdrawal_id="clientWd001",
+            client_withdraw_id="clientWd001",
         )
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -122,12 +122,11 @@ class TestBuildWithdrawPayload:
         solana_network: str,
     ) -> None:
         """Test build_withdraw_payload with two-factor authentication token."""
-        payload = BackpackRequestBuilder.build_withdraw_payload(
-            asset=usdc_asset,
+        payload = BackpackAccountRequestBuilder.build_withdraw_payload(
+            asset_symbol=usdc_asset,
             amount=withdrawal_amount,
             address=withdrawal_address,
             network=solana_network,
-            two_factor_token="654321",
         )
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -136,7 +135,6 @@ class TestBuildWithdrawPayload:
             "symbol": usdc_asset,
             "quantity": "100.0",
             "address": withdrawal_address,
-            "twoFactorToken": "654321",
         }
         assert payload_dict == expected_payload
 
@@ -152,8 +150,8 @@ class TestBuildWithdrawPayload:
         The request builder only performs mapping/translation.
         """
         with pytest.raises(KeyError):
-            BackpackRequestBuilder.build_withdraw_payload(
-                asset=usdc_asset,
+            BackpackAccountRequestBuilder.build_withdraw_payload(
+                asset_symbol=usdc_asset,
                 amount=withdrawal_amount,
                 address=withdrawal_address,
                 network="ethereum",  # Use a valid string instead of None
@@ -178,8 +176,8 @@ class TestBuildWithdrawPayload:
         expected_network: str,
     ) -> None:
         """Test build_withdraw_payload with various asset and network combinations."""
-        payload = BackpackRequestBuilder.build_withdraw_payload(
-            asset=asset,
+        payload = BackpackAccountRequestBuilder.build_withdraw_payload(
+            asset_symbol=asset,
             amount=Decimal(amount_str),
             address="test_address",
             network=network,
@@ -200,11 +198,11 @@ class TestBuildInternalTransferPayload:
 
     def test_build_internal_transfer_payload_minimal(self, usdc_asset: str) -> None:
         """Test build_internal_transfer_payload with minimal required fields."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
             amount=Decimal("100.50"),
-            from_account="SPOT",
-            to_account="FUTURES",
+            from_wallet="SPOT",
+            to_wallet="FUTURES",
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -217,13 +215,12 @@ class TestBuildInternalTransferPayload:
         assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_with_client_id(self, sol_asset: str) -> None:
-        """Test build_internal_transfer_payload with client_transfer_id."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        """Test build_internal_transfer_payload with sub_account_id."""
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
             amount=Decimal(10),
-            from_account="MARGIN",
-            to_account="SPOT",
-            client_transfer_id="myInternalTransfer123",
+            from_wallet="MARGIN",
+            to_wallet="SPOT",
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -232,17 +229,16 @@ class TestBuildInternalTransferPayload:
             "quantity": "10",
             "fromAccount": "MARGIN",
             "toAccount": "SPOT",
-            "clientId": "myInternalTransfer123",
         }
         assert payload_dict == expected_payload
 
     def test_build_internal_transfer_payload_symbol_formatting(self) -> None:
         """Test build_internal_transfer_payload formats symbol correctly."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol="sol-perp",  # Test with format that needs changing
             amount=Decimal(5),
-            from_account="SPOT",
-            to_account="FUTURES",
+            from_wallet="SPOT",
+            to_wallet="FUTURES",
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -256,11 +252,11 @@ class TestBuildInternalTransferPayload:
 
     def test_build_internal_transfer_payload_spot_to_futures(self, usdc_asset: str) -> None:
         """Test build_internal_transfer_payload from SPOT to FUTURES."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
             amount=Decimal("250.75"),
-            from_account="SPOT",
-            to_account="FUTURES",
+            from_wallet="SPOT",
+            to_wallet="FUTURES",
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -274,11 +270,11 @@ class TestBuildInternalTransferPayload:
 
     def test_build_internal_transfer_payload_futures_to_spot(self, eth_asset: str) -> None:
         """Test build_internal_transfer_payload from FUTURES to SPOT."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=eth_asset,
             amount=Decimal("1.0"),
-            from_account="FUTURES",
-            to_account="SPOT",
+            from_wallet="FUTURES",
+            to_wallet="SPOT",
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -292,12 +288,12 @@ class TestBuildInternalTransferPayload:
 
     def test_build_internal_transfer_payload_margin_to_futures(self, sol_asset: str) -> None:
         """Test build_internal_transfer_payload from MARGIN to FUTURES."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
             amount=Decimal("50.25"),
-            from_account="MARGIN",
-            to_account="FUTURES",
-            client_transfer_id="margin_to_futures_001",
+            from_wallet="MARGIN",
+            to_wallet="FUTURES",
+            sub_account_id="margin_to_futures_001",
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -329,12 +325,12 @@ class TestBuildInternalTransferPayload:
         expected_symbol: str,
     ) -> None:
         """Test build_internal_transfer_payload with various combinations."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=asset_symbol,
             amount=Decimal(amount),
-            from_account=from_acc,
-            to_account=to_acc,
-            client_transfer_id=client_id,
+            from_wallet=from_acc,
+            to_wallet=to_acc,
+            sub_account_id=client_id,
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -349,7 +345,7 @@ class TestBuildInternalTransferPayload:
         assert payload_dict == expected
 
     @pytest.mark.parametrize(
-        ("from_account", "to_account"),
+        ("from_wallet", "to_wallet"),
         [
             ("SPOT", "FUTURES"),
             ("FUTURES", "SPOT"),
@@ -362,22 +358,22 @@ class TestBuildInternalTransferPayload:
     def test_build_internal_transfer_payload_account_combinations(
         self,
         usdc_asset: str,
-        from_account: str,
-        to_account: str,
+        from_wallet: str,
+        to_wallet: str,
     ) -> None:
         """Test build_internal_transfer_payload with various account combinations."""
-        payload = BackpackRequestBuilder.build_internal_transfer_payload(
+        payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
             amount=Decimal("100.0"),
-            from_account=from_account,
-            to_account=to_account,
+            from_wallet=from_wallet,
+            to_wallet=to_wallet,
         )
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "symbol": usdc_asset,
             "quantity": "100.0",
-            "fromAccount": from_account,
-            "toAccount": to_account,
+            "fromAccount": from_wallet,
+            "toAccount": to_wallet,
         }
         assert payload_dict == expected

@@ -19,6 +19,7 @@ from .derivative_position import (
 from .enums import (
     # ExchangeType, # Removed - Not defined in enums.py
     # Interval, # Removed - Not defined in enums.py
+    MarketDataInterval,
     OrderExpiryReason,
     OrderSide,
     OrderStatus,
@@ -34,7 +35,7 @@ from .margin_account import (
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
-from .market import FundingRate, MidPrices, OrderBook, Ticker, Trade
+from .market import CancelOrderResult, FundingRate, Market, MidPrices, OrderBook, Ticker, Trade
 from .market.order import (
     BackpackOrderDetails,
     HyperliquidOrderDetails,
@@ -64,6 +65,7 @@ __all__ = [
     "BackpackSpotBalanceDetails",
     "BackpackTransferDetails",
     "BackpackWithdrawalDetails",
+    "CancelOrderResult",
     "DerivativePosition",
     "FundingRate",
     "HyperliquidAccountSettingsDetails",  # Account Settings Detail
@@ -74,6 +76,8 @@ __all__ = [
     "HyperliquidTransferDetails",
     "HyperliquidWithdrawalDetails",
     "MarginAccountSummary",
+    "Market",
+    "MarketDataInterval",
     "MidPrices",
     # Market Data Models
     "Order",

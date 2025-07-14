@@ -7,9 +7,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
-from cyberdelta.apis.backpack.mappers.bp_trading_data_mapper import BackpackTradingDataMapper
+from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
+from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
+    BackpackTradingRequestBuilder,
+)
+from cyberdelta.apis.backpack.response_handlers.bp_trading_response_handler import (
+    BackpackTradingResponseHandler,
+)
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -32,14 +36,14 @@ def mock_http_client_requester() -> AsyncMock:
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Return a mock BackpackRequestBuilder for trading request testing."""
-    return MagicMock(spec=BackpackRequestBuilder)
+    """Return a mock BackpackTradingRequestBuilder for trading request testing."""
+    return MagicMock(spec=BackpackTradingRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Return a mock BackpackResponseHandler for trading response testing."""
-    return MagicMock(spec=BackpackResponseHandler)
+    """Return a mock BackpackTradingResponseHandler for trading response testing."""
+    return MagicMock(spec=BackpackTradingResponseHandler)
 
 
 @pytest.fixture
@@ -55,8 +59,8 @@ def mock_authenticator() -> MagicMock:
 
 @pytest.fixture
 def mock_order_mapper() -> MagicMock:
-    """Return a mock BackpackTradingDataMapper for order data mapping testing."""
-    return MagicMock(spec=BackpackTradingDataMapper)
+    """Return a mock BackpackOrderMapper for order data mapping testing."""
+    return MagicMock(spec=BackpackOrderMapper)
 
 
 @pytest.fixture

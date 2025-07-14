@@ -1,8 +1,8 @@
-"""CyberDeltaEngine: Hyperliquid Account Data Mapper Core Tests.
+"""CyberDeltaEngine: Hyperliquid Balance Mapper Core Tests.
 
 -----------------------------------------------------------
 
-Comprehensive test suite for HyperliquidAccountDataMapper core transformations.
+Comprehensive test suite for HyperliquidBalanceMapper core transformations.
 Tests fundamental transformation methods and business logic including:
 - Margin summary transformations from clearinghouse state
 - Spot balance transformations and USDC handling
@@ -19,9 +19,13 @@ from typing import Any
 
 import pytest
 
+from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
+    HyperliquidAccountSummaryMapper,
+)
+
 # Third-party imports for type checking only
 # Project-specific imports
-from cyberdelta.apis.hyperliquid.mappers.hl_account_data_mapper import HyperliquidAccountDataMapper
+from cyberdelta.apis.hyperliquid.mappers.account.hl_balance_mapper import HyperliquidBalanceMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -42,9 +46,9 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture
-def account_data_mapper() -> HyperliquidAccountDataMapper:
-    """Provide an instance of HyperliquidAccountDataMapper."""
-    return HyperliquidAccountDataMapper()
+def balance_mapper() -> HyperliquidBalanceMapper:
+    """Provide an instance of HyperliquidBalanceMapper."""
+    return HyperliquidBalanceMapper()
 
 
 @pytest.fixture
@@ -193,8 +197,10 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state,
+            )
         )
 
         assert isinstance(summary, MarginAccountSummary)
@@ -242,8 +248,10 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state,
+            )
         )
 
         assert summary.total_unrealized_pnl == Decimal(0)
@@ -280,8 +288,10 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state,
+            )
         )
 
         # Verify precision is maintained
@@ -322,8 +332,10 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            current_raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                current_raw_state,
+            )
         )
 
         assert summary.total_equity == Decimal("0.0")
@@ -337,8 +349,10 @@ class TestMapRawClearinghouseStateToMarginSummary:
         raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test that margin summary generates appropriate timestamps."""
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_clearinghouse_state_base_fixture,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                raw_clearinghouse_state_base_fixture,
+            )
         )
 
         assert summary.timestamp is not None
@@ -358,11 +372,11 @@ class TestMapRawClearinghouseStateToSpotBalances:
 
     def test_empty_spot_balances(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        balance_mapper: HyperliquidBalanceMapper,
         raw_user_state_empty_positions_no_balances: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test mapping when raw state has no spot balances."""
-        spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        spot_balances = balance_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_user_state_empty_positions_no_balances,
         )
         assert isinstance(spot_balances, dict)
@@ -374,7 +388,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
 
     def test_usdc_balance_from_account_value(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        balance_mapper: HyperliquidBalanceMapper,
     ) -> None:
         """Test that USDC balance is created from marginSummary.accountValue."""
         margin_summary_with_usdc_value = HyperliquidRawMarginSummary(
@@ -404,7 +418,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
             time=1640995200000,
         )
 
-        spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        spot_balances = balance_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state_for_usdc_test,
         )
 
@@ -423,7 +437,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
 
     def test_spot_balances_with_high_precision(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        balance_mapper: HyperliquidBalanceMapper,
     ) -> None:
         """Test spot balance transformation with high precision values."""
         margin_summary_high_precision = HyperliquidRawMarginSummary(
@@ -453,7 +467,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
             time=1640995200000,
         )
 
-        spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        spot_balances = balance_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state_high_precision,
         )
 
@@ -524,10 +538,8 @@ class TestMapRawClearinghouseStateToSpotBalances:
             time=1640995200000,
         )
 
-        spot_balances = (
-            HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_spot_balances(
-                raw_state_with_multiple_spot,
-            )
+        spot_balances = HyperliquidBalanceMapper.transform_raw_clearinghouse_state_to_spot_balances(
+            raw_state_with_multiple_spot,
         )
 
         assert isinstance(spot_balances, dict)
@@ -546,7 +558,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
 
     def test_spot_balances_timestamp_generation(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        balance_mapper: HyperliquidBalanceMapper,
         raw_user_state_empty_positions_no_balances: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test that spot balance transformations generate appropriate timestamps."""
@@ -561,7 +573,7 @@ class TestMapRawClearinghouseStateToSpotBalances:
             update={"marginSummary": margin_summary_with_balance},
         )
 
-        spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        spot_balances = balance_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state_with_balance,
         )
 
@@ -630,8 +642,10 @@ class TestCoreBusinessLogicValidation:
         }
         raw_state = HyperliquidRawClearinghouseState.model_validate(updated_data)
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                raw_state,
+            )
         )
 
         # Expected total unrealized PnL: 150.25 + (-75.50) = 74.75
@@ -653,8 +667,10 @@ class TestCoreBusinessLogicValidation:
         }
         raw_state = HyperliquidRawClearinghouseState.model_validate(updated_data)
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                raw_state,
+            )
         )
 
         # Total maintenance margin should be cross + isolated
@@ -672,8 +688,10 @@ class TestCoreBusinessLogicValidation:
             update={"withdrawable": test_withdrawable},
         )
 
-        summary = HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_state,
+        summary = (
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+                raw_state,
+            )
         )
 
         # Available equity should equal withdrawable amount
@@ -681,13 +699,13 @@ class TestCoreBusinessLogicValidation:
 
     def test_exchange_assignment_consistency(
         self,
-        account_data_mapper: HyperliquidAccountDataMapper,
+        balance_mapper: HyperliquidBalanceMapper,
         raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test that exchange assignments are consistent across all transformations."""
         # Test margin summary
         margin_summary = (
-            HyperliquidAccountDataMapper.transform_raw_clearinghouse_state_to_margin_summary(
+            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
                 raw_clearinghouse_state_base_fixture,
             )
         )
@@ -704,7 +722,7 @@ class TestCoreBusinessLogicValidation:
             update={"marginSummary": margin_summary_with_usdc},
         )
 
-        spot_balances = account_data_mapper.transform_raw_clearinghouse_state_to_spot_balances(
+        spot_balances = balance_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state_with_usdc,
         )
 

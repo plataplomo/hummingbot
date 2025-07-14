@@ -16,12 +16,14 @@ from collections.abc import Awaitable, Callable, Mapping
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
-from cyberdelta.apis.hyperliquid.hl_response_handler import (
-    HyperliquidResponseHandler,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
+)
+from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
+    HyperliquidMarketDataRequestBuilder,
+)
+from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handler import (
+    HyperliquidMarketDataResponseHandler,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -42,8 +44,8 @@ class HyperliquidAssetIndexResolver:
             ...,
             Awaitable[tuple[ParsedJsonResponse | None, int, Mapping[str, str]]],
         ],
-        response_handler: HyperliquidResponseHandler,
-        request_builder: HyperliquidRequestBuilder,
+        response_handler: HyperliquidMarketDataResponseHandler,
+        request_builder: HyperliquidMarketDataRequestBuilder,
         exchange_name_for_log: str = "hyperliquid_asset_indexer",
     ) -> None:
         """Initialize the asset index resolver.
@@ -87,6 +89,33 @@ class HyperliquidAssetIndexResolver:
 
         # Return value or error
         return self._get_index_or_raise(symbol)
+
+    async def get_asset_index_or_none(self, symbol: str) -> int | None:
+        """Fetch or retrieve from cache the asset_index for a given symbol.
+
+        Returns None if not found.
+
+        This method provides a safer alternative to get_asset_index that returns None
+        instead of raising an exception when a symbol is not found.
+
+        Args:
+            symbol: The asset symbol to resolve (e.g., "BTC", "ETH")
+
+        Returns:
+            Integer asset index for the given symbol, or None if symbol not found
+
+        Raises:
+            APIError: If the symbol is invalid or API request fails (not for symbol not found)
+
+        """
+        try:
+            return await self.get_asset_index(symbol)
+        except APIError as e:
+            # If it's a symbol not found error, return None
+            if e.code == APIErrorCode.SYMBOL_NOT_FOUND.value:
+                return None
+            # For other API errors, re-raise them
+            raise
 
     def _validate_symbol(self, symbol: str) -> None:
         """Validate the input symbol."""
@@ -211,6 +240,7 @@ class HyperliquidAssetIndexResolver:
             validated_response: HyperliquidRawMetaAndAssetCtxsResponse = (
                 self._response_handler.handle_info_meta_and_asset_ctxs_response(
                     raw_response_content,
+                    status_code=status_code,
                 )
             )
         except ValidationError as e_val:

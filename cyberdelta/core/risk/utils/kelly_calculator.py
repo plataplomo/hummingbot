@@ -17,6 +17,7 @@ PROBABILITY_TOLERANCE = 0.001  # Maximum allowed deviation from 1.0 for probabil
 
 class KellyMethod(Enum):
     """Kelly calculation methods."""
+
     CONTINUOUS = "continuous"
     BINARY = "binary"
     MULTI_OUTCOME = "multi_outcome"
@@ -124,8 +125,7 @@ class KellyResult:
             "sharpe_ratio": float(self.sharpe_ratio),
             "expected_growth_rate": float(self.expected_growth_rate),
             "max_drawdown_probability": (
-                float(self.max_drawdown_probability) 
-                if self.max_drawdown_probability else None
+                float(self.max_drawdown_probability) if self.max_drawdown_probability else None
             ),
             "time_to_double": float(self.time_to_double) if self.time_to_double else None,
             "sharpe_adjustment": float(self.sharpe_adjustment),
@@ -168,10 +168,10 @@ class KellyCalculator:
 
     def calculate_kelly(self, kelly_input: KellyInput) -> KellyResult:
         """Calculate Kelly fraction with comprehensive analysis.
-        
+
         Args:
             kelly_input: Input parameters for Kelly calculation
-            
+
         Returns:
             KellyResult with detailed calculation results
         """
@@ -196,9 +196,7 @@ class KellyCalculator:
         # Calculate Sharpe ratio
         excess_return = kelly_input.expected_return - (kelly_input.risk_free_rate / 365)
         sharpe_ratio = (
-            excess_return / kelly_input.volatility 
-            if kelly_input.volatility > 0 
-            else Decimal(0)
+            excess_return / kelly_input.volatility if kelly_input.volatility > 0 else Decimal(0)
         )
 
         # Apply adjustments
@@ -211,11 +209,14 @@ class KellyCalculator:
 
         # Calculate additional metrics
         expected_growth_rate = self._calculate_expected_growth_rate(
-            recommended_fraction, kelly_input.expected_return, kelly_input.volatility,
+            recommended_fraction,
+            kelly_input.expected_return,
+            kelly_input.volatility,
         )
 
         max_drawdown_probability = self._calculate_max_drawdown_probability(
-            recommended_fraction, kelly_input.volatility,
+            recommended_fraction,
+            kelly_input.volatility,
         )
 
         time_to_double = self._calculate_time_to_double(expected_growth_rate)
@@ -261,13 +262,11 @@ class KellyCalculator:
         # where b = win_amount/loss_amount, p = win_probability, q = 1-p
 
         if (
-            kelly_input.win_probability is None 
-            or kelly_input.win_amount is None 
+            kelly_input.win_probability is None
+            or kelly_input.win_amount is None
             or kelly_input.loss_amount is None
         ):
-            raise KellyCalculationError(
-                KellyCalculationError.BINARY_KELLY_CALCULATION_REQUIREMENTS
-            )
+            raise KellyCalculationError(KellyCalculationError.BINARY_KELLY_CALCULATION_REQUIREMENTS)
 
         b = kelly_input.win_amount / kelly_input.loss_amount
         p = kelly_input.win_probability
@@ -284,12 +283,9 @@ class KellyCalculator:
             )
 
         # Calculate expected return and variance
-        expected_return = sum(
-            prob * return_val for prob, return_val in kelly_input.outcomes
-        )
+        expected_return = sum(prob * return_val for prob, return_val in kelly_input.outcomes)
         variance = sum(
-            prob * (return_val - expected_return) ** 2 
-            for prob, return_val in kelly_input.outcomes
+            prob * (return_val - expected_return) ** 2 for prob, return_val in kelly_input.outcomes
         )
 
         if variance <= 0:
@@ -346,9 +342,9 @@ class KellyCalculator:
 
         # Calculate total adjustment
         total_adjustment = (
-            adjustments["sharpe_adjustment"] *
-            adjustments["drawdown_adjustment"] *
-            adjustments["transaction_cost_adjustment"]
+            adjustments["sharpe_adjustment"]
+            * adjustments["drawdown_adjustment"]
+            * adjustments["transaction_cost_adjustment"]
         )
         adjustments["total_adjustment"] = total_adjustment
 
@@ -368,9 +364,7 @@ class KellyCalculator:
     ) -> Decimal:
         """Calculate expected growth rate using Kelly fraction."""
         # Growth rate = f * μ - (f² * σ²) / 2
-        return (
-            fraction * expected_return - (fraction * fraction * volatility * volatility) / 2
-        )
+        return fraction * expected_return - (fraction * fraction * volatility * volatility) / 2
 
     def _calculate_max_drawdown_probability(
         self, fraction: Decimal, volatility: Decimal
@@ -394,10 +388,10 @@ class KellyCalculator:
 
     def calculate_kelly_for_opportunity(self, opportunity: ArbitrageOpportunity) -> KellyResult:
         """Calculate Kelly fraction for an arbitrage opportunity.
-        
+
         Args:
             opportunity: Arbitrage opportunity
-            
+
         Returns:
             KellyResult with calculation
         """

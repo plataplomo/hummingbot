@@ -7,6 +7,7 @@ from typing import Any
 
 class CheckStatus(Enum):
     """Status of a check operation."""
+
     PASSED = "passed"
     FAILED = "failed"
     SKIPPED = "skipped"

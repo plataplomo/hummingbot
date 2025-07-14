@@ -1,11 +1,10 @@
-"""Unit tests for BackpackRequestBuilder order management methods."""
+"""Unit tests for BackpackTradingRequestBuilder order management methods."""
 
 from decimal import Decimal
 from typing import Any
 
 import pytest
 
-from cyberdelta.apis.backpack.bp_request_builder import BackpackRequestBuilder
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawOrderCancelAllRequest,
     BackpackRawOrderCancelRequest,
@@ -15,6 +14,9 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetOpenOrdersParams,
     BackpackRawGetOrderHistoryParams,
     BackpackRawGetOrderParams,
+)
+from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
+    BackpackTradingRequestBuilder,
 )
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
@@ -34,9 +36,9 @@ class TestBuildPlaceOrderPayload:
         """Test build_place_order_payload for a GTC LIMIT order."""
         # Use integer client_order_id to match RawBpUint32 expectation
         client_order_id = 12345
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_spot,
-            side=buy_order_side,
+            order_side=buy_order_side,
             order_type=limit_order_type,
             quantity=standard_quantity,
             time_in_force=gtc_time_in_force,
@@ -72,9 +74,9 @@ class TestBuildPlaceOrderPayload:
         ioc_time_in_force: TimeInForce,
     ) -> None:
         """Test build_place_order_payload for an IOC MARKET order."""
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_btc_spot,
-            side=sell_order_side,
+            order_side=sell_order_side,
             order_type=market_order_type,
             quantity=Decimal("0.5"),
             time_in_force=ioc_time_in_force,
@@ -100,9 +102,9 @@ class TestBuildPlaceOrderPayload:
         gtc_time_in_force: TimeInForce,
     ) -> None:
         """Test build_place_order_payload for a post-only LIMIT order."""
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_eth_spot,
-            side=buy_order_side,
+            order_side=buy_order_side,
             order_type=limit_order_type,
             quantity=Decimal("1.0"),
             time_in_force=gtc_time_in_force,
@@ -134,13 +136,13 @@ class TestBuildPlaceOrderPayload:
         trigger_price: Decimal,
     ) -> None:
         """Test build_place_order_payload for a STOP_MARKET order."""
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_spot,
-            side=sell_order_side,
+            order_side=sell_order_side,
             order_type=stop_market_order_type,
             quantity=Decimal(5),
             time_in_force=gtc_time_in_force,
-            trigger_price=trigger_price,
+            stop_price=trigger_price,
         )
 
         assert isinstance(payload, BackpackRawOrderExecuteRequest)
@@ -168,14 +170,14 @@ class TestBuildPlaceOrderPayload:
         gtc_time_in_force: TimeInForce,
     ) -> None:
         """Test build_place_order_payload for a STOP_LIMIT order."""
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_eth_spot,
-            side=buy_order_side,
+            order_side=buy_order_side,
             order_type=stop_limit_order_type,
             quantity=Decimal("0.1"),
             time_in_force=gtc_time_in_force,
             price=Decimal(1700),
-            trigger_price=Decimal(1690),
+            stop_price=Decimal(1690),
         )
 
         assert isinstance(payload, BackpackRawOrderExecuteRequest)
@@ -208,9 +210,9 @@ class TestBuildPlaceOrderPayload:
         expected_side_str: str,
     ) -> None:
         """Test build_place_order_payload correctly maps order sides."""
-        payload = BackpackRequestBuilder.build_place_order_payload(
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_spot,
-            side=side,
+            order_side=side,
             order_type=OrderType.MARKET,
             quantity=Decimal(1),
             time_in_force=TimeInForce.IOC,
@@ -246,7 +248,7 @@ class TestBuildPlaceOrderPayload:
         elif order_type == OrderType.STOP_MARKET:
             kwargs["trigger_price"] = Decimal(100)
 
-        payload = BackpackRequestBuilder.build_place_order_payload(**kwargs)
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(**kwargs)
 
         assert isinstance(payload, BackpackRawOrderExecuteRequest)
         assert payload.orderType == expected_type_str
@@ -257,7 +259,9 @@ class TestBuildCancelOrderPayload:
 
     def test_build_cancel_order_payload_order_id(self, symbol_spot: str, order_id: str) -> None:
         """Test build_cancel_order_payload with order ID."""
-        payload = BackpackRequestBuilder.build_cancel_order_payload(symbol_spot, order_id=order_id)
+        payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
+            symbol_spot, order_id=order_id
+        )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -267,7 +271,7 @@ class TestBuildCancelOrderPayload:
     def test_build_cancel_order_payload_client_id(self, symbol_spot: str) -> None:
         """Test build_cancel_order_payload with client order ID."""
         client_order_id = 98765  # Use integer for RawBpUint32
-        payload = BackpackRequestBuilder.build_cancel_order_payload(
+        payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
             symbol_spot,
             client_order_id=str(client_order_id),
         )
@@ -279,7 +283,9 @@ class TestBuildCancelOrderPayload:
 
     def test_build_cancel_order_payload_formats_symbol(self, order_id: str) -> None:
         """Test build_cancel_order_payload formats symbol correctly."""
-        payload = BackpackRequestBuilder.build_cancel_order_payload("SOL-USDC", order_id=order_id)
+        payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
+            "SOL-USDC", order_id=order_id
+        )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -303,7 +309,7 @@ class TestBuildCancelOrderPayload:
     ) -> None:
         """Test build_cancel_order_payload with various combinations."""
         client_id_str = str(client_id_int) if client_id_int is not None else None
-        payload = BackpackRequestBuilder.build_cancel_order_payload(
+        payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
             symbol,
             order_id=order_id,
             client_order_id=client_id_str,
@@ -319,7 +325,7 @@ class TestBuildGetOpenOrdersParams:
 
     def test_build_get_open_orders_params_no_symbol(self) -> None:
         """Test build_get_open_orders_params without symbol."""
-        params = BackpackRequestBuilder.build_get_open_orders_params(None)
+        params = BackpackTradingRequestBuilder.build_get_open_orders_params(None)
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -328,7 +334,7 @@ class TestBuildGetOpenOrdersParams:
 
     def test_build_get_open_orders_params_with_symbol(self, symbol_spot: str) -> None:
         """Test build_get_open_orders_params with symbol."""
-        params = BackpackRequestBuilder.build_get_open_orders_params(symbol_spot)
+        params = BackpackTradingRequestBuilder.build_get_open_orders_params(symbol_spot)
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -336,7 +342,7 @@ class TestBuildGetOpenOrdersParams:
 
     def test_build_get_open_orders_params_formats_symbol(self) -> None:
         """Test build_get_open_orders_params formats symbol correctly."""
-        params = BackpackRequestBuilder.build_get_open_orders_params("SOL-USDC")
+        params = BackpackTradingRequestBuilder.build_get_open_orders_params("SOL-USDC")
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -357,7 +363,7 @@ class TestBuildGetOpenOrdersParams:
         expected_dict: dict[str, str],
     ) -> None:
         """Test build_get_open_orders_params with various symbols."""
-        params = BackpackRequestBuilder.build_get_open_orders_params(symbol)
+        params = BackpackTradingRequestBuilder.build_get_open_orders_params(symbol)
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
@@ -369,7 +375,7 @@ class TestBuildGetOrderParams:
 
     def test_build_get_order_params_basic(self, symbol_spot: str) -> None:
         """Test build_get_order_params with basic symbol."""
-        params = BackpackRequestBuilder.build_get_order_params(symbol_spot)
+        params = BackpackTradingRequestBuilder.build_get_order_params(symbol_spot)
 
         assert isinstance(params, BackpackRawGetOrderParams)
         params_dict = params.model_dump(by_alias=True)
@@ -377,7 +383,7 @@ class TestBuildGetOrderParams:
 
     def test_build_get_order_params_formats_symbol(self) -> None:
         """Test build_get_order_params formats symbol correctly."""
-        params = BackpackRequestBuilder.build_get_order_params("SOL-USDC")
+        params = BackpackTradingRequestBuilder.build_get_order_params("SOL-USDC")
 
         assert isinstance(params, BackpackRawGetOrderParams)
         params_dict = params.model_dump(by_alias=True)
@@ -397,7 +403,7 @@ class TestBuildGetOrderParams:
         expected_symbol: str,
     ) -> None:
         """Test build_get_order_params with various symbol formats."""
-        params = BackpackRequestBuilder.build_get_order_params(input_symbol)
+        params = BackpackTradingRequestBuilder.build_get_order_params(input_symbol)
 
         assert isinstance(params, BackpackRawGetOrderParams)
         params_dict = params.model_dump(by_alias=True)
@@ -415,10 +421,10 @@ class TestBuildGetOrderHistoryParams:
         order_id: str,
     ) -> None:
         """Test build_get_order_history_params with all fields."""
-        params = BackpackRequestBuilder.build_get_order_history_params(
+        params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol=symbol_spot,
-            start_time_ms=past_timestamp_ms,
-            end_time_ms=current_timestamp_ms,
+            start_time=past_timestamp_ms,
+            end_time=current_timestamp_ms,
             limit=50,
             order_id=order_id,
         )
@@ -437,12 +443,10 @@ class TestBuildGetOrderHistoryParams:
     def test_build_get_order_history_params_client_id(self, symbol_eth_spot: str) -> None:
         """Test build_get_order_history_params with client order ID."""
         client_order_id = 789012  # Use integer for RawBpUint32
-        params = BackpackRequestBuilder.build_get_order_history_params(
+        params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol=symbol_eth_spot,
-            client_order_id=str(client_order_id),
-            start_time_ms=None,
-            end_time_ms=None,
-            limit=None,
+            client_id=str(client_order_id),
+            # Use defaults for optional params
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -451,11 +455,9 @@ class TestBuildGetOrderHistoryParams:
 
     def test_build_get_order_history_params_minimal(self) -> None:
         """Test build_get_order_history_params with minimal parameters."""
-        params = BackpackRequestBuilder.build_get_order_history_params(
+        params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol=None,
-            start_time_ms=None,
-            end_time_ms=None,
-            limit=None,
+            # Use defaults for optional params
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -464,11 +466,9 @@ class TestBuildGetOrderHistoryParams:
 
     def test_build_get_order_history_params_formats_symbol(self) -> None:
         """Test build_get_order_history_params formats symbol correctly."""
-        params = BackpackRequestBuilder.build_get_order_history_params(
+        params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol="SOL-USDC",
-            start_time_ms=None,
-            end_time_ms=None,
-            limit=None,
+            # Use defaults for optional params
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -490,11 +490,11 @@ class TestBuildGetOrderHistoryParams:
         expected_base: dict[str, Any],
     ) -> None:
         """Test build_get_order_history_params with various parameters."""
-        params = BackpackRequestBuilder.build_get_order_history_params(
+        params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol=symbol,
-            start_time_ms=None,
-            end_time_ms=None,
-            limit=limit,
+            start_time=None,
+            end_time=None,
+            limit=limit if limit is not None else 100,
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
@@ -507,7 +507,7 @@ class TestBuildCancelAllOrdersPayload:
 
     def test_build_cancel_all_orders_payload_with_symbol(self, symbol_spot: str) -> None:
         """Test build_cancel_all_orders_payload with symbol."""
-        payload = BackpackRequestBuilder.build_cancel_all_orders_payload(symbol_spot)
+        payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload(symbol_spot)
 
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -515,7 +515,7 @@ class TestBuildCancelAllOrdersPayload:
 
     def test_build_cancel_all_orders_payload_formats_symbol(self) -> None:
         """Test build_cancel_all_orders_payload formats symbol correctly."""
-        payload = BackpackRequestBuilder.build_cancel_all_orders_payload("SOL-USDC")
+        payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload("SOL-USDC")
 
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
@@ -535,7 +535,7 @@ class TestBuildCancelAllOrdersPayload:
         expected_dict: dict[str, str],
     ) -> None:
         """Test build_cancel_all_orders_payload with various symbols."""
-        payload = BackpackRequestBuilder.build_cancel_all_orders_payload(symbol)
+        payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload(symbol)
 
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)

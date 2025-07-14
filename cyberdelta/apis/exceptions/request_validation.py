@@ -115,7 +115,7 @@ class PrecisionLossError(APIError):
 
         super().__init__(
             message=message,
-            code=APIErrorCode.INVALID_REQUEST.value,
+            code=APIErrorCode.PRECISION_ERROR.value,
             metadata={
                 "parameter_name": parameter_name,
                 "parameter_value": str(value),

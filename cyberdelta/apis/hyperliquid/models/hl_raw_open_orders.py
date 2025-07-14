@@ -20,7 +20,8 @@ order types, triggers, modification/cancellation, and exchange action/response.
 - See the Hyperliquid OpenAPI spec, SDK, and docs for field details and allowed values.
 
 **Authoritative Reference:**
-- Official Hyperliquid API documentation: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
+- Official Hyperliquid API documentation:
+  https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
@@ -349,19 +350,60 @@ class HyperliquidRawModifyOrderRequest(BaseModel):
 # Removing definitions from here to avoid duplication.
 
 
+# --- Order Status Models ---
+
+
+class HyperliquidRawOrderStatusOrder(BaseModel):
+    """Order details from order status response (matches actual API structure).
+
+    This model matches the actual API response structure which uses 'coin' instead of 'asset'
+    and has simpler field names compared to the full HyperliquidRawOrder model.
+    """
+
+    coin: RawAssetString64HL = Field(..., alias="coin")
+    side: RawSideStr = Field(..., alias="side")
+    limit_px: RawFiniteDecimalStr = Field(..., alias="limitPx")
+    sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="sz")
+    oid: RawNonNegativeInt = Field(..., alias="oid")
+    timestamp: RawTimestampMsInt = Field(..., alias="timestamp")
+    trigger_condition: str = Field(..., alias="triggerCondition")
+    is_trigger: RawStrictBool = Field(..., alias="isTrigger")
+    trigger_px: RawFiniteDecimalStr = Field(..., alias="triggerPx")
+    children: list[dict[str, object]] = Field(..., alias="children")
+    is_position_tpsl: RawStrictBool = Field(..., alias="isPositionTpsl")
+    reduce_only: RawStrictBool = Field(..., alias="reduceOnly")
+    order_type: str = Field(..., alias="orderType")
+    orig_sz: RawNonNegativeFiniteDecimalStr = Field(..., alias="origSz")
+    tif: str = Field(..., alias="tif")
+    cloid: RawOptionalCloidHL = Field(None, alias="cloid")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
+class HyperliquidRawOrderStatusInfo(BaseModel):
+    """Order status information from the API response."""
+
+    order: HyperliquidRawOrderStatusOrder = Field(..., alias="order")
+    status: str = Field(..., alias="status")
+    status_timestamp: RawTimestampMsInt = Field(..., alias="statusTimestamp")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
 class HyperliquidRawOrderStatusResponse(BaseModel):
     """Pydantic model for the response structure from Hyperliquid's /info endpoint.
 
     When querying order status (type='orderStatus').
 
-    Ensures the presence of the 'order' field and that it conforms to the
-    HyperliquidRawOrder model. Enforces immutability and forbids extra fields.
+    This model matches the actual API response structure which has a nested order field.
     """
 
-    order: HyperliquidRawOrder = Field(..., description="The details of the queried order.")
+    status: str = Field(..., alias="status")
+    order: HyperliquidRawOrderStatusInfo = Field(..., alias="order")
 
     model_config = ConfigDict(
         extra="forbid",
         frozen=True,
         validate_assignment=True,
+        populate_by_name=True,
     )

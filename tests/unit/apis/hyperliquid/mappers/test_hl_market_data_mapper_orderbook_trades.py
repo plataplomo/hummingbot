@@ -2,7 +2,7 @@
 
 --------------------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidMarketDataMapper order book and
+Comprehensive test suite for HyperliquidOrderBookMapper order book and
 trade transformation methods. Tests order book and trade processing including:
 - Order book transformations with various book structures
 - Trade transformations with different sides and validation
@@ -28,7 +28,9 @@ if TYPE_CHECKING:
 
 # Project-specific imports
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper import HyperliquidMarketDataMapper
+from cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper import (
+    HyperliquidOrderBookMapper,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawBookLevel,
     HyperliquidRawL2Book,
@@ -42,15 +44,15 @@ from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 
 
 # Alias for shorter method calls
-Mapper = HyperliquidMarketDataMapper
+Mapper = HyperliquidOrderBookMapper
 
 # --- Fixtures ---
 
 
 @pytest.fixture
-def market_data_mapper() -> HyperliquidMarketDataMapper:
-    """Provide an instance of HyperliquidMarketDataMapper."""
-    return HyperliquidMarketDataMapper()
+def market_data_mapper() -> HyperliquidOrderBookMapper:
+    """Provide an instance of HyperliquidOrderBookMapper."""
+    return HyperliquidOrderBookMapper()
 
 
 @pytest.fixture
@@ -134,7 +136,7 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_eth_happy_path(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
     ) -> None:
         """Test successful order book transformation for ETH-PERP."""
@@ -163,12 +165,12 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_with_depth_limit(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
     ) -> None:
         """Test order book transformation with depth limit."""
         raw_book = hyperliquid_raw_l2_book_eth_fixture
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book, depth=2)
+        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
         assert isinstance(order_book, OrderBook)
         # Should only have top 2 levels
@@ -183,7 +185,7 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_empty_book(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_l2_book_empty_fixture: HyperliquidRawL2Book,
     ) -> None:
         """Test order book transformation with empty book."""
@@ -197,7 +199,7 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_malformed_levels_structure(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test order book transformation with malformed levels structure."""
         # Create a malformed book with wrong structure
@@ -211,7 +213,7 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_high_precision_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test order book transformation with high precision values."""
         bid_levels = [
@@ -237,12 +239,12 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_zero_depth_limit(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
     ) -> None:
         """Test order book transformation with zero depth limit."""
         raw_book = hyperliquid_raw_l2_book_eth_fixture
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book, depth=0)
+        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
         # Should return empty order book
         assert len(order_book.bids) == 0
@@ -250,12 +252,12 @@ class TestTransformRawOrderBook:
 
     def test_order_book_transformation_large_depth_limit(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
     ) -> None:
         """Test order book transformation with depth limit larger than available levels."""
         raw_book = hyperliquid_raw_l2_book_eth_fixture
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book, depth=100)
+        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
         # Should return all available levels
         assert len(order_book.bids) == 3
@@ -263,7 +265,7 @@ class TestTransformRawOrderBook:
 
     def test_order_book_timestamp_conversion(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test order book timestamp conversion from milliseconds to datetime."""
         specific_time_ms = 1678886400000  # Fixed timestamp for reproducible test
@@ -287,7 +289,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_buy_happy_path(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     ) -> None:
         """Test successful trade transformation for BUY trade."""
@@ -310,7 +312,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_sell_happy_path(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_sell_fixture: HyperliquidRawPublicTrade,
     ) -> None:
         """Test successful trade transformation for SELL trade."""
@@ -326,7 +328,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_invalid_side_returns_none(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         mocker: MockerFixture,
     ) -> None:
         """Test that trade with invalid side raises TransformationError."""
@@ -344,7 +346,7 @@ class TestTransformRawPublicTradeToInternal:
 
         # Mock the static method on the class
         mock_map_side = mocker.patch.object(
-            HyperliquidMarketDataMapper,
+            HyperliquidOrderBookMapper,
             "_map_side_to_internal",
             side_effect=TransformationError("Unknown Hyperliquid order side: 'X'"),
         )
@@ -356,7 +358,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_zero_price_returns_none(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test that trade with zero price returns None."""
         raw_trade = HyperliquidRawPublicTrade(
@@ -375,7 +377,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_zero_quantity_returns_none(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test that trade with effectively zero quantity returns None."""
         # Use a very small positive value since raw model requires positive values
@@ -396,7 +398,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_high_precision_values(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test trade transformation with high precision values."""
         raw_trade = HyperliquidRawPublicTrade(
@@ -419,7 +421,7 @@ class TestTransformRawPublicTradeToInternal:
 
     def test_trade_transformation_timestamp_conversion(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test trade timestamp conversion from milliseconds to datetime."""
         specific_time_ms = 1678886400000  # Fixed timestamp for reproducible test
@@ -449,7 +451,7 @@ class TestTransformRawTrades:
 
     def test_transform_empty_trades_list(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test transformation of empty trades list."""
         result = market_data_mapper.transform_raw_trades([])
@@ -457,7 +459,7 @@ class TestTransformRawTrades:
 
     def test_transform_populated_trades_list(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
         hyperliquid_raw_public_trade_sell_fixture: HyperliquidRawPublicTrade,
     ) -> None:
@@ -476,7 +478,7 @@ class TestTransformRawTrades:
 
     def test_transform_trades_with_limit(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
         hyperliquid_raw_public_trade_sell_fixture: HyperliquidRawPublicTrade,
     ) -> None:
@@ -493,7 +495,7 @@ class TestTransformRawTrades:
 
     def test_transform_trades_limit_greater_than_list_size(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     ) -> None:
         """Test transformation with limit greater than available trades."""
@@ -506,7 +508,7 @@ class TestTransformRawTrades:
 
     def test_transform_trades_with_some_invalid_trades(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
@@ -550,7 +552,7 @@ class TestTransformRawTrades:
 
     def test_transform_trades_with_transformation_error(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
         mocker: MockerFixture,
         caplog: pytest.LogCaptureFixture,
@@ -569,17 +571,19 @@ class TestTransformRawTrades:
         )
 
         # Store the original method
-        original_transform = HyperliquidMarketDataMapper.transform_raw_public_trade_to_internal
+        original_transform = HyperliquidOrderBookMapper.transform_raw_public_trade_to_internal
 
         def mock_transform_side_effect(raw_trade: HyperliquidRawPublicTrade) -> Trade | None:
             """Return mock transform side effect for testing."""
             if raw_trade.coin == "ERROR-PERP":
                 raise ValueError("Simulated transformation error")
-            return original_transform(raw_trade)
+            result = original_transform(raw_trade)
+            # Ensure we return the correct type
+            return result if isinstance(result, Trade) else None
 
         # Patch the static method at the class level
         mocker.patch.object(
-            HyperliquidMarketDataMapper,
+            HyperliquidOrderBookMapper,
             "transform_raw_public_trade_to_internal",
             side_effect=mock_transform_side_effect,
         )
@@ -611,7 +615,7 @@ class TestTransformRawTrades:
 
     def test_transform_trades_zero_limit(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     ) -> None:
         """Test transformation with zero limit."""
@@ -630,7 +634,7 @@ class TestOrderBookAndTradeIntegration:
 
     def test_order_book_and_trade_consistency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
         hyperliquid_raw_l2_book_eth_fixture: HyperliquidRawL2Book,
         hyperliquid_raw_public_trade_buy_fixture: HyperliquidRawPublicTrade,
     ) -> None:
@@ -652,7 +656,7 @@ class TestOrderBookAndTradeIntegration:
 
     def test_large_order_book_transformation_efficiency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test efficient transformation of large order books."""
         # Create a large order book with many levels
@@ -673,7 +677,7 @@ class TestOrderBookAndTradeIntegration:
 
         # Transform with different depth limits
         full_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
-        limited_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book, depth=10)
+        limited_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
         assert len(full_book.bids) == 100
         assert len(full_book.asks) == 100
@@ -687,7 +691,7 @@ class TestOrderBookAndTradeIntegration:
 
     def test_multiple_trades_transformation_efficiency(
         self,
-        market_data_mapper: HyperliquidMarketDataMapper,
+        market_data_mapper: HyperliquidOrderBookMapper,
     ) -> None:
         """Test efficient transformation of multiple trades."""
         # Create multiple trades

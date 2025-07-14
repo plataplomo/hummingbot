@@ -479,7 +479,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with patch.object(bp_account_service, "_mapper", mock_mapper):
             result = await bp_account_service.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=symbol, limit=limit),
+                GetTradeHistoryArgs(symbol=symbol, limit=limit),
             )
 
         mock_request_builder.build_get_trade_history_params.assert_called_once_with(
@@ -536,7 +536,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=symbol, limit=limit),
+                GetTradeHistoryArgs(symbol=symbol, limit=limit),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -567,7 +567,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=symbol, limit=limit),
+                GetTradeHistoryArgs(symbol=symbol, limit=limit),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -594,7 +594,7 @@ class TestBackpackAccountServiceHistoryOperations:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_trade_history(args=GetTradeHistoryArgs(symbol=symbol))
+            await bp_account_service.get_trade_history(GetTradeHistoryArgs(symbol=symbol))
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
         assert "Unexpected service failure" in exc_info.value.message
@@ -617,7 +617,7 @@ class TestBackpackAccountServiceHistoryOperations:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="backpack_test",
-            mapper=custom_mapper,
+            transaction_mapper=custom_mapper,
         )
 
         # Test that custom mapper is used through behavior
@@ -662,7 +662,7 @@ class TestBackpackAccountServiceHistoryOperations:
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
             exchange_name="backpack_test",
-            mapper=None,  # Explicitly pass None
+            # No mapper parameters needed
         )
 
         # Test behavior that would require a mapper

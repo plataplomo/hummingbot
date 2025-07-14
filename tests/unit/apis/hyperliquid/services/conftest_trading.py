@@ -7,9 +7,14 @@ import pytest
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.hyperliquid.hl_request_builder import HyperliquidRequestBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseHandler
-from cyberdelta.apis.hyperliquid.mappers.hl_trading_data_mapper import HyperliquidTradingDataMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_response_mapper import (
+    HyperliquidOrderResponseMapper,
+)
+from cyberdelta.apis.hyperliquid.request_builders.hl_trading_request_builder import (
+    HyperliquidTradingRequestBuilder,
+)
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 
 
@@ -25,12 +30,12 @@ def mock_http_client_requester() -> AsyncMock:
 
 @pytest.fixture
 def mock_hl_request_builder() -> MagicMock:
-    """Mock for the HyperliquidRequestBuilder.
+    """Mock for the HyperliquidTradingRequestBuilder.
 
     Returns:
-        MagicMock: Mock HyperliquidRequestBuilder instance.
+        MagicMock: Mock HyperliquidTradingRequestBuilder instance.
     """
-    return MagicMock(spec=HyperliquidRequestBuilder)
+    return MagicMock(spec=HyperliquidTradingRequestBuilder)
 
 
 @pytest.fixture
@@ -44,13 +49,23 @@ def mock_get_asset_index_callable() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_hl_trading_mapper() -> MagicMock:
-    """Mock for the HyperliquidTradingDataMapper.
+def mock_hl_order_mapper() -> MagicMock:
+    """Mock for the HyperliquidOrderMapper.
 
     Returns:
-        MagicMock: Mock HyperliquidTradingDataMapper instance.
+        MagicMock: Mock HyperliquidOrderMapper instance.
     """
-    return MagicMock(spec=HyperliquidTradingDataMapper)
+    return MagicMock(spec=HyperliquidOrderMapper)
+
+
+@pytest.fixture
+def mock_hl_order_response_mapper() -> MagicMock:
+    """Mock for the HyperliquidOrderResponseMapper.
+
+    Returns:
+        MagicMock: Mock HyperliquidOrderResponseMapper instance.
+    """
+    return MagicMock(spec=HyperliquidOrderResponseMapper)
 
 
 @pytest.fixture
@@ -90,7 +105,8 @@ def make_hl_trading_service(
     mock_hl_response_handler: MagicMock,
     mock_authenticator: MagicMock,
     mock_get_asset_index_callable: AsyncMock,
-    mock_hl_trading_mapper: MagicMock,
+    mock_hl_order_mapper: MagicMock,
+    mock_hl_order_response_mapper: MagicMock,
     mock_hl_error_mapper: MagicMock,
 ) -> Callable[..., HyperliquidTradingService]:
     """Create factory for HyperliquidTradingService instances with mocked dependencies.
@@ -113,7 +129,8 @@ def make_hl_trading_service(
             exchange_name="hyperliquid_test_trading",
             wallet_address=wallet_address,
             get_asset_index_callable=mock_get_asset_index_callable,
-            trading_mapper=mock_hl_trading_mapper,
+            order_mapper=mock_hl_order_mapper,
+            order_response_mapper=mock_hl_order_response_mapper,
             error_mapper=mock_hl_error_mapper,
         )
 

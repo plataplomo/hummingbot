@@ -1,4 +1,4 @@
-"""Unit tests for BackpackResponseHandler market data response functionality."""
+"""Unit tests for BackpackMarketDataResponseHandler market data response functionality."""
 
 from decimal import Decimal
 from typing import Any, cast
@@ -7,7 +7,6 @@ import pytest
 import structlog.testing
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.bp_response_handler import BackpackResponseHandler
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawMarket,
@@ -17,6 +16,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
     BackpackRawRecentPublicTrade,
+)
+from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler import (
+    BackpackMarketDataResponseHandler,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.exceptions.field_validation import TypeFieldError
@@ -33,11 +35,11 @@ type RawJsonResponse = RawJson
 
 
 class TestHandleGetTickerResponse:
-    """Tests for BackpackResponseHandler.handle_get_ticker_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_ticker_response."""
 
     def test_valid(self, valid_raw_ticker: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw ticker response."""
-        ticker: BackpackRawTicker = BackpackResponseHandler.handle_get_ticker_response(
+        ticker: BackpackRawTicker = BackpackMarketDataResponseHandler.handle_get_ticker_response(
             cast("ParsedJsonResponse", valid_raw_ticker),
             symbol_spot,
             200,
@@ -56,7 +58,7 @@ class TestHandleGetTickerResponse:
         """Test ticker response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_ticker_response(
+            BackpackMarketDataResponseHandler.handle_get_ticker_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 400,
@@ -81,7 +83,7 @@ class TestHandleGetTickerResponse:
             "trades": "1250",
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_ticker_response(
+            BackpackMarketDataResponseHandler.handle_get_ticker_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -107,7 +109,7 @@ class TestHandleGetTickerResponse:
             "trades": "1250",
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_ticker_response(
+            BackpackMarketDataResponseHandler.handle_get_ticker_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -132,7 +134,7 @@ class TestHandleGetTickerResponse:
             "extraField": "should_be_ignored",
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_ticker_response(
+            BackpackMarketDataResponseHandler.handle_get_ticker_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -143,15 +145,17 @@ class TestHandleGetTickerResponse:
 
 
 class TestHandleGetOrderBookResponse:
-    """Tests for BackpackResponseHandler.handle_get_order_book_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_order_book_response."""
 
     def test_valid(self, valid_raw_order_book: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw order book response."""
-        order_book: BackpackRawOrderBook = BackpackResponseHandler.handle_get_order_book_response(
-            cast("ParsedJsonResponse", valid_raw_order_book),
-            symbol_spot,
-            200,
-            {},
+        order_book: BackpackRawOrderBook = (
+            BackpackMarketDataResponseHandler.handle_get_order_book_response(
+                cast("ParsedJsonResponse", valid_raw_order_book),
+                symbol_spot,
+                200,
+                {},
+            )
         )
         assert isinstance(order_book, BackpackRawOrderBook)
         assert len(order_book.bids) == 2
@@ -171,7 +175,7 @@ class TestHandleGetOrderBookResponse:
             "lastUpdateId": "update456",
             "timestamp": 1678886401000,
         }
-        order_book = BackpackResponseHandler.handle_get_order_book_response(
+        order_book = BackpackMarketDataResponseHandler.handle_get_order_book_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -190,7 +194,7 @@ class TestHandleGetOrderBookResponse:
             "timestamp": 1678886401000,
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_book_response(
+            BackpackMarketDataResponseHandler.handle_get_order_book_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -204,7 +208,7 @@ class TestHandleGetOrderBookResponse:
         """Test order book response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_order_book_response(
+            BackpackMarketDataResponseHandler.handle_get_order_book_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 400,
@@ -216,12 +220,12 @@ class TestHandleGetOrderBookResponse:
 
 
 class TestHandleGetRecentTradesResponse:
-    """Tests for BackpackResponseHandler.handle_get_recent_trades_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_recent_trades_response."""
 
     def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
         """Test handling a valid raw recent trades response."""
         trades: list[BackpackRawRecentPublicTrade] = (
-            BackpackResponseHandler.handle_get_recent_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
                 cast("ParsedJsonResponse", valid_raw_recent_trades),
                 symbol_spot,
                 200,
@@ -246,7 +250,7 @@ class TestHandleGetRecentTradesResponse:
     def test_empty_trades_list(self, symbol_spot: str) -> None:
         """Test handling empty recent trades response."""
         raw_data: list[Any] = []
-        trades = BackpackResponseHandler.handle_get_recent_trades_response(
+        trades = BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -270,7 +274,7 @@ class TestHandleGetRecentTradesResponse:
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_recent_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -292,7 +296,7 @@ class TestHandleGetRecentTradesResponse:
         }
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_recent_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -306,7 +310,7 @@ class TestHandleGetRecentTradesResponse:
         """Test recent trades response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_recent_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 400,
@@ -318,16 +322,18 @@ class TestHandleGetRecentTradesResponse:
 
 
 class TestHandleGetMarketDataResponse:
-    """Tests for BackpackResponseHandler.handle_get_market_data_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_market_data_response."""
 
     def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: str) -> None:
         """Test handling a valid raw market data (klines) response."""
-        klines: list[BackpackRawKline] = BackpackResponseHandler.handle_get_market_data_response(
-            cast("ParsedJsonResponse", valid_raw_market_data),
-            symbol_spot,
-            "1m",
-            200,
-            {},
+        klines: list[BackpackRawKline] = (
+            BackpackMarketDataResponseHandler.handle_get_market_data_response(
+                cast("ParsedJsonResponse", valid_raw_market_data),
+                symbol_spot,
+                "1m",
+                200,
+                {},
+            )
         )
         assert isinstance(klines, list)
         assert len(klines) == 2
@@ -343,7 +349,7 @@ class TestHandleGetMarketDataResponse:
     def test_empty_klines_list(self, symbol_spot: str) -> None:
         """Test handling empty market data response."""
         raw_data: list[Any] = []
-        klines = BackpackResponseHandler.handle_get_market_data_response(
+        klines = BackpackMarketDataResponseHandler.handle_get_market_data_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             "1m",
@@ -375,7 +381,7 @@ class TestHandleGetMarketDataResponse:
         raw_data = [valid_kline, {"not": "a_list"}]  # Invalid item
 
         with structlog.testing.capture_logs() as captured_logs:
-            klines = BackpackResponseHandler.handle_get_market_data_response(
+            klines = BackpackMarketDataResponseHandler.handle_get_market_data_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 "1m",
@@ -399,7 +405,7 @@ class TestHandleGetMarketDataResponse:
         """Test market data response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_market_data_response(
+            BackpackMarketDataResponseHandler.handle_get_market_data_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 "1m",
@@ -412,7 +418,7 @@ class TestHandleGetMarketDataResponse:
 
 
 class TestHandleGetHistoricalTradesResponse:
-    """Tests for BackpackResponseHandler.handle_get_historical_trades_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_historical_trades_response."""
 
     def test_valid(
         self,
@@ -421,7 +427,7 @@ class TestHandleGetHistoricalTradesResponse:
     ) -> None:
         """Test handling a valid raw historical trades response."""
         trades: list[BackpackRawPublicTrade] = (
-            BackpackResponseHandler.handle_get_historical_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_historical_trades_response(
                 cast("ParsedJsonResponse", valid_raw_historical_trades),
                 symbol_spot,
                 200,
@@ -450,7 +456,7 @@ class TestHandleGetHistoricalTradesResponse:
     def test_empty_historical_trades_list(self, symbol_spot: str) -> None:
         """Test handling empty historical trades response."""
         raw_data: list[Any] = []
-        trades = BackpackResponseHandler.handle_get_historical_trades_response(
+        trades = BackpackMarketDataResponseHandler.handle_get_historical_trades_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -474,7 +480,7 @@ class TestHandleGetHistoricalTradesResponse:
         }
         raw_data = [valid_trade, "not_a_dict"]  # Invalid item
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_historical_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_historical_trades_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -496,7 +502,7 @@ class TestHandleGetHistoricalTradesResponse:
         }
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_historical_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_historical_trades_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -511,7 +517,7 @@ class TestHandleGetHistoricalTradesResponse:
         """Test historical trades response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_historical_trades_response(
+            BackpackMarketDataResponseHandler.handle_get_historical_trades_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 400,
@@ -539,7 +545,7 @@ class TestMarketDataEdgeCases:
             "quoteVolume": "0.0",
             "trades": "0",
         }
-        ticker = BackpackResponseHandler.handle_get_ticker_response(
+        ticker = BackpackMarketDataResponseHandler.handle_get_ticker_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -557,7 +563,7 @@ class TestMarketDataEdgeCases:
             "lastUpdateId": "update789",
             "timestamp": 1678886401000,
         }
-        order_book = BackpackResponseHandler.handle_get_order_book_response(
+        order_book = BackpackMarketDataResponseHandler.handle_get_order_book_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -579,7 +585,7 @@ class TestMarketDataEdgeCases:
             "timestamp": 1678886402000,
         }
         raw_data = [trade_item]
-        trades = BackpackResponseHandler.handle_get_recent_trades_response(
+        trades = BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -607,7 +613,7 @@ class TestMarketDataEdgeCases:
             "0",  # ignore field
         ]
         raw_data = [minimal_kline]
-        klines = BackpackResponseHandler.handle_get_market_data_response(
+        klines = BackpackMarketDataResponseHandler.handle_get_market_data_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             "1m",
@@ -620,7 +626,7 @@ class TestMarketDataEdgeCases:
 
 
 class TestHandleGetMarketsResponse:
-    """Tests for BackpackResponseHandler.handle_get_markets_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_markets_response."""
 
     def test_valid_markets_list(self) -> None:
         """Test handling a valid raw markets response."""
@@ -658,7 +664,7 @@ class TestHandleGetMarketsResponse:
                 "createdAt": "2024-01-01T00:00:00.000Z",
             },
         ]
-        markets = BackpackResponseHandler.handle_get_markets_response(
+        markets = BackpackMarketDataResponseHandler.handle_get_markets_response(
             cast("ParsedJsonResponse", raw_data),
             status_code=200,
         )
@@ -673,7 +679,7 @@ class TestHandleGetMarketsResponse:
     def test_empty_markets_list(self) -> None:
         """Test handling an empty markets list."""
         raw_data: list[Any] = []
-        markets = BackpackResponseHandler.handle_get_markets_response(
+        markets = BackpackMarketDataResponseHandler.handle_get_markets_response(
             cast("ParsedJsonResponse", raw_data),
             status_code=200,
         )
@@ -684,7 +690,7 @@ class TestHandleGetMarketsResponse:
         """Test markets response with wrong top-level type."""
         raw_data = {"not": "a_list"}
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_markets_response(
+            BackpackMarketDataResponseHandler.handle_get_markets_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -718,7 +724,7 @@ class TestHandleGetMarketsResponse:
             },
         ]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_markets_response(
+            BackpackMarketDataResponseHandler.handle_get_markets_response(
                 cast("ParsedJsonResponse", raw_data),
                 status_code=200,
             )
@@ -748,7 +754,7 @@ class TestHandleGetMarketsResponse:
             for i in range(100)
         ]
 
-        markets = BackpackResponseHandler.handle_get_markets_response(
+        markets = BackpackMarketDataResponseHandler.handle_get_markets_response(
             cast("ParsedJsonResponse", raw_data),
             status_code=200,
         )
@@ -759,7 +765,7 @@ class TestHandleGetMarketsResponse:
 
 
 class TestHandleGetMarketResponse:
-    """Tests for BackpackResponseHandler.handle_get_market_response."""
+    """Tests for BackpackMarketDataResponseHandler.handle_get_market_response."""
 
     def test_valid_market(self, symbol_spot: str) -> None:
         """Test handling a valid raw market response."""
@@ -775,7 +781,7 @@ class TestHandleGetMarketResponse:
             "orderBookState": "NORMAL",
             "createdAt": "2024-01-01T00:00:00.000Z",
         }
-        market = BackpackResponseHandler.handle_get_market_response(
+        market = BackpackMarketDataResponseHandler.handle_get_market_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -792,7 +798,7 @@ class TestHandleGetMarketResponse:
         """Test market response with wrong top-level type."""
         raw_data = ["not", "a", "dict"]
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_market_response(
+            BackpackMarketDataResponseHandler.handle_get_market_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 400,
@@ -811,7 +817,7 @@ class TestHandleGetMarketResponse:
             # Missing required quoteSymbol, marketType, filters, orderBookState, createdAt
         }
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_market_response(
+            BackpackMarketDataResponseHandler.handle_get_market_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -841,7 +847,7 @@ class TestHandleGetMarketResponse:
             "createdAt": "2024-01-01T00:00:00.000Z",
         }
         with pytest.raises(TypeFieldError) as exc_info:
-            BackpackResponseHandler.handle_get_market_response(
+            BackpackMarketDataResponseHandler.handle_get_market_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol_spot,
                 200,
@@ -863,7 +869,7 @@ class TestHandleGetMarketResponse:
             "orderBookState": "NORMAL",
             "createdAt": "2024-01-01T00:00:00.000Z",
         }
-        market = BackpackResponseHandler.handle_get_market_response(
+        market = BackpackMarketDataResponseHandler.handle_get_market_response(
             cast("ParsedJsonResponse", raw_data),
             symbol_spot,
             200,
@@ -882,7 +888,7 @@ class TestHandleGetMarketResponse:
         symbol = "TEST_SYMBOL"
         raw_data = "not a dict"
         with pytest.raises(APIError) as exc_info:
-            BackpackResponseHandler.handle_get_market_response(
+            BackpackMarketDataResponseHandler.handle_get_market_response(
                 cast("ParsedJsonResponse", raw_data),
                 symbol,
                 404,
