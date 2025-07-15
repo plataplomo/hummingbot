@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.backpack.models.bp_common_raw_types import (
     RawBpFlexibleTimestamp,
+    RawBpIdStringMax64,
     RawBpNonEmptyStringMax64,
     RawBpNonNegativeInt,
     RawBpParsableFiniteDecimalString,
@@ -128,7 +129,7 @@ class BackpackRawPublicTradeEvent(BaseModel):
     quantity: RawBpParsableFiniteDecimalString = Field(..., alias="q")
     buyer_order_id: RawBpNonEmptyStringMax64 = Field(..., alias="b")
     seller_order_id: RawBpNonEmptyStringMax64 = Field(..., alias="a")
-    trade_id: RawBpNonEmptyStringMax64 = Field(..., alias="t")
+    trade_id: RawBpIdStringMax64 = Field(..., alias="t")
     engine_timestamp: RawBpFlexibleTimestamp = Field(..., alias="T")
     is_buyer_the_maker: RawBpStrictBool = Field(..., alias="m")
     model_config = ConfigDict(

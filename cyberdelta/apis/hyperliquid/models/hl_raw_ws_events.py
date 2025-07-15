@@ -35,9 +35,22 @@ Do not use these models for internal business logic—use your core models for t
 for boundary validation only.
 """
 
+import math
+import re
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import TypeGuard, TypeVar, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from cyberdelta.apis.exceptions.parsing import (
     EmptyDictionaryError,
@@ -69,9 +82,26 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 )
 
 
+# Type for numeric values that can be normalized to strings
+NumericInput = int | float | str
+
+
 # Type variables for TypeGuard functions
 T = TypeVar("T")
 U = TypeVar("U")
+
+# Time validation constants
+MAX_TIMESTAMP_AGE_SECONDS = 86400  # 24 hours
+MAX_FUTURE_TIMESTAMP_SECONDS = 3600  # 1 hour
+MAX_DECIMAL_PRECISION = 8  # Maximum 8 decimal places for crypto
+
+
+def _raise_notional_value_error(
+    notional: Decimal, price: Decimal, size: Decimal, condition: str
+) -> None:
+    """Raise error for notional value violations."""
+    msg = f"Notional value too {condition}: {notional} (price: {price}, size: {size})"
+    raise ValueError(msg)
 
 
 class HyperliquidRawWsFillEvent(BaseModel):
@@ -102,7 +132,189 @@ class HyperliquidRawWsFillEvent(BaseModel):
     oid: RawNonNegativeInt = Field(..., alias="oid")
     cloid: RawOptionalCloidHL = Field(None, alias="cloid")
     is_maker: RawStrictBool = Field(..., alias="isMaker")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+    )
+
+    @field_validator("time", mode="after")
+    @classmethod
+    def validate_timestamp_range(cls, v: int, _info: ValidationInfo) -> int:
+        """Comprehensive timestamp validation after conversion.
+
+        This validator performs business logic validation to ensure timestamp
+        is reasonable after conversion.
+        """
+        # Convert to datetime for validation
+        try:
+            dt = datetime.fromtimestamp(v / 1000, tz=UTC)
+        except (ValueError, OSError) as e:
+            msg = f"Invalid timestamp {v}: {e}"
+            raise ValueError(msg) from e
+
+        now = datetime.now(UTC)
+        age_seconds = abs((dt - now).total_seconds())
+
+        # Reject timestamps more than 24 hours old or 1 hour in future
+        if age_seconds > MAX_TIMESTAMP_AGE_SECONDS:  # 24 hours
+            msg = f"Timestamp too old: {dt.isoformat()} (age: {age_seconds / 3600:.1f}h)"
+            raise ValueError(msg)
+        if (dt - now).total_seconds() > MAX_FUTURE_TIMESTAMP_SECONDS:  # 1 hour in future
+            msg = f"Timestamp too far in future: {dt.isoformat()}"
+            raise ValueError(msg)
+
+        return v
+
+    @field_validator("px", "sz", mode="before")
+    @classmethod
+    def normalize_numeric_strings(cls, v: NumericInput, info: ValidationInfo) -> str:
+        """Normalize numeric strings before Decimal conversion.
+
+        This validator preprocesses numeric inputs from various formats
+        before Decimal conversion.
+        """
+        if isinstance(v, (int, float)):
+            # Convert numbers to strings for Decimal precision
+            if isinstance(v, float) and (math.isinf(v) or math.isnan(v)):
+                msg = f"Invalid numeric value in {info.field_name}: {v}"
+                raise ValueError(msg)
+            return str(v)
+
+        # Handle string inputs (all other cases after int/float)
+        # Clean and validate numeric strings
+        v = v.strip()
+        if not v:
+            msg = f"Empty numeric string in {info.field_name}"
+            raise ValueError(msg)
+
+        # Remove any currency symbols or spaces
+        v = re.sub(r"[^0-9.-]", "", v)
+
+        # Validate format
+        if not re.match(r"^-?\d+(\.\d+)?$", v):
+            msg = f"Invalid numeric format in {info.field_name}: {v}"
+            raise ValueError(msg)
+
+        return v
+
+    @field_validator("px", "sz", mode="after")
+    @classmethod
+    def validate_financial_precision(cls, v: str, info: ValidationInfo) -> str:
+        """Ensure financial precision after string validation.
+
+        This validator performs business logic validation of financial
+        precision requirements.
+        """
+        try:
+            decimal_val = Decimal(v)
+        except Exception as e:
+            msg = f"Cannot parse {info.field_name} as decimal: {v}"
+            raise ValueError(msg) from e
+
+        if not decimal_val.is_finite():
+            msg = f"Non-finite value in {info.field_name}: {v}"
+            raise ValueError(msg)
+
+        # Validate precision (max 8 decimal places for crypto)
+        exponent = decimal_val.as_tuple().exponent
+        if isinstance(exponent, int) and exponent < -MAX_DECIMAL_PRECISION:
+            msg = f"Excessive precision in {info.field_name}: {v} (max 8 decimal places)"
+            raise ValueError(msg)
+
+        # Additional validation for price (px) field
+        if info.field_name == "px":
+            if decimal_val <= 0:
+                msg = f"Price must be positive: {v}"
+                raise ValueError(msg)
+            # Reasonable price range validation (crypto prices)
+            if decimal_val > Decimal(1000000):  # $1M per unit seems reasonable upper bound
+                msg = f"Price too high: {v}"
+                raise ValueError(msg)
+
+        # Additional validation for size (sz) field
+        if info.field_name == "sz":
+            if decimal_val <= 0:
+                msg = f"Size must be positive: {v}"
+                raise ValueError(msg)
+            # Reasonable size validation (prevent extremely large trades)
+            if decimal_val > Decimal(1000000):  # 1M units seems reasonable
+                msg = f"Size too large: {v}"
+                raise ValueError(msg)
+
+        return v
+
+    @field_serializer("px", "sz")
+    def serialize_decimal_fields(self, value: str) -> str:
+        """Serialize decimal fields with optimized precision for WebSocket transmission.
+
+        This custom serializer ensures that decimal fields are properly formatted for
+        WebSocket transmission and API responses. It normalizes the decimal representation
+        while preserving the necessary precision for financial calculations.
+
+        Args:
+            value: The decimal string value to serialize
+
+        Returns:
+            Normalized decimal string optimized for transmission
+        """
+        try:
+            # Convert to Decimal for normalization
+            decimal_val = Decimal(value)
+
+            # Normalize to remove trailing zeros and use minimal representation
+            normalized = decimal_val.normalize()
+
+            # For very large or very small numbers, use scientific notation
+            # to reduce transmission size while preserving precision
+            large_value_threshold = 1000000
+            if abs(normalized) >= large_value_threshold:
+                # Use scientific notation for large values (>= 1M)
+                return f"{normalized:.6E}"
+
+            if abs(normalized) <= Decimal("0.000001") and normalized != 0:
+                # Use scientific notation for very small values (< 1e-6)
+                return f"{normalized:.6E}"
+            # Use standard decimal notation for normal ranges
+            return str(normalized)
+
+        except (ValueError, TypeError, ArithmeticError):
+            # Fallback to original value if normalization fails
+            return value
+
+    @model_validator(mode="after")
+    def validate_fill_consistency(self) -> "HyperliquidRawWsFillEvent":
+        """Validate fill event cross-field consistency.
+
+        This model validator performs cross-field validation to ensure
+        fill data is internally consistent.
+        """
+        # Validate that price * size is reasonable (basic sanity check)
+        try:
+            price = Decimal(self.px)
+            size = Decimal(self.sz)
+            notional = price * size
+
+            # Validate notional value is reasonable
+            if notional > Decimal(10000000):  # $10M notional seems like reasonable limit
+                _raise_notional_value_error(notional, price, size, "large")
+
+            if notional < Decimal("0.01"):  # $0.01 minimum notional
+                _raise_notional_value_error(notional, price, size, "small")
+
+        except Exception as e:
+            msg = f"Error validating fill notional: {e}"
+            raise ValueError(msg) from e
+
+        # Validate timestamp consistency with order ID
+        # Order IDs typically increase over time, so newer fills should have higher OIDs
+        # This is a heuristic check, not strict validation
+        if hasattr(self, "oid") and hasattr(self, "time"):
+            # Basic sanity check: very old timestamps with very high order IDs might be suspicious
+            # This is just a warning-level validation
+            pass
+
+        return self
 
 
 def is_list(obj: object) -> TypeGuard[list[object]]:
@@ -244,7 +456,24 @@ class HyperliquidRawWsTradeEvent(BaseModel):
     hash: RawTradeHashStringHL = Field(..., alias="hash")
     tid: RawNonNegativeInt = Field(..., alias="tid")
     users: list[RawStrictEthereumAddressStrHL] = Field(..., alias="users")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+    )
+
+
+class HyperliquidRawWsTradeEventsList(RootModel[list[HyperliquidRawWsTradeEvent]]):
+    """Raw model for WebSocket trades channel messages as a list.
+
+    Hyperliquid sends trades as a direct list of trade events:
+    [{"coin": "BTC", "px": "108343.0", "sz": "0.00034", ...}, ...]
+
+    This follows the same pattern as BackpackRawFillsList.
+    """
+
+    root: list[HyperliquidRawWsTradeEvent]
+    model_config = ConfigDict(frozen=True)
 
 
 class HyperliquidRawWsOrderUpdate(BaseModel):

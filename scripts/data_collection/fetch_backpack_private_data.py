@@ -8,14 +8,18 @@ Based on the OpenAPI specification (openapi_backpack.json), this script comprehe
 covers ALL private endpoints that require authentication.
 
 Usage:
-    python fetch_backpack_private_data.py --output-dir tests/fixtures/raw_api_data/backpack/private
-    python fetch_backpack_private_data.py --symbols SOL_USDC,BTC_USDC --output-dir fixtures/
+    From project root directory:
+    python scripts/data_collection/fetch_backpack_private_data.py \
+        --output-dir tests/fixtures/raw_api_data/backpack/private
+    python scripts/data_collection/fetch_backpack_private_data.py \
+        --symbols SOL_USDC,BTC_USDC --output-dir fixtures/
+
+    Note: This script must be run from the project root directory to ensure proper imports.
 """
 
 import argparse
 import asyncio
 import json
-import os
 import sys
 from http import HTTPStatus
 from pathlib import Path
@@ -23,25 +27,31 @@ from typing import Any
 
 import aiohttp
 
-
-# Add the project root to the Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-os.chdir(project_root)  # Change to project root to ensure imports work
-
-from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator  # noqa: E402
-from cyberdelta.config import get_app_settings, get_secrets_config  # noqa: E402
-from cyberdelta.config.logging_config import setup_logging  # noqa: E402
-from cyberdelta.config.structlog_config import get_logger  # noqa: E402
-from cyberdelta.exceptions.base import (  # noqa: E402
-    ConfigurationError,
+from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
+from cyberdelta.config import get_app_settings, get_secrets_config
+from cyberdelta.config.logging_config import setup_logging
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.base import (
     InvalidAuthTypeError,
     RequiredParameterError,
     SecretsNotLoadedError,
 )
+from cyberdelta.exceptions.configuration import ConfigurationError
 
 
-logger = get_logger(__name__)
+def _ensure_project_root() -> None:
+    """Ensure script is run from project root directory."""
+    current_dir = Path.cwd()
+    expected_files = ["pyproject.toml", "cyberdelta", "scripts"]
+
+    missing_files = [f for f in expected_files if not (current_dir / f).exists()]
+    if missing_files:
+        msg = (
+            f"This script must be run from the project root directory. "
+            f"Missing: {missing_files}. Current directory: {current_dir}"
+        )
+        sys.stderr.write(f"{msg}\n")
+        sys.exit(1)
 
 
 class BackpackPrivateDataCollector:
@@ -54,11 +64,11 @@ class BackpackPrivateDataCollector:
             output_dir: Directory where collected JSON data files will be saved
             session: Authenticated aiohttp session for making API requests
         """
+        self.logger = get_logger(__name__)
         self.output_dir = output_dir
         self.session = session
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Direct imports now available at top level
         authenticator_class = BackpackEd25519Authenticator
 
         # Initialize configuration and authenticator
@@ -91,15 +101,17 @@ class BackpackPrivateDataCollector:
                 private_key_b64_secret=backpack_secrets.api_secret,
             )
 
-            logger.info(
+            self.logger.info(
                 "api_base_url_configured: Using Backpack API base URL",
                 api_base_url=self.api_base_url,
             )
-            logger.info("symbols_configured: Configured symbols", symbols=self.configured_symbols)
-            logger.info("authenticator_initialized: Backpack authenticator initialized")
+            self.logger.info(
+                "symbols_configured: Configured symbols", symbols=self.configured_symbols
+            )
+            self.logger.info("authenticator_initialized: Backpack authenticator initialized")
 
         except (ValueError, ImportError, AttributeError, KeyError) as e:
-            logger.exception(
+            self.logger.exception(
                 "config_init_failed: Failed to load config or init authenticator", error=str(e)
             )
             raise
@@ -124,7 +136,7 @@ class BackpackPrivateDataCollector:
 
             url = f"{self.api_base_url}{path}"
 
-            logger.info(
+            self.logger.info(
                 "fetching_endpoint: Fetching endpoint", method=method, url=url, params=params
             )
 
@@ -148,10 +160,10 @@ class BackpackPrivateDataCollector:
             ) as response:
                 if response.status == HTTPStatus.OK.value:
                     response_data: dict[str, Any] = await response.json()
-                    logger.info("fetch_successful: Successfully fetched data", url=url)
+                    self.logger.info("fetch_successful: Successfully fetched data", url=url)
                     return response_data
                 error_text = await response.text()
-                logger.error(
+                self.logger.error(
                     "http_error: HTTP error occurred",
                     status=response.status,
                     url=url,
@@ -159,7 +171,7 @@ class BackpackPrivateDataCollector:
                 )
                 return None
         except (OSError, ConnectionError, TimeoutError, ValueError) as e:
-            logger.exception(
+            self.logger.exception(
                 "fetch_error: Error fetching endpoint", method=method, path=path, error=str(e)
             )
             return None
@@ -170,9 +182,11 @@ class BackpackPrivateDataCollector:
         try:
             with filepath.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
+            self.logger.info("fixture_saved: Saved fixture", filepath=str(filepath))
         except (OSError, UnicodeEncodeError, PermissionError) as e:
-            logger.exception("save_error: Error saving file", filepath=str(filepath), error=str(e))
+            self.logger.exception(
+                "save_error: Error saving file", filepath=str(filepath), error=str(e)
+            )
 
     # Account Management Endpoints
     async def fetch_account_info(self) -> None:
@@ -351,7 +365,7 @@ class BackpackPrivateDataCollector:
         # Note: Backpack /api/v1/position endpoint does not support symbol filtering
         # It returns all positions regardless of symbol parameter
         if symbol:
-            logger.warning(
+            self.logger.warning(
                 "position_filter_unsupported: Position endpoint doesn't support symbol filtering",
                 requested_symbol=symbol,
                 action="fetching_all_positions",
@@ -602,7 +616,7 @@ class BackpackPrivateDataCollector:
 
     async def _collect_account_management_data(self) -> None:
         """Collect account management data."""
-        logger.info("Fetching account management data...")
+        self.logger.info("Fetching account management data...")
         await self.fetch_account_info()
 
         # Test dust conversion for multiple assets
@@ -613,14 +627,14 @@ class BackpackPrivateDataCollector:
 
     async def _collect_capital_and_balance_data(self) -> None:
         """Collect capital and balance data."""
-        logger.info("Fetching capital and balance data...")
+        self.logger.info("Fetching capital and balance data...")
         await self.fetch_capital_balances()
         await self.fetch_capital_collateral()
         await self.fetch_collateral_info()
 
     async def _collect_account_limits_data(self, symbols: list[str]) -> None:
         """Collect account limits data for each symbol."""
-        logger.info("Fetching account limits data...")
+        self.logger.info("Fetching account limits data...")
         for symbol in symbols:
             await self.fetch_max_borrow_quantity(symbol)
             await self.fetch_max_order_quantity(symbol, "buy", "100.0")  # lowercase
@@ -630,7 +644,7 @@ class BackpackPrivateDataCollector:
 
     async def _collect_current_positions_data(self, symbols: list[str]) -> None:
         """Collect current trading positions data."""
-        logger.info("Fetching current trading positions...")
+        self.logger.info("Fetching current trading positions...")
         await self.fetch_position_summary()
         for symbol in symbols:
             await self.fetch_position_summary(symbol)
@@ -639,7 +653,7 @@ class BackpackPrivateDataCollector:
 
     async def _collect_current_orders_data(self, symbols: list[str]) -> None:
         """Collect current open orders data."""
-        logger.info("Fetching current open orders...")
+        self.logger.info("Fetching current open orders...")
         await self.fetch_open_orders()
         for symbol in symbols:
             await self.fetch_open_orders(symbol)
@@ -654,7 +668,7 @@ class BackpackPrivateDataCollector:
 
     async def _collect_deposits_withdrawals_data(self) -> None:
         """Collect deposits and withdrawals data."""
-        logger.info("Fetching deposit and withdrawal data...")
+        self.logger.info("Fetching deposit and withdrawal data...")
         await self.fetch_deposit_history(limit=50)
         await self.fetch_deposit_history(limit=100, offset=50)
         await self.fetch_withdrawal_history(limit=50)
@@ -668,7 +682,7 @@ class BackpackPrivateDataCollector:
 
     async def _collect_historical_trading_data(self, symbols: list[str]) -> None:
         """Collect historical trading data."""
-        logger.info("Fetching historical trading data...")
+        self.logger.info("Fetching historical trading data...")
 
         # Order history
         await self.fetch_order_history(limit=100)
@@ -709,7 +723,7 @@ class BackpackPrivateDataCollector:
 
     async def _collect_borrow_lend_data(self, symbols: list[str]) -> None:
         """Collect borrow/lend data."""
-        logger.info("Fetching borrow/lend data...")
+        self.logger.info("Fetching borrow/lend data...")
         await self.fetch_borrow_lend_history(limit=100)
         await self.fetch_borrow_lend_position_history(limit=100)
         await self.fetch_interest_history(limit=100)
@@ -723,14 +737,14 @@ class BackpackPrivateDataCollector:
 
     async def _collect_rfq_data(self) -> None:
         """Collect RFQ data."""
-        logger.info("Fetching RFQ data...")
+        self.logger.info("Fetching RFQ data...")
         await self.fetch_account_rfqs()
         await self.fetch_all_open_rfqs()
         await self.fetch_account_quotes()
 
     async def collect_all_private_data(self, symbols: list[str]) -> None:
         """Collect data from all private endpoints."""
-        logger.info("Starting comprehensive Backpack private data collection...")
+        self.logger.info("Starting comprehensive Backpack private data collection...")
 
         await self._collect_account_management_data()
         await self._collect_capital_and_balance_data()
@@ -742,7 +756,7 @@ class BackpackPrivateDataCollector:
         await self._collect_borrow_lend_data(symbols)
         await self._collect_rfq_data()
 
-        logger.info("Comprehensive Backpack private data collection completed!")
+        self.logger.info("Comprehensive Backpack private data collection completed!")
 
 
 async def main() -> None:
@@ -752,6 +766,10 @@ async def main() -> None:
     and runs the complete private data collection process across all authenticated
     Backpack API endpoints. Saves collected data as JSON fixtures for testing.
     """
+    # Ensure we're running from project root
+    _ensure_project_root()
+
+    logger = get_logger(__name__)
     parser = argparse.ArgumentParser(description="Fetch Backpack private API data")
     parser.add_argument(
         "--symbols",

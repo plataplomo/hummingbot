@@ -188,7 +188,7 @@ class TestGlobalRiskSettingsIntegration:
         )
 
         # Process multiple opportunities to build up exposure
-        opportunities = []
+        opportunities: list[ArbitrageOpportunity] = []
         for i in range(5):
             opp = high_value_opportunity.model_copy(deep=True)
             opp.symbol = f"SYMBOL{i}"
@@ -196,7 +196,7 @@ class TestGlobalRiskSettingsIntegration:
             opp.short_price = opp.long_price + Decimal(200)  # 2% spread
             opportunities.append(opp)
 
-        approved_positions = []
+        approved_positions: list[SizedOpportunity] = []
         total_exposure = Decimal(0)
 
         for opportunity in opportunities:

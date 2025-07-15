@@ -78,12 +78,6 @@ class AccountSettings(BaseModel):
         """
         if new_limit is not None:
             parsed = parse_decimal_value(new_limit, field_name="leverage_limit", allow_none=False)
-            if parsed is None:
-                raise DecimalFiniteError(
-                    field_name="leverage_limit",
-                    value=new_limit,
-                    context="and must be >= 1",
-                )
             if not parsed.is_finite():
                 raise DecimalFiniteError(
                     field_name="leverage_limit",

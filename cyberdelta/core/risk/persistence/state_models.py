@@ -9,6 +9,21 @@ from typing import Any
 from cyberdelta.core.risk.orchestrator.risk_manager_orchestrator import ProcessingStatus
 
 
+def _create_str_any_dict() -> dict[str, Any]:
+    """Create typed dict for dataclass fields."""
+    return {}
+
+
+def _create_str_int_dict() -> dict[str, int]:
+    """Create typed string to int dict for dataclass fields."""
+    return {}
+
+
+def _create_str_str_dict() -> dict[str, str]:
+    """Create typed string to string dict for dataclass fields."""
+    return {}
+
+
 class CheckStatus(Enum):
     """Status of individual checks."""
 
@@ -29,7 +44,7 @@ class CheckResult:
     message: str
     execution_time_ms: float
     timestamp: datetime
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -68,7 +83,7 @@ class SizingResult:
     confidence_score: float
     execution_time_ms: float
     timestamp: datetime
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -112,7 +127,7 @@ class ConstraintResult:
     applied_adjustments: dict[str, Any]
     execution_time_ms: float
     timestamp: datetime
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -220,10 +235,10 @@ class RiskManagerState:
 
     # Error tracking
     recent_errors: list[dict[str, Any]]
-    error_counts: dict[str, int] = field(default_factory=dict)
+    error_counts: dict[str, int] = field(default_factory=_create_str_int_dict)
 
     # Circuit breaker states
-    circuit_breaker_states: dict[str, str] = field(default_factory=dict)
+    circuit_breaker_states: dict[str, str] = field(default_factory=_create_str_str_dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""

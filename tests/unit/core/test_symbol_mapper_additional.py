@@ -11,10 +11,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
+    ExchangeNotSupportedError,
     SymbolMappingConfigurationError as InvalidConfigurationError,
 )
+from tests.unit.core.conftest import create_test_exchange_config
 
 
 class TestSymbolMapperInitialization:
@@ -26,7 +30,12 @@ class TestSymbolMapperInitialization:
     def test_init_success_minimal_valid_config(self, mock_logger: Mock) -> None:
         """Test initialization with minimal valid configuration."""
         # Arrange
-        config = {"exchange1": {"symbols": {"BTC": "BTC-PERP"}}}
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC-PERP"},
+            )
+        }
 
         # Act
         mapper = SymbolMapper(config)
@@ -42,8 +51,14 @@ class TestSymbolMapperInitialization:
         """Test initialization with multiple exchanges."""
         # Arrange
         config = {
-            "hyperliquid": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}},
-            "backpack": {"symbols": {"BTC": "BTC_PERP", "SOL": "SOL_PERP"}},
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={"BTC": "BTC_PERP", "SOL": "SOL_PERP"},
+            ),
         }
 
         # Act
@@ -72,16 +87,20 @@ class TestSymbolMapperInitialization:
     # ==================== EDGE CASES ====================
 
     @patch("cyberdelta.core.symbol_mapper.logger")
-    def test_init_edge_exchange_missing_symbols_key(self, mock_logger: Mock) -> None:
-        """Test initialization with exchange missing symbols key."""
+    def test_init_edge_disabled_exchange(self, mock_logger: Mock) -> None:
+        """Test initialization with disabled exchange."""
         # Arrange
         config = {
-            "exchange1": {
-                "enabled": True,
-                "api_key": "test",
-                # Missing "symbols" key
-            },
-            "exchange2": {"symbols": {"BTC": "BTC-PERP"}},
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC-PERP"},
+                enabled=False,  # Disabled
+            ),
+            "exchange2": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={"BTC": "BTC-PERP"},
+                enabled=True,
+            ),
         }
 
         # Act
@@ -91,70 +110,66 @@ class TestSymbolMapperInitialization:
         # Should skip exchange1 and only process exchange2
         assert len(mapper.get_all_internal_symbols()) == 1
         assert "BTC" in mapper.get_all_internal_symbols()
-        assert mapper.get_exchange_symbol("BTC", "exchange1") is None
+        with pytest.raises(ExchangeNotSupportedError):
+            mapper.get_exchange_symbol("BTC", "exchange1")
         assert mapper.get_exchange_symbol("BTC", "exchange2") == "BTC-PERP"
-        mock_logger.warning.assert_called()
+        mock_logger.info.assert_called()
 
     @patch("cyberdelta.core.symbol_mapper.logger")
-    def test_init_edge_symbols_not_dict(self, mock_logger: Mock) -> None:
-        """Test initialization with symbols as non-dict."""
-        # Arrange
-        config = {
-            "exchange1": {
-                "symbols": ["BTC", "ETH"]  # List instead of dict
-            },
-            "exchange2": {"symbols": {"BTC": "BTC-PERP"}},
-        }
-
-        # Act
-        mapper = SymbolMapper(config)
-
-        # Assert
-        # Should skip exchange1 and only process exchange2
-        assert len(mapper.get_all_internal_symbols()) == 1
-        assert "BTC" in mapper.get_all_internal_symbols()
-        assert mapper.get_exchange_symbol("BTC", "exchange1") is None
-        mock_logger.warning.assert_called()
-
-    @patch("cyberdelta.core.symbol_mapper.logger")
-    def test_init_edge_exchange_data_not_dict(self, mock_logger: Mock) -> None:
-        """Test initialization with exchange data as non-dict."""
-        # Arrange
-        config = {
-            "exchange1": "invalid_data",  # String instead of dict
-            "exchange2": {"symbols": {"BTC": "BTC-PERP"}},
-        }
-
-        # Act
-        mapper = SymbolMapper(config)
-
-        # Assert
-        # Should skip exchange1 and only process exchange2
-        assert len(mapper.get_all_internal_symbols()) == 1
-        assert "BTC" in mapper.get_all_internal_symbols()
-        mock_logger.warning.assert_called()
-
-    @patch("cyberdelta.core.symbol_mapper.logger")
-    def test_init_edge_symbol_value_not_string(self, mock_logger: Mock) -> None:
-        """Test initialization with symbol value as non-string."""
-        # Arrange
-        config = {
-            "exchange1": {
-                "symbols": {
-                    "BTC": "BTC-PERP",
-                    "ETH": 123,  # Invalid non-string value
-                    "SOL": "SOL-PERP",
-                }
+    def test_init_edge_empty_symbols(self, mock_logger: Mock) -> None:
+        """Test initialization with empty symbols fails in strict mode."""
+        # Arrange - empty symbols should fail validation
+        with pytest.raises(InvalidConfigurationError, match="has no symbol mappings"):
+            config = {
+                "exchange1": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    symbols={},  # Empty symbols
+                ),
             }
+            SymbolMapper(config)
+
+    @patch("cyberdelta.core.symbol_mapper.logger")
+    def test_init_edge_valid_single_exchange(self, mock_logger: Mock) -> None:
+        """Test initialization with single valid exchange."""
+        # Arrange
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC-PERP"},
+            ),
         }
 
         # Act
         mapper = SymbolMapper(config)
 
         # Assert
-        # Should skip ETH mapping but process BTC and SOL
+        assert len(mapper.get_all_internal_symbols()) == 1
+        assert "BTC" in mapper.get_all_internal_symbols()
+        mock_logger.info.assert_called()
+
+    @patch("cyberdelta.core.symbol_mapper.logger")
+    def test_init_edge_multiple_valid_symbols(self, mock_logger: Mock) -> None:
+        """Test initialization with multiple valid symbols."""
+        # Arrange
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={
+                    "BTC": "BTC-PERP",
+                    "ETH": "ETH-PERP",
+                    "SOL": "SOL-PERP",
+                },
+            )
+        }
+
+        # Act
+        mapper = SymbolMapper(config)
+
+        # Assert
+        # Should process all symbols
         all_symbols = mapper.get_all_internal_symbols()
         assert "BTC" in all_symbols
+        assert "ETH" in all_symbols
         assert "SOL" in all_symbols
         assert mapper.get_exchange_symbol("BTC", "exchange1") == "BTC-PERP"
         assert mapper.get_exchange_symbol("ETH", "exchange1") is None
@@ -167,7 +182,11 @@ class TestSymbolMapperInitialization:
         # that results from the internal duplicate handling logic.
 
         # Arrange - create a valid config with a symbol mapping
-        config = {"exchange1": {"symbols": {"BTC": "BTC-PERP"}}}
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP"}
+            )
+        }
         mapper = SymbolMapper(config)
 
         # Act & Assert - verify the public mapping works correctly
@@ -178,18 +197,23 @@ class TestSymbolMapperInitialization:
     def test_init_edge_duplicate_exchange_symbol(self, mock_logger: Mock) -> None:
         """Test initialization with duplicate exchange symbol."""
         # Arrange
-        config = {"exchange1": {"symbols": {"BTC": "SAME-SYMBOL"}}}
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "SAME-SYMBOL"}
+            )
+        }
         mapper = SymbolMapper(config)
 
         # Act - create a new mapper config that would have duplicate exchange symbol
         # Instead of using private method, test through public interface
         config_with_duplicate_exchange = {
-            "exchange1": {
-                "symbols": {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={
                     "BTC": "SAME-SYMBOL",
                     "ETH": "SAME-SYMBOL",  # Same exchange symbol for different internal
-                }
-            }
+                },
+            )
         }
         mapper = SymbolMapper(config_with_duplicate_exchange)
 
@@ -230,8 +254,12 @@ class TestSymbolMapperExchangeSymbolRetrieval:
     def sample_mapper(self) -> SymbolMapper:
         """Create a sample mapper for testing with test-specific config."""
         config = {
-            "hyperliquid": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}},
-            "backpack": {"symbols": {"BTC": "BTC_PERP", "SOL": "SOL_PERP"}},
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK, symbols={"BTC": "BTC_PERP", "SOL": "SOL_PERP"}
+            ),
         }
         return SymbolMapper(config)
 
@@ -288,8 +316,12 @@ class TestSymbolMapperInternalSymbolRetrieval:
     def sample_mapper(self) -> SymbolMapper:
         """Create a sample mapper for testing with test-specific config."""
         config = {
-            "hyperliquid": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}},
-            "backpack": {"symbols": {"BTC": "BTC_PERP", "SOL": "SOL_PERP"}},
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK, symbols={"BTC": "BTC_PERP", "SOL": "SOL_PERP"}
+            ),
         }
         return SymbolMapper(config)
 
@@ -348,13 +380,17 @@ class TestSymbolMapperAllInternalSymbols:
         """Test retrieval of all internal symbols with multiple symbols."""
         # Arrange
         config = {
-            "exchange1": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP", "SOL": "SOL-PERP"}},
-            "exchange2": {
-                "symbols": {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP", "SOL": "SOL-PERP"},
+            ),
+            "exchange2": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={
                     "BTC": "BTC_PERP",  # Same internal, different exchange
                     "DOGE": "DOGE_PERP",  # New internal symbol
-                }
-            },
+                },
+            ),
         }
         mapper = SymbolMapper(config)
 
@@ -369,7 +405,11 @@ class TestSymbolMapperAllInternalSymbols:
     def test_get_all_internal_symbols_success_single_symbol(self) -> None:
         """Test retrieval with single symbol."""
         # Arrange
-        config = {"exchange1": {"symbols": {"BTC": "BTC-PERP"}}}
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP"}
+            )
+        }
         mapper = SymbolMapper(config)
 
         # Act
@@ -383,45 +423,37 @@ class TestSymbolMapperAllInternalSymbols:
     def test_get_all_internal_symbols_edge_empty_config(self) -> None:
         """Test retrieval with empty configuration."""
         # Arrange
-        config: dict[str, Any] = {}
-        mapper = SymbolMapper(config)
+        config: dict[str, ExchangeSpecificConfig] = {}
 
-        # Act
-        symbols = mapper.get_all_internal_symbols()
-
-        # Assert
-        assert symbols == []
+        # Act & Assert - empty config should raise an error
+        with pytest.raises(InvalidConfigurationError):
+            SymbolMapper(config)
 
     def test_get_all_internal_symbols_edge_no_valid_exchanges(self) -> None:
         """Test retrieval when no exchanges have valid symbols."""
-        # Arrange
-        config = {
-            "exchange1": {
-                "enabled": False  # Missing symbols
-            },
-            "exchange2": {
-                "symbols": "invalid"  # Invalid symbols format
-            },
-        }
-        mapper = SymbolMapper(config)
-
-        # Act
-        symbols = mapper.get_all_internal_symbols()
-
-        # Assert
-        assert symbols == []
+        # Arrange - invalid configurations should raise errors during initialization
+        with pytest.raises(InvalidConfigurationError):
+            invalid_config = {
+                "exchange1": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID, enabled=False, symbols={}
+                ),
+            }
+            SymbolMapper(invalid_config)
 
     def test_get_all_internal_symbols_edge_duplicate_across_exchanges(self) -> None:
         """Test that duplicates across exchanges are deduplicated."""
         # Arrange
         config = {
-            "exchange1": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}},
-            "exchange2": {
-                "symbols": {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            ),
+            "exchange2": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={
                     "BTC": "BTC_PERP",  # Same internal symbol
                     "ETH": "ETH_PERP",  # Same internal symbol
-                }
-            },
+                },
+            ),
         }
         mapper = SymbolMapper(config)
 
@@ -440,9 +472,16 @@ class TestSymbolMapperExchangeSymbolsForInternal:
     def sample_mapper(self) -> SymbolMapper:
         """Create a sample mapper for testing."""
         config = {
-            "hyperliquid": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}},
-            "backpack": {"symbols": {"BTC": "BTC_PERP", "SOL": "SOL_PERP"}},
-            "kraken": {"symbols": {"BTC": "BTC/USD"}},
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK, symbols={"BTC": "BTC_PERP", "SOL": "SOL_PERP"}
+            ),
+            "kraken": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,  # Using HYPERLIQUID as placeholder for kraken
+                symbols={"BTC": "BTC/USD"},
+            ),
         }
         return SymbolMapper(config)
 
@@ -519,8 +558,13 @@ class TestSymbolMapperInternalSymbolsForExchange:
     def sample_mapper(self) -> SymbolMapper:
         """Create a sample mapper for testing."""
         config = {
-            "hyperliquid": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP", "SOL": "SOL-PERP"}},
-            "backpack": {"symbols": {"BTC": "BTC_PERP", "SOL": "SOL_PERP"}},
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP", "SOL": "SOL-PERP"},
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK, symbols={"BTC": "BTC_PERP", "SOL": "SOL_PERP"}
+            ),
         }
         return SymbolMapper(config)
 
@@ -582,20 +626,19 @@ class TestSymbolMapperInternalSymbolsForExchange:
 
     def test_get_internal_symbols_for_exchange_edge_exchange_no_symbols(self) -> None:
         """Test retrieval for exchange with no symbols configured."""
-        # Arrange
-        config = {
-            "exchange1": {
-                "enabled": True  # No symbols key
-            },
-            "exchange2": {"symbols": {"BTC": "BTC-PERP"}},
-        }
-        mapper = SymbolMapper(config)
-
-        # Act
-        mappings = mapper.get_internal_symbols_for_exchange("exchange1")
-
-        # Assert
-        assert mappings == {}
+        # Arrange - Invalid configuration should raise an error
+        with pytest.raises(InvalidConfigurationError):
+            invalid_config = {
+                "exchange1": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    enabled=True,
+                    symbols={},  # Empty symbols should fail
+                ),
+                "exchange2": create_test_exchange_config(
+                    ExchangeName.BACKPACK, symbols={"BTC": "BTC-PERP"}
+                ),
+            }
+            SymbolMapper(invalid_config)
 
 
 class TestSymbolMapperConfigValidationLogging:
@@ -607,7 +650,11 @@ class TestSymbolMapperConfigValidationLogging:
     def test_validation_success_logs_initialization(self, mock_logger: Mock) -> None:
         """Test that successful initialization logs appropriate messages."""
         # Arrange
-        config = {"exchange1": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}}}
+        config = {
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            )
+        }
 
         # Act
         SymbolMapper(config)
@@ -629,23 +676,20 @@ class TestSymbolMapperConfigValidationLogging:
 
     @patch("cyberdelta.core.symbol_mapper.logger")
     def test_validation_edge_logs_skipped_exchanges(self, mock_logger: Mock) -> None:
-        """Test that skipped exchanges are properly logged."""
-        # Arrange
-        config = {
-            "valid_exchange": {"symbols": {"BTC": "BTC-PERP"}},
-            "missing_symbols": {
-                "enabled": True  # No symbols key
-            },
-            "invalid_symbols": {
-                "symbols": "not_a_dict"  # Invalid symbols format
-            },
-            "invalid_exchange_data": "not_a_dict",  # Invalid exchange data
-        }
-
-        # Act
-        SymbolMapper(config)
-
-        # Assert
+        """Test that invalid configurations raise errors."""
+        # Arrange - Invalid configurations should raise errors
+        with pytest.raises(InvalidConfigurationError):
+            invalid_config = {
+                "valid_exchange": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP"}
+                ),
+                "missing_symbols": create_test_exchange_config(
+                    ExchangeName.BACKPACK,
+                    enabled=True,
+                    symbols={},  # Empty symbols should fail
+                ),
+            }
+            SymbolMapper(invalid_config)
         # Should have multiple warning calls for different validation failures
         assert mock_logger.warning.call_count >= 3
 
@@ -657,29 +701,23 @@ class TestSymbolMapperConfigValidationLogging:
 
     @patch("cyberdelta.core.symbol_mapper.logger")
     def test_validation_edge_logs_invalid_symbol_values(self, mock_logger: Mock) -> None:
-        """Test that invalid symbol values are properly logged."""
-        # Arrange
+        """Test that valid symbol values are properly processed."""
+        # Arrange - Valid configuration should work
         config = {
-            "exchange1": {
-                "symbols": {
-                    "BTC": "BTC-PERP",  # Valid
-                    "ETH": 123,  # Invalid - number
-                    "SOL": None,  # Invalid - None
-                    "DOGE": ["DOGE-PERP"],  # Invalid - list
-                }
-            }
+            "exchange1": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            ),
         }
 
         # Act
         SymbolMapper(config)
 
-        # Assert
-        # Should log warnings for invalid symbol values
-        warning_calls = mock_logger.warning.call_args_list
-        invalid_symbol_warnings = [
-            call for call in warning_calls if call[0][0] == "invalid_symbol_map_value"
-        ]
-        assert len(invalid_symbol_warnings) >= 3  # ETH, SOL, DOGE
+        # Assert - Should log successful initialization
+        mock_logger.info.assert_called_with(
+            "symbol_mapper_initialized",
+            exchanges_count=1,
+            symbols_count=2,
+        )
 
 
 class TestSymbolMapperComplexScenarios:
@@ -691,16 +729,23 @@ class TestSymbolMapperComplexScenarios:
         """Test complex scenario with multiple exchanges for arbitrage mapping."""
         # Arrange - Real-world-like configuration
         config = {
-            "hyperliquid": {
-                "symbols": {
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={
                     "BTC": "BTC-PERP",
                     "ETH": "ETH-PERP",
                     "SOL": "SOL-PERP",
                     "AVAX": "AVAX-PERP",
-                }
-            },
-            "backpack": {"symbols": {"BTC": "BTC_PERP", "ETH": "ETH_PERP", "SOL": "SOL_PERP"}},
-            "binance": {"symbols": {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "BNB": "BNBUSDT"}},
+                },
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={"BTC": "BTC_PERP", "ETH": "ETH_PERP", "SOL": "SOL_PERP"},
+            ),
+            "binance": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,  # Using HYPERLIQUID as placeholder
+                symbols={"BTC": "BTCUSDT", "ETH": "ETHUSDT", "BNB": "BNBUSDT"},
+            ),
         }
         mapper = SymbolMapper(config)
 
@@ -731,21 +776,24 @@ class TestSymbolMapperComplexScenarios:
         """Test scenario where different exchanges support different symbol sets."""
         # Arrange
         config = {
-            "major_exchange": {
-                "symbols": {
+            "major_exchange": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={
                     "BTC": "BTC-USD",
                     "ETH": "ETH-USD",
                     "SOL": "SOL-USD",
                     "AVAX": "AVAX-USD",
                     "DOGE": "DOGE-USD",
-                }
-            },
-            "altcoin_exchange": {
-                "symbols": {"DOGE": "DOGE-PERP", "SHIB": "SHIB-PERP", "PEPE": "PEPE-PERP"}
-            },
-            "defi_exchange": {
-                "symbols": {"UNI": "UNI-PERP", "AAVE": "AAVE-PERP", "COMP": "COMP-PERP"}
-            },
+                },
+            ),
+            "altcoin_exchange": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={"DOGE": "DOGE-PERP", "SHIB": "SHIB-PERP", "PEPE": "PEPE-PERP"},
+            ),
+            "defi_exchange": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"UNI": "UNI-PERP", "AAVE": "AAVE-PERP", "COMP": "COMP-PERP"},
+            ),
         }
         mapper = SymbolMapper(config)
 
@@ -770,39 +818,25 @@ class TestSymbolMapperComplexScenarios:
         assert doge_mappings["altcoin_exchange"] == "DOGE-PERP"
 
     def test_complex_scenario_edge_empty_and_invalid_mixed(self) -> None:
-        """Test complex scenario with mix of valid, empty, and invalid configurations."""
-        # Arrange
-        config: dict[str, dict[str, object]] = {
-            "valid_exchange": {"symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"}},
-            "empty_symbols": {
-                "symbols": {}  # Empty but valid
-            },
-            "missing_symbols": {
-                "api_key": "test123"  # Missing symbols key
-            },
-            "invalid_symbols": {"symbols": "not_a_dict"},
-            "mixed_valid_invalid": {
-                "symbols": {
-                    "SOL": "SOL-PERP",  # Valid
-                    "INVALID": 123,  # Invalid value
-                    "ALSO_VALID": "VALID-PERP",  # Valid
-                }
-            },
+        """Test complex scenario with valid configurations only."""
+        # Arrange - Only valid configurations should be used
+        config = {
+            "valid_exchange": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID, symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"}
+            ),
+            "mixed_valid": create_test_exchange_config(
+                ExchangeName.BACKPACK, symbols={"SOL": "SOL-PERP", "VALID": "VALID-PERP"}
+            ),
         }
         mapper = SymbolMapper(config)
 
         # Act & Assert
         all_symbols = mapper.get_all_internal_symbols()
-        # Should only include BTC, ETH, SOL, ALSO_VALID (4 symbols)
+        # Should only include BTC, ETH, SOL, VALID (4 symbols)
         assert len(all_symbols) == 4
-        assert set(all_symbols) == {"BTC", "ETH", "SOL", "ALSO_VALID"}
+        assert set(all_symbols) == {"BTC", "ETH", "SOL", "VALID"}
 
         # Valid exchanges should work
         assert mapper.get_exchange_symbol("BTC", "valid_exchange") == "BTC-PERP"
-        assert mapper.get_exchange_symbol("SOL", "mixed_valid_invalid") == "SOL-PERP"
-        assert mapper.get_exchange_symbol("ALSO_VALID", "mixed_valid_invalid") == "VALID-PERP"
-
-        # Invalid symbols should return None
-        assert mapper.get_exchange_symbol("INVALID", "mixed_valid_invalid") is None
-        assert mapper.get_exchange_symbol("BTC", "invalid_symbols") is None
-        assert mapper.get_exchange_symbol("BTC", "missing_symbols") is None
+        assert mapper.get_exchange_symbol("SOL", "mixed_valid") == "SOL-PERP"
+        assert mapper.get_exchange_symbol("VALID", "mixed_valid") == "VALID-PERP"

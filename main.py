@@ -219,12 +219,8 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
 
         # SymbolMapper is required by PortfolioTracker and ExecutionHandler
         exchanges_conf = config.exchanges
-        # Convert to dict[str, Any] for SymbolMapper
-        exchanges_conf_dict: dict[str, Any] = {}
-        for exchange_name, exchange_config in exchanges_conf.items():
-            exchanges_conf_dict[exchange_name] = exchange_config.model_dump()
-
-        symbol_mapper = SymbolMapper(exchanges_conf_dict)
+        # Pass typed config directly - no conversion needed!
+        symbol_mapper = SymbolMapper(exchanges_conf)
         app_state["symbol_mapper"] = symbol_mapper
 
         # PortfolioTracker expects Config, PortfolioTrackerConfig, and SymbolMapper

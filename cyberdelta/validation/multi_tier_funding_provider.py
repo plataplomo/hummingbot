@@ -8,7 +8,7 @@ confidence-scored funding rate data.
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Protocol, cast
+from typing import Any, Protocol, TypeGuard, cast
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions import (
@@ -29,6 +29,19 @@ from .funding_data import (
 
 
 logger = get_logger(__name__)
+
+
+def _is_config_dict(value: object) -> TypeGuard[dict[str, Any]]:
+    """Senior-level TypeGuard for configuration dictionary validation."""
+    return isinstance(value, dict)
+
+
+def _safe_repr(value: object) -> str:
+    """Senior-level safe representation function for logging unknown types."""
+    try:
+        return repr(value)
+    except (TypeError, ValueError, AttributeError, RecursionError):
+        return f"<unprintable {type(value).__name__} object>"
 
 
 class FundingRateValidatorProtocol(Protocol):
@@ -77,24 +90,25 @@ class MultiTierFundingProvider:
         self.default_accuracy_score = config.get("default_accuracy_score", 0.5)
         self.cache_ttl_seconds = config.get("cache_ttl_seconds", 300.0)  # 5 minutes default
 
-        # Weight configuration for confidence scoring
+        # Weight configuration for confidence scoring with TypeGuards for senior-level type safety
         funding_data = config.get("funding_data", {})
-        weights = funding_data.get("weights", {}) if isinstance(funding_data, dict) else {}
-        if not isinstance(weights, dict):
+        weights: dict[str, Any] = {}
+        if _is_config_dict(funding_data):
+            weights_raw = funding_data.get("weights", {})
+            if isinstance(weights_raw, dict):
+                weights = cast(dict[str, Any], weights_raw)
+
+        if not _is_config_dict(weights):
             logger.warning(
                 "invalid_funding_weights_config",
-                config_value=weights,
+                config_value=_safe_repr(weights),
                 action="using_defaults",
                 message="Invalid 'funding_data.weights' format in config, using defaults",
             )
             weights = {}
 
         # Ensure weights is a proper dict for validation methods
-        if weights:
-            weights_casted = cast("dict[str, Any]", weights)
-            weights_typed = dict(weights_casted)
-        else:
-            weights_typed = cast("dict[str, Any]", {})
+        weights_typed: dict[str, Any] = dict(weights) if weights else {}
 
         self.historical_accuracy_weight = self._validate_float_config(
             weights_typed,
@@ -119,19 +133,24 @@ class MultiTierFundingProvider:
         self.tertiary_sources: dict[str, Callable[..., Any]] = {}
         self.fallback_sources: dict[str, Callable[..., Any]] = {}
 
-        # --- Threshold Configuration with Type Validation ---
-        thresholds = funding_data.get("thresholds", {}) if isinstance(funding_data, dict) else {}
-        if not isinstance(thresholds, dict):
+        # --- Threshold Configuration with Type Validation using TypeGuards ---
+        thresholds: dict[str, Any] = {}
+        if _is_config_dict(funding_data):
+            thresholds_raw = funding_data.get("thresholds", {})
+            if isinstance(thresholds_raw, dict):
+                thresholds = cast(dict[str, Any], thresholds_raw)
+
+        if not _is_config_dict(thresholds):
             logger.warning(
                 "invalid_funding_thresholds_config",
-                config_value=thresholds,
+                config_value=_safe_repr(thresholds),
                 action="using_defaults",
                 message="Invalid 'funding_data.thresholds' format in config, using defaults",
             )
             thresholds = {}
 
-        # Cast to proper type for validation methods
-        thresholds_typed = cast("dict[str, Any]", thresholds)
+        # TypeGuard ensures this is safe - no cast needed
+        thresholds_typed: dict[str, Any] = dict(thresholds)
 
         self.min_confidence_score = self._validate_float_config(
             thresholds_typed,

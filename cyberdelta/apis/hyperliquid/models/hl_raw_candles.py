@@ -10,8 +10,8 @@ and real-time price series.
 
 **Boundary Validation Policy:**
 - Models in this file are used exclusively to validate and parse the *external* data
-  structures returned by Hyperliquid's 'candleSnapshot' endpoint, which provides OHLCV
-  (open, high, low, close, volume) data for assets.
+  structures returned by Hyperliquid's 'candleSnapshot' endpoint (REST) and 'candle'
+  WebSocket channel, which provide OHLCV (open, high, low, close, volume) data for assets.
 - All models enforce strict schema validation (`extra="forbid"`), strict type checking,
   and robust format validation (e.g., max length, finite decimals, valid UTF-8).
 - Any unexpected, malformed, or ambiguous fields in upstream data are immediately
@@ -28,8 +28,12 @@ and real-time price series.
 - Reverse-engineered OpenAPI spec: see openapi_hl.json
 - Official SDK: https://github.com/hyperliquid-dex/hyperliquid-python-sdk
 
-**Usage Example:**
+**Usage Examples:**
+    # REST API candle snapshot
     raw = HyperliquidRawCandleSnapshot.model_validate(api_response_dict)
+
+    # WebSocket candle message
+    raw_ws = HyperliquidRawWsCandle.model_validate(websocket_data)
     # ...then transform to internal candle model
 """
 
@@ -185,3 +189,47 @@ class HyperliquidRawCandleSnapshotRequestPayload(BaseModel):
     req: HyperliquidRawCandleRequestDetails
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
+# WebSocket Candle Models
+# -----------------------
+
+
+class HyperliquidRawWsCandle(BaseModel):
+    """Complete raw WebSocket candle message.
+
+    Based on actual observed WebSocket message structure:
+    {
+      "channel": "candle",
+      "data": {
+        "t": 1752198900000,
+        "s": "SOL",
+        "i": "1m",
+        "o": "164.12",
+        "c": "164.12",
+        "h": "164.12",
+        "l": "164.12",
+        "v": "36.5",
+        "n": 1
+      }
+    }
+
+    This model directly validates the 'data' field of the WebSocket message.
+    """
+
+    t: RawTimestampMsInt = Field(description="Timestamp in milliseconds")
+    T: RawTimestampMsInt = Field(description="Close timestamp in milliseconds")
+    s: RawDefaultString = Field(
+        description="Symbol/coin (e.g., 'SOL', 'BTC')", min_length=1, max_length=24
+    )
+    i: RawDefaultString = Field(
+        description="Interval (e.g., '1m', '5m', '1h')", min_length=1, max_length=8
+    )
+    o: RawFiniteDecimalStr = Field(description="Open price")
+    c: RawFiniteDecimalStr = Field(description="Close price")
+    h: RawFiniteDecimalStr = Field(description="High price")
+    l: RawFiniteDecimalStr = Field(description="Low price")  # noqa: E741
+    v: RawNonNegativeFiniteDecimalStr = Field(description="Volume")
+    n: int = Field(description="Number of trades", default=0)  # Optional field
+
+    model_config = ConfigDict(extra="forbid", frozen=True)

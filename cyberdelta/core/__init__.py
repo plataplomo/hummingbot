@@ -3,24 +3,39 @@
 from .balance_monitor import BalanceMonitor
 from .data_handler import DataHandler
 from .engine import Engine
-from .execution_handler import ExecutionHandler
+from .execution_handler import (
+    AverageFillPriceError,
+    ExecutionHandler,
+    LongExchangeCircuitBreakerError,
+    MissingClientError,
+    ShortExchangeCircuitBreakerError,
+    SymbolMappingError,
+)
+from .models.execution import ExecutionStatus, TradeExecution
 from .portfolio_tracker import PortfolioTracker
 from .risk_manager import RiskManager
 from .signal_generator import SignalGenerator
 from .signal_queue import PrioritySignalQueue  # Correct name
 from .strategy import Strategy
+from .symbol_mapper import SymbolMapper
 
 
 __all__ = [
-    # Core Components
+    "AverageFillPriceError",
     "BalanceMonitor",
     "DataHandler",
     "Engine",
     "ExecutionHandler",
+    "ExecutionStatus",
+    "LongExchangeCircuitBreakerError",
+    "MissingClientError",
     "PortfolioTracker",
-    # "SignalQueue",  # Incorrect name
-    "PrioritySignalQueue",  # Correct name
+    "PrioritySignalQueue",
     "RiskManager",
+    "ShortExchangeCircuitBreakerError",
     "SignalGenerator",
     "Strategy",
+    "SymbolMapper",
+    "SymbolMappingError",
+    "TradeExecution",
 ]

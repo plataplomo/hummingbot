@@ -113,8 +113,12 @@ risk:
   # --- Simple Sizing Path (Optional Alternative to Kelly) ---
   use_simple_sizing_path: true            # Default to standard Kelly sizing
   simple_sizing_method: "fixed_fraction" # Default method if simple path is enabled
-  simple_fixed_fraction: "0.1"           # Default fraction (1%) if method is fixed_fraction
+  simple_fixed_fraction: "0.01"          # Default fraction (1%) if method is fixed_fraction
   simple_fixed_usd_size: "10.0"          # Default USD size if method is fixed_usd
+
+  # Override default sizing settings to match our limits
+  sizing:
+    max_position_size: 200.0  # Match global max_position_usd
 
 # Execution parameters
 execution:

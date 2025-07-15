@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -611,7 +612,7 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler(context: WebSocketContextUnion) -> None:
             pass
 
         await api.subscribe("test.topic", test_handler)
@@ -639,7 +640,7 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler(context: WebSocketContextUnion) -> None:
             pass
 
         with structlog.testing.capture_logs() as captured_logs:
@@ -685,7 +686,7 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler(context: WebSocketContextUnion) -> None:
             pass
 
         # Test that subscribe uses _construct_subscription_payload
@@ -714,10 +715,10 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler1(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler1(context: WebSocketContextUnion) -> None:
             pass
 
-        async def test_handler2(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler2(context: WebSocketContextUnion) -> None:
             pass
 
         # Subscribe to multiple topics
@@ -811,7 +812,7 @@ class TestExchangeAPIWebSocketOperations:
             ws_manager=mock_ws,
         )
 
-        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler(context: WebSocketContextUnion) -> None:
             pass
 
         # Subscribe to a topic

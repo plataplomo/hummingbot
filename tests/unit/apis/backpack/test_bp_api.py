@@ -7,7 +7,6 @@ import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,6 +14,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
+from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -960,7 +960,7 @@ class TestBackpackAPIWebSocketOperations:
         api = bp_api_with_di()
 
         # Create a mock handler
-        async def mock_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def mock_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
         # Test subscription (this tests the public interface)
@@ -1002,7 +1002,7 @@ class TestBackpackAPIWebSocketOperations:
 
         message_received = False
 
-        async def test_handler(data: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def test_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             nonlocal message_received
             message_received = True

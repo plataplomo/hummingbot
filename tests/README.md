@@ -42,29 +42,36 @@ tests/
 Use pytest markers to categorize and run specific test types:
 
 ```bash
-# Run only unit tests
-pytest -m unit
-
 # Run only integration tests
 pytest -m integration
 
-# Skip slow tests
-pytest -m "not slow"
+# Run spot trading tests
+pytest -m spot
 
-# Skip file I/O tests
-pytest -m "not file_io"
+# Run perpetual trading tests
+pytest -m perp
 
-# Skip network-dependent tests
-pytest -m "not network"
+# Skip timing-dependent tests
+pytest -m "not timing"
+
+# Run safe tests only (zero balance)
+pytest -m zero_balance
+
+# Run cross-exchange tests
+pytest -m cross_exchange
 ```
 
 Available markers:
-- `@pytest.mark.unit` - Unit tests
 - `@pytest.mark.integration` - Integration tests
-- `@pytest.mark.slow` - Slow-running tests
-- `@pytest.mark.file_io` - Tests that perform file I/O
-- `@pytest.mark.network` - Tests requiring network access
-- `@pytest.mark.timing` - Tests with timing dependencies
+- `@pytest.mark.timing` - Tests with timing dependencies or slow execution
+- `@pytest.mark.spot` - Spot trading specific tests
+- `@pytest.mark.perp` - Perpetual/derivatives trading tests
+- `@pytest.mark.zero_balance` - Safe tests with zero balance (safe to run)
+- `@pytest.mark.requires_balance` - Tests requiring real money/balance (use with caution)
+- `@pytest.mark.shared` - Shared/common functionality tests
+- `@pytest.mark.cross_exchange` - Cross-exchange validation tests
+- `@pytest.mark.vcr` - VCR cassette recording for network isolation
+- `@pytest.mark.slow` - Alias for timing-dependent tests
 
 ## Running Tests
 

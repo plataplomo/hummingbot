@@ -12,7 +12,7 @@ delegating to decomposed service components. All services have been successfully
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
-from typing import Any, Literal, Never, overload
+from typing import Any, Literal, overload
 
 from pydantic import SecretStr
 
@@ -115,12 +115,6 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
-
-
-def _assert_never(value: Never) -> Never:
-    """Helper function for exhaustive checks."""
-    msg = f"Unhandled value: {value} ({type(value).__name__})"
-    raise AssertionError(msg)
 
 
 logger = get_logger(__name__)

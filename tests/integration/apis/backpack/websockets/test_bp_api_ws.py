@@ -17,12 +17,13 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.vcr]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -70,25 +71,16 @@ def get_websocket_topics_for_symbol(symbol: str) -> list[str]:
     return [f"ticker.{symbol}", f"depth.{symbol}", f"trades.{symbol}"]
 
 
-@pytest.mark.parametrize(
-    "custom_vcr_cassette_dir",
-    ["apis/backpack/websockets/basic"],
-    indirect=True,
-)
 class TestBackpackAPIWebSocketBasicOperations:
     """Test basic WebSocket operations using real market data."""
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_websocket_subscription_with_real_symbols(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test WebSocket subscription with real trading symbols from exchange."""
-        _ = custom_vcr_config
-
         # Get real symbols from exchange
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
 
@@ -101,12 +93,12 @@ class TestBackpackAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topics = get_websocket_topics_for_symbol(test_symbol)
 
-        async def test_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
-            """Test message handler for WebSocket data."""
+        async def test_handler(context: WebSocketContextUnion) -> None:
+            """Test context handler for WebSocket data."""
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
-                message=message,
+                message=context,
             )
 
         # Test subscription with real symbol
@@ -123,17 +115,13 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "WebSocket operations are critical and must work reliably.",
             )
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_multiple_subscriptions_real_symbols(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test multiple subscriptions with real trading symbols."""
-        _ = custom_vcr_config
-
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
 
         if len(available_symbols) < 2:
@@ -142,19 +130,19 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "WebSocket tests require multiple real market symbols.",
             )
 
-        async def handler1(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def handler1(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "handler1_message_received",
-                message=message,
+                message=context,
                 handler="Handler1",
             )
 
-        async def handler2(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def handler2(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "handler2_message_received",
-                message=message,
+                message=context,
                 handler="Handler2",
             )
 
@@ -177,26 +165,22 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "Multi-symbol WebSocket operations are critical for trading.",
             )
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_websocket_connection_status_validation(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test WebSocket connection status validation with fail-fast behavior."""
-        _ = custom_vcr_config
-
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
         topic = f"ticker.{test_symbol}"
 
-        async def status_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def status_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "status_handler_message_received",
-                message=message,
+                message=context,
                 handler="status_handler",
             )
 
@@ -230,37 +214,37 @@ class TestBackpackAPIWebSocketBasicOperations:
             )
 
 
-@pytest.mark.parametrize(
-    "custom_vcr_cassette_dir",
-    ["apis/backpack/websockets/lifecycle"],
-    indirect=True,
-)
 class TestBackpackAPIWebSocketLifecycle:
     """Test WebSocket connection lifecycle with real operations."""
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_subscription_lifecycle_real_data(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test complete subscription lifecycle with real market data."""
-        _ = custom_vcr_config
-
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
         topics = get_websocket_topics_for_symbol(test_symbol)
 
         received_messages: list[dict[str, Any]] = []
 
-        async def lifecycle_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def lifecycle_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
-            received_messages.append(message)
+
+            # Extract data from typed context
+            context_data = {}
+            if hasattr(context, "validated_envelope") and hasattr(
+                context.validated_envelope, "data"
+            ):
+                data = context.validated_envelope.data
+                context_data = data if isinstance(data, dict) else {"data": data}
+
+            received_messages.append(context_data)
             logger.info(
                 "lifecycle_handler_message_received",
-                message=message,
+                message=context_data,
                 handler="lifecycle_handler",
             )
 
@@ -279,14 +263,11 @@ class TestBackpackAPIWebSocketLifecycle:
             )
 
         # Test handler replacement with same topic
-        async def replacement_handler(
-            message: dict[str, Any],
-            full_message: dict[str, Any],
-        ) -> None:
+        async def replacement_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "replacement_handler_message_received",
-                message=message,
+                message=context,
                 handler="replacement_handler",
             )
 
@@ -303,17 +284,13 @@ class TestBackpackAPIWebSocketLifecycle:
                 "WebSocket handler management is critical for real-time data.",
             )
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_concurrent_subscriptions_real_symbols(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test concurrent subscriptions with multiple real symbols."""
-        _ = custom_vcr_config
-
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
 
         if len(available_symbols) < 3:
@@ -322,11 +299,11 @@ class TestBackpackAPIWebSocketLifecycle:
                 "Concurrent WebSocket operations require multiple real symbols.",
             )
 
-        async def concurrent_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def concurrent_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "concurrent_handler_message_received",
-                message=message,
+                message=context,
                 handler="concurrent_handler",
             )
 
@@ -352,30 +329,22 @@ class TestBackpackAPIWebSocketLifecycle:
             )
 
 
-@pytest.mark.parametrize(
-    "custom_vcr_cassette_dir",
-    ["apis/backpack/websockets/edge_cases"],
-    indirect=True,
-)
 class TestBackpackAPIWebSocketEdgeCases:
     """Test WebSocket edge cases with proper error handling."""
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_invalid_topic_format_handling(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test handling of invalid topic formats with fail-fast behavior."""
-        _ = custom_vcr_config
 
-        async def error_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def error_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "error_handler_message_received",
-                message=message,
+                message=context,
                 handler="error_handler",
             )
 
@@ -421,17 +390,13 @@ class TestBackpackAPIWebSocketEdgeCases:
                         message=f"✓ API correctly rejected invalid topic {invalid_topic}: {e}",
                     )
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_websocket_connection_establishment(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test WebSocket connection establishment with real endpoint."""
-        _ = custom_vcr_config
-
         # Test connection establishment
         try:
             await bp_api_for_test_env.connect_websocket()
@@ -455,26 +420,22 @@ class TestBackpackAPIWebSocketEdgeCases:
                 "WebSocket connectivity is critical for real-time trading data.",
             )
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_subscription_with_connection_sequence(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test subscription followed by connection establishment."""
-        _ = custom_vcr_config
-
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def sequence_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def sequence_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "sequence_handler_message_received",
-                message=message,
+                message=context,
                 handler="sequence_handler",
             )
 
@@ -501,25 +462,21 @@ class TestBackpackAPIWebSocketEdgeCases:
                 "Sequential WebSocket operations are critical for trading setup.",
             )
 
-    @pytest.mark.vcr
     @pytest.mark.asyncio
     @pytest.mark.timing
     async def test_rapid_subscription_operations_real_symbols(
         self,
         bp_api_for_test_env: BackpackAPI,
-        custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test rapid subscription operations with real symbols."""
-        _ = custom_vcr_config
-
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
 
-        async def rapid_handler(message: dict[str, Any], full_message: dict[str, Any]) -> None:
+        async def rapid_handler(context: WebSocketContextUnion) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "rapid_handler_message_received",
-                message=message,
+                message=context,
                 handler="rapid_handler",
             )
 

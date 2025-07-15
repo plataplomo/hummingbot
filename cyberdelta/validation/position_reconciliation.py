@@ -7,7 +7,7 @@ import asyncio
 from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation, getcontext
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeGuard, cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError
@@ -22,6 +22,17 @@ from cyberdelta.validation.models.discrepancy_detail import (
 
 
 logger = get_logger(__name__)
+
+
+def _is_api_clients_dict(value: object) -> TypeGuard[dict[str, ExchangeAPI]]:
+    """Senior-level TypeGuard for API clients dictionary validation."""
+    return isinstance(value, dict)
+
+
+def _is_discrepancy_list(value: object) -> TypeGuard[list[Any]]:
+    """TypeGuard to verify value is a list for type narrowing."""
+    return isinstance(value, list)
+
 
 # Type Aliases for parsed position data and errors
 type ErrorDict = dict[Literal["error", "message", "raw_data"], Any]
@@ -148,10 +159,10 @@ class PositionReconciliationSystem:
 
         # Get API clients safely
         api_clients_any = getattr(self._portfolio_tracker, "api_clients", None)
-        if not isinstance(api_clients_any, dict):
+        if not _is_api_clients_dict(api_clients_any):
             logger.error("PortfolioTracker api_clients is missing or not a dict.")
             return {}
-        api_clients: dict[str, ExchangeAPI] = cast("dict[str, ExchangeAPI]", api_clients_any)
+        api_clients: dict[str, ExchangeAPI] = api_clients_any
 
         self.last_check_time = now  # Update last check time *before* starting
 
@@ -316,20 +327,29 @@ class PositionReconciliationSystem:
 
     def _get_discrepancy_details(self, results: dict[str, Any]) -> list[DiscrepancyDetail] | None:
         """Extract and validate discrepancy details from results."""
-        discrepancy_details_list_any = results.get("discrepancies", [])
-        if not isinstance(discrepancy_details_list_any, list):
+        # Check if 'discrepancies' key exists and get its value
+        if "discrepancies" not in results:
+            return []
+
+        discrepancy_value = results["discrepancies"]
+        if not _is_discrepancy_list(discrepancy_value):
             logger.error(
                 "apply_corrections_invalid_discrepancies_type",
                 expected_type="list",
-                actual_type=type(discrepancy_details_list_any).__name__,
+                actual_type=type(discrepancy_value).__name__,
                 message=(
                     f"_apply_corrections: results['discrepancies'] is not a list. "
-                    f"Got: {type(discrepancy_details_list_any)}"
+                    f"Got: {type(discrepancy_value)}"
                 ),
             )
             return None
 
-        return [d for d in discrepancy_details_list_any if isinstance(d, DiscrepancyDetail)]
+        # TypeGuard ensures discrepancy_value is list[Any] now
+        # Senior-level type-safe filtering
+        filtered: list[DiscrepancyDetail] = [
+            item for item in discrepancy_value if isinstance(item, DiscrepancyDetail)
+        ]
+        return filtered
 
     def _process_single_discrepancy(
         self,
@@ -621,11 +641,11 @@ class PositionReconciliationSystem:
         if not isinstance(results_timestamp_dt, datetime):
             logger.warning(
                 "invalid_timestamp_type_in_results",
-                actual_type=str(type(results_timestamp_dt)),
+                actual_type=type(results_timestamp_dt).__name__,
                 expected_type="datetime",
                 message=(
                     f"Invalid 'timestamp' type in results dict: "
-                    f"{type(results_timestamp_dt)}. Cannot mark historical record."
+                    f"{type(results_timestamp_dt).__name__}. Cannot mark historical record."
                 ),
             )
             return
@@ -887,9 +907,9 @@ class PositionReconciliationSystem:
             message=f"PRS._reconcile_exchange: Starting for {exchange}",
         )
 
-        # Get API clients from portfolio tracker
+        # Get API clients from portfolio tracker with TypeGuard
         api_clients_any = getattr(self._portfolio_tracker, "api_clients", None)
-        if not isinstance(api_clients_any, dict):
+        if not _is_api_clients_dict(api_clients_any):
             self.logger.error(
                 "portfolio_tracker_missing_api_clients",
                 action="reconcile_exchange",
@@ -1371,11 +1391,11 @@ class PositionReconciliationSystem:
                 self.logger.warning(
                     "prs_reconcile_positions_invalid_api_position_type",
                     symbol=sym,
-                    actual_type=str(type(pos_data)),
+                    actual_type=type(pos_data).__name__,
                     expected_type="DerivativePosition",
                     message=(
                         f"PRS.reconcile_positions: Item '{sym}' in api_positions is not a "
-                        f"DerivativePosition for correction: {type(pos_data)}"
+                        f"DerivativePosition for correction: {type(pos_data).__name__}"
                     ),
                 )
 

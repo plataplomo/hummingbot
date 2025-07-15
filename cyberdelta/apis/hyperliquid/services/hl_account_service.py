@@ -72,6 +72,15 @@ from cyberdelta.utils.typing import ParsedJsonResponse
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+    from cyberdelta.core.models import (
+        DerivativePosition,
+        MarginAccountSummary,
+        Order,  # For order history
+        SpotBalance,
+        Trade,  # For trade history
+    )
+    from cyberdelta.core.models.account_settings import AccountSettings
+    from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 logger = get_logger(__name__)
 

@@ -16,16 +16,13 @@ import pytest
 from cyberdelta.config import AppSettings  # Updated import
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler  # Added DataHandler
-from cyberdelta.core.execution_handler import (
-    ExecutionHandler,
-    ExecutionStatus,
-    TradeExecution,
-)
+from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import (
     DerivativePosition,
     OrderSide,
     SpotBalance,  # Updated from Balance
 )
+from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio_tracker import PortfolioTracker  # Added PortfolioTracker
 from cyberdelta.core.risk_manager import (
     RiskManager,

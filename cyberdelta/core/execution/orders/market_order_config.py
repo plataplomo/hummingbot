@@ -114,7 +114,7 @@ class MarketOrderConfig(BaseModel):
                 allow_none=False,
                 field_name=f"slippage_by_symbol[{symbol}]",
             )
-            if parsed is None or not parsed.is_finite() or parsed <= Decimal(0):
+            if not parsed.is_finite() or parsed <= Decimal(0):
                 raise ValidationError.slippage_invalid_error(symbol, slippage)
 
         return v

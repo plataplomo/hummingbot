@@ -20,17 +20,11 @@ This module implements the Backpack exchange adapter for CyberDeltaEngine, inclu
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
-from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
-from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
-
-# Note: Request builders and response handlers are now created by the factory
-from cyberdelta.apis.backpack.bp_ws_message_router import BackpackWsMessageRouter
-from cyberdelta.apis.backpack.bp_ws_raw_message_handler import BackpackWsRawMessageHandler
+from cyberdelta.apis.backpack.bp_ws_router import BackpackWebSocketRouter
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models import BackpackRawWsSubscriptionRequest
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
@@ -39,46 +33,58 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import (
 )
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.common import MessageHandler
+from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError
 from cyberdelta.apis.exceptions.configuration import (
     RateLimitConfigurationError,
     TestnetConfigurationError,
 )
-from cyberdelta.apis.models.service_args_models import (
-    CancelOrderArgs,
-    GetAllOpenOrdersArgs,
-    GetFundingRatesArgs,
-    GetHistoricalFundingRatesArgs,
-    GetMarketArgs,
-    GetMarketDataArgs,
-    GetMarketsArgs,
-    GetOrderArgs,
-    GetOrderHistoryArgs,
-    GetTradeHistoryArgs,
-    PlaceOrderArgs,
-    TransferArgs,
-    UpdateAccountSettingsArgs,
-    WithdrawArgs,
-)
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import (
-    AccountSettings,
-    DerivativePosition,
-    FundingRate,
-    MarginAccountSummary,
-    Order,
-    SpotBalance,
-    Ticker,
-    Trade,
-)
-from cyberdelta.core.models.market import Candle, Market, OrderBook
-from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.exceptions.base import RequiredParameterError
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
+    from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
+    from cyberdelta.apis.backpack.models import BackpackRawWsSubscriptionRequest
+    from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
+    from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
+    from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
+    from cyberdelta.apis.common import MessageHandler
+    from cyberdelta.apis.models.service_args_models import (
+        CancelOrderArgs,
+        GetAllOpenOrdersArgs,
+        GetFundingRatesArgs,
+        GetHistoricalFundingRatesArgs,
+        GetMarketArgs,
+        GetMarketDataArgs,
+        GetMarketsArgs,
+        GetOrderArgs,
+        GetOrderHistoryArgs,
+        GetTradeHistoryArgs,
+        PlaceOrderArgs,
+        TransferArgs,
+        UpdateAccountSettingsArgs,
+        WithdrawArgs,
+    )
+    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+    from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
+    from cyberdelta.core.models import (
+        AccountSettings,
+        DerivativePosition,
+        FundingRate,
+        MarginAccountSummary,
+        Order,
+        SpotBalance,
+        Ticker,
+        Trade,
+    )
+    from cyberdelta.core.models.market import Candle, Market, OrderBook
+    from cyberdelta.core.models.market.order import CancelOrderResult
+    from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 
 logger = get_logger(__name__)
@@ -187,11 +193,17 @@ class BackpackAPI(ExchangeAPI):
             rate_limit_strategy=bp_strategy,
         )
 
-        # Initialize WebSocket message router
-        self._bp_ws_router = BackpackWsMessageRouter(
-            trading_data_mapper=self._bp_trading_data_mapper,
-            raw_ws_handler=BackpackWsRawMessageHandler(),
-            exchange_name=self.exchange_name,
+        # Initialize enhanced WebSocket router with new architecture
+        error_handler = BaseErrorHandler(exchange_name="backpack")
+        self._bp_ws_router = BackpackWebSocketRouter(
+            error_handler=error_handler,
+            order_book_mapper=factory.create_order_book_mapper(),
+            ticker_mapper=factory.create_ticker_mapper(),
+            trade_mapper=factory.create_trade_mapper(),
+            balance_mapper=factory.create_balance_mapper(),
+            position_mapper=factory.create_position_mapper(),
+            order_mapper=factory.create_trading_data_mapper(),
+            transaction_mapper=factory.create_transaction_mapper(),
         )
 
         # Use self._request directly, services will handle the tuple response

@@ -20,7 +20,7 @@ from cyberdelta.core.risk_manager import SizedOpportunity
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.execution_handler import ExecutionStatus, TradeExecution
+    from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 
 
 class ExecutionErrorType(Enum):

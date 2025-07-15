@@ -12,6 +12,16 @@ from cyberdelta.core.risk.exceptions.sizing_exceptions import ValidationFactorEr
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
+def _create_validation_factor_list() -> list["ValidationFactor"]:
+    """Create typed ValidationFactor list for dataclass fields."""
+    return []
+
+
+def _create_str_list() -> list[str]:
+    """Create typed string list for dataclass fields."""
+    return []
+
+
 # Constants
 HIGH_VOLATILITY_THRESHOLD = 0.5  # Threshold for high market volatility
 MODERATE_VOLATILITY_THRESHOLD = 0.3  # Threshold for moderate market volatility
@@ -94,7 +104,7 @@ class ValidationFactorResult:
     total_adjustment: Decimal
 
     # Individual factors
-    factors: list[ValidationFactor] = field(default_factory=list)
+    factors: list[ValidationFactor] = field(default_factory=_create_validation_factor_list)
 
     # Factor breakdown
     spread_factor: Decimal = Decimal("1.0")
@@ -108,8 +118,8 @@ class ValidationFactorResult:
 
     # Metadata
     calculation_timestamp: datetime | None = None
-    warnings: list[str] = field(default_factory=list)
-    applied_checks: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=_create_str_list)
+    applied_checks: list[str] = field(default_factory=_create_str_list)
 
     @property
     def adjustment_percentage(self) -> Decimal:

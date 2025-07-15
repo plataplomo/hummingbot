@@ -123,17 +123,27 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
         try:
             # Parse bid levels
             bids: list[tuple[Decimal, Decimal]] = []
-            for bid_level in raw_depth.bids:
-                price = parse_decimal_value(bid_level[0], allow_none=False, field_name="bid_price")
-                size = parse_decimal_value(bid_level[1], allow_none=False, field_name="bid_size")
-                bids.append((price, size))
+            if raw_depth.bids is not None:
+                for bid_level in raw_depth.bids:
+                    price = parse_decimal_value(
+                        bid_level[0], allow_none=False, field_name="bid_price"
+                    )
+                    size = parse_decimal_value(
+                        bid_level[1], allow_none=False, field_name="bid_size"
+                    )
+                    bids.append((price, size))
 
             # Parse ask levels
             asks: list[tuple[Decimal, Decimal]] = []
-            for ask_level in raw_depth.asks:
-                price = parse_decimal_value(ask_level[0], allow_none=False, field_name="ask_price")
-                size = parse_decimal_value(ask_level[1], allow_none=False, field_name="ask_size")
-                asks.append((price, size))
+            if raw_depth.asks is not None:
+                for ask_level in raw_depth.asks:
+                    price = parse_decimal_value(
+                        ask_level[0], allow_none=False, field_name="ask_price"
+                    )
+                    size = parse_decimal_value(
+                        ask_level[1], allow_none=False, field_name="ask_size"
+                    )
+                    asks.append((price, size))
 
             # Sort bids in descending order (highest price first) and asks in ascending order
             # (lowest price first)

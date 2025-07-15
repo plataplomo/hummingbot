@@ -29,6 +29,16 @@ from cyberdelta.core.risk.utils.volatility_calculator import (
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
+def _create_str_list() -> list[str]:
+    """Create typed string list for dataclass fields."""
+    return []
+
+
+def _create_str_any_dict() -> dict[str, Any]:
+    """Create typed dict for dataclass fields."""
+    return {}
+
+
 # Constants
 MIN_SNAPSHOTS_FOR_RISK_METRICS = 30  # Minimum snapshots needed for comprehensive risk metrics
 
@@ -59,8 +69,8 @@ class ProcessedOpportunity:
 
     # Check results
     check_passed: bool = False
-    check_warnings: list[str] = field(default_factory=list)
-    check_errors: list[str] = field(default_factory=list)
+    check_warnings: list[str] = field(default_factory=_create_str_list)
+    check_errors: list[str] = field(default_factory=_create_str_list)
 
     # Sizing results
     position_size_usd: Decimal = Decimal(0)
@@ -69,7 +79,7 @@ class ProcessedOpportunity:
 
     # Constraint results
     constraints_passed: bool = False
-    constraint_violations: list[str] = field(default_factory=list)
+    constraint_violations: list[str] = field(default_factory=_create_str_list)
 
     # Risk metrics
     expected_return: Decimal | None = None
@@ -85,7 +95,7 @@ class ProcessedOpportunity:
 
     # Metadata
     rejection_reason: str | None = None
-    processing_metadata: dict[str, Any] = field(default_factory=dict)
+    processing_metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     @property
     def is_approved(self) -> bool:

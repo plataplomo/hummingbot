@@ -781,7 +781,12 @@ class PortfolioTrackerConfig(BaseModel):
 
     data_freshness_seconds: int = Field(default=DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
     initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
-    initial_positions: list[dict[str, Any]] = Field(default_factory=list)
+    # PYRIGHT BUG: Known regression in pyright 1.1.399+ where Field(default_factory=list)
+    # with generic types is incorrectly reported as "partially unknown". This is a pyright
+    # static analysis bug, not a code issue. The type is fully known at runtime.
+    # See: https://github.com/microsoft/pyright/issues/10442
+    # TODO: Remove this ignore when pyright fixes the regression
+    initial_positions: list[dict[str, Any]] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
 
 
 class AppSettings(BaseModel):

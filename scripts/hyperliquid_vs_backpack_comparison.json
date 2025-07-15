@@ -1,0 +1,113 @@
+{
+  "analysis_type": "Exchange Protocol Comparison",
+  "timestamp": "2025-07-12T05:50:00Z",
+  "comparison_summary": {
+    "backpack": {
+      "connection_success": true,
+      "websocket_data_received": true,
+      "messages_analyzed": 1107,
+      "duration_seconds": 31.32,
+      "protocol_type": "incremental_updates",
+      "empty_orderbook_percentage": 100.0,
+      "problem_severity": "HIGH - 100% empty orderbooks"
+    },
+    "hyperliquid": {
+      "connection_success": true,
+      "websocket_data_received": false,
+      "messages_analyzed": 0,
+      "duration_seconds": 30,
+      "protocol_type": "unknown_due_to_no_data",
+      "empty_orderbook_percentage": "N/A",
+      "problem_severity": "Cannot determine - no live data on testnet"
+    }
+  },
+  "key_differences_identified": {
+    "websocket_topic_format": {
+      "backpack": "depth.SYMBOL (e.g., depth.SOL_USDC)",
+      "hyperliquid": "l2Book:SYMBOL (e.g., l2Book:BTC)"
+    },
+    "message_structure": {
+      "backpack": {
+        "incremental_updates": "Sends messages with null bids OR asks",
+        "example": {
+          "U": 2428241686,
+          "u": 2428241686,
+          "a": [["163.50", "24.97"]],
+          "b": [],
+          "e": "depth",
+          "s": "SOL_USDC"
+        }
+      },
+      "hyperliquid": {
+        "expected_structure": "Full L2 book snapshots with levels array",
+        "example": "No live data captured from testnet"
+      }
+    },
+    "data_transformation": {
+      "backpack": {
+        "model": "BackpackRawDepthUpdateEvent",
+        "mapper": "transform_ws_depth_event_to_internal",
+        "problem": "Creates empty OrderBook objects from incremental updates"
+      },
+      "hyperliquid": {
+        "model": "HyperliquidRawWsBookUpdate",
+        "mapper": "transform_ws_book_update_to_internal",
+        "problem": "Unknown - requires live data to analyze"
+      }
+    }
+  },
+  "architectural_insights": {
+    "backpack_protocol_analysis": {
+      "sends_incremental_updates": true,
+      "incremental_updates_have_null_data": true,
+      "creates_empty_orderbooks": true,
+      "frequency": "Very high - every message",
+      "impact": "Critical - all orderbooks are empty"
+    },
+    "hyperliquid_protocol_hypothesis": {
+      "expected_behavior": "Likely sends full L2 snapshots",
+      "reasoning": [
+        "HyperliquidRawWsBookUpdate model expects levels array with bids/asks",
+        "WebSocket topic format suggests snapshot-based updates",
+        "Testnet may have limited activity causing no live messages"
+      ]
+    }
+  },
+  "evidence_files": {
+    "backpack_live_proof": "scripts/live_backpack_evidence_20250712_054108.json",
+    "hyperliquid_live_proof": "No data captured - testnet inactive"
+  },
+  "conclusions": {
+    "backpack_problem_confirmed": {
+      "status": "CONFIRMED with live exchange data",
+      "severity": "HIGH",
+      "evidence": "1,107 real messages, 100% empty orderbooks"
+    },
+    "hyperliquid_comparison": {
+      "status": "INCONCLUSIVE due to testnet inactivity",
+      "hypothesis": "Likely uses complete orderbook snapshots",
+      "next_steps": "Need mainnet analysis or active testnet period"
+    },
+    "architectural_difference": {
+      "confirmed": "Backpack uses problematic incremental updates",
+      "hypothesis": "Hyperliquid likely uses complete snapshots",
+      "impact": "Suggests Backpack integration needs orderbook state management"
+    }
+  },
+  "recommendations": {
+    "immediate": [
+      "Fix Backpack integration with orderbook state management",
+      "Filter out empty incremental updates as temporary solution"
+    ],
+    "investigation": [
+      "Test Hyperliquid on mainnet or during active trading hours",
+      "Confirm Hyperliquid sends complete orderbook data",
+      "Validate transformation logic handles complete vs incremental data properly"
+    ],
+    "architectural": [
+      "Implement exchange-specific orderbook handling",
+      "Backpack: Maintain stateful orderbooks with incremental updates",
+      "Hyperliquid: Use direct transformation if complete data confirmed"
+    ]
+  }
+}

@@ -115,11 +115,7 @@ class MarginAccountSummary(BaseModel):
             raise FieldNameMissingError("validation")
         # Parse, explicitly handling None return from parser for required field
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-        if parsed is None:  # Should ideally be caught by allow_none=False in helper
-            raise RequiredFieldNoneError(
-                field_name=field_name,
-                reason="Required decimal value parsed as None or was invalid",
-            )
+        # allow_none=False ensures parsed is never None
 
         # Check finiteness. ge=0 handled by Field constraint.
         if not parsed.is_finite():
@@ -197,11 +193,7 @@ class HyperliquidMarginDetails(BaseModel):
 
         # Parse, explicitly handling None return from parser for required field
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-        if parsed is None:  # Should ideally be caught by allow_none=False in helper
-            raise RequiredFieldNoneError(
-                field_name=field_name,
-                reason="Required decimal value parsed as None or was invalid",
-            )
+        # allow_none=False ensures parsed is never None
 
         # Check finiteness. ge=0 handled by Field constraint.
         if not parsed.is_finite():

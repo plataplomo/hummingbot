@@ -70,12 +70,12 @@ def create_raw_ticker_event(
     """Create BackpackRawTickerEvent instances for WebSocket testing."""
     return BackpackRawTickerEvent(
         s=s,
-        lastPrice=last_price,
-        high=high,
-        low=low,
+        c=last_price,
+        h=high,
+        l=low,
         o=open_price,
-        volume=volume,
-        quoteVolume=quote_volume,
+        v=volume,
+        V=quote_volume,
         priceChangePercent=price_change_percent,
         e="ticker",  # Use literal value directly
         E=event_time,
@@ -83,24 +83,36 @@ def create_raw_ticker_event(
 
 
 def create_raw_depth_event(
+    symbol: str = "SOL_USDC",
     last_update_id: str = "12345",
+    first_update_id: str = "12340",
     bids: list[tuple[str, str]] | None = None,
     asks: list[tuple[str, str]] | None = None,
     event_time: int = 1705314600000,
-) -> BackpackRawDepthUpdateEvent:
-    """Create BackpackRawDepthUpdateEvent instances for WebSocket testing."""
+    engine_time: int = 1705314600001,
+) -> tuple[BackpackRawDepthUpdateEvent, str]:
+    """Create BackpackRawDepthUpdateEvent instances for WebSocket testing.
+
+    Returns:
+        tuple: (BackpackRawDepthUpdateEvent, symbol) - Raw event and symbol separately
+        as the symbol is not part of the raw event data but extracted from stream name.
+    """
     if bids is None:
         bids = [("100.25", "10.0")]
     if asks is None:
         asks = [("100.75", "8.0")]
 
-    return BackpackRawDepthUpdateEvent(
-        lastUpdateId=last_update_id,
-        b=bids,
-        a=asks,
+    raw_event = BackpackRawDepthUpdateEvent(
+        u=last_update_id,
+        U=first_update_id,
+        bids=bids,
+        asks=asks,
         e="depth",  # Use literal value directly
         E=event_time,
+        T=engine_time,
     )
+
+    return raw_event, symbol
 
 
 def create_raw_trade_event(
@@ -341,7 +353,7 @@ class TestWebSocketDepthEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawDepthUpdateEvent to OrderBook."""
-        raw_depth = create_raw_depth_event(
+        raw_depth, _ = create_raw_depth_event(
             last_update_id="12345",
             bids=[("100.25", "10.0"), ("100.00", "5.0")],
             asks=[("100.75", "8.0"), ("101.00", "12.0")],
@@ -363,7 +375,7 @@ class TestWebSocketDepthEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with empty bid/ask levels."""
-        raw_depth = create_raw_depth_event(
+        raw_depth, _ = create_raw_depth_event(
             bids=[],
             asks=[],
             event_time=test_timestamp_ms,
@@ -380,7 +392,7 @@ class TestWebSocketDepthEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with single bid/ask level."""
-        raw_depth = create_raw_depth_event(
+        raw_depth, _ = create_raw_depth_event(
             bids=[("100.25", "10.0")],
             asks=[("100.75", "8.0")],
             event_time=test_timestamp_ms,
@@ -403,7 +415,7 @@ class TestWebSocketDepthEventTransformation:
         bids = [(f"{100 - i * 0.01:.2f}", f"{(i + 1) * 10}.0") for i in range(10)]
         asks = [(f"{101 + i * 0.01:.2f}", f"{(i + 1) * 8}.0") for i in range(10)]
 
-        raw_depth = create_raw_depth_event(
+        raw_depth, _ = create_raw_depth_event(
             bids=bids,
             asks=asks,
             event_time=test_timestamp_ms,
@@ -422,7 +434,7 @@ class TestWebSocketDepthEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with extreme price/quantity values."""
-        raw_depth = create_raw_depth_event(
+        raw_depth, _ = create_raw_depth_event(
             bids=[("0.000001", "999999999.999999")],
             asks=[("1000000.000001", "0.000000001")],
             event_time=test_timestamp_ms,
@@ -439,7 +451,7 @@ class TestWebSocketDepthEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket depth event transformation errors are properly wrapped."""
-        raw_depth = create_raw_depth_event(event_time=test_timestamp_ms)
+        raw_depth, _ = create_raw_depth_event(event_time=test_timestamp_ms)
 
         with patch(
             "cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper.parse_decimal_value",
@@ -459,7 +471,7 @@ class TestWebSocketDepthEventTransformation:
     ) -> None:
         """Test WebSocket depth event transformation with different symbols."""
         symbols = ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"]
-        raw_depth = create_raw_depth_event(event_time=test_timestamp_ms)
+        raw_depth, _ = create_raw_depth_event(event_time=test_timestamp_ms)
 
         for symbol in symbols:
             result = order_book_mapper.transform_ws_depth_event_to_internal(symbol, raw_depth)

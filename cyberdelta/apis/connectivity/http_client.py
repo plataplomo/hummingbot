@@ -8,19 +8,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import ssl
 import urllib.parse
 from http import HTTPStatus
-from types import TracebackType
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import aiohttp
 from multidict import CIMultiDictProxy
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.authenticator_interface import (
-    AuthenticatedRequestComponents,
-    IAuthenticator,
-)
 from cyberdelta.apis.common import APIError, APIErrorCode
 
 # Import the model and constants from the new location
@@ -31,7 +27,18 @@ from cyberdelta.apis.connectivity.connectivity_models import (
 )
 from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError, UnreachableCodeError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.utils.typing import ParsedJsonResponse
+
+from .json_security import secure_json_loads
+
+
+if TYPE_CHECKING:
+    from types import TracebackType
+
+    from cyberdelta.apis.base.authenticator_interface import (
+        AuthenticatedRequestComponents,
+        IAuthenticator,
+    )
+    from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 logger = get_logger(__name__)
@@ -163,6 +170,11 @@ class HttpClient:
                         f"(external_session={self._external_session})."
                     ),
                 )
+                # Create SSL context with secure defaults
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = True
+                ssl_context.verify_mode = ssl.CERT_REQUIRED
+
                 # Create optimized connector for better connection pooling
                 connector = aiohttp.TCPConnector(
                     limit=100,  # Total connection pool size
@@ -170,6 +182,7 @@ class HttpClient:
                     ttl_dns_cache=300,  # DNS cache timeout in seconds
                     keepalive_timeout=30,  # Keep connections alive for 30s
                     force_close=False,  # Reuse connections
+                    ssl=ssl_context,  # Use secure SSL context
                 )
                 self._session = aiohttp.ClientSession(
                     headers={"User-Agent": f"CyberDeltaEngine/{self.exchange_name}"},
@@ -212,32 +225,15 @@ class HttpClient:
                     message=f"[{self.exchange_name}] Internal ClientSession already closed/None.",
                 )
 
-    async def _parse_and_validate_response(
-        self,
-        response: aiohttp.ClientResponse,
-        full_url: str,  # For logging context
-    ) -> tuple[
-        ParsedJsonResponse | str | None,
-        int,
-        ProcessedResponseHeaders,
-        CIMultiDictProxy[str],
-    ]:
-        """Parses the HTTP response, validates headers, and extracts content.
-
-        Returns content, status code, processed headers, and raw headers.
-
-        Raises HttpRequestFailedError for issues like invalid Content-Type, body read errors,
-        or JSON decoding failures.
-        """
-        response_text: str | None = None
-        raw_response_headers: CIMultiDictProxy[str] = response.headers
-
-        # Process relevant headers into the Pydantic model
+    def _validate_headers(
+        self, headers: CIMultiDictProxy[str], full_url: str
+    ) -> ProcessedResponseHeaders:
+        """Validate and process response headers."""
         try:
-            processed_content_type_str = raw_response_headers.get("Content-Type", "").lower()
-            processed_headers = ProcessedResponseHeaders(content_type=processed_content_type_str)
+            processed_content_type_str = headers.get("Content-Type", "").lower()
+            return ProcessedResponseHeaders(content_type=processed_content_type_str)
         except ValidationError as ve:
-            original_content_type = raw_response_headers.get("Content-Type", "")
+            original_content_type = headers.get("Content-Type", "")
             logger.warning(
                 "invalid_content_type_from_response",
                 action="parse_and_validate_response",
@@ -253,29 +249,15 @@ class HttpClient:
             )
             raise HttpRequestFailedError(
                 message=f"Invalid Content-Type header from server at {full_url}.",
-                http_status_code=response.status,
+                http_status_code=0,
                 response_body=f"Invalid Content-Type: {original_content_type}",
                 api_error_code=APIErrorCode.INVALID_RESPONSE,
             ) from ve
 
-        # Check for 204 No Content BEFORE attempting to read body
-        if response.status == HTTPStatus.NO_CONTENT.value:
-            logger.debug(
-                "received_204_no_content",
-                action="parse_and_validate_response",
-                exchange=self.exchange_name,
-                full_url=full_url,
-                message=f"[{self.exchange_name}] Received 204 No Content for {full_url}.",
-            )
-            return (
-                None,
-                response.status,
-                processed_headers,
-                raw_response_headers,
-            )  # Should have already returned
-
+    async def _read_response_body(self, response: aiohttp.ClientResponse, full_url: str) -> str:
+        """Read response body with error handling."""
         try:
-            response_text = await response.text()
+            return await response.text()
         except aiohttp.ClientPayloadError as e_payload:
             logger.warning(
                 "error_reading_response_body",
@@ -296,6 +278,97 @@ class HttpClient:
                 api_error_code=APIErrorCode.NETWORK_ISSUE,
             ) from e_payload
 
+    def _parse_json_response(
+        self, response_text: str, full_url: str, status_code: int
+    ) -> ParsedJsonResponse:
+        """Parse JSON response with security validation."""
+        try:
+            logger.debug(
+                "raw_json_response_text",
+                action="parse_and_validate_response",
+                response_text=response_text,
+                message=f"Raw JSON response_text in HttpClient: {response_text}",
+            )
+            parsed = secure_json_loads(response_text)
+            # Convert primitive types to expected format
+            if isinstance(parsed, dict | list | str):
+                return parsed
+            # Convert other valid JSON types to string representation
+            return str(parsed)
+        except json.JSONDecodeError as je:
+            logger.warning(
+                "json_decode_failed",
+                action="parse_and_validate_response",
+                exchange=self.exchange_name,
+                full_url=full_url,
+                status_code=status_code,
+                json_error=str(je),
+                response_text_preview=response_text[:70],
+                message=(
+                    f"[{self.exchange_name}] JSON decode failed for {full_url} "
+                    f"(status {status_code}). Error: {je}. Text: '{response_text[:70]}...'"
+                ),
+            )
+            raise HttpRequestFailedError(
+                message=f"Failed to decode JSON response from {full_url}. Status: {status_code}",
+                http_status_code=status_code,
+                response_body=response_text,
+                api_error_code=APIErrorCode.INVALID_RESPONSE,
+            ) from je
+        except ValueError as ve:
+            logger.warning(
+                "unsafe_json_response_detected",
+                action="parse_and_validate_response",
+                exchange=self.exchange_name,
+                full_url=full_url,
+                status_code=status_code,
+                security_error=str(ve),
+                response_size=len(response_text),
+                message=(
+                    f"[{self.exchange_name}] Unsafe JSON response from {full_url} "
+                    f"(status {status_code}). Security error: {ve}"
+                ),
+            )
+            raise HttpRequestFailedError(
+                message=f"Unsafe JSON response from {full_url}. Status: {status_code}. {ve}",
+                http_status_code=status_code,
+                response_body=f"Security violation: {ve}",
+                api_error_code=APIErrorCode.INVALID_RESPONSE,
+            ) from ve
+
+    async def _parse_and_validate_response(
+        self,
+        response: aiohttp.ClientResponse,
+        full_url: str,  # For logging context
+    ) -> tuple[
+        ParsedJsonResponse | str | None,
+        int,
+        ProcessedResponseHeaders,
+        CIMultiDictProxy[str],
+    ]:
+        """Parses the HTTP response, validates headers, and extracts content.
+
+        Returns content, status code, processed headers, and raw headers.
+
+        Raises HttpRequestFailedError for issues like invalid Content-Type, body read errors,
+        or JSON decoding failures.
+        """
+        raw_response_headers = response.headers
+        processed_headers = self._validate_headers(raw_response_headers, full_url)
+
+        # Check for 204 No Content BEFORE attempting to read body
+        if response.status == HTTPStatus.NO_CONTENT.value:
+            logger.debug(
+                "received_204_no_content",
+                action="parse_and_validate_response",
+                exchange=self.exchange_name,
+                full_url=full_url,
+                message=f"[{self.exchange_name}] Received 204 No Content for {full_url}.",
+            )
+            return (None, response.status, processed_headers, raw_response_headers)
+
+        response_text = await self._read_response_body(response, full_url)
+
         logger.debug(
             "response_received",
             action="parse_and_validate_response",
@@ -311,18 +384,8 @@ class HttpClient:
             ),
         )
 
-        # Double check 204, though it should be caught above. response.text() might be called.
-        if response.status == HTTPStatus.NO_CONTENT.value:
-            return (
-                None,
-                response.status,
-                processed_headers,
-                raw_response_headers,
-            )  # Should have already returned
-
-        # Ensure we don't try to parse JSON if there's no body, even if headers suggest it.
-        # This handles cases where response.text() might yield an empty string for an empty body.
-        if not response_text:  # Handles both None and empty string for non-204
+        # Handle empty response body
+        if not response_text:
             if "application/json" in processed_headers.content_type:
                 logger.warning(
                     "json_content_type_with_empty_body",
@@ -332,61 +395,22 @@ class HttpClient:
                     status_code=response.status,
                     message=(
                         f"[{self.exchange_name}] JSON content type, but response body is "
-                        f"empty/None "
-                        f"for {full_url} (status {response.status})."
+                        f"empty/None for {full_url} (status {response.status})."
                     ),
                 )
                 raise HttpRequestFailedError(
                     message=f"JSON content type with empty/None body from {full_url}",
                     http_status_code=response.status,
-                    response_body=response_text,  # Pass the original empty/None text
-                    api_error_code=APIErrorCode.INVALID_RESPONSE,  # Use the enum member directly
-                )
-            # If not JSON and empty, it could be valid (e.g. just headers)
-            return (None, response.status, processed_headers, raw_response_headers)
-
-        # For 200-299 (excluding 204 handled above)
-        if "application/json" in processed_headers.content_type:
-            try:
-                # Ensure response_text is a string for json.loads
-                # The check `if not response_text:` above handles None or empty string.
-                # So here, response_text should be a non-empty string.
-                logger.debug(
-                    "raw_json_response_text",
-                    action="parse_and_validate_response",
-                    response_text=response_text,
-                    message=f"Raw JSON response_text in HttpClient: {response_text}",
-                )
-                parsed_json: ParsedJsonResponse = json.loads(response_text)
-            except json.JSONDecodeError as je:
-                logger.warning(
-                    "json_decode_failed",
-                    action="parse_and_validate_response",
-                    exchange=self.exchange_name,
-                    full_url=full_url,
-                    status_code=response.status,
-                    content_type=processed_headers.content_type,
-                    json_error=str(je),
-                    response_text_preview=response_text[:70],
-                    message=(
-                        f"[{self.exchange_name}] JSON decode failed for {full_url} "
-                        f"(status {response.status}, type: {processed_headers.content_type}). "
-                        f"Error: {je}. Text: '{response_text[:70]}...'"
-                    ),
-                )
-                raise HttpRequestFailedError(
-                    message=(
-                        f"Failed to decode JSON response from {full_url}. Status: {response.status}"
-                    ),
-                    http_status_code=response.status,
                     response_body=response_text,
                     api_error_code=APIErrorCode.INVALID_RESPONSE,
-                ) from je
-            else:
-                return parsed_json, response.status, processed_headers, raw_response_headers
-        else:  # Not JSON, return raw text
-            # response_text is guaranteed to be non-None and non-empty at this point
-            return response_text, response.status, processed_headers, raw_response_headers
+                )
+            return (None, response.status, processed_headers, raw_response_headers)
+
+        # Parse JSON or return text based on content type
+        if "application/json" in processed_headers.content_type:
+            parsed_json = self._parse_json_response(response_text, full_url, response.status)
+            return parsed_json, response.status, processed_headers, raw_response_headers
+        return response_text, response.status, processed_headers, raw_response_headers
 
     async def request(
         self,

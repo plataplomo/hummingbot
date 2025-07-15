@@ -10,9 +10,11 @@ while providing a common contract for the base ExchangeAPI class.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 
 
 class RateLimitStrategy(ABC):

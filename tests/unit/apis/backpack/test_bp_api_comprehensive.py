@@ -52,9 +52,6 @@ from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
-pytestmark = pytest.mark.unit
-
-
 class TestBackpackAPIPublicBehavior:
     """Unit test suite for BackpackAPI focusing on method delegation and service interaction."""
 

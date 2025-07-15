@@ -8,7 +8,7 @@ import json
 import math
 from datetime import UTC, datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -504,14 +504,15 @@ class TestSerializationIntegration:
         # Act
         json_str = dump_json(original_data, indent=2)
         loaded_data = load_json(json_str)
-        assert isinstance(loaded_data, dict)
 
-        # Assert - access dict after type narrowing
-        loaded_dict: dict[str, Any] = loaded_data
+        # Assert - use type narrowing with explicit cast for senior-level type safety
+        assert isinstance(loaded_data, dict)
+        # Senior-level fix: Use cast to properly type the narrowed result
+        loaded_dict = cast(dict[str, Any], loaded_data)
         assert loaded_dict["decimal"] == "123.456789"
         assert loaded_dict["datetime"] == dt.isoformat()
         assert loaded_dict["numpy_int"] == 42
-        numpy_float_val = loaded_dict["numpy_float"]
+        numpy_float_val: Any = loaded_dict["numpy_float"]
         assert isinstance(numpy_float_val, float)
         assert abs(numpy_float_val - math.pi) < 0.00001
         assert loaded_dict["model"]["name"] == "test"

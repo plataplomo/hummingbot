@@ -960,11 +960,103 @@ type RawBpNonEmptyStringMax32 = Annotated[
 ]
 """Raw non-empty string, max_length=32."""
 
+
+def _validate_raw_symbol_string_max_len(v: object, info: ValidationInfo, max_length: int) -> str:
+    """Validate a symbol string with integer support (for WebSocket symbol fields).
+
+    Backpack WebSocket can send symbol as integer in some cases, so we convert it to string.
+
+    Returns:
+        Validated non-empty string.
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    field_name = info.field_name or f"raw_symbol_string_max{max_length}_field"
+
+    # Special handling for symbol field: Backpack WebSocket can send symbols as integers
+    if field_name in {"symbol", "s"}:
+        if isinstance(v, int):
+            # Convert integer to string for symbol
+            v = str(v)
+        elif not isinstance(v, str):
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="string or integer",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
+    elif not isinstance(v, str):
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
+
+    if not v.strip():  # Check for empty or whitespace-only string
+        raise EmptyStringError(field_name=field_name)
+
+    return validate_str_field(v, field_name=field_name, max_length=max_length, allow_empty=False)
+
+
 type RawBpNonEmptyStringMax64 = Annotated[
     str,
     BeforeValidator(lambda v, i: _validate_raw_non_empty_string_max_len(v, i, max_length=64)),
 ]
 """Raw non-empty string, max_length=64."""
+
+
+def _validate_raw_id_string_max_len(v: object, info: ValidationInfo, max_length: int) -> str:
+    """Validate an ID string with integer support (for WebSocket ID fields).
+
+    Backpack WebSocket can send ID fields as integers in some cases, so we convert them to strings.
+
+    Returns:
+        Validated non-empty string.
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    field_name = info.field_name or f"raw_id_string_max{max_length}_field"
+
+    # Special handling for ID fields: Backpack WebSocket can send IDs as integers
+    if field_name in {"first_update_id", "last_update_id", "U", "u", "trade_id", "t"}:
+        if isinstance(v, int):
+            # Convert integer to string for ID fields
+            v = str(v)
+        elif not isinstance(v, str):
+            raise TypeFieldError(
+                field_name=field_name,
+                expected_type="string or integer",
+                actual_type=type(v).__name__,
+                actual_value=v,
+            )
+    elif not isinstance(v, str):
+        raise TypeFieldError(
+            field_name=field_name,
+            expected_type="string",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
+
+    if not v.strip():  # Check for empty or whitespace-only string
+        raise EmptyStringError(field_name=field_name)
+
+    return validate_str_field(v, field_name=field_name, max_length=max_length, allow_empty=False)
+
+
+type RawBpSymbolStringMax64 = Annotated[
+    str,
+    BeforeValidator(lambda v, i: _validate_raw_symbol_string_max_len(v, i, max_length=64)),
+]
+"""Raw symbol string that can handle integers, max_length=64."""
+
+type RawBpIdStringMax64 = Annotated[
+    str,
+    BeforeValidator(lambda v, i: _validate_raw_id_string_max_len(v, i, max_length=64)),
+]
+"""Raw ID string that can handle integers, max_length=64."""
 
 type RawBpNonEmptyStringMax128 = Annotated[
     str,

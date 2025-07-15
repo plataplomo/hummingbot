@@ -20,14 +20,13 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.execution_handler import (
     ExecutionHandler,
-    ExecutionStatus,
     LongExchangeCircuitBreakerError,
     MissingClientError,
     ShortExchangeCircuitBreakerError,
     SymbolMappingError,
-    TradeExecution,
 )
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbol_mapper import SymbolMapper
@@ -629,20 +628,21 @@ class TestExecutionHandlerActiveExecutions:
         # Start execution (but don't await it)
         task = asyncio.create_task(execution_handler.execute_opportunity(sample_sized_opportunity))
 
-        # Give it a moment to start
-        await asyncio.sleep(0.1)
+        try:
+            # Give it a moment to start
+            await asyncio.sleep(0.1)
 
-        # Act
-        active = execution_handler.get_active_executions()
+            # Act
+            active = execution_handler.get_active_executions()
 
-        # Assert
-        assert len(active) == 1
-        assert active[0].opportunity == sample_sized_opportunity
-
-        # Clean up - cancel the hanging task
-        task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
+            # Assert
+            assert len(active) == 1
+            assert active[0].opportunity == sample_sized_opportunity
+        finally:
+            # Clean up - cancel the hanging task
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     # ==================== EDGE CASES ====================
 

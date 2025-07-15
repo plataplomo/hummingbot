@@ -5,7 +5,7 @@ including tickers, order books, and other market-related data structures.
 """
 
 import json
-from typing import Any
+from typing import Any, TypeGuard
 
 import pytest
 from pydantic import ValidationError
@@ -20,6 +20,19 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+
+
+def _is_nested_list_with_elements(value: object) -> TypeGuard[list[list[Any]]]:
+    """Senior-level TypeGuard for nested list structures in order book data."""
+    if not isinstance(value, list) or not value:
+        return False
+    # Check if first element is a list - sufficient for type narrowing
+    return isinstance(value[0], list)
+
+
+def _has_minimum_list_elements(value: list[Any], min_count: int) -> TypeGuard[list[Any]]:
+    """Senior-level TypeGuard for ensuring minimum list element count."""
+    return len(value) >= min_count
 
 
 # --- BackpackRawMarket ---
@@ -718,18 +731,18 @@ def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | No
     if field == "e" and not value:
         return True
 
-    # Check for empty strings in nested list structures
-    if field == "b" and isinstance(value, list) and value:
-        first_elem = value[0]
-        if isinstance(first_elem, list) and first_elem:
-            first_sub_elem = first_elem[0]
+    # Check for empty strings in nested list structures with TypeGuards for senior-level type safety
+    if field == "b" and _is_nested_list_with_elements(value):
+        first_elem = value[0]  # TypeGuard ensures this is list[Any]
+        if first_elem:  # Non-empty list
+            first_sub_elem: Any = first_elem[0]
             if not first_sub_elem:
                 return True
 
-    if field == "a" and isinstance(value, list) and value:
-        first_elem = value[0]
-        if isinstance(first_elem, list) and len(first_elem) > 1:
-            second_elem = first_elem[1]
+    if field == "a" and _is_nested_list_with_elements(value):
+        first_elem = value[0]  # TypeGuard ensures this is list[Any]
+        if _has_minimum_list_elements(first_elem, 2):
+            second_elem: Any = first_elem[1]
             if not second_elem:
                 return True
 

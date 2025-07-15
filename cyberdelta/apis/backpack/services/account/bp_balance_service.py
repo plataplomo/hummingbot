@@ -280,13 +280,12 @@ class BackpackBalanceService:
 
                     # When collateral data is available, update total_quantity to match
                     # the actual total from collateral (which includes lent amounts)
-                    if collateral_data.total_quantity is not None:
-                        collateral_total = parse_decimal_value(
-                            collateral_data.total_quantity,
-                            allow_none=False,
-                            field_name="total_quantity",
-                        )
-                        balance_dict["total_quantity"] = collateral_total
+                    collateral_total = parse_decimal_value(
+                        collateral_data.total_quantity,
+                        allow_none=False,
+                        field_name="total_quantity",
+                    )
+                    balance_dict["total_quantity"] = collateral_total
 
                     balances[symbol] = secure_transform(
                         data=balance_dict,

@@ -4,8 +4,9 @@ Tests multi-tier funding rate provider functionality with confidence scoring.
 Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases for each method.
 """
 
-# ruff: noqa: RUF029  # Async functions in tests must be async to match provider interface
+# Async functions in tests must be async to match provider interface
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import Mock
@@ -194,6 +195,7 @@ class TestRegisterSource:
 
         # Arrange
         async def mock_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         # Act
@@ -210,6 +212,7 @@ class TestRegisterSource:
 
         # Arrange
         async def mock_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002, "timestamp": datetime.now(UTC)}
 
         # Act
@@ -226,6 +229,7 @@ class TestRegisterSource:
 
         # Arrange
         async def mock_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0003, "timestamp": datetime.now(UTC)}
 
         # Act
@@ -240,6 +244,7 @@ class TestRegisterSource:
 
         # Arrange
         async def mock_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0004, "timestamp": datetime.now(UTC)}
 
         # Act
@@ -258,9 +263,11 @@ class TestRegisterSource:
 
         # Arrange
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001}
 
         async def secondary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002}
 
         # Act
@@ -286,9 +293,11 @@ class TestRegisterSource:
 
         # Arrange
         async def original_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001}
 
         async def replacement_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002}
 
         # Register original
@@ -347,9 +356,11 @@ class TestGetFundingRate:
 
         # Arrange
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         async def secondary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.00015, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -407,9 +418,11 @@ class TestGetFundingRate:
 
         # Arrange
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary source failed")
 
         async def fallback_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0005, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -434,9 +447,11 @@ class TestGetFundingRate:
 
         # Arrange
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         async def failing_secondary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise KeyError("Secondary source failed")
 
         provider.register_source(
@@ -475,9 +490,11 @@ class TestGetFundingRate:
 
         # Arrange
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         async def failing_fallback(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise RuntimeError("Fallback failed")
 
         provider.register_source(
@@ -499,6 +516,7 @@ class TestGetFundingRate:
 
         # Arrange
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         provider.register_source(
@@ -524,6 +542,7 @@ class TestGetPrimaryFundingRate:
 
         # Arrange
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -549,6 +568,7 @@ class TestGetPrimaryFundingRate:
         naive_timestamp = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None)
 
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": naive_timestamp}
 
         provider.register_source(
@@ -573,6 +593,7 @@ class TestGetPrimaryFundingRate:
         timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
 
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": timestamp_ms}
 
         provider.register_source(
@@ -607,6 +628,7 @@ class TestGetPrimaryFundingRate:
 
         # Arrange
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": "invalid_timestamp"}
 
         provider.register_source(
@@ -632,6 +654,7 @@ class TestGetPrimaryFundingRate:
 
         # Arrange
         async def failing_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Source failed")
 
         provider.register_source(
@@ -650,6 +673,7 @@ class TestGetPrimaryFundingRate:
 
         # Arrange
         async def incomplete_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {}  # Missing rate and timestamp
 
         provider.register_source(
@@ -679,6 +703,7 @@ class TestGetSecondaryFundingRate:
 
         # Arrange - Set up secondary source that should be used when primary fails
         async def secondary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.00015, "timestamp": datetime.now(UTC)}
 
         # Register only secondary source for backpack (no primary)
@@ -720,6 +745,7 @@ class TestGetSecondaryFundingRate:
 
         # Arrange
         async def failing_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise TypeError("Source failed")
 
         # Register only the failing secondary source
@@ -745,6 +771,7 @@ class TestGetTertiaryFundingRate:
 
         # Arrange - Set up tertiary source that should be used when primary/secondary fail
         async def tertiary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002, "timestamp": datetime.now(UTC)}
 
         # Register only tertiary source for binance (no primary/secondary)
@@ -786,6 +813,7 @@ class TestGetTertiaryFundingRate:
 
         # Arrange
         async def failing_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise AttributeError("Source failed")
 
         # Register only the failing tertiary source
@@ -811,9 +839,11 @@ class TestGetFallbackFundingRate:
 
         # Arrange - Set up fallback source that should be used when primary fails
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         async def fallback_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0005, "timestamp": datetime.now(UTC)}
 
         # Register failing primary and working fallback
@@ -842,9 +872,11 @@ class TestGetFallbackFundingRate:
         old_timestamp = datetime.now(UTC) - timedelta(seconds=600)  # Old data
 
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         async def fallback_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0005, "timestamp": old_timestamp}
 
         # Register failing primary and fallback with old data
@@ -874,9 +906,11 @@ class TestGetFallbackFundingRate:
         naive_timestamp = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None)
 
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         async def fallback_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0005, "timestamp": naive_timestamp}
 
         # Register failing primary and fallback with naive timestamp
@@ -913,9 +947,11 @@ class TestGetFallbackFundingRate:
 
         # Arrange - Set up primary and fallback that both fail
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         async def failing_fallback(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Fallback failed")
 
         # Register both failing sources
@@ -944,12 +980,15 @@ class TestIntegrateFundingData:
 
         # Arrange - Create sources that return different rates
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         async def secondary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.00015, "timestamp": datetime.now(UTC)}
 
         async def tertiary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002, "timestamp": datetime.now(UTC)}
 
         # Register all sources for the same exchange
@@ -989,6 +1028,7 @@ class TestIntegrateFundingData:
 
         # Arrange - Create only primary source
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -1022,6 +1062,7 @@ class TestIntegrateFundingData:
         naive_timestamp = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC).replace(tzinfo=None)
 
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": naive_timestamp}
 
         provider.register_source(
@@ -1047,9 +1088,11 @@ class TestIntegrateFundingData:
 
         # Arrange - Create only secondary and tertiary sources (no primary)
         async def secondary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.00015, "timestamp": datetime.now(UTC)}
 
         async def tertiary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002, "timestamp": datetime.now(UTC)}
 
         # Register only secondary and tertiary sources
@@ -1082,12 +1125,15 @@ class TestIntegrateFundingData:
 
         # Arrange - Create all failing sources
         async def failing_primary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Primary failed")
 
         async def failing_secondary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Secondary failed")
 
         async def failing_tertiary(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             raise ValueError("Tertiary failed")
 
         # Register all failing sources
@@ -1113,6 +1159,7 @@ class TestIntegrateFundingData:
 
         # Arrange - Create only one working source
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -1142,6 +1189,7 @@ class TestCalculateConfidenceFactors:
 
         # Arrange
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -1167,12 +1215,15 @@ class TestCalculateConfidenceFactors:
 
         # Arrange fresh data from all sources
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         async def secondary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.00015, "timestamp": datetime.now(UTC)}
 
         async def tertiary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0002, "timestamp": datetime.now(UTC)}
 
         # Register all sources
@@ -1207,6 +1258,7 @@ class TestCalculateConfidenceFactors:
         old_timestamp = datetime.now(UTC) - timedelta(seconds=1000)  # Very old
 
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": old_timestamp}
 
         provider.register_source(
@@ -1241,6 +1293,7 @@ class TestHistoricalAccuracyIntegration:
         }
 
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -1262,6 +1315,7 @@ class TestHistoricalAccuracyIntegration:
         provider = MultiTierFundingProvider(base_config, None)
 
         async def primary_source(_symbol: str) -> dict[str, Any]:
+            await asyncio.sleep(0)
             return {"rate": 0.0001, "timestamp": datetime.now(UTC)}
 
         provider.register_source(
@@ -1411,6 +1465,7 @@ def test_register_source_parametrized(
 
     # Arrange
     async def mock_source(_symbol: str) -> dict[str, Any]:
+        await asyncio.sleep(0)
         return {"rate": 0.0001}
 
     # Act

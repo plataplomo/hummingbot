@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import re
 from threading import RLock
-from typing import Any, Final
+from typing import Final
 
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions import (
     ExchangeNotSupportedError,
@@ -44,7 +45,7 @@ class SymbolMapper:
     INTERNAL_SYMBOL_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Z0-9]{2,10}$")
     EXCHANGE_SYMBOL_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Z0-9_-]{2,20}$")
 
-    def __init__(self, exchanges_config: dict[str, Any]) -> None:
+    def __init__(self, exchanges_config: dict[str, ExchangeSpecificConfig]) -> None:
         """Initialize with strict validation.
 
         Args:
@@ -78,20 +79,21 @@ class SymbolMapper:
             internal_symbols=sorted(self._all_internal_symbols),
         )
 
-    def _validate_config_structure(self, config: dict[str, Any]) -> None:
+    def _validate_config_structure(self, config: dict[str, ExchangeSpecificConfig]) -> None:
         """Validate the basic structure of configuration."""
-        # Config is already typed as dict[str, Any] so no isinstance check needed
         if not config:
             raise SymbolMappingConfigurationError(
                 ErrorMessages.CONFIG_EMPTY, config_type="config_structure"
             )
 
-    def _process_exchanges_config(self, config: dict[str, Any]) -> None:
+    def _process_exchanges_config(self, config: dict[str, ExchangeSpecificConfig]) -> None:
         """Process exchanges configuration with strict validation."""
         for exchange_id, exchange_data in config.items():
             self._process_single_exchange(exchange_id, exchange_data)
 
-    def _process_single_exchange(self, exchange_id: str, exchange_data: dict[str, Any]) -> None:
+    def _process_single_exchange(
+        self, exchange_id: str, exchange_data: ExchangeSpecificConfig
+    ) -> None:
         """Process a single exchange configuration."""
         # Validate exchange ID
         if not exchange_id.strip():
@@ -104,41 +106,19 @@ class SymbolMapper:
 
         exchange_id = exchange_id.strip()
 
-        # Check if exchange is enabled (default to True if not specified)
-        if not exchange_data.get("enabled", True):
+        # Check if exchange is enabled
+        if not exchange_data.enabled:
             logger.info("Skipping disabled exchange", exchange_id=exchange_id)
             return
 
-        # Validate and process symbols section
-        self._validate_and_process_symbols(exchange_id, exchange_data)
+        # Process symbols directly from typed config
+        self._process_symbols(exchange_id, exchange_data.symbols)
         self._supported_exchanges.add(exchange_id)
 
-    def _validate_and_process_symbols(
-        self, exchange_id: str, exchange_data: dict[str, Any]
-    ) -> None:
-        """Validate and process symbols section for an exchange."""
-        # Validate symbols section exists
-        if "symbols" not in exchange_data:
-            raise SymbolMappingConfigurationError(
-                ErrorMessages.SYMBOLS_MISSING,
-                exchange_id=exchange_id,
-                config_type="symbols_section",
-                metadata={"exchange_id": exchange_id},
-            )
-
-        symbols_value = exchange_data["symbols"]
-        if not isinstance(symbols_value, dict):
-            raise SymbolMappingConfigurationError(
-                ErrorMessages.SYMBOLS_NOT_DICT,
-                exchange_id=exchange_id,
-                config_type="symbols_format",
-                metadata={"exchange_id": exchange_id, "symbols_type": type(symbols_value).__name__},
-            )
-
-        # Type narrowing: we now know symbols_value is a dict
-        symbols_dict: dict[str, str] = symbols_value
-
-        if not symbols_dict:
+    def _process_symbols(self, exchange_id: str, symbols: dict[str, str]) -> None:
+        """Process symbols for an exchange."""
+        # Symbols are already validated by Pydantic
+        if not symbols:
             raise SymbolMappingConfigurationError(
                 ErrorMessages.SYMBOLS_EMPTY,
                 exchange_id=exchange_id,
@@ -150,18 +130,18 @@ class SymbolMapper:
         self._exchange_to_internal[exchange_id] = {}
         self._internal_to_exchange[exchange_id] = {}
 
-        # Process each symbol mapping individually to avoid type issues
-        for internal_symbol, exchange_symbol in symbols_dict.items():
+        # Process each symbol mapping - now fully typed!
+        for internal_symbol, exchange_symbol in symbols.items():
             self._process_single_symbol_mapping(exchange_id, internal_symbol, exchange_symbol)
 
         logger.debug(
             "Processed symbol mappings for exchange",
             exchange_id=exchange_id,
-            symbol_count=len(symbols_dict),
+            symbol_count=len(symbols),
         )
 
     def _process_single_symbol_mapping(
-        self, exchange_id: str, internal_symbol: str, exchange_symbol: object
+        self, exchange_id: str, internal_symbol: str, exchange_symbol: str
     ) -> None:
         """Process a single symbol mapping with strict validation."""
         # Validate internal symbol
@@ -190,8 +170,8 @@ class SymbolMapper:
                 },
             )
 
-        # Validate exchange symbol
-        if not isinstance(exchange_symbol, str) or not exchange_symbol.strip():
+        # Validate exchange symbol - already know it's a string from type
+        if not exchange_symbol.strip():
             raise SymbolMappingFieldError(
                 ErrorMessages.EXCHANGE_SYMBOL_INVALID,
                 field_name="exchange_symbol",

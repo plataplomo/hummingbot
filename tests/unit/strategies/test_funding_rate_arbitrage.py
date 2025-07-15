@@ -299,7 +299,7 @@ class TestFundingRateArbitrageStrategyInit:
             FundingRateArbitrageStrategy(
                 name="fail_strategy",
                 symbol="BTC-PERP",
-                data_handler=None,  # type: ignore[arg-type]
+                data_handler=None,
                 portfolio_tracker=mock_portfolio_tracker,
             )
 
@@ -314,7 +314,7 @@ class TestFundingRateArbitrageStrategyInit:
                 name="fail_strategy",
                 symbol="BTC-PERP",
                 data_handler=mock_data_handler,
-                portfolio_tracker=None,  # type: ignore[arg-type]
+                portfolio_tracker=None,
             )
 
     def test_init_failure_empty_name(

@@ -13,6 +13,7 @@ implementations.
 import asyncio
 import json
 import secrets
+import time
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,7 @@ from cyberdelta.utils.logging_utilities import MessageStatsAggregator
 
 # Import the config model
 from .connectivity_models import WebSocketManagerConfig
+from .json_security import secure_json_loads
 
 
 if TYPE_CHECKING:
@@ -99,6 +101,13 @@ class WebSocketManager:
         self._reconnect_lock = asyncio.Lock()
         self._logger = get_logger(f"WebSocketManager.{self._exchange_name}")
 
+        # Circuit breaker state
+        self._failure_count = 0
+        self._last_failure_time = 0.0
+        self._circuit_open = False
+        self._circuit_breaker_threshold = 5  # failures before opening circuit
+        self._circuit_breaker_timeout = 60.0  # seconds before trying again
+
         # State tracking for iteration logging
         self._last_cancelled_state: bool | str | None = None
         self._last_msg_type: int | None = None
@@ -134,9 +143,56 @@ class WebSocketManager:
             self._external_session = False
         return self._session
 
+    def _is_circuit_breaker_open(self) -> bool:
+        """Check if circuit breaker is open and should prevent reconnection attempts."""
+        if not self._circuit_open:
+            return False
+
+        # Check if timeout has passed to allow retry
+        if time.time() - self._last_failure_time > self._circuit_breaker_timeout:
+            self._circuit_open = False
+            self._failure_count = 0
+            self._logger.info(
+                "circuit_breaker_closed",
+                action="circuit_breaker_reset",
+                message="Circuit breaker timeout elapsed, allowing reconnection attempts",
+            )
+            return False
+
+        return True
+
+    def _record_connection_failure(self) -> None:
+        """Record a connection failure and potentially open circuit breaker."""
+        self._failure_count += 1
+        self._last_failure_time = time.time()
+
+        if self._failure_count >= self._circuit_breaker_threshold:
+            self._circuit_open = True
+            self._logger.warning(
+                "circuit_breaker_opened",
+                action="record_connection_failure",
+                failure_count=self._failure_count,
+                threshold=self._circuit_breaker_threshold,
+                message="Circuit breaker opened due to repeated connection failures",
+            )
+
+    def _record_connection_success(self) -> None:
+        """Record a successful connection and reset circuit breaker state."""
+        if self._failure_count > 0 or self._circuit_open:
+            self._logger.info(
+                "circuit_breaker_reset",
+                action="record_connection_success",
+                previous_failures=self._failure_count,
+                message="Connection successful, resetting circuit breaker",
+            )
+        self._failure_count = 0
+        self._circuit_open = False
+
     @property
     def is_connected(self) -> bool:
         """Returns true if the WebSocket is currently connected and active."""
+        # Check actual connection state, not lock state
+        # The connection can be valid even during reconnect lock
         return (
             self._is_connected
             and self._ws_connection is not None
@@ -263,6 +319,16 @@ class WebSocketManager:
         )
 
         while self._should_reconnect and current_attempt < self._max_reconnect_attempts:
+            # Check circuit breaker before attempting connection
+            if self._is_circuit_breaker_open():
+                self._logger.warning(
+                    "connection_blocked_circuit_breaker",
+                    action="connection_retry_loop",
+                    failure_count=self._failure_count,
+                    message="Circuit breaker is open, skipping connection attempts",
+                )
+                break
+
             self._logger.info(
                 "connection_loop_iteration",
                 action="connection_retry_loop",
@@ -280,6 +346,8 @@ class WebSocketManager:
 
             connection_successful = await self._attempt_single_connection(current_attempt)
             if connection_successful:
+                # Execute connection callback (lock no longer affects is_connected)
+                await self._execute_connection_callback()
                 return
 
             current_attempt += 1
@@ -321,7 +389,7 @@ class WebSocketManager:
 
             await self._establish_websocket_connection()
             await self._setup_connection_tasks()
-            await self._execute_connection_callback()
+            # Note: Connection callback is now executed outside the reconnect lock
 
         except asyncio.CancelledError:
             self._logger.exception(
@@ -344,6 +412,7 @@ class WebSocketManager:
                 ),
             )
             self._reset_connection_state()
+            self._record_connection_failure()
             return False
         except Exception as e:
             self._logger.exception(
@@ -358,6 +427,7 @@ class WebSocketManager:
                 ),
             )
             self._reset_connection_state()
+            self._record_connection_failure()
             return False
         else:
             return True
@@ -411,7 +481,9 @@ class WebSocketManager:
             ),
         )
 
+        # Set connection state and record success (already inside reconnect lock)
         self._is_connected = True
+        self._record_connection_success()
 
     async def _setup_connection_tasks(self) -> None:
         """Setup listener and ping tasks after successful connection."""
@@ -558,7 +630,9 @@ class WebSocketManager:
 
         try:
             # DEFENSIVE CHECK: self._ws_connection is confirmed not None by caller.
-            async for msg in self._ws_connection:  # type: ignore[union-attr]
+            if self._ws_connection is None:
+                raise WebSocketConnectionClosedError("Lost")
+            async for msg in self._ws_connection:
                 loop_iteration_count += 1
 
                 if not await self._should_continue_listening(
@@ -654,7 +728,25 @@ class WebSocketManager:
     async def _handle_text_message(self, msg: aiohttp.WSMessage) -> None:
         """Handle TEXT type WebSocket messages."""
         try:
-            data = json.loads(msg.data)
+            # Protect against JSON bomb attacks
+            if len(msg.data) > 1024 * 1024:  # 1MB limit
+                self._logger.warning(
+                    "oversized_websocket_message",
+                    action="handle_text_message",
+                    message_size=len(msg.data),
+                    message="Received oversized WebSocket message, rejecting",
+                )
+                return
+
+            data = secure_json_loads(msg.data)
+            if not isinstance(data, dict):
+                self._logger.warning(
+                    "non_dict_websocket_message",
+                    action="handle_text_message",
+                    data_type=type(data).__name__,
+                    message=f"Received non-dict WebSocket message: {type(data).__name__}",
+                )
+                return
             await self._message_handler(data)
         except json.JSONDecodeError:
             self._logger.warning(
@@ -662,6 +754,14 @@ class WebSocketManager:
                 action="handle_text_message",
                 message_data_preview=str(msg.data[:200]),
                 message=f"Received non-JSON WebSocket message: {msg.data[:200]}...",
+            )
+        except ValueError as ve:
+            self._logger.warning(
+                "received_unsafe_json_websocket_message",
+                action="handle_text_message",
+                message_size=len(msg.data),
+                security_error=str(ve),
+                message=f"Received unsafe JSON WebSocket message: {ve}",
             )
         except Exception as e:
             self._logger.exception(

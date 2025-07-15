@@ -265,20 +265,22 @@ class TestConfigManager:
                 assert manager.loaded is True
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch("cyberdelta.config.config_manager.ConfigManager._get_default_config_path")
-    def test_get_default_config_path_fallback(self, mock_get_default_path: Mock) -> None:
-        """Test _get_default_config_path fallback when no config files exist."""
+    def test_config_file_not_found_behavior(self) -> None:
+        """Test public behavior when no config files exist."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock the method to return a non-existent path
-            non_existent_path = Path(temp_dir) / "non_existent_config.yaml"
-            mock_get_default_path.return_value = non_existent_path
+            original_cwd = Path.cwd()
+            try:
+                # Change to empty directory with no config files
+                os.chdir(temp_dir)
 
-            # Should raise ConfigurationError when trying to load the non-existent file
-            with pytest.raises(ConfigurationError) as exc_info:
-                ConfigManager()
+                # Should raise ConfigurationError when no config files found
+                with pytest.raises(ConfigurationError) as exc_info:
+                    ConfigManager()
 
-            assert "Config file not found" in str(exc_info.value)
-            assert str(non_existent_path) in str(exc_info.value)
+                assert "Config file not found" in str(exc_info.value)
+
+            finally:
+                os.chdir(original_cwd)
 
     def test_load_method_success(self) -> None:
         """Test load method with valid config."""

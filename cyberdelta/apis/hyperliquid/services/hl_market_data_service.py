@@ -5,6 +5,7 @@ to provide a unified interface for market data access.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
+from typing import TYPE_CHECKING
 
 from cyberdelta.apis.hyperliquid.mappers import (
     HyperliquidHistoricalDataMapper,
@@ -46,6 +47,10 @@ from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.utils.typing import ParsedJsonResponse
+
+
+if TYPE_CHECKING:
+    pass
 
 
 logger = get_logger(__name__)

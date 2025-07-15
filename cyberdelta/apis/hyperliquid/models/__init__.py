@@ -4,6 +4,9 @@ from .hl_processed_exchange_responses import (
     HyperliquidErrorStatus,
     HyperliquidSuccessfulOrderStatus,
 )
+from .hl_raw_all_mids import (
+    HyperliquidRawAllMids,
+)
 from .hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -18,6 +21,13 @@ from .hl_raw_ws_events import (
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
 )
+from .hl_ws_envelope import (
+    HyperliquidChannelType,
+    HyperliquidRawWebSocketEnvelope,
+    HyperliquidUserEventEnvelope,
+    HyperliquidWebSocketMessage,
+    validate_hyperliquid_envelope,
+)
 from .hl_ws_payloads import (
     HyperliquidRawWsAllMidsSubscriptionPayload,
     HyperliquidRawWsCandleSubscriptionPayload,
@@ -29,22 +39,15 @@ from .hl_ws_payloads import (
 
 
 __all__ = [
+    "HyperliquidChannelType",
     "HyperliquidErrorStatus",
+    "HyperliquidRawAllMids",
     "HyperliquidRawAssetPosition",
     "HyperliquidRawClearinghouseState",
-    # Exchange Info
-    # "HyperliquidRawAssetContext",
-    # "HyperliquidRawUniverse",
-    # Market Data
-    # "HyperliquidRawTrade",
-    # "HyperliquidRawL2Book",
-    # Order Status
-    # "HyperliquidRawOrder",
-    # "HyperliquidRawUserFill",
-    # User State
     "HyperliquidRawLeverage",
     "HyperliquidRawMarginSummary",
     "HyperliquidRawPositionInfo",
+    "HyperliquidRawWebSocketEnvelope",
     "HyperliquidRawWsAllMidsSubscriptionPayload",
     "HyperliquidRawWsBookUpdate",
     "HyperliquidRawWsCandleSubscriptionPayload",
@@ -52,11 +55,12 @@ __all__ = [
     "HyperliquidRawWsL2BookSubscriptionPayload",
     "HyperliquidRawWsOrderUpdate",
     "HyperliquidRawWsPositionUpdateEvent",
-    # WebSocket Payloads
     "HyperliquidRawWsSubscribeRequest",
     "HyperliquidRawWsTradeEvent",
     "HyperliquidRawWsTradesSubscriptionPayload",
     "HyperliquidRawWsUserEventsSubscriptionPayload",
-    # Processed Exchange Responses
     "HyperliquidSuccessfulOrderStatus",
+    "HyperliquidUserEventEnvelope",
+    "HyperliquidWebSocketMessage",
+    "validate_hyperliquid_envelope",
 ]

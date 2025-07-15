@@ -14,11 +14,8 @@ from unittest.mock import AsyncMock, Mock
 import pandas as pd
 import pytest
 
-from cyberdelta.core.engine import (
-    DataFrameProcessingError,
-    Engine,
-    EngineConfigurationError,
-)
+from cyberdelta.core.dataframe_processor import DataFrameProcessingError, process_dataframe
+from cyberdelta.core.engine import Engine, EngineConfigurationError
 from cyberdelta.core.models import OrderSide, SignalType
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.trade_signal import TradeSignal
@@ -543,7 +540,7 @@ class TestEngineDataFrameProcessing:
         engine.start()
 
         # Act
-        await engine.process_dataframe(candle_data, "BTC-PERP")
+        await process_dataframe(candle_data, "BTC-PERP", engine.process_market_data)
 
         # Assert
         # Should process each row of the DataFrame
@@ -562,7 +559,7 @@ class TestEngineDataFrameProcessing:
         # Act & Assert
         # Empty DataFrame should raise exception for missing columns
         with pytest.raises(DataFrameProcessingError, match="missing required columns"):
-            await engine.process_dataframe(empty_data, "BTC-PERP")
+            await process_dataframe(empty_data, "BTC-PERP", engine.process_market_data)
 
     # ==================== EDGE CASES ====================
 
@@ -583,7 +580,7 @@ class TestEngineDataFrameProcessing:
 
         # Act & Assert
         with pytest.raises(DataFrameProcessingError) as exc_info:
-            await engine.process_dataframe(incomplete_data, "BTC-PERP")
+            await process_dataframe(incomplete_data, "BTC-PERP", engine.process_market_data)
 
         assert "missing required columns" in str(exc_info.value)
         assert hasattr(exc_info.value, "missing_columns")
@@ -609,7 +606,7 @@ class TestEngineDataFrameProcessing:
         # Act & Assert
         # Should handle invalid data types gracefully or raise appropriate error
         with contextlib.suppress(ValueError, TypeError, DataFrameProcessingError):
-            await engine.process_dataframe(invalid_data, "BTC-PERP")
+            await process_dataframe(invalid_data, "BTC-PERP", engine.process_market_data)
 
 
 class TestEngineLifecycleManagement:

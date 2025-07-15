@@ -9,36 +9,36 @@ import pytest
 import structlog.testing
 from _pytest.logging import LogCaptureFixture
 
-from cyberdelta.core.symbol_mapper import SymbolMapper, SymbolMappingError
+from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions import SymbolMappingError
+from tests.unit.core.conftest import create_test_exchange_config
 
 
 # Sample valid config
 VALID_CONFIG = {
     "exchanges": {
-        "hyperliquid": {
-            "symbols": {
-                "BTC": "BTC-PERP",
-                "ETH": "ETH-PERP",
-            },
-        },
-        "backpack": {
-            "symbols": {
-                "BTC": "BTC_PERP",
-                "SOL": "SOL_PERP",
-            },
-        },
-        "kraken": {
-            "symbols": {
-                "BTC": "BTC/USD",
-                "ETH": "ETH/USD",
-            },
-        },
-        "disabled_exchange": {  # Example of exchange data without symbols key
-            "enabled": False,
-        },
-        "invalid_symbols_exchange": {  # Example with non-dict symbols
-            "symbols": ["BTC", "ETH"],
-        },
+        "hyperliquid": create_test_exchange_config(
+            ExchangeName.HYPERLIQUID,
+            symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
+        ),
+        "backpack": create_test_exchange_config(
+            ExchangeName.BACKPACK,
+            symbols={"BTC": "BTC_PERP", "SOL": "SOL_PERP"},
+        ),
+        "kraken": create_test_exchange_config(
+            ExchangeName.HYPERLIQUID,  # Using HYPERLIQUID as placeholder since KRAKEN doesn't exist
+            symbols={"BTC": "BTC/USD", "ETH": "ETH/USD"},
+        ),
+        "disabled_exchange": create_test_exchange_config(
+            ExchangeName.HYPERLIQUID,
+            symbols={"BTC": "BTC"},
+            enabled=False,
+        ),
+        "invalid_symbols_exchange": create_test_exchange_config(
+            ExchangeName.HYPERLIQUID,
+            symbols={"BTC": "BTC", "ETH": "ETH"},
+        ),
     },
 }
 

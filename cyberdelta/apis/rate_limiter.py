@@ -52,54 +52,58 @@ class TokenBucketRateLimiterRuntime:
 
         """
         wait_time = 0.0
-        async with self.lock:
-            # Check if IP ban is active
-            if self.is_ip_banned_until is not None:
-                now_mono = time.monotonic()
-                if now_mono < self.is_ip_banned_until:
-                    wait_time_for_ban = self.is_ip_banned_until - now_mono
-                    # Release lock while sleeping
-                    self.lock.release()
-                    try:
+
+        while True:
+            sleep_time = 0.0
+
+            async with self.lock:
+                # Check if IP ban is active
+                if self.is_ip_banned_until is not None:
+                    now_mono = time.monotonic()
+                    if now_mono < self.is_ip_banned_until:
+                        sleep_time = self.is_ip_banned_until - now_mono
                         logger.warning(
                             "rate_limiter_ip_ban_waiting",
-                            wait_time_seconds=wait_time_for_ban,
+                            wait_time_seconds=sleep_time,
                             action="waiting_for_ip_ban_expiry",
-                            message=(
-                                f"IP ban active for rate limiter. Waiting {wait_time_for_ban:.2f}s."
-                            ),
+                            message=(f"IP ban active for rate limiter. Waiting {sleep_time:.2f}s."),
                         )
-                        await asyncio.sleep(wait_time_for_ban)
-                        wait_time += wait_time_for_ban
-                    finally:
-                        await self.lock.acquire()
-                    # After waiting, clear the ban state and proceed to token acquisition
-                    self.is_ip_banned_until = None
-                else:  # Ban duration has passed
-                    self.is_ip_banned_until = None
+                    else:
+                        # Ban duration has passed
+                        self.is_ip_banned_until = None
 
-            # Proceed with normal token acquisition
-            now = time.monotonic()
-            elapsed = now - self.last_refill
-            new_tokens = elapsed * self.rate
-            if new_tokens > 0:
-                self.tokens = min(self.bucket_size, self.tokens + new_tokens)
-                self.last_refill = now
-            if self.tokens < tokens_to_consume:
-                token_wait_time = (tokens_to_consume - self.tokens) / self.rate
-                self.lock.release()
-                try:
-                    await asyncio.sleep(token_wait_time)
-                    wait_time += token_wait_time
-                finally:
-                    await self.lock.acquire()
-                now = time.monotonic()
-                elapsed = now - self.last_refill
-                new_tokens = elapsed * self.rate
-                self.tokens = min(self.bucket_size, self.tokens + new_tokens)
-                self.last_refill = now
-            self.tokens -= tokens_to_consume
-            return wait_time
+                # If no IP ban wait needed, proceed with token acquisition
+                if sleep_time == 0.0:
+                    # Refill tokens based on elapsed time
+                    now = time.monotonic()
+                    elapsed = now - self.last_refill
+                    new_tokens = elapsed * self.rate
+                    if new_tokens > 0:
+                        # For normal token refill, cap at bucket size
+                        # But during acquisition, we need to allow checking the full refilled amount
+                        potential_tokens = self.tokens + new_tokens
+                        self.last_refill = now
+                    else:
+                        potential_tokens = self.tokens
+
+                    # Check if we have enough tokens (including newly refilled ones)
+                    if potential_tokens >= tokens_to_consume:
+                        # Update actual tokens, but cap at bucket size AFTER consuming
+                        self.tokens = min(self.bucket_size, potential_tokens - tokens_to_consume)
+                        # Clear IP ban if it was set and we successfully got tokens
+                        if self.is_ip_banned_until is not None:
+                            self.is_ip_banned_until = None
+                        return wait_time
+                    # Update tokens to capped amount for next iteration
+                    self.tokens = min(self.bucket_size, potential_tokens)
+                    # Calculate wait time for tokens
+                    sleep_time = (tokens_to_consume - potential_tokens) / self.rate
+
+            # Sleep outside the lock (whether for IP ban or token wait)
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+                wait_time += sleep_time
+                # Loop back to reacquire lock and recheck state
 
     async def trigger_ip_ban(self, duration_seconds: float) -> None:
         """Trigger an IP ban for the specified duration.

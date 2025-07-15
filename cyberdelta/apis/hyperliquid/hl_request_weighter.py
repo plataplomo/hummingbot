@@ -10,11 +10,14 @@ the endpoint and payload.
 
 from __future__ import annotations
 
-from typing import Any, TypeGuard
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
+
+
+if TYPE_CHECKING:
+    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 
 
 logger = get_logger(__name__)

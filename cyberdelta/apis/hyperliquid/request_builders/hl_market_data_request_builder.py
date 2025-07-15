@@ -16,7 +16,6 @@ from __future__ import annotations
 import time
 from datetime import UTC, datetime
 
-from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMidsRequestPayload,
 )
@@ -318,7 +317,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
         return HyperliquidRawFundingHistoryRequestPayload(
             type="fundingHistory",
-            coin=RawHlCoinName(args.symbol),
+            coin=args.symbol,
             startTime=start_time_ms,
             endTime=end_time_ms,
         )

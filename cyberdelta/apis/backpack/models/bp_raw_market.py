@@ -23,8 +23,7 @@ These models act as a strict shield between external API data and internal busin
 robustness and security at the data ingestion boundary.
 """
 
-from collections.abc import Sequence
-from typing import Self, cast
+from typing import TYPE_CHECKING, Self, cast
 
 from pydantic import (
     BaseModel,
@@ -43,6 +42,7 @@ from .bp_common_raw_types import (
     RawBpDepthPriceString,
     RawBpDepthQuantityString,
     RawBpFlexibleTimestamp,
+    RawBpIdStringMax64,
     RawBpNonEmptyStringMax64,
     RawBpOptionalFlexibleTimestamp,
     RawBpOptionalNonEmptyStringMax32,
@@ -50,6 +50,10 @@ from .bp_common_raw_types import (
     RawBpParsableFiniteDecimalString,
     RawBpParsableNonNegativeFiniteDecimalString,
 )
+
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 # Market data structure constants
@@ -229,14 +233,14 @@ class BackpackRawTickerEvent(BaseModel):
     """Raw model for a ticker event (e.g., from WebSocket streams)."""
 
     symbol: RawBpNonEmptyStringMax64 = Field(..., alias="s")
-    last_price: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="lastPrice")
-    high: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="high")
-    low: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="low")
+    last_price: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="c")  # 'c' for close
+    high: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="h")
+    low: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="l")
     open_price: RawBpOptionalParsableFiniteDecimalString = Field(None, alias="o")
-    volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="volume")
-    quote_volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="quoteVolume")
-    price_change_percent: RawBpParsableNonNegativeFiniteDecimalString = Field(
-        ...,
+    volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="v")
+    quote_volume: RawBpParsableNonNegativeFiniteDecimalString = Field(..., alias="V")
+    price_change_percent: RawBpOptionalParsableFiniteDecimalString = Field(
+        None,  # Make optional since it's not in the data
         alias="priceChangePercent",
     )
     event_type: RawBpOptionalNonEmptyStringMax32 = Field(None, alias="e")
@@ -251,13 +255,28 @@ class BackpackRawTickerEvent(BaseModel):
 
 
 class BackpackRawDepthUpdateEvent(BaseModel):
-    """Raw model for a depth update event (e.g., from WebSocket streams)."""
+    """Raw model for a depth update event (e.g., from WebSocket streams).
 
-    last_update_id: RawBpNonEmptyStringMax64 = Field(..., alias="lastUpdateId")
-    bids: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] = Field(..., alias="b")
-    asks: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] = Field(..., alias="a")
+    Note: symbol is not included in the raw stream data - it's extracted from
+    the stream name during routing and added via context during transformation.
+
+    Backpack sends different types of depth messages:
+    - Full snapshots: contain bids and asks arrays
+    - Update events: contain only update IDs and timestamps
+    """
+
+    # symbol field is NOT in raw data - extracted from stream name
+    bids: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] | None = Field(
+        None, alias="bids"
+    )
+    asks: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] | None = Field(
+        None, alias="asks"
+    )
+    first_update_id: RawBpIdStringMax64 = Field(..., alias="U")
+    last_update_id: RawBpIdStringMax64 = Field(..., alias="u")
     event_type: RawBpOptionalNonEmptyStringMax32 = Field(None, alias="e")
     event_time: RawBpOptionalFlexibleTimestamp = Field(None, alias="E")
+    engine_time: RawBpOptionalFlexibleTimestamp = Field(None, alias="T")
 
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
@@ -267,7 +286,11 @@ class BackpackRawDepthUpdateEvent(BaseModel):
         cls,
         v: object,
         info: ValidationInfo,
-    ) -> list[tuple[object, object]]:
+    ) -> list[tuple[object, object]] | None:
+        # Handle None case for update events that don't contain bids/asks
+        if v is None:
+            return None
+
         # Combined validator: First, ensure v is a sequence.
         if not is_sequence_of_any(v):
             raise StructureTypeError(

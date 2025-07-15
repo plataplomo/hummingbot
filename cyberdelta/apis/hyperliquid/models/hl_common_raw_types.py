@@ -10,21 +10,15 @@ for raw models, ensuring consistency and adhering to project rules.
 from __future__ import annotations
 
 import string
-from collections import UserString
-from collections.abc import (
-    Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
-)
 from decimal import Decimal
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import (
     AfterValidator,
     BeforeValidator,
-    GetCoreSchemaHandler,
     ValidationInfo,
     WrapValidator,
 )
-from pydantic_core import core_schema
 
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
@@ -39,6 +33,12 @@ from cyberdelta.utils.parsing import (
     validate_enum_field,
     validate_str_field,
 )
+
+
+if TYPE_CHECKING:
+    from collections.abc import (
+        Callable,  # Added Dict, Any for potential future use / broader compatibility if needed
+    )
 
 
 # Cryptographic and address length constants
@@ -1054,32 +1054,17 @@ RawHlParsableFiniteDecimalString = Annotated[
 RawHlTimestampMsInt = Annotated[int, AfterValidator(_validate_timestamp_ms)]
 
 
-class RawHlCoinName(UserString):
-    """Represents a coin name from Hyperliquid, typically a non-empty uppercase string."""
-
-    @classmethod
-    def _validate(cls, value: str, _: core_schema.ValidationInfo) -> RawHlCoinName:
-        if not value or not value.strip():
-            raise InvalidFormatError(
-                field_name="coin_name",
-                expected_format="non-empty string",
-                actual_value=value,
-                reason="Coin name cannot be empty",
-            )
-        return cls(value)
-
-    @classmethod
-    def __get_pydantic_core_schema__(  # noqa: PLW3201
-        cls,
-        source_type: type[str],
-        handler: GetCoreSchemaHandler,
-    ) -> core_schema.CoreSchema:
-        """Define Pydantic validation schema for currency coin names.
-
-        Returns a core schema that validates string inputs as proper coin names
-        with length and character restrictions for financial data security.
-        """
-        # Use with_info_plain_validator_function for validation and add JSON serialization
-        return core_schema.with_info_plain_validator_function(
-            cls._validate, serialization=core_schema.to_string_ser_schema()
+def _validate_coin_name(value: str) -> str:
+    """Validate coin name from Hyperliquid, typically a non-empty uppercase string."""
+    if not value or not value.strip():
+        raise InvalidFormatError(
+            field_name="coin_name",
+            expected_format="non-empty string",
+            actual_value=value,
+            reason="Coin name cannot be empty",
         )
+    return value
+
+
+# Raw coin name type that validates non-empty strings
+RawHlCoinName = Annotated[str, AfterValidator(_validate_coin_name)]

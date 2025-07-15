@@ -211,8 +211,20 @@ class TraceLevelLogger:
         self._logger.critical(event, **kwargs)
 
     def exception(self, event: str | None = None, **kwargs: object) -> None:
-        """Log an exception with traceback."""
-        self._logger.error(event, exc_info=True, **kwargs)  # noqa: LOG014
+        """Log an exception with traceback.
+
+        Note: This method should only be called from within exception handlers
+        where sys.exc_info() will return valid exception information.
+        """
+        # Only add exc_info if we're actually in an exception context
+        exc_type, _exc_value, _exc_traceback = sys.exc_info()
+        if exc_type is not None:
+            # We're in an exception context, include traceback
+            kwargs["exc_info"] = True
+            self._logger.error(event, **kwargs)
+        else:
+            # No active exception, log as regular error
+            self._logger.error(event, **kwargs)
 
     def trace(self, event: str, **kwargs: object) -> None:
         """Log at TRACE level (below DEBUG)."""

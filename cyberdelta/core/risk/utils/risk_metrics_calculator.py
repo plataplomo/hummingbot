@@ -12,6 +12,11 @@ from cyberdelta.core.risk.exceptions.base_exceptions import RiskCalculationError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
 
 
+def _create_str_list() -> list[str]:
+    """Create typed string list for dataclass fields."""
+    return []
+
+
 # Statistical calculation constants
 MIN_SAMPLES_FOR_STATISTICAL_CALCULATION = 2  # Minimum data points for statistical metrics
 
@@ -110,7 +115,7 @@ class RiskMetricsResult:
     calculation_period_days: int = 0
     data_points: int = 0
     calculation_timestamp: datetime | None = None
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=_create_str_list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""

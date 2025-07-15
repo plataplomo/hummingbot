@@ -149,8 +149,8 @@ class TestSymbolMapperEnhancements:
 
     def test_thread_safety_concurrent_reads(self, symbol_mapper: SymbolMapper) -> None:
         """Test thread safety with concurrent read operations."""
-        results = []
-        errors = []
+        results: list[str] = []
+        errors: list[str] = []
 
         def read_symbols(thread_id: int) -> None:
             """Perform multiple read operations."""
@@ -189,8 +189,8 @@ class TestSymbolMapperEnhancements:
     def test_thread_safety_concurrent_mixed_operations(self, test_config: dict[str, Any]) -> None:
         """Test thread safety with mixed read/validation operations."""
         symbol_mapper = SymbolMapper(test_config)
-        results = []
-        errors = []
+        results: list[str] = []
+        errors: list[str] = []
         lock = threading.Lock()
 
         def mixed_operations(thread_id: int) -> None:
@@ -210,13 +210,13 @@ class TestSymbolMapperEnhancements:
                         assert symbol == "SOL"
 
                 with lock:
-                    results.append(thread_id)
+                    results.append(f"Thread {thread_id} completed")
             except (SymbolMappingError, AssertionError) as e:
                 with lock:
                     errors.append(f"Thread {thread_id}: {e}")
 
         # Run concurrent threads
-        threads = []
+        threads: list[threading.Thread] = []
         for i in range(20):
             thread = threading.Thread(target=mixed_operations, args=(i,))
             threads.append(thread)

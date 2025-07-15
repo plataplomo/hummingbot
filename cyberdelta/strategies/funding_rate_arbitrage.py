@@ -65,8 +65,8 @@ class FundingRateArbitrageStrategy(Strategy):
         self,
         name: str,
         symbol: str,
-        data_handler: DataHandler,
-        portfolio_tracker: PortfolioTracker,
+        data_handler: DataHandler | None,
+        portfolio_tracker: PortfolioTracker | None,
         risk_manager: RiskManager | None = None,
         params: dict[str, Any] | None = None,
     ) -> None:

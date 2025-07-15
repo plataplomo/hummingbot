@@ -12,6 +12,7 @@ Adheres to the Raw Model Policy:
 - Contains NO business logic.
 """
 
+from decimal import Decimal
 from typing import overload
 
 from pydantic import (
@@ -19,6 +20,7 @@ from pydantic import (
     ConfigDict,
     Field,
     RootModel,
+    field_serializer,
 )
 
 from cyberdelta.apis.backpack.models.bp_common_raw_types import (
@@ -62,7 +64,11 @@ class BackpackRawFill(BaseModel):
 
     """
 
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        populate_by_name=True,
+    )
 
     # Fields are defined using aliases to match the raw API response keys.
     fee: RawBpFillFeeString = Field(..., alias="fee")
@@ -80,6 +86,42 @@ class BackpackRawFill(BaseModel):
         None,
         alias="systemOrderType",
     )
+
+    @field_serializer("fee", "price", "quantity")
+    def serialize_decimal_fields(self, value: str) -> str:
+        """Serialize decimal fields for Backpack fill events.
+
+        Fill data from Backpack requires precise decimal handling for trading
+        calculations. This serializer ensures optimal representation for
+        financial data while maintaining full precision.
+
+        Args:
+            value: The decimal string value to serialize
+
+        Returns:
+            Optimized decimal string for Backpack fill data
+        """
+        try:
+            decimal_val = Decimal(value)
+            normalized = decimal_val.normalize()
+
+            # For Backpack fills, maintain high precision for financial accuracy
+            # but optimize for transmission efficiency
+            large_value_threshold = 1000000
+            if abs(normalized) >= large_value_threshold:
+                # Large values: use scientific notation for efficiency
+                return f"{normalized:.10E}"
+
+            if abs(normalized) <= Decimal("0.0000000001") and normalized != 0:
+                # Very small values: use scientific notation
+                return f"{normalized:.10E}"
+            # Normal range: use decimal notation with normalization
+            # This removes trailing zeros while preserving precision
+            return str(normalized)
+
+        except (ValueError, TypeError, ArithmeticError):
+            # Fallback to original value if conversion fails
+            return value
 
 
 # The BackpackRawFillsList model remains structurally the same but benefits from

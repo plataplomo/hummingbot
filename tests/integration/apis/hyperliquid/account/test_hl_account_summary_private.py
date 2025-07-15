@@ -48,7 +48,7 @@ from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
 )
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.requires_balance, pytest.mark.positive_balance]
+pytestmark = [pytest.mark.integration, pytest.mark.requires_balance]
 
 logger = get_logger(__name__)
 

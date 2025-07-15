@@ -609,11 +609,8 @@ class MockExchangeAPI(ExchangeAPI):
 
         if handler_to_call:
             try:
-                # Call handler with both data_payload and the full_message
-                await handler_to_call(
-                    data_payload,
-                    message,
-                )  # MODIFIED: Ensure two arguments are passed
+                # Call handler with enhanced context
+                await handler_to_call(data_payload)
             except (APIError, ValueError, TypeError, KeyError) as e:
                 logger.exception(
                     "ws_handler_error: Error in WS handler for topic",

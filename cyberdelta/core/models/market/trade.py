@@ -140,11 +140,7 @@ class Trade(BaseModel):
         """
         field_name = getattr(info, "field_name", None)
         d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
-        if d is None:
-            raise RequiredFieldNoneError(
-                field_name=str(field_name),
-                reason=f"Trade {field_name} is required and cannot be None",
-            )
+        # allow_none=False ensures d is never None
         if not d.is_finite():
             raise DecimalFiniteError(
                 field_name=str(field_name),
@@ -311,7 +307,8 @@ class HyperliquidTradeDetails(BaseModel):
             return None
         field_name = getattr(info, "field_name", "unknown")
         d = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        if d is not None and not d.is_finite():
+        # allow_none=False ensures d is never None
+        if not d.is_finite():
             raise DecimalFiniteError(
                 field_name=str(field_name),
                 value=d,

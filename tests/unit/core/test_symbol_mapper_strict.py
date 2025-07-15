@@ -5,11 +5,12 @@ with no backward compatibility concerns.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
 
 import pytest
 
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
     ExchangeNotSupportedError,
     InvalidSymbolFormatError,
@@ -18,6 +19,7 @@ from cyberdelta.exceptions import (
     SymbolMappingFieldError,
     SymbolNotFoundError,
 )
+from tests.unit.core.conftest import create_test_exchange_config
 
 
 # Type aliases for testing
@@ -29,33 +31,25 @@ class TestStrictSymbolMapper:
     """Test suite for strict SymbolMapper implementation."""
 
     @pytest.fixture
-    def valid_config(self) -> dict[str, Any]:
+    def valid_config(self) -> dict[str, ExchangeSpecificConfig]:
         """Valid configuration for testing."""
         return {
-            "hyperliquid": {
-                "enabled": True,
-                "symbols": {
-                    "BTC": "BTC",
-                    "ETH": "ETH",
-                    "SOL": "SOL",
-                },
-            },
-            "backpack": {
-                "enabled": True,
-                "symbols": {
-                    "BTC": "BTC_PERP",
-                    "ETH": "ETH_PERP",
-                    # Note: SOL not available on backpack
-                },
-            },
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC", "ETH": "ETH", "SOL": "SOL"},
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={"BTC": "BTC_PERP", "ETH": "ETH_PERP"},
+            ),
         }
 
     @pytest.fixture
-    def symbol_mapper(self, valid_config: dict[str, Any]) -> SymbolMapper:
+    def symbol_mapper(self, valid_config: dict[str, ExchangeSpecificConfig]) -> SymbolMapper:
         """Create SymbolMapper instance."""
         return SymbolMapper(valid_config)
 
-    def test_initialization_success(self, valid_config: dict[str, Any]) -> None:
+    def test_initialization_success(self, valid_config: dict[str, ExchangeSpecificConfig]) -> None:
         """Test successful initialization."""
         mapper = SymbolMapper(valid_config)
 
@@ -76,57 +70,51 @@ class TestStrictSymbolMapper:
 
     def test_initialization_fails_missing_symbols(self) -> None:
         """Test initialization fails when exchange missing symbols."""
-        config = {
-            "hyperliquid": {
-                "enabled": True,
-                # Missing symbols section
+        # Create config with empty symbols - this should fail validation
+        with pytest.raises(SymbolMappingConfigurationError, match="has no symbol mappings"):
+            config = {
+                "hyperliquid": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    symbols={},  # Empty symbols
+                ),
             }
-        }
-
-        with pytest.raises(
-            SymbolMappingConfigurationError, match="Exchange missing required symbols section"
-        ):
             SymbolMapper(config)
 
     def test_initialization_fails_empty_symbols(self) -> None:
         """Test initialization fails when exchange has empty symbols."""
-        config = {
-            "hyperliquid": {
-                "enabled": True,
-                "symbols": {},  # Empty symbols
-            }
-        }
-
+        # This test is redundant with the previous test - empty symbols should fail the same way
         with pytest.raises(SymbolMappingConfigurationError, match="has no symbol mappings"):
+            config = {
+                "hyperliquid": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    symbols={},  # Empty symbols
+                ),
+            }
             SymbolMapper(config)
 
     def test_initialization_fails_invalid_internal_symbol(self) -> None:
         """Test initialization fails with invalid internal symbol."""
-        config = {
-            "hyperliquid": {
-                "enabled": True,
-                "symbols": {
-                    "btc": "BTC",  # lowercase not allowed
-                },
-            }
-        }
-
         with pytest.raises(InvalidSymbolFormatError, match="must be 2-10 uppercase alphanumeric"):
+            config = {
+                "hyperliquid": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    symbols={"btc": "BTC"},  # lowercase not allowed
+                ),
+            }
             SymbolMapper(config)
 
     def test_initialization_fails_duplicate_exchange_symbol(self) -> None:
         """Test initialization fails with duplicate exchange symbol."""
-        config = {
-            "hyperliquid": {
-                "enabled": True,
-                "symbols": {
-                    "BTC": "BTC",
-                    "BITCOIN": "BTC",  # Duplicate exchange symbol
-                },
-            }
-        }
-
         with pytest.raises(SymbolMappingConfigurationError, match="already maps to"):
+            config = {
+                "hyperliquid": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    symbols={
+                        "BTC": "BTC",
+                        "BITCOIN": "BTC",  # Duplicate exchange symbol
+                    },
+                ),
+            }
             SymbolMapper(config)
 
     def test_get_exchange_symbol_success(self, symbol_mapper: SymbolMapper) -> None:
@@ -247,8 +235,8 @@ class TestStrictSymbolMapper:
 
     def test_thread_safety(self, symbol_mapper: SymbolMapper) -> None:
         """Test thread safety of the symbol mapper."""
-        results = []
-        errors = []
+        results: list[int] = []
+        errors: list[str] = []
 
         def concurrent_operations(thread_id: int) -> None:
             """Perform concurrent operations."""
@@ -278,14 +266,15 @@ class TestStrictSymbolMapper:
     def test_disabled_exchange_ignored(self) -> None:
         """Test disabled exchanges are ignored."""
         config = {
-            "hyperliquid": {
-                "enabled": True,
-                "symbols": {"BTC": "BTC"},
-            },
-            "backpack": {
-                "enabled": False,  # Disabled
-                "symbols": {"BTC": "BTC_PERP"},
-            },
+            "hyperliquid": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC"},
+            ),
+            "backpack": create_test_exchange_config(
+                ExchangeName.BACKPACK,
+                symbols={"BTC": "BTC_PERP"},
+                enabled=False,  # Disabled
+            ),
         }
 
         mapper = SymbolMapper(config)
@@ -346,19 +335,25 @@ class TestStrictSymbolMapper:
 
         # Invalid config should raise immediately
         with pytest.raises(SymbolMappingConfigurationError):
-            SymbolMapper({"invalid": "config"})
+            SymbolMapper({"invalid": "config"})  # type: ignore
 
         # Invalid symbols should raise immediately
         with pytest.raises(SymbolMappingFieldError):
-            SymbolMapper({
-                "exchange": {
-                    "enabled": True,
-                    "symbols": {"": "EMPTY"},  # Empty internal symbol
-                }
-            })
+            config = {
+                "exchange": create_test_exchange_config(
+                    ExchangeName.HYPERLIQUID,
+                    symbols={"": "EMPTY"},  # Empty internal symbol
+                )
+            }
+            SymbolMapper(config)
 
         # No silent failures or None returns for lookups
-        mapper = SymbolMapper({"exchange": {"enabled": True, "symbols": {"BTC": "BTC"}}})
+        mapper = SymbolMapper({
+            "exchange": create_test_exchange_config(
+                ExchangeName.HYPERLIQUID,
+                symbols={"BTC": "BTC"},
+            )
+        })
 
         # These should raise, not return None
         with pytest.raises(SymbolNotFoundError):

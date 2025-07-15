@@ -388,12 +388,9 @@ class BackpackEd25519Authenticator(IAuthenticator):
             window_ms = 5000
 
             # Construct message for WebSocket subscription
-            if symbol:
-                message_content = f"stream={subscription_type}&symbol={symbol}"
-            else:
-                message_content = f"stream={subscription_type}"
-
-            string_to_sign = f"{message_content}&timestamp={timestamp_ms}&window={window_ms}"
+            # According to Backpack docs: "For stream subscriptions, the signature
+            # should be of the form: instruction=subscribe&timestamp=<ts>&window=<window>"
+            string_to_sign = f"instruction=subscribe&timestamp={timestamp_ms}&window={window_ms}"
 
             # Sign using ED25519
             signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))

@@ -23,8 +23,7 @@ from __future__ import annotations
 import asyncio
 import string
 import time
-from collections.abc import Mapping
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import msgpack
 import structlog
@@ -51,6 +50,10 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.exceptions.field_validation import InvalidFormatError, PassphraseFieldError
 from cyberdelta.utils.typing import is_dict_str_any
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 logger = get_logger(__name__)

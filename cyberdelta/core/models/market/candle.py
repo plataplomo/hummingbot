@@ -28,7 +28,6 @@ from pydantic import (
 
 from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
-    DecimalFieldError,
     DecimalFiniteError,
     OHLCConsistencyError,
     RequiredFieldNoneError,
@@ -132,15 +131,7 @@ class Candle(BaseModel):
             )
 
         parsed_decimal = parse_decimal_value(v, allow_none=False, field_name=field_name)
-
-        # Redundant check as parse_decimal_value(allow_none=False) should handle this,
-        # but provides extra safety.
-        if parsed_decimal is None:
-            raise DecimalFieldError(
-                field_name=field_name,
-                value=v,
-                reason="parsing returned None unexpectedly",
-            )
+        # allow_none=False ensures parsed_decimal is never None
 
         # Ensure non-None results are finite. NaN/Infinity are invalid for candle data.
         if not parsed_decimal.is_finite():

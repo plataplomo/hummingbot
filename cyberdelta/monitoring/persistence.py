@@ -7,12 +7,22 @@ import threading
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 import structlog
 
 
 type SerializableData = dict[str, Any] | list[Any]
+
+
+def _is_dict_data(value: object) -> TypeGuard[dict[str, Any]]:
+    """Senior-level TypeGuard for dictionary data validation."""
+    return isinstance(value, dict)
+
+
+def _is_list_data(value: object) -> TypeGuard[list[Any]]:
+    """Senior-level TypeGuard for list data validation."""
+    return isinstance(value, list)
 
 
 # Assuming Decimal might be used in trade/signal data, import if needed
@@ -156,11 +166,11 @@ class PerformanceDataPersistence:
             Serializable data
 
         """
-        if isinstance(data, dict):
+        if _is_dict_data(data):
             return self._make_dict_serializable(data)
         serializable_list: list[Any] = []
         for item in data:
-            if isinstance(item, dict):
+            if _is_dict_data(item):
                 serializable_list.append(self._make_dict_serializable(item))
             elif isinstance(item, datetime):
                 serializable_list.append(item.isoformat())
@@ -186,10 +196,10 @@ class PerformanceDataPersistence:
                 serializable_item[key] = value.isoformat()
             elif isinstance(value, Decimal):
                 serializable_item[key] = str(value)
-            elif isinstance(value, dict):
+            elif _is_dict_data(value):
                 # DEFENSIVE CHECK: Recursively handle nested dicts.
                 serializable_item[key] = self._make_dict_serializable(value)
-            elif isinstance(value, list):
+            elif _is_list_data(value):
                 # DEFENSIVE CHECK: Recursively handle nested lists.
                 serializable_item[key] = self._make_serializable(value)
             else:
@@ -232,11 +242,12 @@ class PerformanceDataPersistence:
 
         processed_returns: dict[str, Any] = {}
         for strategy_name, strategy_data in loaded_data.items():
-            if not isinstance(strategy_data, dict):
+            if not _is_dict_data(strategy_data):
                 processed_returns[strategy_name] = strategy_data
                 continue
 
             processed_strategy_data: dict[datetime, Decimal] = {}
+            # TypeGuard ensures strategy_data is dict[str, Any]
             for ts_str, val in strategy_data.items():
                 result = self._process_timestamp_value(ts_str, val)
                 if result is not None:
@@ -281,7 +292,7 @@ class PerformanceDataPersistence:
         if isinstance(loaded_data, list):
             processed_list: list[dict[str, Any]] = []
             for item in loaded_data:
-                if isinstance(item, dict):
+                if _is_dict_data(item):
                     # DEFENSIVE CHECK: Handle unknown dict types from JSON.
                     processed_list.append(self._post_process_dict(item))
                 else:

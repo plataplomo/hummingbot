@@ -51,7 +51,11 @@ dependencies = [
     "logfire==3.16.1",
     "msgpack==1.1.0",
     "cryptography==45.0.3",
-    "pre-commit>=4.2.0",
+    "orjson==3.10.18",
+    "cachetools==6.1.0",
+    "opentelemetry-sdk==1.33.1",
+    "msgspec==0.19.0",
+    "tenacity==9.1.2",
     "psutil==7.0.0,<7.1.0",
 ]
 
@@ -71,7 +75,7 @@ dev = [
     "pyright>=1.1.400",
     "pip>=25.1.1",
     "uv>=0.7.3",
-    "pre-commit>=4.0.0",
+    "pre-commit>=4.2.0",
     "types-jsonschema==4.23.0.20241208,<4.30.0",
     "jsonschema==4.23.0",
     "types-setuptools==80.7.0.20250516,<81.0.0",
@@ -79,6 +83,11 @@ dev = [
     "pandas-stubs>=2.2.3.250308,<2.3",
     "msgpack-types==0.5.0,<=0.6.0",
     "types-requests==2.32.0.20250328,<2.40.0",
+    "types-cachetools>=6.0.0.20250525",
+    "types-orjson>=3.6.2",
+    "psutil==7.0.0",
+    "types-psutil>=7.0.0.20250601,<7.1.0",
+    "types-cachetools>=6.0.0.20250525",
     "types-psutil>=7.0.0.20250601,<7.1.0",
 ]
 
@@ -94,33 +103,15 @@ addopts = [
 testpaths = ["tests"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
-    "unit: marks tests as unit tests (deselect with '-m \"not unit\"')",
-    "slow: marks tests as slow running (deselect with '-m \"not slow\"')",
-    "file_io: marks tests that perform file I/O operations",
-    "network: marks tests that require network access",
     "timing: marks tests that depend on timing/sleep operations",
-    "vcr_cassette_dir: specify custom VCR cassette directory (usage: @pytest.mark.vcr_cassette_dir('api/backpack/public'))",
     "spot: marks tests as spot trading specific tests",
     "perp: marks tests as perpetual/derivatives trading specific tests",
-    "cross_exchange: marks tests as cross-exchange validation tests",
+    "zero_balance: marks tests with zero balance scenarios (require zero balance to run)",
     "requires_balance: marks tests requiring real money/balance (use with caution)",
-    "zero_balance: marks tests with zero balance scenarios (safe to run)",
-    "positive_balance: marks tests requiring positive balance",
-    "account: marks tests as account management specific tests",
     "shared: marks tests as shared/common functionality tests",
-    "websockets: marks tests as websocket specific tests",
-    "websocket: marks tests as websocket specific tests (variant)",
-    "balances: marks tests as balance related tests",
-    "orders: marks tests as order related tests",
-    "positions: marks tests as position related tests",
-    "positive_orders: marks tests requiring positive balance for order operations",
-    "requires_network: marks tests that require network connectivity",
-    "no_cover: marks tests to exclude from coverage calculations",
-    "positive_positions: marks tests requiring positive balance for position operations",
-    "zero_orders: marks tests with zero order scenarios",
-    "zero_positions: marks tests with zero position scenarios",
-    "large_positions: marks tests as large position specific tests",
-    "requires_large_balance: marks tests requiring large balance for testing maximum limits",
+    "cross_exchange: marks tests as cross-exchange validation tests",
+    "vcr: VCR cassette recording marker for network isolation",
+    "slow: marks tests as slow running (alias for timing)",
 ]
 
 # Ruff configuration for linting
@@ -294,9 +285,19 @@ scripts_are_modules = true  # Treat scripts as modules
 
 [tool.pyright]
 typeCheckingMode = "strict"  # Match Pylance
-include = ["scripts", "cyberdelta", "tests", "examples"] # tempopary because PC got irresponsive with too many errors
+include = ["scripts", "cyberdelta", "tests", "examples"]
 extraPaths = ["./main.py"]
-exclude = ["**/workflow/**", "**/.venv/**", "**/venv/**"]
+exclude = [
+    "**/workflow/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "frontend/**",
+    "cyberdelta/monitoring/**",
+    "tests/frontend/**",
+    "tests/unit/monitoring/test_performance_metrics.py",
+    "tests/integration/validation/test_multi_tier_funding_provider.py",
+    "cyberdelta/core/dataframe_processor.py",  # Pandas-specific module
+]
 pythonVersion = "3.13"
 reportMissingTypeStubs = "error"  # Enforce stubs
 reportUnknownMemberType = "error"

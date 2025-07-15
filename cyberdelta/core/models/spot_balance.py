@@ -22,7 +22,6 @@ from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
     DecimalFiniteError,
     FieldNameMissingError,
-    RequiredFieldNoneError,
 )
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
@@ -156,11 +155,7 @@ class SpotBalance(BaseModel):
         if field_name is None:
             raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-        if parsed is None:
-            raise RequiredFieldNoneError(
-                field_name=field_name,
-                reason="Required value parsed as None or was invalid",
-            )
+        # allow_none=False ensures parsed is never None
         # Check finiteness. ge=0 handled by Field constraint.
         if not parsed.is_finite():
             raise DecimalFiniteError(

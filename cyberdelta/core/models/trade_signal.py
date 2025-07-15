@@ -20,7 +20,6 @@ from cyberdelta.exceptions.field_validation import (
     FieldNameMissingError,
     ListFieldError,
     RequiredFieldError,
-    RequiredFieldNoneError,
     TypeFieldError,
 )
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
@@ -193,11 +192,7 @@ class TradeSignal(BaseModel):
         if field_name is None:
             raise FieldNameMissingError
         parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
-        if parsed is None:
-            raise RequiredFieldNoneError(
-                field_name=field_name,
-                reason="Required value invalid",
-            )
+        # allow_none=False ensures parsed is never None
         if not parsed.is_finite():
             raise DecimalFiniteError(field_name=field_name, value=parsed)
         return parsed

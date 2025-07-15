@@ -5,10 +5,14 @@ This module contains shared type aliases used across exchange API implementation
 
 from __future__ import annotations
 
-from collections.abc import Callable, Coroutine
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 
 
 # Type alias for WebSocket message handlers
-# Handler receives data_payload (dict) and the full_message (dict)
-MessageHandler = Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]
+# Handler receives typed context containing validated_envelope and metadata
+MessageHandler = Callable[["WebSocketContextUnion"], Awaitable[None]]

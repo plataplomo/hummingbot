@@ -21,7 +21,10 @@ from cyberdelta.apis.exceptions import (
 from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
     HyperliquidCommonMappers,
 )
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
+    HyperliquidRawWsCandle,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
 )
@@ -101,6 +104,83 @@ class HyperliquidHistoricalDataMapper(
             )
 
         return candles[0]
+
+    @staticmethod
+    def transform_ws_candle_to_internal(raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
+        """Transform WebSocket candle to internal Candle model.
+
+        Args:
+            raw_ws_candle: Validated WebSocket candle data from Hyperliquid
+
+        Returns:
+            Candle domain model
+
+        Raises:
+            CandleTransformationError: If transformation fails
+        """
+        try:
+            logger.debug(
+                "transforming_ws_candle_to_internal",
+                symbol=raw_ws_candle.s,
+                interval=raw_ws_candle.i,
+                timestamp=raw_ws_candle.t,
+                message="Transforming HyperliquidRawWsCandle to Candle",
+            )
+
+            # Parse OHLCV data
+            open_price = parse_decimal_value(raw_ws_candle.o, allow_none=False, field_name="open")
+            high_price = parse_decimal_value(raw_ws_candle.h, allow_none=False, field_name="high")
+            low_price = parse_decimal_value(raw_ws_candle.l, allow_none=False, field_name="low")
+            close_price = parse_decimal_value(raw_ws_candle.c, allow_none=False, field_name="close")
+            volume = parse_decimal_value(raw_ws_candle.v, allow_none=False, field_name="volume")
+
+            # Convert timestamp from milliseconds to datetime
+            open_time = datetime.fromtimestamp(raw_ws_candle.t / 1000, UTC)
+
+            # Use secure_transform for type-safe model creation
+            candle_data = {
+                "symbol": raw_ws_candle.s,
+                "interval": raw_ws_candle.i,
+                "open_time": open_time.isoformat(),
+                "open": str(open_price),
+                "high": str(high_price),
+                "low": str(low_price),
+                "close": str(close_price),
+                "volume": str(volume),
+            }
+
+            candle = secure_transform(
+                data=candle_data,
+                model_class=Candle,
+                context="hyperliquid_ws_candle_transform",
+                source_exchange="hyperliquid",
+            )
+
+            logger.debug(
+                "ws_candle_to_internal_transformed",
+                symbol=raw_ws_candle.s,
+                interval=raw_ws_candle.i,
+                open_time=open_time.isoformat(),
+                message="Successfully transformed HyperliquidRawWsCandle to Candle",
+            )
+
+        except Exception as e:
+            logger.exception(
+                "ws_candle_transform_failed",
+                symbol=raw_ws_candle.s,
+                interval=raw_ws_candle.i,
+                raw_candle=raw_ws_candle.model_dump() if raw_ws_candle else None,
+                error=str(e),
+                message="Failed to transform HyperliquidRawWsCandle to Candle",
+            )
+            raise CandleTransformationError(
+                reason=str(e),
+                symbol=raw_ws_candle.s,
+                interval=raw_ws_candle.i,
+                original_error=e,
+            ) from e
+        else:
+            return candle
 
     # Protocol-specific methods from HistoricalDataMapperProtocol
     @staticmethod

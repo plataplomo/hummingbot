@@ -6,13 +6,14 @@ The detailed routing logic is tested in test_hl_ws_message_router.py.
 Integration tests for WebSocket functionality are in test_hl_api_ws_integration.py.
 """
 
-from collections.abc import Callable, Coroutine
-from typing import Any, cast
+from collections.abc import Awaitable, Callable
+from typing import cast
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
@@ -222,7 +223,7 @@ class TestHyperliquidAPIWebSocketErrorHandling:
         # Test that None handler is handled appropriately
         # Cast None to the expected type to test runtime behavior
         none_handler = cast(
-            "Callable[[dict[str, Any], dict[str, Any]], Coroutine[Any, Any, None]]",
+            "Callable[[WebSocketContextUnion], Awaitable[None]]",
             None,
         )
         # Test that None handler is handled without AttributeError

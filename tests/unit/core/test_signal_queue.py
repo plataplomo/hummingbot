@@ -520,12 +520,13 @@ async def test_clean_expired_signals_direct_patch(
 
         # Assertions after cleanup
         current_signals = await queue.get_signals()
-        # Should have dummy signal plus the 2 valid signals (DEF_VAL and EXP_VAL)
-        assert len(current_signals) == 3, "Expected 3 signals after cleanup"
+        # Should have dummy signal plus the 3 valid signals (DEF_VAL, EXP_VAL, and TRIGGER)
+        assert len(current_signals) == 4, "Expected 4 signals after cleanup"
         symbols_remaining = {s.symbol for s in current_signals}
         assert "DEF_VAL" in symbols_remaining
         assert "EXP_VAL" in symbols_remaining
         assert "CLEANUP_TRIGGER" in symbols_remaining
+        assert "TRIGGER" in symbols_remaining
 
         # Verify cleanup happened (using the internal counter for simplicity in this test)
         # Note: Accessing _cleaned_count is not ideal practice outside testing.

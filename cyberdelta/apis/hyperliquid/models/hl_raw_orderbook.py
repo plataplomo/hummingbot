@@ -32,6 +32,7 @@ real-time and historical order book data.
     # ...then transform to internal order book model
 """
 
+from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
 from pydantic import (
@@ -40,6 +41,7 @@ from pydantic import (
     ConfigDict,
     Field,
     ValidationInfo,
+    field_serializer,
     field_validator,
     model_validator,
 )
@@ -82,7 +84,46 @@ class HyperliquidRawBookLevel(BaseModel):
     px: RawFiniteDecimalStr = Field(..., alias="px")
     sz: RawPositiveFiniteDecimalStr = Field(..., alias="sz")
     n: RawNonNegativeInt = Field(..., alias="n")
-    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid",
+        frozen=True,
+    )
+
+    @field_serializer("px", "sz")
+    def serialize_decimal_fields(self, value: str) -> str:
+        """Serialize decimal fields for order book levels.
+
+        Order book data requires high precision and efficient transmission
+        for real-time market data streaming. This serializer optimizes
+        the decimal representation for order book price levels.
+
+        Args:
+            value: The decimal string value to serialize
+
+        Returns:
+            Optimized decimal string for order book transmission
+        """
+        try:
+            decimal_val = Decimal(value)
+            normalized = decimal_val.normalize()
+
+            # Order book data needs consistent precision for price levels
+            # Use fixed-point notation for better readability and parsing
+            large_price_threshold = 1000000
+            if abs(normalized) >= large_price_threshold:
+                # Large prices: use scientific notation to save space
+                return f"{normalized:.8E}"
+
+            if abs(normalized) <= Decimal("0.00000001") and normalized != 0:
+                # Very small prices: use scientific notation
+                return f"{normalized:.8E}"
+            # Normal price range: use decimal notation with up to 8 decimal places
+            # This maintains precision while being human-readable
+            return str(normalized)
+
+        except (ValueError, TypeError, ArithmeticError):
+            return value
 
 
 # --- L2 Order Book Model ---

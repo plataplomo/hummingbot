@@ -7,22 +7,18 @@ for exchange-specific API implementations in the CyberDeltaEngine.
 from __future__ import annotations  # Enable postponed evaluation
 
 import asyncio
-import json
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin
 
 import aiohttp
 from pydantic import BaseModel
 
-from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.payload_serialization_strategy import (
     DefaultSerializationStrategy,
     PayloadSerializationStrategy,
 )
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
-from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
 from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import (
@@ -33,33 +29,20 @@ from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
     HttpRequestFailedError,
 )
+from cyberdelta.apis.connectivity.json_security import secure_json_loads
 from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 from cyberdelta.apis.exceptions import InvalidParameterTypeError
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import (
-    AccountSettings,
-    DerivativePosition,
-    FundingRate,
-    MarginAccountSummary,
-    Order,
-    OrderBook,
-    SpotBalance,
-    Ticker,
-    Trade,
-)
-from cyberdelta.core.models.market import Market
-from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.exceptions.base import RequiredParameterError
-from cyberdelta.utils.typing import ParsedJsonResponse
 
 
 if TYPE_CHECKING:
     # Import models only needed for type hints here
+    from collections.abc import Mapping
+
+    from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+    from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
     from cyberdelta.apis.models.service_args_models import (
         CancelOrderArgs,
         GetAllOpenOrdersArgs,
@@ -76,6 +59,24 @@ if TYPE_CHECKING:
         UpdateAccountSettingsArgs,
         WithdrawArgs,
     )
+    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+    from cyberdelta.config.secrets_models import AnyExchangeSecrets
+    from cyberdelta.core.models import (
+        AccountSettings,
+        DerivativePosition,
+        FundingRate,
+        MarginAccountSummary,
+        Order,
+        OrderBook,
+        SpotBalance,
+        Ticker,
+        Trade,
+    )
+    from cyberdelta.core.models.market import Market
+    from cyberdelta.core.models.market.candle import Candle
+    from cyberdelta.core.models.market.order import CancelOrderResult
+    from cyberdelta.core.models.operations import Transfer, Withdrawal
+    from cyberdelta.utils.typing import ParsedJsonResponse
 
 # Define what is explicitly exported by this module
 __all__ = [
@@ -107,7 +108,6 @@ class ExchangeAPI(ABC):
         http_client: HttpClient | None = None,
         ws_manager: WebSocketManager | None = None,
         rate_limit_strategy: RateLimitStrategy | None = None,
-        exchange_config: ExchangeSpecificConfig | None = None,
         serialization_strategy: PayloadSerializationStrategy | None = None,
     ) -> None:
         """Initialize the exchange API client.
@@ -122,7 +122,6 @@ class ExchangeAPI(ABC):
             http_client: Optional HttpClient instance for dependency injection (testing)
             ws_manager: Optional WebSocketManager instance for dependency injection (testing)
             rate_limit_strategy: Optional rate limiting strategy instance
-            exchange_config: Optional ExchangeSpecificConfig for backward compatibility
             serialization_strategy: Optional payload serialization strategy for model conversion
 
         """
@@ -140,9 +139,9 @@ class ExchangeAPI(ABC):
         # Setup rate limiting
         self.rate_limit_strategy = self._setup_rate_limiting(
             rate_limit_strategy,
-            exchange_config or config,
+            config,
         )
-        self.exchange_config = exchange_config or config
+        self.exchange_config = config
 
         # Setup HTTP client
         self.rest_endpoint, self._http_client = self._setup_http_client(http_client)
@@ -150,7 +149,7 @@ class ExchangeAPI(ABC):
         # Setup WebSocket manager
         self.ws_endpoint, self._ws_manager = self._setup_websocket_manager(
             ws_manager,
-            exchange_config,
+            config,
         )
 
         logger.info(
@@ -575,10 +574,9 @@ class ExchangeAPI(ABC):
         parsed_error_data: dict[str, Any] | None = None
         if e_http_failed.exchange_message:
             try:
-                parsed_error_data = json.loads(e_http_failed.exchange_message)
-                if not isinstance(parsed_error_data, dict):
-                    parsed_error_data = None
-            except json.JSONDecodeError:
+                error_json = secure_json_loads(e_http_failed.exchange_message)
+                parsed_error_data = error_json if isinstance(error_json, dict) else None
+            except (ValueError, TypeError):
                 pass
 
         # Map error using exchange-specific mapper
@@ -779,6 +777,8 @@ class ExchangeAPI(ABC):
                         f"for topic '{topic}': {e}. Not subscribing to this topic."
                     ),
                 )
+                # Re-raise the exception so calling code can handle invalid subscriptions
+                raise
         elif self._ws_manager:
             logger.warning(
                 "websocket_not_connected_for_subscription",
@@ -814,14 +814,27 @@ class ExchangeAPI(ABC):
 
     async def _on_ws_connected(self) -> None:
         """Callback executed by WebSocketManager after a successful connection."""
-        logger.info(
-            "websocket_connected_resubscribing",
-            exchange_name=self.exchange_name,
-            message=(
-                f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to topics."
-            ),
-        )
-        await self._resubscribe()
+        # Only attempt resubscription if there are topics to resubscribe to
+        if self._ws_handlers:
+            logger.info(
+                "websocket_connected_resubscribing",
+                exchange_name=self.exchange_name,
+                topics=list(self._ws_handlers.keys()),
+                message=(
+                    f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to "
+                    f"{len(self._ws_handlers)} topics."
+                ),
+            )
+            await self._resubscribe()
+        else:
+            logger.debug(
+                "websocket_connected_no_resubscription",
+                exchange_name=self.exchange_name,
+                message=(
+                    f"[{self.exchange_name}] WebSocket connected, but no topics registered "
+                    "for resubscription. Skipping resubscription."
+                ),
+            )
 
     async def _resubscribe(self) -> None:
         """Resubscribe to all registered topics after (re)connection."""
@@ -842,7 +855,9 @@ class ExchangeAPI(ABC):
                 f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
             ),
         )
-        if self._ws_manager and self.is_connected:
+        # Simply check if connected - no need for complex waiting logic
+        if self.is_connected and self._ws_manager is not None:
+            # Connection is ready, proceed with resubscription
             for topic in self._ws_handlers.copy():
                 try:
                     subscription_payload = self._construct_subscription_payload(topic)
@@ -878,15 +893,13 @@ class ExchangeAPI(ABC):
                             f"payload for topic '{topic}': {e}. Skipping this topic."
                         ),
                     )
-                await asyncio.sleep(0.1)
         else:
             logger.warning(
-                "cannot_resubscribe",
+                "resubscription_not_connected",
                 exchange_name=self.exchange_name,
-                message=(
-                    f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected "
-                    f"or manager not available."
-                ),
+                ws_manager_available=self._ws_manager is not None,
+                is_connected=self.is_connected,
+                message=(f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected."),
             )
 
     @abstractmethod

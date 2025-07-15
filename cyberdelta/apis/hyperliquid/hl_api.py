@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
-from cyberdelta.apis.base.authenticator_interface import (
-    AuthenticatedRequestComponents,
-)
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import (
@@ -19,14 +16,11 @@ from cyberdelta.apis.connectivity.http_client import (
 )
 from cyberdelta.apis.hyperliquid.hl_api_components_factory import HyperliquidAPIComponentsFactory
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
-from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
-from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
-from cyberdelta.apis.hyperliquid.hl_ws_message_router import HyperliquidWsMessageRouter
-from cyberdelta.apis.hyperliquid.hl_ws_raw_message_handler import HyperliquidWsRawMessageHandler
+from cyberdelta.apis.hyperliquid.hl_ws_router import HyperliquidWebSocketRouter
 
 # Import decomposed mappers that are used directly
 from cyberdelta.apis.hyperliquid.mappers import (
@@ -59,7 +53,6 @@ from cyberdelta.apis.models.service_args_models import (
     WithdrawArgs,
 )
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
-from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
@@ -77,6 +70,61 @@ from cyberdelta.core.models.market.order import (
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.exceptions.base import RequiredParameterError
+
+
+# Create instances of the new domain-specific mappers
+
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from cyberdelta.apis.base.authenticator_interface import (
+        AuthenticatedRequestComponents,
+    )
+    from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
+    from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
+    from cyberdelta.apis.hyperliquid.hl_response_handler import (
+        HyperliquidResponseHandler,
+    )
+    from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import HyperliquidRawWsSubscribeRequest
+    from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+    from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
+        HyperliquidMarketDataService,
+    )
+    from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
+    from cyberdelta.apis.models.service_args_models import (
+        CancelOrderArgs,
+        GetAllOpenOrdersArgs,
+        GetFundingRatesArgs,
+        GetHistoricalFundingRatesArgs,
+        GetMarketArgs,
+        GetMarketDataArgs,
+        GetMarketsArgs,
+        GetOrderArgs,
+        GetOrderHistoryArgs,
+        GetTradeHistoryArgs,
+        PlaceOrderArgs,
+        TransferArgs,
+        UpdateAccountSettingsArgs,
+        WithdrawArgs,
+    )
+    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+    from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
+    from cyberdelta.core.models import (
+        AccountSettings,
+        DerivativePosition,
+        FundingRate,
+        MarginAccountSummary,
+        SpotBalance,
+        Ticker,
+        Trade,
+    )
+    from cyberdelta.core.models.market import Candle, Market, OrderBook
+    from cyberdelta.core.models.market.order import (
+        CancelOrderResult,
+        Order,
+    )
+    from cyberdelta.core.models.operations import Transfer, Withdrawal
 
 
 logger = get_logger(__name__)
@@ -338,15 +386,17 @@ class HyperliquidAPI(ExchangeAPI):
         self._ws_subscriptions: dict[str, MessageHandler] = {}
         self._is_connected = False
 
-        # Initialize WebSocket message router
-        # Create WebSocket mappers
-        self._hl_ws_router = HyperliquidWsMessageRouter(
+        # Initialize enhanced WebSocket router with new architecture
+        error_handler = BaseErrorHandler(exchange_name="hyperliquid")
+        self._hl_ws_router = HyperliquidWebSocketRouter(
+            error_handler=error_handler,
             order_book_mapper=factory.create_order_book_mapper(),
-            transaction_mapper=factory.create_transaction_mapper(),
+            price_ticker_mapper=factory.create_price_ticker_mapper(),
+            balance_mapper=factory.create_balance_mapper(),
             position_mapper=factory.create_position_mapper(),
             order_mapper=self._hl_order_mapper,
-            raw_ws_handler=HyperliquidWsRawMessageHandler(),
-            exchange_name=self.exchange_name,
+            transaction_mapper=factory.create_transaction_mapper(),
+            historical_data_mapper=factory.create_historical_data_mapper(),
         )
 
     async def _authenticate(

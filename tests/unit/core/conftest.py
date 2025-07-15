@@ -9,8 +9,13 @@ from unittest.mock import MagicMock, Mock
 from uuid import uuid4
 
 import pytest
+from pydantic import AnyUrl, HttpUrl
 
-from cyberdelta.config.models.config_models import PortfolioTrackerConfig
+from cyberdelta.config.models.config_models import (
+    AddressActionSafetyNetConfig,
+    ExchangeSpecificConfig,
+    PortfolioTrackerConfig,
+)
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -30,6 +35,7 @@ from cyberdelta.core.models.enums import SignalType
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Common time fixtures
@@ -87,24 +93,73 @@ def mock_symbol_mapper() -> Mock:
     return mapper
 
 
+def create_test_exchange_config(
+    exchange_name: ExchangeName, symbols: dict[str, str] | None = None, **overrides: object
+) -> ExchangeSpecificConfig:
+    """Create a test ExchangeSpecificConfig with minimal required fields.
+
+    Args:
+        exchange_name: The exchange name enum
+        symbols: Symbol mappings (defaults to BTC/ETH/SOL)
+        **overrides: Additional fields to override
+
+    Returns:
+        ExchangeSpecificConfig: Properly configured exchange config
+    """
+    if symbols is None:
+        symbols = {
+            "BTC": "BTC-PERP",
+            "ETH": "ETH-PERP",
+            "SOL": "SOL-PERP",
+        }
+
+    base_config: dict[str, Any] = {
+        "exchange_name": exchange_name,
+        "enabled": True,
+        "api_base_url_mainnet": HttpUrl("https://api.example.com"),
+        "ws_url_mainnet": AnyUrl("wss://ws.example.com"),
+        "symbols": symbols,
+    }
+
+    # Add exchange-specific required fields
+    if exchange_name == ExchangeName.HYPERLIQUID:
+        base_config.update({
+            "chain_id": 1337,
+            "ip_weight_limit_per_minute": 1200,
+            "info_request_type_ip_weights": {"meta": 1, "allMids": 2},
+            "default_info_weight": 1,
+            "exchange_action_base_ip_weight": 1,
+            "address_action_safety_net": AddressActionSafetyNetConfig(rate_per_minute=600),
+        })
+    elif exchange_name == ExchangeName.BACKPACK:
+        base_config.update({
+            "rate_limit_per_minute": 120,
+        })
+
+    # Apply overrides
+    base_config.update(overrides)
+
+    return ExchangeSpecificConfig.model_validate(base_config)
+
+
 @pytest.fixture
-def symbol_mapper_config() -> dict[str, Any]:
-    """Standard symbol mapper configuration."""
+def hyperliquid_exchange_config() -> ExchangeSpecificConfig:
+    """Standard Hyperliquid exchange configuration."""
+    return create_test_exchange_config(ExchangeName.HYPERLIQUID)
+
+
+@pytest.fixture
+def backpack_exchange_config() -> ExchangeSpecificConfig:
+    """Standard Backpack exchange configuration."""
+    return create_test_exchange_config(ExchangeName.BACKPACK)
+
+
+@pytest.fixture
+def symbol_mapper_config() -> dict[str, ExchangeSpecificConfig]:
+    """Standard symbol mapper configuration with typed exchanges."""
     return {
-        "hyperliquid": {
-            "symbols": {
-                "BTC": "BTC-PERP",
-                "ETH": "ETH-PERP",
-                "SOL": "SOL-PERP",
-            }
-        },
-        "backpack": {
-            "symbols": {
-                "BTC": "BTC-PERP",
-                "ETH": "ETH-PERP",
-                "SOL": "SOL-PERP",
-            }
-        },
+        "hyperliquid": create_test_exchange_config(ExchangeName.HYPERLIQUID),
+        "backpack": create_test_exchange_config(ExchangeName.BACKPACK),
     }
 
 

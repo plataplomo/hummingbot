@@ -9,7 +9,7 @@ from __future__ import annotations
 import traceback
 from typing import TYPE_CHECKING, Any
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common import APIError, TransformationError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
 from cyberdelta.core.services.interfaces import (
     BaseService,
@@ -55,22 +55,26 @@ class ExecutionErrorHandler(BaseService, IErrorHandler):
         Returns:
             ExecutionResult with standardized error information
         """
+        # Use rich APIError metadata for logging
         self.logger.error(
             "API error occurred",
             exchange_id=exchange_id,
             error_code=error.code,
-            error_message=str(error),
+            error_message=error.message,
+            http_status=error.http_status,
+            exchange_code=error.exchange_code,
+            exchange_message=error.exchange_message,
+            retry_after=error.retry_after,
+            is_retryable=error.is_retryable,
             context=context,
-            error_details=getattr(error, "details", {}),
+            structured_metadata=error.metadata,
         )
 
         # Update circuit breaker if available
         if self.circuit_breaker:
             self.circuit_breaker.record_api_error(exchange_id, str(error.code))
 
-        # Determine if error is recoverable
-        recoverable = self._is_api_error_recoverable(error)
-
+        # Use built-in retry logic from APIError
         execution_error = ExecutionError(
             error_type=ExecutionErrorType.API_ERROR,
             message=f"API error in {context}: {error.message}",
@@ -78,11 +82,56 @@ class ExecutionErrorHandler(BaseService, IErrorHandler):
                 "error_code": error.code,
                 "exchange_id": exchange_id,
                 "context": context,
-                "original_details": getattr(error, "details", {}),
+                "http_status": error.http_status,
+                "exchange_code": error.exchange_code,
+                "exchange_message": error.exchange_message,
+                "retry_after": error.retry_after,
+                "is_retryable": error.is_retryable,
+                "structured_metadata": error.metadata or {},
             },
-            recoverable=recoverable,
-            retry_suggested=recoverable,
+            recoverable=error.is_retryable,  # Use built-in logic
+            retry_suggested=error.is_retryable,
             exchange_id=exchange_id,
+            original_exception=error,
+        )
+
+        return ExecutionResult.error_result(execution_error)
+
+    async def handle_transformation_error(
+        self, error: TransformationError, context: str
+    ) -> ExecutionResult:
+        """Handle transformation errors with rich metadata extraction.
+
+        Args:
+            error: The transformation error that occurred
+            context: Context description of the operation
+
+        Returns:
+            ExecutionResult with standardized error information
+        """
+        # Use rich TransformationError metadata for logging
+        self.logger.error(
+            "Transformation error occurred",
+            field_name=error.field_name,
+            source_value=str(error.source_value) if error.source_value is not None else None,
+            transformation_code=error.code,
+            context=context,
+            source_data=error.source_data,
+            error_message=str(error),
+        )
+
+        execution_error = ExecutionError(
+            error_type=ExecutionErrorType.VALIDATION_ERROR,  # Transformation is validation
+            message=f"Data transformation failed in {context}: {error}",
+            details={
+                "field_name": error.field_name,
+                "source_value": str(error.source_value) if error.source_value is not None else None,
+                "source_data": error.source_data or {},
+                "transformation_code": error.code,
+                "context": context,
+            },
+            recoverable=False,  # Transformation errors are typically not recoverable
+            retry_suggested=False,
             original_exception=error,
         )
 
@@ -259,86 +308,6 @@ class ExecutionErrorHandler(BaseService, IErrorHandler):
         )
 
         return ExecutionResult.error_result(execution_error)
-
-    def _is_api_error_recoverable(self, error: APIError) -> bool:
-        """Determine if an API error is recoverable based on error code.
-
-        Args:
-            error: The API error to evaluate
-
-        Returns:
-            True if the error is potentially recoverable with retry
-        """
-        # Define recoverable error codes
-        recoverable_codes = {
-            APIErrorCode.RATE_LIMITED,
-            APIErrorCode.NETWORK_ISSUE,
-            APIErrorCode.TIMEOUT,
-            APIErrorCode.SERVICE_UNAVAILABLE,
-            APIErrorCode.SERVER_ERROR,
-        }
-
-        # Check if error code is in recoverable set
-        if hasattr(error, "code"):
-            # Handle both enum and raw value comparisons
-            error_code = error.code
-            if isinstance(error_code, APIErrorCode):
-                return error_code in recoverable_codes
-            # error.code is already typed as int | str, so check directly
-            return any(error_code == code.value for code in recoverable_codes)
-
-        # Check error message for common recoverable patterns
-        error_message = str(error).lower()
-        recoverable_patterns = [
-            "timeout",
-            "rate limit",
-            "temporarily unavailable",
-            "try again",
-            "server error",
-            "connection",
-            "network",
-        ]
-
-        return any(pattern in error_message for pattern in recoverable_patterns)
-
-    def _sanitize_error_details(self, details: dict[str, Any]) -> dict[str, Any]:
-        """Sanitize error details to prevent logging sensitive information.
-
-        Args:
-            details: Original error details
-
-        Returns:
-            Sanitized error details safe for logging
-        """
-        sanitized: dict[str, Any] = {}
-
-        # Define keys that should be sanitized
-        sensitive_keys = {
-            "api_key",
-            "secret",
-            "private_key",
-            "password",
-            "token",
-            "authorization",
-            "signature",
-            "auth",
-            "credential",
-        }
-
-        for key, value in details.items():
-            key_lower = key.lower()
-
-            # Check if key contains sensitive information
-            if any(sensitive in key_lower for sensitive in sensitive_keys):
-                sanitized[key] = "[REDACTED]"
-            elif isinstance(value, (str, int, float, bool)):
-                sanitized[key] = value
-            elif isinstance(value, dict):
-                sanitized[key] = self._sanitize_error_details(value)
-            else:
-                sanitized[key] = str(type(value))
-
-        return sanitized
 
     async def create_success_result(self, data: object = None) -> ExecutionResult:
         """Create a successful execution result.

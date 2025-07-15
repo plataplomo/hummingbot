@@ -8,7 +8,6 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
 )
@@ -213,13 +212,13 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         # Mock validated response from handler
         mock_validated_funding_items = [
             HyperliquidRawFundingHistoryItem(
-                coin=RawHlCoinName(symbol),
+                coin=symbol,
                 fundingRate="0.0001",
                 premium="0.00005",
                 time=1672531200000,
             ),
             HyperliquidRawFundingHistoryItem(
-                coin=RawHlCoinName(symbol),
+                coin=symbol,
                 fundingRate="0.0002",
                 premium="0.00010",
                 time=1672617600000,
@@ -439,7 +438,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         mock_http_client_requester.return_value = (mock_raw_response_content, 200, {})
 
         mock_validated_funding_item = HyperliquidRawFundingHistoryItem(
-            coin=RawHlCoinName(symbol),
+            coin=symbol,
             fundingRate="0.0001",
             premium="0.00005",
             time=1672531200000,
@@ -583,13 +582,13 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         # Test case 2: Partial mapper failures
         mock_funding_items = [
             HyperliquidRawFundingHistoryItem(
-                coin=RawHlCoinName(symbol),
+                coin=symbol,
                 fundingRate="0.0001",
                 premium="0.00005",
                 time=1672531200000,
             ),
             HyperliquidRawFundingHistoryItem(
-                coin=RawHlCoinName(symbol),
+                coin=symbol,
                 fundingRate="0.0002",
                 premium="0.00010",
                 time=1672617600000,

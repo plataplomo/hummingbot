@@ -12,7 +12,7 @@ composite pattern, combining decomposed service components with optional depende
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
@@ -70,10 +70,13 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import (
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.backpack.utils.component_registry import BackpackComponentRegistry
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
+
+
+if TYPE_CHECKING:
+    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 
 
 logger = get_logger(__name__)

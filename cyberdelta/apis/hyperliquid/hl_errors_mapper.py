@@ -18,6 +18,7 @@ from http import HTTPStatus
 from typing import Any
 
 from cyberdelta.apis.common import APIError, APIErrorCode, APIErrorResponse, IErrorMapper
+from cyberdelta.apis.connectivity.json_security import secure_json_loads
 from cyberdelta.apis.hyperliquid.hl_api_error import (
     HYPERLIQUID_ERROR_STRINGS,
     HyperliquidAPIErrorCategory,
@@ -448,14 +449,14 @@ class HyperliquidErrorMapper(IErrorMapper):
     def _parse_error_body(self, error_body: str) -> str:
         """Parse error_body which might be JSON array or plain string."""
         try:
-            potential_list = json.loads(error_body)
+            potential_list = secure_json_loads(error_body)
             if (
                 isinstance(potential_list, list)
                 and potential_list
                 and isinstance(potential_list[0], str)
             ):
                 return potential_list[0]
-        except (json.JSONDecodeError, TypeError):
+        except (json.JSONDecodeError, TypeError, ValueError):
             pass
         return error_body
 

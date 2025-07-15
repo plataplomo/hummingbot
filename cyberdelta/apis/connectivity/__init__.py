@@ -11,6 +11,7 @@ from .connectivity_models import (
     WebSocketManagerConfig,
 )
 from .http_client import HttpClient, HttpRequestFailedError
+from .validated_ws_manager import ValidatedWebSocketManager
 from .ws_manager import WebSocketManager
 
 
@@ -19,6 +20,7 @@ __all__ = [
     "HttpClientConfig",
     "HttpRequestFailedError",
     "ProcessedResponseHeaders",
+    "ValidatedWebSocketManager",
     "WebSocketManager",
     "WebSocketManagerConfig",
 ]

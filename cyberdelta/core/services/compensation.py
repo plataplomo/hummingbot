@@ -29,7 +29,7 @@ from cyberdelta.core.services.interfaces import (
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.execution_handler import TradeExecution
+    from cyberdelta.core.models.execution import TradeExecution
 
 
 class CompensationStatus(Enum):

@@ -73,6 +73,21 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
         return validate_str_field(v, field_name="type", max_length=32, allow_empty=False)
 
 
+class HyperliquidRawAllMidsWrapper(
+    RootModel[dict[Literal["mids"], dict[RawAssetString64HL, RawFiniteDecimalStr]]]
+):
+    """RootModel for WebSocket allMids messages.
+
+    The WebSocket sends allMids data wrapped in a 'mids' field:
+    {"mids": {"BTC": "108019.5", "ETH": "2545.5", ...}}
+
+    This validates the exact structure and follows the RootModel pattern.
+    """
+
+    root: dict[Literal["mids"], dict[RawAssetString64HL, RawFiniteDecimalStr]]
+    model_config = ConfigDict(frozen=True)
+
+
 class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalStr]]):
     """Strict boundary model for the 'allMids' endpoint response, mapping symbols to mid prices.
 

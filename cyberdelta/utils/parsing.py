@@ -394,12 +394,7 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
         parsed_decimal = parse_decimal_value(validated_str, allow_none=False, field_name=field_name)
         # parse_decimal_value raises if allow_none=False and input is None,
         # or if it can't convert. So parsed_decimal here should not be None.
-        if parsed_decimal is None:  # Should not happen due to allow_none=False
-            raise DecimalFieldError(
-                field_name=field_name or "decimal",
-                value=validated_str,
-                reason="parsing unexpectedly returned None",
-            )
+        # allow_none=False ensures parsed_decimal is never None
         if not parsed_decimal.is_finite():
             raise DecimalFieldError(
                 field_name=field_name or "decimal",

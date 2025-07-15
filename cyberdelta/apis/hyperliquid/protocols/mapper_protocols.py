@@ -10,7 +10,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
-from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
+    HyperliquidRawCandleSnapshot,
+    HyperliquidRawWsCandle,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
 )
@@ -373,6 +376,18 @@ class CandleMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
+    @staticmethod
+    def transform_ws_candle_to_internal(raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
+        """Transform WebSocket candle to internal Candle model.
+
+        Args:
+            raw_ws_candle: Validated WebSocket candle data from Hyperliquid
+
+        Returns:
+            Candle domain model
+        """
+        ...
+
 
 @runtime_checkable
 class FundingRateMapperProtocol(MapperProtocol, Protocol):
@@ -637,6 +652,18 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
 
         Args:
             raw_candle: Raw candle data from API
+
+        Returns:
+            Candle domain model
+        """
+        ...
+
+    @staticmethod
+    def transform_ws_candle_to_internal(raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
+        """Transform WebSocket candle to internal Candle model.
+
+        Args:
+            raw_ws_candle: Validated WebSocket candle data from Hyperliquid
 
         Returns:
             Candle domain model
