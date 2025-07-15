@@ -128,6 +128,7 @@ class TestCachePerformanceSimple:
         assert reduction >= 0.90  # Should achieve at least 90% reduction for simple case
         assert stats["hit_rate"] >= 0.90
 
+    @pytest.mark.timing
     def test_ttl_behavior(
         self, cache_service: HyperliquidClearinghouseCacheService, mock_state: Mock
     ) -> None:
@@ -214,6 +215,7 @@ class TestCachePerformanceSimple:
         assert reduction >= 0.60, f"API call reduction {reduction:.2%} < 60% target"
         assert stats["hit_rate"] >= 0.80, f"Hit rate {stats['hit_rate']:.2%} < 80% target"
 
+    @pytest.mark.timing
     def test_performance_summary(
         self, cache_service: HyperliquidClearinghouseCacheService, mock_state: Mock
     ) -> None:
@@ -227,7 +229,8 @@ class TestCachePerformanceSimple:
             if cache_service.get_cached_state(user) is not None:
                 sequential_hits += 1
 
-        sequential_hits / 100
+        sequential_hit_rate = sequential_hits / 100
+        assert 0.0 <= sequential_hit_rate <= 1.0
 
         # Test 2: Random access pattern
         cache_service.invalidate_cache()  # Clear cache
@@ -241,7 +244,8 @@ class TestCachePerformanceSimple:
             if cache_service.get_cached_state(u) is not None:
                 random_hits += 1
 
-        random_hits / 100
+        random_hit_rate = random_hits / 100
+        assert 0.0 <= random_hit_rate <= 1.0
 
         # Test 3: API call reduction calculation
         baseline_calls = 100

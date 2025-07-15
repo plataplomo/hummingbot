@@ -435,7 +435,7 @@ class TestHyperliquidWebSocketCandles:
     ) -> None:
         """Process candle subscriptions for all intervals."""
         # Extract coin from symbol (e.g., "BTC-PERP" -> "BTC")
-        coin = test_symbol.split("-")[0] if "-" in test_symbol else test_symbol
+        coin = test_symbol.split("-", maxsplit=1)[0] if "-" in test_symbol else test_symbol
 
         for interval in intervals:
             topic = f"candle:{coin}:{interval}"

@@ -52,7 +52,8 @@ class PayloadTooLargeError(ValueError):
 
     def __init__(self, payload_type: str, size: int, limit: int) -> None:
         """Initialize payload too large error."""
-        super().__init__(f"Payload {payload_type} too large: {size} {payload_type.split()[-1]}")
+        last_part = payload_type.rsplit(maxsplit=1)[-1]
+        super().__init__(f"Payload {payload_type} too large: {size} {last_part}")
 
 
 class InvalidPayloadTypeError(TypeError):

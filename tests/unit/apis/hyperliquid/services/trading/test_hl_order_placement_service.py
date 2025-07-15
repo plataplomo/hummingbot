@@ -18,7 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.exceptions import OrderError
+from cyberdelta.apis.exceptions import OrderError, ServiceParameterError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -291,7 +291,7 @@ class TestOrderPlacementService:
         mock_error_mapper.map_error_to_api_error.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_place_batch_orders_success(
+    async def test_place_multiple_orders_sequentially(
         self,
         order_placement_service: HyperliquidOrderPlacementService,
         mock_http_requester: AsyncMock,
@@ -301,14 +301,24 @@ class TestOrderPlacementService:
         valid_place_order_args: PlaceOrderArgs,
         mock_order_response: Order,
     ) -> None:
-        """Test successful batch order placement."""
-        # Arrange
-        batch_args = [valid_place_order_args, valid_place_order_args]
+        """Test placing multiple orders sequentially through public API.
 
-        mock_request_builder.build_batch_place_order_payload = MagicMock()
-        mock_request_builder.build_batch_place_order_payload.return_value = MagicMock()
+        Since batch order placement is not exposed publicly, we test
+        multiple order placement through sequential calls.
+        """
+        # Arrange - Create two different orders
+        order1_args = valid_place_order_args
+        order2_args = PlaceOrderArgs(
+            symbol="ETH-USD",
+            side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1.0"),
+            price=Decimal(3000),
+            time_in_force=TimeInForce.GTC,
+        )
 
-        mock_raw_response = HyperliquidRawExchangeResponse(
+        # Mock responses for each order
+        mock_raw_response1 = HyperliquidRawExchangeResponse(
             status="ok",
             response=None,
             data=HyperliquidRawExchangeResponseData(
@@ -323,32 +333,89 @@ class TestOrderPlacementService:
                             avgPx="50000.0",
                         ),
                     ),
+                ],
+            ),
+        )
+
+        mock_raw_response2 = HyperliquidRawExchangeResponse(
+            status="ok",
+            response=None,
+            data=HyperliquidRawExchangeResponseData(
+                type="order",
+                statuses=[
                     HyperliquidRawExchangeStatusObject(
                         resting=None,
                         error=None,
                         filled=HyperliquidRawExchangeStatusFilled(
                             oid=12346,
-                            totalSz="0.1",
-                            avgPx="50000.0",
+                            totalSz="1.0",
+                            avgPx="3000.0",
                         ),
                     ),
                 ],
             ),
         )
-        mock_response_handler.handle_exchange_response.return_value = mock_raw_response
 
-        mock_http_response: tuple[Any, int, dict[str, str]] = ({"status": "ok"}, 200, {})
-        mock_http_requester.return_value = mock_http_response
+        mock_response_handler.handle_exchange_response.side_effect = [
+            mock_raw_response1,
+            mock_raw_response2,
+        ]
 
-        mock_mapper.build_order_from_response.return_value = mock_order_response
+        mock_http_requester.return_value = ({"status": "ok"}, 200, {})
 
-        # Act
-        with patch.object(order_placement_service, "_validate_orders_list"):
-            result = await order_placement_service._place_orders_core(batch_args, "batch")
+        # Create different order responses
+        order1_response = Order(
+            exchange_order_id="12345",
+            client_order_id="client_123",
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("0.1"),
+            price=Decimal(50000),
+            status=OrderStatus.FILLED,
+            quantity_filled=Decimal("0.1"),
+            created_at=datetime.now(UTC),
+            exchange="hyperliquid",
+            time_in_force=TimeInForce.GTC,
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        order2_response = Order(
+            exchange_order_id="12346",
+            client_order_id="client_456",
+            symbol="ETH-USD",
+            side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("1.0"),
+            price=Decimal(3000),
+            status=OrderStatus.FILLED,
+            quantity_filled=Decimal("1.0"),
+            created_at=datetime.now(UTC),
+            exchange="hyperliquid",
+            time_in_force=TimeInForce.GTC,
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+        )
+
+        mock_mapper.map_place_order_response_to_order.side_effect = [
+            order1_response,
+            order2_response,
+        ]
+
+        # Act - Place orders sequentially through public API
+        result1 = await order_placement_service.place_order(order1_args)
+        result2 = await order_placement_service.place_order(order2_args)
 
         # Assert
-        assert len(result) == 2
-        assert all(order == mock_order_response for order in result)
+        assert result1.exchange_order_id == "12345"
+        assert result2.exchange_order_id == "12346"
+        assert mock_http_requester.call_count == 2
+        assert mock_mapper.map_place_order_response_to_order.call_count == 2
 
     @pytest.mark.asyncio
     async def test_place_order_market_order_validation(
@@ -488,39 +555,89 @@ class TestOrderPlacementService:
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
 
-    def test_validate_orders_list_empty(
+    @pytest.mark.asyncio
+    async def test_order_validation_empty_symbol(
         self, order_placement_service: HyperliquidOrderPlacementService
     ) -> None:
-        """Test validation of empty orders list."""
+        """Test validation through public API with empty symbol."""
+        # Arrange - Create invalid order with empty symbol
+        invalid_args = PlaceOrderArgs(
+            symbol="",  # Empty symbol should trigger validation error
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=Decimal(50000),
+            time_in_force=TimeInForce.GTC,
+        )
+
         # Act & Assert
-        with pytest.raises(OrderError) as exc_info:
-            order_placement_service._validate_orders_list([], "test_method")
+        with pytest.raises(ServiceParameterError) as exc_info:
+            await order_placement_service.place_order(invalid_args)
 
-        assert "empty list" in str(exc_info.value).lower()
+        assert "symbol" in str(exc_info.value).lower()
 
-    def test_validate_orders_list_too_many(
+    @pytest.mark.asyncio
+    async def test_order_validation_invalid_quantity(
         self, order_placement_service: HyperliquidOrderPlacementService
     ) -> None:
-        """Test validation of orders list exceeding max batch size."""
-        # Arrange
-        # Create real PlaceOrderArgs instead of MagicMock
-        too_many_orders = [
-            PlaceOrderArgs(
-                symbol="BTC-USD",
-                side=OrderSide.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=Decimal("0.1"),
-                price=Decimal(50000),
-                time_in_force=TimeInForce.GTC,
-            )
-            for _ in range(101)
-        ]  # Assuming max is 100
+        """Test validation through public API with invalid quantity."""
+        # Arrange - Create order with negative quantity
+        invalid_args = PlaceOrderArgs(
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal(-1),  # Negative quantity
+            price=Decimal(50000),
+            time_in_force=TimeInForce.GTC,
+        )
 
         # Act & Assert
-        with pytest.raises(OrderError) as exc_info:
-            order_placement_service._validate_orders_list(too_many_orders, "test_method")
+        with pytest.raises(ServiceParameterError) as exc_info:
+            await order_placement_service.place_order(invalid_args)
 
-        assert "exceeds maximum" in str(exc_info.value).lower()
+        assert "quantity" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_order_validation_limit_order_without_price(
+        self, order_placement_service: HyperliquidOrderPlacementService
+    ) -> None:
+        """Test validation through public API for limit order without price."""
+        # Arrange - Create limit order without price
+        invalid_args = PlaceOrderArgs(
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=None,  # Missing required price for limit order
+            time_in_force=TimeInForce.GTC,
+        )
+
+        # Act & Assert
+        with pytest.raises(ServiceParameterError) as exc_info:
+            await order_placement_service.place_order(invalid_args)
+
+        assert "price" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_order_validation_unsupported_time_in_force(
+        self, order_placement_service: HyperliquidOrderPlacementService
+    ) -> None:
+        """Test validation through public API with unsupported time in force."""
+        # Arrange - Create order with unsupported time in force
+        invalid_args = PlaceOrderArgs(
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("0.1"),
+            price=Decimal(50000),
+            time_in_force=TimeInForce.FOK,  # FOK not supported by Hyperliquid
+        )
+
+        # Act & Assert
+        with pytest.raises(ServiceParameterError) as exc_info:
+            await order_placement_service.place_order(invalid_args)
+
+        assert "FOK" in str(exc_info.value) or "time_in_force" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_place_order_with_client_order_id(

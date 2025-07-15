@@ -86,19 +86,35 @@ class TestHyperliquidCommonMappers:
         # Invalid timestamp
         assert HyperliquidCommonMappers.timestamp_ms_to_datetime(1e20) is None
 
-    def test_type_guards(self) -> None:
-        """Test type guard methods."""
-        # _is_dict_with_key
-        assert HyperliquidCommonMappers._is_dict_with_key({"key": "value"}, "key") is True
-        assert HyperliquidCommonMappers._is_dict_with_key({"key": "value"}, "other") is False
-        assert HyperliquidCommonMappers._is_dict_with_key("not_dict", "key") is False
-        assert HyperliquidCommonMappers._is_dict_with_key([], "key") is False
+    def test_safe_get_nested_type_checking(self) -> None:
+        """Test safe_get_nested handles different types correctly (tests internal type guards)."""
+        # Test with non-dict values (implicitly tests _is_dict_with_key)
+        # Using cast to test the method's handling of invalid types
+        assert HyperliquidCommonMappers.safe_get_nested(cast(Any, "not_a_dict"), "key") is None
+        assert HyperliquidCommonMappers.safe_get_nested(cast(Any, []), "key") is None
+        assert HyperliquidCommonMappers.safe_get_nested(cast(Any, 123), "key") is None
 
-        # _is_list
-        assert HyperliquidCommonMappers._is_list([1, 2, 3]) is True
-        assert HyperliquidCommonMappers._is_list([]) is True
-        assert HyperliquidCommonMappers._is_list("not_list") is False
-        assert HyperliquidCommonMappers._is_list({"dict": True}) is False
+        # Test with dict missing keys
+        assert HyperliquidCommonMappers.safe_get_nested({"other": "value"}, "key") is None
+
+        # Test nested traversal with mixed types
+        data = {"level1": "not_a_dict"}
+        assert HyperliquidCommonMappers.safe_get_nested(data, "level1", "level2") is None
+
+    def test_ensure_list_type_checking(self) -> None:
+        """Test ensure_list handles different types correctly (tests internal _is_list)."""
+        # Test with list inputs (already lists)
+        assert HyperliquidCommonMappers.ensure_list([1, 2, 3]) == [1, 2, 3]
+        assert HyperliquidCommonMappers.ensure_list([]) == []
+
+        # Test with non-list inputs (should be wrapped in list)
+        assert HyperliquidCommonMappers.ensure_list("not_list") == ["not_list"]
+        assert HyperliquidCommonMappers.ensure_list({"dict": True}) == [{"dict": True}]
+        assert HyperliquidCommonMappers.ensure_list(42) == [42]
+
+        # Test edge cases
+        assert HyperliquidCommonMappers.ensure_list(None) is None
+        assert HyperliquidCommonMappers.ensure_list(None, default=[1, 2]) == [1, 2]
 
     def test_safe_get_nested(self) -> None:
         """Test safe nested dictionary access."""

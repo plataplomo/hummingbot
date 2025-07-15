@@ -87,12 +87,18 @@ class TestCacheServiceInitialization:
         """Test cache service initializes with correct defaults."""
         cache_service = HyperliquidClearinghouseCacheService()
 
-        assert cache_service._cache_duration == 5.0
-        assert cache_service._enable_cache is True
-        assert cache_service._max_cache_size == 1000
-        assert len(cache_service._cache) == 0
-        assert cache_service._cache_stats["hits"] == 0
-        assert cache_service._cache_stats["misses"] == 0
+        # Use public properties and methods
+        assert cache_service.cache_duration == 5.0
+        assert cache_service.enable_cache is True
+
+        # Get stats through public method
+        stats = cache_service.get_cache_stats()
+        assert stats["cache_duration"] == 5.0
+        assert stats["cache_enabled"] is True
+        assert stats["max_cache_size"] == 1000
+        assert stats["total_entries"] == 0
+        assert stats["hits"] == 0
+        assert stats["misses"] == 0
 
     @pytest.mark.parametrize(
         ("cache_duration", "enable_cache", "max_cache_size"), CACHE_INITIALIZATION_PARAMS
@@ -110,9 +116,15 @@ class TestCacheServiceInitialization:
             max_cache_size=max_cache_size,
         )
 
-        assert cache_service._cache_duration == cache_duration
-        assert cache_service._enable_cache == enable_cache
-        assert cache_service._max_cache_size == max_cache_size
+        # Use public properties and methods
+        assert cache_service.cache_duration == cache_duration
+        assert cache_service.enable_cache == enable_cache
+
+        # Verify max_cache_size through stats
+        stats = cache_service.get_cache_stats()
+        assert stats["cache_duration"] == cache_duration
+        assert stats["cache_enabled"] == enable_cache
+        assert stats["max_cache_size"] == max_cache_size
 
 
 @pytest.mark.cache
@@ -129,8 +141,11 @@ class TestBasicCacheOperations:
         result = cache_service.get_cached_state(test_user_address)
 
         assert result is None
-        assert cache_service._cache_stats["misses"] == 1
-        assert cache_service._cache_stats["hits"] == 0
+
+        # Check stats through public method
+        stats = cache_service.get_cache_stats()
+        assert stats["misses"] == 1
+        assert stats["hits"] == 0
 
     def test_cache_store_and_retrieve(
         self,
@@ -146,8 +161,11 @@ class TestBasicCacheOperations:
         result = cache_service.get_cached_state(test_user_address)
 
         assert result is mock_clearinghouse_state
-        assert cache_service._cache_stats["hits"] == 1
-        assert cache_service._cache_stats["misses"] == 0
+
+        # Check stats through public method
+        stats = cache_service.get_cache_stats()
+        assert stats["hits"] == 1
+        assert stats["misses"] == 0
 
     def test_cache_key_generation_uniqueness(
         self,
@@ -155,14 +173,17 @@ class TestBasicCacheOperations:
         multiple_user_addresses: list[ChecksumAddress],
     ) -> None:
         """Test cache key generation for different users."""
-        keys = []
+        # Test uniqueness by caching different states for each user
+        mock_states: list[MagicMock] = []
         for address in multiple_user_addresses:
-            key = cache_service._get_cache_key(address)
-            keys.append(key)
-            assert key == f"clearinghouse:{address}"
+            mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+            mock_states.append(mock_state)
+            cache_service.cache_state(address, mock_state)
 
-        # Ensure all keys are unique
-        assert len(keys) == len(set(keys))
+        # Verify each user has their own cached state
+        for i, address in enumerate(multiple_user_addresses):
+            cached = cache_service.get_cached_state(address)
+            assert cached is mock_states[i]
 
 
 @pytest.mark.cache
@@ -171,6 +192,7 @@ class TestCacheExpiration:
     """Test cache expiration and TTL behavior."""
 
     @pytest.mark.parametrize(("ttl_duration", "wait_time"), CACHE_EXPIRATION_TEST_CASES)
+    @pytest.mark.timing
     def test_cache_expiration_scenarios(
         self,
         ttl_duration: float,
@@ -189,7 +211,10 @@ class TestCacheExpiration:
         # Immediately retrieve - should be cached
         result = cache_service.get_cached_state(test_user_address)
         assert result is mock_state
-        assert cache_service._cache_stats["hits"] == 1
+
+        # Check hit was recorded through public stats
+        stats = cache_service.get_cache_stats()
+        assert stats["hits"] == 1
 
         # Wait for expiration
         time.sleep(wait_time)
@@ -197,8 +222,12 @@ class TestCacheExpiration:
         # Retrieve again - should be expired
         result = cache_service.get_cached_state(test_user_address)
         assert result is None
-        assert cache_service._cache_stats["misses"] == 1
 
+        # Check miss was recorded through public stats
+        stats = cache_service.get_cache_stats()
+        assert stats["misses"] == 1
+
+    @pytest.mark.timing
     def test_cache_cleanup_manual(
         self,
         test_user_address: ChecksumAddress,
@@ -468,7 +497,7 @@ class TestThreadSafety:
                     results["operations"] += local_operations
 
         # Create multiple threads
-        threads = []
+        threads: list[threading.Thread] = []
         for i in range(thread_count):
             user_addr = test_user_address if i % 2 == 0 else test_user_address_2
             thread = threading.Thread(target=cache_operations, args=(user_addr,))
@@ -495,7 +524,7 @@ class TestThreadSafety:
         for user in multiple_user_addresses:
             cache_service.cache_state(user, mock_state)
 
-        errors = []
+        errors: list[str] = []
         error_lock = threading.Lock()
 
         def invalidate_operations() -> None:
@@ -513,7 +542,7 @@ class TestThreadSafety:
                     errors.append(str(e))
 
         # Launch multiple invalidation threads
-        threads = []
+        threads: list[threading.Thread] = []
         for _ in range(5):
             thread = threading.Thread(target=invalidate_operations)
             threads.append(thread)
@@ -593,7 +622,7 @@ class TestEdgeCases:
         for user in users:
             cache_service.cache_state(user, mock_state)
 
-        # Verify cache respects size limits
+        # Verify cache respects size limits through public stats
         stats = cache_service.get_cache_stats()
-        assert stats["total_entries"] <= cache_service._max_cache_size
+        assert stats["total_entries"] <= stats["max_cache_size"]
         assert stats["evictions"] > 0

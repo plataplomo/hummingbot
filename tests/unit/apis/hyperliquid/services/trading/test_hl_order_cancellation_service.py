@@ -19,7 +19,6 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.exceptions import OrderError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
@@ -85,7 +84,7 @@ HTTP_ERROR_SCENARIOS = [
     ("Server unavailable", ConnectionError),
 ]
 
-VALIDATION_LIST_SCENARIOS = [
+VALIDATION_LIST_SCENARIOS: list[tuple[list[MagicMock], str]] = [
     ([], "empty list"),  # Empty list
     ([MagicMock() for _ in range(101)], "exceeds maximum"),  # Too many orders
 ]
@@ -741,48 +740,177 @@ class TestErrorHandling:
 @pytest.mark.order_cancellation
 @pytest.mark.validation
 class TestValidationLogic:
-    """Test validation logic for order cancellation."""
+    """Test validation logic for order cancellation through public methods."""
 
-    @pytest.mark.parametrize(("orders_list", "expected_error"), VALIDATION_LIST_SCENARIOS)
-    def test_validate_cancel_args_list_scenarios(
+    @pytest.mark.asyncio
+    async def test_cancel_order_empty_symbol_validation(
         self,
         order_cancellation_service: HyperliquidOrderCancellationService,
-        orders_list: list,
-        expected_error: str,
     ) -> None:
-        """Test validation of cancel orders list with various scenarios."""
-        # Act & Assert
-        with pytest.raises(OrderError) as exc_info:
-            order_cancellation_service._validate_cancel_args_list(orders_list, "test_method")
+        """Test cancel_order raises error for empty symbol."""
+        # Test validation through public method
+        with pytest.raises(APIError) as exc_info:
+            await order_cancellation_service.cancel_order(
+                CancelOrderArgs(symbol="", order_id="123")
+            )
 
-        assert expected_error in str(exc_info.value).lower()
+        assert "symbol must be a non-empty string" in str(exc_info.value).lower()
 
-    def test_validate_cancel_args_list_valid(
+    @pytest.mark.asyncio
+    async def test_cancel_order_empty_order_id_validation(
         self,
         order_cancellation_service: HyperliquidOrderCancellationService,
-        multiple_cancel_order_args: list[CancelOrderArgs],
     ) -> None:
-        """Test validation of valid cancel orders list."""
-        # Should not raise any exception
-        order_cancellation_service._validate_cancel_args_list(
-            multiple_cancel_order_args, "test_method"
-        )
+        """Test cancel_order raises error for empty order ID."""
+        with pytest.raises(APIError) as exc_info:
+            await order_cancellation_service.cancel_order(
+                CancelOrderArgs(symbol="BTC-USD", order_id="")
+            )
 
-    def test_validate_cancel_args_list_boundary_conditions(
-        self, order_cancellation_service: HyperliquidOrderCancellationService
+        assert "order_id must be a non-empty string" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_too_many_orders(
+        self,
+        order_cancellation_service: HyperliquidOrderCancellationService,
+        mock_order_query_service: MagicMock,
     ) -> None:
-        """Test validation at boundary conditions."""
-        # Test with exactly 100 orders (assuming this is the limit)
-        exactly_100_orders = [
-            CancelOrderArgs(symbol="BTC-USD", order_id=str(i)) for i in range(100)
+        """Test cancel_all_orders fails when there are too many orders."""
+        # Mock query service to return 51 orders (exceeds limit of 50)
+        mock_open_orders = [
+            Order(
+                exchange_order_id=str(i),
+                symbol="BTC-USD",
+                exchange="hyperliquid",
+                order_type=OrderType.LIMIT,
+                side=OrderSide.BUY,
+                quantity_requested=Decimal("0.1"),
+                price=Decimal(50000),
+                quantity_filled=Decimal(0),
+                status=OrderStatus.NEW,
+                time_in_force=TimeInForce.GTC,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+            )
+            for i in range(51)
         ]
 
-        # Should not raise exception at the boundary
-        order_cancellation_service._validate_cancel_args_list(exactly_100_orders, "test_method")
+        mock_order_query_service.query_open_orders.return_value = mock_open_orders
 
-        # Test with 1 order (minimum valid)
-        single_order = [CancelOrderArgs(symbol="BTC-USD", order_id="1")]
-        order_cancellation_service._validate_cancel_args_list(single_order, "test_method")
+        # Act & Assert
+        with pytest.raises(APIError) as exc_info:
+            await order_cancellation_service.cancel_all_orders()
+
+        assert "exceeds maximum" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_valid_single_order(
+        self,
+        order_cancellation_service: HyperliquidOrderCancellationService,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test cancel_order succeeds with valid single order."""
+        # Arrange
+        cancel_args = CancelOrderArgs(symbol="BTC-USD", order_id="123")
+
+        # Mock the HTTP flow
+        mock_request_builder.build_cancel_request_payload.return_value = {"type": "cancel"}
+        mock_http_client_requester.return_value = ({"status": "success"}, 200, {})
+        mock_response_handler.handle_cancel_response.return_value = [
+            Order(
+                exchange_order_id="123",
+                symbol="BTC-USD",
+                exchange="hyperliquid",
+                order_type=OrderType.LIMIT,
+                side=OrderSide.BUY,
+                quantity_requested=Decimal("0.1"),
+                price=Decimal(50000),
+                quantity_filled=Decimal(0),
+                status=OrderStatus.CANCELED,
+                time_in_force=TimeInForce.GTC,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+            )
+        ]
+
+        # Act - should not raise any exception
+        result = await order_cancellation_service.cancel_order(cancel_args)
+
+        # Assert
+        assert result is not None
+        assert result.order_id == "123"
+
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_boundary_50_orders(
+        self,
+        order_cancellation_service: HyperliquidOrderCancellationService,
+        mock_order_query_service: MagicMock,
+        mock_http_client_requester: AsyncMock,
+        mock_request_builder: MagicMock,
+        mock_response_handler: MagicMock,
+    ) -> None:
+        """Test cancel_all_orders succeeds with exactly 50 orders (boundary)."""
+        # Mock query service to return exactly 50 orders
+        mock_open_orders = [
+            Order(
+                exchange_order_id=str(i),
+                symbol="BTC-USD",
+                exchange="hyperliquid",
+                order_type=OrderType.LIMIT,
+                side=OrderSide.BUY,
+                quantity_requested=Decimal("0.1"),
+                price=Decimal(50000),
+                quantity_filled=Decimal(0),
+                status=OrderStatus.NEW,
+                time_in_force=TimeInForce.GTC,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+            )
+            for i in range(50)
+        ]
+
+        mock_order_query_service.query_open_orders.return_value = mock_open_orders
+
+        # Mock the HTTP flow
+        mock_request_builder.build_cancel_request_payload.return_value = {"type": "cancel"}
+        mock_http_client_requester.return_value = ({"status": "success"}, 200, {})
+        mock_response_handler.handle_cancel_response.return_value = [
+            Order(
+                exchange_order_id=order.exchange_order_id,
+                symbol=order.symbol,
+                exchange=order.exchange,
+                order_type=order.order_type,
+                side=order.side,
+                quantity_requested=order.quantity_requested,
+                price=order.price,
+                quantity_filled=order.quantity_filled,
+                status=OrderStatus.CANCELED,
+                time_in_force=order.time_in_force,
+                created_at=order.created_at,
+                updated_at=order.updated_at,
+                triggered_at=order.triggered_at,
+                strategy_name=order.strategy_name,
+                signal_id=order.signal_id,
+            )
+            for order in mock_open_orders
+        ]
+
+        # Act - should not raise any exception at boundary
+        result = await order_cancellation_service.cancel_all_orders()
+
+        # Assert
+        assert len(result) == 50
 
 
 @pytest.mark.order_cancellation

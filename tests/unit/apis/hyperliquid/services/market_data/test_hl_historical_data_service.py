@@ -23,7 +23,6 @@ from cyberdelta.apis.hyperliquid.hl_response_handler import HyperliquidResponseH
 from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper import (
     HyperliquidHistoricalDataMapper,
 )
-from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import RawHlCoinName
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_funding_history_info import (
     HyperliquidRawFundingHistoryItem,
@@ -172,7 +171,7 @@ def mock_funding_rate() -> FundingRate:
 def mock_historical_funding_item() -> HyperliquidRawFundingHistoryItem:
     """Create a mock historical funding rate item."""
     return HyperliquidRawFundingHistoryItem(
-        coin=RawHlCoinName("ETH"),
+        coin="ETH",
         fundingRate="0.0001",
         premium="0.0001",
         time=1704067200000,  # 2024-01-01 00:00:00

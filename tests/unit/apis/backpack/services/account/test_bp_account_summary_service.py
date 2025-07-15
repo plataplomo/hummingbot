@@ -514,42 +514,63 @@ class TestBackpackAccountSummaryService:
         )
 
     @pytest.mark.asyncio
-    async def test_get_raw_collateral_empty_response(
+    async def test_get_account_summary_collateral_empty_response(
         self,
         account_summary_service: BackpackAccountSummaryService,
         mock_http_client: AsyncMock,
     ) -> None:
-        """Test collateral fetch with empty response."""
+        """Test account summary when collateral fetch returns empty response."""
         # Arrange
+        # When enhanced mode tries to get collateral, it returns empty
         mock_http_client.return_value = (None, 200, {})
 
         # Act & Assert
+        # The service should raise an error when it gets empty collateral response
         with pytest.raises(EmptyResponseError) as exc_info:
-            await account_summary_service._get_raw_collateral_response()
+            await account_summary_service.get_account_summary()
 
         assert "collateral request" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_raw_positions_with_dict_response(
+    async def test_get_account_summary_positions_dict_response(
         self,
         account_summary_service: BackpackAccountSummaryService,
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
         mock_raw_position: BackpackRawPosition,
+        mock_collateral_response: BackpackRawCollateralResponse,
+        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
-        """Test positions fetch with dict response (instead of list)."""
+        """Test account summary when positions API returns dict response (instead of list)."""
         # Arrange
         dict_response = {"BTC-PERP": mock_raw_position.model_dump()}
-        mock_http_client.return_value = (dict_response, 200, {})
 
+        # Mock the three parallel API calls for enhanced mode
+        mock_http_client.side_effect = [
+            # Collateral response
+            (mock_collateral_response.model_dump(), 200, {}),
+            # Account settings response
+            (mock_raw_account_summary.model_dump(), 200, {}),
+            # Positions response (dict instead of list)
+            (dict_response, 200, {}),
+        ]
+
+        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
+        mock_response_handler.handle_get_account_settings_response.return_value = (
+            mock_raw_account_summary
+        )
         mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
 
+        mock_mapper.to_margin_account_summary.return_value = mock_margin_account_summary
+
         # Act
-        result = await account_summary_service._get_raw_positions_list()
+        result = await account_summary_service.get_account_summary()
 
         # Assert
-        assert len(result) == 1
-        assert result[0] == mock_raw_position
+        assert result == mock_margin_account_summary
+        # Verify positions handler was called with dict response
         mock_response_handler.handle_get_positions_response.assert_called_once_with(
             dict_response,
             None,
@@ -557,24 +578,51 @@ class TestBackpackAccountSummaryService:
         )
 
     @pytest.mark.asyncio
-    async def test_get_raw_positions_404_returns_empty(
+    async def test_get_account_summary_positions_404_handled(
         self,
         account_summary_service: BackpackAccountSummaryService,
         mock_http_client: AsyncMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+        mock_collateral_response: BackpackRawCollateralResponse,
+        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
-        """Test positions fetch with 404 returns empty list."""
+        """Test account summary when positions fetch returns 404 (should handle gracefully)."""
         # Arrange
-        mock_http_client.side_effect = APIError(
-            message="Not found",
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            http_status=404,
+        # Mock the three parallel API calls for enhanced mode
+        mock_http_client.side_effect = [
+            # Collateral response
+            (mock_collateral_response.model_dump(), 200, {}),
+            # Account settings response
+            (mock_raw_account_summary.model_dump(), 200, {}),
+            # Positions response - 404
+            APIError(
+                message="Not found",
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                http_status=404,
+            ),
+        ]
+
+        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
+        mock_response_handler.handle_get_account_settings_response.return_value = (
+            mock_raw_account_summary
         )
 
+        # Configure mapper to create summary with empty positions
+        mock_mapper.to_margin_account_summary.return_value = mock_margin_account_summary
+
         # Act
-        result = await account_summary_service._get_raw_positions_list()
+        result = await account_summary_service.get_account_summary()
 
         # Assert
-        assert result == []
+        assert result == mock_margin_account_summary
+        # Verify mapper was called with empty positions list
+        mock_mapper.to_margin_account_summary.assert_called_once_with(
+            mock_collateral_response,
+            mock_raw_account_summary,
+            [],  # Empty positions due to 404
+        )
 
     @pytest.mark.asyncio
     async def test_get_account_summary_without_authenticator(

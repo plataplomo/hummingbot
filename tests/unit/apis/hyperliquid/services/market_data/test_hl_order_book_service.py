@@ -166,7 +166,7 @@ class TestHyperliquidOrderBookService:
         mock_request_payload = MagicMock()
         mock_request_builder.build_l2_book_request_payload.return_value = mock_request_payload
 
-        raw_response = {"coin": "ETH", "levels": [[[], []]]}
+        raw_response: dict[str, str | list[list[list[str]]]] = {"coin": "ETH", "levels": [[[], []]]}
         mock_http_requester.return_value = (raw_response, 200, {})
 
         mock_response_handler.handle_info_l2_book_response.return_value = mock_raw_l2_book

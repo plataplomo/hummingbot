@@ -141,10 +141,10 @@ class FundingRateArbitrageStrategy(Strategy):
             # Default mapping if not provided
             # Extract the base asset from compound symbols like "SOL_USD-PERP" -> "SOL"
             if "-" in symbol:
-                perp_part = symbol.split("-")[0]  # Get "SOL_USD" from "SOL_USD-PERP"
-                base = perp_part.split("_")[0]  # Get "SOL" from "SOL_USD"
+                perp_part = symbol.split("-", maxsplit=1)[0]  # Get "SOL_USD" from "SOL_USD-PERP"
+                base = perp_part.split("_", maxsplit=1)[0]  # Get "SOL" from "SOL_USD"
             else:
-                base = symbol.split("_")[0]  # Get "SOL" from "SOL_USD"
+                base = symbol.split("_", maxsplit=1)[0]  # Get "SOL" from "SOL_USD"
             self.symbol_mapping = {symbol: f"{base}_USDC"}
 
         # Position sizing info storage

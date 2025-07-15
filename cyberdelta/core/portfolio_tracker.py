@@ -1642,9 +1642,9 @@ class PortfolioTracker:
     def _extract_quote_currency(self, symbol: str) -> str | None:
         """Extract quote currency from symbol."""
         if "-" in symbol:
-            return symbol.split("-")[-1]
+            return symbol.rsplit("-", maxsplit=1)[-1]
         if "_" in symbol:
-            return symbol.split("_")[-1]
+            return symbol.rsplit("_", maxsplit=1)[-1]
         return None
 
     async def _convert_entry_price_to_base(

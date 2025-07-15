@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 
 class TestBackpackProcessorPipeline:
     """Test WebSocket processor pipeline with real message processing."""
-    
+
     def _extract_envelope_data(self, context: WebSocketContextUnion) -> dict[str, Any] | None:
         """Extract data from validated envelope if present."""
         if hasattr(context, "validated_envelope") and context.validated_envelope:
@@ -57,23 +57,20 @@ class TestBackpackProcessorPipeline:
                     "domain_model": getattr(context, "domain_model", None),
                 }
         return None
-    
+
     async def _ensure_websocket_connected(self, bp_api: BackpackAPI) -> None:
         """Ensure we have a real WebSocket connection."""
         needs_connection = not bp_api.is_connected
-        
+
         if needs_connection:
             await bp_api.connect_websocket()
             if not bp_api.is_connected:
                 pytest.fail("Failed to establish real WebSocket connection to Backpack exchange")
             # Small delay to ensure connection is stable
             await asyncio.sleep(0.5)
-    
+
     async def _wait_for_messages(
-        self, 
-        messages_list: list[Any], 
-        min_count: int, 
-        timeout_seconds: int
+        self, messages_list: list[Any], min_count: int, timeout_seconds: int
     ) -> None:
         """Helper to wait for a minimum number of messages."""
         start_time = datetime.now(UTC)
@@ -81,7 +78,7 @@ class TestBackpackProcessorPipeline:
         while len(messages_list) < min_count and elapsed < timeout_seconds:
             await asyncio.sleep(0.5)
             elapsed = (datetime.now(UTC) - start_time).total_seconds()
-    
+
     async def _setup_market_test(self, bp_api: BackpackAPI) -> str:
         """Helper to setup market testing and return symbol."""
         await self._ensure_websocket_connected(bp_api)
@@ -135,11 +132,11 @@ class TestBackpackProcessorPipeline:
     ) -> None:
         """Test processor pipeline validates real WebSocket messages from exchange."""
         symbol = await self._setup_market_test(bp_api_for_test_env)
-        
+
         # Track received messages
         received_messages: list[dict[str, Any]] = []
         validation_errors: list[tuple[str, Exception]] = []
-        
+
         async def validation_handler(context: WebSocketContextUnion) -> None:
             """Handler that tracks validation results."""
             await asyncio.sleep(0)  # Ensure async function
@@ -154,32 +151,32 @@ class TestBackpackProcessorPipeline:
                     )
             except (ValueError, TypeError, AttributeError, KeyError) as e:
                 validation_errors.append(("handler", e))
-        
+
         # Subscribe to real ticker stream
         await bp_api_for_test_env.subscribe(f"ticker.{symbol}", validation_handler)
-        
+
         # Wait for real messages
         await self._wait_for_messages(received_messages, 3, 10)
-        
+
         # Validate results
         if validation_errors:
             pytest.fail(
                 f"Validation errors occurred: {validation_errors}. "
                 "Processor pipeline failed to handle real messages."
             )
-        
+
         if not received_messages:
             pytest.fail(
                 f"No messages received from ticker.{symbol} within 10s. "
                 "WebSocket connection or processor pipeline may be broken."
             )
-        
+
         # Verify message structure
         for msg in received_messages:
             assert "stream" in msg, "Message missing stream identifier"
             assert "data" in msg, "Message missing data payload"
             assert "timestamp" in msg, "Message missing timestamp"
-            
+
             # Verify we got domain model transformation
             if msg["stream"].startswith("ticker."):
                 domain_model = msg["domain_model"]
@@ -188,7 +185,7 @@ class TestBackpackProcessorPipeline:
                         "Ticker message was not transformed to domain model. "
                         "Processor pipeline transformation broken."
                     )
-                
+
                 # Verify it's a proper Ticker domain model
                 assert isinstance(domain_model, Ticker), (
                     f"Expected Ticker domain model, got {type(domain_model)}"
@@ -196,7 +193,7 @@ class TestBackpackProcessorPipeline:
                 assert domain_model.symbol == symbol
                 assert isinstance(domain_model.price, Decimal)
                 assert domain_model.price > 0
-        
+
         logger.info(
             "processor_validation_test_passed",
             message_count=len(received_messages),
@@ -211,26 +208,28 @@ class TestBackpackProcessorPipeline:
     ) -> None:
         """Test processor transforms real exchange data to Pydantic models."""
         symbol = await self._setup_market_test(bp_api_for_test_env)
-        
+
         # Get current real ticker data from REST API
         real_ticker = await bp_api_for_test_env.get_ticker(symbol)
         if not real_ticker:
             pytest.fail(f"Failed to get real ticker data for {symbol}")
-        
+
         # Now test WebSocket ticker transformation
         pydantic_models_created: list[BackpackRawTickerEvent] = []
-        
+
         async def pydantic_test_handler(context: WebSocketContextUnion) -> None:
             """Handler that captures Pydantic model creation."""
             await asyncio.sleep(0)  # Ensure async function
             if hasattr(context, "validated_envelope") and context.validated_envelope:
                 envelope = context.validated_envelope
                 # Check if we have valid ticker stream data
-                if (hasattr(envelope, "stream") and 
-                    hasattr(envelope, "data") and 
-                    isinstance(getattr(envelope, "stream", None), str) and 
-                    getattr(envelope, "stream", "").startswith("ticker.") and 
-                    isinstance(envelope.data, dict)):
+                if (
+                    hasattr(envelope, "stream")
+                    and hasattr(envelope, "data")
+                    and isinstance(getattr(envelope, "stream", None), str)
+                    and getattr(envelope, "stream", "").startswith("ticker.")
+                    and isinstance(envelope.data, dict)
+                ):
                     try:
                         # Try to create Pydantic model from real data
                         ticker_model = BackpackRawTickerEvent.model_validate(envelope.data)
@@ -240,19 +239,19 @@ class TestBackpackProcessorPipeline:
                             f"Failed to create Pydantic model from real WebSocket data: {e}\n"
                             f"Data: {envelope.data}"
                         )
-        
+
         # Subscribe to real ticker
         await bp_api_for_test_env.subscribe(f"ticker.{symbol}", pydantic_test_handler)
-        
+
         # Wait for real ticker updates
         await self._wait_for_messages(pydantic_models_created, 2, 10)
-        
+
         if not pydantic_models_created:
             pytest.fail(
                 f"No Pydantic models created from real WebSocket data for {symbol}. "
                 "Processor pipeline may not be receiving or transforming messages."
             )
-        
+
         # Validate the Pydantic models have real data
         for model in pydantic_models_created:
             assert model.symbol == symbol
@@ -262,12 +261,12 @@ class TestBackpackProcessorPipeline:
             assert Decimal(model.low) > 0
             assert Decimal(model.volume) >= 0
             assert Decimal(model.quote_volume) >= 0
-            
+
             # Sanity check - prices should be in reasonable range compared to REST data
             ws_price = Decimal(model.last_price)
             rest_price = Decimal(str(real_ticker.price))
             price_diff_pct = abs(ws_price - rest_price) / rest_price
-            
+
             # Allow up to 10% difference (markets can move)
             if price_diff_pct > Decimal("0.1"):
                 logger.warning(
@@ -277,7 +276,7 @@ class TestBackpackProcessorPipeline:
                     diff_pct=str(price_diff_pct),
                     message="Large price difference between WebSocket and REST API",
                 )
-        
+
         logger.info(
             "pydantic_transformation_verified",
             models_created=len(pydantic_models_created),
@@ -292,34 +291,36 @@ class TestBackpackProcessorPipeline:
     ) -> None:
         """Test processor transforms real exchange data to domain models."""
         symbol = await self._setup_market_test(bp_api_for_test_env)
-        
+
         # Collect domain models from real data
         domain_models: list[Ticker] = []
-        
+
         async def domain_model_handler(context: WebSocketContextUnion) -> None:
             """Handler that captures domain model creation."""
             await asyncio.sleep(0)  # Ensure async function
-            if (hasattr(context, "domain_model") and 
-                context.domain_model and 
-                isinstance(context.domain_model, Ticker)):
+            if (
+                hasattr(context, "domain_model")
+                and context.domain_model
+                and isinstance(context.domain_model, Ticker)
+            ):
                 domain_models.append(context.domain_model)
-        
+
         # Subscribe to real ticker stream
         await bp_api_for_test_env.subscribe(f"ticker.{symbol}", domain_model_handler)
-        
+
         # Wait for domain models
         await self._wait_for_messages(domain_models, 3, 10)
-        
+
         if not domain_models:
             pytest.fail(
                 f"No domain models created from real WebSocket data for {symbol}. "
                 "Processor pipeline transformation to domain models is broken."
             )
-        
+
         # Get market constraints for validation
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         tick_size = constraints["tick_size"]
-        
+
         # Validate domain models
         for model in domain_models:
             # Basic validation
@@ -327,24 +328,22 @@ class TestBackpackProcessorPipeline:
             assert model.symbol == symbol
             assert isinstance(model.price, Decimal)
             assert model.price > 0
-            
+
             # Price should respect tick size
             assert model.price % tick_size == 0, (
                 f"Price {model.price} doesn't respect tick size {tick_size}"
             )
-            
+
             # Validate other fields if present
             if model.volume is not None:
                 assert isinstance(model.volume, Decimal)
                 assert model.volume >= 0
-            
+
             if model.timestamp:
                 # Timestamp should be recent (within last minute)
                 age = datetime.now(UTC) - model.timestamp
-                assert age < timedelta(minutes=1), (
-                    f"Domain model timestamp too old: {age}"
-                )
-        
+                assert age < timedelta(minutes=1), f"Domain model timestamp too old: {age}"
+
         logger.info(
             "domain_model_transformation_verified",
             models_created=len(domain_models),
@@ -412,7 +411,7 @@ class TestBackpackProcessorPipeline:
                     context = result["context"]
                     # Context is now a WebSocketContextUnion object, not a dict
                     assert hasattr(context, "routing_key"), "Context should have routing_key"
-                    
+
                     # Extract key attributes from context object
                     context_attrs = [attr for attr in dir(context) if not attr.startswith("_")]
                     logger.info(
@@ -442,7 +441,7 @@ class TestBackpackProcessorPipeline:
         """Test processor pipeline performance with multiple messages."""
         # Ensure WebSocket is connected
         await self._ensure_websocket_connected(bp_api_for_test_env)
-        
+
         router = getattr(bp_api_for_test_env, "_bp_ws_router", None)
         processors = getattr(router, "processors", {}) if router else {}
 
@@ -453,13 +452,13 @@ class TestBackpackProcessorPipeline:
         markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
         if not markets:
             pytest.fail("No markets available")
-        
+
         symbol = markets[0].symbol
-        
+
         # Track performance metrics
         message_count = 0
         processing_times: list[float] = []
-        
+
         async def performance_handler(context: WebSocketContextUnion) -> None:
             """Handler that tracks processing time."""
             await asyncio.sleep(0)  # Ensure async function
@@ -473,21 +472,21 @@ class TestBackpackProcessorPipeline:
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1
-        
+
         # Subscribe to real ticker stream
         await bp_api_for_test_env.subscribe(f"ticker.{symbol}", performance_handler)
-        
+
         # Collect messages for 5 seconds
         test_duration = 5.0
         start_time = asyncio.get_event_loop().time()
-        
+
         elapsed = 0.0
         while elapsed < test_duration:
             await asyncio.sleep(0.1)
             elapsed = asyncio.get_event_loop().time() - start_time
-        
+
         # No need to unsubscribe - cleanup happens on test end
-        
+
         # Calculate metrics
         end_time = asyncio.get_event_loop().time()
         total_time = end_time - start_time
@@ -506,13 +505,12 @@ class TestBackpackProcessorPipeline:
                 f"No messages received from {symbol} during {test_duration}s performance test. "
                 "WebSocket connection may be broken."
             )
-        
+
         # Calculate average processing time
         avg_processing_time_ms = (
-            (sum(processing_times) / len(processing_times)) * 1000 
-            if processing_times else 0
+            (sum(processing_times) / len(processing_times)) * 1000 if processing_times else 0
         )
-        
+
         logger.info(
             "real_pipeline_performance",
             symbol=symbol,
@@ -525,7 +523,7 @@ class TestBackpackProcessorPipeline:
                 f"{messages_per_second:.1f} msg/s"
             ),
         )
-        
+
         # Performance thresholds based on real-world requirements
         # Most exchanges send ticker updates 1-10 times per second
         if messages_per_second < 0.5:
@@ -533,7 +531,7 @@ class TestBackpackProcessorPipeline:
                 f"Pipeline processing rate too low: {messages_per_second:.1f} msg/s. "
                 "Expected at least 0.5 messages per second for ticker updates."
             )
-        
+
         # Processing time should be fast for HFT
         if avg_processing_time_ms > 10:  # 10ms threshold
             logger.warning(
@@ -550,7 +548,7 @@ class TestBackpackProcessorPipeline:
         """Test processor pipeline memory efficiency."""
         # Ensure WebSocket is connected
         await self._ensure_websocket_connected(bp_api_for_test_env)
-        
+
         router = getattr(bp_api_for_test_env, "_bp_ws_router", None)
         processors = getattr(router, "processors", {}) if router else {}
 
@@ -565,27 +563,27 @@ class TestBackpackProcessorPipeline:
         markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
         if not markets:
             pytest.fail("No markets available")
-        
+
         symbol = markets[0].symbol
-        
+
         # Track messages for memory test
         message_count = 0
-        
+
         async def memory_test_handler(context: WebSocketContextUnion) -> None:
             """Simple handler for memory testing."""
             await asyncio.sleep(0)  # Ensure async function
             nonlocal message_count
             message_count += 1
             # Don't store anything to avoid artificial memory growth
-        
+
         # Subscribe to real stream
         await bp_api_for_test_env.subscribe(f"ticker.{symbol}", memory_test_handler)
-        
+
         # Process messages for 10 seconds
         test_duration = 10.0
         start_time = asyncio.get_event_loop().time()
         last_gc_time = start_time
-        
+
         while (asyncio.get_event_loop().time() - start_time) < test_duration:
             current_time = asyncio.get_event_loop().time()
             # Force GC every 2 seconds
@@ -593,11 +591,11 @@ class TestBackpackProcessorPipeline:
                 gc.collect()
                 last_gc_time = current_time
             await asyncio.sleep(0.1)
-        
+
         # Final GC before measurement
         gc.collect()
         await asyncio.sleep(0.5)  # Let memory settle
-        
+
         # No need to unsubscribe - cleanup happens on test end
 
         final_memory = process.memory_info().rss
@@ -621,15 +619,16 @@ class TestBackpackProcessorPipeline:
             final_memory_mb=f"{final_memory / (1024 * 1024):.1f}",
             memory_increase_mb=f"{memory_increase_mb:.1f}",
             messages_per_mb=(
-                f"{message_count / max(memory_increase_mb, 0.1):.1f}" 
-                if message_count > 0 else "N/A"
+                f"{message_count / max(memory_increase_mb, 0.1):.1f}"
+                if message_count > 0
+                else "N/A"
             ),
             message=(
                 f"Pipeline processed {message_count} real messages with "
                 f"{memory_increase_mb:.1f} MB memory increase"
             ),
         )
-        
+
         # Memory increase should be reasonable
         # With real data, some increase is expected due to internal buffers
         # But it shouldn't grow unbounded
@@ -641,7 +640,7 @@ class TestBackpackProcessorPipeline:
                     mb_per_1000_msgs=f"{mb_per_1000_messages:.1f}",
                     message="High memory usage per message - possible memory leak",
                 )
-        
+
         # Absolute threshold - shouldn't use more than 100MB for a 10 second test
         if memory_increase_mb > 100:
             pytest.fail(

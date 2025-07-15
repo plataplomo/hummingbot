@@ -63,7 +63,8 @@ class TimePatchMigrator(ast.NodeTransformer):
             and (decorator.args and isinstance(decorator.args[0], ast.Constant))
         ):
             patch_target = decorator.args[0].value
-            return "datetime" in patch_target and "time.time" not in patch_target
+            if isinstance(patch_target, str):
+                return "datetime" in patch_target and "time.time" not in patch_target
         return False
 
     def _is_time_patch(self, decorator: ast.AST) -> bool:

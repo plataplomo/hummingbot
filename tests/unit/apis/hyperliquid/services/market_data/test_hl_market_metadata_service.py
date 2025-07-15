@@ -231,14 +231,12 @@ class TestHyperliquidMarketMetadataService:
         args = GetMarketsArgs()
 
         mock_request_payload = MagicMock()
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = (
-            mock_request_payload
-        )
+        mock_request_builder.build_info_request_payload.return_value = mock_request_payload
 
         raw_response: dict[str, object] = {"meta": {}, "assetCtxs": []}
         mock_http_requester.return_value = (raw_response, 200, {})
 
-        mock_response_handler.handle_meta_and_asset_ctxs_response.return_value = (
+        mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_meta_and_asset_ctxs_response
         )
         mock_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = mock_markets
@@ -268,14 +266,14 @@ class TestHyperliquidMarketMetadataService:
         # Arrange
         args = GetMarketsArgs()
 
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ({"meta": {}, "assetCtxs": []}, 200, {})
 
         empty_response = HyperliquidRawMetaAndAssetCtxsResponse(
             meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
             asset_ctxs=[],
         )
-        mock_response_handler.handle_meta_and_asset_ctxs_response.return_value = empty_response
+        mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = empty_response
         mock_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = []
 
         # Act
@@ -295,7 +293,7 @@ class TestHyperliquidMarketMetadataService:
         # Arrange
         args = GetMarketsArgs()
 
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.side_effect = Exception("Network error")
 
         # Act & Assert
@@ -319,9 +317,9 @@ class TestHyperliquidMarketMetadataService:
         # Arrange
         args = GetMarketsArgs()
 
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ({"meta": {}, "assetCtxs": []}, 200, {})
-        mock_response_handler.handle_meta_and_asset_ctxs_response.return_value = (
+        mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_meta_and_asset_ctxs_response
         )
 
@@ -402,23 +400,45 @@ class TestHyperliquidMarketMetadataService:
             assert "API failure" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_all_asset_contexts_raw_none_response(
+    async def test_get_markets_none_response_error(
         self,
         market_metadata_service: HyperliquidMarketMetadataService,
         mock_http_requester: AsyncMock,
         mock_request_builder: Mock,
     ) -> None:
-        """Test asset contexts retrieval with None response."""
+        """Test markets retrieval with None response from HTTP client."""
         # Arrange
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        args = GetMarketsArgs()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = (None, 200, {})
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
-            await market_metadata_service._get_all_asset_contexts_raw()
+            await market_metadata_service.get_markets(args)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received" in exc_info.value.message
+
+    @pytest.mark.asyncio
+    async def test_get_markets_invalid_response_type_error(
+        self,
+        market_metadata_service: HyperliquidMarketMetadataService,
+        mock_http_requester: AsyncMock,
+        mock_request_builder: Mock,
+    ) -> None:
+        """Test markets retrieval with invalid response type (not a list)."""
+        # Arrange
+        args = GetMarketsArgs()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
+        # Return a dict instead of list to trigger the type validation error
+        mock_http_requester.return_value = ({"error": "invalid"}, 200, {})
+
+        # Act & Assert
+        with pytest.raises(APIError) as exc_info:
+            await market_metadata_service.get_markets(args)
+
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Expected list response" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_markets_with_isolated_margin_markets(
@@ -435,9 +455,9 @@ class TestHyperliquidMarketMetadataService:
         # Arrange
         args = GetMarketsArgs()
 
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ({"meta": {}, "assetCtxs": []}, 200, {})
-        mock_response_handler.handle_meta_and_asset_ctxs_response.return_value = (
+        mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_meta_and_asset_ctxs_response
         )
         mock_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = mock_markets
@@ -452,19 +472,21 @@ class TestHyperliquidMarketMetadataService:
         assert sol_market.status == "Trading"  # Market is trading
 
     @pytest.mark.asyncio
-    async def test_find_market_or_raise_with_empty_markets(
+    async def test_get_market_with_empty_markets_list(
         self,
         market_metadata_service: HyperliquidMarketMetadataService,
     ) -> None:
-        """Test finding market in empty markets list."""
+        """Test market retrieval when no markets are available."""
         # Arrange
-        symbol = "BTC"
+        args = GetMarketArgs(symbol="BTC")
         empty_markets: list[Market] = []
 
-        # Act & Assert
-        with pytest.raises(SymbolNotFoundError) as exc_info:
-            market_metadata_service._find_market_or_raise(symbol, empty_markets)
+        # Mock get_markets to return empty list
+        with patch.object(market_metadata_service, "get_markets", return_value=empty_markets):
+            # Act & Assert
+            with pytest.raises(SymbolNotFoundError) as exc_info:
+                await market_metadata_service.get_market(args)
 
-        assert exc_info.value.symbol == "BTC"
-        assert exc_info.value.available_symbols is not None
-        assert len(exc_info.value.available_symbols) == 0
+            assert exc_info.value.symbol == "BTC"
+            assert exc_info.value.available_symbols is not None
+            assert len(exc_info.value.available_symbols) == 0

@@ -213,7 +213,7 @@ class BackpackPrivateDataCollector:
     async def fetch_max_borrow_quantity(self, symbol: str) -> None:
         """Get max borrow quantity for an asset."""
         # Extract asset symbol from trading pair (e.g., BTC from BTC_USDC)
-        asset = symbol.split("_")[0] if "_" in symbol else symbol
+        asset = symbol.split("_", maxsplit=1)[0] if "_" in symbol else symbol
         data = await self._fetch_authenticated_json(
             "GET",
             "/api/v1/account/limits/borrow",
@@ -248,7 +248,7 @@ class BackpackPrivateDataCollector:
     async def fetch_max_withdrawal_quantity(self, symbol: str) -> None:
         """Get max withdrawal quantity."""
         # Extract asset symbol from trading pair
-        asset = symbol.split("_")[0] if "_" in symbol else symbol
+        asset = symbol.split("_", maxsplit=1)[0] if "_" in symbol else symbol
         data = await self._fetch_authenticated_json(
             "GET",
             "/api/v1/account/limits/withdrawal",

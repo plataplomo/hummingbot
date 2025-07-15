@@ -256,6 +256,7 @@ class TestAPICallReduction:
         assert reduction <= 0.99  # But not 100% (some misses expected)
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_realistic_trading_scenario_performance(
         self,
         mock_http_requester: AsyncMock,
@@ -316,6 +317,7 @@ class TestAPICallReduction:
 class TestCacheTTLAndEviction:
     """Test cache TTL behavior and eviction policies."""
 
+    @pytest.mark.timing
     def test_ttl_expiration_behavior(
         self,
         mock_clearinghouse_state: HyperliquidRawClearinghouseState,
@@ -399,6 +401,7 @@ class TestConcurrentPerformance:
     @pytest.mark.parametrize(
         ("user_count", "accesses_per_user", "min_hit_rate"), CONCURRENT_ACCESS_SCENARIOS
     )
+    @pytest.mark.timing
     async def test_concurrent_access_scenarios(
         self,
         cache_service: HyperliquidClearinghouseCacheService,
@@ -424,7 +427,7 @@ class TestConcurrentPerformance:
             return hits
 
         # Launch concurrent tasks
-        tasks = []
+        tasks: list[asyncio.Task[int]] = []
         for user in users:
             task = asyncio.create_task(access_cache(user, accesses_per_user))
             tasks.append(task)
@@ -528,9 +531,8 @@ class TestCacheConfigurations:
             max_cache_size=max_cache_size,
         )
 
-        assert cache_service._cache_duration == cache_duration
-        assert cache_service._enable_cache == enable_cache
-        assert cache_service._max_cache_size == max_cache_size
+        # Test configuration through behavior instead of private attributes
+        # The cache behavior will demonstrate if the configuration is correct
 
         # Test basic cache operations
         cache_service.cache_state(test_user_address, mock_clearinghouse_state)
@@ -538,8 +540,37 @@ class TestCacheConfigurations:
 
         if enable_cache:
             assert result is not None
+            # Verify the cached state matches what we stored
+            assert result == mock_clearinghouse_state
         else:
+            # When cache is disabled, get_cached_state should return None
             assert result is None
+
+        # Test max_cache_size behavior by filling the cache
+        if enable_cache and max_cache_size > 0:
+            # Create unique addresses to fill the cache
+            test_addresses = [
+                ChecksumAddress(HexAddress(HexStr(f"0x{i:040x}")))
+                for i in range(max_cache_size + 1)
+            ]
+
+            # Fill cache to max capacity
+            for addr in test_addresses[:max_cache_size]:
+                cache_service.cache_state(addr, mock_clearinghouse_state)
+
+            # Verify all items within limit are cached
+            for addr in test_addresses[:max_cache_size]:
+                assert cache_service.get_cached_state(addr) is not None
+
+            # Add one more item (should trigger eviction in LRU cache)
+            cache_service.cache_state(test_addresses[max_cache_size], mock_clearinghouse_state)
+
+            # The exact eviction behavior depends on the cache implementation
+            # We just verify that the cache respects some size limit
+            cached_count = sum(
+                1 for addr in test_addresses if cache_service.get_cached_state(addr) is not None
+            )
+            assert cached_count <= max_cache_size
 
     def test_configuration_performance_impact(
         self,
@@ -624,6 +655,7 @@ class TestComprehensivePerformance:
         assert final_stats["hit_rate"] >= 0.80, "Should achieve >80% cache hit rate"
 
     @pytest.mark.benchmark
+    @pytest.mark.timing
     def test_cache_performance_benchmarks(
         self,
         cache_service: HyperliquidClearinghouseCacheService,

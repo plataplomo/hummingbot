@@ -609,7 +609,7 @@ class TestSignalGenerator:
                 "strategy.funding_rate.max_slippage_percent": "0.01",
             }
             if key.startswith("exchanges.hyperliquid."):
-                prop = key.split(".")[-1]
+                prop = key.rsplit(".", maxsplit=1)[-1]
                 ex_data = mock_single_config_dict.get("exchanges", {}).get("hyperliquid", {})
                 result: object | None = ex_data.get(prop, default)
                 return result
