@@ -12,6 +12,7 @@ from typing import Annotated
 from pydantic import BeforeValidator, ValidationInfo
 
 from cyberdelta.apis.backpack.bp_api_errors import BackpackAPIErrorCode
+from cyberdelta.apis.base.validation_context_domain import StringPolicy, ValidationContext
 from cyberdelta.apis.exceptions.parsing import (
     ClientIdFormatError,
     KlineTypeError,
@@ -1353,7 +1354,7 @@ def _validate_kline_string_field(
     info: ValidationInfo,
     field_alias: str,
     max_length: int,
-    allow_empty: bool,
+    validation_context: ValidationContext | None = None,
 ) -> str:
     """Validate a string field from the kline data list.
 
@@ -1366,26 +1367,27 @@ def _validate_kline_string_field(
     if not isinstance(v, str):
         raise KlineTypeError(field_alias, type(v).__name__)
 
-    # Use field_alias as the field_name for validate_str_field
-    # This ensures errors from validate_str_field directly reference the kline field name.
-    try:
-        return validate_str_field(
-            v,
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext(
             field_name=field_alias,
-            max_length=max_length,
-            allow_empty=allow_empty,
+            context_description="kline_field_validation",
+            string_policy=StringPolicy.REQUIRE_CONTENT,  # Default to requiring content
         )
-    except ValueError as e:
-        if (
-            not allow_empty
-            and not v.strip()
-            and f"Field {field_alias}: String cannot be empty" == str(e)
-        ):
-            # Check original `v` for emptiness and original error message from validate_str_field
-            raise KlineValueError("empty_string", field_alias, v) from e
-        # For all other ValueErrors (e.g. too long, invalid UTF-8),
-        # re-raise the original error which already includes the field_alias.
-        raise
+
+    # Length validation
+    if len(v) > max_length:
+        raise KlineValueError("string_too_long", field_alias, v)
+
+    # String policy validation
+    if validation_context.string_policy == StringPolicy.REQUIRE_CONTENT:
+        if not v.strip():
+            raise KlineValueError("empty_string", field_alias, v)
+    elif validation_context.string_policy == StringPolicy.ALLOW_EMPTY:
+        # Empty strings are allowed
+        pass
+
+    return v
 
 
 # For 'ignored' field in Kline
@@ -1397,7 +1399,11 @@ type RawBpKlineNonEmptyStringMax64 = Annotated[
             info_ann,
             field_alias=str(info_ann.field_name),
             max_length=64,
-            allow_empty=False,
+            validation_context=ValidationContext(
+                field_name=str(info_ann.field_name),
+                context_description="kline_validation",
+                string_policy=StringPolicy.REQUIRE_CONTENT,
+            ),
         ),
     ),
 ]

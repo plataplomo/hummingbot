@@ -23,6 +23,10 @@ from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestB
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.apis.utils.response_validation import ensure_list_response
@@ -186,9 +190,11 @@ class BackpackBatchOrderService:
             method="DELETE",
             endpoint=endpoint,
             data=payload,
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         result = self._process_cancel_all_orders_response(raw_data, status_code, symbol)

@@ -29,6 +29,10 @@ from cyberdelta.apis.backpack.response_handlers.bp_account_response_handler impo
 from cyberdelta.apis.backpack.services.account.bp_account_state_service import (
     BackpackAccountStateService,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.utils import ensure_list_response
@@ -171,7 +175,11 @@ class BackpackPositionService:
                 method="GET",
                 endpoint="/api/v1/position",
                 params=request_params.model_dump(exclude_none=True),
-                is_signed=True,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             # Ensure list response

@@ -12,6 +12,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from cyberdelta.enums.environment import EnvironmentType
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
@@ -30,7 +31,7 @@ class TestHyperliquidConfigFixtures:
         assert active_hl_config.api_base_url_testnet is not None
         assert active_hl_config.ws_url_testnet is not None
 
-        assert isinstance(active_hl_config.is_mainnet_environment, bool)
+        assert isinstance(active_hl_config.environment_type, EnvironmentType)
 
     def test_active_hl_secrets(self, active_hl_secrets: PrivateKeyAuthSecrets) -> None:
         """Test that active_hl_secrets fixture provides correct secrets."""
@@ -46,8 +47,7 @@ class TestHyperliquidConfigFixtures:
         """Test that hl_api_for_test_env creates a proper API instance."""
         assert isinstance(hl_api_for_test_env, HyperliquidAPI)
 
-        expected_env = active_hl_config.is_mainnet_environment
-        if expected_env:
+        if active_hl_config.environment_type == EnvironmentType.MAINNET:
             assert hl_api_for_test_env.rest_endpoint == str(active_hl_config.api_base_url_mainnet)
         else:
             assert hl_api_for_test_env.rest_endpoint == str(active_hl_config.api_base_url_testnet)
@@ -61,8 +61,7 @@ class TestHyperliquidConfigFixtures:
         api = hl_api_with_di()
         assert isinstance(api, HyperliquidAPI)
 
-        expected_env = active_hl_config.is_mainnet_environment
-        if expected_env:
+        if active_hl_config.environment_type == EnvironmentType.MAINNET:
             assert api.rest_endpoint == str(active_hl_config.api_base_url_mainnet)
         else:
             assert api.rest_endpoint == str(active_hl_config.api_base_url_testnet)

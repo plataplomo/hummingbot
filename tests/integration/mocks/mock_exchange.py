@@ -18,6 +18,10 @@ from pydantic import BaseModel
 # Added import for ValidationError
 # Import Fill type
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    PositionIntent,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper, MessageHandler
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -863,9 +867,9 @@ class MockExchangeAPI(ExchangeAPI):
             signal="mock_signal",  # Example
             # Pass reduce_only, post_only if needed by helper or add here
         )
-        # Add reduce_only and post_only after creation if not in helper
-        order.reduce_only = args.reduce_only or False
-        order.post_only = args.post_only or False
+        # Add reduce_only and post_only after creation based on execution domain
+        order.reduce_only = args.execution.position_intent == PositionIntent.REDUCE_ONLY
+        order.post_only = args.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY
 
         # Store the order
         self._orders[order.client_order_id] = order
@@ -875,7 +879,10 @@ class MockExchangeAPI(ExchangeAPI):
         # Simulate fills/trades if filled
         if order.status in [OrderStatus.FILLED, OrderStatus.PARTIALLY_FILLED]:
             trade_fee_rate = self.taker_fee  # Assume taker for market/aggressive limit
-            if args.order_type == OrderType.LIMIT and args.post_only:
+            if (
+                args.order_type == OrderType.LIMIT
+                and args.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY
+            ):
                 trade_fee_rate = self.maker_fee
 
             # Use avg_fill_price if available, otherwise fallback
@@ -1428,8 +1435,10 @@ class MockExchangeAPI(ExchangeAPI):
                     triggered_at=None,
                     strategy_name=None,  # PlaceOrderArgs doesn't have strategy_name
                     signal_id=None,  # PlaceOrderArgs doesn't have signal_id
-                    reduce_only=order_args.reduce_only,
-                    post_only=order_args.post_only,
+                    reduce_only=order_args.execution.position_intent == PositionIntent.REDUCE_ONLY,
+                    post_only=(
+                        order_args.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY
+                    ),
                 )
                 results.append(failed_order)
 

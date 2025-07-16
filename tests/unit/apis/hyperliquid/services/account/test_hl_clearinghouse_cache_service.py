@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from eth_typing import ChecksumAddress, HexAddress, HexStr
 
+from cyberdelta.apis.base.infrastructure_config_domain import CachingPolicy
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_cache_service import (
@@ -112,13 +113,14 @@ class TestCacheServiceInitialization:
         """Test cache service initializes with various custom parameters."""
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=cache_duration,
-            enable_cache=enable_cache,
+            caching_policy=CachingPolicy.ENABLED if enable_cache else CachingPolicy.DISABLED,
             max_cache_size=max_cache_size,
         )
 
         # Use public properties and methods
         assert cache_service.cache_duration == cache_duration
-        assert cache_service.enable_cache == enable_cache
+        expected_policy = CachingPolicy.ENABLED if enable_cache else CachingPolicy.DISABLED
+        assert cache_service.caching_policy == expected_policy
 
         # Verify max_cache_size through stats
         stats = cache_service.get_cache_stats()
@@ -406,7 +408,7 @@ class TestCacheDisabledBehavior:
         test_user_address: ChecksumAddress,
     ) -> None:
         """Test cache behavior when disabled."""
-        cache_service = HyperliquidClearinghouseCacheService(enable_cache=False)
+        cache_service = HyperliquidClearinghouseCacheService(caching_policy=CachingPolicy.DISABLED)
 
         # Create mock state
         mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
@@ -428,7 +430,7 @@ class TestCacheDisabledBehavior:
         test_user_address: ChecksumAddress,
     ) -> None:
         """Test that disabled cache doesn't track statistics."""
-        cache_service = HyperliquidClearinghouseCacheService(enable_cache=False)
+        cache_service = HyperliquidClearinghouseCacheService(caching_policy=CachingPolicy.DISABLED)
         mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
 
         # Perform multiple operations

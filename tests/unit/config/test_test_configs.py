@@ -11,6 +11,7 @@ import pytest
 
 from cyberdelta.config.models.config_models import AppSettings, ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import SecretsConfig
+from cyberdelta.enums.environment import EnvironmentType
 
 
 class TestTestConfigurationFixtures:
@@ -45,15 +46,15 @@ class TestTestConfigurationFixtures:
         hl_config = test_app_settings.exchanges["hyperliquid"]
         assert isinstance(hl_config, ExchangeSpecificConfig)
         assert hl_config.exchange_name == "hyperliquid"
-        # Since test_config.yaml has is_mainnet_environment: false, but the model
-        # might have validation that changes it, just test that it has a boolean value
-        assert isinstance(hl_config.is_mainnet_environment, bool)
+        # Since test_config.yaml has environment_type: "testnet"
+        assert isinstance(hl_config.environment_type, EnvironmentType)
+        assert hl_config.environment_type == EnvironmentType.TESTNET
 
         # Check Backpack config
         bp_config = test_app_settings.exchanges["backpack"]
         assert isinstance(bp_config, ExchangeSpecificConfig)
         assert bp_config.exchange_name == "backpack"
-        assert bp_config.is_mainnet_environment is True  # Always mainnet
+        assert bp_config.environment_type == EnvironmentType.MAINNET  # Always mainnet
 
     @pytest.mark.skipif(
         not Path("tests/config/test_secrets.yaml").exists(),

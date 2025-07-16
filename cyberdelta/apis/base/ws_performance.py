@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.base.validation_context_domain import OperationResult
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -81,13 +82,13 @@ class PerformanceMetrics:
         self.pydantic_validations = 0
         self.msgspec_validations = 0
 
-    def record_validation_time(self, duration: float, method: str, success: bool) -> None:
+    def record_validation_time(self, duration: float, method: str, result: OperationResult) -> None:
         """Record validation performance metrics.
 
         Args:
             duration: Validation duration in seconds.
             method: Validation method used ('pydantic' or 'msgspec').
-            success: Whether validation succeeded.
+            result: Result of the validation operation.
         """
         if not self.config.enable_metrics:
             return
@@ -104,15 +105,15 @@ class PerformanceMetrics:
         elif method == "msgspec":
             self.msgspec_validations += 1
 
-        if not success:
+        if result.is_failure:
             self.validation_errors += 1
 
-    def record_transformation_time(self, duration: float, success: bool) -> None:
+    def record_transformation_time(self, duration: float, result: OperationResult) -> None:
         """Record transformation performance metrics.
 
         Args:
             duration: Transformation duration in seconds.
-            success: Whether transformation succeeded.
+            result: Result of the transformation operation.
         """
         if not self.config.enable_metrics:
             return
@@ -123,7 +124,7 @@ class PerformanceMetrics:
 
         self.transformation_times.append(duration)
 
-        if not success:
+        if result.is_failure:
             self.transformation_errors += 1
 
     def record_total_processing_time(self, duration: float) -> None:
@@ -321,7 +322,8 @@ class OptimizedProcessor[T: BaseModel]:
 
         finally:
             duration = time.perf_counter() - start_time
-            self.metrics.record_validation_time(duration, method, success)
+            result = OperationResult.SUCCESS if success else OperationResult.FAILURE
+            self.metrics.record_validation_time(duration, method, result)
 
     def process_optimized(
         self,
@@ -359,11 +361,11 @@ class OptimizedProcessor[T: BaseModel]:
                     result = transformer(validated)
 
                 transform_duration = time.perf_counter() - transform_start
-                self.metrics.record_transformation_time(transform_duration, True)
+                self.metrics.record_transformation_time(transform_duration, OperationResult.SUCCESS)
 
             except Exception:
                 transform_duration = time.perf_counter() - transform_start
-                self.metrics.record_transformation_time(transform_duration, False)
+                self.metrics.record_transformation_time(transform_duration, OperationResult.FAILURE)
                 raise
             else:
                 return result

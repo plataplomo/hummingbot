@@ -7,6 +7,7 @@ various timestamp formats from exchange APIs.
 from datetime import UTC, datetime
 from typing import NoReturn
 
+from cyberdelta.apis.base.validation_context_domain import ValidationContext
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 
@@ -16,9 +17,7 @@ logger = get_logger(__name__)
 
 def safe_parse_timestamp(
     value: str | float | datetime | None,
-    field_name: str = "timestamp",
-    context: str = "unknown",
-    allow_none: bool = False,
+    validation_context: ValidationContext | None = None,
 ) -> datetime | None:
     """Safely parse a timestamp value to UTC datetime.
 
@@ -29,9 +28,7 @@ def safe_parse_timestamp(
 
     Args:
         value: Timestamp value to parse
-        field_name: Name of the field for error messages
-        context: Context description for error messages
-        allow_none: Whether None values are allowed
+        validation_context: Validation context with null and timestamp policies
 
     Returns:
         Parsed datetime in UTC or None if allowed
@@ -39,11 +36,19 @@ def safe_parse_timestamp(
     Raises:
         APIError: If parsing fails
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
+
+    # Handle None values according to context policy
     if value is None:
-        if allow_none:
+        if validation_context.null_policy.value == "allow":
             return None
         raise APIError(
-            message=f"Cannot parse None as timestamp for {field_name} in {context}",
+            message=(
+                f"Cannot parse None as timestamp for {validation_context.field_name} "
+                f"in {validation_context.context_description}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
@@ -53,8 +58,8 @@ def safe_parse_timestamp(
         if value.tzinfo is None:
             logger.warning(
                 "naive_datetime_converted",
-                field_name=field_name,
-                context=context,
+                field_name=validation_context.field_name,
+                context=validation_context.context_description,
                 message="Converting naive datetime to UTC",
             )
             return value.replace(tzinfo=UTC)
@@ -63,25 +68,27 @@ def safe_parse_timestamp(
 
     # Handle numeric timestamps (Unix time)
     if isinstance(value, (int, float)):
-        return _parse_unix_timestamp(value, field_name, context)
+        return _parse_unix_timestamp(
+            value, validation_context.field_name, validation_context.context_description
+        )
 
     # Handle string timestamps - at this point value must be str
-    return _parse_string_timestamp(value, field_name, context)
+    return _parse_string_timestamp(
+        value, validation_context.field_name, validation_context.context_description
+    )
 
 
 def format_timestamp_for_api(
     dt: datetime,
     format_type: str = "unix_ms",
-    field_name: str = "timestamp",
-    context: str = "unknown",
+    validation_context: ValidationContext | None = None,
 ) -> str | int:
     """Format a datetime for API submission.
 
     Args:
         dt: Datetime to format
         format_type: Format type ("unix_s", "unix_ms", "iso", "iso_date")
-        field_name: Name of the field for error messages
-        context: Context description for error messages
+        validation_context: Validation context for error messages
 
     Returns:
         Formatted timestamp
@@ -89,6 +96,10 @@ def format_timestamp_for_api(
     Raises:
         APIError: If formatting fails
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
+
     try:
         # Ensure we're working with UTC
         dt_utc = dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
@@ -106,13 +117,16 @@ def format_timestamp_for_api(
     except (ValueError, OSError) as e:
         logger.exception(
             "timestamp_format_failed",
-            field_name=field_name,
-            context=context,
+            field_name=validation_context.field_name,
+            context=validation_context.context_description,
             format_type=format_type,
             error=str(e),
         )
         raise APIError(
-            message=f"Failed to format timestamp {field_name} in {context}",
+            message=(
+                f"Failed to format timestamp {validation_context.field_name} "
+                f"in {validation_context.context_description}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         ) from e
 
@@ -121,8 +135,7 @@ def validate_timestamp_range(
     dt: datetime,
     min_date: datetime | None = None,
     max_date: datetime | None = None,
-    field_name: str = "timestamp",
-    context: str = "unknown",
+    validation_context: ValidationContext | None = None,
 ) -> datetime:
     """Validate that a timestamp falls within acceptable range.
 
@@ -130,8 +143,7 @@ def validate_timestamp_range(
         dt: Datetime to validate
         min_date: Minimum allowed date (optional)
         max_date: Maximum allowed date (optional)
-        field_name: Name of the field for error messages
-        context: Context description for error messages
+        validation_context: Validation context for error messages
 
     Returns:
         Validated datetime
@@ -139,15 +151,25 @@ def validate_timestamp_range(
     Raises:
         APIError: If timestamp is out of range
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
+
     if min_date and dt < min_date:
         raise APIError(
-            message=f"{field_name} too early in {context}: {dt} < {min_date}",
+            message=(
+                f"{validation_context.field_name} too early "
+                f"in {validation_context.context_description}: {dt} < {min_date}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     if max_date and dt > max_date:
         raise APIError(
-            message=f"{field_name} too late in {context}: {dt} > {max_date}",
+            message=(
+                f"{validation_context.field_name} too late "
+                f"in {validation_context.context_description}: {dt} > {max_date}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 

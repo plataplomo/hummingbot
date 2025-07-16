@@ -20,6 +20,10 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import InvalidParameterTypeError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
@@ -376,9 +380,11 @@ class HyperliquidHistoricalDataService:
             method="POST",
             endpoint=endpoint_path,
             data=request_payload_data_dict,
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=2,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.UNSIGNED,
+                endpoint_group="public",
+                request_weight=2,
+            ),
         )
 
         if raw_response_content_parsed is None:
@@ -501,9 +507,11 @@ class HyperliquidHistoricalDataService:
             method="POST",
             endpoint=endpoint_path,
             data=payload.model_dump(by_alias=True, exclude_none=True, mode="json"),
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.UNSIGNED,
+                endpoint_group="public",
+                request_weight=1,
+            ),
         )
 
         if raw_response_content_parsed is None:
@@ -644,9 +652,11 @@ class HyperliquidHistoricalDataService:
                 by_alias=True,
                 exclude_none=True,
             ),
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.UNSIGNED,
+                endpoint_group="public",
+                request_weight=1,
+            ),
         )
 
         if raw_response_content_parsed is None:

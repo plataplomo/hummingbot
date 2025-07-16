@@ -176,7 +176,7 @@ class HyperliquidAPI(ExchangeAPI):
             ValueError: If chain_id is required but missing from exchange_config.
         """
         # URL Selection Logic based on environment
-        if exchange_config.is_mainnet_environment:
+        if exchange_config.environment_type.is_production:
             self.active_api_base_url = str(exchange_config.api_base_url_mainnet)
             self.active_ws_url = (
                 str(exchange_config.ws_url_mainnet) if exchange_config.ws_url_mainnet else None
@@ -207,16 +207,16 @@ class HyperliquidAPI(ExchangeAPI):
                 ),
             )
         else:
-            # Fallback or error if is_mainnet_environment is False but no testnet URLs
+            # Fallback or error if environment_type is testnet but no testnet URLs
             logger.error(
                 "hyperliquid_api_config_error_fallback_mainnet",
                 exchange=exchange_config.exchange_name.value,
-                is_mainnet_environment=exchange_config.is_mainnet_environment,
+                environment_type=exchange_config.environment_type.value,
                 has_testnet_url=bool(exchange_config.api_base_url_testnet),
                 action="falling_back_to_mainnet",
                 message=(
                     f"[{exchange_config.exchange_name.value}] Configuration error: "
-                    f"is_mainnet_environment is False, but no testnet URLs "
+                    f"environment_type is testnet, but no testnet URLs "
                     f"(api_base_url_testnet) are provided. Falling back to mainnet URLs."
                 ),
             )

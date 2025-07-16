@@ -304,7 +304,7 @@ class ExecutionConfigValidator(BaseService):
             critical_errors.append(f"Missing ws_url_mainnet for {exchange_id}")
 
         # Validate testnet configuration if needed
-        if not exchange_config.is_mainnet_environment:
+        if not exchange_config.environment_type.is_production:
             if not exchange_config.api_base_url_testnet:
                 critical_errors.append(
                     f"Missing api_base_url_testnet for {exchange_id} (testnet mode)"

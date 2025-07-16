@@ -27,6 +27,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
+from cyberdelta.apis.base.validation_context_domain import DataPresenceState, ErrorMappingContext
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
 from cyberdelta.config.structlog_config import get_logger
 
@@ -263,19 +264,27 @@ class BackpackErrorMapper(IErrorMapper):
         effective_exchange_message: str,
         status_code: int,
         effective_error_body: str,
-        has_error_data: bool,
+        error_mapping_context: ErrorMappingContext | None = None,
     ) -> str:
         """Construct the effective error message based on context.
 
         Returns:
             Formatted error message string.
         """
+        # Use default context if none provided
+        if error_mapping_context is None:
+            error_mapping_context = ErrorMappingContext()
+
         if api_error_code_enum != APIErrorCode.EXCHANGE_SPECIFIC:
             return (
                 f"{api_error_code_enum.name.replace('_', ' ').title()}: "
                 f"{effective_exchange_message}"
             )
-        if has_error_data:
+
+        # Use context to determine if error data should be included
+        has_error_data = bool(effective_error_body and effective_error_body.strip())
+        data_presence = DataPresenceState.PRESENT if has_error_data else DataPresenceState.ABSENT
+        if error_mapping_context.should_include_error_data(data_presence):
             return effective_exchange_message
         return f"Backpack API Error (HTTP {status_code}): {effective_exchange_message}"
 
@@ -411,7 +420,6 @@ class BackpackErrorMapper(IErrorMapper):
             effective_exchange_message,
             status_code,
             effective_error_body,
-            error_data is not None,
         )
 
         # Handle unparseable error_data case

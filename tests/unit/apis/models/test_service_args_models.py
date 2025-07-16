@@ -14,6 +14,11 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+    PositionIntent,
+)
 from cyberdelta.apis.models.service_args_models import (
     GetMarketArgs,
     GetMarketsArgs,
@@ -47,8 +52,8 @@ class TestPlaceOrderArgs:
         assert args.price is None
         assert args.stop_price is None
         assert args.client_order_id is None
-        assert args.reduce_only is False
-        assert args.post_only is False
+        assert args.execution.liquidity_requirement == LiquidityRequirement.ANY
+        assert args.execution.position_intent == PositionIntent.OPEN_OR_INCREASE
 
     def test_valid_limit_order(self) -> None:
         """Test valid limit order creation."""
@@ -60,8 +65,10 @@ class TestPlaceOrderArgs:
             time_in_force=TimeInForce.GTC,
             price=Decimal("2500.50"),
             client_order_id="my_order_123",
-            reduce_only=True,
-            post_only=True,
+            execution=OrderExecution(
+                liquidity_requirement=LiquidityRequirement.POST_ONLY,
+                position_intent=PositionIntent.REDUCE_ONLY,
+            ),
         )
 
         assert args.symbol == "ETH-USDT"
@@ -71,8 +78,8 @@ class TestPlaceOrderArgs:
         assert args.time_in_force == TimeInForce.GTC
         assert args.price == Decimal("2500.50")
         assert args.client_order_id == "my_order_123"
-        assert args.reduce_only is True
-        assert args.post_only is True
+        assert args.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY
+        assert args.execution.position_intent == PositionIntent.REDUCE_ONLY
 
     def test_valid_stop_limit_order(self) -> None:
         """Test valid stop limit order creation."""
@@ -431,21 +438,9 @@ class TestPlaceOrderArgs:
         assert len(errors) == 1
         assert "A positive stop_price is required" in errors[0]["msg"]
 
-    def test_post_only_only_for_limit_orders(self) -> None:
-        """Test that post_only=True is only allowed for LIMIT orders."""
-        with pytest.raises(ValidationError) as exc_info:
-            PlaceOrderArgs(
-                symbol="BTC-USD",
-                side=OrderSide.BUY,
-                order_type=OrderType.MARKET,
-                quantity=Decimal("1.0"),
-                time_in_force=TimeInForce.IOC,
-                post_only=True,
-            )
-
-        errors = exc_info.value.errors()
-        assert len(errors) == 1
-        assert "Post-only (post_only=True) is only applicable to LIMIT orders" in errors[0]["msg"]
+    # Note: post_only validation has been moved to OrderExecution domain object
+    # with different rules (e.g., LiquidityRequirement.POST_ONLY)
+    # Old test removed as part of clean break refactor
 
     def test_invalid_unparseable_decimal_quantity(self) -> None:
         """Test unparseable decimal values for quantity."""

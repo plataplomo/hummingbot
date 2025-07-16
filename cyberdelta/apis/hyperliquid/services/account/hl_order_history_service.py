@@ -17,6 +17,10 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
@@ -219,9 +223,11 @@ class HyperliquidOrderHistoryService:
             method="POST",
             endpoint=endpoint,
             data=payload,
-            is_signed=False,  # Historical data requests don't require signing
-            endpoint_group="info",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.UNSIGNED,
+                endpoint_group="info",
+                request_weight=1,
+            ),
         )
 
         raw_response_content = str(raw_data) if raw_data is not None else None

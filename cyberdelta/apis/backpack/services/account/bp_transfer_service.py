@@ -26,6 +26,10 @@ from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import
 from cyberdelta.apis.backpack.response_handlers.bp_account_response_handler import (
     BackpackAccountResponseHandler,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args_models import TransferArgs, WithdrawArgs
 from cyberdelta.apis.utils import ensure_dict_response
@@ -332,9 +336,11 @@ class BackpackTransferService:
             method="POST",
             endpoint=endpoint_path,
             data=payload,
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         logger.debug(
@@ -392,9 +398,11 @@ class BackpackTransferService:
             method="POST",
             endpoint=endpoint_path,
             data=payload,
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         logger.debug(

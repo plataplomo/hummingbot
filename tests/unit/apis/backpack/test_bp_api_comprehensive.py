@@ -12,6 +12,10 @@ import pytest
 from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.base.trading_execution_domain import (
+    OrderExecution,
+    PositionIntent,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -349,7 +353,8 @@ class TestBackpackAPIPublicBehavior:
                 quantity=Decimal("10.0"),
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
-                reduce_only=True,  # This should trigger a warning in the service
+                # This should trigger a warning in the service
+                execution=OrderExecution(position_intent=PositionIntent.REDUCE_ONLY),
             )
             result = await backpack_api.place_order(place_order_args)
 
@@ -380,6 +385,7 @@ class TestBackpackAPIPublicBehavior:
                     order_type=OrderType.MARKET,
                     quantity=Decimal("10.0"),
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
                 await backpack_api.place_order(place_order_args)
 

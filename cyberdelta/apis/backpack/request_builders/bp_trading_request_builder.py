@@ -28,6 +28,11 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetTradeHistoryParams,
 )
 from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestBuilderProtocol
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+    PositionIntent,
+)
 from cyberdelta.apis.exceptions import (
     InvalidEnumValueError,
     MissingRequiredParameterError,
@@ -162,8 +167,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         price: Decimal | None,
         time_in_force_str: str | None,
         client_order_id: str | None,
-        post_only: bool | None,
-        reduce_only: bool | None,
+        execution: OrderExecution,
     ) -> None:
         """Add basic order fields to the request dictionary.
 
@@ -176,14 +180,23 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             price: Limit price (required for limit orders)
             time_in_force_str: API time in force string
             client_order_id: Optional client order ID
-            post_only: Optional post-only flag
-            reduce_only: Optional reduce-only flag
+            execution: Order execution configuration with validated policies
         """
         request_dict["orderType"] = order_type_str
         request_dict["side"] = order_side_str
 
-        # For trigger orders (stop and take profit), Backpack API requires
-        # NOT to specify quantity, only triggerQuantity
+        BackpackTradingRequestBuilder._add_quantity_fields(request_dict, order_type, quantity)
+        BackpackTradingRequestBuilder._add_price_fields(request_dict, order_type_str, price)
+        BackpackTradingRequestBuilder._add_optional_fields(
+            request_dict, time_in_force_str, client_order_id
+        )
+        BackpackTradingRequestBuilder._add_execution_fields(request_dict, order_type_str, execution)
+
+    @staticmethod
+    def _add_quantity_fields(
+        request_dict: dict[str, Any], order_type: OrderType, quantity: Decimal
+    ) -> None:
+        """Add quantity fields based on order type."""
         trigger_order_types = {
             OrderType.STOP_LIMIT,
             OrderType.STOP_MARKET,
@@ -193,7 +206,11 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         if order_type not in trigger_order_types:
             request_dict["quantity"] = str(quantity)
 
-        # Add price for limit orders (including stop limit and take profit limit)
+    @staticmethod
+    def _add_price_fields(
+        request_dict: dict[str, Any], order_type_str: str, price: Decimal | None
+    ) -> None:
+        """Add price fields for limit orders."""
         if order_type_str == "Limit":
             if price is None:
                 raise MissingRequiredParameterError(
@@ -202,16 +219,44 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
                 )
             request_dict["price"] = str(price)
 
-        # Add optional fields
+    @staticmethod
+    def _add_optional_fields(
+        request_dict: dict[str, Any], time_in_force_str: str | None, client_order_id: str | None
+    ) -> None:
+        """Add optional fields to request."""
         if time_in_force_str is not None:
             request_dict["timeInForce"] = time_in_force_str
         if client_order_id is not None:
             request_dict["clientId"] = client_order_id
+
+    @staticmethod
+    def _add_execution_fields(
+        request_dict: dict[str, Any], order_type_str: str, execution: OrderExecution
+    ) -> None:
+        """Add execution configuration fields."""
         # Market orders cannot have postOnly flag
-        if post_only is not None and order_type_str != "Market":
-            request_dict["postOnly"] = post_only
-        if reduce_only is not None:
-            request_dict["reduceOnly"] = reduce_only
+        if order_type_str != "Market":
+            BackpackTradingRequestBuilder._add_liquidity_fields(request_dict, execution)
+
+        BackpackTradingRequestBuilder._add_position_intent_fields(request_dict, execution)
+
+    @staticmethod
+    def _add_liquidity_fields(request_dict: dict[str, Any], execution: OrderExecution) -> None:
+        """Add liquidity requirement fields."""
+        if execution.liquidity_requirement == LiquidityRequirement.POST_ONLY:
+            request_dict["postOnly"] = True
+        elif execution.liquidity_requirement == LiquidityRequirement.ANY:
+            request_dict["postOnly"] = False
+
+    @staticmethod
+    def _add_position_intent_fields(
+        request_dict: dict[str, Any], execution: OrderExecution
+    ) -> None:
+        """Add position intent fields."""
+        if execution.position_intent == PositionIntent.REDUCE_ONLY:
+            request_dict["reduceOnly"] = True
+        elif execution.position_intent == PositionIntent.OPEN_OR_INCREASE:
+            request_dict["reduceOnly"] = False
 
     @staticmethod
     def add_stop_loss_fields(
@@ -254,8 +299,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = None,
         client_order_id: str | None = None,
-        post_only: bool | None = None,
-        reduce_only: bool | None = None,
+        execution: OrderExecution | None = None,
         stop_price: Decimal | None = None,
         take_profit_price: Decimal | None = None,
         self_trade_prevention: str | None = None,
@@ -270,8 +314,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             price: Limit price for limit orders
             time_in_force: Time in force option
             client_order_id: Optional client order ID
-            post_only: Optional post-only flag
-            reduce_only: Optional reduce-only flag
+            execution: Order execution configuration with validated policies
             stop_price: Stop price for stop orders
             take_profit_price: Take profit price for TP orders
             self_trade_prevention: Self trade prevention mode
@@ -298,6 +341,10 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         # Build base request dictionary
         request_dict: dict[str, Any] = {"symbol": symbol}
 
+        # Default execution if not provided
+        if execution is None:
+            execution = OrderExecution()
+
         # Add basic order fields
         BackpackTradingRequestBuilder.add_basic_order_fields(
             request_dict,
@@ -308,8 +355,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             price,
             tif_str,
             client_order_id,
-            post_only,
-            reduce_only,
+            execution,
         )
 
         # Add stop fields if applicable

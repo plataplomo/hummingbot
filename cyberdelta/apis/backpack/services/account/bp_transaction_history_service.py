@@ -26,6 +26,10 @@ from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import
 from cyberdelta.apis.backpack.response_handlers.bp_trading_response_handler import (
     BackpackTradingResponseHandler,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.apis.utils import ensure_list_response
@@ -311,9 +315,11 @@ class BackpackTransactionHistoryService:
             method="GET",
             endpoint=endpoint_path,
             params=params.model_dump(by_alias=True, exclude_none=True),
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         logger.debug(
@@ -366,9 +372,11 @@ class BackpackTransactionHistoryService:
             method="GET",
             endpoint=endpoint_path,
             params=params.model_dump(by_alias=True, exclude_none=True),
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         logger.debug(

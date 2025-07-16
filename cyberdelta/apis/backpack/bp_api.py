@@ -161,7 +161,7 @@ class BackpackAPI(ExchangeAPI):
         self._bp_trading_data_mapper = trading_data_mapper or factory.create_trading_data_mapper()
 
         # Validate URLs based on environment
-        if not exchange_config.is_mainnet_environment:
+        if not exchange_config.environment_type.is_production:
             if exchange_config.api_base_url_testnet is None:
                 raise TestnetConfigurationError("API")
             if exchange_config.ws_url_testnet is None:

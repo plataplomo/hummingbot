@@ -17,6 +17,10 @@ from typing import NoReturn
 from pydantic import ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
@@ -279,7 +283,9 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload,
-                is_signed=False,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.UNSIGNED,
+                ),
             )
 
             # Validate response structure
@@ -339,7 +345,9 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
                 method="POST",
                 endpoint=self._info_endpoint,
                 data=request_payload,
-                is_signed=False,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.UNSIGNED,
+                ),
             )
 
             # Validate response structure

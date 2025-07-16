@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
+from cyberdelta.apis.base.validation_context_domain import SchemaExportMode
 from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidUserEventEnvelope
 
 
@@ -32,23 +33,38 @@ class SchemaExporter:
         self,
         model: type[BaseModel],
         filename: str | None = None,
-        include_examples: bool = True,
+        export_mode: SchemaExportMode = SchemaExportMode.WITH_EXAMPLES,
     ) -> dict[str, Any]:
         """Export a single model's JSON schema.
 
         Args:
             model: Pydantic model class to export
             filename: Optional filename (defaults to model name)
-            include_examples: Whether to include examples in schema
+            export_mode: Schema export mode with example inclusion policy
 
         Returns:
             The exported schema dictionary
         """
-        # Generate schema
+        # Generate schema based on export mode
         schema = model.model_json_schema(
             by_alias=True,
             mode="validation",
         )
+
+        # Adjust schema based on export mode
+        if export_mode == SchemaExportMode.MINIMAL:
+            # Remove examples from schema
+            if "examples" in schema:
+                del schema["examples"]
+            # Remove examples from properties
+            if "properties" in schema:
+                for prop in schema["properties"].values():
+                    if isinstance(prop, dict) and "examples" in prop:
+                        del prop["examples"]
+        elif export_mode == SchemaExportMode.API_DOCUMENTATION:
+            # Add API documentation specific metadata
+            schema["x-api-version"] = "2.0"
+            schema["x-generated-by"] = "CyberDelta Schema Exporter"
 
         # Add metadata
         schema["$schema"] = "http://json-schema.org/draft-07/schema#"

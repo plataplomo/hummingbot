@@ -23,6 +23,11 @@ from typing import TYPE_CHECKING
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.protocols.builder_protocols import AccountRequestBuilderProtocol
 from cyberdelta.apis.backpack.protocols.handler_protocols import AccountResponseHandlerProtocol
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    CachingConfiguration,
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
@@ -65,8 +70,7 @@ class BackpackAccountStateService:
         authenticator: IAuthenticator | None,
         exchange_name: str = "backpack",
         # Caching configuration
-        cache_duration: float = 5.0,  # 5 seconds cache like Hyperliquid pattern
-        enable_cache: bool = True,
+        caching_config: CachingConfiguration | None = None,
     ) -> None:
         """Initialize the account state service.
 
@@ -76,8 +80,7 @@ class BackpackAccountStateService:
             response_handler: Handler for processing Backpack API responses
             authenticator: Authentication interface for signing requests
             exchange_name: Name identifier for this exchange instance
-            cache_duration: Duration in seconds to cache account state
-            enable_cache: Whether to enable caching (disable for testing)
+            caching_config: Caching configuration with policy and duration
         """
         self._http_client_requester = http_client_requester
         self._request_builder = request_builder
@@ -86,16 +89,15 @@ class BackpackAccountStateService:
         self._exchange_name = exchange_name
 
         # Caching infrastructure
-        self._cache_duration = cache_duration
-        self._enable_cache = enable_cache
+        self.caching_config = caching_config or CachingConfiguration()
         self._cache: dict[str, tuple[BackpackRawCollateralResponse, float]] = {}
         self._cache_lock = asyncio.Lock()
 
         logger.debug(
             "backpack_account_state_service_initialized",
             exchange=self._exchange_name,
-            cache_duration=self._cache_duration,
-            cache_enabled=self._enable_cache,
+            cache_policy=self.caching_config.policy.value,
+            cache_duration=self.caching_config.get_effective_duration(),
             message="BackpackAccountStateService initialized with caching configuration",
         )
 
@@ -123,7 +125,7 @@ class BackpackAccountStateService:
         self._validate_prerequisites()
 
         # Check cache first if enabled
-        if self._enable_cache:
+        if self.caching_config.is_enabled():
             cache_key = self._get_cache_key(subaccount_id)
             async with self._cache_lock:
                 cached_state = self._get_cached_state(cache_key)
@@ -155,7 +157,7 @@ class BackpackAccountStateService:
             raw_state = await self._fetch_raw_account_state(subaccount_id)
 
             # Cache the result if caching is enabled
-            if self._enable_cache:
+            if self.caching_config.is_enabled():
                 cache_key = self._get_cache_key(subaccount_id)
                 async with self._cache_lock:
                     self._cache_state(cache_key, raw_state)
@@ -225,7 +227,11 @@ class BackpackAccountStateService:
                 method="GET",
                 endpoint="/api/v1/capital/collateral",
                 params=request_params,
-                is_signed=True,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             # Ensure dict response
@@ -317,7 +323,7 @@ class BackpackAccountStateService:
         cached_state, cached_time = self._cache[cache_key]
         current_time = time.time()
 
-        if current_time - cached_time > self._cache_duration:
+        if current_time - cached_time > self.caching_config.get_effective_duration():
             # Cache expired, remove it
             del self._cache[cache_key]
             logger.debug(
@@ -353,7 +359,7 @@ class BackpackAccountStateService:
         expired_keys: list[str] = []
 
         for cache_key, (_, cached_time) in self._cache.items():
-            if current_time - cached_time > self._cache_duration:
+            if current_time - cached_time > self.caching_config.get_effective_duration():
                 expired_keys.append(cache_key)
 
         for key in expired_keys:
@@ -397,11 +403,11 @@ class BackpackAccountStateService:
             message="All account state cache entries cleared",
         )
 
-    async def get_cache_stats(self) -> dict[str, int | float]:
+    async def get_cache_stats(self) -> dict[str, int | float | str]:
         """Get cache statistics for monitoring.
 
         Returns:
-            dict[str, int | float]: Cache statistics
+            dict[str, int | float | str]: Cache statistics
         """
         async with self._cache_lock:
             current_time = time.time()
@@ -409,7 +415,7 @@ class BackpackAccountStateService:
             expired_entries = 0
 
             for _, cached_time in self._cache.values():
-                if current_time - cached_time > self._cache_duration:
+                if current_time - cached_time > self.caching_config.get_effective_duration():
                     expired_entries += 1
                 else:
                     valid_entries += 1
@@ -418,6 +424,6 @@ class BackpackAccountStateService:
                 "total_entries": len(self._cache),
                 "valid_entries": valid_entries,
                 "expired_entries": expired_entries,
-                "cache_duration": self._cache_duration,
-                "cache_enabled": self._enable_cache,
+                "cache_policy": self.caching_config.policy.value,
+                "cache_duration": self.caching_config.get_effective_duration(),
             }

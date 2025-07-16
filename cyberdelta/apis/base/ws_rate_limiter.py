@@ -15,6 +15,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+from cyberdelta.apis.base.validation_context_domain import RateLimitBehavior
+
 
 class BurstSizeTooLargeError(ValueError):
     """Raised when burst size is too large for the configured rate."""
@@ -407,25 +409,25 @@ class RateLimitMiddleware:
         connection_id: str,
         message_type: str | None = None,
         user_id: str | None = None,
-        raise_on_limit: bool = True,
+        behavior: RateLimitBehavior = RateLimitBehavior.RAISE_ERROR,
     ) -> RateLimitResult:
-        """Check rate limit and optionally raise exception.
+        """Check rate limit and handle according to specified behavior.
 
         Args:
             connection_id: Connection identifier
             message_type: Optional message type
             user_id: Optional user identifier
-            raise_on_limit: Whether to raise exception on limit exceeded
+            behavior: How to handle rate limit exceeded
 
         Returns:
             Rate limit check result
 
         Raises:
-            RateLimitError: If rate limit exceeded and raise_on_limit is True
+            RateLimitError: If rate limit exceeded and behavior is RAISE_ERROR
         """
         result = self.rate_limiter.check_rate_limit(connection_id, message_type, user_id)
 
-        if not result.allowed and raise_on_limit:
+        if not result.allowed and behavior.should_raise:
             raise RateLimitError(result)
 
         return result

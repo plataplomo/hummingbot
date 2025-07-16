@@ -26,6 +26,10 @@ from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder im
 from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler import (
     BackpackMarketDataResponseHandler,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
@@ -135,9 +139,11 @@ class BackpackOrderBookService:
                 method="GET",
                 endpoint=endpoint_path,
                 params=params.model_dump(),
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.UNSIGNED,
+                    endpoint_group="public",
+                    request_weight=1,
+                ),
             )
             raw_data, status_code, headers = response_tuple
             raw_response_content = str(raw_data) if raw_data is not None else None

@@ -28,6 +28,10 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import BalanceMapperPro
 from cyberdelta.apis.backpack.services.account.bp_account_state_service import (
     BackpackAccountStateService,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
@@ -333,7 +337,11 @@ class BackpackBalanceService:
                 method="GET",
                 endpoint="/api/v1/capital",
                 params=request_params.model_dump(exclude_none=True),
-                is_signed=True,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             # Ensure dict response
@@ -506,7 +514,11 @@ class BackpackBalanceService:
                 method="GET",
                 endpoint=endpoint,
                 params=params,
-                is_signed=True,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             raw_data = ensure_dict_response(raw_response, "collateral", status_code)

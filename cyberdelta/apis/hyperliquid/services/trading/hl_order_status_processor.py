@@ -16,6 +16,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.trading_execution_domain import LiquidityRequirement, PositionIntent
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import OrderError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -509,8 +510,8 @@ class HyperliquidOrderStatusProcessor:
             "triggered_at": None,
             "strategy_name": None,
             "signal_id": None,
-            "reduce_only": args.reduce_only,
-            "post_only": args.post_only,
+            "reduce_only": args.execution.position_intent == PositionIntent.REDUCE_ONLY,
+            "post_only": args.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY,
             "client_order_id": client_order_id,
         }
 
@@ -560,8 +561,8 @@ class HyperliquidOrderStatusProcessor:
             "triggered_at": None,
             "strategy_name": None,
             "signal_id": None,
-            "reduce_only": args.reduce_only,
-            "post_only": args.post_only,
+            "reduce_only": args.execution.position_intent == PositionIntent.REDUCE_ONLY,
+            "post_only": args.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY,
             "client_order_id": client_order_id,
         }
 

@@ -31,6 +31,14 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import AccountSummaryMa
 from cyberdelta.apis.backpack.services.account.bp_account_state_service import (
     BackpackAccountStateService,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
+from cyberdelta.apis.base.trading_execution_domain import (
+    AccountSettings as DomainAccountSettings,
+    AccountSettingsPolicy,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
@@ -229,9 +237,29 @@ class BackpackAccountSummaryService:
             # Build payload using request builder
             # Convert Decimal leverage to int for API
             leverage_int = int(args.leverage_limit) if args.leverage_limit is not None else None
+
+            # Convert boolean auto_lend to AccountSettings domain object
+            automation_policy = (
+                AccountSettingsPolicy.AUTO_LENDING
+                if args.auto_lend
+                else AccountSettingsPolicy.MANUAL_CONTROL
+            )
+
+            # Create AccountSettings with appropriate leverage handling
+            if leverage_int is not None:
+                account_settings = DomainAccountSettings(
+                    leverage_limit=leverage_int, automation_policy=automation_policy
+                )
+            else:
+                # If leverage not specified, use domain default (10) - user only updating automation
+                account_settings = DomainAccountSettings(
+                    automation_policy=automation_policy
+                    # leverage_limit will use Field default of 10
+                )
+
             payload = self._request_builder.build_update_account_settings_payload(
                 leverage=leverage_int,
-                auto_lend=args.auto_lend,
+                account_settings=account_settings,
             )
 
             endpoint_path = "/api/v1/account"
@@ -248,9 +276,11 @@ class BackpackAccountSummaryService:
                 method="PATCH",
                 endpoint=endpoint_path,
                 data=payload,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             logger.debug(
@@ -518,10 +548,12 @@ class BackpackAccountSummaryService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params.model_dump(),
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
+                params=params.model_dump(exclude_none=True),
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             logger.debug(
@@ -574,9 +606,11 @@ class BackpackAccountSummaryService:
                 method="GET",
                 endpoint="/api/v1/capital/collateral",
                 params=query_params.model_dump(by_alias=True, exclude_none=True),
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             # Validate response
@@ -632,10 +666,12 @@ class BackpackAccountSummaryService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params.model_dump(),
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
+                params=params.model_dump(exclude_none=True),
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             logger.debug(
@@ -692,10 +728,12 @@ class BackpackAccountSummaryService:
             raw_data, status_code, _ = await self._http_client_requester(
                 method="GET",
                 endpoint=endpoint_path,
-                params=params.model_dump(),
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
+                params=params.model_dump(exclude_none=True),
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.SIGNED,
+                    endpoint_group="private",
+                    request_weight=1,
+                ),
             )
 
             logger.debug(

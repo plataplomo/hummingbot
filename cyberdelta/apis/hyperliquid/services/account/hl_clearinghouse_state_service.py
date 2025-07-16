@@ -17,6 +17,10 @@ import inspect
 from collections.abc import Awaitable, Callable, Mapping
 from typing import TYPE_CHECKING, NoReturn
 
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.hyperliquid.protocols.builder_protocols import (
@@ -151,13 +155,16 @@ class HyperliquidClearinghouseStateService:
             payload = self._request_builder.build_user_state_payload(user_state_args)
 
             # Execute API request
+            request_config = RequestConfiguration(
+                auth_mode=RequestAuthMode.UNSIGNED,  # User state requests don't require signing
+                endpoint_group="info",
+                request_weight=1,
+            )
             raw_data, status_code, _ = await self._http_client_requester(
                 method="POST",
                 endpoint=endpoint,
                 data=payload,
-                is_signed=False,  # User state requests don't require signing
-                endpoint_group="info",
-                request_weight=1,
+                request_config=request_config,
             )
 
             # Process response using the response handler

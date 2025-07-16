@@ -9,8 +9,9 @@ from unittest.mock import MagicMock, patch
 
 import msgpack
 import pytest
-from pydantic import SecretStr
+from pydantic import AnyUrl, HttpUrl, SecretStr
 
+from cyberdelta.apis.base.network_security_domain import ChainId, NetworkEnvironment
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator, address_to_bytes
 from cyberdelta.exceptions.base import RequiredParameterError
 
@@ -44,11 +45,23 @@ class TestHyperliquidSignL1Action:
         # This is tested implicitly in other test methods
 
     @pytest.fixture
-    def authenticator(self) -> HyperliquidEip712Authenticator:
+    def test_network_environment(self) -> NetworkEnvironment:
+        """Fixture for a test network environment."""
+        return NetworkEnvironment(
+            chain_id=ChainId.TESTNET,
+            api_endpoint=HttpUrl("https://api.hyperliquid-testnet.xyz"),
+            websocket_endpoint=AnyUrl("wss://api.hyperliquid-testnet.xyz/ws"),
+        )
+
+    @pytest.fixture
+    def authenticator(
+        self, test_network_environment: NetworkEnvironment
+    ) -> HyperliquidEip712Authenticator:
         """Create an authenticator instance with a valid private key."""
         return HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY),
             chain_id=CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
     @pytest.fixture

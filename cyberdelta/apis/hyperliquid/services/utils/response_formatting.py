@@ -7,6 +7,7 @@ into internal domain models, extracted to improve code organization and reusabil
 from decimal import Decimal
 from typing import Any, TypeGuard
 
+from cyberdelta.apis.base.validation_context_domain import ValidationContext
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import InvalidBatchResponseError
 from cyberdelta.config.structlog_config import get_logger
@@ -123,17 +124,13 @@ def format_batch_cancel_results(
 
 def validate_decimal_field(
     value: object,
-    field_name: str,
-    context: str,
-    allow_none: bool = False,
+    validation_context: ValidationContext | None = None,
 ) -> Decimal | None:
     """Validate and parse a decimal field from API response.
 
     Args:
         value: Value to validate and parse
-        field_name: Name of the field for error messages
-        context: Context description for error messages
-        allow_none: Whether None values are allowed
+        validation_context: Validation context with null and precision policies
 
     Returns:
         Parsed decimal value or None if allowed
@@ -141,49 +138,53 @@ def validate_decimal_field(
     Raises:
         APIError: If value is invalid
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
+
     if value is None:
-        if allow_none:
+        if validation_context.null_policy.value == "allow":
             return None
         raise APIError(
-            message=f"Missing required field '{field_name}' in {context}",
+            message=(
+                f"Missing required field '{validation_context.field_name}' "
+                f"in {validation_context.context_description}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     try:
         # Type check for parse_decimal_value compatibility
         if not isinstance(value, (Decimal, str, float)):
-            _raise_invalid_decimal_type_error(value, field_name)
+            _raise_invalid_decimal_type_error(value, validation_context.field_name)
         # Use helper function for proper type handling
         return _parse_validated_decimal(value)
     except (ValueError, TypeError) as e:
         logger.exception(
             "decimal_field_validation_failed",
-            field_name=field_name,
-            context=context,
+            field_name=validation_context.field_name,
+            context=validation_context.context_description,
             value=str(value),
             error=str(e),
         )
         raise APIError(
-            message=f"Invalid {field_name} in {context}: {value}",
+            message=(
+                f"Invalid {validation_context.field_name} "
+                f"in {validation_context.context_description}: {value}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         ) from e
 
 
 def validate_string_field(
     value: object,
-    field_name: str,
-    context: str,
-    allow_none: bool = False,
-    min_length: int = 0,
+    validation_context: ValidationContext | None = None,
 ) -> str | None:
     """Validate a string field from API response.
 
     Args:
         value: Value to validate
-        field_name: Name of the field for error messages
-        context: Context description for error messages
-        allow_none: Whether None values are allowed
-        min_length: Minimum required string length
+        validation_context: Validation context with null and string policies
 
     Returns:
         Validated string or None if allowed
@@ -191,23 +192,38 @@ def validate_string_field(
     Raises:
         APIError: If value is invalid
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
     if value is None:
-        if allow_none:
+        if validation_context.null_policy.value == "allow":
             return None
         raise APIError(
-            message=f"Missing required field '{field_name}' in {context}",
+            message=(
+                f"Missing required field '{validation_context.field_name}' "
+                f"in {validation_context.context_description}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     if not isinstance(value, str):
         raise APIError(
-            message=f"Field '{field_name}' must be string in {context}, got {type(value).__name__}",
+            message=(
+                f"Field '{validation_context.field_name}' must be string "
+                f"in {validation_context.context_description}, "
+                f"got {type(value).__name__}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
+    min_length = getattr(validation_context, "min_length", 0)
     if len(value) < min_length:
         raise APIError(
-            message=f"Field '{field_name}' too short in {context}: minimum {min_length} characters",
+            message=(
+                f"Field '{validation_context.field_name}' too short "
+                f"in {validation_context.context_description}: "
+                f"minimum {min_length} characters"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
@@ -216,19 +232,13 @@ def validate_string_field(
 
 def validate_integer_field(
     value: object,
-    field_name: str,
-    context: str,
-    allow_none: bool = False,
-    min_value: int | None = None,
+    validation_context: ValidationContext | None = None,
 ) -> int | None:
     """Validate an integer field from API response.
 
     Args:
         value: Value to validate
-        field_name: Name of the field for error messages
-        context: Context description for error messages
-        allow_none: Whether None values are allowed
-        min_value: Minimum allowed value
+        validation_context: Validation context with null and range policies
 
     Returns:
         Validated integer or None if allowed
@@ -236,24 +246,38 @@ def validate_integer_field(
     Raises:
         APIError: If value is invalid
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
     if value is None:
-        if allow_none:
+        if validation_context.null_policy.value == "allow":
             return None
         raise APIError(
-            message=f"Missing required field '{field_name}' in {context}",
+            message=(
+                f"Missing required field '{validation_context.field_name}' "
+                f"in {validation_context.context_description}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     if not isinstance(value, int):
         raise APIError(
-            message=f"Field '{field_name}' must be integer in {context}, "
-            f"got {type(value).__name__}",
+            message=(
+                f"Field '{validation_context.field_name}' must be integer "
+                f"in {validation_context.context_description}, "
+                f"got {type(value).__name__}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
+    min_value = getattr(validation_context, "min_value", None)
     if min_value is not None and value < min_value:
         raise APIError(
-            message=f"Field '{field_name}' too small in {context}: minimum {min_value}",
+            message=(
+                f"Field '{validation_context.field_name}' too small "
+                f"in {validation_context.context_description}: "
+                f"minimum {min_value}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 

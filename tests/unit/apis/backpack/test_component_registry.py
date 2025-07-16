@@ -19,6 +19,10 @@ from cyberdelta.apis.backpack.utils.component_registry import (
     IMapper,
     replace_mapper,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RegistrationConfiguration,
+    RegistrationMode,
+)
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -121,7 +125,9 @@ class TestBackpackComponentRegistry:
 
     def test_initialization_with_defaults(self) -> None:
         """Test registry initialization with default components."""
-        registry = BackpackComponentRegistry(auto_register=True)
+        registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.ALL_AVAILABLE)
+        )
 
         # Check sub-registries exist
         assert isinstance(registry.mappers, BackpackMapperRegistry)
@@ -135,7 +141,9 @@ class TestBackpackComponentRegistry:
 
     def test_initialization_without_defaults(self) -> None:
         """Test registry initialization without auto-registration."""
-        registry = BackpackComponentRegistry(auto_register=False)
+        registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.MANUAL)
+        )
 
         # Sub-registries should exist but be empty
         assert len(registry.mappers.list_registered()) == 0
@@ -145,16 +153,22 @@ class TestBackpackComponentRegistry:
     def test_validate_required_components(self) -> None:
         """Test validation of required components."""
         # Registry with defaults should pass validation
-        registry = BackpackComponentRegistry(auto_register=True)
+        registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.ALL_AVAILABLE)
+        )
         assert registry.validate_required_components()
 
         # Empty registry should fail validation
-        empty_registry = BackpackComponentRegistry(auto_register=False)
+        empty_registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.MANUAL)
+        )
         assert not empty_registry.validate_required_components()
 
     def test_get_component_stats(self) -> None:
         """Test getting component statistics."""
-        registry = BackpackComponentRegistry(auto_register=True)
+        registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.ALL_AVAILABLE)
+        )
         stats = registry.get_component_stats()
 
         assert "mappers" in stats
@@ -174,7 +188,9 @@ class TestReplaceMapper:
 
     def test_replace_existing_mapper(self) -> None:
         """Test replacing an existing mapper."""
-        registry = BackpackComponentRegistry(auto_register=True)
+        registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.ALL_AVAILABLE)
+        )
         custom_mapper = Mock(spec=BackpackBalanceMapper)
 
         # Replace existing mapper
@@ -186,7 +202,9 @@ class TestReplaceMapper:
 
     def test_replace_nonexistent_mapper(self) -> None:
         """Test replacing a non-existent mapper (should just register)."""
-        registry = BackpackComponentRegistry(auto_register=False)
+        registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.MANUAL)
+        )
         custom_mapper = Mock(spec=IMapper)
 
         # Replace non-existent mapper
@@ -233,7 +251,9 @@ class TestFactoryRegistryIntegration:
     def test_factory_uses_custom_registry(self) -> None:
         """Test factory uses provided custom registry."""
         # Create custom registry with a custom mapper
-        custom_registry = BackpackComponentRegistry(auto_register=True)
+        custom_registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.ALL_AVAILABLE)
+        )
         custom_mapper = Mock(spec=BackpackBalanceMapper)
         replace_mapper(custom_registry, "account.balance", custom_mapper)
 
@@ -255,7 +275,9 @@ class TestFactoryRegistryIntegration:
     def test_factory_fallback_when_not_in_registry(self, mock_balance_class: Mock) -> None:
         """Test factory falls back to direct instantiation when component not in registry."""
         # Create empty registry
-        empty_registry = BackpackComponentRegistry(auto_register=False)
+        empty_registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.MANUAL)
+        )
 
         # Create factory with empty registry
         factory = BackpackAPIComponentsFactory(
@@ -272,7 +294,9 @@ class TestFactoryRegistryIntegration:
     def test_service_creation_with_registry_mappers(self) -> None:
         """Test service creation uses mappers from registry."""
         # Create registry with custom mapper
-        custom_registry = BackpackComponentRegistry(auto_register=True)
+        custom_registry = BackpackComponentRegistry(
+            registration_config=RegistrationConfiguration(mode=RegistrationMode.ALL_AVAILABLE)
+        )
         custom_balance_mapper = Mock(spec=BackpackBalanceMapper)
         replace_mapper(custom_registry, "account.balance", custom_balance_mapper)
 

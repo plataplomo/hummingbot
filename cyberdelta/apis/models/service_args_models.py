@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from cyberdelta.apis.base.trading_execution_domain import LiquidityRequirement, OrderExecution
 from cyberdelta.apis.exceptions.field_validation import (
     EmptyStringFieldError,
     TypeFieldError,
@@ -99,8 +100,7 @@ class PlaceOrderArgs(BaseModel):
     price: Decimal | None = Field(default=None, gt=Decimal(0))
     stop_price: Decimal | None = Field(default=None, gt=Decimal(0))
     client_order_id: str | None = Field(default=None)
-    reduce_only: bool = Field(default=False)
-    post_only: bool = Field(default=False)
+    execution: OrderExecution = Field(default_factory=OrderExecution)
 
     @field_validator("symbol", mode="before")
     @classmethod
@@ -170,7 +170,11 @@ class PlaceOrderArgs(BaseModel):
             and self.stop_price is None
         ):
             raise MissingStopPriceError(order_type=self.order_type.value)
-        if self.post_only and self.order_type != OrderType.LIMIT:
+        # Validate post_only compatibility with order type
+        if (
+            self.execution.liquidity_requirement == LiquidityRequirement.POST_ONLY
+            and self.order_type != OrderType.LIMIT
+        ):
             raise PostOnlyLimitError(order_type=self.order_type.value)
         # Note: Specific client_order_id format checks (e.g., Backpack int conversion)
         # should be handled within the exchange-specific RequestBuilder or service,

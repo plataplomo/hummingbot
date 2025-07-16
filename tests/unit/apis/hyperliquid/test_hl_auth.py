@@ -9,8 +9,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from eth_account.signers.local import LocalAccount
-from pydantic import SecretStr
+from pydantic import AnyUrl, HttpUrl, SecretStr
 
+from cyberdelta.apis.base.network_security_domain import ChainId, NetworkEnvironment
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
@@ -32,6 +33,16 @@ def mock_account() -> MagicMock:
     return account
 
 
+@pytest.fixture
+def test_network_environment() -> NetworkEnvironment:
+    """Fixture for a test network environment."""
+    return NetworkEnvironment(
+        chain_id=ChainId.TESTNET,
+        api_endpoint=HttpUrl("https://api.hyperliquid-testnet.xyz"),
+        websocket_endpoint=AnyUrl("wss://api.hyperliquid-testnet.xyz/ws"),
+    )
+
+
 # --- Test Initialization ---
 
 
@@ -39,6 +50,7 @@ def mock_account() -> MagicMock:
 def test_hl_auth_init_success_with_private_key(
     mock_from_key: MagicMock,
     mock_account: MagicMock,
+    test_network_environment: NetworkEnvironment,
 ) -> None:
     """Test successful initialization with valid credentials."""
     mock_from_key.return_value = mock_account
@@ -47,6 +59,7 @@ def test_hl_auth_init_success_with_private_key(
     auth = HyperliquidEip712Authenticator(
         wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
         chain_id=VALID_CHAIN_ID,
+        network_environment=test_network_environment,
     )
     # Note: now expects stripped version without 0x prefix for actual validation
     mock_from_key.assert_called_once_with(VALID_PRIVATE_KEY_HEX[2:])
@@ -54,31 +67,39 @@ def test_hl_auth_init_success_with_private_key(
     assert auth.chain_id == VALID_CHAIN_ID
 
 
-def test_hl_auth_init_success_with_account_object(mock_account: MagicMock) -> None:
+def test_hl_auth_init_success_with_account_object(
+    mock_account: MagicMock, test_network_environment: NetworkEnvironment
+) -> None:
     """Test successful initialization with a pre-existing account object."""
     mock_account.address = VALID_WALLET_ADDRESS
     auth = HyperliquidEip712Authenticator(
         account_object=mock_account,
         chain_id=VALID_CHAIN_ID,
+        network_environment=test_network_environment,
     )
     assert auth.wallet_address.lower() == VALID_WALLET_ADDRESS.lower()
     assert auth.chain_id == VALID_CHAIN_ID
 
 
-def test_hl_auth_init_no_key_or_account() -> None:
+def test_hl_auth_init_no_key_or_account(test_network_environment: NetworkEnvironment) -> None:
     """Test initialization with no private key or account object raises RequiredParameterError."""
     with pytest.raises(
         RequiredParameterError,
         match=r"'wallet_private_key_secret or account_object' parameter is required",
     ):
-        HyperliquidEip712Authenticator(chain_id=VALID_CHAIN_ID)
+        HyperliquidEip712Authenticator(
+            chain_id=VALID_CHAIN_ID, network_environment=test_network_environment
+        )
 
 
-def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
+def test_hl_auth_init_both_key_and_account(
+    mock_account: MagicMock, test_network_environment: NetworkEnvironment
+) -> None:
     """Test initialization with both private key and account object raises RequiredParameterError.
 
     Args:
         mock_account: Mocked account object.
+        test_network_environment: Test network environment fixture.
     """
     with pytest.raises(
         RequiredParameterError,
@@ -88,11 +109,14 @@ def test_hl_auth_init_both_key_and_account(mock_account: MagicMock) -> None:
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
             account_object=mock_account,
             chain_id=VALID_CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
 
 @patch("eth_account.Account.from_key", side_effect=ValueError("Simulated Key Error"))
-def test_hl_auth_init_from_key_value_error(mock_from_key: MagicMock) -> None:
+def test_hl_auth_init_from_key_value_error(
+    mock_from_key: MagicMock, test_network_environment: NetworkEnvironment
+) -> None:
     """Test initialization raises InvalidPrivateKeyError if Account.from_key raises ValueError."""
     # Use a properly formatted hex key that will pass format validation but fail Account.from_key
     properly_formatted_but_bad_key = (
@@ -105,10 +129,11 @@ def test_hl_auth_init_from_key_value_error(mock_from_key: MagicMock) -> None:
         HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr(properly_formatted_but_bad_key),
             chain_id=VALID_CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
 
-def test_hl_auth_init_invalid_hex_format() -> None:
+def test_hl_auth_init_invalid_hex_format(test_network_environment: NetworkEnvironment) -> None:
     """Test initialization raises InvalidPrivateKeyError for invalid hex format."""
     with pytest.raises(
         InvalidPrivateKeyError,
@@ -117,10 +142,11 @@ def test_hl_auth_init_invalid_hex_format() -> None:
         HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr("invalid-hex-format"),
             chain_id=VALID_CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
 
-def test_hl_auth_init_wrong_length_hex() -> None:
+def test_hl_auth_init_wrong_length_hex(test_network_environment: NetworkEnvironment) -> None:
     """Test initialization raises InvalidPrivateKeyError for wrong length hex string."""
     with pytest.raises(
         InvalidPrivateKeyError,
@@ -129,10 +155,13 @@ def test_hl_auth_init_wrong_length_hex() -> None:
         HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr("0x1234"),  # Too short
             chain_id=VALID_CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
 
-def test_hl_auth_init_invalid_passphrase_word_count() -> None:
+def test_hl_auth_init_invalid_passphrase_word_count(
+    test_network_environment: NetworkEnvironment,
+) -> None:
     """Test initialization raises PassphraseFieldError for invalid passphrase word count."""
     with pytest.raises(
         PassphraseFieldError,
@@ -142,11 +171,14 @@ def test_hl_auth_init_invalid_passphrase_word_count() -> None:
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
             passphrase_secret=SecretStr("just five words here"),  # Only 4 words
             chain_id=VALID_CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
 
 @patch("mnemonic.Mnemonic.check", return_value=False)
-def test_hl_auth_init_invalid_bip39_passphrase(mock_mnemonic_check: MagicMock) -> None:
+def test_hl_auth_init_invalid_bip39_passphrase(
+    mock_mnemonic_check: MagicMock, test_network_environment: NetworkEnvironment
+) -> None:
     """Test initialization raises PassphraseFieldError for invalid BIP-39 passphrase."""
     twelve_words = "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12"
     with pytest.raises(
@@ -157,6 +189,7 @@ def test_hl_auth_init_invalid_bip39_passphrase(mock_mnemonic_check: MagicMock) -
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
             passphrase_secret=SecretStr(twelve_words),
             chain_id=VALID_CHAIN_ID,
+            network_environment=test_network_environment,
         )
 
 
@@ -164,11 +197,14 @@ def test_hl_auth_init_invalid_bip39_passphrase(mock_mnemonic_check: MagicMock) -
 
 
 @pytest.fixture
-def authenticator_instance() -> HyperliquidEip712Authenticator:
+def authenticator_instance(
+    test_network_environment: NetworkEnvironment,
+) -> HyperliquidEip712Authenticator:
     """Fixture for a HyperliquidEip712Authenticator instance with a valid private key."""
     return HyperliquidEip712Authenticator(
         wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY_HEX),
         chain_id=VALID_CHAIN_ID,
+        network_environment=test_network_environment,
     )
 
 
@@ -260,6 +296,7 @@ class TestHyperliquidEip712Authenticator:
         self,
         mock_account: MagicMock,
         mock_logger: MagicMock,
+        test_network_environment: NetworkEnvironment,
     ) -> HyperliquidEip712Authenticator:
         """Create authenticator instance using a mocked account object."""
         mock_account.address = VALID_WALLET_ADDRESS
@@ -267,12 +304,14 @@ class TestHyperliquidEip712Authenticator:
             account_object=mock_account,
             chain_id=VALID_CHAIN_ID,
             logger_param=mock_logger,
+            network_environment=test_network_environment,
         )
 
     def test_instantiation_with_account_object(
         self,
         mock_account: MagicMock,
         mock_logger: MagicMock,
+        test_network_environment: NetworkEnvironment,
     ) -> None:
         """Test instantiation with a pre-configured account object."""
         mock_account.address = VALID_WALLET_ADDRESS
@@ -280,6 +319,7 @@ class TestHyperliquidEip712Authenticator:
             account_object=mock_account,
             chain_id=VALID_CHAIN_ID,
             logger_param=mock_logger,
+            network_environment=test_network_environment,
         )
         assert auth.wallet_address == VALID_WALLET_ADDRESS.lower()
         assert auth.chain_id == VALID_CHAIN_ID
@@ -291,15 +331,22 @@ class TestHyperliquidEip712Authenticator:
             message_args=(VALID_WALLET_ADDRESS.lower(), VALID_CHAIN_ID),
         )
 
-    def test_instantiation_no_key_or_account_object(self, mock_logger: MagicMock) -> None:
+    def test_instantiation_no_key_or_account_object(
+        self, mock_logger: MagicMock, test_network_environment: NetworkEnvironment
+    ) -> None:
         """Test RequiredParameterError if neither private key nor account object is provided."""
         with pytest.raises(RequiredParameterError, match="parameter is required"):
-            HyperliquidEip712Authenticator(chain_id=VALID_CHAIN_ID, logger_param=mock_logger)
+            HyperliquidEip712Authenticator(
+                chain_id=VALID_CHAIN_ID,
+                logger_param=mock_logger,
+                network_environment=test_network_environment,
+            )
 
     def test_instantiation_both_key_and_account_object(
         self,
         mock_account: MagicMock,
         mock_logger: MagicMock,
+        test_network_environment: NetworkEnvironment,
     ) -> None:
         """Test RequiredParameterError if both private key and account object are provided."""
         with pytest.raises(RequiredParameterError, match="only one allowed"):
@@ -308,6 +355,7 @@ class TestHyperliquidEip712Authenticator:
                 account_object=mock_account,
                 chain_id=VALID_CHAIN_ID,
                 logger_param=mock_logger,
+                network_environment=test_network_environment,
             )
 
     @pytest.mark.asyncio

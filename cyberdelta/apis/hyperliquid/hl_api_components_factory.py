@@ -16,6 +16,7 @@ from typing import Any, Literal, overload
 
 from pydantic import SecretStr
 
+from cyberdelta.apis.base.network_security_domain import NetworkEnvironmentFactory
 from cyberdelta.apis.hyperliquid.hl_auth import HyperliquidEip712Authenticator
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 from cyberdelta.apis.hyperliquid.hl_payload_serialization_strategy import (
@@ -645,7 +646,7 @@ class HyperliquidAPIComponentsFactory:
         # Determine which private key to use based on environment
         private_key_to_use: SecretStr | None = None
 
-        if self.exchange_config.is_mainnet_environment:
+        if self.exchange_config.environment_type.is_production:
             # Mainnet: use the main private_key
             private_key_to_use = secrets.private_key
             logger.info("Using main private_key for mainnet environment")
@@ -684,7 +685,12 @@ class HyperliquidAPIComponentsFactory:
                     wallet_private_key_secret=private_key_to_use,
                     passphrase_secret=secrets.passphrase,  # Pass SecretStr or None
                     chain_id=self.chain_id,
-                    is_mainnet_environment=self.exchange_config.is_mainnet_environment,
+                    network_environment=NetworkEnvironmentFactory.from_config(
+                        environment_type=self.exchange_config.environment_type,
+                        chain_id=self.chain_id,
+                        api_endpoint=str(self.exchange_config.active_api_base_url),
+                        websocket_endpoint=str(self.exchange_config.active_ws_url),
+                    ),
                 )
             except ValueError as e:  # Catch init errors from Authenticator
                 logger.exception(

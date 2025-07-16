@@ -17,6 +17,10 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+)
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.exceptions import ServiceParameterError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -110,8 +114,7 @@ class TestHyperliquidBatchOperations:
                     quantity=test_quantity,
                     price=test_price,
                     time_in_force=TimeInForce.GTC,
-                    post_only=True,  # Ensure we don't accidentally market make
-                    reduce_only=False,
+                    execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                     client_order_id=None,  # Optional - let exchange assign ID
                 ),
             )
@@ -219,8 +222,7 @@ class TestHyperliquidBatchOperations:
                     quantity=test_quantity,
                     price=test_price,
                     time_in_force=TimeInForce.GTC,
-                    post_only=True,
-                    reduce_only=False,
+                    execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                     client_order_id=None,  # Optional - let exchange assign ID
                 ),
             )
@@ -333,6 +335,7 @@ class TestHyperliquidBatchOperations:
                 quantity=test_quantity,
                 price=test_price,
                 time_in_force=TimeInForce.GTC,
+                execution=OrderExecution(),
             ),
             PlaceOrderArgs(
                 symbol=symbol,
@@ -340,6 +343,7 @@ class TestHyperliquidBatchOperations:
                 order_type=OrderType.MARKET,  # This should be rejected
                 quantity=test_quantity,
                 time_in_force=TimeInForce.IOC,
+                execution=OrderExecution(),
             ),
         ]
 
@@ -410,7 +414,7 @@ class TestHyperliquidBatchOperations:
                 quantity=test_quantity1,
                 price=test_price1,
                 time_in_force=TimeInForce.GTC,
-                post_only=True,
+                execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                 client_order_id=generate_test_cloid(),  # Use proper 128-bit hex cloid
             ),
             PlaceOrderArgs(
@@ -420,7 +424,7 @@ class TestHyperliquidBatchOperations:
                 quantity=test_quantity2,
                 price=test_price2,
                 time_in_force=TimeInForce.GTC,
-                post_only=True,
+                execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                 client_order_id=generate_test_cloid(),  # Use proper 128-bit hex cloid
             ),
         ]
@@ -505,7 +509,7 @@ class TestHyperliquidBatchOperations:
                 quantity=test_quantity,
                 price=test_price,
                 time_in_force=TimeInForce.GTC,
-                post_only=True,
+                execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                 client_order_id=None,  # Optional - let exchange assign ID
             ),
             # Valid order 2
@@ -521,7 +525,7 @@ class TestHyperliquidBatchOperations:
                     Decimal("0.11"),
                 ),
                 time_in_force=TimeInForce.GTC,
-                post_only=True,
+                execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                 client_order_id=None,  # Optional - let exchange assign ID
             ),
             # Potentially problematic order - use duplicate cloid to trigger failure
@@ -538,7 +542,7 @@ class TestHyperliquidBatchOperations:
                     Decimal("0.12"),
                 ),
                 time_in_force=TimeInForce.GTC,
-                post_only=True,
+                execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
                 client_order_id=None,  # Optional - let exchange assign ID
             ),
         ]
@@ -649,6 +653,7 @@ class TestHyperliquidBatchOperations:
                 quantity=test_quantity,
                 price=reference_price,  # Use real price data, not arbitrary values
                 time_in_force=TimeInForce.GTC,
+                execution=OrderExecution(),
                 client_order_id=None,  # Optional - let exchange assign ID
             ),
         ]

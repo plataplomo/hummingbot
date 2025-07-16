@@ -36,6 +36,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawMaxWithdrawalQuantityParams,
 )
 from cyberdelta.apis.backpack.protocols.base_protocols import RequestBuilderProtocol
+from cyberdelta.apis.base.trading_execution_domain import AccountSettings, OrderExecution
 from cyberdelta.apis.models.service_args_models import (
     GetMaxBorrowQuantityArgs,
     GetMaxOrderQuantityArgs,
@@ -113,7 +114,7 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
     @staticmethod
     def build_update_account_settings_payload(
         leverage: int | None = None,
-        auto_lend: bool | None = None,
+        account_settings: AccountSettings | None = None,
         margin_account_type: Literal["STANDARD", "PORTFOLIO"] | None = None,
     ) -> BackpackRawUpdateAccountSettingsRequest:
         """Build request payload for updating account settings."""
@@ -241,8 +242,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         price: Decimal | None = None,
         time_in_force: TimeInForce | None = None,
         client_order_id: str | None = None,
-        post_only: bool | None = None,
-        reduce_only: bool | None = None,
+        execution: OrderExecution | None = None,
         stop_price: Decimal | None = None,
         take_profit_price: Decimal | None = None,
         self_trade_prevention: str | None = None,

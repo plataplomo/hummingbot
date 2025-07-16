@@ -10,6 +10,7 @@ from typing import Protocol, runtime_checkable
 
 from eth_typing import ChecksumAddress
 
+from cyberdelta.apis.base.trading_execution_domain import PositionIntent
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMidsRequestPayload,
 )
@@ -168,7 +169,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         order_side: OrderSide,
         quantity: Decimal,
         price: Decimal | None = None,
-        reduce_only: bool = False,
+        position_intent: PositionIntent = PositionIntent.OPEN_OR_INCREASE,
         vault_address: ChecksumAddress | None = None,
     ) -> HyperliquidApiPlaceOrderRequest:
         """Build order placement payload.
@@ -179,7 +180,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
             order_side: Side of order (buy/sell)
             quantity: Order quantity
             price: Order price (None for market orders)
-            reduce_only: Whether this is a reduce-only order
+            position_intent: Intent of the order for position management
             vault_address: Optional vault address for vault trading
 
         Returns:

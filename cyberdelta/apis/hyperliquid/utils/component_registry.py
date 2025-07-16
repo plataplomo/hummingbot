@@ -7,6 +7,7 @@ Following the Backpack pattern for consistency across exchange implementations.
 
 from typing import Any, Protocol, runtime_checkable
 
+from cyberdelta.apis.base.infrastructure_config_domain import RegistrationConfiguration
 from cyberdelta.apis.base.registry_interface import BaseComponentRegistry
 from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
     HyperliquidAccountSummaryMapper,
@@ -182,17 +183,19 @@ class HyperliquidComponentRegistry:
     and provides a unified interface for component management.
     """
 
-    def __init__(self, auto_register: bool = True) -> None:
+    def __init__(self, registration_config: RegistrationConfiguration | None = None) -> None:
         """Initialize the component registry.
 
         Args:
-            auto_register: Whether to automatically register default components
+            registration_config: Registration configuration for component management
         """
         self.mappers = HyperliquidMapperRegistry()
         self.request_builders = HyperliquidRequestBuilderRegistry()
         self.response_handlers = HyperliquidResponseHandlerRegistry()
 
-        if auto_register:
+        self.registration_config = registration_config or RegistrationConfiguration()
+
+        if self.registration_config.should_register_defaults():
             self._register_defaults()
 
     def _register_defaults(self) -> None:

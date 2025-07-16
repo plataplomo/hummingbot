@@ -17,6 +17,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
+from cyberdelta.apis.base.infrastructure_config_domain import ReconnectionResult
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
 from cyberdelta.apis.exceptions.websocket import WebSocketError
@@ -612,7 +613,8 @@ class WebSocketErrorRecovery:
         """
         try:
             success = await self.connection.connect()
-            return await self._handle_reconnection_result(success)
+            result = ReconnectionResult.SUCCESS if success else ReconnectionResult.FAILED
+            return await self._handle_reconnection_result(result)
 
         except (ConnectionError, TimeoutError, OSError) as e:
             self.logger.warning(
@@ -623,16 +625,16 @@ class WebSocketErrorRecovery:
             )
             return False
 
-    async def _handle_reconnection_result(self, success: bool) -> bool:
+    async def _handle_reconnection_result(self, result: ReconnectionResult) -> bool:
         """Handle the result of a reconnection attempt.
 
         Args:
-            success: Whether the connection was successful
+            result: Result of the reconnection attempt
 
         Returns:
             True if successful, False otherwise
         """
-        if not success:
+        if not result.is_successful:
             event = RecoveryEvent(
                 event_type="reconnection_failed",
                 connection_id=self.connection_id,

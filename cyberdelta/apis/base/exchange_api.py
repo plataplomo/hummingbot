@@ -14,6 +14,7 @@ from urllib.parse import urljoin
 import aiohttp
 from pydantic import BaseModel
 
+from cyberdelta.apis.base.infrastructure_config_domain import RequestConfiguration
 from cyberdelta.apis.base.payload_serialization_strategy import (
     DefaultSerializationStrategy,
     PayloadSerializationStrategy,
@@ -275,7 +276,7 @@ class ExchangeAPI(ABC):
     def _build_http_config_data(self) -> dict[str, Any]:
         """Build HTTP client configuration data from config model."""
         # Determine the active endpoint based on environment
-        if self._config.is_mainnet_environment:
+        if self._config.environment_type.is_production:
             rest_endpoint = str(self._config.api_base_url_mainnet)
         elif self._config.api_base_url_testnet:
             rest_endpoint = str(self._config.api_base_url_testnet)
@@ -319,7 +320,7 @@ class ExchangeAPI(ABC):
     def _validate_ws_endpoint(self) -> str | None:
         """Validate and return WebSocket endpoint."""
         # Determine WebSocket URL based on environment
-        if self._config.is_mainnet_environment:
+        if self._config.environment_type.is_production:
             ws_endpoint = str(self._config.ws_url_mainnet) if self._config.ws_url_mainnet else None
         elif self._config.ws_url_testnet:
             ws_endpoint = str(self._config.ws_url_testnet)
@@ -417,10 +418,7 @@ class ExchangeAPI(ABC):
         params: dict[str, Any] | None = None,
         data: BaseModel | dict[str, Any] | None = None,
         headers: dict[str, Any] | None = None,
-        is_signed: bool = False,
-        endpoint_group: str | None = None,
-        request_weight: int = 1,
-        serialize_none_as_null: bool = False,
+        request_config: RequestConfiguration | None = None,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Execute an API request with exchange-specific error mapping.
 
@@ -432,11 +430,8 @@ class ExchangeAPI(ABC):
             params: URL parameters for the request.
             data: Request body data (can be Pydantic BaseModel or dict).
             headers: HTTP headers.
-            is_signed: Whether the request requires authentication.
-            endpoint_group: Optional logical group for the endpoint, used for rate limiting.
-            request_weight: Optional request weight for rate limiting.
-            serialize_none_as_null: If True, serialize Pydantic models with None values
-                                  as null instead of excluding them.
+            request_config: Request configuration including authentication and
+                serialization settings.
 
         Returns:
             A tuple containing:
@@ -449,8 +444,12 @@ class ExchangeAPI(ABC):
             APIError: For mapped exchange-specific errors or unrecoverable issues.
 
         """
+        # Use default config if none provided
+        if request_config is None:
+            request_config = RequestConfiguration()
+
         request_url = urljoin(self.rest_endpoint, endpoint.lstrip("/"))
-        data_dict_for_http_client = self._prepare_request_data(data, serialize_none_as_null)
+        data_dict_for_http_client = self._prepare_request_data(data, request_config)
 
         try:
             # Apply rate limiting
@@ -458,8 +457,8 @@ class ExchangeAPI(ABC):
                 method,
                 endpoint,
                 data_dict_for_http_client,
-                request_weight,
-                endpoint_group,
+                request_config.request_weight,
+                request_config.endpoint_group,
             )
 
             # Execute HTTP request
@@ -469,8 +468,7 @@ class ExchangeAPI(ABC):
                 params,
                 data_dict_for_http_client,
                 headers,
-                is_signed,
-                serialize_none_as_null,
+                request_config,
             )
 
             self._update_rate_limit_from_headers(response_headers_dict, method, endpoint)
@@ -489,11 +487,11 @@ class ExchangeAPI(ABC):
     def _prepare_request_data(
         self,
         data: BaseModel | dict[str, Any] | None,
-        serialize_none_as_null: bool,
+        request_config: RequestConfiguration,
     ) -> dict[str, Any] | None:
         """Prepare data for HttpClient - handle Pydantic model serialization."""
         if isinstance(data, BaseModel):
-            return self._serialization_strategy.serialize_model(data, serialize_none_as_null)
+            return self._serialization_strategy.serialize_model(data, request_config)
         if isinstance(data, dict) or data is None:
             return data
         raise InvalidParameterTypeError(
@@ -530,8 +528,7 @@ class ExchangeAPI(ABC):
         params: dict[str, Any] | None,
         data_dict: dict[str, Any] | None,
         headers: dict[str, Any] | None,
-        is_signed: bool,
-        serialize_none_as_null: bool,
+        request_config: RequestConfiguration,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Execute the HTTP request and return response data."""
         (
@@ -546,8 +543,8 @@ class ExchangeAPI(ABC):
             data=data_dict,
             headers=headers,
             authenticator=self._authenticator,
-            is_signed=is_signed,
-            serialize_none_as_null=serialize_none_as_null,
+            auth_mode=request_config.auth_mode,
+            serialization_mode=request_config.serialization_mode,
         )
         return response_content, status_code, response_headers_dict
 

@@ -17,6 +17,7 @@ import threading
 import time
 from typing import TYPE_CHECKING
 
+from cyberdelta.apis.base.infrastructure_config_domain import CachingPolicy
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.config.structlog_config import get_logger
 
@@ -42,18 +43,18 @@ class HyperliquidClearinghouseCacheService:
     def __init__(
         self,
         cache_duration: float = 5.0,
-        enable_cache: bool = True,
+        caching_policy: CachingPolicy = CachingPolicy.ENABLED,
         max_cache_size: int = 1000,
     ) -> None:
         """Initialize the clearinghouse cache service.
 
         Args:
             cache_duration: TTL duration in seconds (default: 5.0)
-            enable_cache: Whether to enable caching (default: True)
+            caching_policy: Caching policy determining cache behavior
             max_cache_size: Maximum number of cache entries (default: 1000)
         """
         self._cache_duration = cache_duration
-        self._enable_cache = enable_cache
+        self._caching_policy = caching_policy
         self._max_cache_size = max_cache_size
 
         # Thread safety lock - RLock allows multiple reads and exclusive writes
@@ -74,15 +75,20 @@ class HyperliquidClearinghouseCacheService:
         logger.info(
             "clearinghouse_cache_service_initialized",
             cache_duration=cache_duration,
-            enable_cache=enable_cache,
+            caching_policy=caching_policy.value,
             max_cache_size=max_cache_size,
             message="Hyperliquid clearinghouse cache service initialized",
         )
 
     @property
+    def caching_policy(self) -> CachingPolicy:
+        """Get the current caching policy."""
+        return self._caching_policy
+
+    @property
     def enable_cache(self) -> bool:
         """Get the cache enablement status."""
-        return self._enable_cache
+        return self._caching_policy != CachingPolicy.DISABLED
 
     @property
     def cache_duration(self) -> float:
@@ -100,7 +106,7 @@ class HyperliquidClearinghouseCacheService:
         Returns:
             Cached clearinghouse state or None if not cached/expired
         """
-        if not self._enable_cache:
+        if self._caching_policy == CachingPolicy.DISABLED:
             return None
 
         cache_key = self._get_cache_key(user_address)
@@ -136,7 +142,7 @@ class HyperliquidClearinghouseCacheService:
             user_address: User's wallet address
             state: Clearinghouse state to cache
         """
-        if not self._enable_cache:
+        if self._caching_policy == CachingPolicy.DISABLED:
             return
 
         cache_key = self._get_cache_key(user_address)
@@ -166,7 +172,7 @@ class HyperliquidClearinghouseCacheService:
         Args:
             user_address: User address to invalidate (None for all users)
         """
-        if not self._enable_cache:
+        if self._caching_policy == CachingPolicy.DISABLED:
             return
 
         with self._lock:
@@ -218,7 +224,7 @@ class HyperliquidClearinghouseCacheService:
                 "valid_entries": valid_entries,
                 "expired_entries": expired_entries,
                 "cache_duration": self._cache_duration,
-                "cache_enabled": self._enable_cache,
+                "cache_enabled": self._caching_policy != CachingPolicy.DISABLED,
                 "max_cache_size": self._max_cache_size,
                 "hit_rate": round(hit_rate, 3),
                 **self._cache_stats,
@@ -226,7 +232,7 @@ class HyperliquidClearinghouseCacheService:
 
     def cleanup_cache(self) -> None:
         """Manually cleanup expired cache entries (thread-safe)."""
-        if not self._enable_cache:
+        if self._caching_policy == CachingPolicy.DISABLED:
             return
 
         with self._lock:

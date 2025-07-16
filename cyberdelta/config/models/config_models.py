@@ -32,6 +32,7 @@ from cyberdelta.config.models.config_types import (
 
 # Import strategy models from separate module
 from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.base import (
     ConfigurationError,
@@ -143,11 +144,11 @@ class ExchangeSpecificConfig(BaseModel):
         default=None,
         description="Optional base URL for the exchange's testnet WebSocket API.",
     )
-    # Environment flag
-    is_mainnet_environment: bool = Field(
-        default=True,
+    # Environment type (replaces dangerous boolean is_mainnet_environment)
+    environment_type: EnvironmentType = Field(
+        default=EnvironmentType.MAINNET,
         description=(
-            "If True, mainnet URLs are used. If False, testnet URLs are used (if provided)."
+            "Environment type for mainnet/testnet selection - replaces dangerous boolean flag"
         ),
     )
     rate_limit_per_minute: int | None = Field(
@@ -328,8 +329,8 @@ class ExchangeSpecificConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_testnet_urls_when_needed(self) -> Self:
-        """Validate that testnet URLs are provided when is_mainnet_environment is False."""
-        if not self.is_mainnet_environment:
+        """Validate that testnet URLs are provided when environment is testnet."""
+        if self.environment_type == EnvironmentType.TESTNET:
             if self.api_base_url_testnet is None:
                 raise TestnetConfigurationError(
                     missing_config="api_base_url_testnet",
@@ -345,7 +346,7 @@ class ExchangeSpecificConfig(BaseModel):
     @property
     def active_api_base_url(self) -> HttpUrl:
         """Return the active API base URL based on environment setting."""
-        if self.is_mainnet_environment:
+        if self.environment_type == EnvironmentType.MAINNET:
             return self.api_base_url_mainnet
         if self.api_base_url_testnet is None:
             raise TestnetConfigurationError(
@@ -357,7 +358,7 @@ class ExchangeSpecificConfig(BaseModel):
     @property
     def active_ws_url(self) -> AnyUrl:
         """Return the active WebSocket URL based on environment setting."""
-        if self.is_mainnet_environment:
+        if self.environment_type == EnvironmentType.MAINNET:
             return self.ws_url_mainnet
         if self.ws_url_testnet is None:
             raise TestnetConfigurationError(

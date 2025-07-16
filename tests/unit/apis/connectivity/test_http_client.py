@@ -20,6 +20,7 @@ from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import RequestAuthMode
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.connectivity.connectivity_models import (
     MAX_CONTENT_TYPE_LENGTH,  # For testing invalid content type
@@ -438,7 +439,7 @@ class TestHttpClient:
                 params=original_params.copy(),
                 data=original_data.copy(),
                 headers=original_headers.copy(),
-                is_signed=True,
+                auth_mode=RequestAuthMode.SIGNED,
             )
             assert status_code == 200
         assert isinstance(processed_headers, ProcessedResponseHeaders)
@@ -507,7 +508,7 @@ class TestHttpClient:
             await http_client_instance.request(
                 method="POST",
                 endpoint_path="/needs_auth",
-                is_signed=True,
+                auth_mode=RequestAuthMode.SIGNED,
             )
         assert excinfo.value.code == APIErrorCode.AUTHENTICATION_FAILED.value
 
@@ -533,7 +534,7 @@ class TestHttpClient:
                 method="POST",
                 endpoint_path="/auth_fail",
                 authenticator=mock_authenticator,
-                is_signed=True,
+                auth_mode=RequestAuthMode.SIGNED,
             )
         assert excinfo.value is auth_error  # Check it's the same exception instance
 

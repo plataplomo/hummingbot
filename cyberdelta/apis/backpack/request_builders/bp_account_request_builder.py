@@ -35,6 +35,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawMaxWithdrawalQuantityParams,
 )
 from cyberdelta.apis.backpack.protocols.builder_protocols import AccountRequestBuilderProtocol
+from cyberdelta.apis.base.trading_execution_domain import AccountSettings
 from cyberdelta.apis.exceptions import (
     MissingRequiredParameterError,
 )
@@ -134,9 +135,6 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         )
 
         params_dict: dict[str, Any] = {}
-
-        if symbol is not None:
-            params_dict["symbol"] = symbol
 
         return BackpackRawGetPositionsParams(**params_dict)
 
@@ -341,14 +339,14 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
     @staticmethod
     def build_update_account_settings_payload(
         leverage: int | None = None,
-        auto_lend: bool | None = None,
+        account_settings: AccountSettings | None = None,
         margin_account_type: Literal["STANDARD", "PORTFOLIO"] | None = None,
     ) -> BackpackRawUpdateAccountSettingsRequest:
         """Build the request payload for updating account settings.
 
         Args:
             leverage: Optional leverage setting (1-50)
-            auto_lend: Optional auto-lending setting
+            account_settings: Optional account settings with validated policies
             margin_account_type: Optional margin account type
 
         Returns:
@@ -357,7 +355,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         Raises:
             MissingRequiredParameterError: If no settings are provided
         """
-        if leverage is None and auto_lend is None and margin_account_type is None:
+        if leverage is None and account_settings is None and margin_account_type is None:
             raise MissingRequiredParameterError(
                 parameter_name="at least one setting",
                 operation="update account settings",
@@ -366,7 +364,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         logger.debug(
             "building_update_account_settings_payload",
             leverage=leverage,
-            auto_lend=auto_lend,
+            account_settings=account_settings.automation_policy.value if account_settings else None,
             margin_account_type=margin_account_type,
         )
 
@@ -374,8 +372,10 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
 
         if leverage is not None:
             request_dict["leverage"] = leverage
-        if auto_lend is not None:
-            request_dict["autoLend"] = auto_lend
+        if account_settings is not None:
+            # Convert AccountSettings domain object to API format
+            api_fields = account_settings.to_api_fields()
+            request_dict["autoLend"] = api_fields["autoLend"]
         if margin_account_type is not None:
             request_dict["marginAccountType"] = margin_account_type
 

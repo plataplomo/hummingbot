@@ -31,6 +31,10 @@ from typing import Any, cast
 
 import pytest
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import (
@@ -118,7 +122,7 @@ class TestHyperliquidAPIComponentIntegration:
             quantity=minimal_size,
             price=test_price,
             time_in_force=TimeInForce.GTC,
-            post_only=True,
+            execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
         )
 
         try:
@@ -283,7 +287,7 @@ class TestHyperliquidAPIComponentIntegration:
             quantity=minimal_size,
             price=test_price,
             time_in_force=TimeInForce.GTC,
-            post_only=True,
+            execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
         )
 
         try:
@@ -692,6 +696,7 @@ class TestHyperliquidAPIConcurrentOperations:
                 order_type=OrderType.MARKET,
                 quantity=Decimal(1),
                 time_in_force=TimeInForce.IOC,
+                execution=OrderExecution(),
             )
             await hl_api_for_test_env.place_order(order_args)
             pytest.fail("Expected APIError for invalid symbol in place_order")

@@ -17,6 +17,10 @@ import aiohttp
 from multidict import CIMultiDictProxy
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    SerializationMode,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 
 # Import the model and constants from the new location
@@ -25,7 +29,8 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     ProcessedResponseHeaders,
 )
-from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError, UnreachableCodeError
+from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError
+from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.config.structlog_config import get_logger
 
 from .json_security import secure_json_loads
@@ -420,9 +425,9 @@ class HttpClient:
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         headers: dict[str, Any] | None = None,
-        is_signed: bool = False,
+        auth_mode: RequestAuthMode = RequestAuthMode.UNSIGNED,
         request_timeout: float | None = None,
-        serialize_none_as_null: bool = False,
+        serialization_mode: SerializationMode = SerializationMode.STANDARD,
     ) -> tuple[
         ParsedJsonResponse | str | None,
         int,
@@ -441,10 +446,9 @@ class HttpClient:
             params: Optional query parameters for the request
             data: Optional request body data (for POST/PUT requests)
             headers: Optional additional headers to include
-            is_signed: Whether the request requires authentication/signing
+            auth_mode: Authentication mode for the request
             request_timeout: Optional timeout for the request in seconds
-            serialize_none_as_null: If True, apply special Hyperliquid order type cleaning
-                                  to remove None values from order type fields.
+            serialization_mode: Serialization mode for request data
 
         Returns:
             Tuple of (parsed_response, status_code, processed_headers, raw_headers)
@@ -457,7 +461,7 @@ class HttpClient:
         # Setup headers and authentication
         request_headers, request_params, json_payload = await self._setup_request_headers_and_auth(
             authenticator,
-            is_signed,
+            auth_mode,
             headers,
             method,
             endpoint_path,
@@ -526,7 +530,7 @@ class HttpClient:
     async def _setup_request_headers_and_auth(
         self,
         authenticator: IAuthenticator | None,
-        is_signed: bool,
+        auth_mode: RequestAuthMode,
         headers: dict[str, Any] | None,
         method: str,
         endpoint_path: str,
@@ -539,7 +543,7 @@ class HttpClient:
         request_headers = dict(session_for_initial_headers.headers.copy())
         request_headers.update(headers or {})
 
-        if is_signed:
+        if auth_mode.requires_signature:
             if not authenticator:
                 logger.error(
                     "signed_request_missing_authenticator",

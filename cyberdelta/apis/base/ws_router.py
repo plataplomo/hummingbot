@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    ErrorRecoveryMode,
+    MemoryOptimizationMode,
+)
 from cyberdelta.apis.base.ws_context import (
     ExchangeType,
     WebSocketContextUnion,
@@ -86,8 +90,8 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         payload_validator: WebSocketPayloadValidators | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
         recovery_config: ErrorRecoveryConfig | None = None,
-        enable_error_recovery: bool = True,
-        enable_memory_optimization: bool = False,
+        error_recovery_mode: ErrorRecoveryMode = ErrorRecoveryMode.ENABLED,
+        memory_optimization_mode: MemoryOptimizationMode = MemoryOptimizationMode.DISABLED,
         memory_pool_size: int = 1000,
     ) -> None:
         """Initialize the WebSocket router.
@@ -100,8 +104,8 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             payload_validator: Optional payload validator (default instance created if None).
             metrics_collector: Optional metrics collector for monitoring.
             recovery_config: Configuration for error recovery system.
-            enable_error_recovery: Whether to enable automatic error recovery.
-            enable_memory_optimization: Whether to enable memory optimization for
+            error_recovery_mode: Mode for automatic error recovery.
+            memory_optimization_mode: Mode for memory optimization in
                 high-frequency scenarios.
             memory_pool_size: Size of the memory pool for object reuse.
 
@@ -116,18 +120,18 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
 
         # Error recovery system
-        self.enable_error_recovery = enable_error_recovery
+        self.error_recovery_mode = error_recovery_mode
         self.error_recovery: WebSocketErrorRecovery | None
-        if enable_error_recovery:
+        if error_recovery_mode.is_enabled:
             recovery_config = recovery_config or ErrorRecoveryConfig()
             self.error_recovery = WebSocketErrorRecovery(self._connection_id, recovery_config)
         else:
             self.error_recovery = None
 
         # Memory optimization system
-        self.enable_memory_optimization = enable_memory_optimization
+        self.memory_optimization_mode = memory_optimization_mode
         self.memory_pool: MemoryPool | None
-        if enable_memory_optimization:
+        if memory_optimization_mode.is_enabled:
             self.memory_pool = MemoryPool(pool_size=memory_pool_size)
         else:
             self.memory_pool = None
@@ -142,9 +146,9 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             "websocket_router_initialized",
             exchange=exchange_name,
             processors=list(self.processors.keys()),
-            error_recovery_enabled=enable_error_recovery,
-            memory_optimization_enabled=enable_memory_optimization,
-            memory_pool_size=memory_pool_size if enable_memory_optimization else None,
+            error_recovery_mode=error_recovery_mode.value,
+            memory_optimization_mode=memory_optimization_mode.value,
+            memory_pool_size=memory_pool_size if memory_optimization_mode.is_enabled else None,
         )
 
     @abstractmethod
@@ -610,10 +614,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         Returns:
             True if high-frequency mode was enabled, False if already enabled
         """
-        if self.enable_memory_optimization:
+        if self.memory_optimization_mode == MemoryOptimizationMode.ENABLED:
             return False  # Already enabled
 
-        self.enable_memory_optimization = True
+        self.memory_optimization_mode = MemoryOptimizationMode.ENABLED
         if self.memory_pool is None:
             self.memory_pool = MemoryPool(pool_size=2000)  # Larger pool for HFT
 
@@ -631,10 +635,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         Returns:
             True if memory optimization was disabled, False if already disabled
         """
-        if not self.enable_memory_optimization:
+        if self.memory_optimization_mode == MemoryOptimizationMode.DISABLED:
             return False  # Already disabled
 
-        self.enable_memory_optimization = False
+        self.memory_optimization_mode = MemoryOptimizationMode.DISABLED
         if self.memory_pool:
             self.memory_pool.clear_pools()
             self.memory_pool = None

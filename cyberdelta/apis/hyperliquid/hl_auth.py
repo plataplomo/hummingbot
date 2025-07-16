@@ -39,6 +39,7 @@ from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
 )
+from cyberdelta.apis.base.network_security_domain import NetworkEnvironment
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import InvalidPrivateKeyError
 from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
@@ -105,7 +106,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         chain_id: int,
         account_object: LocalAccount | None = None,
         passphrase_secret: SecretStr | None = None,
-        is_mainnet_environment: bool = True,
+        network_environment: NetworkEnvironment,
         logger_param: structlog.BoundLogger | None = None,
     ) -> None:
         """Initialize the Hyperliquid authenticator with wallet credentials.
@@ -115,11 +116,11 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             chain_id: Ethereum chain ID for EIP-712 signing
             account_object: Pre-configured LocalAccount (alternative to private key)
             passphrase_secret: Optional passphrase for enhanced security
-            is_mainnet_environment: Whether connecting to mainnet (True) or testnet (False)
+            network_environment: Network environment configuration
             logger_param: Optional logger instance for authentication events
         """
         self.logger = logger_param or get_logger(__name__)
-        self._is_mainnet_env = is_mainnet_environment
+        self._network_environment = network_environment
         self._chain_id = chain_id
 
         self._validate_auth_parameters(wallet_private_key_secret, account_object)
@@ -688,7 +689,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _create_phantom_agent_message(self, action_hash_bytes: bytes) -> dict[str, Any]:
         """Create phantom agent message for EIP-712 signing."""
-        source_char = "a" if self._is_mainnet_env else "b"
+        source_char = "a" if self._network_environment.is_mainnet() else "b"
         phantom_agent_message = {
             "source": source_char,
             "connectionId": action_hash_bytes,
@@ -697,7 +698,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             "phantom_agent_source_set",
             action="create_phantom_agent_message",
             source_char=source_char,
-            is_mainnet=self._is_mainnet_env,
+            is_mainnet=self._network_environment.is_mainnet(),
             message=f"[HL_AUTH] Phantom agent source: {source_char}",
         )
         return phantom_agent_message

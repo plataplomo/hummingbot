@@ -12,6 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.apis.base.validation_context_domain import FieldPresenceState
+
 
 class WebSocketValidationError(ValueError):
     """Base exception for WebSocket validation errors."""
@@ -20,9 +22,9 @@ class WebSocketValidationError(ValueError):
 class SuccessErrorMismatchError(WebSocketValidationError):
     """Raised when success and error fields don't match."""
 
-    def __init__(self, has_success: bool, has_error: bool) -> None:
+    def __init__(self, success_state: FieldPresenceState, error_state: FieldPresenceState) -> None:
         """Initialize SuccessErrorMismatchError with success/error state."""
-        if has_success and has_error:
+        if success_state.is_present and error_state.is_present:
             super().__init__("Cannot have error when success is True")
         else:
             super().__init__("Must have error message when success is False")
@@ -127,9 +129,13 @@ class BaseSubscriptionResponse(BaseWebSocketMessage):
     def validate_error_consistency(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Ensure error is None when success is True."""
         if info.data.get("success") and v is not None:
-            raise SuccessErrorMismatchError(has_success=True, has_error=True)
+            raise SuccessErrorMismatchError(
+                success_state=FieldPresenceState.PRESENT, error_state=FieldPresenceState.PRESENT
+            )
         if not info.data.get("success") and v is None:
-            raise SuccessErrorMismatchError(has_success=False, has_error=False)
+            raise SuccessErrorMismatchError(
+                success_state=FieldPresenceState.PRESENT, error_state=FieldPresenceState.ABSENT
+            )
         return v
 
 

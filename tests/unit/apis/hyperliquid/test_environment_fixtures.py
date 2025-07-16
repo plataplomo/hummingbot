@@ -12,6 +12,7 @@ from cyberdelta.apis.hyperliquid.hl_api_components_factory import (
 )
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -36,9 +37,8 @@ class TestEnvironmentAwareFixtures:
     def test_active_hl_config_testnet(self, active_hl_config: ExchangeSpecificConfig) -> None:
         """Test active_hl_config fixture with testnet environment."""
         assert active_hl_config.exchange_name == ExchangeName.HYPERLIQUID
-        assert (
-            active_hl_config.is_mainnet_environment is True
-        )  # Business logic now defaults to mainnet
+        # Business logic now defaults to mainnet
+        assert active_hl_config.environment_type == EnvironmentType.MAINNET
         assert str(active_hl_config.api_base_url_mainnet) == "https://api.hyperliquid.xyz/"
         assert str(active_hl_config.ws_url_mainnet) == "wss://api.hyperliquid.xyz/ws"
         assert active_hl_config.api_base_url_testnet is None  # No testnet URLs in mainnet config
@@ -160,7 +160,7 @@ class TestEnvironmentConfigurationIntegration:
     ) -> None:
         """Test URL selection logic for current environment configuration."""
         # Current business logic configuration is mainnet
-        assert active_hl_config.is_mainnet_environment is True
+        assert active_hl_config.environment_type == EnvironmentType.MAINNET
 
         # Mainnet URLs should be available
         assert active_hl_config.api_base_url_mainnet is not None

@@ -54,6 +54,7 @@ from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.market import Market
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.enums.environment import EnvironmentType
 
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py
@@ -455,7 +456,7 @@ def base_config() -> dict[str, Any]:
         "ws_endpoint": "wss://test.ws.endpoint",
         "rest_endpoint": "https://test.rest.endpoint",
         "rate_limit_per_minute": 60,
-        "is_mainnet_environment": True,
+        "environment_type": EnvironmentType.MAINNET,
         "api_base_url_mainnet": "https://test.rest.endpoint",
         "api_base_url_testnet": "https://test.rest.endpoint",
         "ws_url_mainnet": "wss://test.ws.endpoint",
@@ -552,7 +553,7 @@ class TestExchangeAPIInitialization:
             "rate_limits": {"default_rate": 20, "default_bucket_size": 20},
             "rest_endpoint": "https://custom.api.endpoint",
             "rate_limit_per_minute": 60,
-            "is_mainnet_environment": True,
+            "environment_type": EnvironmentType.MAINNET,
             "api_base_url_mainnet": "https://custom.api.endpoint",
             "api_base_url_testnet": "https://custom.api.endpoint",
             "ws_url_mainnet": "wss://custom.ws.endpoint",
@@ -793,7 +794,7 @@ class TestExchangeAPIWebSocketOperations:
                 "rest_endpoint": "https://test.endpoint",
                 "ws_endpoint": "wss://test.ws",
                 "rate_limit_per_minute": 60,
-                "is_mainnet_environment": True,
+                "environment_type": EnvironmentType.MAINNET,
                 "api_base_url_mainnet": "https://test.endpoint",
                 "api_base_url_testnet": "https://test.endpoint",
                 "ws_url_mainnet": "wss://test.ws",

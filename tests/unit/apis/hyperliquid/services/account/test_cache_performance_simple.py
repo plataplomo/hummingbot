@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 from eth_typing import ChecksumAddress, HexAddress, HexStr
 
+from cyberdelta.apis.base.infrastructure_config_domain import CachingPolicy
 from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_cache_service import (
     HyperliquidClearinghouseCacheService,
 )
@@ -24,7 +25,7 @@ class TestCachePerformanceSimple:
         """Create a cache service with 5-second TTL."""
         return HyperliquidClearinghouseCacheService(
             cache_duration=5.0,
-            enable_cache=True,
+            caching_policy=CachingPolicy.ENABLED,
             max_cache_size=1000,
         )
 
@@ -159,7 +160,7 @@ class TestCachePerformanceSimple:
         # Create cache with small size limit
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=60.0,  # Long TTL to avoid expiration
-            enable_cache=True,
+            caching_policy=CachingPolicy.ENABLED,
             max_cache_size=10,
         )
 

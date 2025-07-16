@@ -6,6 +6,10 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiCancelOrderRequest,
     HyperliquidApiPlaceOrderRequest,
@@ -55,8 +59,7 @@ class TestHyperliquidTradingRequestBuilder:
             quantity=Decimal("0.01"),
             price=Decimal("40000.00"),
             time_in_force=TimeInForce.GTC,
-            reduce_only=False,
-            post_only=False,
+            execution=OrderExecution(),  # Defaults
         )
 
         payload = builder.build_place_order_payload_with_args(args, asset_index=0)
@@ -126,7 +129,7 @@ class TestHyperliquidTradingRequestBuilder:
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
             time_in_force=TimeInForce.IOC,
-            reduce_only=False,
+            execution=OrderExecution(),  # Defaults
         )
 
         payload = builder.build_place_order_payload_with_args(args, asset_index=0)
@@ -147,8 +150,9 @@ class TestHyperliquidTradingRequestBuilder:
             quantity=Decimal("1.0"),
             price=Decimal("30000.00"),
             time_in_force=TimeInForce.GTC,
-            reduce_only=False,
-            post_only=True,
+            execution=OrderExecution(
+                liquidity_requirement=LiquidityRequirement.POST_ONLY,
+            ),
         )
 
         payload = builder.build_place_order_payload_with_args(args, asset_index=0)

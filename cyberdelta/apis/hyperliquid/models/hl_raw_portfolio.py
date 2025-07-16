@@ -18,6 +18,7 @@ from pydantic import (
     field_validator,
 )
 
+from cyberdelta.apis.base.validation_context_domain import DictMatchPolicy
 from cyberdelta.apis.exceptions.parsing import (
     DictStructureError,
     SequenceLengthError,
@@ -69,13 +70,13 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
                     field_name=field_name,
                     expected_keys=[0, 1],
                     actual_keys=list(v_dict.keys()),
-                    exact_match=True,
+                    match_policy=DictMatchPolicy.EXACT_MATCH,
                 )
             raise DictStructureError(
                 field_name=field_name,
                 expected_keys=[0, 1],
                 actual_keys=list(v_dict.keys()),
-                exact_match=False,
+                match_policy=DictMatchPolicy.CONTAINS_REQUIRED,
             )
         if isinstance(v, list | tuple):
             v_sequence = cast("list[object] | tuple[object, ...]", v)

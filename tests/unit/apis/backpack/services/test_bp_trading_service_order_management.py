@@ -10,6 +10,10 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
@@ -42,6 +46,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("10.0"),
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
 
@@ -62,6 +67,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("0.0"),  # Invalid: zero quantity
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -75,6 +81,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("-5.0"),  # Invalid: negative quantity
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -88,6 +95,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("inf"),  # Invalid: infinite quantity
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "must be a finite decimal" in str(exc_info.value)
@@ -107,6 +115,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("10.0"),
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("0.0"),  # Invalid: zero price
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -120,6 +129,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("10.0"),
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("-50.0"),  # Invalid: negative price
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -133,6 +143,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=Decimal("10.0"),
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("inf"),  # Invalid: infinite price
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "must be a finite decimal" in str(exc_info.value)
@@ -153,6 +164,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=TimeInForce.GTC,
                 price=Decimal("100.0"),
                 stop_price=Decimal("-10.0"),  # Invalid: negative stop_price
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
         assert "Input should be greater than 0" in str(exc_info.value)
@@ -342,6 +354,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=time_in_force,
                 price=price,
                 client_order_id="123456",  # Use numeric string instead of alphanumeric
+                execution=OrderExecution(),
             )
             result = await bp_trading_service.place_order(args=args)
 
@@ -409,6 +422,7 @@ class TestBackpackTradingServiceOrderManagement:
                     quantity=quantity,
                     time_in_force=time_in_force,
                     price=price,
+                    execution=OrderExecution(),
                 )
                 await bp_trading_service.place_order(args=args)
 
@@ -476,6 +490,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=quantity,
                 time_in_force=time_in_force,
                 price=price,
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
 
@@ -515,6 +530,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=quantity,
                 time_in_force=time_in_force,
                 price=price,
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
 
@@ -965,7 +981,7 @@ class TestBackpackTradingServiceOrderManagement:
                 time_in_force=time_in_force,
                 price=price,
                 stop_price=stop_price,
-                post_only=post_only,
+                execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
             )
             result = await bp_trading_service.place_order(args=args)
 
@@ -1009,6 +1025,7 @@ class TestBackpackTradingServiceOrderManagement:
                 quantity=quantity,
                 time_in_force=time_in_force,
                 price=price,
+                execution=OrderExecution(),
             )
             await bp_trading_service.place_order(args=args)
 

@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from cyberdelta.apis.base.infrastructure_config_domain import RequestConfiguration
+
 
 class HyperliquidSerializationStrategy:
     """Hyperliquid-specific serialization strategy.
@@ -17,28 +19,32 @@ class HyperliquidSerializationStrategy:
     are used for developer convenience.
     """
 
-    def serialize_model(self, model: BaseModel, serialize_none_as_null: bool) -> dict[str, Any]:
+    def serialize_model(
+        self, model: BaseModel, request_config: RequestConfiguration
+    ) -> dict[str, Any]:
         """Serialize model using Hyperliquid's requirements.
 
         Args:
             model: The Pydantic model to serialize
-            serialize_none_as_null: If True, include None values as null
+            request_config: Request configuration including serialization settings
 
         Returns:
             Dictionary with original field names (not aliases)
         """
+        # Determine if we should include None values based on serialization mode
+        exclude_none = not request_config.serialization_mode.should_serialize_none
+
         # Special handling for funding history requests which require camelCase
         if model.__class__.__name__ == "HyperliquidRawFundingHistoryRequestPayload":
             return model.model_dump(
                 by_alias=True,  # Use camelCase aliases for funding history
-                exclude_none=True,  # Exclude None values
+                exclude_none=exclude_none,
                 mode="json",  # Use JSON mode for proper serialization of custom types
             )
 
-        # For Hyperliquid, we exclude None values to match SDK behavior
-        # The 'c' field should not be included when it's None
+        # For Hyperliquid, we use actual field names (not aliases) for most requests
         return model.model_dump(
             by_alias=False,  # Critical for Hyperliquid - use actual field names (a, b, p, etc.)
-            exclude_none=True,  # Exclude None values to match SDK behavior
+            exclude_none=exclude_none,  # Based on serialization mode
             mode="json",  # Use JSON mode for proper serialization of custom types
         )

@@ -177,10 +177,11 @@ select = [  # Linting rules to apply
     "BLE",
     "TRY",
     "RSE",
-    #"EM",
+    # "EM",
     "SLF",
     "PLE",
     "PD",
+    # "FBT",
 ]
 
 # Ignore rules that conflict with current codebase formatting
@@ -205,12 +206,12 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"  # Regex for dummy 
 [tool.ruff.lint.per-file-ignores]
 # Allow assert statements and subprocess calls in tests
 # allow magic value comparisons
-"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PLR6201", "PT011", "PT012", "N802", "N803", "N806", "TRY003", "TRY301"]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PLR6201", "PT011", "PT012", "N802", "N803", "N806", "TRY003", "TRY301", "FBT"]
 "tests/integration/test_config_example.py" = ["S603", "S404"]  # Allow subprocess calls for testing config script
 # Examples are demonstration scripts with proper __init__.py but ruff has detection issues
 "examples/*.py" = ["INP001", "TRY003", "TRY301"]
 # Scripts are standalone and don't need __init__.py
-"scripts/**/*.py" = ["INP001", "TRY003", "TRY301"]
+"scripts/**/*.py" = ["INP001", "TRY003", "TRY301", "FBT"]
 "frontend/**/*.py" = ["TRY003", "TRY301"]
 # AST visitor methods require specific naming convention
 "scripts/analyze_time_mocking_patterns.py" = ["N802"]

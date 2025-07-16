@@ -4,6 +4,7 @@ import time
 
 import pytest
 
+from cyberdelta.apis.base.validation_context_domain import RateLimitBehavior
 from cyberdelta.apis.base.ws_rate_limiter import (
     RateLimitAlgorithm,
     RateLimitConfig,
@@ -369,7 +370,9 @@ class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_middleware_allows_request(self, middleware: RateLimitMiddleware) -> None:
         """Test middleware allows valid requests."""
-        result = await middleware.check_rate_limit("conn1", raise_on_limit=False)
+        result = await middleware.check_rate_limit(
+            "conn1", behavior=RateLimitBehavior.RETURN_RESULT
+        )
 
         assert result.allowed is True
 
@@ -377,11 +380,11 @@ class TestRateLimitMiddleware:
     async def test_middleware_raises_on_limit(self, middleware: RateLimitMiddleware) -> None:
         """Test middleware raises exception on rate limit."""
         # Exhaust limit
-        await middleware.check_rate_limit("conn1", raise_on_limit=False)
+        await middleware.check_rate_limit("conn1", behavior=RateLimitBehavior.RETURN_RESULT)
 
         # Next request should raise
         with pytest.raises(RateLimitError) as exc_info:
-            await middleware.check_rate_limit("conn1", raise_on_limit=True)
+            await middleware.check_rate_limit("conn1", behavior=RateLimitBehavior.RAISE_ERROR)
 
         assert exc_info.value.result.allowed is False
 
@@ -391,10 +394,12 @@ class TestRateLimitMiddleware:
     ) -> None:
         """Test middleware returns result without raising when configured."""
         # Exhaust limit
-        await middleware.check_rate_limit("conn1", raise_on_limit=False)
+        await middleware.check_rate_limit("conn1", behavior=RateLimitBehavior.RETURN_RESULT)
 
         # Next request should return result without raising
-        result = await middleware.check_rate_limit("conn1", raise_on_limit=False)
+        result = await middleware.check_rate_limit(
+            "conn1", behavior=RateLimitBehavior.RETURN_RESULT
+        )
 
         assert result.allowed is False
         assert isinstance(result, RateLimitResult)

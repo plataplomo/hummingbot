@@ -17,6 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    OrderExecution,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import OrderError, ServiceParameterError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -124,8 +127,7 @@ def valid_place_order_args() -> PlaceOrderArgs:
         quantity=Decimal("0.1"),
         price=Decimal(50000),
         time_in_force=TimeInForce.GTC,
-        reduce_only=False,
-        post_only=False,
+        execution=OrderExecution(),
     )
 
 
@@ -227,6 +229,7 @@ class TestOrderPlacementService:
             quantity=Decimal("0.1"),
             price=Decimal(50000),
             time_in_force=TimeInForce.GTC,
+            execution=OrderExecution(),
         )
 
         # Act & Assert
@@ -315,6 +318,7 @@ class TestOrderPlacementService:
             quantity=Decimal("1.0"),
             price=Decimal(3000),
             time_in_force=TimeInForce.GTC,
+            execution=OrderExecution(),
         )
 
         # Mock responses for each order
@@ -436,6 +440,7 @@ class TestOrderPlacementService:
             quantity=Decimal("0.1"),
             price=None,  # Market orders don't have a price initially
             time_in_force=TimeInForce.IOC,
+            execution=OrderExecution(),
         )
 
         # Mock the market order price calculation
@@ -568,6 +573,7 @@ class TestOrderPlacementService:
             quantity=Decimal("0.1"),
             price=Decimal(50000),
             time_in_force=TimeInForce.GTC,
+            execution=OrderExecution(),
         )
 
         # Act & Assert
@@ -589,6 +595,7 @@ class TestOrderPlacementService:
             quantity=Decimal(-1),  # Negative quantity
             price=Decimal(50000),
             time_in_force=TimeInForce.GTC,
+            execution=OrderExecution(),
         )
 
         # Act & Assert
@@ -610,6 +617,7 @@ class TestOrderPlacementService:
             quantity=Decimal("0.1"),
             price=None,  # Missing required price for limit order
             time_in_force=TimeInForce.GTC,
+            execution=OrderExecution(),
         )
 
         # Act & Assert
@@ -631,6 +639,7 @@ class TestOrderPlacementService:
             quantity=Decimal("0.1"),
             price=Decimal(50000),
             time_in_force=TimeInForce.FOK,  # FOK not supported by Hyperliquid
+            execution=OrderExecution(),
         )
 
         # Act & Assert
@@ -659,6 +668,7 @@ class TestOrderPlacementService:
             price=Decimal(50000),
             client_order_id="my_order_123",
             time_in_force=TimeInForce.GTC,
+            execution=OrderExecution(),
         )
 
         mock_request_builder.build_place_order_payload.return_value = MagicMock()

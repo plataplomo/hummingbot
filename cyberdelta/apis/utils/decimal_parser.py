@@ -6,6 +6,7 @@ financial precision and follow project rules for decimal handling.
 
 from decimal import Decimal, InvalidOperation
 
+from cyberdelta.apis.base.validation_context_domain import ValidationContext
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 
@@ -44,17 +45,13 @@ def _prepare_value_string(value: str | float | Decimal, field_name: str, context
 
 def safe_parse_decimal(
     value: str | float | Decimal | None,
-    field_name: str = "value",
-    context: str = "unknown",
-    allow_none: bool = False,
+    validation_context: ValidationContext | None = None,
 ) -> Decimal | None:
     """Safely parse a value to Decimal with comprehensive error handling.
 
     Args:
         value: Value to parse (string, int, float, or Decimal)
-        field_name: Name of the field for error messages
-        context: Context description for error messages
-        allow_none: Whether None values are allowed
+        validation_context: Validation context with null and range policies
 
     Returns:
         Parsed Decimal value or None if allowed
@@ -62,33 +59,49 @@ def safe_parse_decimal(
     Raises:
         APIError: If parsing fails or value is invalid
     """
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
+
+    # Handle None values according to context policy
     if value is None:
-        if allow_none:
+        if validation_context.null_policy.value == "allow":
             return None
+        if validation_context.null_policy.value == "default_zero":
+            return Decimal(0)
         raise APIError(
-            message=f"Cannot parse None as decimal for {field_name} in {context}",
+            message=(
+                f"Cannot parse None as decimal for {validation_context.field_name} "
+                f"in {validation_context.context_description}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 
     # Handle already-decimal values
     if isinstance(value, Decimal):
-        _validate_decimal_finite(value, field_name, context)
+        _validate_decimal_finite(
+            value, validation_context.field_name, validation_context.context_description
+        )
         return value
 
     # Convert to string for safe parsing
     try:
-        value_str = _prepare_value_string(value, field_name, context)
+        value_str = _prepare_value_string(
+            value, validation_context.field_name, validation_context.context_description
+        )
 
         # Parse using Decimal constructor
         decimal_value = Decimal(value_str)
 
         # Validate the result
-        _validate_decimal_finite(decimal_value, field_name, context)
+        _validate_decimal_finite(
+            decimal_value, validation_context.field_name, validation_context.context_description
+        )
 
         logger.debug(
             "decimal_parse_success",
-            field_name=field_name,
-            context=context,
+            field_name=validation_context.field_name,
+            context=validation_context.context_description,
             original_value=str(value),
             parsed_value=str(decimal_value),
         )
@@ -96,25 +109,31 @@ def safe_parse_decimal(
     except InvalidOperation as e:
         logger.exception(
             "decimal_parse_failed",
-            field_name=field_name,
-            context=context,
+            field_name=validation_context.field_name,
+            context=validation_context.context_description,
             value=str(value),
             error=str(e),
         )
         raise APIError(
-            message=f"Invalid decimal format for {field_name} in {context}: {value}",
+            message=(
+                f"Invalid decimal format for {validation_context.field_name} "
+                f"in {validation_context.context_description}: {value}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         ) from e
     except (ValueError, TypeError) as e:
         logger.exception(
             "decimal_parse_error",
-            field_name=field_name,
-            context=context,
+            field_name=validation_context.field_name,
+            context=validation_context.context_description,
             value=str(value),
             error=str(e),
         )
         raise APIError(
-            message=f"Failed to parse decimal for {field_name} in {context}: {value}",
+            message=(
+                f"Failed to parse decimal for {validation_context.field_name} "
+                f"in {validation_context.context_description}: {value}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         ) from e
     else:
@@ -123,17 +142,13 @@ def safe_parse_decimal(
 
 def validate_positive_decimal(
     value: Decimal,
-    field_name: str = "value",
-    context: str = "unknown",
-    allow_zero: bool = False,
+    validation_context: ValidationContext | None = None,
 ) -> Decimal:
-    """Validate that a decimal value is positive (and optionally non-zero).
+    """Validate that a decimal value is positive according to validation context.
 
     Args:
         value: Decimal value to validate
-        field_name: Name of the field for error messages
-        context: Context description for error messages
-        allow_zero: Whether zero values are allowed
+        validation_context: Validation context with range policy
 
     Returns:
         Validated decimal value
@@ -141,15 +156,37 @@ def validate_positive_decimal(
     Raises:
         APIError: If value is not positive
     """
-    if allow_zero:
+    # Use default context if none provided
+    if validation_context is None:
+        validation_context = ValidationContext()
+
+    # Apply range validation according to policy
+    if validation_context.range_policy.value == "non_negative":
         if value < Decimal(0):
             raise APIError(
-                message=f"{field_name} must be non-negative in {context}, got: {value}",
+                message=(
+                    f"{validation_context.field_name} must be non-negative "
+                    f"in {validation_context.context_description}, got: {value}"
+                ),
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
-    elif value <= Decimal(0):
+    elif validation_context.range_policy.value == "positive":
+        if value <= Decimal(0):
+            raise APIError(
+                message=(
+                    f"{validation_context.field_name} must be positive "
+                    f"in {validation_context.context_description}, got: {value}"
+                ),
+                code=APIErrorCode.INVALID_RESPONSE.value,
+            )
+    elif validation_context.range_policy.value == "financial_positive" and value <= Decimal(
+        "0.00000001"
+    ):
         raise APIError(
-            message=f"{field_name} must be positive in {context}, got: {value}",
+            message=(
+                f"{validation_context.field_name} must be financially positive (> 0.00000001) "
+                f"in {validation_context.context_description}, got: {value}"
+            ),
             code=APIErrorCode.INVALID_RESPONSE.value,
         )
 

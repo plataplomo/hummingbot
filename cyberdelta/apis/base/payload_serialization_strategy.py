@@ -9,6 +9,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
+from cyberdelta.apis.base.infrastructure_config_domain import RequestConfiguration
+
 
 class PayloadSerializationStrategy(Protocol):
     """Protocol defining the interface for payload serialization strategies.
@@ -17,12 +19,14 @@ class PayloadSerializationStrategy(Protocol):
     serialization requirements (e.g., by_alias behavior, null handling).
     """
 
-    def serialize_model(self, model: BaseModel, serialize_none_as_null: bool) -> dict[str, Any]:
+    def serialize_model(
+        self, model: BaseModel, request_config: RequestConfiguration
+    ) -> dict[str, Any]:
         """Serialize a Pydantic model according to exchange requirements.
 
         Args:
             model: The Pydantic model to serialize
-            serialize_none_as_null: If True, serialize None values as null instead of excluding them
+            request_config: Request configuration including serialization settings
 
         Returns:
             Dictionary representation of the model suitable for the exchange's API
@@ -37,17 +41,19 @@ class DefaultSerializationStrategy:
     for most exchanges like Backpack.
     """
 
-    def serialize_model(self, model: BaseModel, serialize_none_as_null: bool) -> dict[str, Any]:
+    def serialize_model(
+        self, model: BaseModel, request_config: RequestConfiguration
+    ) -> dict[str, Any]:
         """Serialize model using standard Pydantic behavior with aliases.
 
         Args:
             model: The Pydantic model to serialize
-            serialize_none_as_null: If True, include None values as null
+            request_config: Request configuration including serialization settings
 
         Returns:
             Dictionary with aliased field names
         """
         return model.model_dump(
             by_alias=True,
-            exclude_none=not serialize_none_as_null,
+            exclude_none=not request_config.serialization_mode.should_serialize_none,
         )

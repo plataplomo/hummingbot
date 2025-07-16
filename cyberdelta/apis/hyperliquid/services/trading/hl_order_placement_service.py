@@ -16,6 +16,12 @@ from datetime import UTC, datetime
 from typing import NoReturn
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+    SerializationMode,
+)
+from cyberdelta.apis.base.trading_execution_domain import OrderExecution
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import OrderError, ServiceParameterError, SymbolNotFoundError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -188,12 +194,16 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
         Returns:
             Tuple of (raw exchange response, HTTP status code)
         """
+        request_config = RequestConfiguration(
+            auth_mode=RequestAuthMode.SIGNED,
+            serialization_mode=SerializationMode.EXPLICIT_NULL,
+        )
+
         raw_content, http_status, _ = await self._http_requester(
             method="POST",
             endpoint=self._action_endpoint,
             data=request_payload_model,
-            is_signed=True,
-            serialize_none_as_null=True,
+            request_config=request_config,
         )
 
         if not is_dict_response(raw_content):
@@ -476,8 +486,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
                 price=aggressive_price,  # Aggressive market-taking price
                 time_in_force=TimeInForce.IOC,  # Immediate or cancel
                 client_order_id=args.client_order_id,
-                post_only=False,  # Ensure market-taking behavior
-                reduce_only=getattr(args, "reduce_only", False),
+                execution=OrderExecution(),  # Default: ANY liquidity, OPEN_OR_INCREASE position
             )
 
             # Log the conversion

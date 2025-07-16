@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from eth_typing import ChecksumAddress
 
+from cyberdelta.apis.base.trading_execution_domain import PositionIntent
 from cyberdelta.apis.exceptions import (
     InvalidEnumValueError,
     MissingRequiredParameterError,
@@ -225,7 +226,7 @@ class HyperliquidTradingRequestBuilder(
             is_buy=is_buy,
             limit_px=limit_px_wire,
             size=sz_wire,
-            reduce_only=args.reduce_only,
+            reduce_only=args.execution.position_intent == PositionIntent.REDUCE_ONLY,
             order_type_details=order_type_model,  # Pydantic model with proper validation
             client_order_id=args.client_order_id,
         )
@@ -553,7 +554,7 @@ class HyperliquidTradingRequestBuilder(
         order_side: OrderSide,
         quantity: Decimal,
         price: Decimal | None = None,
-        reduce_only: bool = False,
+        position_intent: PositionIntent = PositionIntent.OPEN_OR_INCREASE,
         vault_address: ChecksumAddress | None = None,
     ) -> HyperliquidApiPlaceOrderRequest:
         """Build order placement payload using protocol interface.
@@ -564,7 +565,7 @@ class HyperliquidTradingRequestBuilder(
             order_side: Side of order (buy/sell)
             quantity: Order quantity
             price: Order price (None for market orders)
-            reduce_only: Whether this is a reduce-only order
+            position_intent: Intent of the order for position management
             vault_address: Optional vault address for vault trading
 
         Returns:
@@ -577,7 +578,7 @@ class HyperliquidTradingRequestBuilder(
             order_side=order_side.value,
             quantity=str(quantity),
             price=str(price) if price else None,
-            reduce_only=reduce_only,
+            position_intent=position_intent.value,
             vault_address=vault_address,
             message="Building place order payload via protocol",
         )
@@ -613,7 +614,7 @@ class HyperliquidTradingRequestBuilder(
             is_buy=is_buy,
             limit_px=limit_px_wire,
             size=sz_wire,
-            reduce_only=reduce_only,
+            reduce_only=(position_intent == PositionIntent.REDUCE_ONLY),
             order_type_details=order_type_model,
             client_order_id=None,
         )

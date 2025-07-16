@@ -16,6 +16,10 @@ if TYPE_CHECKING:
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+)
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -81,6 +85,7 @@ class TestBackpackPerpLargePositions:
                         order_type=OrderType.MARKET,
                         quantity=abs(position.size),
                         time_in_force=TimeInForce.IOC,
+                        execution=OrderExecution(),
                     )
                     try:
                         await api.place_order(place_args)
@@ -283,7 +288,7 @@ class TestBackpackPerpLargePositions:
             quantity=test_size,
             price=test_price,
             time_in_force=TimeInForce.GTC,
-            post_only=True,
+            execution=OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY),
         )
 
         try:
@@ -440,6 +445,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=max_params["max_position_size"],
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
                 order = await bp_api_for_large_balance_test.place_order(place_args)
                 assert order.exchange_order_id is not None
@@ -503,6 +509,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=max_params["max_position_size"],
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
                 await bp_api_for_large_balance_test.place_order(place_args)
                 # Position update handled by proper polling
@@ -514,6 +521,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=max_params["step_size"],
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
 
                 with pytest.raises(Exception) as exc_info:
@@ -565,6 +573,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=position_size,
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
                 order = await bp_api_for_large_balance_test.place_order(place_args)
                 assert order.exchange_order_id is not None
@@ -622,6 +631,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=oversized_position,
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
 
                 with pytest.raises(Exception) as exc_info:
@@ -692,6 +702,7 @@ class TestBackpackPerpLargePositions:
                             order_type=OrderType.MARKET,
                             quantity=max_quantity,
                             time_in_force=TimeInForce.IOC,
+                            execution=OrderExecution(),
                         )
                         await bp_api_for_large_balance_test.place_order(place_args)
                         # Invalidate account cache to ensure fresh equity data for next iteration
@@ -769,6 +780,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=max_params["max_position_size"],
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
                 await bp_api_for_large_balance_test.place_order(place_args)
                 # Position update handled by proper polling
@@ -780,6 +792,7 @@ class TestBackpackPerpLargePositions:
                     order_type=OrderType.MARKET,
                     quantity=max_params["step_size"],
                     time_in_force=TimeInForce.IOC,
+                    execution=OrderExecution(),
                 )
                 order = await bp_api_for_large_balance_test.place_order(reduce_args)
                 assert order.exchange_order_id is not None

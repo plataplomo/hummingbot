@@ -16,6 +16,9 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    OrderExecution,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import OrderError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
@@ -115,8 +118,7 @@ def valid_place_order_args() -> PlaceOrderArgs:
         quantity=Decimal("0.1"),
         time_in_force=TimeInForce.GTC,
         price=Decimal(50000),
-        reduce_only=False,
-        post_only=False,
+        execution=OrderExecution(),
     )
 
 
@@ -178,6 +180,7 @@ class TestBatchOrderService:
                 quantity=Decimal("1.0"),
                 time_in_force=TimeInForce.GTC,
                 price=Decimal(3500),
+                execution=OrderExecution(),
             ),
         ]
 
@@ -557,6 +560,7 @@ class TestBatchOrderService:
             time_in_force=TimeInForce.GTC,
             price=Decimal(50000),
             client_order_id="batch_order_1",
+            execution=OrderExecution(),
         )
         order2 = PlaceOrderArgs(
             symbol="ETH-USD",
@@ -566,6 +570,7 @@ class TestBatchOrderService:
             time_in_force=TimeInForce.GTC,
             price=Decimal(3500),
             client_order_id="batch_order_2",
+            execution=OrderExecution(),
         )
         batch_args = [order1, order2]
 

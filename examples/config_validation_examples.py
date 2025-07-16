@@ -33,6 +33,7 @@ from cyberdelta.core.services.config_validation import (
     ExecutionConfigValidator,
     validate_execution_config,
 )
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -61,7 +62,7 @@ def example_1_valid_configuration() -> None:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.hyperliquid.xyz"),
                 ws_url_mainnet=HttpUrl("wss://api.hyperliquid.xyz/ws"),
-                is_mainnet_environment=True,
+                environment_type=EnvironmentType.MAINNET,
                 symbols={"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
                 chain_id=421614,
                 ip_weight_limit_per_minute=1200,
@@ -74,7 +75,7 @@ def example_1_valid_configuration() -> None:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.backpack.exchange"),
                 ws_url_mainnet=HttpUrl("wss://ws.backpack.exchange"),
-                is_mainnet_environment=True,
+                environment_type=EnvironmentType.MAINNET,
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
             ),
@@ -165,7 +166,7 @@ def example_2_critical_errors() -> None:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.hyperliquid.xyz"),
                 ws_url_mainnet=HttpUrl("wss://api.hyperliquid.xyz/ws"),
-                is_mainnet_environment=True,
+                environment_type=EnvironmentType.MAINNET,
                 symbols={"BTC": "BTC-PERP"},
                 chain_id=None,  # ❌ CRITICAL: Missing chain_id
                 ip_weight_limit_per_minute=None,  # ❌ CRITICAL: Missing IP weight limit
@@ -264,7 +265,7 @@ def example_3_warnings_only() -> None:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.hyperliquid.xyz"),
                 ws_url_mainnet=HttpUrl("wss://api.hyperliquid.xyz/ws"),
-                is_mainnet_environment=True,
+                environment_type=EnvironmentType.MAINNET,
                 symbols={"BTC": "BTC-PERP"},
                 chain_id=421614,
                 ip_weight_limit_per_minute=1200,
@@ -277,7 +278,7 @@ def example_3_warnings_only() -> None:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.backpack.exchange"),
                 ws_url_mainnet=HttpUrl("wss://ws.backpack.exchange"),
-                is_mainnet_environment=True,
+                environment_type=EnvironmentType.MAINNET,
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC_USDC"},
             ),
@@ -373,7 +374,7 @@ def example_4_testnet_configuration() -> None:
                 ws_url_mainnet=HttpUrl("wss://api.hyperliquid.xyz/ws"),
                 api_base_url_testnet=HttpUrl("https://api.hyperliquid-testnet.xyz"),
                 ws_url_testnet=HttpUrl("wss://api.hyperliquid-testnet.xyz/ws"),
-                is_mainnet_environment=False,  # Testnet mode
+                environment_type=EnvironmentType.TESTNET,  # Testnet mode
                 symbols={"BTC": "BTC-PERP"},
                 chain_id=421614,  # Testnet chain ID
                 ip_weight_limit_per_minute=1200,
@@ -386,7 +387,7 @@ def example_4_testnet_configuration() -> None:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.backpack.exchange"),
                 ws_url_mainnet=HttpUrl("wss://ws.backpack.exchange"),
-                is_mainnet_environment=True,  # Backpack only has mainnet
+                environment_type=EnvironmentType.MAINNET,  # Backpack only has mainnet
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC_USDC"},
             ),

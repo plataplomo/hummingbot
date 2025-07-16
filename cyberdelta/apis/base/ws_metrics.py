@@ -13,6 +13,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from cyberdelta.apis.base.validation_context_domain import MessageProcessingResult
+
 
 # Constants for histogram buckets and cleanup intervals
 HISTOGRAM_BUCKET_5_SEC = 5
@@ -107,7 +109,7 @@ class WebSocketMetricsCollector:
         message_type: str,
         processing_time_ms: float,
         message_size: int,
-        success: bool = True,
+        result: MessageProcessingResult = MessageProcessingResult.SUCCESS,
     ) -> None:
         """Record metrics for a processed message.
 
@@ -115,11 +117,11 @@ class WebSocketMetricsCollector:
             message_type: Type/channel of the message
             processing_time_ms: Processing time in milliseconds
             message_size: Size of the message in bytes
-            success: Whether processing was successful
+            result: Message processing result
         """
         # Record counts
         self._message_counts[message_type] += 1
-        if not success:
+        if not result.is_successful:
             self._error_counts[message_type] += 1
 
         # Record histograms
@@ -139,7 +141,7 @@ class WebSocketMetricsCollector:
                 labels={
                     "exchange": self.exchange_name,
                     "message_type": message_type,
-                    "status": "success" if success else "error",
+                    "status": "success" if result.is_successful else "error",
                 },
             )
         )

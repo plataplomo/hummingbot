@@ -17,7 +17,7 @@ exchanges:
     api_base_url_testnet: "https://api.hyperliquid-testnet.xyz"
     ws_url_testnet: "wss://api.hyperliquid-testnet.xyz/ws"
     # Default environment for tests using this config file
-    is_mainnet_environment: false # DEFAULT TO TESTNET FOR HYPERLIQUID
+    environment_type: "testnet" # DEFAULT TO TESTNET FOR HYPERLIQUID
     chain_id: 1337 # Constant for Hyperliquid EIP-712 domain
     symbols: {"ETH": "ETH", "BTC": "BTC", "PURP": "PURP"} # Sample test symbols
     # Test-specific rate limits (can be more lenient or specific)
@@ -36,7 +36,7 @@ exchanges:
     ws_url_mainnet: "wss://ws.backpack.exchange"
     api_base_url_testnet: null # Backpack has no testnet
     ws_url_testnet: null       # Backpack has no testnet
-    is_mainnet_environment: true # Always mainnet for Backpack
+    environment_type: "mainnet" # Always mainnet for Backpack
     chain_id: null
     rate_limit_per_minute: 10000 # Higher for testing if needed
     symbols: {"SOL_USDC": "SOL_USDC", "PYTH_USDC": "PYTH_USDC"} # Sample test symbols

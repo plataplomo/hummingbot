@@ -13,6 +13,7 @@ import pytest
 from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
     HyperliquidCommonMappers,
     NonPositiveValueError,
+    NumberValidationPolicy,
 )
 
 
@@ -163,9 +164,9 @@ class TestHyperliquidCommonMappers:
             Decimal("0.01"), "field"
         ) == Decimal("0.01")
 
-        # Zero with allow_zero
+        # Zero with NON_NEGATIVE policy
         assert HyperliquidCommonMappers.validate_positive_decimal(
-            Decimal(0), "field", allow_zero=True
+            Decimal(0), "field", NumberValidationPolicy.NON_NEGATIVE
         ) == Decimal(0)
 
         # Invalid values
@@ -178,7 +179,7 @@ class TestHyperliquidCommonMappers:
 
         with pytest.raises(NonPositiveValueError):
             HyperliquidCommonMappers.validate_positive_decimal(
-                Decimal(-10), "field", allow_zero=True
+                Decimal(-10), "field", NumberValidationPolicy.NON_NEGATIVE
             )
 
     def test_is_valid_symbol(self) -> None:

@@ -48,6 +48,7 @@ from cyberdelta.core.risk_manager import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.exceptions import (
     ExchangeNotSupportedError,
     SymbolMappingFieldError,
@@ -232,7 +233,7 @@ def mock_config_dict() -> dict[str, Any]:
                 "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
                 "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
                 "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
-                "is_mainnet_environment": False,
+                "environment_type": EnvironmentType.TESTNET,
                 "chain_id": 1337,
                 "rate_limit_per_minute": 120,
                 "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
@@ -253,7 +254,7 @@ def mock_config_dict() -> dict[str, Any]:
                 "enabled": True,
                 "api_base_url_mainnet": "https://api.backpack.exchange",
                 "ws_url_mainnet": "wss://ws.backpack.exchange",
-                "is_mainnet_environment": True,
+                "environment_type": EnvironmentType.MAINNET,
                 "rate_limit_per_minute": 120,
                 "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
             },

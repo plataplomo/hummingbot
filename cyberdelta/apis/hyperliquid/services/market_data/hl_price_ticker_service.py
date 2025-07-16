@@ -18,6 +18,10 @@ from typing import TYPE_CHECKING, NoReturn
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions.response_validation import EmptyResponseError
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
@@ -128,9 +132,11 @@ class HyperliquidPriceTickerService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data_dict,
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=2,
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.UNSIGNED,
+                    endpoint_group="public",
+                    request_weight=2,
+                ),
             )
 
             if raw_response_content_parsed is not None:
@@ -425,9 +431,11 @@ class HyperliquidPriceTickerService:
                 method="POST",
                 endpoint=endpoint_path,
                 data=request_payload_data_dict,
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=2,  # AllMids has weight 2
+                request_config=RequestConfiguration(
+                    auth_mode=RequestAuthMode.UNSIGNED,
+                    endpoint_group="public",
+                    request_weight=2,  # AllMids has weight 2
+                ),
             )
 
             logger.debug(

@@ -16,6 +16,7 @@ from opentelemetry.trace import Span, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import BaseModel, Field
 
+from cyberdelta.apis.base.validation_context_domain import OperationResult
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -283,7 +284,7 @@ class WebSocketTelemetry:
         self,
         labels: MetricLabels,
         attempt_number: int,
-        success: bool,
+        result: OperationResult,
         duration_seconds: float | None = None,
     ) -> None:
         """Record reconnection attempt.
@@ -291,7 +292,7 @@ class WebSocketTelemetry:
         Args:
             labels: Metric labels
             attempt_number: Reconnection attempt number
-            success: Whether reconnection was successful
+            result: Result of the reconnection attempt
             duration_seconds: Time spent reconnecting
         """
         if not self.config.metrics_enabled:
@@ -299,7 +300,7 @@ class WebSocketTelemetry:
 
         attributes = self._get_metric_attributes(labels)
         attributes["reconnection.attempt"] = str(attempt_number)
-        attributes["reconnection.success"] = "true" if success else "false"
+        attributes["reconnection.success"] = "true" if result.is_successful else "false"
 
         self.reconnection_counter.add(1, attributes)
 
@@ -552,25 +553,27 @@ class TelemetryMiddleware:
         self.telemetry.record_rate_limit_violation(labels, limit_type)
 
     def record_reconnection(
-        self, connection_id: str, attempt_number: int, success: bool, duration_seconds: float
+        self,
+        connection_id: str,
+        attempt_number: int,
+        result: OperationResult,
+        duration_seconds: float,
     ) -> None:
         """Record reconnection attempt.
 
         Args:
             connection_id: Connection identifier
             attempt_number: Attempt number
-            success: Whether successful
+            result: Result of the reconnection attempt
             duration_seconds: Duration of attempt
         """
         labels = MetricLabels(
             exchange=self.exchange_name,
             connection_id=connection_id,
             operation="reconnect",
-            status="success" if success else "failure",
+            status="success" if result.is_successful else "failure",
         )
-        self.telemetry.record_reconnection_attempt(
-            labels, attempt_number, success, duration_seconds
-        )
+        self.telemetry.record_reconnection_attempt(labels, attempt_number, result, duration_seconds)
 
 
 class TelemetryManager:

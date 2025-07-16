@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from cyberdelta.apis.base.validation_context_domain import MessageProcessingResult
 from cyberdelta.apis.base.ws_metrics import (
     MetricPoint,
     MetricSummary,
@@ -113,7 +114,10 @@ class TestWebSocketMetricsCollector:
     def test_record_message_success(self, collector: WebSocketMetricsCollector) -> None:
         """Test recording successful message processing through public interface."""
         collector.record_message(
-            message_type="depth", processing_time_ms=1.5, message_size=1024, success=True
+            message_type="depth",
+            processing_time_ms=1.5,
+            message_size=1024,
+            result=MessageProcessingResult.SUCCESS,
         )
 
         # Check message counts through summary
@@ -134,7 +138,10 @@ class TestWebSocketMetricsCollector:
     def test_record_message_failure(self, collector: WebSocketMetricsCollector) -> None:
         """Test recording failed message processing through public interface."""
         collector.record_message(
-            message_type="depth", processing_time_ms=2.0, message_size=512, success=False
+            message_type="depth",
+            processing_time_ms=2.0,
+            message_size=512,
+            result=MessageProcessingResult.FAILURE,
         )
 
         # Check through summary - failed messages still count as processed
@@ -173,10 +180,10 @@ class TestWebSocketMetricsCollector:
     def test_get_summary_specific_type(self, collector: WebSocketMetricsCollector) -> None:
         """Test getting summary for specific message type."""
         # Record some test data
-        collector.record_message("depth", 1.0, 100, True)
-        collector.record_message("depth", 2.0, 200, True)
-        collector.record_message("depth", 3.0, 300, False)
-        collector.record_message("ticker", 0.5, 50, True)
+        collector.record_message("depth", 1.0, 100, MessageProcessingResult.SUCCESS)
+        collector.record_message("depth", 2.0, 200, MessageProcessingResult.SUCCESS)
+        collector.record_message("depth", 3.0, 300, MessageProcessingResult.FAILURE)
+        collector.record_message("ticker", 0.5, 50, MessageProcessingResult.SUCCESS)
 
         summary = collector.get_summary("depth")
 
@@ -192,9 +199,9 @@ class TestWebSocketMetricsCollector:
     def test_get_summary_all_types(self, collector: WebSocketMetricsCollector) -> None:
         """Test getting summary for all message types."""
         # Record test data
-        collector.record_message("depth", 1.0, 100, True)
-        collector.record_message("ticker", 2.0, 200, True)
-        collector.record_message("trades", 3.0, 300, False)
+        collector.record_message("depth", 1.0, 100, MessageProcessingResult.SUCCESS)
+        collector.record_message("ticker", 2.0, 200, MessageProcessingResult.SUCCESS)
+        collector.record_message("trades", 3.0, 300, MessageProcessingResult.FAILURE)
 
         summary = collector.get_summary()
 
@@ -208,7 +215,7 @@ class TestWebSocketMetricsCollector:
 
     def test_get_time_series_filtering(self, collector: WebSocketMetricsCollector) -> None:
         """Test time series filtering."""
-        collector.record_message("depth", 1.0, 100, True)
+        collector.record_message("depth", 1.0, 100, MessageProcessingResult.SUCCESS)
         collector.record_error("validation", "depth")
 
         # Filter by metric type
@@ -222,7 +229,7 @@ class TestWebSocketMetricsCollector:
 
     def test_export_prometheus(self, collector: WebSocketMetricsCollector) -> None:
         """Test Prometheus format export."""
-        collector.record_message("depth", 1.5, 1024, True)
+        collector.record_message("depth", 1.5, 1024, MessageProcessingResult.SUCCESS)
         collector.record_error("validation", "depth")
 
         prometheus_text = collector.export_prometheus()
@@ -245,7 +252,7 @@ class TestWebSocketMetricsCollector:
         """Test percentile calculation through public summary interface."""
         # Record test data to generate percentiles
         for i in range(1, 11):
-            collector.record_message("test", float(i), 100, True)
+            collector.record_message("test", float(i), 100, MessageProcessingResult.SUCCESS)
 
         summary = collector.get_summary("test")
 
@@ -262,7 +269,7 @@ class TestWebSocketMetricsCollector:
 
     def test_reset_metrics(self, collector: WebSocketMetricsCollector) -> None:
         """Test resetting all metrics through public interface."""
-        collector.record_message("depth", 1.0, 100, True)
+        collector.record_message("depth", 1.0, 100, MessageProcessingResult.SUCCESS)
         collector.record_error("validation", "depth")
 
         # Verify data exists before reset
@@ -284,7 +291,7 @@ class TestWebSocketMetricsCollector:
     ) -> None:
         """Test that data is properly maintained through public interface."""
         # Add initial data
-        collector.record_message("depth", 1.0, 100, True)
+        collector.record_message("depth", 1.0, 100, MessageProcessingResult.SUCCESS)
         collector.record_error("validation", "depth")
 
         initial_time_series = collector.get_time_series()
@@ -296,7 +303,9 @@ class TestWebSocketMetricsCollector:
 
         # Add more data - cleanup happens automatically during record operations
         for i in range(10):
-            collector.record_message(f"type_{i}", float(i), 100 + i, True)
+            collector.record_message(
+                f"type_{i}", float(i), 100 + i, MessageProcessingResult.SUCCESS
+            )
 
         # Verify data accumulation through public interface
         current_time_series = collector.get_time_series()
@@ -325,7 +334,9 @@ class TestMetricsIntegration:
         message_size = 1024
         message_type = "depth"
 
-        collector.record_message(message_type, processing_time_ms, message_size, True)
+        collector.record_message(
+            message_type, processing_time_ms, message_size, MessageProcessingResult.SUCCESS
+        )
 
         summary = collector.get_summary(message_type)
         assert summary["message_count"].count == 1

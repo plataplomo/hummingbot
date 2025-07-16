@@ -12,6 +12,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.enums.environment import EnvironmentType
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.shared]
@@ -29,7 +30,7 @@ class TestBackpackConfigFixtures:
         assert active_bp_config.api_base_url_mainnet is not None
         assert active_bp_config.ws_url_mainnet is not None
 
-        assert active_bp_config.is_mainnet_environment is True
+        assert active_bp_config.environment_type == EnvironmentType.MAINNET
 
     def test_active_bp_secrets(self, active_bp_secrets: ApiKeyAuthSecrets) -> None:
         """Test that active_bp_secrets fixture provides correct secrets."""

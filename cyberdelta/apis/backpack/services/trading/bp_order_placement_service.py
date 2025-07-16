@@ -22,6 +22,10 @@ from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestB
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import (
     InvalidEnumValueError,
@@ -186,7 +190,7 @@ class BackpackOrderPlacementService:
             message="Placing order on exchange",
         )
 
-        # Build request parameters
+        # Build request parameters using the OrderExecution domain object from args
         request_params = self._request_builder.build_place_order_payload(
             symbol=args.symbol,
             order_type=args.order_type,
@@ -195,8 +199,7 @@ class BackpackOrderPlacementService:
             price=args.price,
             time_in_force=args.time_in_force,
             client_order_id=args.client_order_id,
-            post_only=args.post_only,
-            reduce_only=args.reduce_only,
+            execution=args.execution,
             stop_price=args.stop_price,
         )
 
@@ -205,7 +208,11 @@ class BackpackOrderPlacementService:
             method="POST",
             endpoint="/api/v1/order",
             data=request_params,
-            is_signed=True,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         # Validate response format

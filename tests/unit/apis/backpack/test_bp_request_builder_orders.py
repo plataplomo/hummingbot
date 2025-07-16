@@ -18,6 +18,10 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
     BackpackTradingRequestBuilder,
 )
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+)
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -36,6 +40,7 @@ class TestBuildPlaceOrderPayload:
         """Test build_place_order_payload for a GTC LIMIT order."""
         # Use integer client_order_id to match RawBpUint32 expectation
         client_order_id = 12345
+        execution = OrderExecution()  # Defaults to ANY liquidity, OPEN_OR_INCREASE position
         payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_spot,
             order_side=buy_order_side,
@@ -44,7 +49,7 @@ class TestBuildPlaceOrderPayload:
             time_in_force=gtc_time_in_force,
             price=standard_price,
             client_order_id=str(client_order_id),
-            post_only=False,
+            execution=execution,
         )
 
         # Assert that we get the correct Pydantic model type
@@ -102,6 +107,9 @@ class TestBuildPlaceOrderPayload:
         gtc_time_in_force: TimeInForce,
     ) -> None:
         """Test build_place_order_payload for a post-only LIMIT order."""
+        execution = OrderExecution(
+            liquidity_requirement=LiquidityRequirement.POST_ONLY,
+        )
         payload = BackpackTradingRequestBuilder.build_place_order_payload(
             symbol=symbol_eth_spot,
             order_side=buy_order_side,
@@ -109,7 +117,7 @@ class TestBuildPlaceOrderPayload:
             quantity=Decimal("1.0"),
             time_in_force=gtc_time_in_force,
             price=Decimal("1800.00"),
-            post_only=True,
+            execution=execution,
         )
 
         assert isinstance(payload, BackpackRawOrderExecuteRequest)

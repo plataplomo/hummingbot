@@ -31,8 +31,8 @@ exchanges:
     # Testnet URLs
     api_base_url_testnet: "https://api.hyperliquid-testnet.xyz"
     ws_url_testnet: "wss://api.hyperliquid-testnet.xyz/ws"
-    # Environment flag - set to false to use testnet (default for development)
-    is_mainnet_environment: true
+    # Environment type - explicit mainnet selection (safer than boolean)
+    environment_type: "mainnet"
     # Hyperliquid-specific rate limiting configuration
     ip_weight_limit_per_minute: 1140  # Total IP weight budget per minute
     info_request_type_ip_weights:
@@ -80,8 +80,8 @@ exchanges:
     # Testnet URLs not provided (Backpack doesn't have testnet)
     # api_base_url_testnet: null
     # ws_url_testnet: null
-    # Environment flag - always true for Backpack as they only have mainnet
-    is_mainnet_environment: true
+    # Environment type - always mainnet for Backpack as they only have mainnet
+    environment_type: "mainnet"
     rate_limit_per_minute: 120  # Backpack uses simple rate limiting
     symbols:
       BTC: "BTC_PERP"

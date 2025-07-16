@@ -22,6 +22,10 @@ from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestB
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs
@@ -206,9 +210,11 @@ class BackpackOrderCancellationService:
             method="DELETE",
             endpoint=endpoint,
             data=payload,
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
+            request_config=RequestConfiguration(
+                auth_mode=RequestAuthMode.SIGNED,
+                endpoint_group="private",
+                request_weight=1,
+            ),
         )
 
         # Process the response

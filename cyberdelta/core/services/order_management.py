@@ -12,6 +12,11 @@ import time
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from cyberdelta.apis.base.trading_execution_domain import (
+    LiquidityRequirement,
+    OrderExecution,
+    PositionIntent,
+)
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -459,8 +464,18 @@ class OrderManagementService(BaseAsyncService, IOrderService):
             price=Decimal(str(filtered_args["price"]))
             if filtered_args.get("price") is not None
             else None,
-            reduce_only=bool(filtered_args.get("reduce_only")),
-            post_only=bool(filtered_args.get("post_only")),
+            execution=OrderExecution(
+                position_intent=(
+                    PositionIntent.REDUCE_ONLY
+                    if filtered_args.get("reduce_only")
+                    else PositionIntent.OPEN_OR_INCREASE
+                ),
+                liquidity_requirement=(
+                    LiquidityRequirement.POST_ONLY
+                    if filtered_args.get("post_only")
+                    else LiquidityRequirement.ANY
+                ),
+            ),
             client_order_id=str(filtered_args["client_order_id"])
             if filtered_args.get("client_order_id") is not None
             else None,

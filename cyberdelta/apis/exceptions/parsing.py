@@ -5,6 +5,7 @@ of raw data values, particularly in validators for raw types.
 """
 
 # Import base parsing exceptions from core
+from cyberdelta.apis.base.validation_context_domain import DictMatchPolicy
 from cyberdelta.exceptions.parsing import (
     ParsingError,
 )
@@ -145,7 +146,7 @@ class DictStructureError(ValueError, ParsingError):
         field_name: str,
         expected_keys: list[int] | list[str],
         actual_keys: list[int] | list[str],
-        exact_match: bool = True,
+        match_policy: DictMatchPolicy = DictMatchPolicy.EXACT_MATCH,
     ) -> None:
         """Initialize dictionary structure error.
 
@@ -153,17 +154,29 @@ class DictStructureError(ValueError, ParsingError):
             field_name: Name of the field
             expected_keys: Expected dictionary keys
             actual_keys: Actual dictionary keys found
-            exact_match: Whether keys must match exactly
+            match_policy: Dictionary key matching policy
         """
-        if exact_match:
+        if match_policy == DictMatchPolicy.EXACT_MATCH:
             message = (
                 f"Field '{field_name}': Dictionary input must contain "
                 f"exactly keys {sorted(expected_keys)}, got keys {sorted(actual_keys)}."
             )
-        else:
+        elif match_policy == DictMatchPolicy.CONTAINS_REQUIRED:
             message = (
-                f"Field '{field_name}': Dictionary input must have keys {sorted(expected_keys)}, "
+                f"Field '{field_name}': Dictionary input must contain "
+                f"required keys {sorted(expected_keys)}, "
                 f"got keys {sorted(actual_keys)}."
+            )
+        elif match_policy == DictMatchPolicy.SUBSET_ALLOWED:
+            message = (
+                f"Field '{field_name}': Dictionary input may contain "
+                f"subset of keys {sorted(expected_keys)}, "
+                f"got keys {sorted(actual_keys)}."
+            )
+        else:  # SUPERSET_ALLOWED
+            message = (
+                f"Field '{field_name}': Dictionary input must contain keys {sorted(expected_keys)} "
+                f"(additional keys allowed), got keys {sorted(actual_keys)}."
             )
 
         super().__init__(message)
@@ -175,7 +188,7 @@ class DictStructureError(ValueError, ParsingError):
             expected_type=f"dict with keys {sorted(expected_keys)}",
             expected_keys=expected_keys,
             actual_keys=actual_keys,
-            exact_match=exact_match,
+            match_policy=match_policy,
         )
 
 

@@ -43,6 +43,7 @@ from cyberdelta.config.models.funding_strategy_models import (
 )
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets, SecretsConfig
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
@@ -153,7 +154,7 @@ def mock_config() -> AppSettings:
                 ws_url_mainnet=AnyUrl("wss://api.hyperliquid.xyz/ws"),
                 api_base_url_testnet=HttpUrl("https://api.hyperliquid-testnet.xyz"),
                 ws_url_testnet=AnyUrl("wss://api.hyperliquid-testnet.xyz/ws"),
-                is_mainnet_environment=False,  # Default to testnet for testing
+                environment_type=EnvironmentType.TESTNET,  # Default to testnet for testing
                 chain_id=1337,
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC", "ETH": "ETH"},
@@ -174,7 +175,7 @@ def mock_config() -> AppSettings:
                 enabled=True,
                 api_base_url_mainnet=HttpUrl("https://api.backpack.exchange"),
                 ws_url_mainnet=AnyUrl("wss://ws.backpack.exchange"),
-                is_mainnet_environment=True,  # Backpack only has mainnet
+                environment_type=EnvironmentType.MAINNET,  # Backpack only has mainnet
                 rate_limit_per_minute=120,
                 symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
             ),
@@ -458,8 +459,8 @@ def hl_test_environment_from_config(test_app_settings: AppSettings) -> str:
     """
     hl_config = test_app_settings.exchanges.get("hyperliquid")
     is_mainnet_from_config = False  # Default to testnet
-    if hl_config and hasattr(hl_config, "is_mainnet_environment"):
-        is_mainnet_from_config = hl_config.is_mainnet_environment
+    if hl_config and hasattr(hl_config, "environment_type"):
+        is_mainnet_from_config = hl_config.environment_type.is_production
 
     # Allow override via environment variable
     env_override = os.environ.get("CYBERDELTA_TEST_ENV_HL")
@@ -483,9 +484,14 @@ def active_hl_config(
             environment-aware settings.
     """
     hl_config_from_file = test_app_settings.exchanges["hyperliquid"]
-    # Override is_mainnet_environment based on hl_test_environment_from_config fixture
+    # Override environment_type based on hl_test_environment_from_config fixture
+    environment_type = (
+        EnvironmentType.MAINNET
+        if hl_test_environment_from_config == "mainnet"
+        else EnvironmentType.TESTNET
+    )
     return hl_config_from_file.model_copy(
-        update={"is_mainnet_environment": hl_test_environment_from_config == "mainnet"},
+        update={"environment_type": environment_type},
     )
 
 

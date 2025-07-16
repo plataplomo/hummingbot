@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from eth_typing import ChecksumAddress, HexAddress, HexStr
 
+from cyberdelta.apis.base.infrastructure_config_domain import CachingPolicy
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -107,7 +108,7 @@ def cache_service() -> HyperliquidClearinghouseCacheService:
     """Create a cache service with 5-second TTL."""
     return HyperliquidClearinghouseCacheService(
         cache_duration=5.0,
-        enable_cache=True,
+        caching_policy=CachingPolicy.ENABLED,
         max_cache_size=1000,
     )
 
@@ -265,7 +266,7 @@ class TestAPICallReduction:
         # Create service with caching
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=5.0,
-            enable_cache=True,
+            caching_policy=CachingPolicy.ENABLED,
         )
 
         # Create clearinghouse state service with cache
@@ -326,7 +327,7 @@ class TestCacheTTLAndEviction:
         """Test TTL expiration behavior."""
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=5.0,
-            enable_cache=True,
+            caching_policy=CachingPolicy.ENABLED,
             max_cache_size=1000,
         )
 
@@ -358,7 +359,7 @@ class TestCacheTTLAndEviction:
         # Create cache with specified size limit
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=60.0,  # Long TTL to avoid expiration
-            enable_cache=True,
+            caching_policy=CachingPolicy.ENABLED,
             max_cache_size=max_size,
         )
 
@@ -527,7 +528,7 @@ class TestCacheConfigurations:
         """Test cache behavior with different configurations."""
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=cache_duration,
-            enable_cache=enable_cache,
+            caching_policy=CachingPolicy.ENABLED if enable_cache else CachingPolicy.DISABLED,
             max_cache_size=max_cache_size,
         )
 
@@ -583,7 +584,7 @@ class TestCacheConfigurations:
         """Test performance impact of different configurations."""
         cache_service = HyperliquidClearinghouseCacheService(
             cache_duration=cache_duration,
-            enable_cache=enable_cache,
+            caching_policy=CachingPolicy.ENABLED if enable_cache else CachingPolicy.DISABLED,
             max_cache_size=max_cache_size,
         )
 

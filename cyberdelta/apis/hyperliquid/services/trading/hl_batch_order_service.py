@@ -17,6 +17,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.apis.base.infrastructure_config_domain import (
+    RequestAuthMode,
+    RequestConfiguration,
+    SerializationMode,
+)
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import (
     InvalidParameterTypeError,
@@ -255,12 +260,16 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         Returns:
             Tuple of (raw exchange response, HTTP status code)
         """
+        request_config = RequestConfiguration(
+            auth_mode=RequestAuthMode.SIGNED,
+            serialization_mode=SerializationMode.EXPLICIT_NULL,
+        )
+
         raw_content, http_status, _ = await self._http_requester(
             method="POST",
             endpoint=self._action_endpoint,
             data=request_payload_model,
-            is_signed=True,
-            serialize_none_as_null=True,
+            request_config=request_config,
         )
 
         if not is_dict_response(raw_content):
@@ -286,12 +295,16 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         Returns:
             Tuple of (raw exchange response, HTTP status code)
         """
+        request_config = RequestConfiguration(
+            auth_mode=RequestAuthMode.SIGNED,
+            serialization_mode=SerializationMode.EXPLICIT_NULL,
+        )
+
         raw_content, http_status, _ = await self._http_requester(
             method="POST",
             endpoint=self._action_endpoint,
             data=request_payload_model,
-            is_signed=True,
-            serialize_none_as_null=True,
+            request_config=request_config,
         )
 
         if not is_dict_response(raw_content):

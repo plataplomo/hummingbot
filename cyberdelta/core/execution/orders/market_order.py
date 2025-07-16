@@ -8,6 +8,7 @@ import asyncio
 from decimal import Decimal
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.base.trading_execution_domain import OrderExecution
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
@@ -120,7 +121,7 @@ class MarketOrder:
                 price=aggressive_price,
                 time_in_force=TimeInForce.IOC,  # Immediate-or-Cancel
                 client_order_id=client_order_id,
-                reduce_only=False,  # Market orders typically aren't reduce-only
+                execution=OrderExecution(),  # Market orders typically aren't reduce-only
             )
 
             # 4. Place the order with timeout

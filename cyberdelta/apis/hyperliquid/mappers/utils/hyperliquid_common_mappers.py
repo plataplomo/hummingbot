@@ -6,11 +6,22 @@ methods, following the Backpack pattern for consistency across all mappers.
 
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from enum import Enum
 from typing import Any, TypeGuard, TypeVar
 
 from cyberdelta.apis.exceptions.field_validation import FieldError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.parsing import parse_decimal_value
+
+
+class NumberValidationPolicy(Enum):
+    """Policy for number validation in Hyperliquid mappers."""
+
+    POSITIVE_ONLY = "positive_only"
+    """Only positive numbers allowed (> 0)."""
+
+    NON_NEGATIVE = "non_negative"
+    """Non-negative numbers allowed (>= 0)."""
 
 
 logger = get_logger(__name__)
@@ -220,14 +231,16 @@ class HyperliquidCommonMappers:
     # Validation Utilities
     @staticmethod
     def validate_positive_decimal(
-        value: Decimal, field_name: str, allow_zero: bool = False
+        value: Decimal,
+        field_name: str,
+        validation_policy: NumberValidationPolicy = (NumberValidationPolicy.POSITIVE_ONLY),
     ) -> Decimal:
-        """Validate that a decimal value is positive.
+        """Validate that a decimal value meets the specified validation policy.
 
         Args:
             value: Decimal value to validate
             field_name: Name of the field for error reporting
-            allow_zero: Whether zero is allowed as a valid value
+            validation_policy: Policy determining acceptable values
 
         Returns:
             The validated decimal value
@@ -235,7 +248,9 @@ class HyperliquidCommonMappers:
         Raises:
             NonPositiveValueError: If value is not positive
         """
-        if (allow_zero and value < Decimal(0)) or (not allow_zero and value <= Decimal(0)):
+        if (validation_policy == NumberValidationPolicy.POSITIVE_ONLY and value <= Decimal(0)) or (
+            validation_policy == NumberValidationPolicy.NON_NEGATIVE and value < Decimal(0)
+        ):
             raise NonPositiveValueError(field_name, value)
 
         return value

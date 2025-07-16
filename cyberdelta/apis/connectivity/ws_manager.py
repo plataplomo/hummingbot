@@ -22,6 +22,7 @@ from aiohttp import ClientTimeout, ClientWebSocketResponse
 from aiohttp.helpers import sentinel
 from pydantic import BaseModel
 
+from cyberdelta.apis.base.validation_context_domain import CancellationState
 from cyberdelta.apis.exceptions.connectivity import WebSocketConnectionClosedError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.logging_utilities import MessageStatsAggregator
@@ -625,7 +626,7 @@ class WebSocketManager:
             message=f"[{self._exchange_name} _listen] Entering main loop.",
         )
         original_connection = self._ws_connection
-        was_cancelled_flag = False
+        cancellation_state = CancellationState.ACTIVE
         loop_iteration_count = 0
 
         try:
@@ -644,13 +645,14 @@ class WebSocketManager:
                 await self._handle_websocket_message(msg, loop_iteration_count)
 
         except asyncio.CancelledError:
-            was_cancelled_flag = True
+            cancellation_state = CancellationState.CANCELLED
             await self._handle_cancelled_listener()
             raise
         except (ConnectionError, OSError, TimeoutError) as e:
+            cancellation_state = CancellationState.FAILED
             await self._handle_listener_exception(e, original_connection)
         finally:
-            await self._cleanup_listener(original_connection, was_cancelled_flag)
+            await self._cleanup_listener(original_connection, cancellation_state)
 
     async def _should_continue_listening(
         self,
@@ -847,7 +849,7 @@ class WebSocketManager:
     async def _cleanup_listener(
         self,
         original_connection: ClientWebSocketResponse | None,
-        was_cancelled: bool,
+        cancellation_state: CancellationState,
     ) -> None:
         """Cleanup after listener loop ends."""
         try:
@@ -856,14 +858,20 @@ class WebSocketManager:
             # No running event loop (e.g., during test cleanup)
             current_task = None
 
-        final_is_cancelled_state = (current_task and current_task.cancelled()) or was_cancelled
+        # Determine final cancellation state based on task and provided state
+        if (
+            current_task and current_task.cancelled()
+        ) or cancellation_state == CancellationState.CANCELLED:
+            final_cancellation_state = CancellationState.CANCELLED
+        else:
+            final_cancellation_state = CancellationState.TERMINATED
 
         self._logger.info(
             "listener_finally_block",
             action="cleanup_listener",
             exchange=self._exchange_name,
             task=current_task.get_name() if current_task else "None",
-            cancelled_state=final_is_cancelled_state,
+            cancellation_state=final_cancellation_state.value,
             should_reconnect=self._should_reconnect,
             message="Listener finally block cleanup",
         )
@@ -873,17 +881,19 @@ class WebSocketManager:
 
         if (
             current_task
-            and not final_is_cancelled_state
+            and not final_cancellation_state.is_cancelled
             and self._ws_connection is original_connection
         ):
             self._is_connected = False
             self._ws_connection = None
 
-        await self._schedule_reconnection_if_needed(final_is_cancelled_state)
+        await self._schedule_reconnection_if_needed(final_cancellation_state)
 
-    async def _schedule_reconnection_if_needed(self, final_is_cancelled_state: bool) -> None:
+    async def _schedule_reconnection_if_needed(
+        self, final_cancellation_state: CancellationState
+    ) -> None:
         """Schedule reconnection if needed and conditions are met."""
-        if (self._should_reconnect and not final_is_cancelled_state) and (
+        if (self._should_reconnect and final_cancellation_state.allows_reconnection) and (
             self._connection_task is None or self._connection_task.done()
         ):
             self._logger.info(

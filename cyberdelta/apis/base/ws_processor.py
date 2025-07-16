@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.base.validation_context_domain import MessageProcessingResult
 from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.config.structlog_config import get_logger
 
@@ -178,7 +179,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         start_time = time.perf_counter()
         message_size = len(json.dumps(payload)) if payload else 0
         message_type = context.routing_key
-        success = False
+        result = MessageProcessingResult.FAILURE
 
         try:
             # Step 1: Validate with Pydantic
@@ -197,6 +198,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
 
             # Record successful processing only if handler succeeded
             if success:
+                result = MessageProcessingResult.SUCCESS
                 processing_time = time.perf_counter() - start_time
                 self.metrics.record_processing_time(processing_time)
 
@@ -227,7 +229,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                     message_type,
                     processing_time_ms,
                     message_size,
-                    success,
+                    result,
                 )
 
     async def _validate_payload(

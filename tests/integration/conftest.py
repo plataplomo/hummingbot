@@ -22,6 +22,7 @@ from cyberdelta.config.models.config_models import (
 )
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -217,7 +218,7 @@ async def mock_hl_api(
         enabled=True,
         api_base_url_mainnet=HttpUrl("http://fixedmock.exchange"),
         ws_url_mainnet=AnyUrl("ws://fixedmock.exchange"),
-        is_mainnet_environment=True,
+        environment_type=EnvironmentType.MAINNET,
         rate_limit_per_minute=120,
         symbols={"BTC": "BTC", "ETH": "ETH"},
         # Hyperliquid-specific required fields
@@ -267,7 +268,7 @@ async def mock_bp_api(
         enabled=True,
         api_base_url_mainnet=HttpUrl("http://fixedmock.exchange"),
         ws_url_mainnet=AnyUrl("ws://fixedmock.exchange"),
-        is_mainnet_environment=True,
+        environment_type=EnvironmentType.MAINNET,
         rate_limit_per_minute=120,
         symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
     )

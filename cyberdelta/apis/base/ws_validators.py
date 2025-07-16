@@ -10,7 +10,12 @@ import re
 import time
 from typing import Any
 
+from cyberdelta.apis.base.validation_context_domain import TimestampPolicy
 from cyberdelta.config.structlog_config import get_logger
+
+
+# Type alias for validation input - covers all possible invalid input types
+ValidationInput = dict[str, Any] | list[Any] | str | float | int | None
 
 
 class InvalidPayloadTypeError(TypeError):
@@ -146,7 +151,7 @@ class WebSocketPayloadValidators:
 
     @staticmethod
     def validate_dict_payload(
-        payload: dict[str, Any] | list[Any] | str | float | bool | None,
+        payload: ValidationInput,
         context: str = "message",
         min_keys: int = 0,
         max_keys: int | None = None,
@@ -180,7 +185,7 @@ class WebSocketPayloadValidators:
 
     @staticmethod
     def validate_list_payload(
-        payload: dict[str, Any] | list[Any] | str | float | bool | None,
+        payload: ValidationInput,
         context: str = "message",
         min_length: int = 0,
         max_length: int | None = None,
@@ -274,7 +279,7 @@ class WebSocketPayloadValidators:
     @classmethod
     def validate_symbol(
         cls,
-        symbol: str | float | bool | None,
+        symbol: ValidationInput,
         context: str = "symbol",
     ) -> str:
         """Validate trading symbol format.
@@ -301,7 +306,7 @@ class WebSocketPayloadValidators:
     @classmethod
     def validate_topic(
         cls,
-        topic: str | float | bool | None,
+        topic: ValidationInput,
         context: str = "topic",
     ) -> str:
         """Validate WebSocket topic format.
@@ -328,7 +333,7 @@ class WebSocketPayloadValidators:
     @classmethod
     def validate_id(
         cls,
-        id_value: str | float | bool | None,
+        id_value: ValidationInput,
         context: str = "id",
     ) -> str:
         """Validate ID field format.
@@ -354,7 +359,7 @@ class WebSocketPayloadValidators:
 
     @staticmethod
     def validate_numeric_string(
-        value: str | float | bool | None,
+        value: ValidationInput,
         context: str = "numeric value",
         min_value: float | None = None,
         max_value: float | None = None,
@@ -392,16 +397,16 @@ class WebSocketPayloadValidators:
 
     @staticmethod
     def validate_timestamp(
-        timestamp: float | str | bool | None,
+        timestamp: int,
         context: str = "timestamp",
-        allow_future: bool = True,
+        timestamp_policy: TimestampPolicy = TimestampPolicy.ALLOW_FUTURE,
     ) -> int:
         """Validate timestamp value.
 
         Args:
             timestamp: The timestamp to validate.
             context: Context string for error messages.
-            allow_future: Whether to allow future timestamps.
+            timestamp_policy: Policy for timestamp validation.
 
         Returns:
             The validated timestamp.
@@ -410,8 +415,7 @@ class WebSocketPayloadValidators:
             ValueError: If timestamp is invalid.
 
         """
-        if not isinstance(timestamp, int):
-            raise InvalidFieldTypeError(context, type(timestamp), "int")
+        # Type is guaranteed by function signature annotation
 
         if timestamp < 0:
             raise InvalidTimestampError(context, timestamp, "cannot be negative")
@@ -420,7 +424,7 @@ class WebSocketPayloadValidators:
         if timestamp < YEAR_2000_TIMESTAMP:
             raise InvalidTimestampError(context, timestamp, "is too old")
 
-        if not allow_future:
+        if timestamp_policy == TimestampPolicy.RESTRICT_TO_PAST:
             current_time = int(time.time())
             if timestamp > current_time:
                 raise InvalidTimestampError(context, timestamp, "cannot be in the future")
@@ -504,7 +508,7 @@ class ExchangeSpecificValidators:
 
     @staticmethod
     def validate_order_book_level(
-        level: dict[str, Any] | list[Any] | str | float | bool | None,
+        level: ValidationInput,
     ) -> list[str]:
         """Validate order book level format (price, quantity pair).
 
