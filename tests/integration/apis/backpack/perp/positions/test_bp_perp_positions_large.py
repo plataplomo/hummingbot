@@ -58,8 +58,7 @@ class MaxPositionParams(TypedDict):
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.perp,
-    pytest.mark.large_positions,
-    pytest.mark.requires_large_balance,
+    pytest.mark.requires_balance,
     pytest.mark.timing,
 ]
 

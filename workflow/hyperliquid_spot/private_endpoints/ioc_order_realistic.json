@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-07-18T00:41:51.897116",
+  "test_name": "ioc_order",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "action_structure": {
+    "type": "order",
+    "orders": [
+      {
+        "a": 0,
+        "b": true,
+        "p": "0.600000",
+        "s": "5",
+        "r": false,
+        "t": {
+          "limit": {
+            "tif": "Ioc"
+          }
+        }
+      }
+    ],
+    "grouping": "na"
+  },
+  "request_payload": {
+    "action": {
+      "type": "order",
+      "orders": [
+        {
+          "a": 0,
+          "b": true,
+          "p": "0.600000",
+          "s": "5",
+          "r": false,
+          "t": {
+            "limit": {
+              "tif": "Ioc"
+            }
+          }
+        }
+      ],
+      "grouping": "na"
+    },
+    "nonce": 1752799311589,
+    "signature": {
+      "r": "0x91d8c10678bda12e68ef55b60f7a60e86c488e3587eae320d080d69de26bfce0",
+      "s": "0x31809f0861ddd1235a8e3739eddf355444e51b72d52ddd8192b3ac9de764ddfa",
+      "v": 28
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 200,
+    "raw_body": "{\"status\":\"err\",\"response\":\"User or API Wallet 0x78742853c18ad021a854ee24dbb0f2eea4d17d13 does not exist.\"}",
+    "body_length": 107,
+    "parsed_json": {
+      "status": "err",
+      "response": "User or API Wallet 0x78742853c18ad021a854ee24dbb0f2eea4d17d13 does not exist."
+    }
+  }
+}

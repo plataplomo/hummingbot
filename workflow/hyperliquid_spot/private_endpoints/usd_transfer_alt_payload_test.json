@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-07-18T00:37:45.864932",
+  "test_name": "usd_transfer_alt",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "action_structure": {
+    "type": "usdClassTransfer",
+    "amount": "1.0",
+    "toPerp": true
+  },
+  "request_payload": {
+    "action": {
+      "type": "usdClassTransfer",
+      "amount": "1.0",
+      "toPerp": true
+    },
+    "nonce": 1752799065574,
+    "signature": {
+      "r": "0x1f6d98912510408949ba11e9c1ea4c75bf31429f2bdd3719c6999ea7e1df9cc2",
+      "s": "0x42df6ec23e4d01cb51bce7958fab02168d4ed44cbbe35867e33b175322893f51",
+      "v": 27
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 422,
+    "raw_body": "Failed to deserialize the JSON body into the target type",
+    "body_length": 56,
+    "parse_error": "Not valid JSON"
+  }
+}

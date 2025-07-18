@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-07-17T23:54:42.065356",
+  "data": {
+    "testnet_url": "https://api.hyperliquid-testnet.xyz",
+    "wallet_address": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf",
+    "endpoints_tested": [
+      "/info - metaAndAssetCtxs",
+      "/info - clearinghouseState",
+      "/info - l2Book (spot)",
+      "/info - allMids",
+      "/exchange - order (spot)",
+      "/exchange - usdTransfer"
+    ],
+    "spot_symbol_formats_found": [
+      "@N format (e.g., @1, @2, @3)",
+      "NAME/USDC format (e.g., PURR/USDC)"
+    ]
+  }
+}

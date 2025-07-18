@@ -1,0 +1,40 @@
+{
+  "timestamp": "2025-07-18T00:36:40.338291",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "endpoint": "/exchange",
+  "method": "POST",
+  "request_payload": {
+    "action": {
+      "type": "usdTransfer",
+      "amount": "1.0",
+      "toPerp": true
+    },
+    "nonce": 1752799000040,
+    "signature": {
+      "r": "0x55c92eef07f6336f2893c7b24dc6efc00a8495e7ce31153a18488c502f0678af",
+      "s": "0xa0e09bf9defed15b67db32343ee7da8aef3f94521f89df1b1f40dda6f5204a3",
+      "v": 27
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Length": "56",
+      "Connection": "keep-alive",
+      "Server": "nginx/1.26.2",
+      "Date": "Fri, 18 Jul 2025 00:36:40 GMT",
+      "Access-Control-Expose-Headers": "*",
+      "Access-Control-Allow-Origin": "*",
+      "Vary": "origin",
+      "X-Cache": "Error from cloudfront",
+      "Via": "1.1 78634a9a457c5133b7453092072a792e.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Pop": "LIM50-P2",
+      "X-Amz-Cf-Id": "hPpWMyNyoaCYFnOV4UuPSmEOS3hnIpewBJ7JcYmhhW9eH8BM5MFBVA=="
+    },
+    "raw_body": "Failed to deserialize the JSON body into the target type",
+    "body_length": 56,
+    "parse_error": "Not valid JSON"
+  }
+}

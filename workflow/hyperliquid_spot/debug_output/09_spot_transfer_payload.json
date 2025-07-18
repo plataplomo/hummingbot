@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-07-17T23:54:42.065241",
+  "data": {
+    "endpoint": "/exchange",
+    "requires_signing": true,
+    "payload": {
+      "type": "usdTransfer",
+      "amount": "10.0",
+      "toPerp": true,
+      "user": "0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf"
+    },
+    "note": "Transfer USDC between spot and perp accounts"
+  }
+}

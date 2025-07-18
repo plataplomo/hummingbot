@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-07-18T00:37:37.350949",
+  "test_name": "basic_spot_order",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "action_structure": {
+    "type": "order",
+    "orders": [
+      {
+        "coin": "PURR/USDC",
+        "is_buy": true,
+        "sz": "24",
+        "limit_px": "0.5",
+        "order_type": {
+          "limit": {
+            "tif": "Gtc"
+          }
+        },
+        "reduce_only": false
+      }
+    ],
+    "grouping": "na"
+  },
+  "request_payload": {
+    "action": {
+      "type": "order",
+      "orders": [
+        {
+          "coin": "PURR/USDC",
+          "is_buy": true,
+          "sz": "24",
+          "limit_px": "0.5",
+          "order_type": {
+            "limit": {
+              "tif": "Gtc"
+            }
+          },
+          "reduce_only": false
+        }
+      ],
+      "grouping": "na"
+    },
+    "nonce": 1752799056697,
+    "signature": {
+      "r": "0xbfd3c18eea5e20d608835177fdf677022ef24bcc3c1eac2a4893163ac43bd3c5",
+      "s": "0x645fe0ed964e9ad6975e3d2175ef40846c7b0c198938b13f3d948caa21667199",
+      "v": 28
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 422,
+    "raw_body": "Failed to deserialize the JSON body into the target type",
+    "body_length": 56,
+    "parse_error": "Not valid JSON"
+  }
+}

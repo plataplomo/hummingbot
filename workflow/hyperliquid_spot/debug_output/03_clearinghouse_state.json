@@ -1,0 +1,38 @@
+{
+  "timestamp": "2025-07-17T23:54:41.318519",
+  "data": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Content-Length": "309",
+      "Connection": "keep-alive",
+      "Server": "nginx/1.26.2",
+      "Date": "Thu, 17 Jul 2025 23:54:41 GMT",
+      "Access-Control-Expose-Headers": "*",
+      "Access-Control-Allow-Origin": "*",
+      "Vary": "origin",
+      "X-Cache": "Miss from cloudfront",
+      "Via": "1.1 987f534b007adf9f05532207c167c9c8.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Pop": "LIM50-P2",
+      "X-Amz-Cf-Id": "b8GXl7g0RWDgj8dtK9jZN4pD-e7r6ivyU2afVNUexHwI1Y8FA7ehWg=="
+    },
+    "body": {
+      "marginSummary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "crossMarginSummary": {
+        "accountValue": "0.0",
+        "totalNtlPos": "0.0",
+        "totalRawUsd": "0.0",
+        "totalMarginUsed": "0.0"
+      },
+      "crossMaintenanceMarginUsed": "0.0",
+      "withdrawable": "0.0",
+      "assetPositions": [],
+      "time": 1752796480987
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "timestamp": "2025-07-18T00:21:28.799197",
+  "wallet": "0x02Cd79f858bEF99588Cc2E650f2A4Fbf2baE8CB5",
+  "endpoint": "/exchange",
+  "method": "POST",
+  "request_payload": {
+    "action": {
+      "type": "cancel",
+      "cancels": [
+        {
+          "a": 1,
+          "o": 999999
+        }
+      ]
+    },
+    "nonce": 1752798088427,
+    "signature": {
+      "r": "33bee25623b2c00869fb098b5cc5cd07a89571d5f2dfc35ecd2a39372a2eb91e",
+      "s": "06272db176d8325df7f99aead2a678fbb1b7f365ff41b7af15e7364b0974739d",
+      "v": 28
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Content-Length": "107",
+      "Connection": "keep-alive",
+      "Server": "nginx/1.26.2",
+      "Date": "Fri, 18 Jul 2025 00:21:28 GMT",
+      "Access-Control-Expose-Headers": "*",
+      "Access-Control-Allow-Origin": "*",
+      "Vary": "origin",
+      "X-Cache": "Miss from cloudfront",
+      "Via": "1.1 c4970e6612ae432bb51bdb2884874366.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Pop": "LIM50-P2",
+      "X-Amz-Cf-Id": "SnF7GF9CNecX9OGm9tvJX3PAa1wMuQ-n_qrB1zZxwnEyxvj-4uDwmw=="
+    },
+    "raw_body": "{\"status\":\"err\",\"response\":\"User or API Wallet 0xa05ab6056a7544f5195f6474cc75812db857222d does not exist.\"}",
+    "body_length": 107,
+    "parsed_json": {
+      "status": "err",
+      "response": "User or API Wallet 0xa05ab6056a7544f5195f6474cc75812db857222d does not exist."
+    }
+  }
+}

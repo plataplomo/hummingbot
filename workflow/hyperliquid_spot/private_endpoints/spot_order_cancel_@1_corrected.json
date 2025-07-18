@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-07-18T00:36:38.094251",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "endpoint": "/exchange",
+  "method": "POST",
+  "request_payload": {
+    "action": {
+      "type": "cancel",
+      "cancels": [
+        {
+          "a": 1,
+          "o": 999999
+        }
+      ]
+    },
+    "nonce": 1752798997352,
+    "signature": {
+      "r": "0x742c0038bf7f1d5a0e4623c5fefaac4ea3272ad5300104146185a213bb84297b",
+      "s": "0x246d6d254da55043846c45daafd4c2760051a36e40d08c622a3602394d9f005e",
+      "v": 28
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Content-Length": "139",
+      "Connection": "keep-alive",
+      "Server": "nginx/1.26.2",
+      "Date": "Fri, 18 Jul 2025 00:36:37 GMT",
+      "Access-Control-Expose-Headers": "*",
+      "Access-Control-Allow-Origin": "*",
+      "Vary": "origin",
+      "X-Cache": "Miss from cloudfront",
+      "Via": "1.1 e5a8b52815dbc513cb0f443c50ceacfa.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Pop": "LIM50-P2",
+      "X-Amz-Cf-Id": "-BEKhWgjO-6ogd5dCsrhj9DybxLAUVl2gXbghOBE4YW3Nso_vbWs8Q=="
+    },
+    "raw_body": "{\"status\":\"ok\",\"response\":{\"type\":\"cancel\",\"data\":{\"statuses\":[{\"error\":\"Order was never placed, already canceled, or filled. asset=1\"}]}}}",
+    "body_length": 139,
+    "parsed_json": {
+      "status": "ok",
+      "response": {
+        "type": "cancel",
+        "data": {
+          "statuses": [
+            {
+              "error": "Order was never placed, already canceled, or filled. asset=1"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -59,7 +59,6 @@ logger = get_logger(__name__)
 # Mark all tests in this file as integration tests requiring network
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.requires_network,
 ]
 
 

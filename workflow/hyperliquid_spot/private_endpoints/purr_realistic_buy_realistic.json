@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-07-18T00:41:43.449016",
+  "test_name": "purr_realistic_buy",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "action_structure": {
+    "type": "order",
+    "orders": [
+      {
+        "a": 0,
+        "b": true,
+        "p": "0.500000",
+        "s": "10",
+        "r": false,
+        "t": {
+          "limit": {
+            "tif": "Gtc"
+          }
+        }
+      }
+    ],
+    "grouping": "na"
+  },
+  "request_payload": {
+    "action": {
+      "type": "order",
+      "orders": [
+        {
+          "a": 0,
+          "b": true,
+          "p": "0.500000",
+          "s": "10",
+          "r": false,
+          "t": {
+            "limit": {
+              "tif": "Gtc"
+            }
+          }
+        }
+      ],
+      "grouping": "na"
+    },
+    "nonce": 1752799303157,
+    "signature": {
+      "r": "0xd0bfedd0fa5cde6bd09e4252cb0d9e238fffe2c67290609758fed03d8bef76a3",
+      "s": "0x50662e1267340f4cf527e1e03835eb611c9561fbe862c81c5cf57ba3ed65938",
+      "v": 27
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 200,
+    "raw_body": "{\"status\":\"err\",\"response\":\"User or API Wallet 0x9008870af40ec60e27091c8c1f8f311e42b4038b does not exist.\"}",
+    "body_length": 107,
+    "parsed_json": {
+      "status": "err",
+      "response": "User or API Wallet 0x9008870af40ec60e27091c8c1f8f311e42b4038b does not exist."
+    }
+  }
+}

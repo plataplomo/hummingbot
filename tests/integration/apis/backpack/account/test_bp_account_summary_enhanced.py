@@ -22,7 +22,6 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.account,
     pytest.mark.requires_balance,
-    pytest.mark.positive_balance,
 ]
 
 

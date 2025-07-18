@@ -222,7 +222,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         try:
             cancel_items = await self._prepare_cancel_data(cancel_args, current_method)
-            cancel_request_payload = self._build_cancel_payload(cancel_args, cancel_items)
+            cancel_request_payload = await self._build_cancel_payload(cancel_args, cancel_items)
 
             raw_exchange_response, http_status = await self._cancel_order_raw(
                 cancel_request_payload,
@@ -373,7 +373,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         return cancel_items
 
-    def _build_cancel_payload(
+    async def _build_cancel_payload(
         self,
         cancel_args: list[CancelOrderArgs],
         cancel_items: list[tuple[str, int]],
@@ -391,8 +391,14 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         # Convert to format expected by request builder: [(order_id, asset_index, symbol)]
         formatted_items: list[tuple[str, int, str]] = []
         for symbol, order_id in cancel_items:
-            # For now, use 0 as asset index - TODO: implement proper symbol-to-index mapping
-            formatted_items.append((str(order_id), 0, symbol))
+            # Get the correct asset index for the symbol
+            asset_index = await self._get_asset_index_callable(symbol)
+            if asset_index is None:
+                raise APIError(
+                    message=f"Symbol {symbol} not found in asset index mapping",
+                    code=APIErrorCode.SYMBOL_NOT_FOUND.value,
+                )
+            formatted_items.append((str(order_id), asset_index, symbol))
 
         return self._request_builder.build_batch_cancel_order_payload(
             formatted_items,

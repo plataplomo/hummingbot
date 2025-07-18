@@ -128,6 +128,7 @@ exclude = [  # Directories to exclude from linting
     "dist",
     "__pycache__",
     "current_workflow",
+    "workflow",
 ]
 line-length = 100  # Maximum line length for linting
 target-version = "py313"  # Target Python version for linting
@@ -276,6 +277,9 @@ warn_unreachable = true  # Warn about unreachable code
 strict_equality = true  # Enforce strict equality checks
 extra_checks = true  # Enable extra checks
 scripts_are_modules = true  # Treat scripts as modules
+exclude = [
+    "workflow/.*",
+]
 
 # More lenient settings for test files
 # [[tool.mypy.overrides]]

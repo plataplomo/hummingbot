@@ -1,0 +1,55 @@
+{
+  "timestamp": "2025-07-18T00:12:00Z",
+  "wallet_address": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "analysis": {
+    "test_symbol_used": "USDC@0",
+    "issue_identified": "Test attempts to cancel a spot order with symbol 'USDC@0' but this symbol is not found in Hyperliquid's asset index",
+    "api_behavior": {
+      "symbol_lookup": "Asset index lookup for 'USDC@0' triggers metaAndAssetCtxs API call",
+      "symbol_not_found": "USDC@0 is not in Hyperliquid's universe of assets",
+      "error_expected": "APIError with message about symbol not found",
+      "current_behavior": "Order cancellation service raises APIError instead of returning CancelOrderResult with success=False"
+    },
+    "hyperliquid_spot_symbols": {
+      "format": "@N where N is a number (e.g., @1, @10, @100, @1000)",
+      "examples": ["@1", "@10", "@100", "@1000"],
+      "total_found": "1246+ spot tokens in testnet",
+      "canonical_format": "NAME/USDC (likely for mainnet)"
+    },
+    "spot_trading_endpoints": {
+      "info_endpoint": "https://api.hyperliquid-testnet.xyz/info",
+      "exchange_endpoint": "https://api.hyperliquid-testnet.xyz/exchange",
+      "available_data": {
+        "spotMidPrices": "Available for all @N tokens",
+        "clearinghouse_state": "Includes spot asset positions",
+        "universe": "Only perpetuals, no spot metadata"
+      }
+    },
+    "private_endpoint_requirements": {
+      "authentication": "EIP-712 signing required",
+      "chain_id": 421614,
+      "domain": "Exchange v1",
+      "endpoints_tested": [
+        "metaAndAssetCtxs (info)",
+        "Order placement would use /exchange",
+        "Order cancellation would use /exchange"
+      ]
+    },
+    "implementation_gap": {
+      "problem": "Spot trading operations not implemented in CyberDeltaEngine",
+      "test_expectation": "Tests expect spot operations to fail gracefully with CancelOrderResult",
+      "actual_behavior": "APIError raised when spot symbols not found",
+      "solution_needed": "Either implement spot trading or handle spot symbols gracefully in error cases"
+    }
+  },
+  "test_log_excerpt": {
+    "symbol_lookup": "asset_index_not_cached_fetching_meta for USDC@0",
+    "api_call": "POST https://api.hyperliquid-testnet.xyz/info with metaAndAssetCtxs",
+    "response": "Universe contains only perpetuals, no spot assets in metadata"
+  },
+  "recommendations": {
+    "short_term": "Update order cancellation service to return failed CancelOrderResult for unknown spot symbols",
+    "long_term": "Implement full spot trading support for Hyperliquid @N tokens",
+    "test_fix": "Either implement spot handling or mark spot tests as expected to fail"
+  }
+}

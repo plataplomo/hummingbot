@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-07-18T00:40:45.952132",
+  "test_name": "usd_transfer_wei",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "action_structure": {
+    "type": "usdTransfer",
+    "amount": "1000000",
+    "toPerp": true
+  },
+  "request_payload": {
+    "action": {
+      "type": "usdTransfer",
+      "amount": "1000000",
+      "toPerp": true
+    },
+    "nonce": 1752799245670,
+    "signature": {
+      "r": "0x19cf192bef329cebe45b20f5a2460cc639e04fa72fb898d61f786f1e3dc50d8c",
+      "s": "0x28c97793043ae77ce68373d5a769a83fc4f6efcf8509ee9f54537748fa6ebf56",
+      "v": 28
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 422,
+    "raw_body": "Failed to deserialize the JSON body into the target type",
+    "body_length": 56,
+    "parse_error": "Not valid JSON"
+  }
+}

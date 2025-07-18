@@ -1,0 +1,53 @@
+{
+  "timestamp": "2025-07-18T00:36:36.348051",
+  "wallet": "0x02cd79f858bef99588cc2e650f2a4fbf2bae8cb5",
+  "endpoint": "/exchange",
+  "method": "POST",
+  "request_payload": {
+    "action": {
+      "type": "order",
+      "orders": [
+        {
+          "coin": "@1",
+          "is_buy": true,
+          "sz": "1",
+          "limit_px": "0.0001",
+          "order_type": {
+            "limit": {
+              "tif": "Gtc"
+            }
+          },
+          "reduce_only": false
+        }
+      ],
+      "grouping": "na"
+    },
+    "nonce": 1752798995989,
+    "signature": {
+      "r": "0xd89492afd2404fb0900bd596356d0b88d46852009241a5620e25f9e20e969438",
+      "s": "0x53e3a15b6e1e99e943e6aea21899ec50c4677e80dc0a26ab7fe79dd939399622",
+      "v": 27
+    },
+    "vaultAddress": null
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Length": "56",
+      "Connection": "keep-alive",
+      "Server": "nginx/1.26.2",
+      "Date": "Fri, 18 Jul 2025 00:36:36 GMT",
+      "Access-Control-Expose-Headers": "*",
+      "Access-Control-Allow-Origin": "*",
+      "Vary": "origin",
+      "X-Cache": "Error from cloudfront",
+      "Via": "1.1 3c2c64b1941e695387773736d440584e.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Pop": "LIM50-P2",
+      "X-Amz-Cf-Id": "0zxz1HE7yQg06tlexSAcXRIRP5hUQ_jv9oYHDlVxrZu-lsrBPN7keQ=="
+    },
+    "raw_body": "Failed to deserialize the JSON body into the target type",
+    "body_length": 56,
+    "parse_error": "Not valid JSON"
+  }
+}
