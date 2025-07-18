@@ -391,7 +391,7 @@ class TestBackpackAPIAccountOperations:
         result = await api.get_order_history(args)
 
         # Verify service was called with correct parameters
-        mock_bp_account_service.get_order_history.assert_called_once_with(args=args)
+        mock_bp_account_service.get_order_history.assert_called_once_with(args)
         assert result == expected_orders
 
         await api.close()
@@ -414,7 +414,7 @@ class TestBackpackAPIAccountOperations:
 
         # Verify service was called with correct parameters
         mock_bp_account_service.get_trade_history.assert_called_once_with(
-            args=GetTradeHistoryArgs(symbol="SOL", limit=50),
+            GetTradeHistoryArgs(symbol="SOL", limit=50),
         )
         assert result == expected_trades
 
@@ -471,7 +471,7 @@ class TestBackpackAPITradingOperations:
         result = await api.place_order(args=args)
 
         # Verify service was called with correct parameters
-        mock_bp_trading_service.place_order.assert_called_once_with(args=args)
+        mock_bp_trading_service.place_order.assert_called_once_with(args)
         assert result == expected_order
 
         await api.close()
@@ -501,7 +501,7 @@ class TestBackpackAPITradingOperations:
         result = await api.cancel_order(args=cancel_args)
 
         # Verify service was called and result returned
-        mock_bp_trading_service.cancel_order.assert_called_once_with(args=cancel_args)
+        mock_bp_trading_service.cancel_order.assert_called_once_with(cancel_args)
         assert result.success is True
 
         await api.close()
@@ -545,7 +545,7 @@ class TestBackpackAPITradingOperations:
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
-            args=GetOrderArgs(order_id="order_102", symbol="SOL"),
+            GetOrderArgs(order_id="order_102", symbol="SOL"),
         )
         assert result == test_order
 
@@ -583,7 +583,7 @@ class TestBackpackAPITradingOperations:
             post_only=False,
             trades=[],
         )
-        mock_bp_trading_service.get_order_status.return_value = test_order
+        mock_bp_trading_service.get_order.return_value = test_order
 
         # Test delegation
         result = await api.get_order_status(
@@ -591,8 +591,8 @@ class TestBackpackAPITradingOperations:
         )
 
         # Verify service was called with correct parameters
-        mock_bp_trading_service.get_order_status.assert_called_once_with(
-            args=GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None),
+        mock_bp_trading_service.get_order.assert_called_once_with(
+            GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None),
         )
         assert result == test_order
 
@@ -615,7 +615,7 @@ class TestBackpackAPITradingOperations:
         result = await api.get_open_orders()
 
         # Verify service was called and result returned (positional argument)
-        mock_bp_trading_service.get_open_orders.assert_called_once_with(symbol=None)
+        mock_bp_trading_service.get_open_orders.assert_called_once_with(None)
         assert result == expected_orders
 
         await api.close()
@@ -646,7 +646,7 @@ class TestBackpackAPIMarketDataOperations:
         result = await api.get_ticker("SOL")
 
         # Verify service was called with correct parameters
-        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="SOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with("SOL")
         assert result == expected_ticker
 
         await api.close()
@@ -676,7 +676,7 @@ class TestBackpackAPIMarketDataOperations:
         result = await api.get_funding_rates(args=funding_args)
 
         # Verify service was called and result returned
-        mock_bp_market_data_service.get_funding_rates.assert_called_once_with(args=funding_args)
+        mock_bp_market_data_service.get_funding_rates.assert_called_once_with(funding_args)
         assert result == expected_rates
 
         await api.close()
@@ -704,7 +704,7 @@ class TestBackpackAPIMarketDataOperations:
 
         assert exc_info.value is symbol_not_found_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol="UNKNOWN_SYMBOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
 
         await api.close()
 

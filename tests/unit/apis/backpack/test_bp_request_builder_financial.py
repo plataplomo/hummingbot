@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawAccountWithdrawalRequest,
@@ -144,12 +145,13 @@ class TestBuildWithdrawPayload:
         withdrawal_amount: Decimal,
         withdrawal_address: str,
     ) -> None:
-        """Test build_withdraw_payload raises KeyError when network is None.
+        """Test build_withdraw_payload raises ValidationError for invalid network.
 
         Note: Business logic validation has been moved to service layer.
         The request builder only performs mapping/translation.
+        Pydantic validates that 'ethereum' (lowercase) is not valid - should be 'Ethereum'.
         """
-        with pytest.raises(KeyError):
+        with pytest.raises(ValidationError):
             BackpackAccountRequestBuilder.build_withdraw_payload(
                 asset_symbol=usdc_asset,
                 amount=withdrawal_amount,

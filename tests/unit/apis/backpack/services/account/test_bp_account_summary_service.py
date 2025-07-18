@@ -16,7 +16,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
+from cyberdelta.apis.backpack.mappers.account.bp_account_summary_mapper import (
+    BackpackAccountSummaryMapper,
+)
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
 from cyberdelta.apis.backpack.models.bp_raw_collateral import (
@@ -31,6 +33,10 @@ from cyberdelta.apis.backpack.response_handlers.bp_account_response_handler impo
 )
 from cyberdelta.apis.backpack.services.account.bp_account_summary_service import (
     BackpackAccountSummaryService,
+)
+from cyberdelta.apis.base.trading_execution_domain import (
+    AccountSettings as DomainAccountSettings,
+    AccountSettingsPolicy,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
@@ -60,7 +66,7 @@ def mock_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper."""
-    return MagicMock(spec=BackpackBalanceMapper)
+    return MagicMock(spec=BackpackAccountSummaryMapper)
 
 
 @pytest.fixture
@@ -70,12 +76,19 @@ def mock_authenticator() -> MagicMock:
 
 
 @pytest.fixture
+def mock_account_state_service() -> AsyncMock:
+    """Create a mock account state service."""
+    return AsyncMock()
+
+
+@pytest.fixture
 def account_summary_service(
     mock_http_client: AsyncMock,
     mock_request_builder: MagicMock,
     mock_response_handler: MagicMock,
     mock_mapper: MagicMock,
     mock_authenticator: MagicMock,
+    mock_account_state_service: AsyncMock,
 ) -> BackpackAccountSummaryService:
     """Create an account summary service instance with mocks."""
     return BackpackAccountSummaryService(
@@ -85,6 +98,7 @@ def account_summary_service(
         mapper=mock_mapper,
         authenticator=mock_authenticator,
         exchange_name="backpack",
+        account_state_service=mock_account_state_service,
     )
 
 
@@ -224,6 +238,7 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_raw_account_summary: BackpackRawAccountSummary,
         mock_collateral_response: BackpackRawCollateralResponse,
         mock_raw_position: BackpackRawPosition,
@@ -231,15 +246,16 @@ class TestBackpackAccountSummaryService:
     ) -> None:
         """Test successful enhanced account summary retrieval."""
         # Arrange
-        # Mock the three parallel API calls
+        # Mock the HTTP calls for account settings and positions
         mock_http_client.side_effect = [
-            # Collateral response
-            (mock_collateral_response.model_dump(), 200, {}),
             # Account settings response
             (mock_raw_account_summary.model_dump(), 200, {}),
             # Positions response
             ([mock_raw_position.model_dump()], 200, {}),
         ]
+        
+        # Mock the account state service to return collateral data
+        mock_account_state_service.get_account_state.return_value = mock_collateral_response
 
         mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
         mock_response_handler.handle_get_account_info_response.return_value = (
@@ -256,7 +272,7 @@ class TestBackpackAccountSummaryService:
 
         # Assert
         assert result == mock_margin_account_summary
-        assert mock_http_client.call_count == 3
+        assert mock_http_client.call_count == 2
         mock_mapper.transform_enhanced_account_data_to_margin_summary.assert_called_once_with(
             raw_collateral=mock_collateral_response,
             raw_settings=mock_raw_account_summary,
@@ -270,6 +286,7 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_raw_account_summary: BackpackRawAccountSummary,
         mock_raw_balance: BackpackRawBalance,
         mock_raw_position: BackpackRawPosition,
@@ -277,21 +294,18 @@ class TestBackpackAccountSummaryService:
     ) -> None:
         """Test account summary falls back to basic when collateral unavailable."""
         # Arrange
-        # First attempt (enhanced) - collateral returns 404
+        # Configure account state service to fail (triggering fallback)
+        mock_account_state_service.get_account_state.side_effect = APIError(
+            message="Not found",
+            code=APIErrorCode.ORDER_NOT_FOUND.value,
+            http_status=404,
+        )
+        
+        # HTTP calls for basic mode after collateral fails
         mock_http_client.side_effect = [
-            # Collateral 404
-            APIError(
-                message="Not found",
-                code=APIErrorCode.ORDER_NOT_FOUND.value,
-                http_status=404,
-            ),
-            # Then basic mode calls
-            # Account settings
             (mock_raw_account_summary.model_dump(), 200, {}),
-            # Balances
-            ({"USDC": mock_raw_balance.model_dump()}, 200, {}),
-            # Positions
             ([mock_raw_position.model_dump()], 200, {}),
+            ({"USDC": mock_raw_balance.model_dump()}, 200, {}),
         ]
 
         mock_response_handler.handle_get_account_info_response.return_value = (
@@ -309,7 +323,7 @@ class TestBackpackAccountSummaryService:
 
         # Assert
         assert result == mock_margin_account_summary
-        assert mock_http_client.call_count == 4  # 1 failed collateral + 3 basic calls
+        assert mock_http_client.call_count == 3  # 3 basic calls after account state service fails
         mock_mapper.transform_raw_account_summary_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
@@ -319,6 +333,7 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_collateral_response: BackpackRawCollateralResponse,
         mock_raw_account_summary: BackpackRawAccountSummary,
         mock_raw_position: BackpackRawPosition,
@@ -328,13 +343,17 @@ class TestBackpackAccountSummaryService:
         # Arrange
         subaccount_id = 123
 
+        # Mock the HTTP calls for account settings and positions
         mock_http_client.side_effect = [
-            (mock_collateral_response.model_dump(), 200, {}),
+            # Account settings response
             (mock_raw_account_summary.model_dump(), 200, {}),
+            # Positions response
             ([mock_raw_position.model_dump()], 200, {}),
         ]
 
-        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
+        # Mock the account state service to return collateral data
+        mock_account_state_service.get_account_state.return_value = mock_collateral_response
+
         mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )
@@ -349,10 +368,8 @@ class TestBackpackAccountSummaryService:
 
         # Assert
         assert result == mock_margin_account_summary
-        # Verify subaccount ID was passed to collateral endpoint
-        mock_response_handler.handle_get_collateral_response.assert_called_once()
-        call_args = mock_response_handler.handle_get_collateral_response.call_args
-        assert call_args.kwargs["subaccount_id"] == subaccount_id
+        # Verify subaccount ID was passed to account state service
+        mock_account_state_service.get_account_state.assert_called_once_with(subaccount_id)
 
     @pytest.mark.asyncio
     async def test_get_account_summary_invalid_subaccount_id(
@@ -400,12 +417,15 @@ class TestBackpackAccountSummaryService:
 
         # Assert
         assert result == mock_account_settings
+        
+        # The business logic calls with leverage (int) and account_settings (domain object)
+        expected_account_settings = DomainAccountSettings(
+            leverage_limit=5,  # int conversion of Decimal("5.00")
+            automation_policy=AccountSettingsPolicy.MANUAL_CONTROL
+        )
         mock_request_builder.build_update_account_settings_payload.assert_called_once_with(
-            auto_borrow_settlements=args.auto_borrow_settlements,
-            auto_lend=args.auto_lend,
-            auto_realize_pnl=args.auto_realize_pnl,
-            auto_repay_borrows=args.auto_repay_borrows,
-            leverage_limit=args.leverage_limit,
+            leverage=5,
+            account_settings=expected_account_settings,
         )
         mock_http_client.assert_called_once()
         assert mock_http_client.call_args.kwargs["method"] == "PATCH"
@@ -440,34 +460,51 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_collateral_response: BackpackRawCollateralResponse,
         mock_raw_account_summary: BackpackRawAccountSummary,
         mock_raw_position: BackpackRawPosition,
+        mock_raw_balance: BackpackRawBalance,
+        mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
-        """Test enhanced account info with transformation error."""
+        """Test enhanced account info with transformation error falls back to basic mode."""
         # Arrange
+        # Mock the HTTP calls for account settings, positions, and balances (for fallback)
         mock_http_client.side_effect = [
-            (mock_collateral_response.model_dump(), 200, {}),
+            # Account settings response
             (mock_raw_account_summary.model_dump(), 200, {}),
+            # Positions response
             ([mock_raw_position.model_dump()], 200, {}),
+            # Balances response (fallback)
+            ({"USDC": mock_raw_balance.model_dump()}, 200, {}),
         ]
 
-        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
+        # Mock account state service to return collateral data
+        mock_account_state_service.get_account_state.return_value = mock_collateral_response
+
         mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )
         mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
+        mock_response_handler.handle_get_balances_response.return_value = {"USDC": mock_raw_balance}
 
+        # Set up the mapper to throw TransformationError for enhanced data
         mock_mapper.transform_enhanced_account_data_to_margin_summary.side_effect = (
             TransformationError("Invalid data format")
         )
+        mock_mapper.transform_raw_account_summary_to_internal.return_value = (
+            mock_margin_account_summary
+        )
 
-        # Act & Assert
-        with pytest.raises(APIError) as exc_info:
-            await account_summary_service.get_account_summary()
+        # Act
+        result = await account_summary_service.get_account_summary()
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Failed to process/transform enhanced collateral data" in exc_info.value.message
+        # Assert - should successfully fallback to basic mode
+        assert result == mock_margin_account_summary
+        # Enhanced transformation should be attempted first
+        mock_mapper.transform_enhanced_account_data_to_margin_summary.assert_called_once()
+        # Then fallback to basic transformation
+        mock_mapper.transform_raw_account_summary_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_basic_account_info_empty_positions(
@@ -476,27 +513,30 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_raw_account_summary: BackpackRawAccountSummary,
         mock_raw_balance: BackpackRawBalance,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test basic account info with empty positions."""
         # Arrange
-        # Force fallback to basic mode
+        # Force fallback to basic mode by making account state service fail
+        mock_account_state_service.get_account_state.side_effect = APIError(
+            message="Not found", code=APIErrorCode.ORDER_NOT_FOUND.value, http_status=404
+        )
+        
+        # Basic mode HTTP calls
         mock_http_client.side_effect = [
-            # Collateral fails
-            APIError(message="Not found", code=APIErrorCode.ORDER_NOT_FOUND.value, http_status=404),
-            # Basic mode calls
             (mock_raw_account_summary.model_dump(), 200, {}),
-            ({"USDC": mock_raw_balance.model_dump()}, 200, {}),
             ([], 200, {}),  # Empty positions
+            ({"USDC": mock_raw_balance.model_dump()}, 200, {}),
         ]
 
         mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )
-        mock_response_handler.handle_get_balances_response.return_value = {"USDC": mock_raw_balance}
         mock_response_handler.handle_get_positions_response.return_value = []
+        mock_response_handler.handle_get_balances_response.return_value = {"USDC": mock_raw_balance}
 
         mock_mapper.transform_raw_account_summary_to_internal.return_value = (
             mock_margin_account_summary
@@ -518,18 +558,46 @@ class TestBackpackAccountSummaryService:
         self,
         account_summary_service: BackpackAccountSummaryService,
         mock_http_client: AsyncMock,
+        mock_response_handler: MagicMock,
+        mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
+        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_raw_balance: BackpackRawBalance,
+        mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary when collateral fetch returns empty response."""
         # Arrange
-        # When enhanced mode tries to get collateral, it returns empty
-        mock_http_client.return_value = (None, 200, {})
+        # Mock account state service to raise EmptyResponseError for collateral request
+        mock_account_state_service.get_account_state.side_effect = EmptyResponseError(
+            response_type="data",
+            operation="collateral request",
+            http_status=200,
+            exchange="backpack",
+        )
 
-        # Act & Assert
-        # The service should raise an error when it gets empty collateral response
-        with pytest.raises(EmptyResponseError) as exc_info:
-            await account_summary_service.get_account_summary()
+        # Set up HTTP calls for basic mode fallback
+        mock_http_client.side_effect = [
+            (mock_raw_account_summary.model_dump(), 200, {}),
+            ([], 200, {}),  # Empty positions
+            ({"USDC": mock_raw_balance.model_dump()}, 200, {}),  # Balances
+        ]
 
-        assert "collateral request" in str(exc_info.value)
+        mock_response_handler.handle_get_account_info_response.return_value = (
+            mock_raw_account_summary
+        )
+        mock_response_handler.handle_get_positions_response.return_value = []
+        mock_response_handler.handle_get_balances_response.return_value = {"USDC": mock_raw_balance}
+
+        mock_mapper.transform_raw_account_summary_to_internal.return_value = (
+            mock_margin_account_summary
+        )
+
+        # Act
+        result = await account_summary_service.get_account_summary()
+
+        # Assert - should successfully fallback to basic mode when collateral is empty
+        assert result == mock_margin_account_summary
+        mock_mapper.transform_raw_account_summary_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_account_summary_positions_dict_response(
@@ -538,6 +606,7 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_raw_position: BackpackRawPosition,
         mock_collateral_response: BackpackRawCollateralResponse,
         mock_raw_account_summary: BackpackRawAccountSummary,
@@ -547,23 +616,25 @@ class TestBackpackAccountSummaryService:
         # Arrange
         dict_response = {"BTC-PERP": mock_raw_position.model_dump()}
 
-        # Mock the three parallel API calls for enhanced mode
+        # Mock the HTTP calls for account settings and positions
         mock_http_client.side_effect = [
-            # Collateral response
-            (mock_collateral_response.model_dump(), 200, {}),
             # Account settings response
             (mock_raw_account_summary.model_dump(), 200, {}),
             # Positions response (dict instead of list)
             (dict_response, 200, {}),
         ]
 
-        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
-        mock_response_handler.handle_get_account_settings_response.return_value = (
+        # Mock account state service to return collateral data
+        mock_account_state_service.get_account_state.return_value = mock_collateral_response
+
+        mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )
         mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
 
-        mock_mapper.to_margin_account_summary.return_value = mock_margin_account_summary
+        mock_mapper.transform_enhanced_account_data_to_margin_summary.return_value = (
+            mock_margin_account_summary
+        )
 
         # Act
         result = await account_summary_service.get_account_summary()
@@ -584,16 +655,15 @@ class TestBackpackAccountSummaryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_account_state_service: AsyncMock,
         mock_collateral_response: BackpackRawCollateralResponse,
         mock_raw_account_summary: BackpackRawAccountSummary,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary when positions fetch returns 404 (should handle gracefully)."""
         # Arrange
-        # Mock the three parallel API calls for enhanced mode
+        # Mock the HTTP calls in the order they're made by the service
         mock_http_client.side_effect = [
-            # Collateral response
-            (mock_collateral_response.model_dump(), 200, {}),
             # Account settings response
             (mock_raw_account_summary.model_dump(), 200, {}),
             # Positions response - 404
@@ -604,24 +674,28 @@ class TestBackpackAccountSummaryService:
             ),
         ]
 
-        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
-        mock_response_handler.handle_get_account_settings_response.return_value = (
+        # Mock account state service for collateral data
+        mock_account_state_service.get_account_state.return_value = mock_collateral_response
+        
+        mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )
 
         # Configure mapper to create summary with empty positions
-        mock_mapper.to_margin_account_summary.return_value = mock_margin_account_summary
+        mock_mapper.transform_enhanced_account_data_to_margin_summary.return_value = (
+            mock_margin_account_summary
+        )
 
         # Act
         result = await account_summary_service.get_account_summary()
 
         # Assert
         assert result == mock_margin_account_summary
-        # Verify mapper was called with empty positions list
-        mock_mapper.to_margin_account_summary.assert_called_once_with(
-            mock_collateral_response,
-            mock_raw_account_summary,
-            [],  # Empty positions due to 404
+        # Verify mapper was called with empty positions list (due to 404)
+        mock_mapper.transform_enhanced_account_data_to_margin_summary.assert_called_once_with(
+            raw_collateral=mock_collateral_response,
+            raw_settings=mock_raw_account_summary,
+            raw_positions=[],  # Empty positions due to 404
         )
 
     @pytest.mark.asyncio
@@ -631,9 +705,18 @@ class TestBackpackAccountSummaryService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
+        mock_raw_account_summary: BackpackRawAccountSummary,
     ) -> None:
         """Test account summary when authenticator is None."""
         # Arrange
+        # Create a mock account state service that will fail
+        mock_account_state_service = AsyncMock()
+        mock_account_state_service.get_account_state.side_effect = APIError(
+            message="Authentication required",
+            code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            http_status=401,
+        )
+        
         service = BackpackAccountSummaryService(
             http_client_requester=mock_http_client,
             request_builder=mock_request_builder,
@@ -641,14 +724,23 @@ class TestBackpackAccountSummaryService:
             mapper=mock_mapper,
             authenticator=None,  # No authenticator
             exchange_name="backpack",
+            account_state_service=mock_account_state_service,
         )
 
-        # Force fallback to basic mode
+        # Mock successful account settings and empty positions calls  
         mock_http_client.side_effect = [
-            APIError(message="Not found", code=APIErrorCode.ORDER_NOT_FOUND.value, http_status=404),
+            # Account settings response
+            (mock_raw_account_summary.model_dump(), 200, {}),
+            # Positions response - succeeds with empty list
+            ([], 200, {}),
         ]
+        
+        mock_response_handler.handle_get_account_info_response.return_value = (
+            mock_raw_account_summary
+        )
+        mock_response_handler.handle_get_positions_response.return_value = []
 
-        # Act & Assert
+        # Act & Assert - Should fail when trying to get balances in fallback mode
         with pytest.raises(APIError) as exc_info:
             await service.get_account_summary()
 

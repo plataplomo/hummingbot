@@ -23,7 +23,6 @@ from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import Backp
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
-from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
@@ -547,8 +546,8 @@ class TestWebSocketPositionUpdateTransformation:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
-                TransformationError,
-                match="Failed to transform WebSocket position update to internal",
+                DataTransformationError,
+                match="Failed to transform BackpackRawPositionUpdate to DerivativePosition",
             ):
                 position_mapper.transform_ws_position_update_to_internal_position(
                     raw_position_update

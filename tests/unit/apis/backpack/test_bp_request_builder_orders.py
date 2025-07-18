@@ -161,14 +161,15 @@ class TestBuildPlaceOrderPayload:
             "symbol": symbol_spot,
             "side": "Ask",
             "orderType": "Market",
-            "quantity": "5",
+            "triggerQuantity": "5",
         }
 
         for key, expected_value in expected_fields.items():
             assert payload_dict[key] == expected_value
 
-        # Check that trigger price is present (though actual field name may vary)
-        # We'll check this via the Pydantic model structure
+        # Check that trigger price is present
+        assert "triggerPrice" in payload_dict
+        assert payload_dict["triggerPrice"] == str(trigger_price)
 
     def test_build_place_order_payload_stop_limit(
         self,
@@ -246,7 +247,7 @@ class TestBuildPlaceOrderPayload:
         """Test build_place_order_payload correctly maps order types."""
         kwargs: dict[str, Any] = {
             "symbol": symbol_spot,
-            "side": OrderSide.BUY,
+            "order_side": OrderSide.BUY,
             "order_type": order_type,
             "quantity": Decimal(1),
             "time_in_force": TimeInForce.GTC,
@@ -254,7 +255,7 @@ class TestBuildPlaceOrderPayload:
         if order_type == OrderType.LIMIT:
             kwargs["price"] = Decimal(100)
         elif order_type == OrderType.STOP_MARKET:
-            kwargs["trigger_price"] = Decimal(100)
+            kwargs["stop_price"] = Decimal(100)
 
         payload = BackpackTradingRequestBuilder.build_place_order_payload(**kwargs)
 

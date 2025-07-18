@@ -8,12 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.mappers.market_data.bp_candle_mapper import BackpackCandleMapper
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
-from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-    BackpackRawGetMarketDataParams,
-    BackpackRawGetTickerParams,
-)
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
@@ -35,99 +30,29 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_market_data successfully retrieves and processes kline data."""
+        """Test get_market_data successfully retrieves and processes kline data.
+
+        Note: Current business logic delegates to historical data service.
+        """
         symbol = "SOL_USDC"
         timeframe: Literal["1m"] = "1m"
         limit = 2
 
-        # Mock data
-        mock_raw_kline_data = [
-            [
-                1678886400,  # int
-                "100.0",
-                "101.0",
-                "99.0",
-                "100.5",
-                "1000.0",
-                1678886400,  # int
-                "100000.0",
-                50,  # int
-                "60.0",
-                "180000.0",
-                "0",
-            ],
-            [
-                1678886460,  # int
-                "100.5",
-                "101.5",
-                "99.5",
-                "101.0",
-                "1200.0",
-                1678886460,  # int
-                "120000.0",
-                60,  # int
-                "70.0",
-                "210000.0",
-                "0",
-            ],
-        ]
-        mock_validated_klines_raw = [
-            BackpackRawKline.model_validate(kline) for kline in mock_raw_kline_data
-        ]
-        mock_headers_from_client = MagicMock()
+        # Create expected internal candles
+        expected_candles = [MagicMock(spec=Candle), MagicMock(spec=Candle)]
 
-        mock_request_builder.build_get_market_data_params.return_value = (
-            BackpackRawGetMarketDataParams(
-                symbol=symbol,
-                interval=timeframe,
-                limit=limit,
-                startTime=None,
-                endTime=None,
-            )
-        )
-
-        mock_http_client_requester.return_value = (
-            mock_raw_kline_data,  # Raw list of lists
-            200,
-            mock_headers_from_client,
-        )
-        mock_response_handler.handle_get_market_data_response.return_value = (
-            mock_validated_klines_raw
-        )
-
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            mock_internal_candles = [MagicMock(spec=Candle), MagicMock(spec=Candle)]
-            mock_mapper.transform_raw_kline_to_internal.side_effect = mock_internal_candles
+        # Mock the historical data service since business logic delegates to it
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
+            mock_historical_service.get_market_data = AsyncMock(return_value=expected_candles)
 
             args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe, limit=limit)
             result = await backpack_market_data_service.get_market_data(args)
 
-            mock_request_builder.build_get_market_data_params.assert_called_once_with(
-                symbol=symbol,
-                timeframe_str=timeframe,
-                limit=limit,
-                start_time_ms=None,
-                end_time_ms=None,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint="/api/v1/klines",
-                params={"symbol": symbol, "interval": timeframe, "limit": limit},
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_market_data_response.assert_called_once_with(
-                mock_raw_kline_data,
-                symbol,
-                timeframe,
-                200,
-                mock_headers_from_client,
-            )
-            assert mock_mapper.transform_raw_kline_to_internal.call_count == len(
-                mock_validated_klines_raw,
-            )
-            assert result == mock_internal_candles
+            # Verify the business logic calls the historical data service with correct arguments
+            mock_historical_service.get_market_data.assert_called_once_with(args)
+            assert result == expected_candles
 
     @pytest.mark.asyncio
     async def test_get_market_data_http_client_returns_none(
@@ -137,50 +62,25 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_market_data when HTTP client returns None content."""
+        """Test get_market_data when historical data service returns empty list."""
         symbol = "SOL_USDC"
         timeframe: Literal["1h"] = "1h"
         limit = 100
 
-        # Mock data
+        # Mock the historical data service to return empty list (no candles)
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
+            mock_historical_service.get_market_data = AsyncMock(return_value=[])
 
-        mock_request_builder.build_get_market_data_params.return_value = (
-            BackpackRawGetMarketDataParams(
-                symbol=symbol,
-                interval=timeframe,
-                limit=limit,
-                startTime=None,
-                endTime=None,
-            )
-        )
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+            args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe, limit=limit)
+            result = await backpack_market_data_service.get_market_data(args)
 
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            with pytest.raises(APIError) as exc_info:
-                args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe, limit=limit)
-                await backpack_market_data_service.get_market_data(args)
+            # Business logic should return empty list when no data found
+            assert result == []
 
-            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-            expected_error_msg = f"No data received for klines ({symbol}@{timeframe}), status: 200"
-            assert exc_info.value.message == expected_error_msg
-
-            mock_request_builder.build_get_market_data_params.assert_called_once_with(
-                symbol=symbol,
-                timeframe_str=timeframe,
-                limit=limit,
-                start_time_ms=None,
-                end_time_ms=None,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint="/api/v1/klines",
-                params={"symbol": symbol, "interval": timeframe, "limit": limit},
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_market_data_response.assert_not_called()
-            mock_mapper.transform_raw_kline_to_internal.assert_not_called()
+            # Verify the business logic calls the historical data service
+            mock_historical_service.get_market_data.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_get_market_data_validation_error(
@@ -190,34 +90,29 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_market_data handles validation error from response handler."""
+        """Test get_market_data handles validation error from historical data service."""
         symbol = "SOL_USDC"
         timeframe: Literal["1m"] = "1m"
-        mock_raw_response = [["invalid", "kline_data"]]
-
-        mock_request_builder.build_get_market_data_params.return_value = (
-            BackpackRawGetMarketDataParams(
-                symbol=symbol,
-                interval=timeframe,
-                limit=100,
-                startTime=None,
-                endTime=None,
-            )
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
         try:
             BackpackRawKline.model_validate(["invalid", "data"])
-        except ValidationError as e:
-            mock_response_handler.handle_get_market_data_response.side_effect = e
+        except ValidationError as validation_error:
+            # Mock the historical data service to raise a validation error
+            with patch.object(
+                backpack_market_data_service, "_historical_data_service"
+            ) as mock_historical_service:
+                mock_historical_service.get_market_data = AsyncMock(side_effect=validation_error)
 
-        with pytest.raises(APIError) as exc_info:
-            args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe)
-            await backpack_market_data_service.get_market_data(args)
+                with pytest.raises(ValidationError):
+                    args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe)
+                    await backpack_market_data_service.get_market_data(args)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed." in exc_info.value.message
+                # Verify the business logic calls the historical data service
+                mock_historical_service.get_market_data.assert_called_once()
+                call_args = mock_historical_service.get_market_data.call_args[0][0]
+                assert call_args.symbol == symbol
+                assert call_args.timeframe == timeframe
 
     @pytest.mark.asyncio
     async def test_get_market_data_unexpected_exception(
@@ -227,31 +122,29 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_market_data handles unexpected exception."""
+        """Test get_market_data handles unexpected exception from historical data service."""
         symbol = "SOL_USDC"
         timeframe: Literal["1m"] = "1m"
-        mock_raw_response = [[1678886400, "100.0"]]
 
-        mock_request_builder.build_get_market_data_params.return_value = (
-            BackpackRawGetMarketDataParams(
-                symbol=symbol,
-                interval=timeframe,
-                limit=100,
-                startTime=None,
-                endTime=None,
+        # Mock the historical data service to raise an unexpected exception
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
+            mock_historical_service.get_market_data = AsyncMock(
+                side_effect=Exception("Unexpected error")
             )
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_market_data_response.side_effect = Exception(
-            "Unexpected error",
-        )
 
-        with pytest.raises(APIError) as exc_info:
-            args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe)
-            await backpack_market_data_service.get_market_data(args)
+            with pytest.raises(Exception) as exc_info:
+                args = GetMarketDataArgs(symbol=symbol, timeframe=timeframe)
+                await backpack_market_data_service.get_market_data(args)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected service failure." in exc_info.value.message
+            assert "Unexpected error" in str(exc_info.value)
+
+            # Verify the business logic calls the historical data service
+            mock_historical_service.get_market_data.assert_called_once()
+            call_args = mock_historical_service.get_market_data.call_args[0][0]
+            assert call_args.symbol == symbol
+            assert call_args.timeframe == timeframe
 
     @pytest.mark.asyncio
     async def test_get_market_data_with_time_parameters(
@@ -261,55 +154,24 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_market_data with start and end time parameters."""
+        """Test get_market_data with start and end time parameters.
+
+        Note: Current business logic delegates to historical data service.
+        """
         symbol = "SOL_USDC"
         timeframe: Literal["5m"] = "5m"
         limit = 10
         start_time_ms = 1678880000000
         end_time_ms = 1678886400000
 
-        mock_params = {
-            "symbol": symbol,
-            "interval": timeframe,
-            "limit": limit,
-            "startTime": start_time_ms,
-            "endTime": end_time_ms,
-        }
-        mock_raw_kline_data = [
-            [
-                1678886400,
-                "100.0",
-                "101.0",
-                "99.0",
-                "100.5",
-                "1000.0",
-                1678886400,
-                "100000.0",
-                50,
-                "60.0",
-                "180000.0",
-                "0",
-            ],
-        ]
-        mock_validated_klines_raw = [BackpackRawKline.model_validate(mock_raw_kline_data[0])]
+        # Create expected internal candle
+        expected_candles = [MagicMock(spec=Candle)]
 
-        mock_request_builder.build_get_market_data_params.return_value = (
-            BackpackRawGetMarketDataParams(
-                symbol=symbol,
-                interval=timeframe,
-                limit=limit,
-                startTime=start_time_ms,
-                endTime=end_time_ms,
-            )
-        )
-        mock_http_client_requester.return_value = (mock_raw_kline_data, 200, {})
-        mock_response_handler.handle_get_market_data_response.return_value = (
-            mock_validated_klines_raw
-        )
-
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            mock_internal_candles = [MagicMock(spec=Candle)]
-            mock_mapper.transform_raw_kline_to_internal.side_effect = mock_internal_candles
+        # Mock the historical data service since business logic delegates to it
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
+            mock_historical_service.get_market_data = AsyncMock(return_value=expected_candles)
 
             args = GetMarketDataArgs(
                 symbol=symbol,
@@ -320,47 +182,41 @@ class TestBackpackMarketDataServiceKlinesMisc:
             )
             result = await backpack_market_data_service.get_market_data(args)
 
-            mock_request_builder.build_get_market_data_params.assert_called_once_with(
-                symbol=symbol,
-                timeframe_str=timeframe,
-                limit=limit,
-                start_time_ms=start_time_ms,
-                end_time_ms=end_time_ms,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint="/api/v1/klines",
-                params=mock_params,
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_market_data_response.assert_called_once_with(
-                mock_raw_kline_data,
-                symbol,
-                timeframe,
-                200,
-                {},
-            )
-            assert mock_mapper.transform_raw_kline_to_internal.call_count == len(
-                mock_validated_klines_raw,
-            )
-            assert result == mock_internal_candles
+            # Verify the business logic calls the historical data service with correct arguments
+            mock_historical_service.get_market_data.assert_called_once_with(args)
+            assert result == expected_candles
 
     @pytest.mark.asyncio
     async def test_get_all_tickers_not_implemented(
         self,
         backpack_market_data_service: BackpackMarketDataService,
     ) -> None:
-        """Test that get_all_tickers raises APIError for not implemented functionality."""
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_all_tickers()
+        """Test that get_all_tickers delegates to price ticker service.
 
-        assert exc_info.value.code == APIErrorCode.INVALID_REQUEST.value
-        assert (
-            "get_all_tickers is not implemented for BackpackMarketDataService"
-            in exc_info.value.message
-        )
+        Note: Current business logic delegates to price ticker service.
+        """
+        # Mock the price ticker service to raise not implemented error
+        with patch.object(
+            backpack_market_data_service, "_price_ticker_service"
+        ) as mock_price_ticker_service:
+            mock_price_ticker_service.get_all_tickers = AsyncMock(
+                side_effect=APIError(
+                    code=APIErrorCode.INVALID_REQUEST.value,
+                    message="get_all_tickers is not implemented for BackpackMarketDataService",
+                )
+            )
+
+            with pytest.raises(APIError) as exc_info:
+                await backpack_market_data_service.get_all_tickers()
+
+            assert exc_info.value.code == APIErrorCode.INVALID_REQUEST.value
+            assert (
+                "get_all_tickers is not implemented for BackpackMarketDataService"
+                in exc_info.value.message
+            )
+
+            # Verify the business logic calls the price ticker service
+            mock_price_ticker_service.get_all_tickers.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_constructor_with_custom_mapper(
@@ -370,7 +226,10 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
     ) -> None:
-        """Test constructor with custom mapper injection."""
+        """Test constructor with custom mapper injection.
+
+        Note: Current business logic delegates to price ticker service.
+        """
         service = BackpackMarketDataService(
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
@@ -379,20 +238,16 @@ class TestBackpackMarketDataServiceKlinesMisc:
             candle_mapper=mock_mapper,
         )
 
-        # Test behavior that uses the mapper to verify it was set correctly
-        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol="TEST",
-        )
-        mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
-        mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
+        # Mock the price ticker service since business logic delegates to it
+        expected_ticker = MagicMock()
+        with patch.object(service, "_price_ticker_service") as mock_price_ticker_service:
+            mock_price_ticker_service.get_ticker = AsyncMock(return_value=expected_ticker)
 
-        # Configure the mock to have the method and set its return value
-        mock_mapper.transform_raw_ticker_to_internal = MagicMock(return_value=MagicMock())
+            result = await service.get_ticker("TEST")
 
-        await service.get_ticker("TEST")
-
-        # Verify the mapper method was called
-        mock_mapper.transform_raw_ticker_to_internal.assert_called_once()
+            # Verify the business logic calls the price ticker service
+            mock_price_ticker_service.get_ticker.assert_called_once_with("TEST")
+            assert result == expected_ticker
 
     @pytest.mark.asyncio
     async def test_constructor_with_default_mapper(
@@ -401,7 +256,10 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test constructor creates default mapper when none provided."""
+        """Test constructor creates default mapper when none provided.
+
+        Note: Current business logic delegates to price ticker service.
+        """
         service = BackpackMarketDataService(
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
@@ -410,20 +268,13 @@ class TestBackpackMarketDataServiceKlinesMisc:
             # No mapper parameters needed
         )
 
-        # Test behavior that uses the mapper to verify it's working
-        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol="TEST",
-        )
-        mock_http_client_requester.return_value = ({"symbol": "TEST", "price": "100.0"}, 200, {})
-        mock_response_handler.handle_get_ticker_response.return_value = MagicMock()
+        # Mock the price ticker service since business logic delegates to it
+        expected_ticker = MagicMock()
+        with patch.object(service, "_price_ticker_service") as mock_price_ticker_service:
+            mock_price_ticker_service.get_ticker = AsyncMock(return_value=expected_ticker)
 
-        # Mock the static method on the class
-        with patch.object(
-            BackpackCandleMapper,
-            "transform_raw_ticker_to_internal",
-        ) as mock_transform:
-            mock_transform.return_value = MagicMock()
-            await service.get_ticker("TEST")
+            result = await service.get_ticker("TEST")
 
-        # Verify the static method was called
-        mock_transform.assert_called_once()
+            # Verify the business logic calls the price ticker service
+            mock_price_ticker_service.get_ticker.assert_called_once_with("TEST")
+            assert result == expected_ticker

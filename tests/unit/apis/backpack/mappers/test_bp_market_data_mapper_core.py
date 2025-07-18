@@ -768,7 +768,7 @@ class TestOrderBookTransformation:
         )
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_datetime_utc",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper.parse_datetime_utc",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -786,7 +786,7 @@ class TestOrderBookTransformation:
         raw_book = create_raw_order_book(bids=[("100.25", "10.0")])
 
         with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",

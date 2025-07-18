@@ -679,7 +679,7 @@ class TestPerformanceAndMemory:
 
     def test_large_batch_transformation_efficiency(
         self,
-        account_data_mapper: HyperliquidBalanceMapper,
+        balance_mapper: HyperliquidBalanceMapper,
     ) -> None:
         """Test transformation efficiency with large batches of data."""
         # Create a large number of positions
@@ -757,7 +757,7 @@ class TestPerformanceAndMemory:
 
     def test_memory_efficient_transformation_patterns(
         self,
-        account_data_mapper: HyperliquidBalanceMapper,
+        balance_mapper: HyperliquidBalanceMapper,
     ) -> None:
         """Test that transformations use memory efficiently."""
         # Create state with various types of data

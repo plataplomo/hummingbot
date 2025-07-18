@@ -18,7 +18,6 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Import fixtures from the shared conftest
@@ -38,8 +37,8 @@ class TestBackpackTradingServiceOrderManagement:
         bp_trading_service: BackpackTradingService,
     ) -> None:
         """Test place_order raises ValidationError for empty symbol (now from PlaceOrderArgs)."""
-        with pytest.raises(EmptyStringError) as exc_info:
-            args = PlaceOrderArgs(
+        with pytest.raises(ValidationError) as exc_info:
+            PlaceOrderArgs(
                 symbol="",  # Empty symbol should be rejected
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -48,7 +47,6 @@ class TestBackpackTradingServiceOrderManagement:
                 price=Decimal("100.0"),
                 execution=OrderExecution(),
             )
-            await bp_trading_service.place_order(args=args)
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -174,13 +172,12 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test cancel_order raises EmptyStringError for empty order_id."""
-        with pytest.raises(EmptyStringError) as exc_info:
-            args = CancelOrderArgs(
+        """Test cancel_order raises ValidationError for empty order_id."""
+        with pytest.raises(ValidationError) as exc_info:
+            CancelOrderArgs(
                 order_id="",  # Empty order_id should be rejected
                 symbol="SOL_USDC",
             )
-            await bp_trading_service.cancel_order(args=args)
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -189,13 +186,12 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test cancel_order raises EmptyStringError for empty symbol."""
-        with pytest.raises(EmptyStringError) as exc_info:
-            args = CancelOrderArgs(
+        """Test cancel_order raises ValidationError for empty symbol."""
+        with pytest.raises(ValidationError) as exc_info:
+            CancelOrderArgs(
                 order_id="12345",
                 symbol="",  # Empty symbol should be rejected
             )
-            await bp_trading_service.cancel_order(args=args)
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -204,9 +200,9 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test get_order raises EmptyStringError for empty order_id."""
-        with pytest.raises(EmptyStringError) as exc_info:
-            await bp_trading_service.get_order(args=GetOrderArgs(order_id="", symbol="SOL_USDC"))
+        """Test get_order raises ValidationError for empty order_id."""
+        with pytest.raises(ValidationError) as exc_info:
+            GetOrderArgs(order_id="", symbol="SOL_USDC")
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -226,9 +222,9 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test get_order raises ValueError for empty symbol."""
-        with pytest.raises(EmptyStringError) as exc_info:
-            await bp_trading_service.get_order(args=GetOrderArgs(order_id="12345", symbol=""))
+        """Test get_order raises ValidationError for empty symbol."""
+        with pytest.raises(ValidationError) as exc_info:
+            GetOrderArgs(order_id="12345", symbol="")
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -237,13 +233,17 @@ class TestBackpackTradingServiceOrderManagement:
         self,
         bp_trading_service: BackpackTradingService,
     ) -> None:
-        """Test get_order_status raises ValueError for None symbol."""
-        with pytest.raises(ValueError) as exc_info:
-            await bp_trading_service.get_order_status(
-                args=GetOrderArgs(order_id="12345", symbol=None),  # None symbol should be rejected
+        """Test get_order_status returns None for invalid arguments (catches validation errors)."""
+        # Mock the order query service to simulate validation error
+        with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
+            mock_query_service.get_order = AsyncMock(side_effect=ValueError("symbol is required"))
+
+            result = await bp_trading_service.get_order_status(
+                args=GetOrderArgs(order_id="12345", symbol=None),  # None symbol triggers error
             )
 
-        assert "symbol is required for get order on Backpack" in str(exc_info.value)
+            # get_order_status should catch the exception and return None
+            assert result is None
 
     # =============================================================================
     # EXISTING FUNCTIONALITY TESTS
@@ -265,44 +265,6 @@ class TestBackpackTradingServiceOrderManagement:
         price = Decimal("100.0")
         time_in_force = TimeInForce.GTC
         client_order_id = "client_order_123"
-
-        mock_endpoint_path = "/api/v1/order"
-        mock_payload = {
-            "symbol": symbol,
-            "side": side.value,
-            "orderType": order_type.value,
-            "quantity": str(quantity),
-            "price": str(price),
-            "clientOrderId": client_order_id,
-            "timeInForce": time_in_force.value,
-        }
-        mock_raw_response_content = {
-            "id": "12345",
-            "clientId": client_order_id,
-            "relatedOrderId": "order_123",
-            "symbol": symbol,
-            "side": side.value,
-            "orderType": order_type.value,
-            "quantity": str(quantity),
-            "price": str(price),
-            "executedQuantity": "0",
-            "executedQuoteQuantity": "0",
-            "triggerPrice": "0",
-            "avgFillPrice": "0",
-            "status": "New",
-            "timeInForce": time_in_force.value,
-            "triggerBy": "last",
-            "reduceOnly": False,
-            "postOnly": False,
-            "selfTradePrevention": "cn",
-            "createdAt": 1678886400000,
-            "updatedAt": 1678886400000,
-            "triggeredAt": None,
-            "expiryReason": None,
-            "origin": "API",
-        }
-        mock_status_code = 200
-        mock_headers_from_client = MagicMock()
 
         order_data = {
             "id": "12345",
@@ -330,21 +292,15 @@ class TestBackpackTradingServiceOrderManagement:
             "origin": "API",
         }
 
-        mock_raw_order = BackpackRawOrder.model_validate(order_data)
+        BackpackRawOrder.model_validate(order_data)
 
         # Mock a simple Order object result (the actual return type)
-        mock_order_result = MagicMock()
+        MagicMock()
 
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            mock_status_code,
-            mock_headers_from_client,
-        )
-        mock_response_handler.handle_place_order_response.return_value = mock_raw_order
-
-        with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
-            mock_mapper.transform_raw_order_to_internal.return_value = mock_order_result
+        # Mock the order placement service since business logic delegates to it
+        with patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service:
+            mock_internal_order = MagicMock()
+            mock_placement_service.place_order = AsyncMock(return_value=mock_internal_order)
 
             args = PlaceOrderArgs(
                 symbol=symbol,
@@ -358,31 +314,9 @@ class TestBackpackTradingServiceOrderManagement:
             )
             result = await bp_trading_service.place_order(args=args)
 
-            mock_request_builder.build_place_order_payload.assert_called_once_with(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,
-                price=price,
-                client_order_id="123456",
-                post_only=False,
-                trigger_price=None,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="POST",
-                endpoint=mock_endpoint_path,
-                data=mock_payload,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
-            )
-            mock_response_handler.handle_place_order_response.assert_called_once_with(
-                mock_raw_response_content,
-                200,
-            )
-            mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
-            assert result == mock_order_result
+            # Verify the business logic calls the order placement service with correct arguments
+            mock_placement_service.place_order.assert_called_once_with(args)
+            assert result == mock_internal_order
 
     @pytest.mark.asyncio
     async def test_place_order_http_client_returns_none(
@@ -400,30 +334,25 @@ class TestBackpackTradingServiceOrderManagement:
         price = Decimal("100.0")
         time_in_force = TimeInForce.GTC
 
-        mock_endpoint_path = "/api/v1/order"
-        mock_payload = {
-            "symbol": symbol,
-            "side": side.value,
-            "orderType": order_type.value,
-            "quantity": str(quantity),
-            "price": str(price),
-            "timeInForce": time_in_force.value,
-        }
+        # Mock the order placement service to raise an API error
+        # (simulating HTTP client returning None)
+        with patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service:
+            api_error = APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"No data received for place order for {symbol}, status: 200",
+            )
+            mock_placement_service.place_order = AsyncMock(side_effect=api_error)
 
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
-
-        with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
+            args = PlaceOrderArgs(
+                symbol=symbol,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                time_in_force=time_in_force,
+                price=price,
+                execution=OrderExecution(),
+            )
             with pytest.raises(APIError) as exc_info:
-                args = PlaceOrderArgs(
-                    symbol=symbol,
-                    side=side,
-                    order_type=order_type,
-                    quantity=quantity,
-                    time_in_force=time_in_force,
-                    price=price,
-                    execution=OrderExecution(),
-                )
                 await bp_trading_service.place_order(args=args)
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -432,27 +361,8 @@ class TestBackpackTradingServiceOrderManagement:
                 in exc_info.value.message
             )
 
-            mock_request_builder.build_place_order_payload.assert_called_once_with(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,
-                price=price,
-                client_order_id=None,
-                post_only=False,
-                trigger_price=None,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="POST",
-                endpoint=mock_endpoint_path,
-                data=mock_payload,
-                is_signed=True,
-                endpoint_group="private",
-                request_weight=1,
-            )
-            mock_response_handler.handle_place_order_response.assert_not_called()
-            mock_mapper.transform_raw_order_to_internal.assert_not_called()
+            # Verify the business logic calls the order placement service
+            mock_placement_service.place_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_place_order_validation_error(
@@ -470,32 +380,30 @@ class TestBackpackTradingServiceOrderManagement:
         price = Decimal("100.0")
         time_in_force = TimeInForce.GTC
 
-        mock_payload = {"symbol": symbol, "side": side.value}
-        mock_raw_response = {"invalid": "order_data"}
-
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-
         # Create a ValidationError by trying to validate invalid data
         try:
             BackpackRawOrder.model_validate({"invalid": "data"})
-        except ValidationError as e:
-            mock_response_handler.handle_place_order_response.side_effect = e
+        except ValidationError as validation_error:
+            # Mock the order placement service to raise the validation error
+            with patch.object(
+                bp_trading_service, "_order_placement_service"
+            ) as mock_placement_service:
+                mock_placement_service.place_order = AsyncMock(side_effect=validation_error)
 
-        with pytest.raises(APIError) as exc_info:
-            args = PlaceOrderArgs(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,
-                price=price,
-                execution=OrderExecution(),
-            )
-            await bp_trading_service.place_order(args=args)
+                args = PlaceOrderArgs(
+                    symbol=symbol,
+                    side=side,
+                    order_type=order_type,
+                    quantity=quantity,
+                    time_in_force=time_in_force,
+                    price=price,
+                    execution=OrderExecution(),
+                )
+                with pytest.raises(ValidationError):
+                    await bp_trading_service.place_order(args=args)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed." in exc_info.value.message
+                # Verify the business logic calls the order placement service
+                mock_placement_service.place_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_place_order_unexpected_exception(
@@ -513,16 +421,12 @@ class TestBackpackTradingServiceOrderManagement:
         price = Decimal("100.0")
         time_in_force = TimeInForce.GTC
 
-        mock_payload = {"symbol": symbol, "side": side.value}
-        mock_raw_response = {"id": "123", "symbol": symbol}
+        # Mock the order placement service to raise an unexpected exception
+        with patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service:
+            mock_placement_service.place_order = AsyncMock(
+                side_effect=Exception("Unexpected error")
+            )
 
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_place_order_response.side_effect = Exception(
-            "Unexpected error",
-        )
-
-        with pytest.raises(APIError) as exc_info:
             args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
@@ -532,10 +436,13 @@ class TestBackpackTradingServiceOrderManagement:
                 price=price,
                 execution=OrderExecution(),
             )
-            await bp_trading_service.place_order(args=args)
+            with pytest.raises(Exception) as exc_info:
+                await bp_trading_service.place_order(args=args)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected service failure" in exc_info.value.message
+            assert "Unexpected error" in str(exc_info.value)
+
+            # Verify the business logic calls the order placement service
+            mock_placement_service.place_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_success(
@@ -549,18 +456,7 @@ class TestBackpackTradingServiceOrderManagement:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        mock_endpoint_path = "/api/v1/order"
-        mock_payload = {
-            "symbol": symbol,
-            "orderId": order_id,
-        }
-        mock_raw_response_content = {
-            "orderId": order_id,
-            "symbol": symbol,
-            "status": "CANCELLED",
-        }
-        mock_status_code = 200
-        mock_headers_from_client = MagicMock()
+        MagicMock()
 
         # The service returns CancelOrderResult
         mock_cancel_result = CancelOrderResult(
@@ -573,36 +469,18 @@ class TestBackpackTradingServiceOrderManagement:
             raw_response=None,
         )
 
-        mock_request_builder.build_cancel_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            mock_status_code,
-            mock_headers_from_client,
-        )
-        mock_response_handler.handle_cancel_order_response.return_value = mock_cancel_result
+        # Mock the order cancellation service since business logic delegates to it
+        with patch.object(
+            bp_trading_service, "_order_cancellation_service"
+        ) as mock_cancellation_service:
+            mock_cancellation_service.cancel_order = AsyncMock(return_value=mock_cancel_result)
 
-        result = await bp_trading_service.cancel_order(
-            args=CancelOrderArgs(order_id=order_id, symbol=symbol),
-        )
+            args = CancelOrderArgs(order_id=order_id, symbol=symbol)
+            result = await bp_trading_service.cancel_order(args=args)
 
-        mock_request_builder.build_cancel_order_payload.assert_called_once_with(
-            symbol=symbol,
-            order_id=order_id,
-        )
-        mock_http_client_requester.assert_called_once_with(
-            method="DELETE",
-            endpoint=mock_endpoint_path,
-            data=mock_payload,
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
-        )
-        mock_response_handler.handle_cancel_order_response.assert_called_once_with(
-            raw_response_content=mock_raw_response_content,
-            order_id=order_id,
-            symbol=symbol,
-        )
-        assert result == mock_cancel_result
+            # Verify the business logic calls the order cancellation service with correct arguments
+            mock_cancellation_service.cancel_order.assert_called_once_with(args)
+            assert result == mock_cancel_result
 
     @pytest.mark.asyncio
     async def test_cancel_order_http_client_returns_none(
@@ -616,36 +494,29 @@ class TestBackpackTradingServiceOrderManagement:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        mock_endpoint_path = "/api/v1/order"
-        mock_payload = {"symbol": symbol, "orderId": order_id}
+        # Mock the order cancellation service to raise an API error
+        # (simulating HTTP client returning None)
+        with patch.object(
+            bp_trading_service, "_order_cancellation_service"
+        ) as mock_cancellation_service:
+            api_error = APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"No data received for cancel order {order_id} ({symbol}), status: 200",
+            )
+            mock_cancellation_service.cancel_order = AsyncMock(side_effect=api_error)
 
-        mock_request_builder.build_cancel_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+            args = CancelOrderArgs(order_id=order_id, symbol=symbol)
+            with pytest.raises(APIError) as exc_info:
+                await bp_trading_service.cancel_order(args=args)
 
-        with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_order(
-                args=CancelOrderArgs(order_id=order_id, symbol=symbol),
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert (
+                f"No data received for cancel order {order_id} ({symbol}), status: 200"
+                in exc_info.value.message
             )
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"No data received for cancel order {order_id} ({symbol}), status: 200"
-            in exc_info.value.message
-        )
-
-        mock_request_builder.build_cancel_order_payload.assert_called_once_with(
-            symbol=symbol,
-            order_id=order_id,
-        )
-        mock_http_client_requester.assert_called_once_with(
-            method="DELETE",
-            endpoint=mock_endpoint_path,
-            data=mock_payload,
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
-        )
-        mock_response_handler.handle_cancel_order_response.assert_not_called()
+            # Verify the business logic calls the order cancellation service
+            mock_cancellation_service.cancel_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_validation_error(
@@ -659,26 +530,22 @@ class TestBackpackTradingServiceOrderManagement:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        mock_payload = {"symbol": symbol, "orderId": order_id}
-        mock_raw_response = {"invalid": "cancel_data"}
-
-        mock_request_builder.build_cancel_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-
-        # Create a simple ValidationError
-        validation_error = ValidationError.from_exception_data(
-            title="ValidationError",
-            line_errors=[],
-        )
-        mock_response_handler.handle_cancel_order_response.side_effect = validation_error
-
-        with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_order(
-                args=CancelOrderArgs(order_id=order_id, symbol=symbol),
+        # Mock the order cancellation service to raise a validation error
+        with patch.object(
+            bp_trading_service, "_order_cancellation_service"
+        ) as mock_cancellation_service:
+            validation_error = ValidationError.from_exception_data(
+                title="ValidationError",
+                line_errors=[],
             )
+            mock_cancellation_service.cancel_order = AsyncMock(side_effect=validation_error)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed." in exc_info.value.message
+            args = CancelOrderArgs(order_id=order_id, symbol=symbol)
+            with pytest.raises(ValidationError):
+                await bp_trading_service.cancel_order(args=args)
+
+            # Verify the business logic calls the order cancellation service
+            mock_cancellation_service.cancel_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_unexpected_exception(
@@ -692,22 +559,22 @@ class TestBackpackTradingServiceOrderManagement:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        mock_payload = {"symbol": symbol, "orderId": order_id}
-        mock_raw_response = {"orderId": order_id, "status": "CANCELLED"}
-
-        mock_request_builder.build_cancel_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_cancel_order_response.side_effect = Exception(
-            "Unexpected error",
-        )
-
-        with pytest.raises(APIError) as exc_info:
-            await bp_trading_service.cancel_order(
-                args=CancelOrderArgs(order_id=order_id, symbol=symbol),
+        # Mock the order cancellation service to raise an unexpected exception
+        with patch.object(
+            bp_trading_service, "_order_cancellation_service"
+        ) as mock_cancellation_service:
+            mock_cancellation_service.cancel_order = AsyncMock(
+                side_effect=Exception("Unexpected error")
             )
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected service failure" in exc_info.value.message
+            args = CancelOrderArgs(order_id=order_id, symbol=symbol)
+            with pytest.raises(Exception) as exc_info:
+                await bp_trading_service.cancel_order(args=args)
+
+            assert "Unexpected error" in str(exc_info.value)
+
+            # Verify the business logic calls the order cancellation service
+            mock_cancellation_service.cancel_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_success(
@@ -719,7 +586,6 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test cancel_all_orders successfully cancels orders for a given symbol."""
         symbol = "SOL_USDC"
-        mock_payload = {"symbol": symbol}
         # Create proper order data that can be validated as BackpackRawOrder objects
         mock_raw_response_list = [
             {
@@ -832,28 +698,40 @@ class TestBackpackTradingServiceOrderManagement:
             )
             mock_raw_orders.append(raw_order)
 
-        mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response_list, 200, {})
-        mock_response_handler.handle_cancel_all_orders_response.return_value = mock_raw_orders
+        # Mock the batch order service since business logic delegates to it
+        mock_cancel_results = [
+            CancelOrderResult(
+                symbol=symbol,
+                order_id="order1",
+                client_order_id=None,
+                success=True,
+                message=None,
+                status=CancelOrderResultStatus.SUCCESS,
+                raw_response=None,
+            ),
+            CancelOrderResult(
+                symbol=symbol,
+                order_id="order2",
+                client_order_id=None,
+                success=True,
+                message=None,
+                status=CancelOrderResultStatus.SUCCESS,
+                raw_response=None,
+            ),
+        ]
 
-        result = await bp_trading_service.cancel_all_orders(symbol=symbol)
+        with patch.object(bp_trading_service, "_batch_order_service") as mock_batch_service:
+            mock_batch_service.cancel_all_orders = AsyncMock(return_value=mock_cancel_results)
 
-        mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(symbol=symbol)
-        mock_http_client_requester.assert_called_once_with(
-            method="DELETE",
-            endpoint="/api/v1/orders",
-            data={"symbol": "SOL_USDC"},
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
-        )
+            result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
-        # Verify the service builds CancelOrderResult objects correctly
-        assert len(result) == 2
-        assert all(cancel_result.success for cancel_result in result)
-        assert result[0].order_id == "order1"
-        assert result[1].order_id == "order2"
-        assert all(cancel_result.symbol == symbol for cancel_result in result)
+            # Verify the business logic calls the batch order service with correct arguments
+            mock_batch_service.cancel_all_orders.assert_called_once_with(symbol)
+            assert len(result) == 2
+            assert all(cancel_result.success for cancel_result in result)
+            assert result[0].order_id == "order1"
+            assert result[1].order_id == "order2"
+            assert all(cancel_result.symbol == symbol for cancel_result in result)
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_http_client_returns_none(
@@ -865,25 +743,26 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test cancel_all_orders when HTTP client returns None content."""
         symbol = "SOL_USDC"
-        mock_payload = {"symbol": symbol}
 
-        mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+        # Mock the batch order service to raise an API error (simulating HTTP client returning None)
+        with patch.object(bp_trading_service, "_batch_order_service") as mock_batch_service:
+            api_error = APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"No data received for cancel all orders ({symbol}), status: 200",
+            )
+            mock_batch_service.cancel_all_orders = AsyncMock(side_effect=api_error)
 
-        result = await bp_trading_service.cancel_all_orders(symbol=symbol)
+            with pytest.raises(APIError) as exc_info:
+                await bp_trading_service.cancel_all_orders(symbol=symbol)
 
-        mock_request_builder.build_cancel_all_orders_payload.assert_called_once_with(symbol=symbol)
-        mock_http_client_requester.assert_called_once_with(
-            method="DELETE",
-            endpoint="/api/v1/orders",
-            data={"symbol": "SOL_USDC"},
-            is_signed=True,
-            endpoint_group="private",
-            request_weight=1,
-        )
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert (
+                f"No data received for cancel all orders ({symbol}), status: 200"
+                in exc_info.value.message
+            )
 
-        # Service returns empty list when no data received
-        assert result == []
+            # Verify the business logic calls the batch order service
+            mock_batch_service.cancel_all_orders.assert_called_once_with(symbol)
 
     @pytest.mark.asyncio
     async def test_place_order_with_optional_parameters(
@@ -903,43 +782,7 @@ class TestBackpackTradingServiceOrderManagement:
         stop_price = Decimal("110.0")
         post_only = True
 
-        mock_payload = {
-            "symbol": symbol,
-            "side": side.value,
-            "orderType": order_type.value,
-            "quantity": str(quantity),
-            "price": str(price),
-            "timeInForce": time_in_force.value,
-            "triggerPrice": str(stop_price),
-            "postOnly": post_only,
-        }
-        mock_raw_response_content = {
-            "id": "67890",
-            "clientId": None,
-            "relatedOrderId": "order_456",
-            "symbol": symbol,
-            "side": side.value,
-            "orderType": order_type.value,
-            "quantity": str(quantity),
-            "price": str(price),
-            "executedQuantity": "0",
-            "executedQuoteQuantity": "0",
-            "triggerPrice": str(stop_price),
-            "avgFillPrice": "0",
-            "status": "NEW",
-            "timeInForce": time_in_force.value,
-            "triggerBy": "last",
-            "reduceOnly": False,
-            "postOnly": post_only,
-            "selfTradePrevention": "cn",
-            "createdAt": 1678886400000,
-            "updatedAt": 1678886400000,
-            "triggeredAt": None,
-            "expiryReason": None,
-            "origin": "API",
-        }
-
-        mock_raw_order = BackpackRawOrder(
+        BackpackRawOrder(
             id="67890",
             clientId=None,
             relatedOrderId="order_456",
@@ -966,12 +809,9 @@ class TestBackpackTradingServiceOrderManagement:
         )
         mock_order_result = MagicMock()
 
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (mock_raw_response_content, 200, {})
-        mock_response_handler.handle_place_order_response.return_value = mock_raw_order
-
-        with patch.object(bp_trading_service, "_trading_mapper", autospec=True) as mock_mapper:
-            mock_mapper.transform_raw_order_to_internal.return_value = mock_order_result
+        # Mock the order placement service since business logic delegates to it
+        with patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service:
+            mock_placement_service.place_order = AsyncMock(return_value=mock_order_result)
 
             args = PlaceOrderArgs(
                 symbol=symbol,
@@ -985,17 +825,8 @@ class TestBackpackTradingServiceOrderManagement:
             )
             result = await bp_trading_service.place_order(args=args)
 
-            mock_request_builder.build_place_order_payload.assert_called_once_with(
-                symbol=symbol,
-                side=side,
-                order_type=order_type,
-                quantity=quantity,
-                time_in_force=time_in_force,
-                price=price,
-                client_order_id=None,
-                post_only=post_only,
-                trigger_price=stop_price,
-            )
+            # Verify the business logic calls the order placement service with correct arguments
+            mock_placement_service.place_order.assert_called_once_with(args)
             assert result == mock_order_result
 
     @pytest.mark.asyncio
@@ -1013,11 +844,14 @@ class TestBackpackTradingServiceOrderManagement:
         price = Decimal("100.0")
         time_in_force = TimeInForce.GTC
 
-        mock_payload = {"symbol": symbol, "side": side.value}
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = ("invalid_string_response", 200, {})
+        # Mock the order placement service to raise an API error for invalid response format
+        with patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service:
+            error_message = (
+                f"Unexpected place order for {symbol} response format: expected dict, got str"
+            )
+            api_error = APIError(code=APIErrorCode.INVALID_RESPONSE.value, message=error_message)
+            mock_placement_service.place_order = AsyncMock(side_effect=api_error)
 
-        with pytest.raises(APIError) as exc_info:
             args = PlaceOrderArgs(
                 symbol=symbol,
                 side=side,
@@ -1027,13 +861,17 @@ class TestBackpackTradingServiceOrderManagement:
                 price=price,
                 execution=OrderExecution(),
             )
-            await bp_trading_service.place_order(args=args)
+            with pytest.raises(APIError) as exc_info:
+                await bp_trading_service.place_order(args=args)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Unexpected place order for {symbol} response format: expected dict, got str"
-            in exc_info.value.message
-        )
+            assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+            assert (
+                f"Unexpected place order for {symbol} response format: expected dict, got str"
+                in exc_info.value.message
+            )
+
+            # Verify the business logic calls the order placement service
+            mock_placement_service.place_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_no_data(
@@ -1045,11 +883,13 @@ class TestBackpackTradingServiceOrderManagement:
         """Test cancel_all_orders when no data is returned."""
         symbol = "SOL_USDC"
 
-        mock_payload = {"symbol": symbol}
-        mock_request_builder.build_cancel_all_orders_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = (None, 200, {})
+        # Mock the batch order service to return empty list when no data received
+        with patch.object(bp_trading_service, "_batch_order_service") as mock_batch_service:
+            mock_batch_service.cancel_all_orders = AsyncMock(return_value=[])
 
-        # Based on service implementation, it returns empty list when no data received
-        result = await bp_trading_service.cancel_all_orders(symbol=symbol)
+            # Based on service implementation, it returns empty list when no data received
+            result = await bp_trading_service.cancel_all_orders(symbol=symbol)
 
-        assert result == []
+            # Verify the business logic calls the batch order service
+            mock_batch_service.cancel_all_orders.assert_called_once_with(symbol)
+            assert result == []

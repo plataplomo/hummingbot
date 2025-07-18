@@ -104,8 +104,8 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         Returns:
             Formatted symbol string
         """
-        # Backpack expects symbols in uppercase
-        return symbol.upper()
+        # Backpack expects symbols in uppercase with underscores (e.g., SOL_USDC)
+        return symbol.replace("-", "_").upper()
 
     @staticmethod
     def build_get_ticker_params(symbol: str) -> BackpackRawGetTickerParams:

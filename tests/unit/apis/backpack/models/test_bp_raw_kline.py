@@ -159,8 +159,8 @@ def test_invalid_structure_list_length() -> None:
         (10, "taker_buy_quote_volume", "NaN", ValidationError, "must represent a finite decimal"),
         # --- ignored validation (index 11) ---
         (11, "ignored", 0, KlineTypeError, "Raw value must be a string"),
-        (11, "ignored", "", EmptyStringError, "String cannot be empty"),
-        (11, "ignored", "a" * 65, TypeFieldError, "must be string with max length 64"),
+        (11, "ignored", "", ValidationError, "String cannot be empty or whitespace"),
+        (11, "ignored", "a" * 65, ValidationError, "string_too_long"),
     ],
 )
 def test_field_validation_failures(

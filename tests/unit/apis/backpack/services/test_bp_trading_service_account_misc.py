@@ -2,24 +2,28 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-    BackpackRawGetOpenOrdersParams,
-    BackpackRawGetOrderParams,
-)
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     GetOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.models.enums import CancelOrderResultStatus, OrderSide, OrderType, TimeInForce
-from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.models.enums import (
+    CancelOrderResultStatus,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeInForce,
+)
+from cyberdelta.core.models.market.order import CancelOrderResult, Order
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Import fixtures from the shared conftest
@@ -50,7 +54,7 @@ class TestBackpackTradingServiceAccountMisc:
 
         # Set up mocks for a get_open_orders call
         symbol = "SOL_USDC"
-        mock_raw_order = BackpackRawOrder(
+        BackpackRawOrder(
             id="123",
             clientId="client_123",
             relatedOrderId="rel_123",
@@ -75,23 +79,38 @@ class TestBackpackTradingServiceAccountMisc:
             expiryReason=None,
             origin="API",
         )
-        mock_custom_result = "custom_mapper_result"
-
-        mock_request_builder.build_get_open_orders_params.return_value = (
-            BackpackRawGetOpenOrdersParams(symbol=symbol)
+        # Create a proper Order object for the mock result
+        mock_custom_result = Order(
+            client_order_id="client_123",
+            exchange_order_id="123",
+            symbol=symbol,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity_requested=Decimal("10.0"),
+            quantity_filled=Decimal(0),
+            price=Decimal("100.0"),
+            average_fill_price=None,
+            status=OrderStatus.OPEN,
+            time_in_force=TimeInForce.GTC,
+            exchange=ExchangeName.BACKPACK.value,
+            created_at=datetime.fromtimestamp(1678886400, UTC),
+            updated_at=datetime.fromtimestamp(1678886400, UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        mock_http_client_requester.return_value = ([{"id": "123"}], 200, {})
-        mock_response_handler.handle_get_open_orders_response.return_value = [mock_raw_order]
-        mock_order_mapper.transform_raw_order_to_internal.return_value = mock_custom_result
 
-        # Test that the service uses the custom mapper
-        result = await service.get_open_orders(symbol=symbol)
+        # Mock the order query service since business logic delegates to it
+        with patch.object(service, "_order_query_service") as mock_query_service:
+            mock_query_service.get_open_orders = AsyncMock(return_value=[mock_custom_result])
 
-        # Verify the custom mapper was called and returned our custom result
-        mock_order_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
-        assert len(result) == 1
-        # The result is whatever the custom mapper returned
-        assert result is not None
+            # Test that the service uses the order query service
+            result = await service.get_open_orders(symbol=symbol)
+
+            # Verify the order query service was called with correct arguments
+            mock_query_service.get_open_orders.assert_called_once_with(symbol)
+            assert len(result) == 1
+            assert result[0] == mock_custom_result
 
     @pytest.mark.asyncio
     async def test_service_with_default_mapper_transforms_data_correctly(
@@ -113,7 +132,7 @@ class TestBackpackTradingServiceAccountMisc:
 
         # Set up mocks for a get_open_orders call
         symbol = "SOL_USDC"
-        mock_raw_order = BackpackRawOrder(
+        BackpackRawOrder(
             id="123",
             symbol=symbol,
             side="Buy",
@@ -139,14 +158,13 @@ class TestBackpackTradingServiceAccountMisc:
             origin=None,
         )
 
-        mock_request_builder.build_get_open_orders_params.return_value = (
-            BackpackRawGetOpenOrdersParams(symbol=symbol)
-        )
-        mock_http_client_requester.return_value = ([{"id": "123"}], 200, {})
-        mock_response_handler.handle_get_open_orders_response.return_value = [mock_raw_order]
+        # Mock the order query service since business logic delegates to it
+        with patch.object(service, "_order_query_service") as mock_query_service:
+            mock_internal_order = MagicMock()
+            mock_query_service.get_open_orders = AsyncMock(return_value=[mock_internal_order])
 
-        # Test that the service can successfully transform data (indicating a working mapper)
-        result = await service.get_open_orders(symbol=symbol)
+            # Test that the service can successfully transform data (indicating a working mapper)
+            result = await service.get_open_orders(symbol=symbol)
 
         # Verify that we got a result, indicating the default mapper worked
         assert result is not None
@@ -170,9 +188,8 @@ class TestBackpackTradingServiceAccountMisc:
         price = Decimal("100.0")
         time_in_force = TimeInForce.GTC
 
-        mock_payload = {"symbol": symbol, "side": side.value}
         # Convert internal OrderSide to Backpack side format
-        mock_raw_order = BackpackRawOrder(
+        BackpackRawOrder(
             id="123",
             symbol=symbol,
             side="Buy",
@@ -198,28 +215,25 @@ class TestBackpackTradingServiceAccountMisc:
             origin=None,
         )
 
-        mock_request_builder.build_place_order_payload.return_value = mock_payload
-        mock_http_client_requester.return_value = ({"id": "123"}, 200, {})
-        mock_response_handler.handle_place_order_response.return_value = mock_raw_order
+        # Mock the order placement service since business logic delegates to it
+        with patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service:
+            mock_internal_order = MagicMock()
+            mock_placement_service.place_order = AsyncMock(return_value=mock_internal_order)
 
-        # Test that the service can place orders (requires authentication)
-        place_order_args = PlaceOrderArgs(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            time_in_force=time_in_force,
-            price=price,
-        )
-        result = await bp_trading_service.place_order(args=place_order_args)
+            # Test that the service can place orders (requires authentication)
+            place_order_args = PlaceOrderArgs(
+                symbol=symbol,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                time_in_force=time_in_force,
+                price=price,
+            )
+            result = await bp_trading_service.place_order(args=place_order_args)
 
-        # Verify the authenticated request was made correctly
-        mock_http_client_requester.assert_called_once()
-        call_args = mock_http_client_requester.call_args
-        assert call_args[1]["is_signed"] is True
-        assert call_args[1]["method"] == "POST"
-        assert call_args[1]["endpoint"] == "/api/v1/order"
-        assert result is not None
+            # Verify the order placement service was called with correct arguments
+            mock_placement_service.place_order.assert_called_once_with(place_order_args)
+            assert result == mock_internal_order
 
     @pytest.mark.asyncio
     async def test_service_handles_query_operations_correctly(
@@ -233,7 +247,7 @@ class TestBackpackTradingServiceAccountMisc:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        mock_raw_order = BackpackRawOrder(
+        BackpackRawOrder(
             id=order_id,
             symbol=symbol,
             side="Buy",
@@ -259,24 +273,18 @@ class TestBackpackTradingServiceAccountMisc:
             origin=None,
         )
 
-        mock_request_builder.build_get_order_params.return_value = BackpackRawGetOrderParams(
-            symbol=symbol,
-        )
-        mock_http_client_requester.return_value = ({"id": order_id}, 200, {})
-        mock_response_handler.handle_get_order_response.return_value = mock_raw_order
+        # Mock the order query service since business logic delegates to it
+        with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
+            mock_internal_order = MagicMock()
+            mock_query_service.get_order = AsyncMock(return_value=mock_internal_order)
 
-        # Test that the service can query order status
-        result = await bp_trading_service.get_order(
-            args=GetOrderArgs(order_id=order_id, symbol=symbol),
-        )
+            # Test that the service can query order status
+            get_order_args = GetOrderArgs(order_id=order_id, symbol=symbol)
+            result = await bp_trading_service.get_order(args=get_order_args)
 
-        # Verify the query request was made correctly
-        mock_http_client_requester.assert_called_once()
-        call_args = mock_http_client_requester.call_args
-        assert call_args[1]["is_signed"] is True
-        assert call_args[1]["method"] == "GET"
-        assert call_args[1]["endpoint"] == f"/api/v1/order/{order_id}"
-        assert result is not None
+            # Verify the order query service was called with correct arguments
+            mock_query_service.get_order.assert_called_once_with(get_order_args)
+            assert result == mock_internal_order
 
     @pytest.mark.asyncio
     async def test_service_handles_cancellation_operations_correctly(
@@ -290,16 +298,7 @@ class TestBackpackTradingServiceAccountMisc:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        mock_request_builder.build_cancel_order_payload.return_value = {
-            "symbol": symbol,
-            "orderId": order_id,
-        }
-        mock_http_client_requester.return_value = (
-            {"orderId": order_id, "status": "CANCELLED"},
-            200,
-            {},
-        )
-        mock_response_handler.handle_cancel_order_response.return_value = CancelOrderResult(
+        mock_cancel_result = CancelOrderResult(
             symbol=symbol,
             order_id=order_id,
             client_order_id=None,
@@ -309,18 +308,19 @@ class TestBackpackTradingServiceAccountMisc:
             raw_response=None,
         )
 
-        # Test that the service can cancel orders
-        result = await bp_trading_service.cancel_order(
-            args=CancelOrderArgs(order_id=order_id, symbol=symbol),
-        )
+        # Mock the order cancellation service since business logic delegates to it
+        with patch.object(
+            bp_trading_service, "_order_cancellation_service"
+        ) as mock_cancellation_service:
+            mock_cancellation_service.cancel_order = AsyncMock(return_value=mock_cancel_result)
 
-        # Verify the cancellation request was made correctly
-        mock_http_client_requester.assert_called_once()
-        call_args = mock_http_client_requester.call_args
-        assert call_args[1]["is_signed"] is True
-        assert call_args[1]["method"] == "DELETE"
-        assert call_args[1]["endpoint"] == "/api/v1/order"
-        assert result.success is True
+            # Test that the service can cancel orders
+            cancel_order_args = CancelOrderArgs(order_id=order_id, symbol=symbol)
+            result = await bp_trading_service.cancel_order(args=cancel_order_args)
+
+            # Verify the order cancellation service was called with correct arguments
+            mock_cancellation_service.cancel_order.assert_called_once_with(cancel_order_args)
+            assert result.success is True
 
     @pytest.mark.asyncio
     async def test_service_handles_bulk_operations_correctly(
@@ -331,76 +331,20 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test that the service properly handles bulk operations like getting all open orders."""
-        mock_raw_orders = [
-            BackpackRawOrder(
-                id="order_1",
-                symbol="SOL_USDC",
-                side="Buy",
-                orderType="LIMIT",
-                status="NEW",
-                quantity="10.0",
-                price="20.0",
-                createdAt="2024-01-15T10:30:00Z",
-                clientId=None,
-                executedQuantity="0.0",
-                executedQuoteQuantity="0.0",
-                timeInForce="GTC",
-                reduceOnly=False,
-                postOnly=False,
-                selfTradePrevention=None,
-                relatedOrderId=None,
-                avgFillPrice=None,
-                triggerPrice=None,
-                triggerBy=None,
-                updatedAt=None,
-                triggeredAt=None,
-                expiryReason=None,
-                origin=None,
-            ),
-            BackpackRawOrder(
-                id="order_2",
-                symbol="ETH_USDC",
-                side="Sell",
-                orderType="MARKET",
-                status="NEW",
-                quantity="5.0",
-                price=None,
-                createdAt="2024-01-15T10:30:00Z",
-                clientId=None,
-                executedQuantity="0.0",
-                executedQuoteQuantity="0.0",
-                timeInForce="GTC",
-                reduceOnly=False,
-                postOnly=False,
-                selfTradePrevention=None,
-                relatedOrderId=None,
-                avgFillPrice=None,
-                triggerPrice=None,
-                triggerBy=None,
-                updatedAt=None,
-                triggeredAt=None,
-                expiryReason=None,
-                origin=None,
-            ),
-        ]
+        # Note: Mock raw orders not needed as business logic delegates to order query service
 
-        mock_request_builder.build_get_open_orders_params.return_value = (
-            BackpackRawGetOpenOrdersParams(symbol=None)
-        )
-        mock_http_client_requester.return_value = ([{"id": "order_1"}, {"id": "order_2"}], 200, {})
-        mock_response_handler.handle_get_open_orders_response.return_value = mock_raw_orders
+        # Mock the order query service since business logic delegates to it
+        with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
+            mock_internal_orders = [MagicMock(), MagicMock()]
+            mock_query_service.get_open_orders = AsyncMock(return_value=mock_internal_orders)
 
-        # Test that the service can get all open orders
-        result = await bp_trading_service.get_open_orders()
+            # Test that the service can get all open orders
+            result = await bp_trading_service.get_open_orders()
 
-        # Verify the bulk query request was made correctly
-        mock_http_client_requester.assert_called_once()
-        call_args = mock_http_client_requester.call_args
-        assert call_args[1]["is_signed"] is True
-        assert call_args[1]["method"] == "GET"
-        assert call_args[1]["endpoint"] == "/api/v1/orders"
-        assert result is not None
-        assert len(result) == 2
+            # Verify the order query service was called with correct arguments
+            mock_query_service.get_open_orders.assert_called_once_with(None)
+            assert result is not None
+            assert len(result) == 2
 
     @pytest.mark.asyncio
     async def test_service_properly_configured_for_trading_operations(
@@ -414,76 +358,49 @@ class TestBackpackTradingServiceAccountMisc:
         # Test multiple operations to ensure the service is properly set up
         symbol = "SOL_USDC"
 
-        # 1. Test getting open orders
-        mock_request_builder.build_get_open_orders_params.return_value = (
-            BackpackRawGetOpenOrdersParams(symbol=symbol)
-        )
-        mock_http_client_requester.return_value = ([], 200, {})
-        mock_response_handler.handle_get_open_orders_response.return_value = []
+        # Mock all decomposed services for end-to-end testing
+        with (
+            patch.object(bp_trading_service, "_order_query_service") as mock_query_service,
+            patch.object(bp_trading_service, "_order_placement_service") as mock_placement_service,
+            patch.object(
+                bp_trading_service, "_order_cancellation_service"
+            ) as mock_cancellation_service,
+        ):
+            # 1. Test getting open orders
+            mock_query_service.get_open_orders = AsyncMock(return_value=[])
+            open_orders = await bp_trading_service.get_open_orders(symbol=symbol)
+            assert open_orders == []
+            mock_query_service.get_open_orders.assert_called_with(symbol)
 
-        open_orders = await bp_trading_service.get_open_orders(symbol=symbol)
-        assert open_orders == []
+            # 2. Test placing an order
+            mock_internal_order = MagicMock()
+            mock_placement_service.place_order = AsyncMock(return_value=mock_internal_order)
+            place_order_args = PlaceOrderArgs(
+                symbol=symbol,
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("10.0"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100.0"),
+            )
+            placed_order = await bp_trading_service.place_order(args=place_order_args)
+            assert placed_order is not None
+            mock_placement_service.place_order.assert_called_with(place_order_args)
 
-        # 2. Test placing an order
-        mock_request_builder.build_place_order_payload.return_value = {"symbol": symbol}
-        mock_raw_order = BackpackRawOrder(
-            id="123",
-            symbol=symbol,
-            side="Buy",
-            orderType="LIMIT",
-            status="NEW",
-            quantity="10.0",
-            price="100.0",
-            createdAt="2024-01-15T10:30:00Z",
-            clientId=None,
-            executedQuantity="0.0",
-            executedQuoteQuantity="0.0",
-            timeInForce="GTC",
-            reduceOnly=False,
-            postOnly=False,
-            selfTradePrevention=None,
-            relatedOrderId=None,
-            avgFillPrice=None,
-            triggerPrice=None,
-            triggerBy=None,
-            updatedAt=None,
-            triggeredAt=None,
-            expiryReason=None,
-            origin=None,
-        )
-        mock_http_client_requester.return_value = ({"id": "123"}, 200, {})
-        mock_response_handler.handle_place_order_response.return_value = mock_raw_order
-
-        place_order_args = PlaceOrderArgs(
-            symbol=symbol,
-            side=OrderSide.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=Decimal("10.0"),
-            time_in_force=TimeInForce.GTC,
-            price=Decimal("100.0"),
-        )
-        placed_order = await bp_trading_service.place_order(args=place_order_args)
-        assert placed_order is not None
-
-        # 3. Test cancelling an order
-        mock_request_builder.build_cancel_order_payload.return_value = {
-            "symbol": symbol,
-            "orderId": "123",
-        }
-        mock_http_client_requester.return_value = ({"status": "CANCELLED"}, 200, {})
-        mock_response_handler.handle_cancel_order_response.return_value = CancelOrderResult(
-            symbol=symbol,
-            order_id="123",
-            client_order_id=None,
-            success=True,
-            message=None,
-            status=CancelOrderResultStatus.SUCCESS,
-            raw_response=None,
-        )
-
-        cancelled = await bp_trading_service.cancel_order(
-            args=CancelOrderArgs(order_id="123", symbol=symbol),
-        )
-        assert cancelled.success is True
+            # 3. Test cancelling an order
+            mock_cancel_result = CancelOrderResult(
+                symbol=symbol,
+                order_id="123",
+                client_order_id=None,
+                success=True,
+                message=None,
+                status=CancelOrderResultStatus.SUCCESS,
+                raw_response=None,
+            )
+            mock_cancellation_service.cancel_order = AsyncMock(return_value=mock_cancel_result)
+            cancel_args = CancelOrderArgs(order_id="123", symbol=symbol)
+            cancelled = await bp_trading_service.cancel_order(args=cancel_args)
+            assert cancelled.success is True
+            mock_cancellation_service.cancel_order.assert_called_with(cancel_args)
 
         # If we reach here, the service is properly configured for all trading operations

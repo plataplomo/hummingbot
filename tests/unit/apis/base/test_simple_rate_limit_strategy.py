@@ -149,7 +149,8 @@ class TestSimpleTokenBucketStrategy:
 
         await strategy.prepare_and_acquire(request_context)
         # Method returns None as it doesn't modify the payload
-        assert real_limiter.tokens == 7.0  # 10 - 3 = 7
+        # Use approximate comparison due to token bucket refill timing
+        assert abs(real_limiter.tokens - 7.0) < 0.1  # Should be approximately 7.0 (10 - 3)
 
     @pytest.mark.asyncio
     async def test_limiter_wait_time_propagation(self, mock_limiter: AsyncMock) -> None:

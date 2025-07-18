@@ -346,7 +346,7 @@ class TestTransferTransformation:
         # Verify the error details
         assert "raw_transfer_response" in str(exc_info.value)
         assert "Transfer" in str(exc_info.value)
-        assert "Missing 'id' in raw transfer response" in str(exc_info.value)
+        assert "id is required for transfer_response" in str(exc_info.value)
 
     def test_transform_raw_transfer_invalid_response_type_raises_error(
         self,
@@ -367,7 +367,7 @@ class TestTransferTransformation:
         # Verify the error details
         assert "raw_transfer_response" in str(exc_info.value)
         assert "Transfer" in str(exc_info.value)
-        assert "Raw transfer response is not a dict" in str(exc_info.value)
+        assert "Invalid mapping for raw_response: Expected dict, got str" in str(exc_info.value)
 
     def test_transform_raw_transfer_none_status_handled_gracefully(
         self,
@@ -884,21 +884,25 @@ class TestWebSocketPositionUpdateTransformation:
         position_mapper: BackpackPositionMapper,
     ) -> None:
         """Test WebSocket position update with zero quantity."""
-        raw_position_update = create_raw_position_update(q="0.0")
+        raw_position_update = create_raw_position_update(
+            q="0.0", B=None
+        )  # entry_price must be None for zero size
 
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
         )
 
         assert result.size == Decimal("0.0")
-        assert result.side == OrderSide.SELL  # Zero defaults to SELL
+        assert result.side == OrderSide.BUY  # Zero defaults to BUY (>= 0)
 
     def test_transform_ws_position_update_missing_net_quantity_handled_gracefully(
         self,
         position_mapper: BackpackPositionMapper,
     ) -> None:
         """Test that missing net quantity defaults to zero gracefully."""
-        raw_position_update = create_raw_position_update(q=None)  # No net quantity
+        raw_position_update = create_raw_position_update(
+            q=None, B=None
+        )  # No net quantity, no entry price
 
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
@@ -906,7 +910,7 @@ class TestWebSocketPositionUpdateTransformation:
 
         assert isinstance(result, DerivativePosition)
         assert result.size == Decimal("0.0")
-        assert result.side == OrderSide.SELL  # Zero defaults to SELL
+        assert result.side == OrderSide.BUY  # Zero defaults to BUY (>= 0)
         assert result.entry_price is None  # Entry price should be None for zero size
 
     def test_transform_ws_position_update_transformation_error(
@@ -928,7 +932,7 @@ class TestWebSocketPositionUpdateTransformation:
                 )
 
             # Verify the error details
-            assert "Failed to transform WebSocket position update to internal" in str(
+            assert "Failed to transform BackpackRawPositionUpdate to DerivativePosition" in str(
                 exc_info.value
             )
 

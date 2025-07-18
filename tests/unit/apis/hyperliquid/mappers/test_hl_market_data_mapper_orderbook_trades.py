@@ -170,7 +170,7 @@ class TestTransformRawOrderBook:
     ) -> None:
         """Test order book transformation with depth limit."""
         raw_book = hyperliquid_raw_l2_book_eth_fixture
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
+        order_book = market_data_mapper.transform_raw_l2_book_to_internal(raw_book, depth=2)
 
         assert isinstance(order_book, OrderBook)
         # Should only have top 2 levels
@@ -244,7 +244,7 @@ class TestTransformRawOrderBook:
     ) -> None:
         """Test order book transformation with zero depth limit."""
         raw_book = hyperliquid_raw_l2_book_eth_fixture
-        order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
+        order_book = market_data_mapper.transform_raw_l2_book_to_internal(raw_book, depth=0)
 
         # Should return empty order book
         assert len(order_book.bids) == 0
@@ -344,10 +344,9 @@ class TestTransformRawPublicTradeToInternal:
             users=["0x1234567890abcdef"],
         )
 
-        # Mock the static method on the class
-        mock_map_side = mocker.patch.object(
-            HyperliquidOrderBookMapper,
-            "_map_side_to_internal",
+        # Mock the imported utility function
+        mock_map_side = mocker.patch(
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper.map_side_to_internal",
             side_effect=TransformationError("Unknown Hyperliquid order side: 'X'"),
         )
 

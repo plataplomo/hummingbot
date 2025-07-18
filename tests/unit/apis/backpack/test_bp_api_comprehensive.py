@@ -193,7 +193,7 @@ class TestBackpackAPIPublicBehavior:
 
             assert result == mock_order_book
             assert result.symbol == "SOL_USDC"
-            mock_get_order_book.assert_called_once_with(symbol="SOL_USDC", limit=50)
+            mock_get_order_book.assert_called_once_with("SOL_USDC", 50)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -359,7 +359,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.place_order(place_order_args)
 
             # Verify that the service was called with the args
-            mock_place_order.assert_called_once_with(args=place_order_args)
+            mock_place_order.assert_called_once_with(place_order_args)
 
         # The actual warning happens inside the service implementation
         # Since we're mocking the service, we won't see the warning
@@ -414,7 +414,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.cancel_order(cancel_args)
 
             assert result.success is True
-            mock_cancel.assert_called_once_with(args=cancel_args)
+            mock_cancel.assert_called_once_with(cancel_args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_requires_symbol(
@@ -660,7 +660,7 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(
             backpack_api.trading_service,
-            "get_order_status",
+            "get_order",
             return_value=mock_order,
         ):
             result = await backpack_api.get_order_status(
@@ -847,7 +847,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.get_market(args)
 
             # Verify delegation
-            mock_service_method.assert_called_once_with(args=args)
+            mock_service_method.assert_called_once_with(args)
             assert result == mock_market
 
     @pytest.mark.asyncio
@@ -872,7 +872,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.get_markets(args)
 
             # Verify delegation
-            mock_service_method.assert_called_once_with(args=args)
+            mock_service_method.assert_called_once_with(args)
             assert result == mock_markets
 
     @pytest.mark.asyncio
@@ -888,15 +888,16 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(
             backpack_api.trading_service,
-            "get_all_open_orders",
+            "get_open_orders",
             return_value=mock_orders,
-        ):
+        ) as mock_get_open_orders:
             result = await backpack_api.get_all_open_orders(
                 args=GetAllOpenOrdersArgs(symbol="SOL_USDC"),
             )
 
             assert result == mock_orders
             assert len(result) == 7
+            mock_get_open_orders.assert_called_once_with("SOL_USDC")
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -980,7 +981,7 @@ class TestBackpackAPIPublicBehavior:
             result = await backpack_api.get_historical_funding_rates(args)
 
             # Verify the service was called with the args
-            mock_get_historical_funding_rates.assert_called_once_with(args=args)
+            mock_get_historical_funding_rates.assert_called_once_with(args)
 
         # Should return a list with one funding rate
         assert isinstance(result, list)

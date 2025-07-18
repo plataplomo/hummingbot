@@ -258,14 +258,14 @@ class BackpackAccountService:
 
     # Trade History Operations
 
-    async def get_trade_history(self, get_trade_history_args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Retrieve historical trades based on the provided arguments.
 
         Delegates to the transaction history service component.
         """
-        return await self._transaction_history_service.get_trade_history(get_trade_history_args)
+        return await self._transaction_history_service.get_trade_history(args)
 
-    async def get_order_history(self, get_order_history_args: GetOrderHistoryArgs) -> list[Order]:
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieve historical orders based on the provided arguments.
 
         Note: Backpack doesn't have a separate order history endpoint,

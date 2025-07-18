@@ -171,7 +171,7 @@ class TestBuildGetMarketDataParams:
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": symbol_spot, "interval": "1h", "startTime": 1609459200, "limit": 100}
+        expected = {"symbol": symbol_spot, "interval": "1h", "startTime": 1609459, "limit": 100}
         assert params_dict == expected
 
     def test_build_get_market_data_params_with_times(
@@ -210,7 +210,7 @@ class TestBuildGetMarketDataParams:
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": "SOL_USDC", "interval": "1m", "limit": 200}
+        expected = {"symbol": "SOL_USDC", "interval": "1m", "startTime": 1609459, "limit": 200}
         assert params_dict == expected
 
     @pytest.mark.parametrize(
@@ -239,7 +239,12 @@ class TestBuildGetMarketDataParams:
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": symbol_spot, "interval": expected_interval, "limit": limit}
+        expected = {
+            "symbol": symbol_spot,
+            "interval": expected_interval,
+            "startTime": 1609459,
+            "limit": limit,
+        }
         assert params_dict == expected
 
 

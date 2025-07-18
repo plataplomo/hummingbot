@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.base.ws_context import (
     BackpackMessageContext,
     ExchangeType,
@@ -147,9 +148,10 @@ class TestPydanticWebSocketProcessor:
         # Setup
         handler = AsyncMock()
         payload = {"id": "test-123", "value": 42, "data": {"key": "value"}}
-        # Create a mock typed context
+        # Create a proper envelope
+        envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
-            validated_envelope=MagicMock(),  # Mock envelope
+            validated_envelope=envelope,
             exchange_type=ExchangeType.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
@@ -164,12 +166,14 @@ class TestPydanticWebSocketProcessor:
         # Verify
         handler.assert_called_once()
         args, _ = handler.call_args
-        processed_data, typed_context = args
+        typed_context = args[0]
 
-        # Check transformed data
-        assert processed_data["message_id"] == "test-123"
-        assert processed_data["processed_value"] == 84  # 42 * 2
-        assert processed_data["metadata"] == {"key": "value"}
+        # Check transformed data is in context.domain_model
+        assert hasattr(typed_context, "domain_model")
+        processed_data = typed_context.domain_model
+        assert processed_data.message_id == "test-123"
+        assert processed_data.processed_value == 84  # 42 * 2
+        assert processed_data.metadata == {"key": "value"}
         assert isinstance(typed_context, BackpackMessageContext)
         assert typed_context.routing_key == "test"
 
@@ -192,9 +196,21 @@ class TestPydanticWebSocketProcessor:
         """Test handling of validation errors."""
         # Setup
         handler = AsyncMock()
-        invalid_payload = {"id": "test", "value": "not-an-int"}  # Invalid value type
+        invalid_payload: dict[str, Any] = {
+            "id": "test",
+            "value": "not-an-int",
+            "data": {},
+        }  # Invalid value type
+        # Create a mock envelope to avoid circular reference
+        envelope = MagicMock(spec=BackpackRawWebSocketEnvelope)
+        envelope.stream = "ticker.BTC_USDC"
+        envelope.data = {"test": "data"}
+        envelope.model_dump = MagicMock(
+            return_value={"stream": "ticker.BTC_USDC", "data": {"test": "data"}}
+        )
+
         context = BackpackMessageContext(
-            validated_envelope=MagicMock(),
+            validated_envelope=envelope,
             exchange_type=ExchangeType.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
@@ -214,7 +230,10 @@ class TestPydanticWebSocketProcessor:
         call_args = error_handler.handle_validation_error.call_args
         assert isinstance(call_args.kwargs["error"], ValidationError)
         assert call_args.kwargs["payload"] == invalid_payload
-        assert call_args.kwargs["context"] == context
+        # Context should be converted to dict by the processor
+        assert isinstance(call_args.kwargs["context"], dict)
+        assert call_args.kwargs["context"]["routing_key"] == context.routing_key
+        assert call_args.kwargs["context"]["message_id"] == context.message_id
 
         # Check metrics
         assert processor.metrics.validation_errors == 1
@@ -235,8 +254,10 @@ class TestPydanticWebSocketProcessor:
 
         handler = AsyncMock()
         payload: dict[str, Any] = {"id": "test-123", "value": 42, "data": {}}
+        # Create a proper envelope
+        envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
-            validated_envelope=MagicMock(),
+            validated_envelope=envelope,
             exchange_type=ExchangeType.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
@@ -267,8 +288,10 @@ class TestPydanticWebSocketProcessor:
         handler = AsyncMock()
         handler.side_effect = RuntimeError("Handler failed")
         payload: dict[str, Any] = {"id": "test-123", "value": 42, "data": {}}
+        # Create a proper envelope
+        envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
-            validated_envelope=MagicMock(),
+            validated_envelope=envelope,
             exchange_type=ExchangeType.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
@@ -308,8 +331,10 @@ class TestPydanticWebSocketProcessor:
 
         handler = AsyncMock()
         payload: dict[str, Any] = {"id": "test-123", "value": 42, "data": {}}
+        # Create a proper envelope
+        envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
-            validated_envelope=MagicMock(),
+            validated_envelope=envelope,
             exchange_type=ExchangeType.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),

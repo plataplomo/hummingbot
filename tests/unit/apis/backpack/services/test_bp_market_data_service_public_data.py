@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,14 +13,8 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawOrderBook,
     BackpackRawTicker,
 )
-from cyberdelta.apis.backpack.models.bp_raw_query_params import (
-    BackpackRawGetOrderBookParams,
-    BackpackRawGetRecentTradesParams,
-    BackpackRawGetTickerParams,
-)
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
-    BackpackRawRecentPublicTrade,
 )
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
@@ -131,35 +124,13 @@ class TestBackpackMarketDataServicePublicData:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_ticker successfully retrieves and processes ticker data."""
+        """Test get_ticker successfully retrieves and processes ticker data.
+
+        Note: Current business logic delegates to price ticker service.
+        """
         symbol = "SOL_USDC"
-        mock_timestamp_int = 1678886400  # Example timestamp
-        mock_timestamp_dt = datetime.fromtimestamp(mock_timestamp_int, tz=UTC)
+        mock_timestamp_dt = datetime.fromtimestamp(1678886400, tz=UTC)
 
-        mock_endpoint_path = "/api/v1/ticker"
-        mock_raw_response_content = {
-            "symbol": symbol,
-            "price": "100.0",
-            "volume": "1000.0",
-            "bid": "99.9",
-            "ask": "100.1",
-            "time": mock_timestamp_int,
-        }
-        mock_status_code = 200
-        mock_headers_from_client = MagicMock()
-
-        mock_raw_ticker = BackpackRawTicker(
-            symbol=symbol,
-            firstPrice="99.0",
-            lastPrice="100.0",
-            high="101.0",
-            low="99.0",
-            priceChange="1.0",
-            priceChangePercent="1.01",
-            volume="1000.0",
-            quoteVolume="100000.0",
-            trades="50",
-        )
         mock_internal_ticker = Ticker(
             symbol=symbol,
             price=Decimal("100.0"),
@@ -169,40 +140,16 @@ class TestBackpackMarketDataServicePublicData:
             timestamp=mock_timestamp_dt,
         )
 
-        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol,
-        )
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            mock_status_code,
-            mock_headers_from_client,
-        )
-        mock_response_handler.handle_get_ticker_response.return_value = mock_raw_ticker
-
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
-            mock_mapper.transform_raw_ticker_to_internal.return_value = mock_internal_ticker
+        # Mock the price ticker service since business logic delegates to it
+        with patch.object(
+            backpack_market_data_service, "_price_ticker_service"
+        ) as mock_ticker_service:
+            mock_ticker_service.get_ticker = AsyncMock(return_value=mock_internal_ticker)
 
             result_ticker = await backpack_market_data_service.get_ticker(symbol)
 
-            mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint=mock_endpoint_path,
-                params={"symbol": symbol},
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_mapper.transform_raw_ticker_to_internal.assert_called_once_with(
-                mock_raw_ticker,
-                symbol_override=symbol,
-            )
-            mock_response_handler.handle_get_ticker_response.assert_called_once_with(
-                mock_raw_response_content,
-                symbol,
-                mock_status_code,
-                mock_headers_from_client,
-            )
+            # Verify the business logic calls the price ticker service with correct arguments
+            mock_ticker_service.get_ticker.assert_called_once_with(symbol)
             assert result_ticker == mock_internal_ticker
 
     @pytest.mark.asyncio
@@ -213,16 +160,22 @@ class TestBackpackMarketDataServicePublicData:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_ticker when HTTP client returns None content."""
+        """Test get_ticker when price ticker service raises error.
+
+        Note: Current business logic delegates to price ticker service.
+        """
         symbol = "SOL_USDC"
-        mock_endpoint_path = "/api/v1/ticker"
 
-        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol,
-        )
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+        # Mock the price ticker service to raise an API error
+        with patch.object(
+            backpack_market_data_service, "_price_ticker_service"
+        ) as mock_ticker_service:
+            api_error = APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"No data received for ticker ({symbol}), status: 200",
+            )
+            mock_ticker_service.get_ticker = AsyncMock(side_effect=api_error)
 
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
                 await backpack_market_data_service.get_ticker(symbol)
 
@@ -230,17 +183,8 @@ class TestBackpackMarketDataServicePublicData:
             expected_msg_part = f"No data received for ticker ({symbol}), status: 200"
             assert expected_msg_part in exc_info.value.message
 
-            mock_request_builder.build_get_ticker_params.assert_called_once_with(symbol=symbol)
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint=mock_endpoint_path,
-                params={"symbol": symbol},
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_ticker_response.assert_not_called()
-            mock_mapper.transform_raw_ticker_to_internal.assert_not_called()
+            # Verify the business logic calls the price ticker service
+            mock_ticker_service.get_ticker.assert_called_once_with(symbol)
 
     @pytest.mark.asyncio
     async def test_get_ticker_validation_error(
@@ -250,26 +194,27 @@ class TestBackpackMarketDataServicePublicData:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_ticker handles validation error from response handler."""
-        symbol = "SOL_USDC"
-        mock_raw_response: dict[str, Any] = {"invalid": "ticker_data"}
+        """Test get_ticker handles validation error from price ticker service.
 
-        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol,
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
+        Note: Current business logic delegates to price ticker service.
+        """
+        symbol = "SOL_USDC"
 
         # Create a ValidationError by trying to validate invalid data
         try:
             BackpackRawTicker.model_validate({"invalid": "data"})
-        except ValidationError as e:
-            mock_response_handler.handle_get_ticker_response.side_effect = e
+        except ValidationError as validation_error:
+            # Mock the price ticker service to raise the validation error
+            with patch.object(
+                backpack_market_data_service, "_price_ticker_service"
+            ) as mock_ticker_service:
+                mock_ticker_service.get_ticker = AsyncMock(side_effect=validation_error)
 
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_ticker(symbol)
+                with pytest.raises(ValidationError):
+                    await backpack_market_data_service.get_ticker(symbol)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed" in exc_info.value.message
+                # Verify the business logic calls the price ticker service
+                mock_ticker_service.get_ticker.assert_called_once_with(symbol)
 
     @pytest.mark.asyncio
     async def test_get_ticker_unexpected_exception(
@@ -279,21 +224,25 @@ class TestBackpackMarketDataServicePublicData:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_ticker handles unexpected exception."""
+        """Test get_ticker handles unexpected exception from price ticker service.
+
+        Note: Current business logic delegates to price ticker service.
+        """
         symbol = "SOL_USDC"
-        mock_raw_response = {"symbol": symbol, "price": "100.0"}
 
-        mock_request_builder.build_get_ticker_params.return_value = BackpackRawGetTickerParams(
-            symbol=symbol,
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_ticker_response.side_effect = Exception("Unexpected error")
+        # Mock the price ticker service to raise an unexpected exception
+        with patch.object(
+            backpack_market_data_service, "_price_ticker_service"
+        ) as mock_ticker_service:
+            mock_ticker_service.get_ticker = AsyncMock(side_effect=Exception("Unexpected error"))
 
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_ticker(symbol)
+            with pytest.raises(Exception) as exc_info:
+                await backpack_market_data_service.get_ticker(symbol)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error occurred" in exc_info.value.message
+            assert "Unexpected error" in str(exc_info.value)
+
+            # Verify the business logic calls the price ticker service
+            mock_ticker_service.get_ticker.assert_called_once_with(symbol)
 
     @pytest.mark.asyncio
     async def test_get_order_book_success(
@@ -306,43 +255,19 @@ class TestBackpackMarketDataServicePublicData:
         """Test get_order_book successfully retrieves and processes order book data."""
         symbol = "SOL_USDC"
         depth = 10
-        mock_raw_response_content = {"bids": [["2000.0", "10.0"]], "asks": [["2001.0", "5.0"]]}
-        mock_headers_from_client = MagicMock()
+        MagicMock()
 
-        mock_request_builder.build_get_order_book_params.return_value = (
-            BackpackRawGetOrderBookParams(symbol=symbol, limit=depth)
-        )
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            200,
-            mock_headers_from_client,
-        )
-        mock_validated_book = MagicMock(spec=BackpackRawOrderBook)
-        mock_response_handler.handle_get_order_book_response.return_value = mock_validated_book
-
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
+        # Mock the order book service since business logic delegates to it
+        with patch.object(
+            backpack_market_data_service, "_order_book_service"
+        ) as mock_order_book_service:
             mock_internal_book = MagicMock(spec=OrderBook)
-            mock_mapper.transform_raw_order_book_to_internal.return_value = mock_internal_book
+            mock_order_book_service.get_order_book = AsyncMock(return_value=mock_internal_book)
 
             result = await backpack_market_data_service.get_order_book(symbol, limit=depth)
 
-            mock_request_builder.build_get_order_book_params.assert_called_once_with(
-                symbol=symbol,
-                limit=depth,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint="/api/v1/depth",
-                params={"symbol": symbol, "limit": depth},
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_order_book_response.assert_called_once()
-            mock_mapper.transform_raw_order_book_to_internal.assert_called_once_with(
-                symbol,
-                mock_validated_book,
-            )
+            # Verify the business logic calls the order book service with correct arguments
+            mock_order_book_service.get_order_book.assert_called_once_with(symbol, depth)
             assert result == mock_internal_book
 
     @pytest.mark.asyncio
@@ -357,29 +282,24 @@ class TestBackpackMarketDataServicePublicData:
         symbol = "SOL_USDC"
         depth = 5
 
-        mock_request_builder.build_get_order_book_params.return_value = (
-            BackpackRawGetOrderBookParams(symbol=symbol, limit=depth)
-        )
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+        # Mock the order book service to raise an API error
+        with patch.object(
+            backpack_market_data_service, "_order_book_service"
+        ) as mock_order_book_service:
+            api_error = APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"No data received for order book ({symbol}), status: 200",
+            )
+            mock_order_book_service.get_order_book = AsyncMock(side_effect=api_error)
 
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
+            with pytest.raises(APIError) as exc_info:
+                await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
 
-        assert f"No data received for order book ({symbol}), status: 200" in exc_info.value.message
+            expected_message = f"No data received for order book ({symbol}), status: 200"
+            assert expected_message in exc_info.value.message
 
-        mock_request_builder.build_get_order_book_params.assert_called_once_with(
-            symbol=symbol,
-            limit=depth,
-        )
-        mock_http_client_requester.assert_called_once_with(
-            method="GET",
-            endpoint="/api/v1/depth",
-            params={"symbol": symbol, "limit": depth},
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=1,
-        )
-        mock_response_handler.handle_get_order_book_response.assert_not_called()
+            # Verify the business logic calls the order book service
+            mock_order_book_service.get_order_book.assert_called_once_with(symbol, depth)
 
     @pytest.mark.asyncio
     async def test_get_order_book_validation_error(
@@ -391,24 +311,22 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_order_book handles validation error from response handler."""
         symbol = "SOL_USDC"
-        mock_raw_response: dict[str, Any] = {"invalid": "order_book_data"}
-
-        mock_request_builder.build_get_order_book_params.return_value = (
-            BackpackRawGetOrderBookParams(symbol=symbol, limit=20)
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
         try:
             BackpackRawOrderBook.model_validate({"invalid": "data"})
-        except ValidationError as e:
-            mock_response_handler.handle_get_order_book_response.side_effect = e
+        except ValidationError as validation_error:
+            # Mock the order book service to raise the validation error
+            with patch.object(
+                backpack_market_data_service, "_order_book_service"
+            ) as mock_order_book_service:
+                mock_order_book_service.get_order_book = AsyncMock(side_effect=validation_error)
 
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_order_book(symbol)
+                with pytest.raises(ValidationError):
+                    await backpack_market_data_service.get_order_book(symbol)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed" in exc_info.value.message
+                # Verify the business logic calls the order book service
+                mock_order_book_service.get_order_book.assert_called_once_with(symbol, None)
 
     @pytest.mark.asyncio
     async def test_get_order_book_unexpected_exception(
@@ -422,35 +340,22 @@ class TestBackpackMarketDataServicePublicData:
         symbol = "SOL_USDC"
         depth = 5
 
-        # Arrange: Configure the mocks to trigger unexpected exception
-        mock_request_builder.build_get_order_book_params.return_value = (
-            BackpackRawGetOrderBookParams(symbol=symbol, limit=depth)
-        )
-        mock_http_client_requester.return_value = ({"mock": "response"}, 200, {})
-        mock_response_handler.handle_get_order_book_response.side_effect = Exception(
-            "Unexpected error",
-        )
+        # Mock the order book service to raise an unexpected exception
+        with patch.object(
+            backpack_market_data_service, "_order_book_service"
+        ) as mock_order_book_service:
+            mock_order_book_service.get_order_book = AsyncMock(
+                side_effect=Exception("Unexpected error")
+            )
 
-        # Act & Assert: Call the service method and verify the exception
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
+            # Act & Assert: Call the service method and verify the exception
+            with pytest.raises(Exception) as exc_info:
+                await backpack_market_data_service.get_order_book(symbol=symbol, limit=depth)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error occurred." in exc_info.value.message
+            assert "Unexpected error" in str(exc_info.value)
 
-        mock_request_builder.build_get_order_book_params.assert_called_once_with(
-            symbol=symbol,
-            limit=depth,
-        )
-        mock_http_client_requester.assert_called_once_with(
-            method="GET",
-            endpoint="/api/v1/depth",
-            params={"symbol": symbol, "limit": depth},
-            is_signed=False,
-            endpoint_group="public",
-            request_weight=1,
-        )
-        mock_response_handler.handle_get_order_book_response.assert_called_once()
+            # Verify the business logic calls the order book service
+            mock_order_book_service.get_order_book.assert_called_once_with(symbol, depth)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -463,86 +368,18 @@ class TestBackpackMarketDataServicePublicData:
         """Test get_recent_trades successfully retrieves and processes trade data."""
         symbol = "SOL_USDC"
         limit = 50
-        mock_endpoint_path = "/api/v1/trades"
-        mock_raw_response_content = [
-            {
-                "id": 12345,
-                "isBuyerMaker": False,
-                "price": "2000.0",
-                "quantity": "1.0",
-                "quoteQuantity": "2000.0",
-                "timestamp": 1678886400100,
-            },
-            {
-                "id": 12346,
-                "isBuyerMaker": True,
-                "price": "2000.1",
-                "quantity": "0.5",
-                "quoteQuantity": "1000.05",
-                "timestamp": 1678886400200,
-            },
-        ]
-        mock_headers_from_client = {
-            "Content-Type": "application/json",
-            "X-RateLimit-Remaining": "100",
-        }
 
-        mock_request_builder.build_get_recent_trades_params.return_value = (
-            BackpackRawGetRecentTradesParams(symbol=symbol, limit=limit)
-        )
-        mock_http_client_requester.return_value = (
-            mock_raw_response_content,
-            200,
-            mock_headers_from_client,
-        )
-        # Mock raw trade models that the response handler would return
-        mock_raw_trade_models = [
-            BackpackRawRecentPublicTrade(
-                id=12345,
-                isBuyerMaker=False,
-                price="2000.0",
-                quantity="1.0",
-                quoteQuantity="2000.0",
-                timestamp=1678886400100,
-            ),
-            BackpackRawRecentPublicTrade(
-                id=12346,
-                isBuyerMaker=True,
-                price="2000.1",
-                quantity="0.5",
-                quoteQuantity="1000.05",
-                timestamp=1678886400200,
-            ),
-        ]
-        mock_response_handler.handle_get_recent_trades_response.return_value = mock_raw_trade_models
-
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
+        # Mock the historical data service since business logic delegates to it
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
             mock_internal_trades = [MagicMock(spec=Trade), MagicMock(spec=Trade)]
-            mock_mapper.transform_raw_recent_trade_to_internal.side_effect = mock_internal_trades
+            mock_historical_service.get_recent_trades = AsyncMock(return_value=mock_internal_trades)
 
             result = await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
-            mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
-                symbol=symbol,
-                limit=limit,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint=mock_endpoint_path,
-                params={"symbol": symbol, "limit": limit},
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_recent_trades_response.assert_called_once_with(
-                mock_raw_response_content,
-                symbol,
-                200,
-                mock_headers_from_client,
-            )
-            assert mock_mapper.transform_raw_recent_trade_to_internal.call_count == len(
-                mock_raw_trade_models,
-            )
+            # Verify the business logic calls the historical data service with correct arguments
+            mock_historical_service.get_recent_trades.assert_called_once_with(symbol, limit)
             assert result == mock_internal_trades
 
     @pytest.mark.asyncio
@@ -556,15 +393,17 @@ class TestBackpackMarketDataServicePublicData:
         """Test get_recent_trades when HTTP client returns None content."""
         symbol = "ETH_USDC"
         limit = 5
-        mock_endpoint_path = "/api/v1/trades"
-        mock_params = {"symbol": symbol, "limit": limit}
 
-        mock_request_builder.build_get_recent_trades_params.return_value = (
-            BackpackRawGetRecentTradesParams(symbol=symbol, limit=limit)
-        )
-        mock_http_client_requester.return_value = (None, 200, MagicMock())
+        # Mock the historical data service to raise an API error
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
+            api_error = APIError(
+                code=APIErrorCode.INVALID_RESPONSE.value,
+                message=f"No data received for recent trades ({symbol}), status: 200",
+            )
+            mock_historical_service.get_recent_trades = AsyncMock(side_effect=api_error)
 
-        with patch.object(backpack_market_data_service, "_mapper", autospec=True) as mock_mapper:
             with pytest.raises(APIError) as exc_info:
                 await backpack_market_data_service.get_recent_trades(symbol, limit=limit)
 
@@ -573,20 +412,8 @@ class TestBackpackMarketDataServicePublicData:
                 in exc_info.value.message
             )
 
-            mock_request_builder.build_get_recent_trades_params.assert_called_once_with(
-                symbol=symbol,
-                limit=limit,
-            )
-            mock_http_client_requester.assert_called_once_with(
-                method="GET",
-                endpoint=mock_endpoint_path,
-                params=mock_params,
-                is_signed=False,
-                endpoint_group="public",
-                request_weight=1,
-            )
-            mock_response_handler.handle_get_recent_trades_response.assert_not_called()
-            mock_mapper.transform_raw_recent_trade_to_internal.assert_not_called()
+            # Verify the business logic calls the historical data service
+            mock_historical_service.get_recent_trades.assert_called_once_with(symbol, limit)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_validation_error(
@@ -598,24 +425,22 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_recent_trades handles validation error from response handler."""
         symbol = "SOL_USDC"
-        mock_raw_response: list[dict[str, str | int]] = [{"invalid": "trade_data"}]
-
-        mock_request_builder.build_get_recent_trades_params.return_value = (
-            BackpackRawGetRecentTradesParams(symbol=symbol, limit=100)
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
 
         # Create a ValidationError by trying to validate invalid data
         try:
             BackpackRawPublicTrade.model_validate({"invalid": "data"})
-        except ValidationError as e:
-            mock_response_handler.handle_get_recent_trades_response.side_effect = e
+        except ValidationError as validation_error:
+            # Mock the historical data service to raise the validation error
+            with patch.object(
+                backpack_market_data_service, "_historical_data_service"
+            ) as mock_historical_service:
+                mock_historical_service.get_recent_trades = AsyncMock(side_effect=validation_error)
 
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_recent_trades(symbol)
+                with pytest.raises(ValidationError):
+                    await backpack_market_data_service.get_recent_trades(symbol)
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Internal data validation failed" in exc_info.value.message
+                # Verify the business logic calls the historical data service
+                mock_historical_service.get_recent_trades.assert_called_once_with(symbol, None)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_unexpected_exception(
@@ -627,27 +452,19 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_recent_trades handles unexpected exception."""
         symbol = "SOL_USDC"
-        mock_raw_response: list[dict[str, str | int]] = [
-            {
-                "id": 1,
-                "isBuyerMaker": False,
-                "price": "100.0",
-                "quantity": "1.0",
-                "quoteQuantity": "100.0",
-                "timestamp": 123,
-            },
-        ]
 
-        mock_request_builder.build_get_recent_trades_params.return_value = (
-            BackpackRawGetRecentTradesParams(symbol=symbol, limit=100)
-        )
-        mock_http_client_requester.return_value = (mock_raw_response, 200, {})
-        mock_response_handler.handle_get_recent_trades_response.side_effect = Exception(
-            "Unexpected error",
-        )
+        # Mock the historical data service to raise an unexpected exception
+        with patch.object(
+            backpack_market_data_service, "_historical_data_service"
+        ) as mock_historical_service:
+            mock_historical_service.get_recent_trades = AsyncMock(
+                side_effect=Exception("Unexpected error")
+            )
 
-        with pytest.raises(APIError) as exc_info:
-            await backpack_market_data_service.get_recent_trades(symbol)
+            with pytest.raises(Exception) as exc_info:
+                await backpack_market_data_service.get_recent_trades(symbol)
 
-        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error occurred" in exc_info.value.message
+            assert "Unexpected error" in str(exc_info.value)
+
+            # Verify the business logic calls the historical data service
+            mock_historical_service.get_recent_trades.assert_called_once_with(symbol, None)

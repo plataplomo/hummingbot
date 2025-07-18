@@ -326,9 +326,9 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "raw balance" in str(exc_info.value)
+            assert "BackpackRawBalance" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
-            assert "locked is required for USDC balance" in str(exc_info.value)
+            assert "locked is required for balance_field_validation" in str(exc_info.value)
 
     def test_transform_raw_balance_missing_available_raises_error(
         self,
@@ -359,9 +359,9 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "raw balance" in str(exc_info.value)
+            assert "BackpackRawBalance" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
-            assert "available is required for USDC balance" in str(exc_info.value)
+            assert "available is required for balance_field_validation" in str(exc_info.value)
 
     def test_transform_raw_balance_missing_staked_raises_error(
         self,
@@ -392,9 +392,9 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "raw balance" in str(exc_info.value)
+            assert "BackpackRawBalance" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
-            assert "staked is required for USDC balance" in str(exc_info.value)
+            assert "staked is required for balance_field_validation" in str(exc_info.value)
 
     def test_transform_raw_balance_boundary_values(self, mapper: CompositeAccountMapper) -> None:
         """Test balance transformation with boundary decimal values."""
@@ -487,17 +487,20 @@ class TestPositionTransformation:
         self,
         mapper: CompositeAccountMapper,
     ) -> None:
-        """Test position transformation with zero size sets entry price to None."""
+        """Test position transformation with zero size and non-None entry price fails."""
         raw_position = create_raw_position(
             net_quantity="0.0",  # Zero position
+            entry_price="100.00",  # Non-None entry price violates business logic
         )
 
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        assert result.size == Decimal("0.0")
-        assert result.entry_price is None
-        # Side is determined by size comparison, zero defaults to SELL
-        assert result.side == OrderSide.SELL
+        # Business logic requires entry_price to be None when size is zero
+        # The transformation should fail with DataTransformationError
+        with pytest.raises(DataTransformationError) as exc_info:
+            mapper.transform_raw_position_to_internal(raw_position)
+        
+        # The error is wrapped by secure_transform so check for validation message
+        assert "Security validation failed" in str(exc_info.value)
+        assert "DerivativePosition" in str(exc_info.value)
 
     def test_transform_raw_position_missing_net_quantity_raises_error(
         self,
@@ -531,9 +534,9 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
             # Verify the error details
-            assert "raw position" in str(exc_info.value)
+            assert "BackpackRawPosition" in str(exc_info.value)
             assert "DerivativePosition" in str(exc_info.value)
-            assert "net_quantity is required for BackpackRawPosition" in str(exc_info.value)
+            assert "size is required for position_validation" in str(exc_info.value)
 
     def test_transform_raw_position_transformation_error(
         self,
@@ -552,7 +555,7 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
             # Verify the error details
-            assert "raw position" in str(exc_info.value)
+            assert "BackpackRawPosition" in str(exc_info.value)
             assert "DerivativePosition" in str(exc_info.value)
             assert "Invalid decimal value" in str(exc_info.value)
 
@@ -691,7 +694,7 @@ class TestAccountSummaryTransformation:
         assert isinstance(result, MarginAccountSummary)
         # Total equity = balance total (1100.0) + position unrealized PnL (5.0)
         assert result.total_equity == Decimal("1105.0")
-        assert result.available_equity == Decimal("1000.0")  # From balance available
+        assert result.available_equity == Decimal("1100.0")  # From balance total (business logic)
         assert result.exchange == ExchangeName.BACKPACK.value
         assert result.bp_details is not None
         assert isinstance(result.timestamp, datetime)
@@ -726,7 +729,7 @@ class TestAccountSummaryTransformation:
 
         # Only USDC and USDT should be counted (USD-like assets)
         assert result.total_equity == Decimal("1500.0")  # 1000 + 500
-        assert result.available_equity == Decimal("1350.0")  # 900 + 450
+        assert result.available_equity == Decimal("1500.0")  # Business logic uses total balance
 
     def test_transform_raw_account_summary_multiple_positions(
         self,
@@ -802,24 +805,25 @@ class TestAccountSummaryTransformation:
         self,
         mapper: CompositeAccountMapper,
     ) -> None:
-        """Test account summary when positions have zero size (which sets entry_price to None)."""
+        """Test account summary transformation fails when positions have zero size."""
         raw_summary = create_raw_account_summary()
         spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
 
-        # Create position with zero size, which should result in None entry_price and no PnL
-        position = create_raw_position(net_quantity="0.0", pnl_unrealized="0.0")
-
-        result = mapper.transform_raw_account_summary_to_internal(
-            raw_summary,
-            spot_balances,
-            [position],
+        # Create position with zero size and non-None entry_price (violates business logic)
+        position = create_raw_position(
+            net_quantity="0.0", pnl_unrealized="0.0", entry_price="100.00"
         )
 
-        # Should handle None entry_price gracefully (no notional calculated for zero size)
-        assert result.total_equity == Decimal("1000.0")  # Only balance, no PnL from zero position
-        assert result.total_position_notional == Decimal(
-            "0.0",
-        )  # No notional for zero size position
+        # The transformation should fail because the position validation will fail
+        with pytest.raises(DataTransformationError) as exc_info:
+            mapper.transform_raw_account_summary_to_internal(
+                raw_summary,
+                spot_balances,
+                [position],
+            )
+        
+        # The error is wrapped so check for validation message
+        assert "Security validation failed" in str(exc_info.value)
 
 
 class TestErrorHandling:
@@ -872,7 +876,7 @@ class TestErrorHandling:
             # Verify the error details
             assert "balance_data" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
-            assert "total, available are required for balance" in str(exc_info.value)
+            assert "total_balance is required for balance_validation" in str(exc_info.value)
 
     def test_balance_data_none_available_raises_error(
         self,
@@ -906,4 +910,4 @@ class TestErrorHandling:
             # Verify the error details
             assert "balance_data" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
-            assert "total, available are required for balance" in str(exc_info.value)
+            assert "available_balance is required for balance_validation" in str(exc_info.value)

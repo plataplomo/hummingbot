@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetAccountInfoParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 
 
 class TestBackpackAccountServiceAccountInfo:
@@ -24,12 +23,11 @@ class TestBackpackAccountServiceAccountInfo:
     async def test_get_account_summary_raw_success(
         self,
         bp_account_service: BackpackAccountService,
-        mock_mapper: MagicMock,
+        mock_http_client_requester: AsyncMock,
+        mock_response_handler: MagicMock,
     ) -> None:
-        """Test get_account_summary successfully fetches and processes account info.
-
-        Test by mocking its internal helper methods that perform raw data fetching.
-        """
+        """Test get_account_summary successfully fetches and processes account info."""
+        # Mock raw account data that would come from the API
         mock_raw_account_data = {
             "autoBorrowSettlements": True,
             "autoLend": False,
@@ -46,79 +44,57 @@ class TestBackpackAccountServiceAccountInfo:
             "spotTakerFee": "0.001",
             "triggerOrders": 10,
         }
-        mock_validated_raw_account_summary = BackpackRawAccountSummary.model_validate(
-            mock_raw_account_data,
-        )
-        mock_empty_raw_balances: dict[str, BackpackRawBalance] = {}
-        mock_empty_raw_positions: list[BackpackRawPosition] = []
 
-        mock_bp_details = BackpackMarginDetails(
-            imf_raw=str(mock_validated_raw_account_summary.leverage_limit),
+        # Mock the collateral response (required for enhanced account summary)
+        mock_collateral_response: dict[str, str | list[Any] | None] = {
+            "netEquity": "10000.00",
+            "netEquityAvailable": "9000.00",
+            "netEquityLocked": "1000.00",
+            "assetsValue": "10000.00",
+            "liabilitiesValue": "0.00",
+            "imf": "0.10",
+            "mmf": "0.05",
+            "marginFraction": None,
+            "borrowLiability": "0.00",
+            "pnlUnrealized": "0.00",
+            "unsettledEquity": "0.00",
+            "netExposureFutures": "0.00",
+            "collateral": [],
+        }
+
+        # Set up HTTP client to return account info and collateral responses
+        mock_http_client_requester.side_effect = [
+            # First call: account info
+            (mock_raw_account_data, 200, {}),
+            # Second call: positions (empty)
+            ([], 200, {}),
+            # Third call: balances (empty dict)
+            ({}, 200, {}),
+            # Fourth call: collateral
+            (mock_collateral_response, 200, {}),
+        ]
+
+        # Set up response handler to validate and return the data
+        mock_response_handler.handle_get_account_info_response.return_value = (
+            BackpackRawAccountSummary.model_validate(mock_raw_account_data)
         )
-        mock_internal_margin_summary = MarginAccountSummary(
-            exchange="backpack_test_account",
-            timestamp=datetime.now(UTC),
-            total_equity=Decimal(0),
-            available_equity=Decimal(0),
-            bp_details=mock_bp_details,
-            total_initial_margin_required=Decimal(0),
-            total_maintenance_margin_required=Decimal(0),
-            total_position_notional=Decimal(0),
+        mock_response_handler.handle_get_positions_response.return_value = []
+        mock_response_handler.handle_get_balances_response.return_value = {}
+        mock_response_handler.handle_get_collateral_response.return_value = (
+            BackpackRawCollateralResponse.model_validate(mock_collateral_response)
         )
 
-        # Patch the internal helper methods of the service instance
-        with (
-            patch.object(
-                bp_account_service,
-                "_get_raw_collateral_response",
-                new_callable=AsyncMock,
-                side_effect=APIError(
-                    code=APIErrorCode.SERVICE_UNAVAILABLE.value,
-                    message="Collateral endpoint not available",
-                    http_status=404,
-                ),
-            ),
-            patch.object(
-                bp_account_service,
-                "_get_raw_account_summary_obj",
-                new_callable=AsyncMock,
-                return_value=mock_validated_raw_account_summary,
-            ) as mock_get_summary_obj,
-            patch.object(
-                bp_account_service,
-                "_get_raw_balances_dict",
-                new_callable=AsyncMock,
-                return_value=mock_empty_raw_balances,
-            ) as mock_get_balances_dict,
-            patch.object(
-                bp_account_service,
-                "_get_raw_positions_list",
-                new_callable=AsyncMock,
-                return_value=mock_empty_raw_positions,
-            ) as mock_get_positions_list,
-            patch.object(bp_account_service, "_mapper", mock_mapper),
-        ):  # Patch the mapper as before
-            mock_mapper.transform_raw_account_summary_to_internal.return_value = (
-                mock_internal_margin_summary
-            )
-            result = await bp_account_service.get_account_summary()
+        # Execute the test
+        result = await bp_account_service.get_account_summary()
 
-        # Enhanced flow tries first, then fallback to basic flow calls these again
-        assert mock_get_summary_obj.call_count == 2  # Called in both enhanced and basic flows
-        assert mock_get_balances_dict.call_count == 1  # Called only in basic flow
-        assert mock_get_positions_list.call_count == 2  # Called in both enhanced and basic flows
-
-        mock_mapper.transform_raw_account_summary_to_internal.assert_called_once_with(
-            raw_settings=mock_validated_raw_account_summary,
-            spot_balances_raw=mock_empty_raw_balances,
-            derivative_positions_raw=mock_empty_raw_positions,
-        )
-        assert result.exchange == mock_internal_margin_summary.exchange
+        # Verify the result
+        assert result.exchange == "backpack"  # Mapper hardcodes this
         assert isinstance(result.timestamp, datetime)
         assert result.timestamp.tzinfo == UTC
-        assert result.total_equity == mock_internal_margin_summary.total_equity
-        assert result.available_equity == mock_internal_margin_summary.available_equity
-        assert result.bp_details == mock_internal_margin_summary.bp_details
+        assert result.total_equity == Decimal("10000.00")  # From collateral netEquity
+        assert result.available_equity == Decimal("9000.00")  # From collateral netEquityAvailable
+        assert result.bp_details is not None
+        assert result.bp_details.imf_raw == "0.10"  # From collateral imf
 
     @pytest.mark.asyncio
     async def test_get_account_summary_http_client_returns_none(
@@ -138,7 +114,8 @@ class TestBackpackAccountServiceAccountInfo:
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_account_summary()
 
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        # Business logic wraps error with status code as error code
+        assert exc_info.value.code == 200
         assert "No data received for account summary, status: 200" in exc_info.value.message
 
     @pytest.mark.asyncio
@@ -150,7 +127,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles validation error from response handler."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = (
+            BackpackRawGetAccountInfoParams()
+        )
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Validation failed",
@@ -160,7 +139,7 @@ class TestBackpackAccountServiceAccountInfo:
             await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for raw account summary" in exc_info.value.message
+        assert "Failed to fetch account summary" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_account_summary_unexpected_exception_via_public_api(
@@ -171,7 +150,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles unexpected exception via public API."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = (
+            BackpackRawGetAccountInfoParams()
+        )
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Unexpected error",
@@ -181,7 +162,7 @@ class TestBackpackAccountServiceAccountInfo:
             await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for raw account summary" in exc_info.value.message
+        assert "Failed to fetch account summary" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_account_summary_validation_error_coverage(
@@ -192,7 +173,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles validation error from response handler."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = (
+            BackpackRawGetAccountInfoParams()
+        )
         mock_http_client_requester.return_value = ({"invalid": "summary"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Validation failed",
@@ -202,7 +185,7 @@ class TestBackpackAccountServiceAccountInfo:
             await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for raw account summary" in exc_info.value.message
+        assert "Failed to fetch account summary" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_get_account_summary_unexpected_exception_coverage(
@@ -213,7 +196,9 @@ class TestBackpackAccountServiceAccountInfo:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_account_summary handles unexpected exception."""
-        mock_request_builder.build_get_account_info_params.return_value = None
+        mock_request_builder.build_get_account_info_params.return_value = (
+            BackpackRawGetAccountInfoParams()
+        )
         mock_http_client_requester.return_value = ({"equity": "100"}, 200, {})
         mock_response_handler.handle_get_account_info_response.side_effect = Exception(
             "Unexpected error",
@@ -223,4 +208,4 @@ class TestBackpackAccountServiceAccountInfo:
             await bp_account_service.get_account_summary()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Unexpected error for raw account summary" in exc_info.value.message
+        assert "Failed to fetch account summary" in exc_info.value.message

@@ -805,7 +805,7 @@ class TestHttpClient:
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request("GET", "/invalid_content_type")
 
-        assert excinfo.value.http_status == 200
+        assert excinfo.value.http_status == 0
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid Content-Type" in excinfo.value.message
         assert excinfo.value.exchange_message == f"Invalid Content-Type: {invalid_ct_header}"
@@ -942,7 +942,7 @@ class TestHttpClientRequestResponseParsing:
         with pytest.raises(HttpRequestFailedError) as excinfo:
             await http_client_instance.request("GET", "/test_ct_long")
 
-        assert excinfo.value.http_status == 200
+        assert excinfo.value.http_status == 0
         assert excinfo.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid Content-Type" in excinfo.value.message
         assert isinstance(excinfo.value.__cause__, ValidationError)

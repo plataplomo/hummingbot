@@ -185,6 +185,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 return OrderType.STOP_LIMIT
             if bp_type_lower == "stop":
                 return OrderType.STOP_MARKET
+            if bp_type_lower == "trailing_stop":
+                return OrderType.STOP_MARKET
         return OrderType.LIMIT  # Fallback
 
     @staticmethod

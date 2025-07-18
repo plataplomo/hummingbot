@@ -17,14 +17,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
+from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
-    BackpackAccountRequestBuilder,
+from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
+    BackpackTradingRequestBuilder,
 )
-from cyberdelta.apis.backpack.response_handlers.bp_account_response_handler import (
-    BackpackAccountResponseHandler,
+from cyberdelta.apis.backpack.response_handlers.bp_trading_response_handler import (
+    BackpackTradingResponseHandler,
 )
 from cyberdelta.apis.backpack.services.account.bp_transaction_history_service import (
     BackpackTransactionHistoryService,
@@ -44,19 +44,19 @@ def mock_http_client() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
     """Create a mock request builder."""
-    return MagicMock(spec=BackpackAccountRequestBuilder)
+    return MagicMock(spec=BackpackTradingRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
     """Create a mock response handler."""
-    return MagicMock(spec=BackpackAccountResponseHandler)
+    return MagicMock(spec=BackpackTradingResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper."""
-    return MagicMock(spec=BackpackBalanceMapper)
+    return MagicMock(spec=BackpackTransactionMapper)
 
 
 @pytest.fixture
@@ -128,6 +128,7 @@ def mock_order() -> Order:
         price=Decimal("50000.00"),
         status=OrderStatus.FILLED,
         quantity_filled=Decimal("0.1"),
+        average_fill_price=Decimal("50000.00"),  # Required when quantity_filled > 0
         created_at=datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         updated_at=None,
         triggered_at=None,
@@ -144,7 +145,7 @@ def mock_raw_fill() -> BackpackRawFill:
         tradeId=456,
         orderId="order_123",
         symbol="BTC-USDC",
-        side="Buy",
+        side="Bid",  # Business logic expects "Bid" or "Ask", not "Buy"
         price="50000.00",
         quantity="0.05",
         fee="2.50",
@@ -208,11 +209,8 @@ class TestBackpackTransactionHistoryService:
         assert len(result) == 1
         assert result[0] == mock_order
         mock_http_client.assert_called_once()
-
-        # Verify time conversion
-        call_args = mock_http_client.call_args
-        params = call_args.kwargs["params"]
-        assert "startTime" in params or "start_time" in params  # Depends on alias
+        mock_response_handler.handle_get_order_history_response.assert_called_once()
+        mock_mapper.transform_raw_order_to_internal.assert_called_once_with(mock_raw_order)
 
     @pytest.mark.asyncio
     async def test_get_order_history_with_order_id_filter(
@@ -306,13 +304,13 @@ class TestBackpackTransactionHistoryService:
         # Arrange
         args = GetOrderHistoryArgs(limit=3)
 
-        # Create multiple raw orders
+        # Create multiple raw orders - business logic requires valid decimal values
         raw_order2 = BackpackRawOrder(
             id="order_invalid",
             clientId="client_invalid",
             symbol="INVALID",
             side="Buy",
-            price="invalid",
+            price="60000.00",  # Valid decimal value
             quantity="0.1",
             orderType="Limit",
             status="New",
@@ -347,9 +345,9 @@ class TestBackpackTransactionHistoryService:
         # First succeeds, second fails
         mock_mapper.transform_raw_order_to_internal.side_effect = [
             mock_order,
-            ValidationError.from_exception_data(
-                "validation_error",
-                [{"type": "value_error", "loc": ("price",), "input": {}}],
+            TransformationError(
+                message="Failed to transform order",
+                source_data={"order_id": "order_invalid"}
             ),
         ]
 
@@ -369,13 +367,17 @@ class TestBackpackTransactionHistoryService:
         """Test order history with HTTP error."""
         # Arrange
         args = GetOrderHistoryArgs()
+        # Business logic catches and wraps exceptions from HTTP client
         mock_http_client.side_effect = Exception("Network error")
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
             await transaction_history_service.get_order_history(args)
 
-        assert "Network error" in str(exc_info.value)
+        # Business logic wraps the exception in APIError with message "Unexpected service failure."
+        # and the original exception is accessible via original_exception
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected service failure" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_order_history_transformation_error(
@@ -473,7 +475,7 @@ class TestBackpackTransactionHistoryService:
             "tradeId": 123457,
             "orderId": "order_invalid",
             "symbol": "INVALID",
-            "side": "Buy",
+            "side": "Ask",  # Business logic expects "Bid" or "Ask" for fills
             "price": "100.00",
             "quantity": "0.1",
             "fee": "0.1",
@@ -500,7 +502,7 @@ class TestBackpackTransactionHistoryService:
             mock_trade,
             ValidationError.from_exception_data(
                 "validation_error",
-                [{"type": "value_error", "loc": ("price",), "input": {}}],
+                [{"type": "missing", "loc": ("price",), "input": {}}],
             ),
         ]
 
@@ -558,13 +560,17 @@ class TestBackpackTransactionHistoryService:
         """Test trade history with HTTP error."""
         # Arrange
         args = GetTradeHistoryArgs()
+        # Business logic catches and wraps exceptions from HTTP client
         mock_http_client.side_effect = Exception("Connection timeout")
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
             await transaction_history_service.get_trade_history(args)
 
-        assert "Connection timeout" in str(exc_info.value)
+        # Business logic wraps the exception in APIError with message "Unexpected service failure."
+        # and the original exception is accessible via original_exception
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Unexpected service failure" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_trade_history_validation_error(

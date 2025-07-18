@@ -17,6 +17,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import Backpa
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.exceptions import UnsupportedWebSocketTopicError
 
 
 class TestBackpackWebSocketRouter:
@@ -109,7 +110,7 @@ class TestBackpackWebSocketRouter:
     ) -> None:
         """Test subscription with invalid topic format."""
         # Test with invalid topic that doesn't contain dot
-        with pytest.raises(ValueError):  # Should raise some validation error
+        with pytest.raises(UnsupportedWebSocketTopicError):
             router.construct_subscription_payload("invalid_topic")
 
     def test_processor_setup_completeness(self, router: BackpackWebSocketRouter) -> None:

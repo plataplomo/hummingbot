@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
+from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.models.bp_raw_collateral import (
     BackpackRawCollateralResponse,
 )
@@ -58,7 +58,7 @@ def mock_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper."""
-    return MagicMock(spec=BackpackBalanceMapper)
+    return MagicMock(spec=BackpackPositionMapper)
 
 
 @pytest.fixture
@@ -197,38 +197,6 @@ class TestBackpackPositionService:
         mock_mapper.transform_raw_position_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_positions_from_collateral(
-        self,
-        position_service: BackpackPositionService,
-        mock_http_client: AsyncMock,
-        mock_response_handler: MagicMock,
-        mock_mapper: MagicMock,
-        mock_collateral_response: BackpackRawCollateralResponse,
-        mock_derivative_position: DerivativePosition,
-    ) -> None:
-        """Test position retrieval from collateral API."""
-        # Arrange
-        # Empty positions response, then collateral response
-        mock_http_client.side_effect = [
-            ([], 200, {}),  # Empty positions
-            (mock_collateral_response.model_dump(), 200, {}),  # Collateral with positions
-        ]
-
-        mock_response_handler.handle_get_positions_response.return_value = []
-        mock_response_handler.handle_get_collateral_response.return_value = mock_collateral_response
-
-        mock_mapper.transform_raw_position_to_internal.return_value = mock_derivative_position
-
-        # Act
-        result = await position_service.get_positions()
-
-        # Assert
-        assert len(result) == 1
-        assert result[0] == mock_derivative_position
-        assert mock_http_client.call_count == 2
-        mock_response_handler.handle_get_collateral_response.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_get_positions_empty_response(
         self,
         position_service: BackpackPositionService,
@@ -237,35 +205,19 @@ class TestBackpackPositionService:
     ) -> None:
         """Test position retrieval with empty response."""
         # Arrange
-        mock_http_client.side_effect = [
-            ([], 200, {}),  # Empty positions
-            ({"collaterals": []}, 200, {}),  # Empty collateral
-        ]
+        # Empty positions response
+        mock_http_client.return_value = ([], 200, {})
 
         mock_response_handler.handle_get_positions_response.return_value = []
-        mock_response_handler.handle_get_collateral_response.return_value = (
-            BackpackRawCollateralResponse.model_validate({
-                "netEquity": "100000.00",
-                "netEquityAvailable": "100000.00",
-                "netEquityLocked": "0.00",
-                "assetsValue": "100000.00",
-                "liabilitiesValue": "0.00",
-                "imf": "0.10",
-                "mmf": "0.05",
-                "marginFraction": None,
-                "borrowLiability": "0.00",
-                "pnlUnrealized": "0.00",
-                "unsettledEquity": "0.00",
-                "netExposureFutures": "0.00",
-                "collateral": [],
-            })
-        )
 
         # Act
         result = await position_service.get_positions()
 
         # Assert
+        assert len(result) == 0
         assert result == []
+        mock_http_client.assert_called_once()
+        mock_response_handler.handle_get_positions_response.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_positions_by_symbol(
@@ -279,32 +231,68 @@ class TestBackpackPositionService:
         """Test position retrieval filtered by symbol."""
         # Arrange
         btc_position = mock_derivative_position
-        eth_position = DerivativePosition(
-            symbol="ETH-PERP",
-            side=OrderSide.SELL,
-            size=Decimal("-10.0"),
-            entry_price=Decimal("3500.00"),
-            mark_price=Decimal("3450.00"),
-            unrealized_pnl=Decimal("500.00"),
-            realized_pnl=Decimal("0.00"),
-            liquidation_price=Decimal("3800.00"),
-            exchange="backpack",
-            timestamp=datetime.now(UTC),
-            bp_details=BackpackDerivativePositionDetails(),
-        )
+
+        # Create actual BackpackRawPosition objects with correct symbols
+        btc_raw_position = BackpackRawPosition.model_validate({
+            "symbol": "BTC-PERP",
+            "netQuantity": "1.5",
+            "entryPrice": "50000.00",
+            "netExposureNotional": "75000.00",
+            "pnlUnrealized": "1000.00",
+            "pnlRealized": "500.00",
+            "estLiquidationPrice": "45000.00",
+            "markPrice": "50666.67",
+            "breakEvenPrice": "50000.00",
+            "imf": "0.05",
+            "imfFunction": {"base": "0.01", "factor": "0.04"},
+            "mmf": "0.025",
+            "mmfFunction": {"base": "0.005", "factor": "0.02"},
+            "netCost": "75000.00",
+            "netExposureQuantity": "1.5",
+            "cumulativeFundingPayment": "0.00",
+            "userId": 123,
+            "positionId": "pos_123",
+            "subaccountId": 0,
+            "cumulativeInterest": "0.00",
+        })
+
+        eth_raw_position = BackpackRawPosition.model_validate({
+            "symbol": "ETH-PERP",
+            "netQuantity": "-10.0",
+            "entryPrice": "3500.00",
+            "netExposureNotional": "35000.00",
+            "pnlUnrealized": "500.00",
+            "pnlRealized": "0.00",
+            "estLiquidationPrice": "3800.00",
+            "markPrice": "3450.00",
+            "breakEvenPrice": "3500.00",
+            "imf": "0.05",
+            "imfFunction": {"base": "0.01", "factor": "0.04"},
+            "mmf": "0.025",
+            "mmfFunction": {"base": "0.005", "factor": "0.02"},
+            "netCost": "35000.00",
+            "netExposureQuantity": "-10.0",
+            "cumulativeFundingPayment": "0.00",
+            "userId": 123,
+            "positionId": "pos_456",
+            "subaccountId": 0,
+            "cumulativeInterest": "0.00",
+        })
 
         raw_positions = [
-            {"symbol": "BTC-PERP", "size": "1.5"},
-            {"symbol": "ETH-PERP", "size": "10.0"},
+            btc_raw_position.model_dump(),
+            eth_raw_position.model_dump(),
         ]
         mock_http_client.return_value = (raw_positions, 200, {})
 
+        # Response handler returns BackpackRawPosition objects with correct symbols
         mock_response_handler.handle_get_positions_response.return_value = [
-            MagicMock(),
-            MagicMock(),
+            btc_raw_position,
+            eth_raw_position,
         ]
 
-        mock_mapper.transform_raw_position_to_internal.side_effect = [btc_position, eth_position]
+        # Mapper transforms only the BTC position since it's the only one that passes the filter
+        mock_mapper.transform_raw_position_to_internal.return_value = btc_position
 
         # Act
         result = await position_service.get_positions(symbol="BTC-PERP")
@@ -312,6 +300,8 @@ class TestBackpackPositionService:
         # Assert
         assert len(result) == 1
         assert result[0].symbol == "BTC-PERP"
+        # Only the BTC position should be transformed since the filter runs before transformation
+        mock_mapper.transform_raw_position_to_internal.assert_called_once_with(btc_raw_position)
 
     @pytest.mark.asyncio
     async def test_get_positions_http_error(
@@ -321,12 +311,19 @@ class TestBackpackPositionService:
     ) -> None:
         """Test position retrieval with HTTP error."""
         # Arrange
-        mock_http_client.side_effect = Exception("Network error")
+        # The http client should raise APIError for network issues
+        error = APIError(
+            message="Network error",
+            code=APIErrorCode.NETWORK_ISSUE.value,
+        )
+        mock_http_client.side_effect = error
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
             await position_service.get_positions()
 
+        # Error should propagate through
+        assert exc_info.value.code == APIErrorCode.NETWORK_ISSUE.value
         assert "Network error" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -351,7 +348,9 @@ class TestBackpackPositionService:
         with pytest.raises(APIError) as exc_info:
             await position_service.get_positions()
 
-        assert exc_info.value.code == APIErrorCode.RESPONSE_VALIDATION_FAILED.value
+        # Business logic converts ValidationError to UNKNOWN code
+        assert exc_info.value.code == APIErrorCode.UNKNOWN.value
+        assert "Failed to retrieve position data" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_positions_transformation_error(
@@ -414,16 +413,15 @@ class TestBackpackPositionService:
         assert result[0] == mock_derivative_position
 
     @pytest.mark.asyncio
-    async def test_get_positions_combines_direct_and_collateral(
+    async def test_get_positions_direct_api_only(
         self,
         position_service: BackpackPositionService,
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_raw_position: BackpackRawPosition,
-        mock_collateral_response: BackpackRawCollateralResponse,
     ) -> None:
-        """Test that positions from both direct API and collateral are combined."""
+        """Test that positions are retrieved from direct API only."""
         # Arrange
         btc_position = DerivativePosition(
             symbol="BTC-PERP",
@@ -439,73 +437,23 @@ class TestBackpackPositionService:
             bp_details=BackpackDerivativePositionDetails(),
         )
 
-        eth_position = DerivativePosition(
-            symbol="ETH-PERP",
-            side=OrderSide.SELL,
-            size=Decimal("-10.0"),
-            entry_price=Decimal("3500.00"),
-            mark_price=Decimal("3450.00"),
-            unrealized_pnl=Decimal("500.00"),
-            realized_pnl=Decimal("0.00"),
-            liquidation_price=Decimal("3800.00"),
-            exchange="backpack",
-            timestamp=datetime.now(UTC),
-            bp_details=BackpackDerivativePositionDetails(),
-        )
-
-        # BTC from direct API
+        # Position service only uses direct API, not collateral
         raw_positions_response = [mock_raw_position.model_dump()]
-
-        # ETH from collateral API
-        collateral_with_eth = BackpackRawCollateralResponse.model_validate({
-            "netEquity": "100000.00",
-            "netEquityAvailable": "92500.00",
-            "netEquityLocked": "7500.00",
-            "assetsValue": "100000.00",
-            "liabilitiesValue": "0.00",
-            "imf": "0.10",
-            "mmf": "0.05",
-            "marginFraction": "0.075",
-            "borrowLiability": "0.00",
-            "pnlUnrealized": "500.00",
-            "unsettledEquity": "0.00",
-            "netExposureFutures": "34500.00",
-            "collateral": [
-                {
-                    "symbol": "ETH-PERP",
-                    "assetMarkPrice": "3450.00",
-                    "totalQuantity": "-10.0",
-                    "balanceNotional": "34500.00",
-                    "collateralWeight": "0.90",
-                    "collateralValue": "31050.00",
-                    "openOrderQuantity": "0.00",
-                    "lendQuantity": "0.00",
-                    "availableQuantity": "-10.0",
-                },
-            ],
-        })
-
-        mock_http_client.side_effect = [
-            (raw_positions_response, 200, {}),
-            (collateral_with_eth.model_dump(), 200, {}),
-        ]
+        mock_http_client.return_value = (raw_positions_response, 200, {})
 
         mock_response_handler.handle_get_positions_response.return_value = [mock_raw_position]
-        mock_response_handler.handle_get_collateral_response.return_value = collateral_with_eth
-
-        mock_mapper.transform_raw_position_to_internal.side_effect = [
-            btc_position,  # From direct API
-            eth_position,  # From collateral
-        ]
+        mock_mapper.transform_raw_position_to_internal.return_value = btc_position
 
         # Act
         result = await position_service.get_positions()
 
         # Assert
-        assert len(result) == 2
-        symbols = {pos.symbol for pos in result}
-        assert "BTC-PERP" in symbols
-        assert "ETH-PERP" in symbols
+        assert len(result) == 1
+        assert result[0].symbol == "BTC-PERP"
+        assert result[0] == btc_position
+        
+        # Service should only call direct API, not collateral
+        mock_http_client.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_positions_deduplicates_by_symbol(

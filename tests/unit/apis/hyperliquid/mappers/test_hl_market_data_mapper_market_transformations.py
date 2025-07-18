@@ -19,8 +19,8 @@ from unittest.mock import patch
 import pytest
 import structlog.testing
 
-from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import MissingRequiredFieldError
+from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper import (
     HyperliquidMarketMetadataMapper,
 )
@@ -251,17 +251,18 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test that transformation errors are properly wrapped."""
-        # Create a corrupted response that will cause a system error
+        # Business logic now validates data structure earlier during construction
+        # This test should expect StructureTypeError during object creation
+
         with pytest.raises(
-            TransformationError,
-            match="Failed to transform meta and asset contexts",
+            StructureTypeError,
+            match="Expected a list, got dict",
         ):
-            # Pass corrupted input that will cause the method to fail
-            corrupted_response = HyperliquidRawMetaAndAssetCtxsResponse(
-                meta=HyperliquidRawMetaResponse(universe=[], marginTables=None), asset_ctxs=[]
+            # Pass dict instead of list to trigger StructureTypeError
+            # Business logic validates this at construction time now
+            HyperliquidRawMetaAndAssetCtxsResponse.model_validate(
+                {"invalid": "structure"}  # Dict instead of expected list
             )
-            # This should cause an internal transformation error
-            mapper.transform_raw_meta_and_asset_ctxs_to_markets(corrupted_response)
 
     def test_transform_meta_and_asset_ctxs_extreme_values(
         self,
@@ -370,7 +371,7 @@ class TestCreateMarketFromAssetDefinition:
 
         # Mock parse_decimal_value to return None for invalid sz_decimals
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -408,7 +409,7 @@ class TestCreateMarketFromAssetDefinition:
 
         # Create context with invalid mark_px that will fail parsing
         with patch(
-            "cyberdelta.apis.hyperliquid.mappers.hl_market_data_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper.parse_decimal_value",
         ) as mock_parse:
             # Return valid value for step_size calculation, None for context parsing
             def mock_parse_side_effect(

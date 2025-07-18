@@ -532,11 +532,11 @@ def valid_ticker_event_data() -> dict[str, Any]:
     """Return valid ticker event data for testing."""
     return {
         "s": "SOL_USDC",
-        "lastPrice": "23.50",
-        "high": "24.00",
-        "low": "22.80",
-        "volume": "100500.75",
-        "quoteVolume": "2361767.625",
+        "c": "23.50",  # Required: last_price (close price)
+        "h": "24.00",  # Required: high
+        "l": "22.80",  # Required: low  
+        "v": "100500.75",  # Required: volume
+        "V": "2361767.625",  # Required: quote_volume
         "priceChangePercent": "1.50",
         "e": "ticker.SOL_USDC",  # Example optional field
         "E": 1678886400123,  # Example optional field
@@ -547,9 +547,10 @@ def valid_ticker_event_data() -> dict[str, Any]:
 def valid_depth_update_data() -> dict[str, Any]:
     """Return valid depth update data for testing."""
     return {
-        "lastUpdateId": "update12345",
-        "b": [["23.49", "10.5"], ["23.48", "5.2"]],  # Changed from "bids" to "b"
-        "a": [["23.51", "8.1"], ["23.52", "12.0"]],  # Changed from "asks" to "a"
+        "U": "update12344",  # Required: first_update_id
+        "u": "update12345",  # Required: last_update_id
+        "bids": [["23.49", "10.5"], ["23.48", "5.2"]],  # Optional: bids
+        "asks": [["23.51", "8.1"], ["23.52", "12.0"]],  # Optional: asks
         "e": "depth.SOL_USDC",  # Example optional field
         "E": 1678886400234,  # Example optional field
     }
@@ -609,10 +610,10 @@ def test_BackpackRawTickerEvent_valid_event_time_formats(
     [
         ("s", "", "String cannot be empty", EmptyStringError),
         ("s", None, "Expected string", TypeError),
-        ("lastPrice", "inf", "finite decimal", ValidationError),
-        ("high", "nan", "finite decimal", ValidationError),
-        ("low", "", "String cannot be empty", EmptyStringError),
-        ("quoteVolume", True, "Expected string", TypeError),
+        ("c", "inf", "finite decimal", ValidationError),
+        ("h", "nan", "finite decimal", ValidationError),
+        ("l", "", "String cannot be empty", EmptyStringError),
+        ("V", True, "Expected string", TypeError),
         ("priceChangePercent", [], "Expected string", TypeError),
         ("e", "", "String cannot be empty", EmptyStringError),
         ("e", "A" * 33, "String value too long", TypeFieldError),
@@ -663,6 +664,7 @@ def test_BackpackRawTickerEvent_frozen(valid_ticker_event_data: dict[str, Any]) 
 def test_BackpackRawDepthUpdateEvent_valid(valid_depth_update_data: dict[str, Any]) -> None:
     """Test BackpackRawDepthUpdateEvent valid."""
     depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
+    assert depth.first_update_id == "update12344"
     assert depth.last_update_id == "update12345"
     assert depth.bids == [("23.49", "10.5"), ("23.48", "5.2")]
     assert depth.asks == [("23.51", "8.1"), ("23.52", "12.0")]
@@ -687,8 +689,8 @@ def test_BackpackRawDepthUpdateEvent_optional_fields_none(
 def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[str, Any]) -> None:
     """Test BackpackRawDepthUpdateEvent empty levels."""
     data = valid_depth_update_data
-    data["b"] = []  # Changed from "bids" to "b"
-    data["a"] = []  # Changed from "asks" to "a"
+    data["bids"] = []
+    data["asks"] = []
     depth = BackpackRawDepthUpdateEvent.model_validate(data)
     assert depth.bids == []
     assert depth.asks == []
@@ -702,15 +704,15 @@ def _determine_expected_exception(
 ) -> type[Exception]:
     """Determine expected exception type based on field and value."""
     # The field validator raises TypeFieldError for these specific cases
-    if (field == "lastUpdateId" and value is None) or (field == "a" and value == [["1", 2]]):
+    if (field == "u" and value is None) or (field == "asks" and value == [["1", 2]]):
         return TypeFieldError
 
     # StructureTypeError cases
-    if (field == "b" and value is None) or (field == "a" and value == "not-a-list"):
+    if field == "asks" and value == "not-a-list":
         return StructureTypeError
 
     # Other TypeError cases
-    if field == "a" and value == ["1", "2"]:
+    if field == "asks" and value == ["1", "2"]:
         return TypeError
 
     # The field validator raises EmptyStringError for empty string cases
@@ -726,20 +728,20 @@ def _determine_expected_exception(
 
 def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | None) -> bool:
     """Check if this is an empty string validation case."""
-    if field == "lastUpdateId" and not value:
+    if field == "U" and not value:
         return True
     if field == "e" and not value:
         return True
 
     # Check for empty strings in nested list structures with TypeGuards for senior-level type safety
-    if field == "b" and _is_nested_list_with_elements(value):
+    if field == "bids" and _is_nested_list_with_elements(value):
         first_elem = value[0]  # TypeGuard ensures this is list[Any]
         if first_elem:  # Non-empty list
             first_sub_elem: Any = first_elem[0]
             if not first_sub_elem:
                 return True
 
-    if field == "a" and _is_nested_list_with_elements(value):
+    if field == "asks" and _is_nested_list_with_elements(value):
         first_elem = value[0]  # TypeGuard ensures this is list[Any]
         if _has_minimum_list_elements(first_elem, 2):
             second_elem: Any = first_elem[1]
@@ -752,20 +754,20 @@ def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | No
 @pytest.mark.parametrize(
     ("field", "value", "expected_msg_part"),
     [
-        ("lastUpdateId", "", "String cannot be empty"),
-        ("lastUpdateId", None, "must be str, got NoneType"),
-        ("b", None, "Expected sequence"),
-        ("a", "not-a-list", "Expected sequence"),
-        ("b", [[], ["1", "2"]], "Expected 2-element list/tuple, got length 0"),
-        ("a", [["1"]], "Expected 2-element list/tuple, got length 1"),
-        ("b", [["1", "2", "3"]], "Expected 2-element list/tuple, got length 3"),
-        ("a", ["1", "2"], "Expected sequence (list or tuple), got str"),
-        ("a", [["1", 2]], "must be string, got int"),
-        ("b", [["inf", "1"]], "Price must be finite"),
-        ("a", [["1", "nan"]], "Quantity must be finite"),
-        ("b", [["", "1"]], "String cannot be empty"),
-        ("a", [["1", ""]], "String cannot be empty"),
-        ("b", [["1", "-1"]], "Quantity cannot be negative"),
+        ("U", "", "String cannot be empty"),
+        ("u", None, "must be string or integer, got NoneType"),
+        # Skip bids=None test case since bids is optional and can be None
+        ("asks", "not-a-list", "Expected sequence"),
+        ("bids", [[], ["1", "2"]], "Expected 2-element list/tuple, got length 0"),
+        ("asks", [["1"]], "Expected 2-element list/tuple, got length 1"),
+        ("bids", [["1", "2", "3"]], "Expected 2-element list/tuple, got length 3"),
+        ("asks", ["1", "2"], "Expected sequence (list or tuple), got str"),
+        ("asks", [["1", 2]], "must be string, got int"),
+        ("bids", [["inf", "1"]], "Price must be finite"),
+        ("asks", [["1", "nan"]], "Quantity must be finite"),
+        ("bids", [["", "1"]], "String cannot be empty"),
+        ("asks", [["1", ""]], "String cannot be empty"),
+        ("bids", [["1", "-1"]], "Quantity cannot be negative"),
         ("e", "", "String cannot be empty"),
         ("E", "abc", "Cannot parse as ISO datetime"),
     ],
