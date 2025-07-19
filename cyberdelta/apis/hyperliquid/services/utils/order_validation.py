@@ -9,7 +9,7 @@ from decimal import Decimal
 from cyberdelta.apis.exceptions import InvalidEnumValueError
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import OrderType, TimeInForce
+from cyberdelta.core.enums import OrderType, TimeInForce
 
 
 logger = get_logger(__name__)

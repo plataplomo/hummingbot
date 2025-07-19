@@ -31,8 +31,8 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models import DerivativePosition, MarginAccountSummary, SpotBalance
-from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -497,7 +497,7 @@ class TestPositionTransformation:
         # The transformation should fail with DataTransformationError
         with pytest.raises(DataTransformationError) as exc_info:
             mapper.transform_raw_position_to_internal(raw_position)
-        
+
         # The error is wrapped by secure_transform so check for validation message
         assert "Security validation failed" in str(exc_info.value)
         assert "DerivativePosition" in str(exc_info.value)
@@ -821,7 +821,7 @@ class TestAccountSummaryTransformation:
                 spot_balances,
                 [position],
             )
-        
+
         # The error is wrapped so check for validation message
         assert "Security validation failed" in str(exc_info.value)
 

@@ -11,13 +11,13 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.core.enums import (
+    OrderSide,
+    SignalType,
+)
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import (
     TradeSignal,
-)
-from cyberdelta.core.models.enums import (
-    OrderSide,
-    SignalType,
 )
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker

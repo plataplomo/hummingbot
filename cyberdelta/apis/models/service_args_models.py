@@ -14,7 +14,7 @@ from cyberdelta.apis.exceptions.field_validation import (
     EmptyStringFieldError,
     TypeFieldError,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     RequiredFieldError,

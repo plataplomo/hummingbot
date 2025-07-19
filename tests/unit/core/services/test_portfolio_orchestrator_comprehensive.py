@@ -26,8 +26,8 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
 )
+from cyberdelta.core.portfolio_orchestrator import PortfolioOrchestrator
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.services.portfolio_orchestrator import PortfolioOrchestrator
 
 
 def _as_mock(obj: object) -> Mock:

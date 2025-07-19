@@ -13,8 +13,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import OrderSide, TradeSignal
-from cyberdelta.core.models.enums import SignalType
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem

@@ -98,7 +98,7 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
             message=f"Portfolio state saved successfully to {state_file_path}",
         )
 
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         logger.exception(
             "portfolio_state_save_failed",
             action="save",
@@ -205,7 +205,7 @@ async def load_state(self: PortfolioTracker, state_file_path: str | None = None)
             message=f"Error decoding state file {state_file_path}: {e}",
         )
         return False
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         logger.exception(
             "portfolio_state_load_failed",
             action="load",

@@ -126,7 +126,7 @@ class StrategyFactory:
         except StrategyCreationError:
             # Re-raise StrategyCreationError as-is to preserve strategy_type
             raise
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             error_msg = f"Failed to create HL Perp BP Spot strategy '{name}': {e}"
             logger.exception(
                 "strategy_creation_failed",

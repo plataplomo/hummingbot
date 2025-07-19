@@ -394,7 +394,7 @@ class ExecutionInputValidator(BaseService, IInputValidator):
                 sufficient=available_balance >= required_balance,
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "Failed to validate account balances",
                 exchange_id=exchange_id,

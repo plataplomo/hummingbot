@@ -118,55 +118,55 @@ class PriceDeviationError(MarketOrderError):
         super().__init__(message)
 
 
-class ValidationError(ValueError):
-    """Enhanced ValueError for validation errors."""
+class MarketOrderParameterError(ValueError):
+    """Raised when market order parameters are invalid or malformed."""
 
     @classmethod
-    def empty_symbol_error(cls) -> "ValidationError":
+    def empty_symbol_error(cls) -> "MarketOrderParameterError":
         """Create error for empty symbol."""
         return cls("Symbol must be a non-empty string")
 
     @classmethod
-    def invalid_quantity_error(cls) -> "ValidationError":
+    def invalid_quantity_error(cls) -> "MarketOrderParameterError":
         """Create error for invalid quantity."""
         return cls("Quantity must be a positive Decimal")
 
     @classmethod
-    def infinite_quantity_error(cls) -> "ValidationError":
+    def infinite_quantity_error(cls) -> "MarketOrderParameterError":
         """Create error for infinite quantity."""
         return cls("Quantity must be finite")
 
     @classmethod
-    def finite_decimal_error(cls) -> "ValidationError":
+    def finite_decimal_error(cls) -> "MarketOrderParameterError":
         """Create error for non-finite decimal."""
         return cls("Percentage must be a finite decimal")
 
     @classmethod
-    def positive_error(cls) -> "ValidationError":
+    def positive_error(cls) -> "MarketOrderParameterError":
         """Create error for non-positive value."""
         return cls("Percentage must be positive")
 
     @classmethod
-    def slippage_default_error(cls) -> "ValidationError":
+    def slippage_default_error(cls) -> "MarketOrderParameterError":
         """Create error for missing default in slippage map."""
         return cls("slippage_by_symbol must contain a 'default' entry")
 
     @classmethod
-    def slippage_invalid_error(cls, symbol: str, slippage: object) -> "ValidationError":
+    def slippage_invalid_error(cls, symbol: str, slippage: object) -> "MarketOrderParameterError":
         """Create error for invalid slippage value."""
         return cls(f"Invalid slippage for {symbol}: {slippage}")
 
     @classmethod
-    def config_disabled_error(cls) -> "ValidationError":
+    def config_disabled_error(cls) -> "MarketOrderParameterError":
         """Create error for disabled configuration."""
         return cls("Market orders are disabled in configuration")
 
     @classmethod
-    def config_slippage_error(cls) -> "ValidationError":
+    def config_slippage_error(cls) -> "MarketOrderParameterError":
         """Create error for invalid slippage configuration."""
         return cls("Maximum slippage must be positive")
 
     @classmethod
-    def config_deviation_error(cls) -> "ValidationError":
+    def config_deviation_error(cls) -> "MarketOrderParameterError":
         """Create error for invalid price deviation configuration."""
         return cls("Maximum price deviation must be positive")

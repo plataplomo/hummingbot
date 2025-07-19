@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from cyberdelta.apis.base.validation_context_domain import RateLimitBehavior
+from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
 from cyberdelta.apis.base.ws_rate_limiter import (
     RateLimitAlgorithm,
     RateLimitConfig,

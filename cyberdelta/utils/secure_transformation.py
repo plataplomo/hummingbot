@@ -236,7 +236,7 @@ def secure_transform[T: BaseModel](
             error_count=len(e.errors()),
             validation_errors=validation_errors_list,
         ) from e
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         # Catch any other unexpected errors
         security_logger.exception(
             "security_unexpected_transformation_error",

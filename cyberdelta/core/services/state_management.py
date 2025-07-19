@@ -373,7 +373,7 @@ class ThreadSafeExecutionStateManager(BaseAsyncService, IStateManager):
             except asyncio.CancelledError:
                 self.logger.info("Cleanup task cancelled")
                 break
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
                 self.logger.exception("Error in periodic cleanup", error=str(e))
                 # Continue running despite errors
                 await asyncio.sleep(60)  # Wait before retrying

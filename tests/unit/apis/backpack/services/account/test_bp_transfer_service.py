@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.services.account.bp_transfer_service import (
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args_models import TransferArgs, WithdrawArgs
-from cyberdelta.core.models.enums import InternalTransferStatus, InternalWithdrawalStatus
+from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.exceptions.service_validation import (
     InvalidAccountTypeError,

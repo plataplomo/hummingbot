@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.base.validation_context_domain import MessageProcessingResult
+from cyberdelta.apis.base.websocket_states import MessageProcessingResult
 from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.config.structlog_config import get_logger
 

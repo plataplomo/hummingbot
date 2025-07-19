@@ -27,7 +27,8 @@ from typing import Any
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
-from cyberdelta.apis.base.validation_context_domain import DataPresenceState, ErrorMappingContext
+from cyberdelta.apis.base.validation_contexts import ErrorMappingContext
+from cyberdelta.apis.base.websocket_states import DataPresenceState
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
 from cyberdelta.config.structlog_config import get_logger
 

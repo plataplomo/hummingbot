@@ -15,7 +15,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
     WithdrawArgs,
 )
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
 )
 from cyberdelta.core.models.operations import Withdrawal

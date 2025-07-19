@@ -20,7 +20,7 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity_for_zero_balance,

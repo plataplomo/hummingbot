@@ -29,7 +29,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     GetOrderHistoryArgs,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderStatus
+from cyberdelta.core.enums import OrderSide, OrderStatus
 from cyberdelta.core.models.market.order import Order
 
 

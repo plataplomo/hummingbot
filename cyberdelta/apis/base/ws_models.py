@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.apis.base.validation_context_domain import FieldPresenceState
+from cyberdelta.apis.base.websocket_states import FieldPresenceState
 
 
 class WebSocketValidationError(ValueError):

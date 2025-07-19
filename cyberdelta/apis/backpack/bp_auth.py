@@ -5,6 +5,7 @@ including ED25519 signature generation for REST API requests and WebSocket subsc
 """
 
 import base64
+import binascii
 import time
 import urllib.parse
 from collections.abc import Mapping
@@ -63,7 +64,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             # Decode and load the private key
             private_key_bytes = base64.b64decode(private_key_b64)
             self._ed25519_private_key = Ed25519PrivateKey.from_private_bytes(private_key_bytes)
-        except Exception as e:
+        except (ValueError, TypeError, binascii.Error) as e:
             logger.exception(
                 "ed25519_key_load_failed",
                 action="load_key",
@@ -348,7 +349,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 data=data,
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, UnknownEndpointError) as e:
             logger.exception(
                 "ed25519_auth_failed",
                 action="authenticate",
@@ -403,7 +404,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
                 signature=signature_b64,
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, OverflowError) as e:
             logger.exception(
                 "websocket_signature_failed",
                 action="generate_signature",

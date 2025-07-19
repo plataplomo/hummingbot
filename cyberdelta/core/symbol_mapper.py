@@ -30,6 +30,10 @@ logger = get_logger(__name__)
 ErrorMessages = SymbolMappingErrorMessages
 
 
+# Export public API
+__all__ = ["SymbolMapper", "SymbolMappingError"]
+
+
 class SymbolMapper:
     """Strict, type-safe symbol mapper for production trading systems.
 

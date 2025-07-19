@@ -24,8 +24,8 @@ from cyberdelta.apis.exceptions.data_transformation import (
     MissingRequiredFieldError,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
-from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform

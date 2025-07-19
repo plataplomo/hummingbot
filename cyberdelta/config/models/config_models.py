@@ -46,6 +46,12 @@ from cyberdelta.utils.parsing import (
 )
 
 
+# Typed factory functions to avoid Unknown type inference
+def _initial_positions_factory() -> list[dict[str, Any]]:
+    """Factory function for initial_positions list."""
+    return []
+
+
 class AddressActionSafetyNetConfig(BaseModel):
     """Configuration for address-based action safety net rate limiting."""
 
@@ -775,19 +781,197 @@ DEFAULT_DATA_FRESHNESS_SECONDS = 60
 type ExchangeId = str
 
 
-class PortfolioTrackerConfig(BaseModel):
-    """Portfolio tracker configuration."""
+class PortfolioCacheSettings(BaseModel):
+    """Portfolio cache configuration settings."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    enabled: bool = True
+    max_size: int = Field(default=10000, gt=0, le=100000)
+    default_ttl: float = Field(default=300.0, gt=0, le=3600)
+    stale_while_revalidate: float = Field(default=60.0, gt=0, le=600)
+    cleanup_interval: float = Field(default=600.0, gt=0, le=3600)
+    enable_memory_optimization: bool = True
+    cache_statistics_enabled: bool = True
+
+
+class PortfolioStateSettings(BaseModel):
+    """Portfolio state management settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # State persistence
+    persist_interval: float = Field(default=60.0, gt=0, le=600)
+    backup_count: int = Field(default=5, gt=0, le=20)
+    backup_directory: NonEmptyConfigString = "data/portfolio_backups"
+
+    # State update settings
+    atomic_updates: bool = True
+    update_timeout: float = Field(default=5.0, gt=0, le=30)
+    max_concurrent_updates: int = Field(default=1, gt=0, le=10)
+
+    # State validation
+    validate_on_load: bool = True
+    validate_on_update: bool = True
+    strict_validation: bool = False
+
+    # State history
+    max_state_history_size: int = Field(default=100, gt=0, le=1000)
+    max_trade_history_size: int = Field(default=1000, gt=0, le=10000)
+
+
+class PortfolioValidationSettings(BaseModel):
+    """Portfolio validation configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # Balance validation
+    enable_balance_validation: bool = True
+    balance_tolerance: ConfigDecimal = Field(default=Decimal("0.0001"), gt=Decimal(0))
+    require_non_negative_balances: bool = True
+
+    # Position validation
+    enable_position_validation: bool = True
+    position_size_tolerance: ConfigDecimal = Field(default=Decimal("0.0001"), gt=Decimal(0))
+    max_position_age_seconds: int = Field(default=300, gt=0)
+
+    # Trade validation
+    enable_trade_validation: bool = True
+    max_trade_age_seconds: int = Field(default=86400, gt=0)  # 24 hours
+    require_valid_timestamps: bool = True
+
+    # Cross-validation
+    enable_cross_validation: bool = True
+    validation_timeout: float = Field(default=10.0, gt=0, le=60)
+
+    # Price and quantity validation
+    min_price: ConfigDecimal = Field(default=Decimal("0.0000001"), gt=Decimal(0))
+    max_price: ConfigDecimal = Field(default=Decimal("1000000.0"), gt=Decimal(0))
+    min_quantity: ConfigDecimal = Field(default=Decimal("0.00000001"), gt=Decimal(0))
+    max_quantity: ConfigDecimal = Field(default=Decimal("1000000.0"), gt=Decimal(0))
+    min_trade_value: ConfigDecimal = Field(default=Decimal("0.01"), gt=Decimal(0))
+    max_trade_value: ConfigDecimal = Field(default=Decimal("10000000.0"), gt=Decimal(0))
+
+    # Balance thresholds
+    min_balance_threshold: ConfigDecimal = Field(default=Decimal("0.00001"), ge=Decimal(0))
+    allow_negative_balances: bool = False
+
+    # Position limits
+    max_position_size: ConfigDecimal = Field(default=Decimal("100000.0"), gt=Decimal(0))
+    max_leverage: ConfigDecimal = Field(default=Decimal("10.0"), gt=Decimal(0))
+    max_position_value: ConfigDecimal = Field(default=Decimal("1000000.0"), gt=Decimal(0))
+
+    # Other settings
+    max_recent_issues: int = Field(default=100, gt=0)
+    enabled: bool = True
+    strict_mode: bool = False
+
+
+class PortfolioCalculationSettings(BaseModel):
+    """Portfolio calculation configuration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # PnL calculation
+    pnl_calculation_method: Literal["fifo", "lifo", "weighted_average"] = "weighted_average"
+    include_fees_in_pnl: bool = True
+    include_funding_in_pnl: bool = True
+
+    # Exposure calculation
+    max_exposure_calculation_depth: int = Field(default=100, gt=0, le=1000)
+    group_by_base_asset: bool = True
+    exposure_update_interval: float = Field(default=5.0, gt=0, le=60)
+
+    # Performance metrics
+    calculate_sharpe_ratio: bool = True
+    sharpe_lookback_days: int = Field(default=30, gt=0, le=365)
+    calculate_max_drawdown: bool = True
+    performance_update_interval: float = Field(default=300.0, gt=0, le=3600)
+    risk_free_rate: ConfigDecimal = Field(default=Decimal("0.02"), ge=Decimal(0), le=Decimal("0.1"))
+
+    # Exposure calculation settings
+    default_volatility: ConfigDecimal = Field(
+        default=Decimal("0.2"), gt=Decimal(0), le=Decimal("5.0")
+    )
+    stress_scenario_move: ConfigDecimal = Field(
+        default=Decimal("0.1"), gt=Decimal(0), le=Decimal("1.0")
+    )
+    var_confidence_level: ConfigDecimal = Field(
+        default=Decimal("0.95"), gt=Decimal("0.5"), lt=Decimal("1.0")
+    )
+    leverage_warning_threshold: ConfigDecimal = Field(
+        default=Decimal("3.0"), gt=Decimal(0), le=Decimal("50.0")
+    )
+
+    # PnL calculation
+    realized_pnl_method: Literal["fifo", "lifo", "weighted_average"] = "weighted_average"
+
+    # Price service settings
+    price_cache_ttl: int = Field(default=60, gt=0, le=3600)
+    batch_size_limit: int = Field(default=100, gt=0, le=1000)
+    price_staleness_threshold: int = Field(default=300, gt=0, le=3600)
+
+
+class PortfolioTrackerConfig(BaseModel):
+    """Portfolio tracker configuration with comprehensive settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    # Core settings
     data_freshness_seconds: int = Field(default=DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
     initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
-    # PYRIGHT BUG: Known regression in pyright 1.1.399+ where Field(default_factory=list)
-    # with generic types is incorrectly reported as "partially unknown". This is a pyright
-    # static analysis bug, not a code issue. The type is fully known at runtime.
-    # See: https://github.com/microsoft/pyright/issues/10442
-    # TODO: Remove this ignore when pyright fixes the regression
-    initial_positions: list[dict[str, Any]] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    initial_positions: list[dict[str, Any]] = Field(default_factory=_initial_positions_factory)
+
+    # Enhanced settings
+    cache: PortfolioCacheSettings = Field(default_factory=PortfolioCacheSettings)
+    state: PortfolioStateSettings = Field(default_factory=PortfolioStateSettings)
+    validation: PortfolioValidationSettings = Field(default_factory=PortfolioValidationSettings)
+    calculation: PortfolioCalculationSettings = Field(default_factory=PortfolioCalculationSettings)
+
+    # Module behavior
+    enabled: bool = True
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+    log_performance_metrics: bool = True
+    metrics_interval: float = Field(default=300.0, gt=0, le=3600)
+
+    # Integration settings
+    sync_with_risk_module: bool = True
+    sync_with_execution_module: bool = True
+    event_driven_updates: bool = True
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _validate_log_level(cls, v: str | float | bool, info: ValidationInfo) -> str:
+        return validate_enum_field(
+            v,
+            allowed={"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"},
+            field_name=info.field_name or "log_level",
+        )
+
+    @model_validator(mode="after")
+    def validate_cross_settings(self) -> Self:
+        """Validate cross-field relationships in portfolio configuration."""
+        # Ensure cache cleanup interval is larger than default TTL
+        if self.cache.cleanup_interval < self.cache.default_ttl:
+            msg = "Cache cleanup interval must be >= default TTL"
+            raise ValueError(msg)
+
+        # Ensure state persist interval is reasonable compared to data freshness
+        if self.state.persist_interval < self.data_freshness_seconds:
+            msg = "State persist interval should be >= data freshness seconds"
+            raise ValueError(msg)
+
+        # Ensure validation timeout is reasonable
+        if self.validation.validation_timeout > self.state.update_timeout:
+            msg = "Validation timeout should not exceed state update timeout"
+            raise ValueError(msg)
+
+        # Ensure metrics interval is reasonable
+        if self.metrics_interval < self.calculation.exposure_update_interval:
+            msg = "Metrics interval should be >= exposure update interval"
+            raise ValueError(msg)
+
+        return self
 
 
 class AppSettings(BaseModel):

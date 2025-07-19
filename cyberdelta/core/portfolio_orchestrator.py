@@ -196,7 +196,7 @@ class PortfolioOrchestrator:
                 message=f"Successfully fetched balances for {exchange_id}",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "balance_fetch_error",
                 component="PORTFOLIO_ORCHESTRATOR",
@@ -247,7 +247,7 @@ class PortfolioOrchestrator:
                 message=f"Successfully fetched positions for {exchange_id}",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "position_fetch_failed",
                 component="PORTFOLIO_ORCHESTRATOR",
@@ -297,7 +297,7 @@ class PortfolioOrchestrator:
                 message=f"Successfully fetched orders for {exchange_id}",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "order_fetch_failed",
                 component="PORTFOLIO_ORCHESTRATOR",
@@ -356,7 +356,7 @@ class PortfolioOrchestrator:
                 message=f"Successfully fetched account summary for {exchange_id}",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "account_summary_fetch_error",
                 component="PORTFOLIO_ORCHESTRATOR",
@@ -393,7 +393,7 @@ class PortfolioOrchestrator:
         try:
             # Fetch ticker from the exchange API
             ticker = await client.get_ticker(symbol)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "ticker_fetch_error",
                 component="PORTFOLIO_ORCHESTRATOR",

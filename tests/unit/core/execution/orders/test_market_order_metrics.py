@@ -9,11 +9,11 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.core.enums import OrderSide, OrderStatus
 from cyberdelta.core.execution.orders.market_order_metrics import (
     MarketOrderExecutionMetric,
     MarketOrderMetrics,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderStatus
 
 
 class TestMarketOrderExecutionMetric:

@@ -7,7 +7,7 @@ various timestamp formats from exchange APIs.
 from datetime import UTC, datetime
 from typing import NoReturn
 
-from cyberdelta.apis.base.validation_context_domain import ValidationContext
+from cyberdelta.apis.base.validation_contexts import ValidationContext
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 

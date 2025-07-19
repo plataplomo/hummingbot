@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderExpiryReason,
     OrderSide,
     OrderStatus,

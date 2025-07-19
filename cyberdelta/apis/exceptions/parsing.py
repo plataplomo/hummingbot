@@ -5,7 +5,7 @@ of raw data values, particularly in validators for raw types.
 """
 
 # Import base parsing exceptions from core
-from cyberdelta.apis.base.validation_context_domain import DictMatchPolicy
+from cyberdelta.apis.base.validation_policies import DictMatchPolicy
 from cyberdelta.exceptions.parsing import (
     ParsingError,
 )

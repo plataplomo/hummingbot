@@ -13,7 +13,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_usd_transfer_response import (
     HyperliquidRawUsdTransferResponse,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import InternalTransferStatus
+from cyberdelta.core.enums import InternalTransferStatus
 from cyberdelta.core.models.operations import HyperliquidTransferDetails, Transfer
 from cyberdelta.utils.secure_transformation import secure_transform
 

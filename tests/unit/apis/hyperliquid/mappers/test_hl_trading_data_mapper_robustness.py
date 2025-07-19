@@ -33,7 +33,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import Hyperliqu
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
 )
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
     OrderStatus,
     OrderType,

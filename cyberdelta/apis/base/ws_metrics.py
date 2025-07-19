@@ -13,7 +13,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.apis.base.validation_context_domain import MessageProcessingResult
+from cyberdelta.apis.base.websocket_states import MessageProcessingResult
 
 
 # Constants for histogram buckets and cleanup intervals

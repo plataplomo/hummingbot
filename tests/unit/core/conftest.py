@@ -16,6 +16,7 @@ from cyberdelta.config.models.config_models import (
     ExchangeSpecificConfig,
     PortfolioTrackerConfig,
 )
+from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -31,7 +32,6 @@ from cyberdelta.core.models import (
     Trade,
     TradeSignal,
 )
-from cyberdelta.core.models.enums import SignalType
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.symbol_mapper import SymbolMapper

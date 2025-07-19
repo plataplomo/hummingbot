@@ -43,13 +43,13 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_placement_service imp
     HyperliquidOrderPlacementService,
 )
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-from cyberdelta.core.models import Order
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models import Order
 
 
 HyperliquidResponseHandler = HyperliquidTradingResponseHandler

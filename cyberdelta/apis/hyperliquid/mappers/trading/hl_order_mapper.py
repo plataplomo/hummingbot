@@ -42,14 +42,14 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order, Trade
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
     TriggerType,
 )
+from cyberdelta.core.models import Order, Trade
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -224,7 +224,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         except TransformationError:
             # Re-raise TransformationError as-is
             raise
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.exception(
                 "order_transform_failed",
                 component="HyperliquidOrderMapper",
@@ -329,7 +329,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         except TransformationError:
             # Re-raise TransformationError as-is
             raise
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.exception(
                 "simple_order_transform_failed",
                 component="HyperliquidOrderMapper",
@@ -569,7 +569,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
 
         except TransformationError:
             raise
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.exception(
                 "hl_order_mapper_parse_timestamps_failed",
                 action="parse_order_timestamps",

@@ -26,10 +26,11 @@ from cyberdelta.config.structlog_config import get_logger as get_structlog, setu
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
+from cyberdelta.core.portfolio_orchestrator import PortfolioOrchestrator
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.portfolio_tracker_async_save import patch_portfolio_tracker
 from cyberdelta.core.risk_manager import RiskManager
-from cyberdelta.core.services import PortfolioOrchestrator, PriceDataService
+from cyberdelta.core.services import PriceDataService
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
@@ -98,7 +99,7 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
         try:
             await app_state["portfolio_tracker"].save_state()
             logger.info("Portfolio state saved successfully")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception("portfolio_save_error: Error saving portfolio state", error=str(e))
 
     # Save general application state using AsyncStateManager
@@ -135,7 +136,7 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
                 logger.info("General application state saved successfully")
             else:
                 logger.error("Failed to save general application state")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception("general_state_save_error: Error saving general state", error=str(e))
 
 
@@ -196,7 +197,7 @@ def _load_configuration(args: argparse.Namespace) -> AppSettings:
     except (ConfigurationError, RuntimeError) as e:
         logger.exception("configuration_error: Configuration error", error=str(e))
         sys.exit(1)
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         logger.exception("config_load_error: Unexpected error loading configuration", error=str(e))
         sys.exit(1)
     else:
@@ -304,7 +305,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
 
         logger.info("Core components initialized.")
 
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         logger.exception(
             "component_init_error: Fatal error during component initialization",
             error=str(e),
@@ -375,7 +376,7 @@ async def _initialize_api_clients(
             sys.exit(1)
         logger.info("API clients initialized and registered.")
 
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         logger.exception(
             "api_client_init_error: Fatal error during API client initialization or connection",
             error=str(e),
@@ -437,7 +438,7 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
             message="Successfully initialized strategies via factory",
         )
 
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
         logger.exception(
             "strategy_init_error: Fatal error during strategy initialization",
             error=str(e),

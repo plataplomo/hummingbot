@@ -61,6 +61,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Re-export for external use
+__all__ = ["HyperliquidEip712Authenticator", "IAuthenticator"]
+
 # Cryptographic constants
 PRIVATE_KEY_HEX_LENGTH = 64  # Length of private key in hex characters
 SIGNATURE_HEX_LENGTH = 66  # Length of signature components (0x + 64 hex chars)
@@ -243,7 +246,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             # Cryptographic validation using eth_account
             try:
                 account_obj: LocalAccount = Account.from_key(processed_pk_str)
-            except Exception as e:
+            except (ValueError, TypeError, OverflowError) as e:
                 raise InvalidPrivateKeyError(
                     reason=f"not cryptographically valid: {e}",
                     original_error=e,
@@ -315,7 +318,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         try:
             mnemonic_validator = Mnemonic("english")
             is_valid = self._check_bip39_mnemonic(phrase_str, mnemonic_validator)
-        except Exception as e:
+        except (ValueError, TypeError, ImportError, RuntimeError) as e:
             # Handle any other exceptions from mnemonic validation
             raise PassphraseFieldError(
                 reason=f"error validating with mnemonic library: {e}",
@@ -641,7 +644,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     )
 
             msgpacked_action: bytes = bytes(msgpack.packb(action_payload_dict))
-        except Exception as e:
+        except (ValueError, TypeError, OverflowError, msgpack.exceptions.ExtraData) as e:
             self.logger.exception(
                 "msgpack_serialization_failed",
                 action="compute_action_hash",
@@ -701,7 +704,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         try:
             return keccak(action_hash_input_bytes)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "action_hash_computation_failed",
                 action="compute_action_hash",
@@ -797,7 +800,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 message=f"[HL_AUTH] Signing account: {self._account.address}",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "signature_formatting_failed",
                 action="format_signature_components",
@@ -980,7 +983,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             signable_message = self._encode_and_sign_message(structured_data_to_sign)
             return self._format_signature_components(signable_message)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "eip712_signing_failed",
                 action="sign_eip712_message",
@@ -1003,7 +1006,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         """Encode and sign the EIP-712 message."""
         try:
             signable_message = encode_typed_data(full_message=structured_data_to_sign)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "eip712_encoding_failed",
                 action="encode_and_sign_message",
@@ -1054,7 +1057,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                         f"signing address {self._account.address}"
                     ),
                 )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "eip712_message_signing_failed",
                 action="encode_and_sign_message",
@@ -1128,7 +1131,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 field_count=len(final_http_body),
                 message=f"[HL_AUTH] HTTP body constructed with {len(final_http_body)} fields",
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "http_body_construction_failed",
                 action="construct_http_body",
@@ -1170,7 +1173,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 header_count=len(final_headers),
                 message=f"[HL_AUTH] Prepared {len(final_headers)} HTTP headers",
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception(
                 "header_preparation_failed",
                 action="prepare_request_headers",

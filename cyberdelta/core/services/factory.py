@@ -229,7 +229,7 @@ class ServiceFactory:
             try:
                 await service.start()
                 self.logger.info("Service started", service_type=type(service).__name__)
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
                 self.logger.exception(
                     "Failed to start service", service_type=type(service).__name__, error=str(e)
                 )
@@ -249,7 +249,7 @@ class ServiceFactory:
             try:
                 await service.stop()
                 self.logger.info("Service stopped", service_type=type(service).__name__)
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
                 self.logger.exception(
                     "Failed to stop service", service_type=type(service).__name__, error=str(e)
                 )

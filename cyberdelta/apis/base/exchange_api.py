@@ -479,7 +479,7 @@ class ExchangeAPI(ABC):
             raise self._handle_client_error(e_client, method, request_url) from e_client
         except APIError:
             raise
-        except Exception as e_unhandled:
+        except (KeyError, AttributeError, RuntimeError, OSError) as e_unhandled:
             raise self._handle_unhandled_error(e_unhandled, method, request_url) from e_unhandled
         else:
             return response_content, status_code, response_headers_dict
@@ -1208,7 +1208,7 @@ class ExchangeAPI(ABC):
             connect_task = self._ws_manager.connect()
             if connect_task:  # ADDED: Check if task is not None
                 await connect_task
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.exception(
                 "exchange_api_websocket_connect_error",
                 action="connect_websocket",

@@ -447,7 +447,7 @@ class HyperliquidAPI(ExchangeAPI):
         except APIError:
             # Re-raise APIErrors from authenticator directly
             raise
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             # Wrap other exceptions as authentication failures
             logger.exception(
                 "hyperliquid_authentication_preparation_error",

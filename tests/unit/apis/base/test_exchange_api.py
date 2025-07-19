@@ -35,6 +35,7 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
+from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -48,7 +49,6 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.enums import CancelOrderResultStatus
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.market import Market

@@ -1153,7 +1153,7 @@ class RiskManager:
 
         try:
             metrics = self.funding_rate_validator.get_symbol_metrics(exchange, symbol)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "funding_validation_metrics_retrieval_error",
                 symbol=symbol,

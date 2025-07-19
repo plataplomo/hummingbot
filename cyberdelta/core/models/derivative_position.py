@@ -21,7 +21,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
-from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.exceptions import (
     DecimalFiniteError,
     FieldNameMissingError,
@@ -330,7 +330,7 @@ class HyperliquidPositionDetails(BaseModel):
             s = validate_str_field(v, field_name=field_name, max_length=16)
             # Use helper for enum check
             return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             raise FieldNameMissingError from e
 
     @field_validator("leverage_value", "max_leverage", mode="before")
@@ -367,6 +367,7 @@ class HyperliquidPositionDetails(BaseModel):
 class BackpackPositionDetails(BaseModel):
     """Immutable exchange-specific details for a Backpack position (Internal)."""
 
+    leverage: int | None = Field(default=None, ge=0)  # Current leverage value
     imf_base: Decimal | None = Field(default=None)
     imf_factor: Decimal | None = Field(default=None)
     mmf_base: Decimal | None = Field(default=None)

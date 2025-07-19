@@ -27,7 +27,7 @@ from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 
 
 pytestmark = [

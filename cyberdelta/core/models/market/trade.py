@@ -20,7 +20,7 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     RequiredFieldNoneError,

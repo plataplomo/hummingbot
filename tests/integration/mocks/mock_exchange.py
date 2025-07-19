@@ -46,6 +46,11 @@ from cyberdelta.config import AppSettings
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import (
+    CancelOrderResultStatus,
+    InternalTransferStatus,
+    InternalWithdrawalStatus,
+)
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -60,11 +65,6 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
     Trade,
-)
-from cyberdelta.core.models.enums import (
-    CancelOrderResultStatus,
-    InternalTransferStatus,
-    InternalWithdrawalStatus,
 )
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.market import Market

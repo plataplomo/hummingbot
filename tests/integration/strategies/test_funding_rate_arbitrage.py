@@ -16,13 +16,13 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import OrderSide, SignalType
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
     Ticker,
     TradeSignal,
 )
-from cyberdelta.core.models.enums import OrderSide, SignalType
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.funding_rate import (
     BackpackFundingDetails,

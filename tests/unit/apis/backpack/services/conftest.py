@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 
 # Removed in refactor
-from cyberdelta.core.models.enums import InternalWithdrawalStatus
+from cyberdelta.core.enums import InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Withdrawal
 from cyberdelta.utils.typing import ParsedJsonResponse
 

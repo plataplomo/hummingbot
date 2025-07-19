@@ -287,7 +287,7 @@ class OrderManagementService(BaseAsyncService, IOrderService):
 
         except APIError as e:
             return await self.error_handler.handle_api_error(e, "order status check", exchange_id)
-        except Exception as e:  # noqa: BLE001
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             return await self.error_handler.handle_system_error(
                 e, "order status check", recoverable=True
             )
@@ -351,7 +351,7 @@ class OrderManagementService(BaseAsyncService, IOrderService):
 
         except APIError as e:
             return await self.error_handler.handle_api_error(e, "order cancellation", exchange_id)
-        except Exception as e:  # noqa: BLE001
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             return await self.error_handler.handle_system_error(
                 e, "order cancellation", recoverable=True
             )

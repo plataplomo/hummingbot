@@ -24,7 +24,7 @@ from cyberdelta.config.structlog_config import get_logger
 if TYPE_CHECKING:
     from cyberdelta.core.models.market.order import Order
     from cyberdelta.core.models.market.trade import Trade
-from cyberdelta.core.models.enums import OrderStatus
+from cyberdelta.core.enums import OrderStatus
 
 
 logger = get_logger(__name__)

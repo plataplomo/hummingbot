@@ -332,7 +332,7 @@ class OrderVerifier:
             verification_success = False
             verification_error = "API client missing get_order method"
             return api_order, verification_success, verification_error
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "api_get_order_error",
                 action="verify_api_order",
@@ -603,7 +603,7 @@ class OrderVerifier:
                 f"{verification_error} {error_msg}" if verification_error else error_msg
             )
             verification_success = False
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "api_fetch_order_error",
                 action="fetch_api_order",
@@ -1371,7 +1371,7 @@ class SynchronizedOrderSubmissionService:
             # Execute second leg
             result = await self._execute_second_leg(opportunity, execution_context, result)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             result.status = ExecutionStatus.FAILED
             result.error = f"Execution failed: {e!r}"
             logger.exception(
@@ -1476,7 +1476,7 @@ class SynchronizedOrderSubmissionService:
                     "First order verification failed",
                 )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             result.status = ExecutionStatus.FAILED
             result.error = f"First order placement failed: {e!r}"
             logger.exception(
@@ -1617,7 +1617,7 @@ class SynchronizedOrderSubmissionService:
                 # Both orders succeeded
                 result.status = ExecutionStatus.COMPLETED
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             result.status = ExecutionStatus.PARTIALLY_COMPLETED
             result.error = f"Second order placement failed: {e!r}"
             logger.exception(

@@ -18,8 +18,8 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models import Trade
-from cyberdelta.core.models.enums import OrderSide
 
 
 # Mark all tests in this file

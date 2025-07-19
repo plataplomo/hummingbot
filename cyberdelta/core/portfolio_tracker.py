@@ -2059,7 +2059,7 @@ class PortfolioTracker:
                     exchange_id=ex_id_str,
                     message="Received None for timestamp field, skipping.",
                 )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception(
                 "timestamp_deserialization_error",
                 field_name=field_name,

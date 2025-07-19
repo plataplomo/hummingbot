@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from cyberdelta.apis.base.validation_context_domain import RateLimitBehavior
+from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
 
 
 class BurstSizeTooLargeError(ValueError):

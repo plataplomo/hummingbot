@@ -33,12 +33,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models import (
     DerivativePosition,
     HyperliquidPositionDetails,
     Trade,
 )
-from cyberdelta.core.models.enums import OrderSide
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 

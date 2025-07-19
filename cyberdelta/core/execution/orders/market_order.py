@@ -12,7 +12,10 @@ from cyberdelta.apis.base.trading_execution_domain import OrderExecution
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
-from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError, ValidationError
+from cyberdelta.core.execution.orders.market_order_errors import (
+    MarketOrderError,
+    MarketOrderParameterError,
+)
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
 
@@ -140,7 +143,7 @@ class MarketOrder:
                 message=f"Market order timed out after {self._config.order_timeout_seconds}s",
             )
             raise MarketOrderError.timeout_error(self._config.order_timeout_seconds) from e
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.exception(
                 "market_order_execution_failed",
                 action="execute",
@@ -271,10 +274,10 @@ class MarketOrder:
             ValueError: If parameters are invalid
         """
         if not symbol:
-            raise ValidationError.empty_symbol_error()
+            raise MarketOrderParameterError.empty_symbol_error()
 
         if quantity <= Decimal(0):
-            raise ValidationError.invalid_quantity_error()
+            raise MarketOrderParameterError.invalid_quantity_error()
 
         if not quantity.is_finite():
-            raise ValidationError.infinite_quantity_error()
+            raise MarketOrderParameterError.infinite_quantity_error()

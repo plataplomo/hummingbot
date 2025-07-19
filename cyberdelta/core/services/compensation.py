@@ -154,7 +154,7 @@ class CompensationService(BaseAsyncService, ICompensationService):
                 quantity_to_compensate,
             )
 
-        except Exception as e:  # noqa: BLE001
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             await self._update_compensation_status(compensation_id, CompensationStatus.FAILED)
 
             # Send critical alert
@@ -375,7 +375,7 @@ class CompensationService(BaseAsyncService, ICompensationService):
                 order_type = OrderType.MARKET
                 price = None
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "Failed to calculate compensation parameters",
                 execution_id=execution.id,

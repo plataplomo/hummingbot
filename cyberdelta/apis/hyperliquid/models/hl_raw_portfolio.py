@@ -18,7 +18,7 @@ from pydantic import (
     field_validator,
 )
 
-from cyberdelta.apis.base.validation_context_domain import DictMatchPolicy
+from cyberdelta.apis.base.validation_policies import DictMatchPolicy
 from cyberdelta.apis.exceptions.parsing import (
     DictStructureError,
     SequenceLengthError,

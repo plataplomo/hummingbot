@@ -22,7 +22,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetMarketsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 
 

@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import OrderSide, TradeSignal
-from cyberdelta.core.models.enums import SignalType
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -356,7 +356,7 @@ class PrioritySignalQueue:
         # Clean expired signals
         try:
             self._clean_expired_signals()
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "error_cleaning_expired_signals",
                 error=str(e),

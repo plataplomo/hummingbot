@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.base.validation_context_domain import SchemaExportMode
+from cyberdelta.apis.base.schema_export import SchemaExportMode
 from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidUserEventEnvelope
 
 

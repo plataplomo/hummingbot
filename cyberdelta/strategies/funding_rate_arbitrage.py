@@ -217,7 +217,7 @@ class FundingRateArbitrageStrategy(Strategy):
                     )
                     await asyncio.sleep(wait_time)
 
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
                 logger.exception(
                     "funding_rate_fetch_error",
                     exchange_id=exchange_id,
@@ -242,7 +242,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
             if self._should_fetch_hyperliquid_funding(current_rate):
                 await self.data_handler.fetch_funding_rates(self.perp_exchange, [self.symbol])
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception(
                 "hyperliquid_funding_check_error",
                 strategy=self.name,
@@ -675,7 +675,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 )
                 return Decimal("0.01")
             return variance.sqrt()
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception(
                 "variance_sqrt_calculation_error",
                 strategy=self.name,
@@ -724,7 +724,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 )
                 return base_slippage
             slippage_scaling = size_ratio.sqrt()
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception(
                 "size_ratio_sqrt_calculation_error",
                 strategy=self.name,
@@ -766,7 +766,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 if opportunity_signals:
                     signals.extend(opportunity_signals)
                 # self.last_opportunity_check is updated within evaluate_entry_opportunity
-            except Exception as e:
+            except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
                 logger.exception(
                     "evaluate_entry_opportunity_error",
                     strategy=self.name,

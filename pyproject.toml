@@ -56,7 +56,7 @@ dependencies = [
     "opentelemetry-sdk==1.33.1",
     "msgspec==0.19.0",
     "tenacity==9.1.2",
-    "psutil==7.0.0,<7.1.0",
+    "psutil>=7.0.0, <7.1.0",
 ]
 
 [project.optional-dependencies]
@@ -86,8 +86,6 @@ dev = [
     "types-cachetools>=6.0.0.20250525",
     "types-orjson>=3.6.2",
     "psutil==7.0.0",
-    "types-psutil>=7.0.0.20250601,<7.1.0",
-    "types-cachetools>=6.0.0.20250525",
     "types-psutil>=7.0.0.20250601,<7.1.0",
 ]
 
@@ -277,6 +275,15 @@ warn_unreachable = true  # Warn about unreachable code
 strict_equality = true  # Enforce strict equality checks
 extra_checks = true  # Enable extra checks
 scripts_are_modules = true  # Treat scripts as modules
+no_implicit_optional = true  # Don't assume Optional for default None
+strict_optional = true  # Enable strict Optional checks
+disallow_any_generics = true  # Disallow usage of generic types without parameters
+disallow_subclassing_any = true  # Disallow subclassing values of type Any
+disallow_untyped_calls = true  # Disallow calling untyped functions from typed ones
+disallow_any_unimported = true  # Disallow Any types from imports
+no_implicit_reexport = true  # Require explicit re-exports
+strict = true  # Enable all strict options
+
 exclude = [
     "workflow/.*",
 ]

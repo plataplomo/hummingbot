@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from cyberdelta.apis.base.validation_context_domain import MessageProcessingResult
+from cyberdelta.apis.base.websocket_states import MessageProcessingResult
 from cyberdelta.apis.base.ws_metrics import (
     MetricPoint,
     MetricSummary,

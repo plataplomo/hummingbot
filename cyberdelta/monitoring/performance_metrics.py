@@ -302,7 +302,7 @@ class PerformanceMetricsCalculator:
                 metrics["win_rate"] = Decimal("0.0")
                 metrics["profit_factor"] = Decimal("0.0")
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception(
                 "performance_metrics_calculation_error",
                 action="calculate_metrics",

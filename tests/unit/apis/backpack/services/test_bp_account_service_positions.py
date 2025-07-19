@@ -16,7 +16,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.models.enums import OrderSide
+from cyberdelta.core.enums import OrderSide
 
 
 class TestBackpackAccountServicePositions:
@@ -76,9 +76,9 @@ class TestBackpackAccountServicePositions:
         mock_response_handler.handle_get_positions_response.return_value = (
             mock_validated_raw_positions
         )
-        
+
         result_no_symbol = await bp_account_service.get_positions(symbol=None)
-        
+
         # Business logic returns positions with exchange="backpack"
         assert len(result_no_symbol) == 1
         assert result_no_symbol[0].exchange == "backpack"
@@ -92,11 +92,11 @@ class TestBackpackAccountServicePositions:
         assert result_no_symbol[0].unrealized_pnl == Decimal("100.0")
 
         # --- Test with symbol ---
-        
+
         # Reset and reconfigure mocks for the call with symbol
         mock_http_client_requester.reset_mock()
         mock_response_handler.reset_mock()
-        
+
         mock_http_client_requester.return_value = (
             [mock_raw_positions_data_item_dict],
             200,
@@ -105,9 +105,9 @@ class TestBackpackAccountServicePositions:
         mock_response_handler.handle_get_positions_response.return_value = (
             mock_validated_raw_positions
         )
-        
+
         result_with_symbol = await bp_account_service.get_positions(symbol=symbol_arg)
-        
+
         # Business logic returns positions with exchange="backpack"
         assert len(result_with_symbol) == 1
         assert result_with_symbol[0].exchange == "backpack"
@@ -131,7 +131,7 @@ class TestBackpackAccountServicePositions:
         symbol = "SOL_USDC"
         # Mock the HTTP client to return None which triggers APIError
         mock_http_client_requester.return_value = (None, 200, {})
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_positions(symbol=symbol)
 
@@ -149,10 +149,10 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions handles validation error from response handler."""
         symbol = "SOL_USDC"
-        
+
         # Mock the HTTP client to return invalid data that causes validation error
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
-        
+
         # Mock the response handler to raise ValidationError
         mock_response_handler.handle_get_positions_response.side_effect = (
             ValidationError.from_exception_data(
@@ -160,7 +160,7 @@ class TestBackpackAccountServicePositions:
                 line_errors=[],
             )
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_positions(symbol)
 
@@ -177,14 +177,14 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_positions handles unexpected exception via public API."""
-        # Mock the HTTP client to return valid data  
+        # Mock the HTTP client to return valid data
         mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
-        
+
         # Mock the response handler to raise an unexpected exception
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
             "Unexpected error"
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_positions()
 
@@ -229,7 +229,7 @@ class TestBackpackAccountServicePositions:
         mock_response_handler.handle_get_positions_response.return_value = [
             BackpackRawPosition.model_validate(mock_raw_position_data)
         ]
-        
+
         result = await bp_account_service.get_positions(symbol=None)
 
         # Business logic returns positions with exchange="backpack"
@@ -278,7 +278,7 @@ class TestBackpackAccountServicePositions:
         mock_response_handler.handle_get_positions_response.return_value = [
             BackpackRawPosition.model_validate(mock_raw_position_data)
         ]
-        
+
         result = await bp_account_service.get_positions(symbol=None)
 
         # Business logic returns positions with exchange="backpack"
@@ -296,10 +296,10 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions handles validation error from response handler."""
         symbol = "SOL_USDC"
-        
+
         # Mock the HTTP client to return invalid data that causes validation error
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
-        
+
         # Mock the response handler to raise ValidationError
         mock_response_handler.handle_get_positions_response.side_effect = (
             ValidationError.from_exception_data(
@@ -307,7 +307,7 @@ class TestBackpackAccountServicePositions:
                 line_errors=[],
             )
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_positions(symbol)
 
@@ -324,14 +324,14 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_positions handles unexpected exception."""
-        # Mock the HTTP client to return valid data  
+        # Mock the HTTP client to return valid data
         mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
-        
+
         # Mock the response handler to raise an unexpected exception
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
             "Unexpected error"
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_positions()
 
@@ -370,53 +370,61 @@ class TestBackpackAccountServicePositions:
         symbol = "SOL_USDC"
 
         # Mock the HTTP client and response handler to return valid data
-        mock_http_client_requester.return_value = ([BackpackRawPosition.model_validate({
-            "symbol": symbol,
-            "subaccountId": 0,
-            "breakEvenPrice": "100.0",
-            "entryPrice": "100.0", 
-            "estLiquidationPrice": "90.0",
-            "imf": "0.1",
-            "imfFunction": {"base": "0.05", "factor": "0.01"},
-            "markPrice": "105.0",
-            "mmf": "0.05",
-            "mmfFunction": {"base": "0.03", "factor": "0.005"},
-            "netCost": "1000.0",
-            "netQuantity": "10.0",
-            "netExposureQuantity": "10.0",
-            "netExposureNotional": "1050.0",
-            "pnlRealized": "0.0",
-            "pnlUnrealized": "50.0",
-            "cumulativeFundingPayment": "5.0",
-            "userId": 123,
-            "positionId": "pos123",
-            "cumulativeInterest": "0.0",
-        }).model_dump()], 200, {})
-        
+        mock_http_client_requester.return_value = (
+            [
+                BackpackRawPosition.model_validate({
+                    "symbol": symbol,
+                    "subaccountId": 0,
+                    "breakEvenPrice": "100.0",
+                    "entryPrice": "100.0",
+                    "estLiquidationPrice": "90.0",
+                    "imf": "0.1",
+                    "imfFunction": {"base": "0.05", "factor": "0.01"},
+                    "markPrice": "105.0",
+                    "mmf": "0.05",
+                    "mmfFunction": {"base": "0.03", "factor": "0.005"},
+                    "netCost": "1000.0",
+                    "netQuantity": "10.0",
+                    "netExposureQuantity": "10.0",
+                    "netExposureNotional": "1050.0",
+                    "pnlRealized": "0.0",
+                    "pnlUnrealized": "50.0",
+                    "cumulativeFundingPayment": "5.0",
+                    "userId": 123,
+                    "positionId": "pos123",
+                    "cumulativeInterest": "0.0",
+                }).model_dump()
+            ],
+            200,
+            {},
+        )
+
         # Mock response handler to process data but mapper fails
-        mock_response_handler.handle_get_positions_response.return_value = [BackpackRawPosition(
-            symbol=symbol,
-            subaccountId=0,
-            breakEvenPrice="100.0",
-            entryPrice="100.0",
-            estLiquidationPrice="90.0",
-            imf="0.1",
-            imfFunction=BackpackRawImfFunction(base="0.05", factor="0.01"),
-            markPrice="105.0",
-            mmf="0.05",
-            mmfFunction=BackpackRawMmfFunction(base="0.03", factor="0.005"),
-            netCost="1000.0",
-            netQuantity="10.0",
-            netExposureQuantity="10.0",
-            netExposureNotional="1050.0",
-            pnlRealized="0.0",
-            pnlUnrealized="50.0",
-            cumulativeFundingPayment="5.0",
-            userId=123,
-            positionId="pos123",
-            cumulativeInterest="0.0",
-        )]
-        
+        mock_response_handler.handle_get_positions_response.return_value = [
+            BackpackRawPosition(
+                symbol=symbol,
+                subaccountId=0,
+                breakEvenPrice="100.0",
+                entryPrice="100.0",
+                estLiquidationPrice="90.0",
+                imf="0.1",
+                imfFunction=BackpackRawImfFunction(base="0.05", factor="0.01"),
+                markPrice="105.0",
+                mmf="0.05",
+                mmfFunction=BackpackRawMmfFunction(base="0.03", factor="0.005"),
+                netCost="1000.0",
+                netQuantity="10.0",
+                netExposureQuantity="10.0",
+                netExposureNotional="1050.0",
+                pnlRealized="0.0",
+                pnlUnrealized="50.0",
+                cumulativeFundingPayment="5.0",
+                userId=123,
+                positionId="pos123",
+                cumulativeInterest="0.0",
+            )
+        ]
+
         # Mock response handler to raise ValidationError during processing
         mock_response_handler.handle_get_positions_response.side_effect = (
             ValidationError.from_exception_data(

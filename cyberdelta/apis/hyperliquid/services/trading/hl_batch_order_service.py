@@ -58,8 +58,8 @@ from cyberdelta.apis.hyperliquid.services.utils.status_processing import (
 )
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import OrderType
 from cyberdelta.core.models import Order
-from cyberdelta.core.models.enums import OrderType
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 

@@ -42,14 +42,14 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_cancellation_service 
     HyperliquidOrderCancellationService,
 )
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs
-from cyberdelta.core.models import CancelOrderResult, Order
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models import CancelOrderResult, Order
 
 
 # Type alias for mock HTTP response

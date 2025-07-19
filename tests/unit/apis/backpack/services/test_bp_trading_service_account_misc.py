@@ -15,7 +15,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderSide,
     OrderStatus,

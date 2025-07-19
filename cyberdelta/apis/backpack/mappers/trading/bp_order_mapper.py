@@ -25,13 +25,13 @@ from cyberdelta.apis.exceptions import (
 )
 from cyberdelta.apis.exceptions.trading_transformation import UnknownOrderSideError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -315,7 +315,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 source_exchange="backpack",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             raise OrderTransformationError(
                 order_id=order_id,
                 reason=str(e),
@@ -609,7 +609,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 source_exchange="backpack",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             logger.exception(
                 "order_transformation_failed",
                 action="transform_order",
@@ -725,7 +725,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 source_exchange="backpack",
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             raise OrderTransformationError(
                 order_id=raw_order_update.client_order_id,
                 reason=str(e),

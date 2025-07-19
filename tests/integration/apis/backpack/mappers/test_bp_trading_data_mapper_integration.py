@@ -29,13 +29,13 @@ from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrd
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models import Order
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

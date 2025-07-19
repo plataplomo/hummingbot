@@ -31,7 +31,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import CancelOrderResultStatus
+from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 

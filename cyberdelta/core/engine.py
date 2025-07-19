@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from decimal import InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -272,7 +273,7 @@ class Engine:
 
             await self._handle_strategy_signals(strategy, signals)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, InvalidOperation) as e:
             logger.exception(
                 "strategy_data_processing_error",
                 strategy_name=strategy.name,
@@ -355,7 +356,7 @@ class Engine:
                     )
                     strategy.on_start()
                     enabled_count += 1
-                except Exception as e:
+                except (ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
                     logger.exception(
                         "strategy_start_error",
                         strategy_name=strategy.name,
@@ -403,7 +404,7 @@ class Engine:
                     )
                     strategy.on_stop()
                     stopped_count += 1
-                except Exception as e:
+                except (ValueError, TypeError, KeyError, AttributeError, RuntimeError) as e:
                     logger.exception(
                         "strategy_stop_error",
                         strategy_name=strategy.name,

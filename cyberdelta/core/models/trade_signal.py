@@ -14,6 +14,7 @@ from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.core.enums import OrderSide, SignalType
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     DecimalFiniteError,
@@ -23,8 +24,6 @@ from cyberdelta.exceptions.field_validation import (
     TypeFieldError,
 )
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
-
-from .enums import OrderSide, SignalType
 
 
 def _is_list_of_any(v: object) -> TypeGuard[list[Any]]:

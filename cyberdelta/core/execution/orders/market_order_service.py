@@ -15,8 +15,8 @@ from cyberdelta.core.execution.orders.market_order_config import MarketOrderConf
 from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
     MarketOrderError,
+    MarketOrderParameterError,
     PriceDeviationError,
-    ValidationError,
 )
 from cyberdelta.core.models import OrderBook, OrderSide
 from cyberdelta.core.models.market.mid_prices import MidPrices
@@ -366,10 +366,10 @@ class MarketOrderService:
             ValueError: If configuration is invalid
         """
         if not self._config.enabled:
-            raise ValidationError.config_disabled_error()
+            raise MarketOrderParameterError.config_disabled_error()
 
         if self._config.max_slippage_pct <= Decimal(0):
-            raise ValidationError.config_slippage_error()
+            raise MarketOrderParameterError.config_slippage_error()
 
         if self._config.max_price_deviation_pct <= Decimal(0):
-            raise ValidationError.config_deviation_error()
+            raise MarketOrderParameterError.config_deviation_error()

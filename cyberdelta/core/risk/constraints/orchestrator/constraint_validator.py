@@ -24,8 +24,8 @@ from cyberdelta.core.risk.constraints.interfaces.constraint_interfaces import (
     ConstraintInterface,
     ConstraintResult,
     ConstraintResultStatus,
-    ConstraintViolation,
 )
+from cyberdelta.core.risk.constraints.models.constraint_models import ConstraintViolation
 from cyberdelta.core.risk.exceptions.base_exceptions import RiskError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
 

@@ -16,7 +16,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.core.models.enums import InternalTransferStatus, InternalWithdrawalStatus
+from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
 
 
 # --- Transfer Details Models (Immutable) ---

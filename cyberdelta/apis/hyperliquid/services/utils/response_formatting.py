@@ -7,11 +7,11 @@ into internal domain models, extracted to improve code organization and reusabil
 from decimal import Decimal
 from typing import Any, TypeGuard
 
-from cyberdelta.apis.base.validation_context_domain import ValidationContext
+from cyberdelta.apis.base.validation_contexts import ValidationContext
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import InvalidBatchResponseError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import CancelOrderResultStatus
+from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.utils.parsing import parse_decimal_value
 

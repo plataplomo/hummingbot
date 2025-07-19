@@ -277,7 +277,7 @@ class ExecutionHandler:
             # Step 5: Finalize execution
             return await self._finalize_execution(execution)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception("Unexpected error during execution", error=str(e))
 
             # Create a failed execution if we don't have one yet
@@ -488,7 +488,7 @@ class ExecutionHandler:
                 short_quantity=str(base_asset_quantity_short),
             )
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             error_msg = f"Failed to calculate base asset quantities: {e}"
             execution.error_message = error_msg
             execution.status = ExecutionStatus.FAILED
@@ -671,11 +671,13 @@ class ExecutionHandler:
                 price=str(trade.price),
             )
 
-        except Exception:
+        except (ValueError, AttributeError, TypeError) as e:
+            # Handle construction errors from Trade object or attribute access
             self.logger.exception(
                 "Failed to process trade with portfolio tracker",
                 execution_id=execution.id,
                 exchange_id=exchange_id,
+                error_type=type(e).__name__,
             )
 
     async def _finalize_execution(self, execution: TradeExecution) -> TradeExecution:
@@ -750,7 +752,7 @@ class ExecutionHandler:
 
             self.logger.info("Cleanup completed", results=results)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self.logger.exception("Error during cleanup")
             results["error"] = str(e)
 

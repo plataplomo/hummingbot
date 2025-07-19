@@ -40,13 +40,13 @@ from cyberdelta.apis.models.service_args_models import (
     GetOpenOrdersArgs,
     GetOrderArgs,
 )
-from cyberdelta.core.models import Order, Trade
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     OrderSide,
     OrderStatus,
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.models import Order, Trade
 
 
 HyperliquidResponseHandler = HyperliquidTradingResponseHandler

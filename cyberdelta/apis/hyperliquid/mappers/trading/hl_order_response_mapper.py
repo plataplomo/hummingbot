@@ -31,8 +31,8 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 )
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order
-from cyberdelta.core.models.enums import OrderStatus
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

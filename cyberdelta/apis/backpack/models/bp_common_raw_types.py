@@ -12,7 +12,8 @@ from typing import Annotated
 from pydantic import BeforeValidator, ValidationInfo
 
 from cyberdelta.apis.backpack.bp_api_errors import BackpackAPIErrorCode
-from cyberdelta.apis.base.validation_context_domain import StringPolicy, ValidationContext
+from cyberdelta.apis.base.validation_contexts import ValidationContext
+from cyberdelta.apis.base.validation_policies import StringPolicy
 from cyberdelta.apis.exceptions.parsing import (
     ClientIdFormatError,
     KlineTypeError,

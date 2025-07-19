@@ -24,7 +24,7 @@ from typing import Any, Self
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.enums import (
+from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderExpiryReason,
     OrderSide,

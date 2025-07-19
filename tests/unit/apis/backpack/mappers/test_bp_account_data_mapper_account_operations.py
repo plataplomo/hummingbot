@@ -31,8 +31,8 @@ from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
+from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus, OrderSide
 from cyberdelta.core.models import DerivativePosition, Trade
-from cyberdelta.core.models.enums import InternalTransferStatus, InternalWithdrawalStatus, OrderSide
 from cyberdelta.core.models.operations import (
     Transfer,
     Withdrawal,

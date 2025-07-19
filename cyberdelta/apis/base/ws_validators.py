@@ -10,7 +10,7 @@ import re
 import time
 from typing import Any
 
-from cyberdelta.apis.base.validation_context_domain import TimestampPolicy
+from cyberdelta.apis.base.validation_policies import TimestampPolicy
 from cyberdelta.config.structlog_config import get_logger
 
 

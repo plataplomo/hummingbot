@@ -23,8 +23,8 @@ from cyberdelta.apis.exceptions.data_transformation import (
     MissingRequiredFieldError,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
 from cyberdelta.core.models import BackpackTransferDetails, BackpackWithdrawalDetails
-from cyberdelta.core.models.enums import InternalTransferStatus, InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value

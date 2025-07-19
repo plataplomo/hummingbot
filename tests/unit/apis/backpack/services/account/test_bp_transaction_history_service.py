@@ -31,8 +31,8 @@ from cyberdelta.apis.backpack.services.account.bp_transaction_history_service im
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.core.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.core.models import Order, Trade
-from cyberdelta.core.models.enums import OrderSide, OrderStatus, OrderType, TimeInForce
 
 
 @pytest.fixture
@@ -346,8 +346,7 @@ class TestBackpackTransactionHistoryService:
         mock_mapper.transform_raw_order_to_internal.side_effect = [
             mock_order,
             TransformationError(
-                message="Failed to transform order",
-                source_data={"order_id": "order_invalid"}
+                message="Failed to transform order", source_data={"order_id": "order_invalid"}
             ),
         ]
 

@@ -28,8 +28,8 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
+from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.derivative_position import DerivativePosition
-from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,

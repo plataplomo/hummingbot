@@ -22,7 +22,7 @@ from aiohttp import ClientTimeout, ClientWebSocketResponse
 from aiohttp.helpers import sentinel
 from pydantic import BaseModel
 
-from cyberdelta.apis.base.validation_context_domain import CancellationState
+from cyberdelta.apis.base.websocket_states import CancellationState
 from cyberdelta.apis.exceptions.connectivity import WebSocketConnectionClosedError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.logging_utilities import MessageStatsAggregator
@@ -251,7 +251,7 @@ class WebSocketManager:
                     connection_coroutine.close()
                 return None
             raise
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._logger.exception(
                 "connection_task_creation_failed",
                 action="connect",
@@ -415,7 +415,7 @@ class WebSocketManager:
             self._reset_connection_state()
             self._record_connection_failure()
             return False
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._logger.exception(
                 "connection_attempt_unexpected_error",
                 action="attempt_single_connection",
@@ -559,7 +559,7 @@ class WebSocketManager:
                     action="execute_connection_callback",
                     message="on_connected_callback executed successfully.",
                 )
-            except Exception as cb_exc:
+            except (ValueError, TypeError, KeyError, AttributeError) as cb_exc:
                 self._logger.exception(
                     "connection_callback_error",
                     action="execute_connection_callback",
@@ -1012,7 +1012,7 @@ class WebSocketManager:
                 exchange=self._exchange_name,
                 message=f"[{self._exchange_name} _keep_alive] Task cancelled.",
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._logger.exception(
                 "keep_alive_unexpected_error",
                 action="keep_alive",
@@ -1132,7 +1132,7 @@ class WebSocketManager:
             self._is_connected = False
             self._ws_connection = None
             return False
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._logger.exception(
                 "send_json_serialize_send_error",
                 action="send_json",
@@ -1267,7 +1267,7 @@ class WebSocketManager:
                 timeout_seconds=5.0,
                 message=f"Timeout (5s) waiting for {task_type} task to complete during close!",
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._logger.exception(
                 "task_cancellation_error",
                 action="await_task_cancellation",
@@ -1334,7 +1334,7 @@ class WebSocketManager:
                     f"WS connection to {self._ws_url} (id: {id(ws_conn)}) closed by explicit call."
                 ),
             )
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             self._logger.exception(
                 "websocket_connection_close_error",
                 action="close_active_websocket",

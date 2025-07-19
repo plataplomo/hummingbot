@@ -152,7 +152,7 @@ class PriceDataService:
 
         try:
             ticker = await client.get_ticker(symbol)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "ticker_fetch_error",
                 exchange_id=exchange_id,
