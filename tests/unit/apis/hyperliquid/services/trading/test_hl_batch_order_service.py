@@ -37,12 +37,10 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_batch_order_service import 
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 @pytest.fixture

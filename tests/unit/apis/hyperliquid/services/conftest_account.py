@@ -14,8 +14,8 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_account_request_builder imp
     HyperliquidAccountRequestBuilder,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.enums import OrderSide
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

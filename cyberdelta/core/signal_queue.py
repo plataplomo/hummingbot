@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import SignalType
-from cyberdelta.core.models import OrderSide, TradeSignal
+from cyberdelta.core.models import TradeSignal
+from cyberdelta.enums import OrderSide
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 

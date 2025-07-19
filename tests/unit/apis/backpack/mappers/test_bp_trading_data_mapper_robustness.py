@@ -30,15 +30,11 @@ if TYPE_CHECKING:
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.core.enums import (
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    TimeInForce,
-)
+from cyberdelta.core.enums import OrderStatus
 
 # Note: OrderTransformationFailedError doesn't exist, using TransformationError instead
 from cyberdelta.core.models import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 logger = get_logger(__name__)

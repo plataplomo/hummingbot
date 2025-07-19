@@ -28,10 +28,7 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -42,6 +39,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult, Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 # Removed hardcoded test constants - now using active fixtures from conftest.py

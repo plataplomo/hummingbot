@@ -8,9 +8,10 @@ import asyncio
 from decimal import Decimal
 
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.models import Order, OrderSide, OrderType, TimeInForce
+from cyberdelta.core.models import Order
 from cyberdelta.core.models.execution import TradeExecution
 from cyberdelta.core.services.interfaces import OrderRequest
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 class TestableExecutionHandler(ExecutionHandler):

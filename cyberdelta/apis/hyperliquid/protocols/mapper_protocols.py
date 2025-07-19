@@ -42,7 +42,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.apis.hyperliquid.protocols.base_protocols import MapperProtocol
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
-from cyberdelta.core.enums import OrderSide, OrderStatus, OrderType
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.market.candle import Candle
@@ -54,6 +54,7 @@ from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.enums import OrderSide, OrderType
 
 
 if TYPE_CHECKING:

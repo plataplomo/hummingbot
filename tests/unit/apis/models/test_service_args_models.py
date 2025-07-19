@@ -26,7 +26,7 @@ from cyberdelta.apis.models.service_args_models import (
     TransferArgs,
     WithdrawArgs,
 )
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 

@@ -25,8 +25,10 @@ from cyberdelta.apis.models.service_args_models import (
     GetTradeHistoryArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order, OrderSide, OrderStatus
+from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.models import Order
 from cyberdelta.core.models.market import Market
+from cyberdelta.enums import OrderSide
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 

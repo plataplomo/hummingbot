@@ -8,8 +8,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.portfolio.screening.base.base_screener import BaseScreener
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 if TYPE_CHECKING:

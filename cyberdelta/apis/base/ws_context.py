@@ -10,13 +10,15 @@ from __future__ import annotations
 import time
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from pydantic import BaseModel, Field, computed_field
 
-# Import envelope types for specific contexts
-from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidRawWebSocketEnvelope
+
+if TYPE_CHECKING:
+    # Import envelope types for specific contexts - only for type checking
+    from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
+    from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidRawWebSocketEnvelope
 
 
 # Import UTC timezone
@@ -106,7 +108,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         return (time.perf_counter() - self.processing_start_time) * 1000
 
 
-class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelope]):
+class BackpackMessageContext(WebSocketMessageContext["BackpackRawWebSocketEnvelope"]):
     """Backpack-specific message context with enhanced typing."""
 
     @computed_field
@@ -129,7 +131,7 @@ class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelop
         return parts[stream_details_index] if len(parts) > stream_details_index else None
 
 
-class HyperliquidMessageContext(WebSocketMessageContext[HyperliquidRawWebSocketEnvelope]):
+class HyperliquidMessageContext(WebSocketMessageContext["HyperliquidRawWebSocketEnvelope"]):
     """Hyperliquid-specific message context with enhanced typing."""
 
     @computed_field

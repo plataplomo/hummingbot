@@ -13,8 +13,9 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import DerivativePosition, OrderSide
+from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.enums import OrderSide
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,

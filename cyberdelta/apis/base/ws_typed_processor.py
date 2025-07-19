@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-# Import envelope models
-from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.base.ws_context import (
     BackpackMessageContext,
     ExchangeType,
@@ -21,10 +19,15 @@ from cyberdelta.apis.base.ws_context import (
 )
 from cyberdelta.apis.base.ws_type_guards import WebSocketTypeGuards
 from cyberdelta.apis.base.ws_validators import ExchangeSpecificValidators
-from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import (
-    HyperliquidRawWebSocketEnvelope,
-    HyperliquidUserEventEnvelope,
-)
+
+
+if TYPE_CHECKING:
+    # Import envelope models only for type checking
+    from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
+    from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import (
+        HyperliquidRawWebSocketEnvelope,
+        HyperliquidUserEventEnvelope,
+    )
 
 
 class BackpackEnvelopeProtocol(Protocol):

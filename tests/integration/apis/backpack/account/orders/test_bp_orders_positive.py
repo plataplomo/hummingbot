@@ -25,8 +25,9 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import BackpackOrderDetails, Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     DEFAULT_TEST_SYMBOL_SPOT,
     generate_deterministic_client_order_id,

@@ -33,11 +33,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import Hyperliqu
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrder,
 )
-from cyberdelta.core.enums import (
-    OrderSide,
-    OrderStatus,
-    OrderType,
-)
+from cyberdelta.core.enums import OrderStatus
+from cyberdelta.enums import OrderSide, OrderType
 
 
 logger = get_logger(__name__)

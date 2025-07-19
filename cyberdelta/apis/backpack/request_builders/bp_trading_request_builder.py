@@ -38,7 +38,7 @@ from cyberdelta.apis.exceptions import (
     MissingRequiredParameterError,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 logger = get_logger(__name__)

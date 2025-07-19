@@ -36,10 +36,7 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -53,6 +50,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 
 

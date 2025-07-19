@@ -27,15 +27,17 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderExpiryReason,
-    OrderSide,
     OrderStatus,
-    OrderType,
     OrderUpdateOrigin,
     SelfTradePrevention,
-    TimeInForce,
     TriggerType,
 )
 from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.enums import (
+    OrderSide,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.exceptions import (
     DecimalFiniteError,
     FieldNameMissingError,

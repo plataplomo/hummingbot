@@ -16,7 +16,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.enums import OrderSide
+from cyberdelta.enums import OrderSide
 
 
 class TestBackpackAccountServicePositions:

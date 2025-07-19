@@ -31,9 +31,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetMarketsArgs,
     GetRecentTradesArgs,
 )
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.market import Market
+from cyberdelta.enums import OrderSide
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)

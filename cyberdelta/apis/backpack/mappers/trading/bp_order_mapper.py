@@ -26,13 +26,15 @@ from cyberdelta.apis.exceptions import (
 from cyberdelta.apis.exceptions.trading_transformation import UnknownOrderSideError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import BackpackOrderDetails
+from cyberdelta.enums import (
+    OrderSide,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform

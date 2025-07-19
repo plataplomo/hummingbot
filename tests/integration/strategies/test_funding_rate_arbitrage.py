@@ -16,7 +16,6 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide, SignalType
 from cyberdelta.core.models import (
     DerivativePosition,
     FundingRate,
@@ -30,6 +29,7 @@ from cyberdelta.core.models.market.funding_rate import (
 )
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 

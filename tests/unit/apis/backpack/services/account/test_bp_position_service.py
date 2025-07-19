@@ -31,10 +31,11 @@ from cyberdelta.apis.backpack.services.account.bp_position_service import (
     BackpackPositionService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.models import DerivativePosition, OrderSide
+from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.models.derivative_position import (
     BackpackPositionDetails as BackpackDerivativePositionDetails,
 )
+from cyberdelta.enums import OrderSide
 
 
 @pytest.fixture
@@ -451,7 +452,7 @@ class TestBackpackPositionService:
         assert len(result) == 1
         assert result[0].symbol == "BTC-PERP"
         assert result[0] == btc_position
-        
+
         # Service should only call direct API, not collateral
         mock_http_client.assert_called_once()
 

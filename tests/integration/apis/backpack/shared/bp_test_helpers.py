@@ -16,9 +16,9 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.enums import OrderSide
 
 
 if TYPE_CHECKING:

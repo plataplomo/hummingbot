@@ -8,7 +8,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import OrderSide, OrderStatus
+from cyberdelta.core.models import OrderStatus
+from cyberdelta.enums import OrderSide
 
 
 logger = get_logger(__name__)

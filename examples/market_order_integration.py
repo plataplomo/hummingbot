@@ -23,7 +23,8 @@ from cyberdelta.core.execution.orders import (
     PriceDeviationError,
 )
 from cyberdelta.core.execution.orders.market_order_metrics import MarketOrderMetrics
-from cyberdelta.core.models import Order, OrderSide
+from cyberdelta.core.models import Order
+from cyberdelta.enums import OrderSide
 
 
 logger = get_logger(__name__)

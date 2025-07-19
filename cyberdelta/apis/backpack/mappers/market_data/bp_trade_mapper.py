@@ -22,9 +22,9 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TradeMapperProtocol
 from cyberdelta.apis.exceptions import TradeTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models import Trade
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
+from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform

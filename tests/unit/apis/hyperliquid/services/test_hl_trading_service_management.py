@@ -22,8 +22,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)

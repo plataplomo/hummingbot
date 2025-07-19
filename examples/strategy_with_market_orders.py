@@ -16,8 +16,10 @@ from cyberdelta.core.execution.orders import (
     MarketOrderConfig,
     MarketOrderService,
 )
-from cyberdelta.core.models import Order, OrderSide, OrderType, SignalType, TimeInForce, TradeSignal
+from cyberdelta.core.models import Order
+from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.enums import OrderSide, OrderType, SignalType, TimeInForce
 
 
 class MarketOrderStrategy(Strategy):

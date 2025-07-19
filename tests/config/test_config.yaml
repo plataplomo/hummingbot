@@ -175,3 +175,64 @@ portfolio_tracker:
   data_freshness_seconds: 60
   initial_balances: {}  # Example: { "hyperliquid": { "USDC": "10000.00" } }
   initial_positions: []  # Example: List of initial derivative positions
+  cache:
+    enabled: true
+    default_ttl: 300.0
+    max_size: 10000
+    stale_while_revalidate: 60.0
+    cleanup_interval: 600.0
+    enable_memory_optimization: true
+    cache_statistics_enabled: true
+  state:
+    persist_interval: 60.0
+    backup_count: 5
+    backup_directory: "data/portfolio_backups"
+    atomic_updates: true
+    update_timeout: 5.0
+    max_concurrent_updates: 1
+    validate_on_load: true
+    validate_on_update: true
+    strict_validation: false
+    max_state_history_size: 100
+    max_trade_history_size: 1000
+  validation:
+    enable_balance_validation: true
+    balance_tolerance: "0.0001"
+    require_non_negative_balances: true
+    enable_position_validation: true
+    position_size_tolerance: "0.0001"
+    max_position_age_seconds: 300
+    enable_trade_validation: true
+    max_trade_age_seconds: 86400
+    require_valid_timestamps: true
+    enable_cross_validation: true
+    validation_timeout: 3.0  # Less than state.update_timeout (5.0)
+    enabled: true
+    strict_mode: false
+  calculation:
+    pnl_calculation_method: "weighted_average"
+    include_fees_in_pnl: true
+    include_funding_in_pnl: true
+    max_exposure_calculation_depth: 100
+    group_by_base_asset: true
+    exposure_update_interval: 5.0
+    calculate_sharpe_ratio: true
+    sharpe_lookback_days: 30
+    calculate_max_drawdown: true
+    performance_update_interval: 300.0
+    risk_free_rate: "0.02"
+    default_volatility: "0.2"
+    stress_scenario_move: "0.1"
+    var_confidence_level: "0.95"
+    leverage_warning_threshold: "3.0"
+    realized_pnl_method: "weighted_average"
+    price_cache_ttl: 60
+    batch_size_limit: 100
+    price_staleness_threshold: 300
+  enabled: true
+  log_level: "INFO"
+  log_performance_metrics: true
+  metrics_interval: 300.0
+  sync_with_risk_module: true
+  sync_with_execution_module: true
+  event_driven_updates: true

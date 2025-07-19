@@ -24,8 +24,9 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
-from cyberdelta.core.enums import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order, Trade
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 

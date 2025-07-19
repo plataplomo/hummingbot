@@ -46,7 +46,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetMaxWithdrawalQuantityArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide
+from cyberdelta.enums import OrderSide
 
 
 logger = get_logger(__name__)

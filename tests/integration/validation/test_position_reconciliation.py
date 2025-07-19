@@ -10,7 +10,8 @@ from pytest_mock import MockerFixture
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.config import AppSettings
-from cyberdelta.core.models import DerivativePosition, OrderSide
+from cyberdelta.core.models import DerivativePosition
+from cyberdelta.enums import OrderSide
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,

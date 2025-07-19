@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models import DerivativePosition, Order, SpotBalance, Trade
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import (
     PortfolioStateManager,
@@ -39,6 +38,7 @@ from cyberdelta.core.portfolio.services.validation.portfolio_validation_service 
 from cyberdelta.core.portfolio.services.validation.validation_middleware import (
     ValidationMiddleware,
 )
+from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

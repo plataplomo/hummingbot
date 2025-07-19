@@ -13,7 +13,6 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
-from cyberdelta.core.models import OrderSide, OrderType
 from cyberdelta.core.services.interfaces import (
     BaseAsyncService,
     CompensationConfig,
@@ -26,6 +25,7 @@ from cyberdelta.core.services.interfaces import (
     IOrderService,
     OrderRequest,
 )
+from cyberdelta.enums import OrderSide, OrderType
 
 
 if TYPE_CHECKING:

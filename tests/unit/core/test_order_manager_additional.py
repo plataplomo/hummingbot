@@ -13,8 +13,11 @@ from uuid import uuid4
 
 import pytest
 
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade
+from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.models import Order
+from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.order_manager import OrderManager
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 def create_trade(

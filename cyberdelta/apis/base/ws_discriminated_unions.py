@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeVar
 
 from pydantic import ConfigDict, Field, TypeAdapter
 
-# Import envelope models
+# Import envelope models - needed for inheritance
 from cyberdelta.apis.backpack.models.bp_ws_envelope import (
     BackpackRawWebSocketEnvelope,
 )

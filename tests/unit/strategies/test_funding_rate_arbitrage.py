@@ -12,12 +12,14 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from cyberdelta.core.models import FundingRate, OrderSide, SignalType, Ticker
+from cyberdelta.core.models import FundingRate
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 

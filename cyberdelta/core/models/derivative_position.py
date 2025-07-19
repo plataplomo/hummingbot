@@ -21,7 +21,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
-from cyberdelta.core.enums import OrderSide
+from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions import (
     DecimalFiniteError,
     FieldNameMissingError,

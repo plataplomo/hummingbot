@@ -9,8 +9,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderStatus, OrderType
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.enums import OrderType
 
 
 if TYPE_CHECKING:

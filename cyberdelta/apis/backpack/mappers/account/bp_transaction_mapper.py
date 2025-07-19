@@ -29,16 +29,18 @@ from cyberdelta.apis.exceptions.data_transformation import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
     OrderExpiryReason,
-    OrderSide,
     OrderStatus,
-    OrderType,
     OrderUpdateOrigin,
     SelfTradePrevention,
-    TimeInForce,
     TriggerType,
 )
 from cyberdelta.core.models import BackpackOrderDetails, Order, Trade
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
+from cyberdelta.enums import (
+    OrderSide,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform

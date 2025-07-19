@@ -17,12 +17,10 @@ from cyberdelta.apis.models.service_args_models import (
 )
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult, Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

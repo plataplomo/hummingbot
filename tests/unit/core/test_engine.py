@@ -11,10 +11,10 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from cyberdelta.core.engine import Engine, EngineConfigurationError
-from cyberdelta.core.enums import OrderSide, SignalType
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.enums import OrderSide, SignalType
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ to reduce code duplication and ensure consistency.
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import MissingRequiredFieldError, UnknownEnumError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide
+from cyberdelta.enums import OrderSide
 
 
 logger = get_logger(__name__)

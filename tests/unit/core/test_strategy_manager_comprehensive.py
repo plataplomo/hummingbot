@@ -11,10 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from cyberdelta.config.models.config_models import AppSettings
-from cyberdelta.core.enums import (
-    OrderSide,
-    SignalType,
-)
+from cyberdelta.core.enums import SignalType
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import (
     TradeSignal,
@@ -25,6 +22,7 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
+from cyberdelta.enums import OrderSide
 
 
 @pytest.fixture

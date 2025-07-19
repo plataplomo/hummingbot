@@ -28,12 +28,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import (
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    TimeInForce,
-)
+from cyberdelta.core.enums import OrderStatus
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.parsing import EmptyStringError
 

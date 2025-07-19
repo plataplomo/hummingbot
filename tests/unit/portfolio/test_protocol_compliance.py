@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models import DerivativePosition, Order, SpotBalance, Trade
 from cyberdelta.core.portfolio.portfolio_types.calculation_types import PortfolioExposureResult
 from cyberdelta.core.portfolio.portfolio_types.manager_protocols import (
@@ -34,6 +33,7 @@ from cyberdelta.core.portfolio.services.null_objects import (
     NullPositionManager,
     NullStateManager,
 )
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 if TYPE_CHECKING:

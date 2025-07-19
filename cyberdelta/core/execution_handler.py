@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
-from cyberdelta.core.models import OrderSide, OrderType, TimeInForce, Trade
+from cyberdelta.core.models import Trade
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.services.config_validation import (
     ConfigValidationError,
@@ -21,6 +21,7 @@ from cyberdelta.core.services.config_validation import (
 )
 from cyberdelta.core.services.factory import ServiceFactory
 from cyberdelta.core.services.interfaces import ExecutionResult, OrderRequest
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.validation.circuit_breaker import CircuitBreakerTrippedError
 
 

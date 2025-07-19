@@ -22,7 +22,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
     LiquidityRequirement,
     OrderExecution,
 )
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 class TestBuildPlaceOrderPayload:

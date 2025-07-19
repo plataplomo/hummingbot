@@ -43,13 +43,15 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawU
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
     TriggerType,
 )
 from cyberdelta.core.models import Order, Trade
+from cyberdelta.enums import (
+    OrderSide,
+    OrderType,
+    TimeInForce,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform

@@ -17,12 +17,9 @@ from pydantic import ValidationError
 
 from cyberdelta.core.enums import (
     OrderExpiryReason,
-    OrderSide,
     OrderStatus,
-    OrderType,
     OrderUpdateOrigin,
     SelfTradePrevention,
-    TimeInForce,
     TriggerType,
 )
 from cyberdelta.core.models.market.order import (
@@ -31,6 +28,7 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 

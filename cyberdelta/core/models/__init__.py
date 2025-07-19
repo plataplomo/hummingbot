@@ -11,14 +11,16 @@ from cyberdelta.core.enums import (
     # Interval, # Removed - Not defined in enums.py
     MarketDataInterval,
     OrderExpiryReason,
-    OrderSide,
     OrderStatus,
-    OrderType,
     OrderUpdateOrigin,
     SelfTradePrevention,
     SignalType,
-    TimeInForce,
     TriggerType,
+)
+from cyberdelta.enums import (
+    OrderSide,
+    OrderType,
+    TimeInForce,
 )
 
 from .account_settings import (

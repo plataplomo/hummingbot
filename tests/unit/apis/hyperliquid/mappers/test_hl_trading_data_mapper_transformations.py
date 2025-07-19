@@ -35,13 +35,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawTriggerInfo,
 )
 from cyberdelta.core.enums import (
-    OrderSide,
     OrderStatus,
-    OrderType,
-    TimeInForce,
     TriggerType,
 )
 from cyberdelta.core.models import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

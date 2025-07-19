@@ -18,8 +18,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.enums import OrderSide, SignalType
 from cyberdelta.core.models.trade_signal import TradeSignal
+from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import (
     DateTimeParsingError,

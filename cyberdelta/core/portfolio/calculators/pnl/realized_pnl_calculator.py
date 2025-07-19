@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.portfolio.base import CalculationResult, TypedCalculator
 from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
     CalculationMetadata,
     RealizedPnLResult,
 )
+from cyberdelta.enums import OrderSide
 
 
 logger = get_logger(__name__)

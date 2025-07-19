@@ -24,7 +24,7 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models import Order, OrderStatus
 from cyberdelta.core.services.interfaces import (
     BaseAsyncService,
     ExecutionError,
@@ -35,6 +35,7 @@ from cyberdelta.core.services.interfaces import (
     OrderRequest,
     OrderServiceConfig,
 )
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 if TYPE_CHECKING:

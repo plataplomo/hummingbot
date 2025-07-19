@@ -16,8 +16,9 @@ from cyberdelta.config.models.config_models import (
     PositionReconciliationSettings,
     SafetySystemsSettings,
 )
-from cyberdelta.core.models import DerivativePosition, OrderSide
+from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.enums import OrderSide
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,

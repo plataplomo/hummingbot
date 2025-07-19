@@ -11,13 +11,15 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.base.trading_execution_domain import OrderExecution
 from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (
     MarketOrderError,
     MarketOrderParameterError,
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.core.models import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 logger = get_logger(__name__)

@@ -37,8 +37,8 @@ import pydantic
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.enums import OrderSide
 from cyberdelta.core.models.market.trade import BackpackTradeDetails, HyperliquidTradeDetails, Trade
+from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 

@@ -33,8 +33,8 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 

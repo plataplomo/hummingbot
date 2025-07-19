@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
-from cyberdelta.core.models import Order, OrderSide, OrderType, TimeInForce, Trade
+from cyberdelta.core.models import Order, Trade
 from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 if TYPE_CHECKING:

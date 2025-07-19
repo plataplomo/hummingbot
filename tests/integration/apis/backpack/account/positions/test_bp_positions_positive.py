@@ -16,8 +16,8 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
     DEFAULT_TEST_SYMBOL_PERP,

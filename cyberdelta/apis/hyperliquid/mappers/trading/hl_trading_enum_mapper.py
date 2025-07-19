@@ -24,11 +24,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRaw
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TradingEnumMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
-    OrderSide,
     OrderStatus,
+    TriggerType,
+)
+from cyberdelta.enums import (
+    OrderSide,
     OrderType,
     TimeInForce,
-    TriggerType,
 )
 
 

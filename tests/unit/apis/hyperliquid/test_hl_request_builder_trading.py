@@ -25,7 +25,7 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderHistoryArgsHL,
     PlaceOrderArgs,
 )
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 class TestHyperliquidTradingRequestBuilder:

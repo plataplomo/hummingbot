@@ -33,8 +33,8 @@ from cyberdelta.apis.models.service_args_models import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_dynamic_test_price,
     get_market_constraints,

@@ -29,8 +29,9 @@ from cyberdelta.apis.models.service_args_models import (
     GetOrderArgs,
     GetOrderHistoryArgs,
 )
-from cyberdelta.core.enums import OrderSide, OrderStatus
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.enums import OrderSide
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]

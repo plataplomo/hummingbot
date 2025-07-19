@@ -65,7 +65,7 @@ from cyberdelta.apis.models.service_args_models import (
     HyperliquidGetOrderStatusArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.enums import OrderSide, OrderType
+from cyberdelta.enums import OrderSide, OrderType
 
 
 @runtime_checkable

@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from cyberdelta.apis.common import APIError
+from cyberdelta.apis.common.api_error import APIError
 
 
 class IErrorMapper(ABC):

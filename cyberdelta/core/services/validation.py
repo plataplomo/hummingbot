@@ -11,7 +11,6 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
-from cyberdelta.core.models import OrderType
 from cyberdelta.core.services.interfaces import (
     BaseService,
     IInputValidator,
@@ -19,6 +18,7 @@ from cyberdelta.core.services.interfaces import (
     ValidationConfig,
     ValidationResult,
 )
+from cyberdelta.enums import OrderType
 
 
 if TYPE_CHECKING:

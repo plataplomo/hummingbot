@@ -7,7 +7,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.core.enums import OrderSide, OrderStatus, OrderType
+from cyberdelta.core.enums import OrderStatus
+from cyberdelta.enums import OrderSide, OrderType
 from cyberdelta.utils.constants import PositionSide
 
 
@@ -29,7 +30,7 @@ def _metrics_factory() -> MetricsDict:
 
 class PositionDTO(BaseModel):
     """DTO for derivative position data."""
-    
+
     model_config = ConfigDict(frozen=True)
 
     exchange_id: str
@@ -50,7 +51,7 @@ class PositionDTO(BaseModel):
 
 class BalanceDTO(BaseModel):
     """DTO for spot balance data."""
-    
+
     model_config = ConfigDict(frozen=True)
 
     exchange_id: str
@@ -64,7 +65,7 @@ class BalanceDTO(BaseModel):
 
 class OrderDTO(BaseModel):
     """DTO for order data."""
-    
+
     model_config = ConfigDict(frozen=True)
 
     exchange_id: str
@@ -84,7 +85,7 @@ class OrderDTO(BaseModel):
 
 class PortfolioSnapshotDTO(BaseModel):
     """DTO for complete portfolio snapshot."""
-    
+
     model_config = ConfigDict(frozen=True)
 
     timestamp: datetime
@@ -97,7 +98,7 @@ class PortfolioSnapshotDTO(BaseModel):
 
 class ManagerStatsDTO(BaseModel):
     """DTO for manager statistics."""
-    
+
     model_config = ConfigDict(frozen=True)
 
     manager_name: str
@@ -108,4 +109,3 @@ class ManagerStatsDTO(BaseModel):
     average_operation_time_ms: float
     error_rate: float
     metadata: MetadataDict = Field(default_factory=_metadata_factory)
-
