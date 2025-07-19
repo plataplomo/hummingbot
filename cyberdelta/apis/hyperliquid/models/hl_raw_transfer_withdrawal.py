@@ -79,6 +79,36 @@ class HyperliquidRawWithdrawalToL1ActionPayload(
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class HyperliquidRawInternalUsdTransferPayload(
+    BaseModel,
+    SigningPayloadSerializer,
+):
+    """Top-level request payload for internal USD transfers between spot and perp accounts.
+
+    Uses the 'usdClassTransfer' action type for moving USDC between spot and perpetual
+    accounts within the same wallet. This matches the official SDK implementation.
+    """
+
+    type: Annotated[
+        Literal["usdClassTransfer"],
+        BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
+    ] = Field(
+        "usdClassTransfer", description="Action type for USD class transfers between spot and perp"
+    )
+
+    amount: Annotated[
+        str, BeforeValidator(lambda v: validate_str_field(v, "amount", max_length=32))
+    ] = Field(..., description="Amount to transfer in USDC as string")
+
+    toPerp: bool = Field(..., description="Transfer direction: True=spot→perp, False=perp→spot")
+
+    nonce: int = Field(
+        ..., description="Nonce/timestamp for the action, typically millisecond timestamp"
+    )
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
 # If "withdrawEth" has a different structure, define HyperliquidRawEthWithdrawalActionPayload here.
 # Example:
 # class HyperliquidRawEthWithdrawalActionPayload(BaseModel):

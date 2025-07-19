@@ -223,6 +223,7 @@ class HyperliquidTradingRequestBuilder(
         # Build and return the order specification
         return HyperliquidRawOrderItemSpec(
             asset_index=asset_index,
+            coin=None,  # For perp orders, coin is None
             is_buy=is_buy,
             limit_px=limit_px_wire,
             size=sz_wire,
@@ -611,6 +612,7 @@ class HyperliquidTradingRequestBuilder(
         # For protocol compliance, we'll use asset_index=0 as placeholder
         wire_order = HyperliquidRawOrderItemSpec(
             asset_index=0,  # Placeholder - caller must resolve symbol to asset_index
+            coin=None,  # For perp orders, coin is None
             is_buy=is_buy,
             limit_px=limit_px_wire,
             size=sz_wire,
@@ -722,6 +724,7 @@ class HyperliquidTradingRequestBuilder(
         # Build replacement order spec
         wire_order = HyperliquidRawOrderItemSpec(
             asset_index=0,  # Placeholder - caller must resolve
+            coin=None,  # For perp orders, coin is None
             is_buy=True,  # Placeholder - caller must determine
             limit_px=limit_px_wire,
             size=sz_wire,

@@ -8,6 +8,7 @@ Mappers:
 - HyperliquidPositionMapper: DerivativePosition transformations and position processing
 - HyperliquidAccountSummaryMapper: MarginAccountSummary and settings transformations
 - HyperliquidTransactionMapper: Trade transformations from fills and user fills
+- HyperliquidTransferMapper: Transfer transformations from raw transfer responses
 """
 
 from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
@@ -22,6 +23,9 @@ from cyberdelta.apis.hyperliquid.mappers.account.hl_position_mapper import (
 from cyberdelta.apis.hyperliquid.mappers.account.hl_transaction_mapper import (
     HyperliquidTransactionMapper,
 )
+from cyberdelta.apis.hyperliquid.mappers.account.hl_transfer_mapper import (
+    HyperliquidTransferMapper,
+)
 
 
 __all__ = [
@@ -29,4 +33,5 @@ __all__ = [
     "HyperliquidBalanceMapper",
     "HyperliquidPositionMapper",
     "HyperliquidTransactionMapper",
+    "HyperliquidTransferMapper",
 ]

@@ -4,9 +4,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from cyberdelta.apis.exceptions.field_validation import (
+    ConflictingMarketIdentifiersError,
+    MissingMarketIdentifierError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
+    RawAssetString64HL,
     RawFiniteDecimalStr,
     RawNonNegativeInt,
     RawOptionalCloidHL,
@@ -48,6 +53,10 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     of a batch order placement action. It forms part of the signed message for the
     /exchange endpoint and ensures proper validation of order parameters.
 
+    Supports both perpetual and spot markets:
+    - Perpetual orders: Use 'a' (asset_index) field
+    - Spot orders: Use either 'a' (asset_index) OR 'coin' (symbol) field
+
     Corresponds to the 'OrderRequest' structure in Hyperliquid's documentation.
     struct OrderRequest {
         asset: u32,
@@ -60,7 +69,11 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     }
     """
 
-    a: RawNonNegativeInt = Field(..., alias="asset_index")
+    # Market identifiers - exactly one must be provided
+    a: RawNonNegativeInt | None = Field(None, alias="asset_index")
+    coin: RawAssetString64HL | None = Field(None, alias="coin")
+
+    # Common fields for both markets
     b: RawStrictBool = Field(..., alias="is_buy")
     p: RawFiniteDecimalStr = Field(..., alias="limit_px")
     s: RawFiniteDecimalStr = Field(..., alias="size")
@@ -69,6 +82,18 @@ class HyperliquidRawOrderItemSpec(BaseModel):
     c: RawOptionalCloidHL = Field(default=None, alias="client_order_id")
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+
+    @model_validator(mode="after")
+    def validate_market_identifier(self) -> HyperliquidRawOrderItemSpec:
+        """Ensure exactly one market identifier is provided."""
+        has_asset_index = self.a is not None
+        has_coin = self.coin is not None
+
+        if has_asset_index and has_coin:
+            raise ConflictingMarketIdentifiersError
+        if not has_asset_index and not has_coin:
+            raise MissingMarketIdentifierError
+        return self
 
 
 class HyperliquidRawL2UsdTransferActionDetails(BaseModel):

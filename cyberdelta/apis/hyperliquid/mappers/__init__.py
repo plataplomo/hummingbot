@@ -22,6 +22,7 @@ from .account.hl_account_summary_mapper import HyperliquidAccountSummaryMapper
 from .account.hl_balance_mapper import HyperliquidBalanceMapper
 from .account.hl_position_mapper import HyperliquidPositionMapper
 from .account.hl_transaction_mapper import HyperliquidTransactionMapper
+from .account.hl_transfer_mapper import HyperliquidTransferMapper
 from .market_data.hl_historical_data_mapper import HyperliquidHistoricalDataMapper
 from .market_data.hl_market_metadata_mapper import HyperliquidMarketMetadataMapper
 from .market_data.hl_order_book_mapper import HyperliquidOrderBookMapper
@@ -43,4 +44,5 @@ __all__ = [
     "HyperliquidPriceTickerMapper",
     "HyperliquidTradingEnumMapper",
     "HyperliquidTransactionMapper",
+    "HyperliquidTransferMapper",
 ]

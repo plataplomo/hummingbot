@@ -16,6 +16,8 @@ from collections.abc import Awaitable, Callable, Mapping
 from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.hyperliquid.enums.hl_spot_mainnet_mappings import MAINNET_SPOT_SYMBOL_MAPPINGS
+from cyberdelta.apis.hyperliquid.enums.hl_spot_testnet_mappings import TESTNET_SPOT_SYMBOL_MAPPINGS
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
 )
@@ -26,6 +28,7 @@ from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handl
     HyperliquidMarketDataResponseHandler,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -47,6 +50,7 @@ class HyperliquidAssetIndexResolver:
         response_handler: HyperliquidMarketDataResponseHandler,
         request_builder: HyperliquidMarketDataRequestBuilder,
         exchange_name_for_log: str = "hyperliquid_asset_indexer",
+        environment_type: EnvironmentType | None = None,
     ) -> None:
         """Initialize the asset index resolver.
 
@@ -55,20 +59,26 @@ class HyperliquidAssetIndexResolver:
             response_handler: Response handler instance for validating API responses
             request_builder: Request builder instance for constructing API requests
             exchange_name_for_log: Exchange name for logging context
+            environment_type: Environment type (mainnet/testnet) for spot mappings
 
         """
         self._requester = requester
         self._response_handler = response_handler
         self._request_builder = request_builder
         self._exchange_name_for_log = exchange_name_for_log
+        self._environment_type = environment_type
         self._asset_to_index_cache: dict[str, int] = {}
         self.logger = get_logger(__name__)
 
     async def get_asset_index(self, symbol: str) -> int:
         """Fetch or retrieve from cache the asset_index for a given symbol.
 
+        Supports both perpetual and spot symbols:
+        - Perpetual: "BTC", "ETH", etc. (resolved from universe)
+        - Spot: "@1", "@2", "PURR/USDC", etc. (direct mapping or lookup)
+
         Args:
-            symbol: The asset symbol to resolve (e.g., "BTC", "ETH")
+            symbol: The asset symbol to resolve
 
         Returns:
             The integer asset index for the symbol
@@ -79,7 +89,12 @@ class HyperliquidAssetIndexResolver:
         """
         self._validate_symbol(symbol)
 
-        # Cache check
+        # Handle spot symbols with direct mapping
+        spot_index = self._resolve_spot_symbol_direct(symbol)
+        if spot_index is not None:
+            return spot_index
+
+        # Cache check for other symbols
         cached_index = self._get_cached_index(symbol)
         if cached_index is not None:
             return cached_index
@@ -116,6 +131,28 @@ class HyperliquidAssetIndexResolver:
                 return None
             # For other API errors, re-raise them
             raise
+
+    def _resolve_spot_symbol_direct(self, symbol: str) -> int | None:
+        """Resolve spot symbols that have direct mappings.
+
+        Handles:
+        - @N format (e.g., "@1", "@2") -> direct asset index N
+        - Known spot mappings (e.g., "PURR/USDC" -> 0)
+
+        Returns:
+            Asset index if directly resolvable, None otherwise
+        """
+        # Handle @N format - direct mapping to asset index
+        if symbol.startswith("@") and symbol[1:].isdigit():
+            return int(symbol[1:])
+
+        # Handle known spot symbol mappings based on environment
+        if self._environment_type == EnvironmentType.TESTNET:
+            # Use the comprehensive testnet mappings
+            return TESTNET_SPOT_SYMBOL_MAPPINGS.get(symbol)
+
+        # Use the comprehensive mainnet mappings
+        return MAINNET_SPOT_SYMBOL_MAPPINGS.get(symbol)
 
     def _validate_symbol(self, symbol: str) -> None:
         """Validate the input symbol."""

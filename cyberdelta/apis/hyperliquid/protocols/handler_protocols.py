@@ -33,6 +33,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
     HyperliquidRawRecentTradesResponse,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_usd_transfer_response import (
+    HyperliquidRawUsdTransferResponse,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.hyperliquid.protocols.base_protocols import ResponseHandlerProtocol
@@ -142,6 +145,22 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
         Returns:
             List of validated historical order responses
+        """
+        ...
+
+    @staticmethod
+    def handle_transfer_response(
+        raw_response_content: ParsedJsonResponse,
+        status_code: int,
+    ) -> HyperliquidRawUsdTransferResponse:
+        """Handle internal transfer response.
+
+        Args:
+            raw_response_content: Raw JSON response from Hyperliquid /exchange endpoint
+            status_code: HTTP status code from the response
+
+        Returns:
+            HyperliquidRawUsdTransferResponse: Validated Pydantic model for mapper transformation
         """
         ...
 

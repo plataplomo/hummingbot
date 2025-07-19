@@ -44,6 +44,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawRecentTradesRequestPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
+    HyperliquidRawInternalUsdTransferPayload,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsRequestPayload,
 )
@@ -150,6 +153,26 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
         Returns:
             Validated Pydantic model containing historical orders query payload
+        """
+        ...
+
+    @staticmethod
+    def build_internal_transfer_payload(
+        asset_symbol: str,
+        from_account_type: str,
+        to_account_type: str,
+        amount: Decimal,
+    ) -> HyperliquidRawInternalUsdTransferPayload:
+        """Build payload for internal USD transfers between spot and perp accounts.
+
+        Args:
+            asset_symbol: Asset to transfer (must be "USDC" for Hyperliquid)
+            from_account_type: Source account type ("spot" or "perp")
+            to_account_type: Destination account type ("spot" or "perp")
+            amount: Transfer amount (positive decimal)
+
+        Returns:
+            HyperliquidRawInternalUsdTransferPayload: Validated raw model for internal transfer
         """
         ...
 

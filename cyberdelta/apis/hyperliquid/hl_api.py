@@ -313,6 +313,7 @@ class HyperliquidAPI(ExchangeAPI):
             response_handler=market_data_response_handler,
             request_builder=market_data_request_builder,
             exchange_name_for_log=self.exchange_name,
+            environment_type=exchange_config.environment_type,
         )
 
         # Create order book service to share between market data and trading services

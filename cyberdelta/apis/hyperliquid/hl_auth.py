@@ -46,6 +46,8 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
     EIP712TypeField,
     HyperliquidAgentDomainData,
     HyperliquidAgentTypes,
+    HyperliquidUsdClassTransferTypes,
+    HyperliquidUserDomainData,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions.base import RequiredParameterError
@@ -363,6 +365,32 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 EIP712TypeField(name="source", type="string"),
                 EIP712TypeField(name="connectionId", type="bytes32"),
             ],
+        )
+
+        # Initialize EIP-712 domain for user signed actions (sign_user_signed_action)
+        self._user_action_domain = HyperliquidUserDomainData(
+            name="HyperliquidSignTransaction",
+            version="1",
+            chainId=self._chain_id,  # Use actual chain ID
+            verifyingContract=verifying_contract,
+        )
+
+        # Initialize EIP-712 types for USD class transfer (matches SDK exactly)
+        self._usd_class_transfer_types = HyperliquidUsdClassTransferTypes(
+            EIP712Domain=[
+                EIP712TypeField(name="name", type="string"),
+                EIP712TypeField(name="version", type="string"),
+                EIP712TypeField(name="chainId", type="uint256"),
+                EIP712TypeField(name="verifyingContract", type="address"),
+            ],
+            **{
+                "HyperliquidTransaction:UsdClassTransfer": [
+                    EIP712TypeField(name="hyperliquidChain", type="string"),
+                    EIP712TypeField(name="amount", type="string"),
+                    EIP712TypeField(name="toPerp", type="bool"),
+                    EIP712TypeField(name="nonce", type="uint64"),
+                ]
+            },
         )
 
     @property
@@ -793,7 +821,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         data: dict[str, Any] | None,
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
-        """Prepare and sign a Hyperliquid /exchange request using sign_l1_action scheme."""
+        """Prepare and sign a Hyperliquid /exchange request using appropriate signing scheme."""
         # Input validation
         self._validate_exchange_request_data(data)
         # DEFENSIVE CHECK: Ensure data is not None after validation
@@ -804,8 +832,22 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                 exchange="Hyperliquid",
             )
 
-        # Prepare core components
+        # Prepare action payload and determine signing scheme
         action_payload_dict = self._prepare_action_payload(data)
+        action_type = action_payload_dict.get("type")
+
+        # Route to appropriate signing scheme based on action type
+        if action_type == "usdClassTransfer":
+            return await self._prepare_user_signed_request(action_payload_dict, params, headers)
+        return await self._prepare_l1_signed_request(action_payload_dict, params, headers)
+
+    async def _prepare_l1_signed_request(
+        self,
+        action_payload_dict: dict[str, Any],
+        params: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
+    ) -> AuthenticatedRequestComponents:
+        """Prepare and sign using sign_l1_action scheme (original method)."""
         current_nonce_ms = await self._get_next_nonce_ms()
         action_hash_bytes = self._compute_action_hash(action_payload_dict, current_nonce_ms)
         phantom_agent_message = self._create_phantom_agent_message(action_hash_bytes)
@@ -826,6 +868,83 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             params=params,
             data=final_http_body,
         )
+
+    async def _prepare_user_signed_request(
+        self,
+        action_payload_dict: dict[str, Any],
+        params: dict[str, Any] | None,
+        headers: Mapping[str, Any] | None,
+    ) -> AuthenticatedRequestComponents:
+        """Prepare and sign using sign_user_signed_action scheme for usdClassTransfer."""
+        # Add required fields for user signed actions
+        is_mainnet = self._network_environment.chain_id.is_production
+        action_payload_dict["signatureChainId"] = "0x66eee"  # Fixed signature chain ID
+        action_payload_dict["hyperliquidChain"] = "Mainnet" if is_mainnet else "Testnet"
+
+        # Sign the action directly (no phantom agent or hash)
+        signature_dict = self._sign_user_action(action_payload_dict)
+
+        # Get nonce for HTTP body (different from action nonce)
+        current_nonce_ms = action_payload_dict["nonce"]
+
+        # Construct final request components
+        final_http_body = self._construct_http_body(
+            action_payload_dict,
+            current_nonce_ms,
+            signature_dict,
+        )
+        final_headers = self._prepare_request_headers(headers)
+
+        return AuthenticatedRequestComponents(
+            headers=final_headers,
+            params=params,
+            data=final_http_body,
+        )
+
+    def _sign_user_action(self, action_payload_dict: dict[str, Any]) -> dict[str, Any]:
+        """Sign user action using sign_user_signed_action scheme."""
+        # Extract chain_id from signatureChainId like the SDK does
+        signature_chain_id = action_payload_dict.get("signatureChainId")
+        if not signature_chain_id:
+            missing_signature_chain_id_msg = "Missing signatureChainId in action payload"
+            raise APIError(
+                missing_signature_chain_id_msg,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+            )
+
+        # Convert hex string to int like SDK: int(action["signatureChainId"], 16)
+        chain_id = int(signature_chain_id, 16)
+
+        # Update the existing user action domain with extracted chain_id
+        # Create a copy with the correct chainId (don't modify the original)
+        domain_data = self._user_action_domain.model_copy(update={"chainId": chain_id})
+
+        # Construct structured data for EIP-712 signing
+        structured_data_to_sign = {
+            "domain": domain_data.model_dump(by_alias=True),
+            "message": action_payload_dict,
+            "primaryType": "HyperliquidTransaction:UsdClassTransfer",
+            "types": self._usd_class_transfer_types.model_dump(by_alias=True),
+        }
+
+        try:
+            # Generate and sign EIP-712 message
+            signable_message = self._encode_and_sign_message(structured_data_to_sign)
+            return self._format_signature_components(signable_message)
+
+        except Exception as e:
+            self.logger.exception(
+                "user_action_signing_failed",
+                action="sign_user_action",
+                error_details=str(e),
+                message=f"HyperliquidEip712Authenticator: Failed to sign user action: {e}",
+            )
+            user_action_signing_failed_msg = f"Failed to sign EIP-712 user action: {e}"
+            raise APIError(
+                user_action_signing_failed_msg,
+                code=APIErrorCode.AUTHENTICATION_FAILED.value,
+                original_exception=e,
+            ) from e
 
     def _sign_eip712_message(self, phantom_agent_message: dict[str, Any]) -> dict[str, Any]:
         """Sign the EIP-712 message and return signature components."""

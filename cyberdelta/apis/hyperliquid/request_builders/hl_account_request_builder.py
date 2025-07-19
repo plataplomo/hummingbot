@@ -13,8 +13,12 @@ Focused on:
 
 from __future__ import annotations
 
+import time
+from decimal import Decimal
+
 from eth_typing import ChecksumAddress, HexAddress, HexStr
 
+from cyberdelta.apis.exceptions.request_validation import InvalidEnumValueError
 from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
     HyperliquidApiEthWithdrawalRequest,
     HyperliquidApiL2UsdTransferRequest,
@@ -33,6 +37,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
     HyperliquidRawHistoricalOrdersRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
+    HyperliquidRawInternalUsdTransferPayload,
     HyperliquidRawL2UsdTransferPayload,
     HyperliquidRawWithdrawalToL1ActionPayload,
 )
@@ -179,6 +184,99 @@ class HyperliquidAccountRequestBuilder(
             payload=transfer_payload_model,
         )
         return HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=action_details_model)
+
+    @staticmethod
+    def build_internal_transfer_payload(
+        asset_symbol: str,
+        from_account_type: str,
+        to_account_type: str,
+        amount: Decimal,
+    ) -> HyperliquidRawInternalUsdTransferPayload:
+        """Build payload for internal USD transfers between spot and perp accounts.
+
+        Following exact Backpack pattern: Static method that takes validated parameters
+        and returns Raw Pydantic model for internal transfers within same wallet.
+
+        Args:
+            asset_symbol: Asset to transfer (must be "USDC" for Hyperliquid)
+            from_account_type: Source account type ("spot" or "perp")
+            to_account_type: Destination account type ("spot" or "perp")
+            amount: Transfer amount (positive decimal)
+
+        Returns:
+            HyperliquidRawInternalUsdTransferPayload: Validated top-level API request model
+
+        Raises:
+            ValueError: If account types are invalid or asset is not USDC
+        """
+        logger.debug(
+            "building_internal_transfer_payload",
+            asset=asset_symbol,
+            from_account=from_account_type,
+            to_account=to_account_type,
+            amount=str(amount),
+            message="Building internal USD transfer request payload",
+        )
+
+        # Validate asset - Hyperliquid internal transfers only support USDC
+        if asset_symbol.upper() != "USDC":
+            raise InvalidEnumValueError(
+                parameter_name="asset_symbol",
+                value=asset_symbol,
+                valid_values=["USDC"],
+                enum_type="supported_assets",
+            )
+
+        # Validate account types
+        valid_accounts = {"spot", "perp"}
+        if from_account_type.lower() not in valid_accounts:
+            raise InvalidEnumValueError(
+                parameter_name="from_account_type",
+                value=from_account_type,
+                valid_values=list(valid_accounts),
+                enum_type="account_types",
+            )
+        if to_account_type.lower() not in valid_accounts:
+            raise InvalidEnumValueError(
+                parameter_name="to_account_type",
+                value=to_account_type,
+                valid_values=list(valid_accounts),
+                enum_type="account_types",
+            )
+        if from_account_type.lower() == to_account_type.lower():
+            raise InvalidEnumValueError(
+                parameter_name="account_type_combination",
+                value=f"{from_account_type}->{to_account_type}",
+                valid_values=["spot->perp", "perp->spot"],
+                enum_type="transfer_directions",
+            )
+
+        # Map account types to toPerp boolean
+        # toPerp=True means spot→perp, toPerp=False means perp→spot
+        if from_account_type.lower() == "spot" and to_account_type.lower() == "perp":
+            to_perp = True
+        elif from_account_type.lower() == "perp" and to_account_type.lower() == "spot":
+            to_perp = False
+        else:
+            raise InvalidEnumValueError(
+                parameter_name="account_combination",
+                value=f"{from_account_type}→{to_account_type}",
+                valid_values=["spot→perp", "perp→spot"],
+                enum_type="transfer_combinations",
+            )
+
+        # Convert amount to wire format string using class static method
+        amount_wire = HyperliquidAccountRequestBuilder._decimal_to_wire_format(amount)
+
+        # Create timestamp/nonce for the action
+        nonce = int(time.time() * 1000)  # Millisecond timestamp
+
+        return HyperliquidRawInternalUsdTransferPayload(
+            type="usdClassTransfer",
+            amount=amount_wire,
+            toPerp=to_perp,
+            nonce=nonce,
+        )
 
     def build_withdrawal_payload(
         self,

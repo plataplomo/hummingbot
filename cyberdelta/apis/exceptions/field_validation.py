@@ -125,3 +125,27 @@ class EmptyStringFieldError(ValueError, FieldError):
             source_value="",
             code="EMPTY_STRING_NOT_ALLOWED",
         )
+
+
+class ConflictingMarketIdentifiersError(FieldError):
+    """Raised when both asset_index and coin are specified."""
+
+    def __init__(self) -> None:
+        """Initialize conflicting market identifiers error."""
+        super().__init__(
+            "Cannot specify both asset_index (perp) and coin (spot)",
+            field_name="asset_index_coin_validation",
+            code="CONFLICTING_FIELDS",
+        )
+
+
+class MissingMarketIdentifierError(FieldError):
+    """Raised when neither asset_index nor coin are specified."""
+
+    def __init__(self) -> None:
+        """Initialize missing market identifier error."""
+        super().__init__(
+            "Must specify either asset_index (perp) or coin (spot)",
+            field_name="asset_index_coin_validation",
+            code="MISSING_REQUIRED_FIELD",
+        )

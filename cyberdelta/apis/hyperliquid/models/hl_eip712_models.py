@@ -50,3 +50,34 @@ class HyperliquidAgentTypes(BaseModel):
     Agent: list[EIP712TypeField]
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class HyperliquidUserDomainData(BaseModel):
+    """Model for EIP-712 domain data structure for Hyperliquid user signed actions.
+
+    This represents the domain values used in EIP-712 signatures for the
+    sign_user_signed_action scheme with "HyperliquidSignTransaction" domain name.
+    """
+
+    name: str
+    version: str
+    chain_id: int = Field(alias="chainId")
+    verifying_contract: str = Field(alias="verifyingContract")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid", frozen=True)
+
+
+class HyperliquidUsdClassTransferTypes(BaseModel):
+    """Model for EIP-712 type definitions for Hyperliquid USD class transfer signatures.
+
+    This represents the complete "types" structure required for EIP-712 signatures
+    using the sign_user_signed_action scheme for usdClassTransfer actions.
+    """
+
+    EIP712Domain: list[EIP712TypeField]
+    # Note: Field name uses literal string to match SDK exactly
+    HyperliquidTransaction_UsdClassTransfer: list[EIP712TypeField] = Field(
+        alias="HyperliquidTransaction:UsdClassTransfer"
+    )
+
+    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)

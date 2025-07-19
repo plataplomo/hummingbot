@@ -26,6 +26,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_usd_transfer_response import (
+    HyperliquidRawUsdTransferResponse,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
 )
@@ -378,3 +381,68 @@ class HyperliquidAccountResponseHandler(
                 message="Failed to validate user fills response",
                 metadata={"error": str(e)},
             ) from e
+
+    @staticmethod
+    def handle_transfer_response(
+        raw_response_content: ParsedJsonResponse,
+        status_code: int,
+    ) -> HyperliquidRawUsdTransferResponse:
+        """Handle internal transfer response following Backpack pattern.
+
+        Validates basic response structure and logs warnings for invalid fields.
+        Returns validated Pydantic model for mapper processing.
+
+        Args:
+            raw_response_content: Raw JSON response from Hyperliquid /exchange endpoint
+            status_code: HTTP status code from the response
+
+        Returns:
+            HyperliquidRawUsdTransferResponse: Validated Pydantic model for mapper transformation
+
+        Raises:
+            APIError: If response structure is fundamentally invalid
+        """
+        context = "internal_transfer"
+
+        logger.debug(
+            "hyperliquid_transfer_response_handler_start",
+            context=context,
+            status_code=status_code,
+            response_type=type(raw_response_content).__name__,
+            message=f"[{context}] Starting validation of transfer response",
+        )
+
+        try:
+            # Ensure we have a dictionary response
+            response_dict = ensure_dict_response(raw_response_content, context, status_code)
+
+            # Validate response using HyperliquidRawUsdTransferResponse model
+            validated_response = HyperliquidRawUsdTransferResponse.model_validate(response_dict)
+
+            logger.debug(
+                "hyperliquid_transfer_response_handler_complete",
+                context=context,
+                status_code=status_code,
+                response_status=validated_response.status,
+                has_response_data=validated_response.response is not None,
+                message=(
+                    f"[{context}] Successfully validated transfer response using "
+                    f"HyperliquidRawUsdTransferResponse"
+                ),
+            )
+
+        except (ValidationError, ValueError) as e:
+            logger.exception(
+                "hyperliquid_transfer_response_validation_failed",
+                context=context,
+                status_code=status_code,
+                error=str(e),
+                message="Failed to validate transfer response structure",
+            )
+            raise APIError(
+                code=APIErrorCode.RESPONSE_VALIDATION_FAILED.value,
+                message="Failed to validate transfer response",
+                metadata={"error": str(e), "context": context},
+            ) from e
+        else:
+            return validated_response
