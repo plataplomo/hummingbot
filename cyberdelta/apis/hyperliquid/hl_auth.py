@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import string
 import time
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, TypeGuard
 
 import msgpack
 import structlog
@@ -52,10 +52,11 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.exceptions.field_validation import InvalidFormatError, PassphraseFieldError
-from cyberdelta.utils.typing import is_dict_str_any
 
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+else:
     from collections.abc import Mapping
 
 
@@ -486,11 +487,69 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             data_type_error_msg = msg
             raise TypeError(data_type_error_msg)
 
-    def _prepare_action_payload(self, data: dict[str, Any] | BaseModel) -> dict[str, Any]:
-        """Prepare the action payload for signing using Pydantic model serialization.
+    def _clean_payload_for_signing(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Centralized payload cleaning that removes None fields recursively.
+        
+        This matches the behavior of SigningPayloadSerializer but lives in the auth layer,
+        providing better separation of concerns.
+        
+        Args:
+            data: The payload dictionary to clean
+            
+        Returns:
+            Cleaned dictionary with None fields removed
+        """
+        cleaned: dict[str, Any] = {}
+        
+        for key, value in data.items():
+            if value is None:
+                continue
+                
+            if self._is_dict_str_any(value):
+                # Recursively clean nested dictionaries
+                nested_cleaned = self._clean_payload_for_signing(value)
+                if nested_cleaned:  # Only include non-empty dicts
+                    cleaned[key] = nested_cleaned
+                    
+            elif self._is_list_any(value):
+                # Delegate list cleaning to separate method
+                cleaned_list = self._clean_list_for_signing(value)
+                if cleaned_list:  # Only include non-empty lists
+                    cleaned[key] = cleaned_list
+                    
+            else:
+                # Keep all other non-None values
+                cleaned[key] = value
+                
+        return cleaned
+    
+    def _is_dict_str_any(self, obj: object) -> TypeGuard[dict[str, Any]]:
+        """Type guard to check if object is a dict[str, Any]."""
+        return isinstance(obj, dict)
+    
+    def _is_list_any(self, obj: object) -> TypeGuard[list[Any]]:
+        """Type guard to check if object is a list[Any]."""
+        return isinstance(obj, list)
+    
+    def _clean_list_for_signing(self, items: list[Any]) -> list[Any]:
+        """Clean a list by removing None values and cleaning nested dicts."""
+        cleaned_list: list[Any] = []
+        for item in items:
+            if item is None:
+                continue
+            if self._is_dict_str_any(item):
+                item_cleaned = self._clean_payload_for_signing(item)
+                if item_cleaned:  # Only include non-empty dicts
+                    cleaned_list.append(item_cleaned)
+            else:
+                cleaned_list.append(item)
+        return cleaned_list
 
-        This method ensures all payloads go through proper Pydantic validation
-        and serialization, providing consistent signing behavior.
+    def _prepare_action_payload(self, data: dict[str, Any] | BaseModel) -> dict[str, Any]:
+        """Prepare the action payload for signing using centralized cleaning.
+
+        This method ensures all payloads go through proper cleaning and serialization,
+        providing consistent signing behavior.
 
         For Hyperliquid, we need to use the actual field names (not aliases) because
         the field names are the short ones (a, b, p, etc.) that Hyperliquid expects.
@@ -501,108 +560,37 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             data_type=str(type(data)),
             message=f"[HL_AUTH] Input data type: {type(data)}",
         )
-        self.logger.debug(
-            "data_model_dump_check",
-            action="prepare_action_payload",
-            has_model_dump=hasattr(data, "model_dump"),
-            message="[HL_AUTH] Input data has model_dump: {}".format(hasattr(data, "model_dump")),
-        )
 
-        # If the data is already a Pydantic model, serialize it directly
+        # If the data is a Pydantic model, serialize it first
         if isinstance(data, BaseModel):
-            return self._serialize_pydantic_model(data)
-
-        # For dict data, ensure we match SDK behavior by removing None 'c' fields
-        self.logger.debug(
-            "processing_dict_data",
-            action="prepare_action_payload",
-            data_keys=list(data.keys()),
-            message=f"[HL_AUTH] Processing dict data: {data}",
-        )
-        self._process_dict_orders(data)
-
-        # Return the dict directly
-        self.logger.debug(
-            "dict_data_returned",
-            action="prepare_action_payload",
-            message="[HL_AUTH] Returning dict data",
-        )
-        return data
-
-    def _serialize_pydantic_model(self, data: BaseModel) -> dict[str, Any]:
-        """Serialize a Pydantic model for signing."""
-        # For Hyperliquid, use by_alias=False to get the short field names (a, b, p, etc.)
-        # CRITICAL: Do NOT exclude None values as Hyperliquid expects all fields
-        # for msgpack order
-        result = data.model_dump(by_alias=False, exclude_none=False, mode="python")
-        self.logger.debug(
-            "pydantic_model_serialized",
-            action="serialize_pydantic_model",
-            result_keys=list(result.keys()),
-            message=f"[HL_AUTH] Pydantic model_dump result: {result}",
-        )
-        self.logger.debug(
-            "model_fields_enumerated",
-            action="serialize_pydantic_model",
-            fields=list(result.keys()),
-            message=f"[HL_AUTH] All model fields present: {list(result.keys())}",
-        )
-
-        # Process nested order objects - CRITICAL: Remove 'c' field if None to match SDK
-        if result.get("orders"):
-            self._process_order_items(result["orders"])
-
-        return result
-
-    def _process_order_items(self, orders: list[object]) -> None:
-        """Process order items to ensure proper structure."""
-        for i, order_item in enumerate(orders):
-            # Force serialize the order item to ensure proper structure
-            if isinstance(order_item, BaseModel):
-                order_item_dict = order_item.model_dump(
-                    by_alias=False,
-                    exclude_none=True,
-                    mode="python",
-                )
-                orders[i] = order_item_dict
-                self.logger.debug(
-                    "order_serialized",
-                    order_index=i,
-                    fields=list(order_item_dict.keys()),
-                    message=(
-                        f"[HL_AUTH] Serialized order {i} with fields: "
-                        f"{list(order_item_dict.keys())}"
-                    ),
-                )
-            elif is_dict_str_any(order_item):
-                # order_item is now properly typed as dict[str, Any] due to TypeGuard
-                self._remove_none_c_field(order_item, i)
-
-    def _remove_none_c_field(self, order_item: dict[str, Any], index: int) -> None:
-        """Remove 'c' field if it's None to match SDK behavior."""
-        if "c" in order_item and order_item["c"] is None:
-            del order_item["c"]
+            # Use by_alias=False to get the short field names (a, b, p, etc.)
+            payload_dict = data.model_dump(by_alias=False, mode="python")
             self.logger.debug(
-                "none_c_field_removed",
-                action="remove_none_c_field",
-                order_index=index,
-                message=f"[HL_AUTH] Removed None 'c' field from order {index}",
+                "pydantic_model_serialized",
+                action="prepare_action_payload",
+                result_keys=list(payload_dict.keys()),
+                message=f"[HL_AUTH] Pydantic model serialized: {payload_dict}",
             )
-        self.logger.debug(
-            "order_fields_listed",
-            action="remove_none_c_field",
-            order_index=index,
-            fields=list(order_item.keys()),
-            message=f"[HL_AUTH] Order {index} fields: {list(order_item.keys())}",
-        )
+        else:
+            payload_dict = data
+            self.logger.debug(
+                "processing_dict_data",
+                action="prepare_action_payload",
+                data_keys=list(data.keys()),
+                message=f"[HL_AUTH] Processing dict data: {data}",
+            )
 
-    def _process_dict_orders(self, data: dict[str, Any]) -> None:
-        """Process orders in dict data to remove None 'c' fields."""
-        if data.get("orders"):
-            for i, order_item in enumerate(data["orders"]):
-                if is_dict_str_any(order_item):
-                    # order_item is now properly typed as dict[str, Any] due to TypeGuard
-                    self._remove_none_c_field(order_item, i)
+        # Apply centralized cleaning to remove None fields
+        cleaned_payload = self._clean_payload_for_signing(payload_dict)
+        
+        self.logger.debug(
+            "payload_cleaned",
+            action="prepare_action_payload",
+            cleaned_keys=list(cleaned_payload.keys()),
+            message=f"[HL_AUTH] Cleaned payload: {cleaned_payload}",
+        )
+        
+        return cleaned_payload
 
     def _compute_action_hash(
         self,

@@ -22,7 +22,6 @@ from cyberdelta.apis.hyperliquid.models.hl_common_raw_types import (
 )
 from cyberdelta.apis.hyperliquid.models.signing_validators import (
     EthereumAddressNormalizer,
-    SigningPayloadSerializer,
 )
 from cyberdelta.utils.parsing import validate_str_field
 
@@ -30,7 +29,6 @@ from cyberdelta.utils.parsing import validate_str_field
 class HyperliquidRawL2UsdTransferPayload(
     BaseModel,
     EthereumAddressNormalizer,
-    SigningPayloadSerializer,
 ):
     """Payload for an L2 USDC transfer action.
 
@@ -54,7 +52,6 @@ class HyperliquidRawL2UsdTransferPayload(
 class HyperliquidRawWithdrawalToL1ActionPayload(
     BaseModel,
     EthereumAddressNormalizer,
-    SigningPayloadSerializer,
 ):
     """Payload for withdrawing funds to L1.
 
@@ -81,7 +78,6 @@ class HyperliquidRawWithdrawalToL1ActionPayload(
 
 class HyperliquidRawInternalUsdTransferPayload(
     BaseModel,
-    SigningPayloadSerializer,
 ):
     """Top-level request payload for internal USD transfers between spot and perp accounts.
 
