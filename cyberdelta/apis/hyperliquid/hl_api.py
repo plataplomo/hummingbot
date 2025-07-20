@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 import aiohttp
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import (
@@ -17,6 +16,7 @@ from cyberdelta.apis.connectivity.http_client import (
 from cyberdelta.apis.hyperliquid.hl_api_components_factory import HyperliquidAPIComponentsFactory
 from cyberdelta.apis.hyperliquid.hl_asset_indexer import HyperliquidAssetIndexResolver
 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
+from cyberdelta.apis.hyperliquid.hl_registry_builder import HyperliquidRegistryBuilder
 from cyberdelta.apis.hyperliquid.hl_response_handler import (
     HyperliquidResponseHandler,
 )
@@ -52,6 +52,8 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
+from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
@@ -389,8 +391,15 @@ class HyperliquidAPI(ExchangeAPI):
 
         # Initialize enhanced WebSocket router with new architecture
         error_handler = BaseErrorHandler(exchange_name="hyperliquid")
+
+        # Create registry using Hyperliquid-specific builder
+        builder = HyperliquidRegistryBuilder()
+        registry = builder.build_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         self._hl_ws_router = HyperliquidWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),
             price_ticker_mapper=factory.create_price_ticker_mapper(),
             balance_mapper=factory.create_balance_mapper(),

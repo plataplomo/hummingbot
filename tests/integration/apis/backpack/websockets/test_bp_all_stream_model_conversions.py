@@ -25,9 +25,9 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.core.models.market.ticker import Ticker
@@ -42,12 +42,7 @@ from .ws_test_helpers import (
 )
 
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.websockets,
-    pytest.mark.all_models,
-    pytest.mark.timing,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -170,7 +165,7 @@ class TestBackpackAllStreamModelConversions:
     async def _create_ticker_handler(self, received_tickers: list[Ticker]) -> MessageHandler:
         """Create handler for ticker stream messages."""
 
-        async def ticker_handler(context: WebSocketContextUnion) -> None:
+        async def ticker_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # The domain model is stored directly on the context
@@ -276,7 +271,7 @@ class TestBackpackAllStreamModelConversions:
     async def _create_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
         """Create handler for trades stream messages."""
 
-        async def trades_handler(context: WebSocketContextUnion) -> None:
+        async def trades_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # The domain model is stored directly on the context (same as ticker handler)
@@ -425,13 +420,15 @@ class TestBackpackAllStreamModelConversions:
     async def _create_fills_handler(self, received_fills: list[Any]) -> MessageHandler:
         """Create handler for fills stream messages."""
 
-        async def fills_handler(context: WebSocketContextUnion) -> None:
+        async def fills_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # Extract data from typed context
             context_data: dict[str, Any] = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -700,13 +697,15 @@ class TestBackpackAllStreamModelConversions:
         """Create handler for specific stream type."""
         await asyncio.sleep(0)  # Satisfy RUF029
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             # Extract data from typed context
             context_data: dict[str, Any] = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -843,7 +842,7 @@ class TestBackpackAllStreamModelConversions:
     ) -> MessageHandler:
         """Create handler that tracks model data for consistency."""
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             if stream_type not in model_data:

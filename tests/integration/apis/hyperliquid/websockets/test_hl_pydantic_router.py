@@ -17,10 +17,10 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -71,7 +71,7 @@ class TestHyperliquidPydanticRouter:
             # Subscribe to real data stream
             test_received = asyncio.Event()
 
-            async def test_handler(context: WebSocketContextUnion) -> None:
+            async def test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 test_received.set()
 
@@ -132,7 +132,7 @@ class TestHyperliquidPydanticRouter:
                 async def mock_process(
                     payload: dict[str, Any] | list[Any],
                     handler: MessageHandler,
-                    context: WebSocketContextUnion,
+                    context: WebSocketContextProtocol,
                 ) -> None:
                     processor_calls[proc_name].append((payload, handler, context))
                     await original_process(payload, handler, context)
@@ -158,7 +158,7 @@ class TestHyperliquidPydanticRouter:
             async def make_test_handler(event: asyncio.Event) -> MessageHandler:
                 await asyncio.sleep(0)
 
-                async def handler(context: WebSocketContextUnion) -> None:
+                async def handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)
                     event.set()
 
@@ -234,11 +234,13 @@ class TestHyperliquidPydanticRouter:
 
             received_contexts: list[dict[str, Any]] = []
 
-            async def context_test_handler(context: WebSocketContextUnion) -> None:
+            async def context_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 # Extract data from typed context for test purposes
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict):
@@ -333,7 +335,7 @@ class TestHyperliquidPydanticRouter:
             test_symbol = markets[0].symbol
 
             # Subscribe to different message types
-            async def dummy_handler(context: WebSocketContextUnion) -> None:
+            async def dummy_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             await hl_api_for_test_env.subscribe(f"l2Book:{test_symbol}", dummy_handler)
@@ -371,7 +373,7 @@ class TestHyperliquidPydanticRouter:
             asyncio.Event()
             handler_called = asyncio.Event()
 
-            async def error_handler(context: WebSocketContextUnion) -> None:
+            async def error_handler(context: WebSocketContextProtocol) -> None:
                 handler_called.set()
                 await asyncio.sleep(0)  # Satisfy RUF029
                 raise ValueError("Test error from handler")
@@ -385,7 +387,7 @@ class TestHyperliquidPydanticRouter:
             # The system should continue working despite handler errors
             normal_handler_called = asyncio.Event()
 
-            async def normal_handler(context: WebSocketContextUnion) -> None:
+            async def normal_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
                 normal_handler_called.set()
 
@@ -422,7 +424,7 @@ class TestHyperliquidPydanticRouter:
             current_concurrent = 0
             lock = asyncio.Lock()
 
-            async def concurrent_handler(context: WebSocketContextUnion) -> None:
+            async def concurrent_handler(context: WebSocketContextProtocol) -> None:
                 nonlocal current_concurrent, max_concurrent
 
                 async with lock:
@@ -465,12 +467,12 @@ class TestHyperliquidPydanticRouter:
             handler1_count = 0
             handler2_count = 0
 
-            async def handler1(context: WebSocketContextUnion) -> None:
+            async def handler1(context: WebSocketContextProtocol) -> None:
                 nonlocal handler1_count
                 await asyncio.sleep(0)
                 handler1_count += 1
 
-            async def handler2(context: WebSocketContextUnion) -> None:
+            async def handler2(context: WebSocketContextProtocol) -> None:
                 nonlocal handler2_count
                 await asyncio.sleep(0)
                 handler2_count += 1

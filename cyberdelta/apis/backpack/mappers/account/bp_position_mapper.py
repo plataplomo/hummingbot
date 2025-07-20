@@ -135,19 +135,20 @@ class BackpackPositionMapper(PositionMapperProtocol):
             mmf_factor_dec = None
             cumulative_funding_dec = None
 
-            if hasattr(raw, "imf_function") and raw.imf_function:
+            # imf_function, mmf_function, and cumulative_funding_payment are required fields
+            if raw.imf_function:
                 imf_base_dec = parse_decimal_value(raw.imf_function.base, allow_none=True)
                 imf_factor_dec = parse_decimal_value(raw.imf_function.factor, allow_none=True)
 
-            if hasattr(raw, "mmf_function") and raw.mmf_function:
+            if raw.mmf_function:
                 mmf_base_dec = parse_decimal_value(raw.mmf_function.base, allow_none=True)
                 mmf_factor_dec = parse_decimal_value(raw.mmf_function.factor, allow_none=True)
 
-            if hasattr(raw, "cumulative_funding_payment"):
-                cumulative_funding_dec = parse_decimal_value(
-                    raw.cumulative_funding_payment,
-                    allow_none=True,
-                )
+            # cumulative_funding_payment is always present
+            cumulative_funding_dec = parse_decimal_value(
+                raw.cumulative_funding_payment,
+                allow_none=True,
+            )
 
             # Create BP-specific details
             bp_details = BackpackPositionDetails(

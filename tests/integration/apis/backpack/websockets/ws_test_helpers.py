@@ -18,9 +18,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawTickerEvent,
 )
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.common.types import MessageHandler
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.core.models.market.ticker import Ticker
@@ -91,21 +91,20 @@ async def get_real_ticker_data(api: BackpackAPI, symbol: str) -> BackpackRawTick
     """
     received_tickers: list[BackpackRawTickerEvent] = []
 
-    async def ticker_collector(context: WebSocketContextUnion) -> None:
+    async def ticker_collector(context: WebSocketContextProtocol) -> None:
         await asyncio.sleep(0)
         # Extract data from typed context
-        if hasattr(context, "validated_envelope"):
-            envelope = context.validated_envelope
-            if hasattr(envelope, "data") and isinstance(envelope.data, dict):
-                try:
-                    ticker = BackpackRawTickerEvent.model_validate(envelope.data)
-                    received_tickers.append(ticker)
-                except (ValidationError, ValueError, TypeError, KeyError) as e:
-                    logger.debug(
-                        "ticker_data_validation_failed",
-                        error=str(e),
-                        message="Skipping invalid ticker data",
-                    )
+        envelope = context.validated_envelope
+        if envelope is not None and isinstance(envelope.data, dict):
+            try:
+                ticker = BackpackRawTickerEvent.model_validate(envelope.data)
+                received_tickers.append(ticker)
+            except (ValidationError, ValueError, TypeError, KeyError) as e:
+                logger.debug(
+                    "ticker_data_validation_failed",
+                    error=str(e),
+                    message="Skipping invalid ticker data",
+                )
 
     try:
         await api.subscribe(f"ticker.{symbol}", ticker_collector)
@@ -146,29 +145,28 @@ async def get_real_depth_data(api: BackpackAPI, symbol: str) -> BackpackRawDepth
     """
     received_depths: list[BackpackRawDepthUpdateEvent] = []
 
-    async def depth_collector(context: WebSocketContextUnion) -> None:
+    async def depth_collector(context: WebSocketContextProtocol) -> None:
         await asyncio.sleep(0)
         # Extract data from typed context
-        if hasattr(context, "validated_envelope"):
-            envelope = context.validated_envelope
-            if hasattr(envelope, "data") and isinstance(envelope.data, dict):
-                try:
-                    # Log the actual data structure for debugging
-                    logger.info(
-                        "depth_raw_data_received",
-                        data_keys=list(envelope.data.keys()),
-                        data_sample=str(envelope.data)[:200],
-                        message="Raw depth data structure",
-                    )
-                    depth = BackpackRawDepthUpdateEvent.model_validate(envelope.data)
-                    received_depths.append(depth)
-                except (ValidationError, ValueError, TypeError, KeyError) as e:
-                    logger.debug(
-                        "depth_data_validation_failed",
-                        error=str(e),
-                        data=envelope.data,
-                        message="Failed to parse depth data",
-                    )
+        envelope = context.validated_envelope
+        if envelope is not None and isinstance(envelope.data, dict):
+            try:
+                # Log the actual data structure for debugging
+                logger.info(
+                    "depth_raw_data_received",
+                    data_keys=list(envelope.data.keys()),
+                    data_sample=str(envelope.data)[:200],
+                    message="Raw depth data structure",
+                )
+                depth = BackpackRawDepthUpdateEvent.model_validate(envelope.data)
+                received_depths.append(depth)
+            except (ValidationError, ValueError, TypeError, KeyError) as e:
+                logger.debug(
+                    "depth_data_validation_failed",
+                    error=str(e),
+                    data=envelope.data,
+                    message="Failed to parse depth data",
+                )
 
     try:
         await api.subscribe(f"depth.{symbol}", depth_collector)
@@ -218,14 +216,13 @@ async def collect_stream_data_sample(
     """
     collected_data: list[dict[str, Any]] = []
 
-    async def data_collector(context: WebSocketContextUnion) -> None:
+    async def data_collector(context: WebSocketContextProtocol) -> None:
         await asyncio.sleep(0)
         if len(collected_data) < sample_size:
             # Extract data from typed context for test purposes
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
-            ):
-                data = context.validated_envelope.data
+            envelope = context.validated_envelope
+            if envelope is not None:
+                data = envelope.data
                 if isinstance(data, dict):
                     collected_data.append(data)
                 else:
@@ -280,11 +277,12 @@ async def wait_for_model_in_context[T](
     """
     found_models: list[T] = []
 
-    async def model_finder(context: WebSocketContextUnion) -> None:
+    async def model_finder(context: WebSocketContextProtocol) -> None:
         await asyncio.sleep(0)
         # Extract data from typed context
-        if hasattr(context, "validated_envelope") and hasattr(context.validated_envelope, "data"):
-            data = context.validated_envelope.data
+        envelope = context.validated_envelope
+        if envelope is not None:
+            data = envelope.data
             if isinstance(data, dict):
                 for key in context_keys:
                     if key in data and isinstance(data[key], model_type):
@@ -383,13 +381,14 @@ async def validate_stream_continuity(
     messages: list[tuple[float, dict[str, Any]]] = []
     start_time = asyncio.get_event_loop().time()
 
-    async def message_timer(context: WebSocketContextUnion) -> None:
+    async def message_timer(context: WebSocketContextProtocol) -> None:
         await asyncio.sleep(0)
         current_time = asyncio.get_event_loop().time()
         # Extract data from typed context for test purposes
-        data_to_append = {}
-        if hasattr(context, "validated_envelope") and hasattr(context.validated_envelope, "data"):
-            envelope_data = context.validated_envelope.data
+        data_to_append: dict[str, Any] = {}
+        envelope = context.validated_envelope
+        if envelope is not None:
+            envelope_data = envelope.data
             if isinstance(envelope_data, dict):
                 data_to_append = envelope_data
             else:
@@ -482,7 +481,7 @@ def create_handler_with_counter(
     """
     count = 0
 
-    async def counting_handler(context: WebSocketContextUnion) -> None:
+    async def counting_handler(context: WebSocketContextProtocol) -> None:
         nonlocal count
         await asyncio.sleep(0)
         count += 1

@@ -68,21 +68,19 @@ class SimpleTokenBucketStrategy(RateLimitStrategy):
             request_context: RateLimitRequestContext with request details.
 
         """
-        if hasattr(self, "limiter") and hasattr(self.limiter, "trigger_ip_ban"):
-            # Log the action being taken by this specific strategy
-            logger = get_logger(__name__)
-            logger.info(
-                "rate_limit_retry_after_received",
-                strategy="SimpleTokenBucketStrategy",
-                exchange_name=request_context.exchange_name,
-                duration_seconds=duration_seconds,
-                message=(
-                    f"SimpleTokenBucketStrategy for {request_context.exchange_name}: "
-                    f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
-                    f"Triggering temporary pause on its limiter."
-                ),
-            )
-            await self.limiter.trigger_ip_ban(duration_seconds)
-        else:
-            # This case implies incorrect setup or that the limiter doesn't support banning
-            pass
+        # limiter is always initialized in __init__
+        # trigger_ip_ban exists on TokenBucketRateLimiterRuntime
+        # Log the action being taken by this specific strategy
+        logger = get_logger(__name__)
+        logger.info(
+            "rate_limit_retry_after_received",
+            strategy="SimpleTokenBucketStrategy",
+            exchange_name=request_context.exchange_name,
+            duration_seconds=duration_seconds,
+            message=(
+                f"SimpleTokenBucketStrategy for {request_context.exchange_name}: "
+                f"Received exchange-advised retry_after of {duration_seconds:.2f}s. "
+                f"Triggering temporary pause on its limiter."
+            ),
+        )
+        await self.limiter.trigger_ip_ban(duration_seconds)

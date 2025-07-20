@@ -21,11 +21,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidRawWebSocketEnvelope
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 # Import WebSocket test helpers
@@ -182,7 +182,7 @@ class TestHyperliquidErrorHandlingArchitecture:
             for error_name, error_to_raise in error_scenarios:
 
                 async def error_handler(
-                    context: WebSocketContextUnion,
+                    context: WebSocketContextProtocol,
                     *,
                     error_name: str = error_name,
                     error_to_raise: Exception = error_to_raise,
@@ -243,13 +243,15 @@ class TestHyperliquidErrorHandlingArchitecture:
             # Track successful operations
             successful_operations: list[dict[str, Any]] = []
 
-            async def recovery_test_handler(context: WebSocketContextUnion) -> None:
+            async def recovery_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
                 # Extract data from typed context
-                context_data = {}
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                context_data: dict[str, Any] = {}
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     context_data = data if isinstance(data, dict) else {"data": data}
@@ -438,7 +440,7 @@ class TestHyperliquidErrorHandlingArchitecture:
 
         subscription_errors = 0
 
-        async def subscription_error_handler(context: WebSocketContextUnion) -> None:
+        async def subscription_error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("subscription_error_handler_called", context=context)
 
@@ -527,13 +529,15 @@ class TestHyperliquidErrorHandlingArchitecture:
             successful_subscriptions = 0
             failed_subscriptions = 0
 
-            async def degradation_handler(context: WebSocketContextUnion) -> None:
+            async def degradation_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
                 # Extract data from typed context
-                context_data = {}
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                context_data: dict[str, Any] = {}
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     context_data = data if isinstance(data, dict) else {"data": data}
@@ -598,7 +602,7 @@ class TestHyperliquidErrorHandlingArchitecture:
 
             error_handling_results = {}
 
-            async def error_test_handler(context: WebSocketContextUnion) -> None:
+            async def error_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             for topic, description in error_scenarios:

@@ -138,10 +138,10 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         try:
             logger.debug(
                 "transforming_clearinghouse_state_to_spot_balances",
-                has_margin_summary=hasattr(raw_state, "margin_summary"),
-                has_asset_positions=hasattr(raw_state, "asset_positions"),
+                has_margin_summary=True,  # margin_summary is a required field
+                has_asset_positions=True,  # asset_positions is a required field
                 asset_positions_count=len(raw_state.asset_positions)
-                if hasattr(raw_state, "asset_positions") and raw_state.asset_positions
+                if raw_state.asset_positions
                 else 0,
                 message="Transforming HyperliquidRawClearinghouseState to SpotBalance models",
             )
@@ -167,8 +167,10 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         except Exception as e:
             logger.exception(
                 "clearinghouse_state_to_spot_balances_transform_failed",
-                has_margin_summary=hasattr(raw_state, "margin_summary") if raw_state else False,
-                has_asset_positions=hasattr(raw_state, "asset_positions") if raw_state else False,
+                # raw_state should not be None in this context
+                has_margin_summary=True,
+                # raw_state should not be None in this context
+                has_asset_positions=True,
                 error=str(e),
                 message="Failed to transform clearinghouse state to spot balances",
             )
@@ -196,7 +198,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
             raw_state: Raw clearinghouse state containing margin summary
             spot_balances: Dictionary to populate with USDC balance
         """
-        if not (hasattr(raw_state, "margin_summary") and raw_state.margin_summary):
+        # margin_summary is a required field in HyperliquidRawClearinghouseState
+        if not raw_state.margin_summary:
             logger.debug(
                 "usdc_balance_processing_skipped",
                 reason="no_margin_summary",
@@ -273,7 +276,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
             raw_state: Raw clearinghouse state containing asset positions
             spot_balances: Dictionary to populate with spot asset balances
         """
-        if not (hasattr(raw_state, "asset_positions") and raw_state.asset_positions):
+        # asset_positions is a required field in HyperliquidRawClearinghouseState
+        if not raw_state.asset_positions:
             logger.debug(
                 "other_spot_assets_processing_skipped",
                 reason="no_asset_positions",
@@ -325,12 +329,13 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         logger.debug(
             "processing_single_spot_asset",
             asset_name=asset_name,
-            has_position=hasattr(asset_pos, "position"),
+            has_position=True,  # position is a required field in HyperliquidRawAssetPosition
             message="Processing single spot asset position",
         )
 
         # Process potential spot assets
-        if not (hasattr(asset_pos, "position") and asset_pos.position):
+        # position is a required field in HyperliquidRawAssetPosition
+        if not asset_pos.position:
             logger.debug(
                 "single_spot_asset_skipped",
                 asset_name=asset_name,

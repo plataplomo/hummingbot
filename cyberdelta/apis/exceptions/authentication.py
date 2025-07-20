@@ -4,7 +4,8 @@ These exceptions handle authentication errors including API key validation,
 signature generation, and authenticator configuration.
 """
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class InvalidPrivateKeyError(APIError, ValueError):

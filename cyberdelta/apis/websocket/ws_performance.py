@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.base.websocket_states import OperationResult
+from cyberdelta.apis.websocket.websocket_states import OperationResult
 from cyberdelta.config.structlog_config import get_logger
 
 

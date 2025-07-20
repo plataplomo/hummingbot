@@ -504,7 +504,7 @@ class PortfolioStateManager:
             return PortfolioState(
                 state_id=f"portfolio_summary_{int(current_time)}",
                 portfolio_id="default_portfolio",
-                balances={},  # Would be populated with actual exchange data  
+                balances={},  # Would be populated with actual exchange data
                 trades=[],  # Would be populated with actual trade data
                 orders=[],  # Would be populated with actual order data
                 total_account_value=Decimal(0),
@@ -512,9 +512,9 @@ class PortfolioStateManager:
                 component_health={},
                 metadata={
                     "version": self._state_version,
-                    "last_update": current_time, 
+                    "last_update": current_time,
                     "is_consistent": self.error_count == 0,
-                }
+                },
             )
 
         except Exception as e:
@@ -564,7 +564,7 @@ class PortfolioStateManager:
                 is_valid=validation_result.valid,
                 errors=validation_result.errors,
                 warnings=validation_result.warnings,
-                metadata={}
+                metadata={},
             )
 
     def get_metrics(self) -> PortfolioMetrics:

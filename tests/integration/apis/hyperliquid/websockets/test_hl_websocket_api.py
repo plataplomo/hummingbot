@@ -19,10 +19,10 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import OrderBook, Trade
 
@@ -86,10 +86,10 @@ class TestHyperliquidWebSocketMarketData:
 
     def _create_l2book_handler(
         self, test_symbol: str, received_orderbooks: list[OrderBook], data_received: asyncio.Event
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create L2 book handler with validation."""
 
-        async def l2book_handler(context: WebSocketContextUnion) -> None:
+        async def l2book_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             try:
@@ -101,8 +101,10 @@ class TestHyperliquidWebSocketMarketData:
                     )
 
                 # Extract data from typed context
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "bids" in data and "asks" in data:
@@ -205,10 +207,10 @@ class TestHyperliquidWebSocketMarketData:
 
     def _create_trades_handler(
         self, test_symbol: str, received_trades: list[Trade], trade_received: asyncio.Event
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create trades handler with validation."""
 
-        async def trades_handler(context: WebSocketContextUnion) -> None:
+        async def trades_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             try:
@@ -220,8 +222,10 @@ class TestHyperliquidWebSocketMarketData:
                     )
 
                 # Extract data from typed context
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "trades" in data:
@@ -276,10 +280,10 @@ class TestHyperliquidWebSocketMarketData:
 
     def _create_allmids_handler(
         self, received_mids: list[dict[str, Decimal]], mids_received: asyncio.Event
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create allmids handler with validation."""
 
-        async def allmids_handler(context: WebSocketContextUnion) -> None:
+        async def allmids_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             try:
@@ -292,8 +296,10 @@ class TestHyperliquidWebSocketMarketData:
 
                 mids: dict[str, Decimal] = {}
                 # Extract data from typed context
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "mids" in data:
@@ -398,7 +404,7 @@ class TestHyperliquidWebSocketErrorHandling:
     ) -> None:
         """Test that invalid symbol subscriptions fail immediately."""
 
-        async def error_handler(context: WebSocketContextUnion) -> None:
+        async def error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             # Should not be called for invalid subscriptions
             pytest.fail(
@@ -443,7 +449,7 @@ class TestHyperliquidWebSocketErrorHandling:
     ) -> None:
         """Test handling of malformed topic formats."""
 
-        async def error_handler(context: WebSocketContextUnion) -> None:
+        async def error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("error_handler_called", message=context)
 
@@ -489,7 +495,7 @@ class TestHyperliquidWebSocketErrorHandling:
         active_symbols = await get_active_trading_symbols(hl_api_for_test_env)
         test_symbol = active_symbols[0]
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("test_handler_message", message=context)
 
@@ -535,7 +541,7 @@ class TestHyperliquidWebSocketErrorHandling:
         if len(active_symbols) < 3:
             pytest.skip("Need at least 3 symbols for subscription limit testing")
 
-        async def limit_handler(context: WebSocketContextUnion) -> None:
+        async def limit_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("limit_handler_message", message=context)
 

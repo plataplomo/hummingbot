@@ -541,8 +541,9 @@ class WebSocketErrorRecovery:
             try:
                 await asyncio.sleep(self.config.health_check_interval)
 
-                if hasattr(self, "connection"):
-                    is_healthy = await self.connection.is_healthy()
+                connection = getattr(self, "connection", None)
+                if connection is not None:
+                    is_healthy = await connection.is_healthy()
 
                     if not is_healthy and self.state == ConnectionState.CONNECTED:
                         await self.handle_connection_error(Exception("Health check failed"))

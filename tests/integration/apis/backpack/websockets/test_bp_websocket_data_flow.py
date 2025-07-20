@@ -19,8 +19,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.core.models.market.ticker import Ticker
@@ -28,12 +28,7 @@ from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.enums import OrderSide
 
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.websockets,
-    pytest.mark.dataflow,
-    pytest.mark.timing,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -53,7 +48,7 @@ class TestBackpackWebSocketDataFlow:
             "domain_models": [],
         }
 
-        async def ticker_handler(context: WebSocketContextUnion) -> None:
+        async def ticker_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the final domain model."""
             await asyncio.sleep(0)  # Satisfy RUF029
 
@@ -145,10 +140,10 @@ class TestBackpackWebSocketDataFlow:
 
     def _create_depth_handler(
         self, received_orderbooks: list[OrderBook]
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create handler for orderbook depth stream."""
 
-        async def depth_handler(context: WebSocketContextUnion) -> None:
+        async def depth_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the final domain model."""
             await asyncio.sleep(0)  # Satisfy RUF029
 
@@ -267,10 +262,10 @@ class TestBackpackWebSocketDataFlow:
 
     def _create_trades_handler(
         self, received_trades: list[Trade]
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create trades handler to reduce complexity."""
 
-        async def trades_handler(context: WebSocketContextUnion) -> None:
+        async def trades_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the final domain model."""
             await asyncio.sleep(0)  # Satisfy RUF029
 
@@ -387,10 +382,10 @@ class TestBackpackWebSocketDataFlow:
 
     def _create_universal_handler(
         self, stream_type: str, received_models: dict[str, list[Any]]
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create a handler for a specific stream type."""
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Fix RUF029
 
             # The domain model is stored directly on the context by the processor
@@ -547,7 +542,7 @@ class TestBackpackWebSocketDataFlow:
         received_models: list[Any] = []
         error_count = 0
 
-        async def error_prone_handler(context: WebSocketContextUnion) -> None:
+        async def error_prone_handler(context: WebSocketContextProtocol) -> None:
             """Handler that sometimes raises errors to test error isolation."""
             nonlocal error_count
             await asyncio.sleep(0)  # Fix RUF029

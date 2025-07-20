@@ -21,18 +21,13 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_ws_router import BackpackWebSocketRouter
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.websockets,
-    pytest.mark.pydantic_router,
-    pytest.mark.timing,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -170,13 +165,15 @@ class TestBackpackPydanticRouterIntegration:
             # Set up message capture
             received_messages: list[dict[str, Any]] = []
 
-            async def message_capture_handler(context: WebSocketContextUnion) -> None:
+            async def message_capture_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
                 # Extract data from typed context
-                context_data = {}
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                context_data: dict[str, Any] = {}
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     context_data = data if isinstance(data, dict) else {"data": data}
@@ -383,14 +380,16 @@ class TestBackpackPydanticRouterIntegration:
 
                 def create_handler(
                     current_topic: str,
-                ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
-                    async def router_test_handler(context: WebSocketContextUnion) -> None:
+                ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
+                    async def router_test_handler(context: WebSocketContextProtocol) -> None:
                         await asyncio.sleep(0)
 
                         # Extract data from typed context
-                        context_data = {}
-                        if hasattr(context, "validated_envelope") and hasattr(
-                            context.validated_envelope, "data"
+                        context_data: dict[str, Any] = {}
+                        if (
+                            hasattr(context, "validated_envelope")
+                            and context.validated_envelope is not None
+                            and hasattr(context.validated_envelope, "data")
                         ):
                             data = context.validated_envelope.data
                             context_data = data if isinstance(data, dict) else {"data": data}

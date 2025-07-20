@@ -16,10 +16,10 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -91,7 +91,7 @@ class TestHyperliquidAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topics = get_websocket_topics_for_symbol(test_symbol)
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             """Test context handler for WebSocket data."""
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
@@ -128,7 +128,7 @@ class TestHyperliquidAPIWebSocketBasicOperations:
                 "WebSocket tests require multiple real market symbols.",
             )
 
-        async def handler1(context: WebSocketContextUnion) -> None:
+        async def handler1(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "handler1_message_received",
@@ -136,7 +136,7 @@ class TestHyperliquidAPIWebSocketBasicOperations:
                 handler="Handler1",
             )
 
-        async def handler2(context: WebSocketContextUnion) -> None:
+        async def handler2(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "handler2_message_received",
@@ -174,7 +174,7 @@ class TestHyperliquidAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topic = f"l2Book:{test_symbol}"
 
-        async def status_handler(context: WebSocketContextUnion) -> None:
+        async def status_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "status_handler_message_received",
@@ -228,11 +228,13 @@ class TestHyperliquidAPIWebSocketLifecycle:
 
         received_messages: list[dict[str, Any]] = []
 
-        async def lifecycle_handler(context: WebSocketContextUnion) -> None:
+        async def lifecycle_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             # Extract data from typed context for test purposes
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 if isinstance(data, dict):
@@ -262,7 +264,7 @@ class TestHyperliquidAPIWebSocketLifecycle:
             )
 
         # Test handler replacement with same topic
-        async def replacement_handler(context: WebSocketContextUnion) -> None:
+        async def replacement_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "replacement_handler_message_received",
@@ -298,7 +300,7 @@ class TestHyperliquidAPIWebSocketLifecycle:
                 "Concurrent WebSocket operations require multiple real symbols.",
             )
 
-        async def concurrent_handler(context: WebSocketContextUnion) -> None:
+        async def concurrent_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "concurrent_handler_message_received",
@@ -339,7 +341,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
     ) -> None:
         """Test handling of invalid topic formats with fail-fast behavior."""
 
-        async def error_handler(context: WebSocketContextUnion) -> None:
+        async def error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "error_handler_message_received",
@@ -432,7 +434,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
         test_symbol = available_symbols[0]
         topic = f"trades:{test_symbol}"
 
-        async def sequence_handler(context: WebSocketContextUnion) -> None:
+        async def sequence_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "sequence_handler_message_received",
@@ -471,7 +473,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
     ) -> None:
         """Test rapid subscription operations with real symbols."""
 
-        async def rapid_handler(context: WebSocketContextUnion) -> None:
+        async def rapid_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "rapid_handler_message_received",
@@ -513,7 +515,7 @@ class TestHyperliquidAPIWebSocketEdgeCases:
     ) -> None:
         """Test account updates subscription through public API method."""
 
-        async def user_events_handler(context: WebSocketContextUnion) -> None:
+        async def user_events_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "user_events_message_received",

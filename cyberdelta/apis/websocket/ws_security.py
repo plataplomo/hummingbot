@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.apis.base.ws_type_guards import (
+from cyberdelta.apis.websocket.ws_type_guards import (
     SecureValue,
     is_secure_dict,
     is_secure_list,

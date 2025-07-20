@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_ws_router import (
     HyperliquidWebSocketRouter,
@@ -27,6 +26,9 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
     HyperliquidPriceTickerMapper,
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
+from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
 
@@ -86,8 +88,13 @@ class TestHyperliquidWebSocketRouter:
         historical_data_mapper: MagicMock,
     ) -> HyperliquidWebSocketRouter:
         """Create router for testing."""
+        # Create typed processor for testing
+        registry = WebSocketRegistryFactory.create_configured_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         return HyperliquidWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=order_book_mapper,
             price_ticker_mapper=price_ticker_mapper,
             balance_mapper=balance_mapper,
@@ -115,7 +122,7 @@ class TestHyperliquidWebSocketRouter:
         """Test routing key extraction through the public route_message interface."""
         # Test l2Book channel routing
         handler = AsyncMock()
-        ws_handlers = {"l2Book": cast(MessageHandler, handler)}
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": handler}
         message: dict[str, Any] = {"channel": "l2Book", "data": {"coin": "BTC"}}
 
         # Mock processor to capture the routing
@@ -134,7 +141,7 @@ class TestHyperliquidWebSocketRouter:
         """Test invalid channel handling through the public interface."""
         # Unknown channel should trigger unroutable message handling
         handler = AsyncMock()
-        ws_handlers = {"l2Book": cast(MessageHandler, handler)}
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": handler}
         message: dict[str, Any] = {"channel": "invalid_channel", "data": {}}
 
         await router.route_message(message, ws_handlers)
@@ -234,7 +241,7 @@ class TestHyperliquidWebSocketRouter:
         """Test successful message routing."""
         # Setup
         handler = AsyncMock()
-        ws_handlers: dict[str, MessageHandler] = {"l2Book": cast(MessageHandler, handler)}
+        ws_handlers: dict[str, MessageHandler] = {"l2Book": handler}
         message: dict[str, Any] = {"channel": "l2Book", "data": {"coin": "BTC", "levels": []}}
 
         # Mock processor

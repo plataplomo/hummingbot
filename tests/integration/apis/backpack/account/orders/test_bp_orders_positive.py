@@ -39,12 +39,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
 logger = get_logger(__name__)
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.orders,
-    pytest.mark.positive_orders,
-]
+pytestmark = [pytest.mark.integration]
 
 
 @pytest.mark.parametrize(

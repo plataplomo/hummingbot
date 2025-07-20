@@ -464,7 +464,7 @@ class HyperliquidPriceTickerService:
                 "all_mids_retrieved",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol_count=len(mid_prices.prices) if hasattr(mid_prices, "prices") else 0,
+                symbol_count=len(mid_prices.prices),  # MidPrices always has prices attribute
                 message="Successfully retrieved all mid prices",
             )
 

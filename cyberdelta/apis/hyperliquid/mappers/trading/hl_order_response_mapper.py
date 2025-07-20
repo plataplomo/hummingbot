@@ -146,11 +146,8 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
         client_order_id = resting_data.cloid
 
         # Fall back to order args if no cloid in response
-        if (
-            not client_order_id
-            and hasattr(order_args, "client_order_id")
-            and order_args.client_order_id
-        ):
+        # client_order_id is always a field in PlaceOrderArgs (can be None)
+        if not client_order_id and order_args.client_order_id:
             client_order_id = order_args.client_order_id
 
         # For resting orders, we know they are OPEN
@@ -235,11 +232,8 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
         avg_px = str(filled_data.avg_px)
 
         # Fall back to order args if no cloid in response
-        if (
-            not client_order_id
-            and hasattr(order_args, "client_order_id")
-            and order_args.client_order_id
-        ):
+        # client_order_id is always a field in PlaceOrderArgs (can be None)
+        if not client_order_id and order_args.client_order_id:
             client_order_id = order_args.client_order_id
 
         # For filled orders, we know they are FILLED

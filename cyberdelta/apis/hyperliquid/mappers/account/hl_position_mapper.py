@@ -193,13 +193,10 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         try:
             logger.debug(
                 "transforming_clearinghouse_state_to_derivative_positions",
-                has_asset_positions=hasattr(clearinghouse_data, "asset_positions"),
+                has_asset_positions=True,  # asset_positions is a required field
                 asset_positions_count=(
                     len(clearinghouse_data.asset_positions)
-                    if (
-                        hasattr(clearinghouse_data, "asset_positions")
-                        and clearinghouse_data.asset_positions
-                    )
+                    if clearinghouse_data.asset_positions
                     else 0
                 ),
                 message=(
@@ -210,10 +207,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             positions: dict[str, DerivativePosition] = {}
 
             # Extract asset positions from the raw state
-            if (
-                hasattr(clearinghouse_data, "asset_positions")
-                and clearinghouse_data.asset_positions
-            ):
+            # asset_positions is a required field in HyperliquidRawClearinghouseState
+            if clearinghouse_data.asset_positions:
                 for position_data in clearinghouse_data.asset_positions:
                     HyperliquidPositionMapper._process_single_derivative_position(
                         position_data,
@@ -233,9 +228,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         except Exception as e:
             logger.exception(
                 "clearinghouse_state_to_derivative_positions_transform_failed",
-                has_asset_positions=(
-                    hasattr(clearinghouse_data, "asset_positions") if clearinghouse_data else False
-                ),
+                # clearinghouse_data should not be None in this context
+                has_asset_positions=True,
                 error=str(e),
                 message="Failed to transform clearinghouse state to derivative positions",
             )
@@ -263,7 +257,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             position_data: Raw asset position data
             positions: Dictionary to populate with the processed position
         """
-        if not hasattr(position_data, "position") or not position_data.position:
+        # position is a required field in HyperliquidRawAssetPosition
+        if not position_data.position:
             return
 
         pos = position_data.position
@@ -475,7 +470,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         Raises:
             DataTransformationError: If transformation fails
         """
-        if not hasattr(raw_asset_position, "position") or not raw_asset_position.position:
+        # position is a required field in HyperliquidRawAssetPosition
+        if not raw_asset_position.position:
             raise DataTransformationError(
                 source_model="HyperliquidRawAssetPosition",
                 target_model="DerivativePosition",

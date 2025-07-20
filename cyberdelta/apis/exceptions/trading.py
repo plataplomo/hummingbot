@@ -6,7 +6,8 @@ execution, balance checks, and market availability.
 
 from typing import Any
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class InvalidBatchResponseError(APIError):

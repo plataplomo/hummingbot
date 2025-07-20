@@ -22,7 +22,7 @@ from typing import Any, NotRequired, TypedDict, Unpack, cast
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 # Import existing performance configurations
-from cyberdelta.apis.base.ws_performance_configs import (
+from cyberdelta.apis.websocket.ws_performance_configs import (
     BackpackModelConfig,
     EnvelopeModelConfig,
     HighFrequencyModelConfig,

@@ -337,12 +337,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         if isinstance(status, str):
             return False
 
-        # Handle status objects with error attribute
-        if hasattr(status, "error"):
-            error_value = status.error
-            return error_value is not None and bool(error_value)
-
-        return False
+        # Handle status objects (HyperliquidRawExchangeStatusObject always has error attribute)
+        # This must be HyperliquidRawExchangeStatusObject since it's the only remaining type
+        return status.error is not None and bool(status.error)
 
     def _validate_batch_orders(self, orders: list[PlaceOrderArgs], current_method: str) -> None:
         """Validate the batch orders list.

@@ -16,14 +16,14 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.timing]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -98,14 +98,16 @@ class TestBackpackAPIWebSocketIntegration:
 
         received_messages: list[dict[str, Any]] = []
 
-        async def integration_handler(context: WebSocketContextUnion) -> None:
+        async def integration_handler(context: WebSocketContextProtocol) -> None:
             """Handler for WebSocket integration messages."""
             await asyncio.sleep(0)  # Satisfy RUF029
 
             # Extract data from typed context
-            context_data = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            context_data: dict[str, Any] = {}
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -158,13 +160,15 @@ class TestBackpackAPIWebSocketIntegration:
 
         subscription_results: list[dict[str, Any]] = []
 
-        async def multi_handler(context: WebSocketContextUnion) -> None:
+        async def multi_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             # Extract data from typed context
-            context_data = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            context_data: dict[str, Any] = {}
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -211,7 +215,7 @@ class TestBackpackAPIWebSocketIntegration:
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def lifecycle_handler(context: WebSocketContextUnion) -> None:
+        async def lifecycle_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
@@ -271,7 +275,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
 
         topics = create_websocket_topics(available_symbols)
 
-        async def concurrent_handler(context: WebSocketContextUnion) -> None:
+        async def concurrent_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
@@ -319,7 +323,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 1)
         valid_symbol = available_symbols[0]
 
-        async def error_integration_handler(context: WebSocketContextUnion) -> None:
+        async def error_integration_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
@@ -409,7 +413,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         """Test WebSocket state consistency throughout integration operations."""
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 2)
 
-        async def state_handler(context: WebSocketContextUnion) -> None:
+        async def state_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
@@ -472,7 +476,7 @@ class TestBackpackAPIAdvancedWebSocketIntegration:
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 1)
         test_symbol = available_symbols[0]
 
-        async def rapid_handler(context: WebSocketContextUnion) -> None:
+        async def rapid_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
@@ -527,7 +531,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     ) -> None:
         """Test topic validation edge cases with real integration."""
 
-        async def edge_case_handler(context: WebSocketContextUnion) -> None:
+        async def edge_case_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",
@@ -602,7 +606,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         available_symbols = await get_available_trading_symbols(bp_api_for_test_env, 1)
         test_symbol = available_symbols[0]
 
-        async def resilience_handler(context: WebSocketContextUnion) -> None:
+        async def resilience_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_message_received",

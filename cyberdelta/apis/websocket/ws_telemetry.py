@@ -16,7 +16,7 @@ from opentelemetry.trace import Span, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import BaseModel, Field
 
-from cyberdelta.apis.base.websocket_states import OperationResult
+from cyberdelta.apis.websocket.websocket_states import OperationResult
 from cyberdelta.config.structlog_config import get_logger
 
 

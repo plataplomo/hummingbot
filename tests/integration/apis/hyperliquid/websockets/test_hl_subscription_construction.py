@@ -20,7 +20,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.hl_ws_router import UnsupportedTopicFormatError
@@ -28,6 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsSubscribeRequest,
 )
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -131,21 +131,21 @@ class TestHyperliquidSubscriptionConstruction:
             # Test different subscription types through public API
 
             # 1. Subscribe to orderbook
-            async def orderbook_handler(context: WebSocketContextUnion) -> None:
+            async def orderbook_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 logger.info("orderbook_message_received", context=context)
 
             await hl_api_for_test_env.subscribe(f"l2Book:{test_symbol}", orderbook_handler)
 
             # 2. Subscribe to trades
-            async def trades_handler(context: WebSocketContextUnion) -> None:
+            async def trades_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 logger.info("trades_message_received", context=context)
 
             await hl_api_for_test_env.subscribe(f"trades:{test_symbol}", trades_handler)
 
             # 3. Subscribe to allMids
-            async def allmids_handler(context: WebSocketContextUnion) -> None:
+            async def allmids_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 logger.info("allmids_message_received", context=context)
 
@@ -279,7 +279,7 @@ class TestHyperliquidSubscriptionConstruction:
             new=AsyncMock(side_effect=capture_send_json),
         ):
             # First subscribe to a topic
-            async def handler(context: WebSocketContextUnion) -> None:
+            async def handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 logger.info("message_received", context=context)
 
@@ -299,7 +299,7 @@ class TestHyperliquidSubscriptionConstruction:
         """Test subscription error handling through public API."""
 
         # Define handler for testing
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
         # Test subscription without WebSocket connection
@@ -400,7 +400,7 @@ class TestHyperliquidSubscriptionConstruction:
             handlers = {}
 
             def create_handler(topic: str) -> MessageHandler:
-                async def handler(context: WebSocketContextUnion) -> None:
+                async def handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)  # Satisfy RUF029
                     handlers[topic] = context
 
@@ -494,7 +494,7 @@ class TestHyperliquidSubscriptionConstruction:
         test_symbol = markets[0].symbol
 
         # Create a simple handler
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
         # Performance test - many subscriptions
@@ -550,7 +550,7 @@ class TestHyperliquidSubscriptionConstruction:
             await asyncio.sleep(0)
 
         # Test Hyperliquid-specific topics
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
         # Temporarily patch send_json to capture messages

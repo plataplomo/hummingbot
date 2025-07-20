@@ -17,9 +17,9 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -93,7 +93,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topics = get_websocket_topics_for_symbol(test_symbol)
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             """Test context handler for WebSocket data."""
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
@@ -130,7 +130,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 "WebSocket tests require multiple real market symbols.",
             )
 
-        async def handler1(context: WebSocketContextUnion) -> None:
+        async def handler1(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "handler1_message_received",
@@ -138,7 +138,7 @@ class TestBackpackAPIWebSocketBasicOperations:
                 handler="Handler1",
             )
 
-        async def handler2(context: WebSocketContextUnion) -> None:
+        async def handler2(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "handler2_message_received",
@@ -176,7 +176,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         test_symbol = available_symbols[0]
         topic = f"ticker.{test_symbol}"
 
-        async def status_handler(context: WebSocketContextUnion) -> None:
+        async def status_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "status_handler_message_received",
@@ -230,13 +230,15 @@ class TestBackpackAPIWebSocketLifecycle:
 
         received_messages: list[dict[str, Any]] = []
 
-        async def lifecycle_handler(context: WebSocketContextUnion) -> None:
+        async def lifecycle_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             # Extract data from typed context
-            context_data = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            context_data: dict[str, Any] = {}
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -263,7 +265,7 @@ class TestBackpackAPIWebSocketLifecycle:
             )
 
         # Test handler replacement with same topic
-        async def replacement_handler(context: WebSocketContextUnion) -> None:
+        async def replacement_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "replacement_handler_message_received",
@@ -299,7 +301,7 @@ class TestBackpackAPIWebSocketLifecycle:
                 "Concurrent WebSocket operations require multiple real symbols.",
             )
 
-        async def concurrent_handler(context: WebSocketContextUnion) -> None:
+        async def concurrent_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "concurrent_handler_message_received",
@@ -340,7 +342,7 @@ class TestBackpackAPIWebSocketEdgeCases:
     ) -> None:
         """Test handling of invalid topic formats with fail-fast behavior."""
 
-        async def error_handler(context: WebSocketContextUnion) -> None:
+        async def error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "error_handler_message_received",
@@ -431,7 +433,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         test_symbol = available_symbols[0]
         topic = f"depth.{test_symbol}"
 
-        async def sequence_handler(context: WebSocketContextUnion) -> None:
+        async def sequence_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "sequence_handler_message_received",
@@ -472,7 +474,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
 
-        async def rapid_handler(context: WebSocketContextUnion) -> None:
+        async def rapid_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "rapid_handler_message_received",

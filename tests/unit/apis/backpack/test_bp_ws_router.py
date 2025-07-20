@@ -16,8 +16,10 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.exceptions import UnsupportedWebSocketTopicError
+from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 
 class TestBackpackWebSocketRouter:
@@ -76,8 +78,13 @@ class TestBackpackWebSocketRouter:
         transaction_mapper: MagicMock,
     ) -> BackpackWebSocketRouter:
         """Create router for testing."""
+        # Create typed processor for testing
+        registry = WebSocketRegistryFactory.create_configured_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         return BackpackWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=order_book_mapper,
             ticker_mapper=ticker_mapper,
             trade_mapper=trade_mapper,

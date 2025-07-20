@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.base.websocket_states import MessageProcessingResult
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
+from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
-    from cyberdelta.apis.base.ws_metrics import WebSocketMetricsCollector
+    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
 
 # Type variables for input and output models
 T = TypeVar("T", bound=BaseModel)  # Raw WebSocket message model
@@ -42,13 +42,15 @@ TransformerResult = TypeVar("TransformerResult", bound=BaseModel)
 # This flexible pattern allows both MapperTransformer and BatchMapperTransformer to work
 
 # Message handler type - takes typed context
-MessageHandler = Callable[[WebSocketContextUnion], Awaitable[None]]
+MessageHandler = Callable[[WebSocketContextProtocol], Awaitable[None]]
 
 
 class MessageTransformer(Protocol[T_contra, U_co]):
     """Protocol for transforming validated WebSocket messages to domain models."""
 
-    def transform(self, validated: T_contra, context: WebSocketContextUnion | None = None) -> U_co:
+    def transform(
+        self, validated: T_contra, context: WebSocketContextProtocol | None = None
+    ) -> U_co:
         """Transform validated WebSocket message to domain model.
 
         Args:
@@ -166,7 +168,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         self,
         payload: dict[str, Any] | list[Any],
         handler: MessageHandler,
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
     ) -> None:
         """Process WebSocket message through validation and transformation pipeline.
 
@@ -178,7 +180,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         """
         start_time = time.perf_counter()
         message_size = len(json.dumps(payload)) if payload else 0
-        message_type = context.routing_key
+        message_type = context.routing_key or "unknown"
         result = MessageProcessingResult.FAILURE
 
         try:
@@ -193,6 +195,8 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 return
 
             # Step 3: Store domain model and call handler
+            # WebSocketContextProtocol implementations should have domain_model attribute
+            # The concrete WebSocketMessageContext class has this field defined
             context.domain_model = domain_model
             success = await self._handle_message(domain_model, handler, context, message_type)
 
@@ -235,7 +239,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
     async def _validate_payload(
         self,
         payload: dict[str, Any] | list[Any],
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
         message_type: str,
     ) -> T | None:
         """Validate payload with Pydantic model."""
@@ -269,7 +273,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         self,
         validated: T,
         payload: dict[str, Any] | list[Any],
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
         message_type: str,
     ) -> U | list[U] | None:
         """Transform validated message to domain model."""
@@ -307,7 +311,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         self,
         domain_model: U | list[U],
         handler: MessageHandler,
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
         message_type: str,
     ) -> bool:
         """Handle domain model with message handler."""
@@ -404,7 +408,7 @@ class SimpleDictTransformer[T: BaseModel]:
     and the validated Pydantic model can be used directly as the domain model.
     """
 
-    def transform(self, validated: T, context: WebSocketContextUnion | None = None) -> T:
+    def transform(self, validated: T, context: WebSocketContextProtocol | None = None) -> T:
         """Transform by returning the validated model as-is.
 
         Args:

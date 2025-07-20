@@ -17,12 +17,7 @@ from cyberdelta.core.models.spot_balance import SpotBalance
 
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.balances,
-    pytest.mark.zero_balance,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]
 
 
 @pytest.mark.parametrize(

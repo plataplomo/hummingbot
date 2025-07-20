@@ -37,13 +37,13 @@ class TestBackpackAccountServiceBalances:
 
         # Mock request builder to return a valid params object
         mock_request_builder.build_get_balances_params.return_value = BackpackRawGetBalancesParams()
-        
+
         # Mock the HTTP client and response handler to return expected data
         mock_http_client_requester.return_value = (mock_raw_response_data_dict, 200, MagicMock())
         mock_response_handler.handle_get_balances_response.return_value = (
             mock_validated_raw_balances_dict
         )
-        
+
         result = await bp_account_service.get_balances()
 
         # The mapper transforms to exchange="backpack" not "backpack_test_account"
@@ -122,7 +122,7 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances when HTTP client returns None content."""
         # Mock the HTTP client to return None which triggers error
         mock_http_client_requester.return_value = (None, 200, {})
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_balances()
 
@@ -140,7 +140,7 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances handles validation error from response handler."""
         # Mock the HTTP client to return invalid data that causes validation error
         mock_http_client_requester.return_value = ({"invalid": "balance"}, 200, {})
-        
+
         # Mock the response handler to raise ValidationError
         mock_response_handler.handle_get_balances_response.side_effect = (
             ValidationError.from_exception_data(
@@ -148,7 +148,7 @@ class TestBackpackAccountServiceBalances:
                 line_errors=[],
             )
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_balances()
 
@@ -166,12 +166,12 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances handles unexpected exception from response handler."""
         # Mock the HTTP client to return valid data but response handler raises unexpected error
         mock_http_client_requester.return_value = ({"USDC": {"available": "100.0"}}, 200, {})
-        
+
         # Mock the response handler to raise an unexpected exception
         mock_response_handler.handle_get_balances_response.side_effect = Exception(
             "Unexpected error"
         )
-        
+
         # Business logic doesn't wrap general exceptions, so expect raw Exception
         with pytest.raises(Exception) as exc_info:
             await bp_account_service.get_balances()
@@ -189,7 +189,7 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances validation error coverage."""
         # Mock the HTTP client to return invalid data that causes validation error
         mock_http_client_requester.return_value = ({"invalid": "balance"}, 200, {})
-        
+
         # Mock the response handler to raise ValidationError
         mock_response_handler.handle_get_balances_response.side_effect = (
             ValidationError.from_exception_data(
@@ -197,7 +197,7 @@ class TestBackpackAccountServiceBalances:
                 line_errors=[],
             )
         )
-        
+
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_balances()
 
@@ -214,12 +214,12 @@ class TestBackpackAccountServiceBalances:
         """Test get_balances unexpected exception coverage."""
         # Mock the HTTP client to return valid data but response handler raises unexpected error
         mock_http_client_requester.return_value = ({"USDC": {"available": "100.0"}}, 200, {})
-        
+
         # Mock the response handler to raise an unexpected exception
         mock_response_handler.handle_get_balances_response.side_effect = Exception(
             "Unexpected error"
         )
-        
+
         # Business logic doesn't wrap general exceptions, so expect raw Exception
         with pytest.raises(Exception) as exc_info:
             await bp_account_service.get_balances()

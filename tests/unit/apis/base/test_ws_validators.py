@@ -6,10 +6,9 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.base.ws_validators import (
-    ExchangeSpecificValidators,
-    WebSocketPayloadValidators,
-)
+from cyberdelta.apis.backpack.bp_validators import BackpackValidators
+from cyberdelta.apis.hyperliquid.hl_validators import HyperliquidValidators
+from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 
 
 class TestWebSocketPayloadValidators:
@@ -249,8 +248,8 @@ class TestWebSocketPayloadValidators:
             WebSocketPayloadValidators.validate_timestamp(invalid_timestamp)
 
 
-class TestExchangeSpecificValidators:
-    """Test ExchangeSpecificValidators functionality."""
+class TestBackpackValidators:
+    """Test BackpackValidators functionality."""
 
     @pytest.mark.parametrize(
         ("topic", "expected_type", "expected_symbol"),
@@ -264,7 +263,7 @@ class TestExchangeSpecificValidators:
         self, topic: str, expected_type: str, expected_symbol: str
     ) -> None:
         """Test successful Backpack topic validation."""
-        topic_type, symbol = ExchangeSpecificValidators.validate_backpack_topic(topic)
+        topic_type, symbol = BackpackValidators.validate_backpack_topic(topic)
         assert topic_type == expected_type
         assert symbol == expected_symbol
 
@@ -281,7 +280,11 @@ class TestExchangeSpecificValidators:
     def test_validate_backpack_topic_failure(self, invalid_topic: str) -> None:
         """Test Backpack topic validation failures."""
         with pytest.raises(ValueError):
-            ExchangeSpecificValidators.validate_backpack_topic(invalid_topic)
+            BackpackValidators.validate_backpack_topic(invalid_topic)
+
+
+class TestHyperliquidValidators:
+    """Test HyperliquidValidators functionality."""
 
     @pytest.mark.parametrize(
         ("channel", "expected"),
@@ -294,40 +297,10 @@ class TestExchangeSpecificValidators:
     )
     def test_validate_hyperliquid_channel_success(self, channel: str, expected: str) -> None:
         """Test successful Hyperliquid channel validation."""
-        result = ExchangeSpecificValidators.validate_hyperliquid_channel(channel)
+        result = HyperliquidValidators.validate_hyperliquid_channel(channel)
         assert result == expected
 
     def test_validate_hyperliquid_channel_unknown(self) -> None:
         """Test Hyperliquid channel validation with unknown channel."""
-        # Should not raise exception, just log warning
-        result = ExchangeSpecificValidators.validate_hyperliquid_channel("unknown_channel")
-        assert result == "unknown_channel"
-
-    @pytest.mark.parametrize(
-        ("level", "expected"),
-        [
-            (["100.5", "50.25"], ["100.5", "50.25"]),
-            (["0.001", "1000.0"], ["0.001", "1000.0"]),
-        ],
-    )
-    def test_validate_order_book_level_success(self, level: list[str], expected: list[str]) -> None:
-        """Test successful order book level validation."""
-        result = ExchangeSpecificValidators.validate_order_book_level(level)
-        assert result == expected
-
-    @pytest.mark.parametrize(
-        "invalid_level",
-        [
-            ["100.5"],  # Too short
-            ["100.5", "50.25", "extra"],  # Too long
-            [100.5, 50.25],  # Wrong type (not strings)
-            ["invalid", "50.25"],  # Invalid price
-            ["100.5", "invalid"],  # Invalid quantity
-            ["-10.5", "50.25"],  # Negative price
-            ["100.5", "-10.0"],  # Negative quantity
-        ],
-    )
-    def test_validate_order_book_level_failure(self, invalid_level: list[str]) -> None:
-        """Test order book level validation failures."""
-        with pytest.raises((TypeError, ValueError)):
-            ExchangeSpecificValidators.validate_order_book_level(invalid_level)
+        with pytest.raises(ValueError):
+            HyperliquidValidators.validate_hyperliquid_channel("unknown_channel")

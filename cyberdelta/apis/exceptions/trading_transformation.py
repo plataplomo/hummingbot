@@ -4,7 +4,7 @@ These exceptions handle transformation errors specific to trading data
 such as orders, trades, and trading-related enums.
 """
 
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.common.api_error import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import UnknownEnumError
 
 

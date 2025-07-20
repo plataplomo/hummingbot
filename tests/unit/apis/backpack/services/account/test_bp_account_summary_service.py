@@ -253,7 +253,7 @@ class TestBackpackAccountSummaryService:
             # Positions response
             ([mock_raw_position.model_dump()], 200, {}),
         ]
-        
+
         # Mock the account state service to return collateral data
         mock_account_state_service.get_account_state.return_value = mock_collateral_response
 
@@ -300,7 +300,7 @@ class TestBackpackAccountSummaryService:
             code=APIErrorCode.ORDER_NOT_FOUND.value,
             http_status=404,
         )
-        
+
         # HTTP calls for basic mode after collateral fails
         mock_http_client.side_effect = [
             (mock_raw_account_summary.model_dump(), 200, {}),
@@ -417,11 +417,11 @@ class TestBackpackAccountSummaryService:
 
         # Assert
         assert result == mock_account_settings
-        
+
         # The business logic calls with leverage (int) and account_settings (domain object)
         expected_account_settings = DomainAccountSettings(
             leverage_limit=5,  # int conversion of Decimal("5.00")
-            automation_policy=AccountSettingsPolicy.MANUAL_CONTROL
+            automation_policy=AccountSettingsPolicy.MANUAL_CONTROL,
         )
         mock_request_builder.build_update_account_settings_payload.assert_called_once_with(
             leverage=5,
@@ -524,7 +524,7 @@ class TestBackpackAccountSummaryService:
         mock_account_state_service.get_account_state.side_effect = APIError(
             message="Not found", code=APIErrorCode.ORDER_NOT_FOUND.value, http_status=404
         )
-        
+
         # Basic mode HTTP calls
         mock_http_client.side_effect = [
             (mock_raw_account_summary.model_dump(), 200, {}),
@@ -676,7 +676,7 @@ class TestBackpackAccountSummaryService:
 
         # Mock account state service for collateral data
         mock_account_state_service.get_account_state.return_value = mock_collateral_response
-        
+
         mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )
@@ -716,7 +716,7 @@ class TestBackpackAccountSummaryService:
             code=APIErrorCode.AUTHENTICATION_FAILED.value,
             http_status=401,
         )
-        
+
         service = BackpackAccountSummaryService(
             http_client_requester=mock_http_client,
             request_builder=mock_request_builder,
@@ -727,14 +727,14 @@ class TestBackpackAccountSummaryService:
             account_state_service=mock_account_state_service,
         )
 
-        # Mock successful account settings and empty positions calls  
+        # Mock successful account settings and empty positions calls
         mock_http_client.side_effect = [
             # Account settings response
             (mock_raw_account_summary.model_dump(), 200, {}),
             # Positions response - succeeds with empty list
             ([], 200, {}),
         ]
-        
+
         mock_response_handler.handle_get_account_info_response.return_value = (
             mock_raw_account_summary
         )

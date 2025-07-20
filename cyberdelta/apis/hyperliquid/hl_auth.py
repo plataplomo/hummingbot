@@ -489,48 +489,48 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _clean_payload_for_signing(self, data: dict[str, Any]) -> dict[str, Any]:
         """Centralized payload cleaning that removes None fields recursively.
-        
+
         This matches the behavior of SigningPayloadSerializer but lives in the auth layer,
         providing better separation of concerns.
-        
+
         Args:
             data: The payload dictionary to clean
-            
+
         Returns:
             Cleaned dictionary with None fields removed
         """
         cleaned: dict[str, Any] = {}
-        
+
         for key, value in data.items():
             if value is None:
                 continue
-                
+
             if self._is_dict_str_any(value):
                 # Recursively clean nested dictionaries
                 nested_cleaned = self._clean_payload_for_signing(value)
                 if nested_cleaned:  # Only include non-empty dicts
                     cleaned[key] = nested_cleaned
-                    
+
             elif self._is_list_any(value):
                 # Delegate list cleaning to separate method
                 cleaned_list = self._clean_list_for_signing(value)
                 if cleaned_list:  # Only include non-empty lists
                     cleaned[key] = cleaned_list
-                    
+
             else:
                 # Keep all other non-None values
                 cleaned[key] = value
-                
+
         return cleaned
-    
+
     def _is_dict_str_any(self, obj: object) -> TypeGuard[dict[str, Any]]:
         """Type guard to check if object is a dict[str, Any]."""
         return isinstance(obj, dict)
-    
+
     def _is_list_any(self, obj: object) -> TypeGuard[list[Any]]:
         """Type guard to check if object is a list[Any]."""
         return isinstance(obj, list)
-    
+
     def _clean_list_for_signing(self, items: list[Any]) -> list[Any]:
         """Clean a list by removing None values and cleaning nested dicts."""
         cleaned_list: list[Any] = []
@@ -582,14 +582,14 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         # Apply centralized cleaning to remove None fields
         cleaned_payload = self._clean_payload_for_signing(payload_dict)
-        
+
         self.logger.debug(
             "payload_cleaned",
             action="prepare_action_payload",
             cleaned_keys=list(cleaned_payload.keys()),
             message=f"[HL_AUTH] Cleaned payload: {cleaned_payload}",
         )
-        
+
         return cleaned_payload
 
     def _compute_action_hash(
@@ -734,19 +734,8 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _format_signature_components(self, signed_message_obj: SignatureObject) -> dict[str, Any]:
         """Format signature components with proper validation and padding."""
-        # Validate signature components
-        if (
-            not hasattr(signed_message_obj, "r")
-            or not hasattr(signed_message_obj, "s")
-            or not hasattr(signed_message_obj, "v")
-        ):
-            invalid_signature_components_msg = (
-                "Invalid signature object: missing r, s, or v components"
-            )
-            raise APIError(
-                invalid_signature_components_msg,
-                code=APIErrorCode.AUTHENTICATION_FAILED.value,
-            )
+        # SignatureObject protocol guarantees r, s, v properties exist
+        # No need for hasattr checks
 
         # Convert signature components to hex with proper padding
         try:

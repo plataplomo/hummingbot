@@ -17,24 +17,24 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     ErrorRecoveryMode,
     MemoryOptimizationMode,
 )
-from cyberdelta.apis.base.ws_context import (
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
+from cyberdelta.apis.websocket.ws_context import (
     ExchangeType,
-    WebSocketContextUnion,
     WebSocketMessageContext,
 )
-from cyberdelta.apis.base.ws_error_recovery import (
+from cyberdelta.apis.websocket.ws_error_recovery import (
     ConnectionRecovery,
     ErrorRecoveryConfig,
     WebSocketErrorRecovery,
 )
-from cyberdelta.apis.base.ws_memory_optimized import (
+from cyberdelta.apis.websocket.ws_memory_optimized import (
     MemoryOptimizedMessageContext,
     MemoryPool,
 )
-from cyberdelta.apis.base.ws_metrics import WebSocketMetricsCollector
-from cyberdelta.apis.base.ws_typed_processor import typed_processor
-from cyberdelta.apis.base.ws_validators import WebSocketPayloadValidators
-from cyberdelta.apis.common.api_error_codes import APIErrorCode
+from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -42,7 +42,7 @@ from cyberdelta.config.structlog_config import get_logger
 ContextType = TypeVar("ContextType", bound="WebSocketMessageContext[BaseModel]")
 
 # Message handler type - takes typed context
-MessageHandler = Callable[[WebSocketContextUnion], Awaitable[None]]
+MessageHandler = Callable[[WebSocketContextProtocol], Awaitable[None]]
 
 
 class EnvelopeValidatorNotSetError(ValueError):
@@ -60,14 +60,14 @@ class MessageProcessor(Protocol):
         self,
         payload: dict[str, Any] | list[Any],
         handler: MessageHandler,
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
     ) -> None:
         """Process a message payload with typed context."""
         ...
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 
 
 class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
@@ -86,6 +86,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         exchange_name: str,
         exchange_type: ExchangeType,
         error_handler: BaseErrorHandler,
+        typed_processor: TypeSafeWebSocketProcessor,
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
         payload_validator: WebSocketPayloadValidators | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
@@ -100,6 +101,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             exchange_name: Name of the exchange for logging and identification.
             exchange_type: Type of exchange (e.g., ExchangeType.BACKPACK).
             error_handler: Error handler for centralized error management.
+            typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             envelope_validator: Optional envelope validator for type-safe message validation.
             payload_validator: Optional payload validator (default instance created if None).
             metrics_collector: Optional metrics collector for monitoring.
@@ -116,6 +118,9 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self.envelope_validator = envelope_validator
         self.payload_validator = payload_validator or WebSocketPayloadValidators()
         self.metrics_collector = metrics_collector or WebSocketMetricsCollector(exchange_name)
+
+        # Store the required typed processor
+        self.typed_processor = typed_processor
         self.logger = get_logger(f"WebSocketRouter.{exchange_name}")
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
 
@@ -214,7 +219,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         envelope: EnvelopeType,
         routing_key: str,
         message_id: str,
-    ) -> WebSocketContextUnion:
+    ) -> WebSocketContextProtocol:
         """Create typed context using TypeSafeWebSocketProcessor.
 
         This method uses the centralized typed processor to create properly
@@ -233,7 +238,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         raw_data = envelope.model_dump(mode="python")
 
         # Create typed context using the centralized processor
-        return typed_processor.create_typed_context(
+        return self.typed_processor.create_typed_context(
             raw_data=raw_data,
             connection_id=self._connection_id,
             message_id=message_id,
@@ -277,9 +282,9 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
     async def _enhance_typed_context(
         self,
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
         routing_key: str,
-    ) -> WebSocketContextUnion:
+    ) -> WebSocketContextProtocol:
         """Allow exchanges to enhance typed context with exchange-specific data.
 
         By default, returns the context as-is since typed contexts already
@@ -344,7 +349,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self,
         routing_key: str,
         payload: dict[str, Any] | list[Any],
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
     ) -> None:
         """Handle case where no processor is found."""
         # Ensure payload is dict for error handler
@@ -460,8 +465,8 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
                 key: {
                     "type": type(processor).__name__,
                     "raw_model": (
-                        processor.raw_model.__name__
-                        if hasattr(processor, "raw_model") and processor.raw_model is not None
+                        raw_model.__name__
+                        if (raw_model := getattr(processor, "raw_model", None)) is not None
                         else None
                     ),
                 }

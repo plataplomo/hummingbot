@@ -17,9 +17,9 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -107,14 +107,16 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         received_messages: list[dict[str, Any]] = []
 
-        async def subscription_handler(context: WebSocketContextUnion) -> None:
+        async def subscription_handler(context: WebSocketContextProtocol) -> None:
             """Handler for subscription messages."""
             await asyncio.sleep(0)  # Satisfy RUF029
 
             # Extract data from typed context
-            context_data = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            context_data: dict[str, Any] = {}
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -168,15 +170,17 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         def create_handler(
             stream_type: str,
-        ) -> Callable[[WebSocketContextUnion], Awaitable[None]]:
-            async def handler(context: WebSocketContextUnion) -> None:
+        ) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
+            async def handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 if stream_type not in stream_handlers:
                     stream_handlers[stream_type] = []
                 # Extract data from typed context
-                context_data = {}
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                context_data: dict[str, Any] = {}
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     context_data = data if isinstance(data, dict) else {"data": data}
@@ -233,7 +237,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
 
-        async def consistency_handler(context: WebSocketContextUnion) -> None:
+        async def consistency_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_consistency_handler",
@@ -333,7 +337,7 @@ class TestBackpackAPIWebSocketSubscriptions:
                 "Concurrent subscription tests require multiple real symbols.",
             )
 
-        async def concurrent_handler(context: WebSocketContextUnion) -> None:
+        async def concurrent_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_concurrent_handler",
@@ -384,7 +388,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
         topic = f"ticker.{test_symbol}"
 
-        async def lifecycle_handler(context: WebSocketContextUnion) -> None:
+        async def lifecycle_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_lifecycle_handler",
@@ -435,7 +439,7 @@ class TestBackpackAPIAdvancedSubscriptions:
         """Test subscriptions to both spot and perp markets."""
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
 
-        async def mixed_handler(context: WebSocketContextUnion) -> None:
+        async def mixed_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_mixed_market_handler",
@@ -491,7 +495,7 @@ class TestBackpackAPIAdvancedSubscriptions:
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
         valid_symbol = symbols["spot"][0]
 
-        async def error_test_handler(context: WebSocketContextUnion) -> None:
+        async def error_test_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_error_test_handler",

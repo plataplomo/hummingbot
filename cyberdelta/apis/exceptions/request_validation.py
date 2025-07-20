@@ -6,7 +6,8 @@ including parameter validation, decimal formatting, and request building.
 
 from decimal import Decimal
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class DecimalFormatError(APIError):

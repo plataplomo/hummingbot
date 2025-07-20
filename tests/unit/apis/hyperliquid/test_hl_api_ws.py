@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 
@@ -223,7 +223,7 @@ class TestHyperliquidAPIWebSocketErrorHandling:
         # Test that None handler is handled appropriately
         # Cast None to the expected type to test runtime behavior
         none_handler = cast(
-            "Callable[[WebSocketContextUnion], Awaitable[None]]",
+            "Callable[[WebSocketContextProtocol], Awaitable[None]]",
             None,
         )
         # Test that None handler is handled without AttributeError

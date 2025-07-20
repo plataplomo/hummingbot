@@ -6,8 +6,10 @@ using the base abstractions for type-safe, validated message processing.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol
 
+from cyberdelta.apis.backpack.bp_registry_builder import BackpackRegistryBuilder
+from cyberdelta.apis.backpack.bp_validators import BackpackValidators
 from cyberdelta.apis.backpack.models import (
     BackpackRawOrderUpdate,
     BackpackRawPositionUpdate,
@@ -18,13 +20,14 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.base.ws_context import ExchangeType, WebSocketContextUnion
-from cyberdelta.apis.base.ws_processor import (
+from cyberdelta.apis.websocket.ws_context import ExchangeType
+from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,
 )
-from cyberdelta.apis.base.ws_router import BaseWebSocketRouter
-from cyberdelta.apis.base.ws_validators import ExchangeSpecificValidators
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 
 # Type alias for envelope that can be either validated model or dict
@@ -56,7 +59,7 @@ class SymbolExtractionError(ValueError):
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
     from cyberdelta.core.models.market import (
         OrderBook,
         Ticker,
@@ -77,7 +80,9 @@ class BackpackDepthTransformer:
         self.order_book_mapper = order_book_mapper
 
     def transform(
-        self, validated: BackpackRawDepthUpdateEvent, context: WebSocketContextUnion | None = None
+        self,
+        validated: BackpackRawDepthUpdateEvent,
+        context: WebSocketContextProtocol | None = None,
     ) -> OrderBook:
         """Transform validated depth update to OrderBook.
 
@@ -99,7 +104,7 @@ class BackpackDepthTransformer:
         )
 
     def _extract_symbol_from_context(
-        self, validated: BackpackRawDepthUpdateEvent, context: WebSocketContextUnion | None
+        self, validated: BackpackRawDepthUpdateEvent, context: WebSocketContextProtocol | None
     ) -> str:
         """Extract symbol from context or validated envelope.
 
@@ -114,12 +119,12 @@ class BackpackDepthTransformer:
             ValueError: If symbol cannot be extracted.
         """
         # Try to get symbol from context first
-        if context and hasattr(context, "validated_envelope"):
+        if context:
             envelope = context.validated_envelope
             # Type-narrow to BackpackRawWebSocketEnvelope
             if isinstance(envelope, BackpackRawWebSocketEnvelope):
                 try:
-                    _, symbol = ExchangeSpecificValidators.validate_backpack_topic(envelope.stream)
+                    _, symbol = BackpackValidators.validate_backpack_topic(envelope.stream)
                 except ValueError:
                     pass
                 else:
@@ -144,7 +149,7 @@ class BackpackTickerTransformer:
         self.ticker_mapper = ticker_mapper
 
     def transform(
-        self, validated: BackpackRawTickerEvent, context: WebSocketContextUnion | None = None
+        self, validated: BackpackRawTickerEvent, context: WebSocketContextProtocol | None = None
     ) -> Ticker:
         """Transform validated ticker event to Ticker.
 
@@ -173,7 +178,9 @@ class BackpackTradeTransformer:
         self.trade_mapper = trade_mapper
 
     def transform(
-        self, validated: BackpackRawPublicTradeEvent, context: WebSocketContextUnion | None = None
+        self,
+        validated: BackpackRawPublicTradeEvent,
+        context: WebSocketContextProtocol | None = None,
     ) -> Trade:
         """Transform validated trade event to Trade.
 
@@ -215,10 +222,17 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         self.order_book_mapper = order_book_mapper
         self.ticker_mapper = ticker_mapper
         self.trade_mapper = trade_mapper
+
+        # Create registry using Backpack-specific builder
+        builder = BackpackRegistryBuilder()
+        registry = builder.build_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         super().__init__(
             exchange_name="backpack",
             exchange_type=ExchangeType.BACKPACK,
             error_handler=error_handler,
+            typed_processor=typed_processor,
         )
 
     def _setup_processors(self) -> None:
@@ -262,11 +276,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         self, envelope: BackpackRawWebSocketEnvelope
     ) -> str | None:
         """Extract topic from object-style envelope."""
-        if hasattr(envelope, "stream"):
-            stream = getattr(envelope, "stream", None)
-            if isinstance(stream, str):
-                return stream
-        return None
+        return envelope.stream
 
     def _extract_topic_from_dict_envelope(self, envelope: dict[str, Any]) -> str | None:
         """Extract topic from dict-style envelope."""
@@ -283,7 +293,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
     def _validate_and_extract_topic_type(self, topic: str) -> str | None:
         """Validate topic and extract topic type."""
         try:
-            topic_type, _ = ExchangeSpecificValidators.validate_backpack_topic(topic)
+            topic_type, _ = BackpackValidators.validate_backpack_topic(topic)
         except ValueError:
             return None
         else:
@@ -321,17 +331,12 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
             The payload data (dict, list, or other type).
 
         """
-        # BackpackRawWebSocketEnvelope is always an object with data attribute
-        if hasattr(envelope, "data"):
-            data = getattr(envelope, "data", None)
-            # Return data if it's dict, otherwise wrap in dict
-            if isinstance(data, dict):
-                # Type narrowing: data is confirmed to be dict[str, Any]
-                return cast(dict[str, Any], data)
-            return {"data": data}
-
-        # Fallback for other envelope types
-        return {"raw": envelope}
+        # BackpackRawWebSocketEnvelope always has data attribute as dict[str, Any] | list[Any]
+        data = envelope.data
+        # Return data if it's dict, otherwise wrap in dict
+        if isinstance(data, dict):
+            return data
+        return {"data": data}
 
     def _extract_routing_key(self, message: dict[str, Any]) -> str | None:
         """Extract routing key from Backpack WebSocket message.
@@ -352,7 +357,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
 
         try:
             # Validate and parse topic using exchange-specific validator
-            topic_type, _ = ExchangeSpecificValidators.validate_backpack_topic(topic)
+            topic_type, _ = BackpackValidators.validate_backpack_topic(topic)
         except ValueError:
             # Log warning but don't fail - let error handler deal with it
             self.logger.warning(
@@ -403,9 +408,9 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         """
         # Extract from validated envelope in context (new pattern)
         envelope = context.get("validated_envelope")
-        if envelope and hasattr(envelope, "stream") and isinstance(envelope.stream, str):
+        if envelope and isinstance(envelope, BackpackRawWebSocketEnvelope):
             try:
-                _, symbol = ExchangeSpecificValidators.validate_backpack_topic(envelope.stream)
+                _, symbol = BackpackValidators.validate_backpack_topic(envelope.stream)
             except ValueError:
                 pass
             else:

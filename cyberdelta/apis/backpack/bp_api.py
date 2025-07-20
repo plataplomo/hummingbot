@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.backpack.bp_api_components_factory import BackpackAPIComponentsFactory
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
+from cyberdelta.apis.backpack.bp_registry_builder import BackpackRegistryBuilder
 from cyberdelta.apis.backpack.bp_ws_router import BackpackWebSocketRouter
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models import BackpackRawWsSubscriptionRequest
@@ -33,13 +34,14 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import (
 )
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.exceptions import AuthenticatorNotConfiguredError
 from cyberdelta.apis.exceptions.configuration import (
     RateLimitConfigurationError,
     TestnetConfigurationError,
 )
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions.base import RequiredParameterError
 
@@ -195,8 +197,15 @@ class BackpackAPI(ExchangeAPI):
 
         # Initialize enhanced WebSocket router with new architecture
         error_handler = BaseErrorHandler(exchange_name="backpack")
+
+        # Create registry using Backpack-specific builder
+        builder = BackpackRegistryBuilder()
+        registry = builder.build_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         self._bp_ws_router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),
             ticker_mapper=factory.create_ticker_mapper(),
             trade_mapper=factory.create_trade_mapper(),
@@ -262,10 +271,7 @@ class BackpackAPI(ExchangeAPI):
 
         # Check if topic requires authentication (private streams start with "account.")
         if topic.startswith("account."):
-            if not self._bp_authenticator or not hasattr(
-                self._bp_authenticator,
-                "get_ws_subscription_signature_components",
-            ):
+            if not self._bp_authenticator:
                 raise AuthenticatorNotConfiguredError(
                     auth_type="ED25519",
                     operation="private WebSocket subscriptions",

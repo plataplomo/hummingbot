@@ -7,7 +7,7 @@ architecture maintains or improves upon the original performance characteristics
 import asyncio
 import json
 import time
-from typing import Any, cast
+from typing import Any
 
 import orjson
 import pytest
@@ -23,7 +23,6 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import Backpa
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawDepthUpdateEvent
-from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_ws_router import HyperliquidWebSocketRouter
 from cyberdelta.apis.hyperliquid.mappers.account.hl_balance_mapper import HyperliquidBalanceMapper
@@ -41,6 +40,10 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
     HyperliquidPriceTickerMapper,
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
+from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 
 # Sample messages for testing
@@ -151,8 +154,12 @@ class TestMessageRoutingPerformance:
         """Test Backpack router throughput."""
         # Setup router
         error_handler = BaseErrorHandler(exchange_name="backpack")
+        registry = WebSocketRegistryFactory.create_configured_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
             trade_mapper=BackpackTradeMapper(),
@@ -165,11 +172,11 @@ class TestMessageRoutingPerformance:
         # Mock handler
         messages_processed: list[dict[str, Any]] = []
 
-        async def mock_handler(data: dict[str, Any], original: dict[str, Any]) -> None:
-            messages_processed.append(data)
+        async def mock_handler(context: WebSocketContextProtocol) -> None:
+            messages_processed.append(context.model_dump())
             await asyncio.sleep(0)  # Make function properly async
 
-        handlers: dict[str, MessageHandler] = {"depth": cast(MessageHandler, mock_handler)}
+        handlers: dict[str, MessageHandler] = {"depth": mock_handler}
 
         # Performance test
         metrics = PerformanceMetrics()
@@ -193,8 +200,12 @@ class TestMessageRoutingPerformance:
         """Test Hyperliquid router throughput."""
         # Setup router
         error_handler = BaseErrorHandler(exchange_name="hyperliquid")
+        registry = WebSocketRegistryFactory.create_configured_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         router = HyperliquidWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=HyperliquidOrderBookMapper(),
             price_ticker_mapper=HyperliquidPriceTickerMapper(),
             balance_mapper=HyperliquidBalanceMapper(),
@@ -207,11 +218,11 @@ class TestMessageRoutingPerformance:
         # Mock handler
         messages_processed: list[dict[str, Any]] = []
 
-        async def mock_handler(data: dict[str, Any], original: dict[str, Any]) -> None:
-            messages_processed.append(data)
+        async def mock_handler(context: WebSocketContextProtocol) -> None:
+            messages_processed.append(context.model_dump())
             await asyncio.sleep(0)  # Make function properly async
 
-        handlers: dict[str, MessageHandler] = {"l2Book": cast(MessageHandler, mock_handler)}
+        handlers: dict[str, MessageHandler] = {"l2Book": mock_handler}
 
         # Performance test
         metrics = PerformanceMetrics()
@@ -271,8 +282,12 @@ class TestMemoryEfficiency:
         """Test that processors efficiently reuse memory."""
         # This is a simplified test - in production, you'd use memory profilers
         error_handler = BaseErrorHandler(exchange_name="backpack")
+        registry = WebSocketRegistryFactory.create_configured_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
             trade_mapper=BackpackTradeMapper(),
@@ -282,10 +297,10 @@ class TestMemoryEfficiency:
             transaction_mapper=BackpackTransactionMapper(),
         )
 
-        async def mock_handler(data: dict[str, Any], original: dict[str, Any]) -> None:
+        async def mock_handler(context: WebSocketContextProtocol) -> None:
             pass
 
-        handlers: dict[str, MessageHandler] = {"depth": cast(MessageHandler, mock_handler)}
+        handlers: dict[str, MessageHandler] = {"depth": mock_handler}
 
         # Process many messages and ensure no memory leak
         # In a real test, you'd measure actual memory usage
@@ -304,8 +319,12 @@ class TestConcurrentProcessing:
     async def test_concurrent_routing(self) -> None:
         """Test routing multiple messages concurrently."""
         error_handler = BaseErrorHandler(exchange_name="backpack")
+        registry = WebSocketRegistryFactory.create_configured_registry()
+        typed_processor = TypeSafeWebSocketProcessor(registry)
+
         router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
             trade_mapper=BackpackTradeMapper(),
@@ -317,12 +336,12 @@ class TestConcurrentProcessing:
 
         processed_count = 0
 
-        async def mock_handler(data: dict[str, Any], original: dict[str, Any]) -> None:
+        async def mock_handler(context: WebSocketContextProtocol) -> None:
             nonlocal processed_count
             processed_count += 1
             await asyncio.sleep(0)  # Make function properly async
 
-        handlers: dict[str, MessageHandler] = {"depth": cast(MessageHandler, mock_handler)}
+        handlers: dict[str, MessageHandler] = {"depth": mock_handler}
 
         # Create many concurrent tasks
         tasks: list[asyncio.Task[None]] = []

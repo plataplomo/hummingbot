@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.backpack.bp_validators import BackpackValidators
+
 # Type safety imports for future enhancement
 from cyberdelta.apis.backpack.models import (
     BackpackRawOrderUpdate,
@@ -31,25 +33,23 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackRawWsSubscriptionRequest,
     BackpackWsSignatureComponents,
 )
-from cyberdelta.apis.base.ws_context import (
-    ExchangeType,
-    WebSocketContextUnion,
-)
-from cyberdelta.apis.base.ws_processor import (
-    PydanticWebSocketProcessor,
-)
-from cyberdelta.apis.base.ws_router import BaseWebSocketRouter
-from cyberdelta.apis.base.ws_transformer import (
-    ControlMessageTransformer,
-    MapperTransformer,
-    extract_symbol_from_context,
-)
-from cyberdelta.apis.base.ws_validators import ExchangeSpecificValidators
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.exceptions import (
     UnsupportedWebSocketTopicError,
     WebSocketSubscriptionError,
 )
+from cyberdelta.apis.websocket.ws_context import ExchangeType
+from cyberdelta.apis.websocket.ws_processor import (
+    PydanticWebSocketProcessor,
+)
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
+from cyberdelta.apis.websocket.ws_transformer import (
+    ControlMessageTransformer,
+    MapperTransformer,
+    extract_symbol_from_context,
+)
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.core.models import DerivativePosition, Order, OrderBook, Ticker, Trade
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
@@ -64,7 +64,7 @@ if TYPE_CHECKING:
         TradeMapperProtocol,
         TransactionMapperProtocol,
     )
-    from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 
 
 class TransformationError(ValueError):
@@ -95,6 +95,7 @@ class BackpackWebSocketRouter(
     def __init__(
         self,
         error_handler: BaseErrorHandler,
+        typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
         ticker_mapper: TickerMapperProtocol,
         trade_mapper: TradeMapperProtocol,
@@ -107,6 +108,7 @@ class BackpackWebSocketRouter(
 
         Args:
             error_handler: Error handler for centralized error management.
+            typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book transformations.
             ticker_mapper: Mapper for ticker transformations.
             trade_mapper: Mapper for trade transformations.
@@ -128,6 +130,7 @@ class BackpackWebSocketRouter(
             exchange_name="backpack",
             exchange_type=ExchangeType.BACKPACK,
             error_handler=error_handler,
+            typed_processor=typed_processor,
             envelope_validator=validate_backpack_envelope,
         )
 
@@ -259,7 +262,7 @@ class BackpackWebSocketRouter(
         # Parse stream/topic format with symbols
         try:
             # Validate the topic format
-            ExchangeSpecificValidators.validate_backpack_topic(stream_or_topic)
+            BackpackValidators.validate_backpack_topic(stream_or_topic)
         except ValueError:
             self.logger.warning(
                 "invalid_backpack_stream_format",
@@ -344,7 +347,7 @@ class BackpackWebSocketRouter(
         if "." in topic:
             try:
                 # Validate the topic format using the exchange-specific validator
-                ExchangeSpecificValidators.validate_backpack_topic(topic)
+                BackpackValidators.validate_backpack_topic(topic)
             except ValueError as e:
                 raise WebSocketSubscriptionError(topic, str(e)) from e
 
@@ -409,9 +412,9 @@ class BackpackWebSocketRouter(
 
     async def _enhance_typed_context(
         self,
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
         routing_key: str,
-    ) -> WebSocketContextUnion:
+    ) -> WebSocketContextProtocol:
         """Enhance typed context with Backpack-specific data.
 
         The typed context already includes computed fields for symbol extraction,
@@ -427,7 +430,7 @@ class BackpackWebSocketRouter(
         # Typed context already has all computed fields
         return context
 
-    def get_symbol_from_context(self, context: WebSocketContextUnion) -> str | None:
+    def get_symbol_from_context(self, context: WebSocketContextProtocol) -> str | None:
         """Extract symbol from typed WebSocket context.
 
         Args:

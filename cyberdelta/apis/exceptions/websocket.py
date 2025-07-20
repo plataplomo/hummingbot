@@ -4,7 +4,8 @@ These exceptions handle WebSocket subscription, message parsing,
 and channel-specific validation errors.
 """
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class WebSocketError(APIError):

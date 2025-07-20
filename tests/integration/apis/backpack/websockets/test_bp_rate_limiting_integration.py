@@ -18,9 +18,9 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -163,7 +163,7 @@ class TestBackpackRateLimitingIntegration:
             start_time = time.perf_counter()
             subscription_times: list[float] = []
 
-            async def test_handler(context: WebSocketContextUnion) -> None:
+            async def test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
             for i in range(subscription_count):
@@ -274,7 +274,7 @@ class TestBackpackRateLimitingIntegration:
                 markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
                 if markets:
 
-                    async def token_test_handler(context: WebSocketContextUnion) -> None:
+                    async def token_test_handler(context: WebSocketContextProtocol) -> None:
                         await asyncio.sleep(0)
 
                     # Subscribe to consume tokens
@@ -404,7 +404,7 @@ class TestBackpackRateLimitingIntegration:
             errors_encountered: list[str] = []
             successful_requests = 0
 
-            async def rate_limit_test_handler(context: WebSocketContextUnion) -> None:
+            async def rate_limit_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())

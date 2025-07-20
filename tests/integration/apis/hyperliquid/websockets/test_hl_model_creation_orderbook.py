@@ -18,13 +18,13 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsBookUpdate,
 )
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
 
@@ -56,12 +56,14 @@ class TestHyperliquidOrderBookModelCreation:
     ) -> MessageHandler:
         """Create handler that extracts OrderBook from Hyperliquid context."""
 
-        async def orderbook_handler(context: WebSocketContextUnion) -> None:
+        async def orderbook_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # Extract data from typed context
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 if isinstance(data, dict):
@@ -413,7 +415,7 @@ class TestHyperliquidOrderBookModelCreation:
             test_symbol = markets[0].symbol
             orderbook_updates: list[dict[str, Any]] = []
 
-            async def update_handler(context: WebSocketContextUnion) -> None:
+            async def update_handler(context: WebSocketContextProtocol) -> None:
                 """Handler that tracks OrderBook updates."""
                 await asyncio.sleep(0)  # Satisfy RUF029
                 orderbook_updates.append({
@@ -423,8 +425,10 @@ class TestHyperliquidOrderBookModelCreation:
 
                 # Log context info
                 context_keys = []
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict):

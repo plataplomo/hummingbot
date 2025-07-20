@@ -17,14 +17,14 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 
-def context_to_dict(context: WebSocketContextUnion) -> dict[str, Any]:
+def context_to_dict(context: WebSocketContextProtocol) -> dict[str, Any]:
     """Convert typed context to dict for testing."""
     result = {
         "routing_key": context.routing_key,
@@ -47,7 +47,7 @@ def context_to_dict(context: WebSocketContextUnion) -> dict[str, Any]:
     return result
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.websockets, pytest.mark.timing]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -134,7 +134,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
         received_messages: list[dict[str, Any]] = []
 
-        async def real_symbol_handler(context: WebSocketContextUnion) -> None:
+        async def real_symbol_handler(context: WebSocketContextProtocol) -> None:
             """Handler for real symbol subscription messages."""
             await asyncio.sleep(0)  # Satisfy RUF029
             received_messages.append(context_to_dict(context))
@@ -187,8 +187,8 @@ class TestBackpackAPIRealWebSocketSubscriptions:
 
         def create_stream_handler(
             stream_type: str,
-        ) -> Callable[[WebSocketContextUnion], Awaitable[None]]:
-            async def handler(context: WebSocketContextUnion) -> None:
+        ) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
+            async def handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 if stream_type not in stream_results:
                     stream_results[stream_type] = []
@@ -254,7 +254,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
 
-        async def consistency_handler(context: WebSocketContextUnion) -> None:
+        async def consistency_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_consistency_handler",
@@ -349,7 +349,7 @@ class TestBackpackAPIRealWebSocketSubscriptions:
         test_symbol = symbols["spot"][0]
         topic = f"ticker.{test_symbol}"
 
-        async def lifecycle_handler(context: WebSocketContextUnion) -> None:
+        async def lifecycle_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_lifecycle_handler",
@@ -407,7 +407,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
                 "Concurrent subscription tests require multiple real symbols.",
             )
 
-        async def concurrent_handler(context: WebSocketContextUnion) -> None:
+        async def concurrent_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_concurrent_handler",
@@ -457,7 +457,7 @@ class TestBackpackAPIConcurrentRealSubscriptions:
         """Test subscriptions to mixed market types with real symbols."""
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
 
-        async def mixed_handler(context: WebSocketContextUnion) -> None:
+        async def mixed_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_mixed_market_handler",
@@ -516,7 +516,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
         valid_symbol = symbols["spot"][0]
 
-        async def error_handler(context: WebSocketContextUnion) -> None:
+        async def error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_error_test_handler",
@@ -604,7 +604,7 @@ class TestBackpackAPIRealSubscriptionErrorHandling:
         symbols = await get_real_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
 
-        async def resilience_handler(context: WebSocketContextUnion) -> None:
+        async def resilience_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "websocket_resilience_handler",

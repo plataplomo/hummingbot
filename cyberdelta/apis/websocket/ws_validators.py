@@ -113,29 +113,9 @@ class InvalidTimestampError(ValueError):
         super().__init__(f"{context} {reason}: {value}")
 
 
-class InvalidTopicFormatError(ValueError):
-    """Raised when topic format is invalid."""
-
-    def __init__(self, topic: str, format_description: str) -> None:
-        """Initialize with topic format validation details."""
-        super().__init__(f"Invalid Backpack topic format: '{topic}'. Expected {format_description}")
-
-
-class InvalidTopicTypeError(ValueError):
-    """Raised when topic type is invalid."""
-
-    def __init__(self, topic_type: str, valid_types: set[str]) -> None:
-        """Initialize with topic type validation details."""
-        super().__init__(
-            f"Invalid Backpack topic type: '{topic_type}'. "
-            f"Valid types: {', '.join(sorted(valid_types))}"
-        )
-
-
 # Constants for validation
 YEAR_2000_TIMESTAMP = 946684800  # Jan 1, 2000
 MIN_ORDER_BOOK_LEVEL_ITEMS = 2
-TOPIC_PARTS_COUNT = 2  # Expected number of parts in topic.symbol format
 
 
 logger = get_logger(__name__)
@@ -430,106 +410,3 @@ class WebSocketPayloadValidators:
                 raise InvalidTimestampError(context, timestamp, "cannot be in the future")
 
         return timestamp
-
-
-class ExchangeSpecificValidators:
-    """Exchange-specific validation utilities."""
-
-    @staticmethod
-    def validate_backpack_topic(topic: str) -> tuple[str, str]:
-        """Validate and parse Backpack topic format.
-
-        Args:
-            topic: Topic string in format "type.symbol" (e.g., "depth.BTC_USDC").
-
-        Returns:
-            Tuple of (topic_type, symbol).
-
-        Raises:
-            ValueError: If topic format is invalid.
-
-        """
-        if "." not in topic:
-            raise InvalidTopicFormatError(topic, "'type.symbol'")
-
-        parts = topic.split(".", 1)
-        if len(parts) != TOPIC_PARTS_COUNT:
-            raise InvalidTopicFormatError(topic, "'type.symbol'")
-
-        topic_type, symbol = parts
-
-        # Valid Backpack topic types
-        # NOTE: Backpack uses "trade" (singular) for WebSocket streams,
-        # but "trades" is also accepted for compatibility
-        valid_topic_types = {"depth", "ticker", "trade", "trades"}
-
-        if topic_type not in valid_topic_types:
-            raise InvalidTopicTypeError(topic_type, valid_topic_types)
-
-        # Validate components
-        WebSocketPayloadValidators.validate_topic(topic_type, "topic type")
-        WebSocketPayloadValidators.validate_symbol(symbol, "symbol")
-
-        return topic_type, symbol
-
-    @staticmethod
-    def validate_hyperliquid_channel(channel: str) -> str:
-        """Validate Hyperliquid channel format.
-
-        Args:
-            channel: Channel name (e.g., "l2Book", "trades", "userEvents").
-
-        Returns:
-            The validated channel string.
-
-        Raises:
-            ValueError: If channel format is invalid.
-
-        """
-        # Known Hyperliquid channels
-        valid_channels = {
-            "l2Book",
-            "trades",
-            "userEvents",
-            "allMids",
-            "notification",
-            "webData2",
-        }
-
-        if channel not in valid_channels:
-            logger.warning(
-                "unknown_hyperliquid_channel",
-                channel=channel,
-                valid_channels=list(valid_channels),
-            )
-            # Don't fail - just log warning for unknown channels
-
-        return WebSocketPayloadValidators.validate_topic(channel, "channel")
-
-    @staticmethod
-    def validate_order_book_level(
-        level: ValidationInput,
-    ) -> list[str]:
-        """Validate order book level format (price, quantity pair).
-
-        Args:
-            level: Order book level to validate.
-
-        Returns:
-            Validated level as list of strings.
-
-        Raises:
-            ValueError: If level format is invalid.
-
-        """
-        level_list = WebSocketPayloadValidators.validate_list_payload(
-            level, "order book level", min_length=2, max_length=2
-        )
-
-        # Validate price and quantity are numeric strings
-        price, quantity = level_list[0], level_list[1]
-
-        WebSocketPayloadValidators.validate_numeric_string(price, "price", min_value=0)
-        WebSocketPayloadValidators.validate_numeric_string(quantity, "quantity", min_value=0)
-
-        return level_list

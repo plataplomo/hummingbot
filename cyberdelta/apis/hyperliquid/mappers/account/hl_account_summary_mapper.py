@@ -225,9 +225,9 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
         try:
             logger.debug(
                 "transforming_clearinghouse_state_to_margin_summary",
-                has_margin_summary=hasattr(clearinghouse_data, "margin_summary"),
-                has_cross_mmr=hasattr(clearinghouse_data, "cross_maintenance_margin_used"),
-                has_withdrawable=hasattr(clearinghouse_data, "withdrawable"),
+                has_margin_summary=True,  # margin_summary is a required field
+                has_cross_mmr=True,  # cross_maintenance_margin_used is a required field
+                has_withdrawable=True,  # withdrawable is a required field
                 message="Transforming HyperliquidRawClearinghouseState to MarginAccountSummary",
             )
 
@@ -356,12 +356,10 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
         except Exception as e:
             logger.exception(
                 "clearinghouse_state_to_margin_summary_transform_failed",
-                has_margin_summary=hasattr(clearinghouse_data, "margin_summary")
-                if clearinghouse_data
-                else False,
-                has_cross_mmr=hasattr(clearinghouse_data, "cross_maintenance_margin_used")
-                if clearinghouse_data
-                else False,
+                # clearinghouse_data should not be None in this context
+                has_margin_summary=True,
+                # clearinghouse_data should not be None in this context
+                has_cross_mmr=True,
                 clearinghouse_data=clearinghouse_data.model_dump() if clearinghouse_data else None,
                 error=str(e),
                 message="Failed to transform clearinghouse state to MarginAccountSummary",

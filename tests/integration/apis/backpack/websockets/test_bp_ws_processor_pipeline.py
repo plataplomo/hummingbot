@@ -27,8 +27,8 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawTickerEvent
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.ticker import Ticker
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
@@ -45,7 +45,7 @@ logger = get_logger(__name__)
 class TestBackpackProcessorPipeline:
     """Test WebSocket processor pipeline with real message processing."""
 
-    def _extract_envelope_data(self, context: WebSocketContextUnion) -> dict[str, Any] | None:
+    def _extract_envelope_data(self, context: WebSocketContextProtocol) -> dict[str, Any] | None:
         """Extract data from validated envelope if present."""
         if hasattr(context, "validated_envelope") and context.validated_envelope:
             envelope = context.validated_envelope
@@ -137,7 +137,7 @@ class TestBackpackProcessorPipeline:
         received_messages: list[dict[str, Any]] = []
         validation_errors: list[tuple[str, Exception]] = []
 
-        async def validation_handler(context: WebSocketContextUnion) -> None:
+        async def validation_handler(context: WebSocketContextProtocol) -> None:
             """Handler that tracks validation results."""
             await asyncio.sleep(0)  # Ensure async function
             try:
@@ -217,7 +217,7 @@ class TestBackpackProcessorPipeline:
         # Now test WebSocket ticker transformation
         pydantic_models_created: list[BackpackRawTickerEvent] = []
 
-        async def pydantic_test_handler(context: WebSocketContextUnion) -> None:
+        async def pydantic_test_handler(context: WebSocketContextProtocol) -> None:
             """Handler that captures Pydantic model creation."""
             await asyncio.sleep(0)  # Ensure async function
             if hasattr(context, "validated_envelope") and context.validated_envelope:
@@ -295,7 +295,7 @@ class TestBackpackProcessorPipeline:
         # Collect domain models from real data
         domain_models: list[Ticker] = []
 
-        async def domain_model_handler(context: WebSocketContextUnion) -> None:
+        async def domain_model_handler(context: WebSocketContextProtocol) -> None:
             """Handler that captures domain model creation."""
             await asyncio.sleep(0)  # Ensure async function
             if (
@@ -365,13 +365,15 @@ class TestBackpackProcessorPipeline:
             # Track pipeline processing
             pipeline_results: list[dict[str, Any]] = []
 
-            async def pipeline_test_handler(context: WebSocketContextUnion) -> None:
+            async def pipeline_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
                 # Extract data from typed context
-                context_data = {}
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                context_data: dict[str, Any] = {}
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     context_data = data if isinstance(data, dict) else {"data": data}
@@ -409,7 +411,7 @@ class TestBackpackProcessorPipeline:
                 # Verify context structure
                 for result in pipeline_results[:3]:  # Check first 3 results
                     context = result["context"]
-                    # Context is now a WebSocketContextUnion object, not a dict
+                    # Context is now a WebSocketContextProtocol object, not a dict
                     assert hasattr(context, "routing_key"), "Context should have routing_key"
 
                     # Extract key attributes from context object
@@ -433,6 +435,58 @@ class TestBackpackProcessorPipeline:
                 "Complete pipeline not working with real WebSocket data."
             )
 
+    async def _get_test_symbol(self, bp_api_for_test_env: BackpackAPI) -> str:
+        """Get a symbol for testing."""
+        markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
+        if not markets:
+            pytest.fail("No markets available")
+        return markets[0].symbol
+
+    def _calculate_performance_metrics(
+        self,
+        message_count: int,
+        processing_times: list[float],
+        start_time: float,
+        symbol: str,
+    ) -> tuple[float, float]:
+        """Calculate and log performance metrics."""
+        end_time = asyncio.get_event_loop().time()
+        total_time = end_time - start_time
+        messages_per_second = message_count / total_time if total_time > 0 else 0
+
+        logger.info(
+            "processor_pipeline_performance_results",
+            message_count=message_count,
+            total_time_seconds=f"{total_time:.3f}",
+            messages_per_second=f"{messages_per_second:.1f}",
+            message=f"✓ Pipeline processed {message_count} messages in {total_time:.3f}s",
+        )
+
+        if message_count == 0:
+            pytest.fail(
+                f"No messages received from {symbol} during {total_time:.3f}s performance test. "
+                "WebSocket connection may be broken."
+            )
+
+        avg_processing_time_ms = (
+            (sum(processing_times) / len(processing_times)) * 1000 if processing_times else 0
+        )
+
+        logger.info(
+            "real_pipeline_performance",
+            symbol=symbol,
+            message_count=message_count,
+            test_duration_seconds=f"{total_time:.1f}",
+            messages_per_second=f"{messages_per_second:.1f}",
+            avg_processing_time_ms=f"{avg_processing_time_ms:.3f}",
+            message=(
+                f"✓ Pipeline processed {message_count} real messages at "
+                f"{messages_per_second:.1f} msg/s"
+            ),
+        )
+
+        return messages_per_second, avg_processing_time_ms
+
     @pytest.mark.asyncio
     async def test_processor_pipeline_performance(
         self,
@@ -449,26 +503,32 @@ class TestBackpackProcessorPipeline:
             pytest.fail("Ticker processor not found for performance testing")
 
         # Get real market for testing
-        markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
-        if not markets:
-            pytest.fail("No markets available")
-
-        symbol = markets[0].symbol
+        symbol = await self._get_test_symbol(bp_api_for_test_env)
 
         # Track performance metrics
         message_count = 0
         processing_times: list[float] = []
 
-        async def performance_handler(context: WebSocketContextUnion) -> None:
+        async def performance_handler(context: WebSocketContextProtocol) -> None:
             """Handler that tracks processing time."""
             await asyncio.sleep(0)  # Ensure async function
             nonlocal message_count
             start = asyncio.get_event_loop().time()
             # Simulate some processing work
             if hasattr(context, "domain_model") and context.domain_model:
-                # Access the model to ensure it's fully processed
-                _ = context.domain_model.symbol
-                _ = context.domain_model.price
+                # Access the model to ensure it's fully processed - use protocol methods
+                try:
+                    model_data = context.domain_model.model_dump()
+                    _ = model_data.get("symbol")
+                    _ = model_data.get("price")
+                except AttributeError:
+                    # Fallback for models that don't have model_dump
+                    try:
+                        model_data = context.domain_model.dict()
+                        _ = model_data.get("symbol")
+                        _ = model_data.get("price")
+                    except AttributeError:
+                        pass
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1
@@ -487,41 +547,12 @@ class TestBackpackProcessorPipeline:
 
         # No need to unsubscribe - cleanup happens on test end
 
-        # Calculate metrics
-        end_time = asyncio.get_event_loop().time()
-        total_time = end_time - start_time
-        messages_per_second = message_count / total_time if total_time > 0 else 0
-
-        logger.info(
-            "processor_pipeline_performance_results",
+        # Calculate and log metrics
+        messages_per_second, avg_processing_time_ms = self._calculate_performance_metrics(
             message_count=message_count,
-            total_time_seconds=f"{total_time:.3f}",
-            messages_per_second=f"{messages_per_second:.1f}",
-            message=f"✓ Pipeline processed {message_count} messages in {total_time:.3f}s",
-        )
-
-        if message_count == 0:
-            pytest.fail(
-                f"No messages received from {symbol} during {test_duration}s performance test. "
-                "WebSocket connection may be broken."
-            )
-
-        # Calculate average processing time
-        avg_processing_time_ms = (
-            (sum(processing_times) / len(processing_times)) * 1000 if processing_times else 0
-        )
-
-        logger.info(
-            "real_pipeline_performance",
+            processing_times=processing_times,
+            start_time=start_time,
             symbol=symbol,
-            message_count=message_count,
-            test_duration_seconds=f"{total_time:.1f}",
-            messages_per_second=f"{messages_per_second:.1f}",
-            avg_processing_time_ms=f"{avg_processing_time_ms:.3f}",
-            message=(
-                f"✓ Pipeline processed {message_count} real messages at "
-                f"{messages_per_second:.1f} msg/s"
-            ),
         )
 
         # Performance thresholds based on real-world requirements
@@ -569,7 +600,7 @@ class TestBackpackProcessorPipeline:
         # Track messages for memory test
         message_count = 0
 
-        async def memory_test_handler(context: WebSocketContextUnion) -> None:
+        async def memory_test_handler(context: WebSocketContextProtocol) -> None:
             """Simple handler for memory testing."""
             await asyncio.sleep(0)  # Ensure async function
             nonlocal message_count

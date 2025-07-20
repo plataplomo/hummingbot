@@ -17,10 +17,10 @@ import time
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -154,7 +154,7 @@ class TestHyperliquidRateLimitingIntegration:
             start_time = time.perf_counter()
             subscription_times: list[float] = []
 
-            async def test_handler(context: WebSocketContextUnion) -> None:
+            async def test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
             for i in range(subscription_count):
@@ -265,7 +265,7 @@ class TestHyperliquidRateLimitingIntegration:
                 markets = await hl_api_for_test_env.get_markets(GetMarketsArgs())
                 if markets:
 
-                    async def token_test_handler(context: WebSocketContextUnion) -> None:
+                    async def token_test_handler(context: WebSocketContextProtocol) -> None:
                         await asyncio.sleep(0)
 
                     # Subscribe to consume tokens
@@ -395,7 +395,7 @@ class TestHyperliquidRateLimitingIntegration:
             errors_encountered: list[str] = []
             successful_requests = 0
 
-            async def rate_limit_test_handler(context: WebSocketContextUnion) -> None:
+            async def rate_limit_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             markets = await hl_api_for_test_env.get_markets(GetMarketsArgs())
@@ -522,7 +522,7 @@ class TestHyperliquidRateLimitingIntegration:
 
             subscription_results: dict[str, str] = {}
 
-            async def specific_handler(context: WebSocketContextUnion) -> None:
+            async def specific_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             for topic in specific_subscriptions:

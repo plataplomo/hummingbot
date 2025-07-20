@@ -534,7 +534,7 @@ def valid_ticker_event_data() -> dict[str, Any]:
         "s": "SOL_USDC",
         "c": "23.50",  # Required: last_price (close price)
         "h": "24.00",  # Required: high
-        "l": "22.80",  # Required: low  
+        "l": "22.80",  # Required: low
         "v": "100500.75",  # Required: volume
         "V": "2361767.625",  # Required: quote_volume
         "priceChangePercent": "1.50",

@@ -15,7 +15,6 @@ from pydantic import BaseModel
 
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
 from cyberdelta.apis.models.service_args_models import (
     CancelOrderArgs,
@@ -33,6 +32,7 @@ from cyberdelta.apis.models.service_args_models import (
     UpdateAccountSettingsArgs,
     WithdrawArgs,
 )
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus
@@ -613,7 +613,7 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             pass
 
         await api.subscribe("test.topic", test_handler)
@@ -641,7 +641,7 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             pass
 
         with structlog.testing.capture_logs() as captured_logs:
@@ -687,7 +687,7 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             pass
 
         # Test that subscribe uses _construct_subscription_payload
@@ -716,10 +716,10 @@ class TestExchangeAPIWebSocketOperations:
 
         api = exchange_api_with_di(ws_manager=mock_ws)
 
-        async def test_handler1(context: WebSocketContextUnion) -> None:
+        async def test_handler1(context: WebSocketContextProtocol) -> None:
             pass
 
-        async def test_handler2(context: WebSocketContextUnion) -> None:
+        async def test_handler2(context: WebSocketContextProtocol) -> None:
             pass
 
         # Subscribe to multiple topics
@@ -813,7 +813,7 @@ class TestExchangeAPIWebSocketOperations:
             ws_manager=mock_ws,
         )
 
-        async def test_handler(context: WebSocketContextUnion) -> None:
+        async def test_handler(context: WebSocketContextProtocol) -> None:
             pass
 
         # Subscribe to a topic

@@ -9,9 +9,9 @@ from pydantic import BaseModel, ConfigDict
 
 class CalculationMetadata(BaseModel):
     """Metadata for calculation results."""
-    
+
     model_config = ConfigDict(frozen=True)
-    
+
     calculation_timestamp: float = 0.0
     calculation_method: str = ""
     data_source: str = ""

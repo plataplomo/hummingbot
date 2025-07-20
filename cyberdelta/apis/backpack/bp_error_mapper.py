@@ -28,8 +28,8 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_error import BackpackRawApiError
 from cyberdelta.apis.base.validation_contexts import ErrorMappingContext
-from cyberdelta.apis.base.websocket_states import DataPresenceState
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
+from cyberdelta.apis.websocket.websocket_states import DataPresenceState
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -242,10 +242,7 @@ class BackpackErrorMapper(IErrorMapper):
     def _log_validation_error(self, e_val_specific: ValidationError) -> None:
         """Log validation error details."""
         class_name = self.__class__.__name__
-        has_errors_method = hasattr(e_val_specific, "errors")
-        errors_str = (
-            e_val_specific.errors(include_url=False) if has_errors_method else str(e_val_specific)
-        )
+        errors_str = e_val_specific.errors(include_url=False)
         exc_str = str(e_val_specific)
 
         logger.warning(

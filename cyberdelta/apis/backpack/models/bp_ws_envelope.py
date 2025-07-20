@@ -15,7 +15,7 @@ This module provides proper type-safe envelope validation before content process
 
 import re
 import time
-from typing import Any, cast
+from typing import Any
 
 from pydantic import (
     BaseModel,
@@ -29,7 +29,7 @@ from pydantic import (
 from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 
-from cyberdelta.apis.base.ws_validators import ExchangeSpecificValidators
+from cyberdelta.apis.backpack.bp_validators import BackpackValidators
 from cyberdelta.apis.exceptions import EmptyStringError
 from cyberdelta.config.structlog_config import get_logger
 
@@ -305,19 +305,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
             cls._validate_payload_size(v)
 
             # Call the normal validation chain
-            result = handler(v)
-
-            # Log successful validation for monitoring
-            duration = time.perf_counter() - start_time
-            if duration > VALIDATION_THRESHOLD_MS:
-                logger.debug(
-                    "data_validation_success",
-                    component="BackpackEnvelope",
-                    duration_ms=duration * 1000,
-                    size=len(v) if hasattr(v, "__len__") else 0,
-                )
-
-            return cast("dict[str, Any] | list[Any]", result)
+            result: dict[str, Any] | list[Any] = handler(v)
 
         except Exception as e:
             # Log validation failures with context for monitoring
@@ -330,6 +318,18 @@ class BackpackRawWebSocketEnvelope(BaseModel):
                 data_type=type(v).__name__,
             )
             raise
+        else:
+            # Log successful validation for monitoring
+            duration = time.perf_counter() - start_time
+            if duration > VALIDATION_THRESHOLD_MS:
+                logger.debug(
+                    "data_validation_success",
+                    component="BackpackEnvelope",
+                    duration_ms=duration * 1000,
+                    size=len(v),
+                )
+
+            return result
 
     @classmethod
     def _validate_payload_size(cls, v: dict[str, Any] | list[Any]) -> None:
@@ -348,44 +348,41 @@ class BackpackRawWebSocketEnvelope(BaseModel):
         This model validator performs cross-field validation to ensure
         stream type is consistent with data structure.
         """
-        if hasattr(self, "stream") and hasattr(self, "data"):
-            stream_type = self.stream.split(".")[0]
+        stream_type = self.stream.split(".")[0]
 
-            # Define expected data structures per stream type
-            data_expectations = {
-                "depth": dict,
-                "ticker": dict,
-                "trade": (dict, list),  # Can be either dict or list
-                "bookTicker": dict,
-                "markPrice": dict,
-                "openInterest": dict,
-                "kline": dict,
-                "liquidation": (dict, list),  # Can be either dict or list
-                "account": dict,  # Account streams always have dict data
-            }
+        # Define expected data structures per stream type
+        data_expectations = {
+            "depth": dict,
+            "ticker": dict,
+            "trade": (dict, list),  # Can be either dict or list
+            "bookTicker": dict,
+            "markPrice": dict,
+            "openInterest": dict,
+            "kline": dict,
+            "liquidation": (dict, list),  # Can be either dict or list
+            "account": dict,  # Account streams always have dict data
+        }
 
-            expected_types = data_expectations.get(stream_type)
-            if expected_types:
-                # Check if data is a dict when dict is expected
-                if expected_types is dict and not isinstance(self.data, dict):
+        expected_types = data_expectations.get(stream_type)
+        if expected_types:
+            # Check if data is a dict when dict is expected
+            if expected_types is dict and not isinstance(self.data, dict):
+                msg = f"Stream '{self.stream}' expects dict data, got {type(self.data).__name__}"
+                raise TypeError(msg)
+            # Check if data matches one of multiple allowed types
+            if isinstance(expected_types, tuple):
+                # For trade and liquidation streams that can be dict or list
+                is_valid = (dict in expected_types and isinstance(self.data, dict)) or (
+                    list in expected_types and isinstance(self.data, list)
+                )
+
+                if not is_valid:
+                    type_names = " or ".join(t.__name__ for t in expected_types)
                     msg = (
-                        f"Stream '{self.stream}' expects dict data, got {type(self.data).__name__}"
+                        f"Stream '{self.stream}' expects {type_names} data, "
+                        f"got {type(self.data).__name__}"
                     )
                     raise TypeError(msg)
-                # Check if data matches one of multiple allowed types
-                if isinstance(expected_types, tuple):
-                    # For trade and liquidation streams that can be dict or list
-                    is_valid = (dict in expected_types and isinstance(self.data, dict)) or (
-                        list in expected_types and isinstance(self.data, list)
-                    )
-
-                    if not is_valid:
-                        type_names = " or ".join(t.__name__ for t in expected_types)
-                        msg = (
-                            f"Stream '{self.stream}' expects {type_names} data, "
-                            f"got {type(self.data).__name__}"
-                        )
-                        raise TypeError(msg)
 
         return self
 
@@ -399,7 +396,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
             ValueError: If routing key cannot be determined from stream.
         """
         try:
-            routing_key, _ = ExchangeSpecificValidators.validate_backpack_topic(self.stream)
+            routing_key, _ = BackpackValidators.validate_backpack_topic(self.stream)
         except ValueError as e:
             msg = f"Cannot extract routing key from stream '{self.stream}': {e}"
             raise ValueError(msg) from e

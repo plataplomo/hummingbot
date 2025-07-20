@@ -18,11 +18,7 @@ from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginA
 
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.requires_balance,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.requires_balance]
 
 
 @pytest.mark.parametrize(

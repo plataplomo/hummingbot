@@ -21,7 +21,8 @@ from cyberdelta.apis.base.payload_serialization_strategy import (
 )
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
-from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper, MessageHandler
+from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
+from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.connectivity.connectivity_models import (
     HttpClientConfig,
     WebSocketManagerConfig,

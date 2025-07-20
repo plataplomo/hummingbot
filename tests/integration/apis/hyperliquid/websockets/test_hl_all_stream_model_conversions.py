@@ -20,7 +20,6 @@ from typing import Any, Protocol, TypeGuard, cast
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
@@ -30,6 +29,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsTradeEvent,
 )
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.models.market.order_book import OrderBook
@@ -101,7 +101,7 @@ class TestHyperliquidAllStreamModelConversions:
     async def _create_l2book_handler(self, received_orderbooks: list[OrderBook]) -> MessageHandler:
         """Create handler for l2Book stream messages."""
 
-        async def l2book_handler(context: WebSocketContextUnion) -> None:
+        async def l2book_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # ✅ Use the correct pattern: access domain_model directly from context
@@ -212,7 +212,7 @@ class TestHyperliquidAllStreamModelConversions:
     async def _create_hl_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
         """Create handler for Hyperliquid trades stream messages."""
 
-        async def trades_handler(context: WebSocketContextUnion) -> None:
+        async def trades_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # ✅ Use the correct pattern: access domain_model directly from context
@@ -388,7 +388,7 @@ class TestHyperliquidAllStreamModelConversions:
 
             received_mid_prices: list[MidPrices] = []
 
-            async def allmids_handler(context: WebSocketContextUnion) -> None:
+            async def allmids_handler(context: WebSocketContextProtocol) -> None:
                 """Handler that extracts MidPrices models from allMids data."""
                 await asyncio.sleep(0)  # Satisfy RUF029
 
@@ -498,7 +498,7 @@ class TestHyperliquidAllStreamModelConversions:
     async def _create_user_events_handler(self, received_orders: list[Any]) -> MessageHandler:
         """Create handler for user events stream messages."""
 
-        async def user_events_handler(context: WebSocketContextUnion) -> None:
+        async def user_events_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # ✅ Use the correct pattern: access domain_model directly from context
@@ -852,13 +852,15 @@ class TestHyperliquidAllStreamModelConversions:
         """Create handler for specific Hyperliquid stream type."""
         await asyncio.sleep(0)  # Satisfy RUF029
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             # Extract data from typed context
-            context_data = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            context_data: dict[str, Any] = {}
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -1047,7 +1049,7 @@ class TestHyperliquidAllStreamModelConversions:
     ) -> MessageHandler:
         """Create handler that tracks Hyperliquid model data for consistency."""
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # ✅ Use the correct pattern: access domain_model directly from context

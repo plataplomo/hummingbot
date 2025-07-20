@@ -106,7 +106,6 @@ class HyperliquidTradingRequestBuilder(
             asset_index = kwargs.get("asset_index", 0)
             if (
                 order_args
-                and hasattr(order_args, "model_dump")
                 and isinstance(order_args, PlaceOrderArgs)
                 and isinstance(asset_index, (int, str))
             ):
@@ -118,7 +117,6 @@ class HyperliquidTradingRequestBuilder(
             asset_index = kwargs.get("asset_index", 0)
             if (
                 cancel_args
-                and hasattr(cancel_args, "model_dump")
                 and isinstance(cancel_args, CancelOrderArgs)
                 and isinstance(asset_index, (int, str))
             ):

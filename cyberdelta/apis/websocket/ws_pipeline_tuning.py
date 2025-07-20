@@ -27,12 +27,12 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ValidationError
 
 # Import our configuration and performance modules
-from cyberdelta.apis.base.ws_config_inheritance import (
+from cyberdelta.apis.websocket.ws_config_inheritance import (
     ConfigurationContext,
     ConfigurationManager,
     PerformanceProfile,
 )
-from cyberdelta.apis.base.ws_performance_integration import (
+from cyberdelta.apis.websocket.ws_performance_integration import (
     WebSocketPerformanceProcessor,
 )
 

@@ -20,13 +20,13 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.base.ws_context import (
-    ExchangeType,
-    WebSocketContextUnion,
-    WebSocketMessageContext,
-)
 from cyberdelta.apis.common import APIError, MessageHandler
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_context import (
+    ExchangeType,
+    WebSocketMessageContext,
+)
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
@@ -39,12 +39,7 @@ from .ws_test_helpers import (
 )
 
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.websockets,
-    pytest.mark.error_handling,
-    pytest.mark.timing,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -164,7 +159,7 @@ class TestBackpackErrorHandlingArchitecture:
         for scenario_name, invalid_topic in invalid_subscription_scenarios:
             try:
 
-                async def test_handler(context: WebSocketContextUnion) -> None:
+                async def test_handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)
 
                 await bp_api_for_test_env.subscribe(invalid_topic, test_handler)
@@ -232,7 +227,7 @@ class TestBackpackErrorHandlingArchitecture:
     ) -> MessageHandler:
         """Create a handler that tracks and raises errors."""
 
-        async def error_tracking_handler(context: WebSocketContextUnion) -> None:
+        async def error_tracking_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
             handler_errors.append(error_to_raise)
             logger.info(
@@ -343,11 +338,13 @@ class TestBackpackErrorHandlingArchitecture:
             # Track successful operations
             successful_operations: list[dict[str, Any]] = []
 
-            async def recovery_test_handler(context: WebSocketContextUnion) -> None:
+            async def recovery_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 # Extract data from typed context for test purposes
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict):
@@ -442,7 +439,7 @@ class TestBackpackErrorHandlingArchitecture:
                 # Rule #6: No mocks - use real handler
                 handler_called = False
 
-                async def real_handler(context: WebSocketContextUnion) -> None:
+                async def real_handler(context: WebSocketContextProtocol) -> None:
                     nonlocal handler_called
                     await asyncio.sleep(0)
                     handler_called = True
@@ -578,7 +575,7 @@ class TestBackpackErrorHandlingArchitecture:
 
         subscription_errors = 0
 
-        async def subscription_error_handler(context: WebSocketContextUnion) -> None:
+        async def subscription_error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("subscription_error_handler_called", context=context)
 
@@ -667,12 +664,14 @@ class TestBackpackErrorHandlingArchitecture:
         successful_subscriptions = 0
         failed_subscriptions = 0
 
-        async def degradation_handler(context: WebSocketContextUnion) -> None:
+        async def degradation_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
             # Log context info
             context_info = []
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 if isinstance(data, dict):

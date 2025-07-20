@@ -19,10 +19,10 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -99,7 +99,7 @@ class TestHyperliquidWebSocketProcessorPipeline:
         received_data: list[Any] = []
         pydantic_models_found: list[str] = []
 
-        async def tracking_handler(context: WebSocketContextUnion) -> None:
+        async def tracking_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             received_data.append(context)
 
@@ -150,13 +150,15 @@ class TestHyperliquidWebSocketProcessorPipeline:
             test_symbol = markets[0].symbol
             domain_models_received: list[Any] = []
 
-            async def domain_model_handler(context: WebSocketContextUnion) -> None:
+            async def domain_model_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
                 # Check context for domain models
                 # Context is now a typed object, check its attributes
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     # Check if data contains domain models
                     data = context.validated_envelope.data
@@ -254,7 +256,7 @@ class TestHyperliquidWebSocketProcessorPipeline:
                 "final": [],
             }
 
-            async def pipeline_tracking_handler(context: WebSocketContextUnion) -> None:
+            async def pipeline_tracking_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
                 # This is the final stage
@@ -334,7 +336,7 @@ class TestHyperliquidWebSocketProcessorPipeline:
 
             successful_messages = 0
 
-            async def error_test_handler(context: WebSocketContextUnion) -> None:
+            async def error_test_handler(context: WebSocketContextProtocol) -> None:
                 nonlocal successful_messages
                 await asyncio.sleep(0)
                 successful_messages += 1
@@ -381,7 +383,7 @@ class TestHyperliquidWebSocketProcessorPipeline:
 
             processing_times: list[float] = []
 
-            async def performance_handler(context: WebSocketContextUnion) -> None:
+            async def performance_handler(context: WebSocketContextProtocol) -> None:
                 start_time = time.perf_counter()
                 await asyncio.sleep(0)  # Satisfy RUF029
                 # Simulate some processing
@@ -437,7 +439,7 @@ class TestHyperliquidWebSocketProcessorPipeline:
             async def make_stream_handler(stream_id: str) -> MessageHandler:
                 await asyncio.sleep(0)  # Satisfy RUF029
 
-                async def handler(context: WebSocketContextUnion) -> None:
+                async def handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)
                     async with stream_lock:
                         stream_counters[stream_id] = stream_counters.get(stream_id, 0) + 1

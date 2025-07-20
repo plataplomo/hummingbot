@@ -18,11 +18,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import SMALL_VALUE_T
 
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.requires_balance,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.requires_balance]
 
 
 @pytest.mark.parametrize(

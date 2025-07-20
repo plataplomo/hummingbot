@@ -20,10 +20,10 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Candle
 
@@ -114,10 +114,10 @@ class TestHyperliquidWebSocketUserEvents:
 
     def _create_user_events_handler(
         self, received_events: list[dict[str, Any]], event_received: asyncio.Event
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create user events handler with validation."""
 
-        async def user_events_handler(context: WebSocketContextUnion) -> None:
+        async def user_events_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             try:
@@ -129,8 +129,10 @@ class TestHyperliquidWebSocketUserEvents:
                     )
 
                 # Extract data from typed context
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict):
@@ -287,10 +289,10 @@ class TestHyperliquidWebSocketCandles:
 
     def _create_candle_handler(
         self, interval: str, received_candles: dict[str, list[dict[str, Any]]]
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create candle handler for specific interval."""
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             try:
@@ -544,10 +546,10 @@ class TestHyperliquidWebSocketComplexScenarios:
 
     def _create_multi_handler(
         self, channel: str, symbol: str, received_messages: dict[str, dict[str, list[Any]]]
-    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
+    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create handler for specific channel and symbol."""
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
 
             if symbol not in received_messages[channel]:
@@ -557,8 +559,10 @@ class TestHyperliquidWebSocketComplexScenarios:
 
             # Extract type from typed context
             message_type = "unknown"
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 if isinstance(data, dict):
@@ -590,7 +594,7 @@ class TestHyperliquidWebSocketComplexScenarios:
                 task = asyncio.create_task(hl_api.subscribe(topic, handler))
                 subscription_tasks.append((topic, task))
 
-        async def allmids_multi_handler(context: WebSocketContextUnion) -> None:
+        async def allmids_multi_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("allmids_in_multi_test", message_count=1)
 
@@ -657,12 +661,12 @@ class TestHyperliquidWebSocketComplexScenarios:
 
         handler_calls = {"handler1": 0, "handler2": 0}
 
-        async def handler1(context: WebSocketContextUnion) -> None:
+        async def handler1(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             handler_calls["handler1"] += 1
             logger.info("handler1_called", symbol=test_symbol)
 
-        async def handler2(context: WebSocketContextUnion) -> None:
+        async def handler2(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             handler_calls["handler2"] += 1
             logger.info("handler2_called", symbol=test_symbol)
@@ -702,7 +706,7 @@ class TestHyperliquidWebSocketComplexScenarios:
         # Get liquid symbols
         liquid_symbols = await get_liquid_trading_symbols(hl_api_for_test_env, min_count=2)
 
-        async def rapid_handler(context: WebSocketContextUnion) -> None:
+        async def rapid_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info("rapid_handler_message")
 

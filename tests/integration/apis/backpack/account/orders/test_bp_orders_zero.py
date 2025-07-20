@@ -35,9 +35,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
 # Mark all tests in this file
 pytestmark = [
     pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.orders,
-    pytest.mark.zero_orders,
+    pytest.mark.zero_balance,
 ]
 
 

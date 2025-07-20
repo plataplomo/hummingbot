@@ -3,7 +3,8 @@
 This module provides specific exception classes for connectivity errors to fix TRY003 violations.
 """
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class ContentTypeValidationError(APIError):

@@ -17,7 +17,6 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.exceptions.parsing import ParsingError
 from cyberdelta.apis.exceptions.websocket import InvalidWebSocketDataError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -26,6 +25,7 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper import
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import HyperliquidRawWsBookUpdate
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.structlog_config import get_logger
@@ -84,11 +84,12 @@ class LiveHyperliquidProof:
             return "METADATA_ONLY"
         return "UNKNOWN"
 
-    async def capture_live_hyperliquid_message(self, context: WebSocketContextUnion) -> None:
+    async def capture_live_hyperliquid_message(self, context: WebSocketContextProtocol) -> None:
         """Capture and analyze each live message from Hyperliquid."""
         try:
             if not (
                 hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
                 and hasattr(context.validated_envelope, "data")
             ):
                 return

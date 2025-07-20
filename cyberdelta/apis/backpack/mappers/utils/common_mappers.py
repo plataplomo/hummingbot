@@ -36,6 +36,7 @@ class BackpackCommonMappers:
 
     # Constants
     EXPECTED_SYMBOL_PARTS = 2
+    EXPECTED_PERP_SYMBOL_PARTS = 3
 
     @staticmethod
     def parse_decimal_safely(
@@ -91,13 +92,21 @@ class BackpackCommonMappers:
         Converts underscore-separated symbols to slash-separated format.
 
         Args:
-            symbol: Backpack format symbol (e.g., BTC_USDC)
+            symbol: Backpack format symbol (e.g., BTC_USDC or BTC_USDC_PERP)
 
         Returns:
-            Internal format symbol (e.g., BTC/USDC)
+            Internal format symbol (e.g., BTC/USDC or BTC/USDC/PERP)
         """
         if not symbol or "_" not in symbol:
             return symbol
+
+        # Handle PERP symbols specially
+        if symbol.endswith("_PERP"):
+            # For PERP symbols, keep the PERP suffix as is
+            parts = symbol.split("_")
+            if len(parts) == BackpackCommonMappers.EXPECTED_PERP_SYMBOL_PARTS:
+                return f"{parts[0]}/{parts[1]}/{parts[2]}"
+
         # Replace underscore with slash for internal format
         return symbol.replace("_", "/")
 
@@ -254,9 +263,21 @@ class BackpackCommonMappers:
             return False
         # Backpack symbols should contain underscore and be uppercase
         parts = symbol.split("_")
-        return (
+
+        # Accept both spot (BASE_QUOTE) and perp (BASE_QUOTE_PERP) formats
+        is_spot = (
             len(parts) == BackpackCommonMappers.EXPECTED_SYMBOL_PARTS
             and all(part.isalnum() and part.isupper() for part in parts)
             and len(parts[0]) > 0
             and len(parts[1]) > 0
         )
+
+        is_perp = (
+            len(parts) == BackpackCommonMappers.EXPECTED_PERP_SYMBOL_PARTS
+            and all(part.isalnum() and part.isupper() for part in parts)
+            and len(parts[0]) > 0
+            and len(parts[1]) > 0
+            and parts[2] == "PERP"
+        )
+
+        return is_spot or is_perp

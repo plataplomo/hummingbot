@@ -14,11 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
-from cyberdelta.apis.base.ws_context import (
-    BackpackMessageContext,
-    HyperliquidMessageContext,
-    WebSocketContextUnion,
-)
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 
 
 if TYPE_CHECKING:
@@ -54,7 +50,7 @@ class ControlMessageTransformer[T: BaseModel]:
     def transform(
         self,
         validated: T,
-        context: WebSocketContextUnion | None = None,
+        context: WebSocketContextProtocol | None = None,
     ) -> None:
         """Pass through control message without transformation.
 
@@ -85,7 +81,7 @@ class MapperTransformer[T: BaseModel, U: BaseModel]:
     def __init__(
         self,
         mapper_method: Callable[..., U | None],
-        context_extractor: Callable[[WebSocketContextUnion], dict[str, Any]] | None = None,
+        context_extractor: Callable[[WebSocketContextProtocol], dict[str, Any]] | None = None,
     ) -> None:
         """Initialize transformer with single-result mapper method.
 
@@ -96,7 +92,7 @@ class MapperTransformer[T: BaseModel, U: BaseModel]:
         self.mapper_method = mapper_method
         self.context_extractor = context_extractor
 
-    def transform(self, validated: T, context: WebSocketContextUnion | None = None) -> U | None:
+    def transform(self, validated: T, context: WebSocketContextProtocol | None = None) -> U | None:
         """Transform using mapper method with optional context extraction.
 
         Args:
@@ -125,7 +121,7 @@ class BatchMapperTransformer[T: BaseModel, U: BaseModel]:
     def __init__(
         self,
         mapper_method: Callable[..., list[U]],
-        context_extractor: Callable[[WebSocketContextUnion], dict[str, Any]] | None = None,
+        context_extractor: Callable[[WebSocketContextProtocol], dict[str, Any]] | None = None,
     ) -> None:
         """Initialize transformer with batch-result mapper method.
 
@@ -136,7 +132,7 @@ class BatchMapperTransformer[T: BaseModel, U: BaseModel]:
         self.mapper_method = mapper_method
         self.context_extractor = context_extractor
 
-    def transform(self, validated: T, context: WebSocketContextUnion | None = None) -> list[U]:
+    def transform(self, validated: T, context: WebSocketContextProtocol | None = None) -> list[U]:
         """Transform using mapper method with optional context extraction.
 
         Args:
@@ -164,7 +160,7 @@ class AsyncMapperTransformer[T: BaseModel, U]:
     def __init__(
         self,
         async_mapper_method: Callable[..., Awaitable[U]],
-        context_extractor: Callable[[WebSocketContextUnion], dict[str, Any]] | None = None,
+        context_extractor: Callable[[WebSocketContextProtocol], dict[str, Any]] | None = None,
     ) -> None:
         """Initialize async transformer with async mapper method.
 
@@ -175,7 +171,7 @@ class AsyncMapperTransformer[T: BaseModel, U]:
         self.async_mapper_method = async_mapper_method
         self.context_extractor = context_extractor
 
-    async def transform(self, validated: T, context: WebSocketContextUnion | None = None) -> U:
+    async def transform(self, validated: T, context: WebSocketContextProtocol | None = None) -> U:
         """Transform using async mapper method with optional context extraction.
 
         Args:
@@ -195,8 +191,10 @@ class AsyncMapperTransformer[T: BaseModel, U]:
 
 
 # Context extractor utility functions
-def extract_symbol_from_context(context: WebSocketContextUnion) -> dict[str, str]:
-    """Extract symbol parameter from context for Backpack transformers.
+def extract_symbol_from_context(context: WebSocketContextProtocol) -> dict[str, str]:
+    """Extract symbol parameter from context for transformers.
+
+    Uses the Protocol method for type-safe, exchange-agnostic extraction.
 
     Args:
         context: Typed context containing symbol information
@@ -207,18 +205,19 @@ def extract_symbol_from_context(context: WebSocketContextUnion) -> dict[str, str
     Raises:
         KeyError: If symbol is not found in context
     """
-    # Handle typed context
-    if isinstance(context, BackpackMessageContext):
-        if context.symbol:
-            return {"symbol": context.symbol}
-        raise SymbolNotFoundError
+    # Use the Protocol method for exchange-agnostic extraction
+    symbol_param = context.get_symbol_param()
+    if symbol_param:
+        return symbol_param
 
-    # For other context types, symbol might not be available
+    # No symbol available for this context
     raise SymbolNotFoundError
 
 
-def extract_coin_from_context(context: WebSocketContextUnion) -> dict[str, str]:
-    """Extract coin parameter from context for Hyperliquid transformers.
+def extract_coin_from_context(context: WebSocketContextProtocol) -> dict[str, str]:
+    """Extract coin parameter from context for transformers.
+
+    Uses the Protocol method for type-safe, exchange-agnostic extraction.
 
     Args:
         context: Typed context containing coin information
@@ -229,20 +228,36 @@ def extract_coin_from_context(context: WebSocketContextUnion) -> dict[str, str]:
     Raises:
         KeyError: If coin is not found in context
     """
-    # Handle typed context
-    if isinstance(context, HyperliquidMessageContext):
-        # Hyperliquid uses symbol field for coin
-        if context.symbol:
-            return {"coin": context.symbol}
-        # Try computed field - mypy doesn't understand computed_field well
-        # so we need to help it with type annotations
-        coin_value: str | None = context.coin  # type: ignore[assignment]
-        if coin_value:
-            return {"coin": coin_value}
-        raise CoinNotFoundError
+    # Use the Protocol method for exchange-agnostic extraction
+    coin_param = context.get_coin_param()
+    if coin_param:
+        return coin_param
 
-    # For other context types, coin might not be available
+    # No coin available for this context
     raise CoinNotFoundError
+
+
+def extract_transformer_params(context: WebSocketContextProtocol) -> dict[str, str]:
+    """Extract all transformer parameters from context.
+
+    Uses the Protocol method for type-safe, exchange-agnostic extraction.
+    This is the most flexible approach as it returns all parameters
+    that the exchange deems necessary for transformation.
+
+    Args:
+        context: Typed context containing transformer parameters
+
+    Returns:
+        Dictionary with all transformer parameters for the exchange
+
+    Raises:
+        KeyError: If no parameters are available
+    """
+    params = context.get_transformer_params()
+    if not params:
+        msg = "No transformer parameters available"
+        raise KeyError(msg)
+    return params
 
 
 def no_context_extraction(context: dict[str, Any]) -> dict[str, Any]:

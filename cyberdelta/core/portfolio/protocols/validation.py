@@ -13,18 +13,18 @@ if TYPE_CHECKING:
 @runtime_checkable
 class Validatable(Protocol):
     """Protocol for objects that can validate themselves.
-    
+
     This protocol defines the interface for objects that can:
     - Perform self-validation
     - Return structured validation results
     - Integrate with Pydantic validation systems
-    
+
     Note: Uses validate_state() to avoid conflict with Pydantic's validate() classmethod
     """
-    
+
     def validate_state(self) -> ValidationResult:
         """Validate the object and return validation results.
-        
+
         Returns:
             ValidationResult containing validation status and any errors/warnings
         """
@@ -34,24 +34,24 @@ class Validatable(Protocol):
 @runtime_checkable
 class ValidationServiceProtocol(Protocol):
     """Protocol for validation services."""
-    
+
     async def validate_trade(self, trade: Trade) -> ValidationResult:
         """Validate a trade.
-        
+
         Args:
             trade: Trade to validate
-            
+
         Returns:
             ValidationResult with validation status
         """
         ...
-    
+
     async def validate_portfolio_state(self, state: PortfolioState) -> ValidationResult:
         """Validate portfolio state.
-        
+
         Args:
             state: Portfolio state to validate
-            
+
         Returns:
             ValidationResult with validation status
         """

@@ -21,11 +21,7 @@ from cyberdelta.core.models.margin_account import MarginAccountSummary
 logger = get_logger(__name__)
 
 # Mark all tests in this file
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.account,
-    pytest.mark.balances,
-]
+pytestmark = [pytest.mark.integration]
 
 
 @pytest.mark.parametrize(

@@ -3,25 +3,23 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.base.ws_context import (
-    BackpackMessageContext,
-    ExchangeType,
-    WebSocketContextUnion,
-)
-from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
-from cyberdelta.apis.base.ws_processor import (
+from cyberdelta.apis.websocket.ws_context import ExchangeType
+from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,
     SimpleDictTransformer,
     ValidationMetrics,
 )
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 
 
 class MessageModel(BaseModel):
@@ -44,7 +42,7 @@ class TestTransformer:
     """Test transformer for converting MessageModel to DomainModel."""
 
     def transform(
-        self, validated: MessageModel, context: WebSocketContextUnion | None = None
+        self, validated: MessageModel, context: WebSocketContextProtocol | None = None
     ) -> DomainModel:
         """Transform test message to domain model."""
         return DomainModel(
@@ -58,7 +56,7 @@ class FailingTransformer:
     """Transformer that always fails for testing error handling."""
 
     def transform(
-        self, validated: MessageModel, context: WebSocketContextUnion | None = None
+        self, validated: MessageModel, context: WebSocketContextProtocol | None = None
     ) -> DomainModel:
         """Always raise an exception."""
         raise ValueError("Transformation failed")
@@ -161,7 +159,7 @@ class TestPydanticWebSocketProcessor:
         )
 
         # Execute
-        await processor.process(payload, handler, context)
+        await processor.process(payload, handler, cast(WebSocketContextProtocol, context))
 
         # Verify
         handler.assert_called_once()
@@ -220,7 +218,7 @@ class TestPydanticWebSocketProcessor:
         )
 
         # Execute
-        await processor.process(invalid_payload, handler, context)
+        await processor.process(invalid_payload, handler, cast(WebSocketContextProtocol, context))
 
         # Verify
         handler.assert_not_called()
@@ -267,7 +265,7 @@ class TestPydanticWebSocketProcessor:
         )
 
         # Execute
-        await processor.process(payload, handler, context)
+        await processor.process(payload, handler, cast(WebSocketContextProtocol, context))
 
         # Verify
         handler.assert_not_called()
@@ -301,7 +299,7 @@ class TestPydanticWebSocketProcessor:
         )
 
         # Execute
-        await processor.process(payload, handler, context)
+        await processor.process(payload, handler, cast(WebSocketContextProtocol, context))
 
         # Verify
         handler.assert_called_once()
@@ -344,7 +342,7 @@ class TestPydanticWebSocketProcessor:
         )
 
         # Execute - should not raise exception
-        await processor.process(payload, handler, context)
+        await processor.process(payload, handler, cast(WebSocketContextProtocol, context))
 
         # Verify handler was not called
         handler.assert_not_called()

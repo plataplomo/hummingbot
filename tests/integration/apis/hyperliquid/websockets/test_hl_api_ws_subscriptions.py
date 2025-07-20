@@ -17,10 +17,10 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -90,12 +90,14 @@ class TestHyperliquidWebSocketSubscriptions:
 
             def create_l2book_handler(
                 current_symbol: str, messages_list: list[dict[str, Any]]
-            ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
-                async def handler(context: WebSocketContextUnion) -> None:
+            ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
+                async def handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)  # Satisfy RUF029
                     # Extract data from typed context for test purposes
-                    if hasattr(context, "validated_envelope") and hasattr(
-                        context.validated_envelope, "data"
+                    if (
+                        hasattr(context, "validated_envelope")
+                        and context.validated_envelope is not None
+                        and hasattr(context.validated_envelope, "data")
                     ):
                         data = context.validated_envelope.data
                         if isinstance(data, dict):
@@ -160,12 +162,14 @@ class TestHyperliquidWebSocketSubscriptions:
 
             def create_trades_handler(
                 current_symbol: str, messages_list: list[dict[str, Any]]
-            ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
-                async def handler(context: WebSocketContextUnion) -> None:
+            ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
+                async def handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)  # Satisfy RUF029
                     # Extract data from typed context for test purposes
-                    if hasattr(context, "validated_envelope") and hasattr(
-                        context.validated_envelope, "data"
+                    if (
+                        hasattr(context, "validated_envelope")
+                        and context.validated_envelope is not None
+                        and hasattr(context.validated_envelope, "data")
                     ):
                         data = context.validated_envelope.data
                         if isinstance(data, dict):
@@ -211,11 +215,13 @@ class TestHyperliquidWebSocketSubscriptions:
         """Test allMids subscription (Hyperliquid-specific feature)."""
         allmids_messages: list[dict[str, Any]] = []
 
-        async def allmids_handler(context: WebSocketContextUnion) -> None:
+        async def allmids_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             # Extract data from typed context for test purposes
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 if isinstance(data, dict):
@@ -279,12 +285,14 @@ class TestHyperliquidWebSocketSubscriptions:
 
             def create_candle_handler(
                 sym: str, intv: str, messages_list: list[dict[str, Any]]
-            ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
-                async def handler(context: WebSocketContextUnion) -> None:
+            ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
+                async def handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)  # Satisfy RUF029
                     # Extract data from typed context for test purposes
-                    if hasattr(context, "validated_envelope") and hasattr(
-                        context.validated_envelope, "data"
+                    if (
+                        hasattr(context, "validated_envelope")
+                        and context.validated_envelope is not None
+                        and hasattr(context.validated_envelope, "data")
                     ):
                         data = context.validated_envelope.data
                         if isinstance(data, dict):
@@ -351,14 +359,16 @@ class TestHyperliquidWebSocketSubscriptions:
 
         def multi_channel_handler(
             channel: str,
-        ) -> Callable[[WebSocketContextUnion], Awaitable[None]]:
+        ) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
             """Create handler for specific channel."""
 
-            async def handler(context: WebSocketContextUnion) -> None:
+            async def handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 # Extract data from typed context for test purposes
-                if hasattr(context, "validated_envelope") and hasattr(
-                    context.validated_envelope, "data"
+                if (
+                    hasattr(context, "validated_envelope")
+                    and context.validated_envelope is not None
+                    and hasattr(context.validated_envelope, "data")
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict):
@@ -413,7 +423,7 @@ class TestHyperliquidWebSocketSubscriptions:
     ) -> None:
         """Test subscription error handling with various invalid inputs."""
 
-        async def error_handler(context: WebSocketContextUnion) -> None:
+        async def error_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "error_handler_message_received",
@@ -475,7 +485,7 @@ class TestHyperliquidWebSocketSubscriptions:
         if not test_symbol:
             pytest.fail("No symbols available for topic parsing testing")
 
-        async def parsing_handler(context: WebSocketContextUnion) -> None:
+        async def parsing_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
             logger.info(
                 "parsing_handler_message_received",
@@ -528,10 +538,10 @@ class TestHyperliquidWebSocketSubscriptions:
 
         subscription_states: dict[str, bool] = {}
 
-        def state_handler(topic: str) -> Callable[[WebSocketContextUnion], Awaitable[None]]:
+        def state_handler(topic: str) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
             """Create state tracking handler."""
 
-            async def handler(context: WebSocketContextUnion) -> None:
+            async def handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)  # Satisfy RUF029
                 subscription_states[topic] = True
                 logger.info(

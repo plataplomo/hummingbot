@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.apis.base.ws_error_recovery import (
+from cyberdelta.apis.websocket.ws_error_recovery import (
     BackoffConfig,
     CircuitBreakerConfig,
     ConnectionState,

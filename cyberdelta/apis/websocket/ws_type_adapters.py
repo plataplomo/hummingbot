@@ -17,18 +17,19 @@ from typing import Any, Protocol, TypeVar, cast
 
 from pydantic import TypeAdapter
 
-# Import discriminated union types
-from cyberdelta.apis.base.ws_discriminated_unions import (
-    DiscriminatedBackpackEnvelope,
-    DiscriminatedHyperliquidEnvelope,
-    DiscriminatedHyperliquidUserEvent,
-    WebSocketEnvelopeUnion,
-)
 from cyberdelta.apis.connectivity.json_security import secure_json_loads
 
 # Import financial models for adapter creation
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
+)
+
+# Import discriminated union types
+from cyberdelta.apis.websocket.ws_discriminated_unions import (
+    DiscriminatedBackpackEnvelope,
+    DiscriminatedHyperliquidEnvelope,
+    DiscriminatedHyperliquidUserEvent,
+    WebSocketEnvelopeUnion,
 )
 
 

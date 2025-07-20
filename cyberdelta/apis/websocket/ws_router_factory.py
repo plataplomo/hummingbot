@@ -9,21 +9,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from cyberdelta.apis.base.ws_context import ExchangeType
-from cyberdelta.apis.base.ws_error_recovery import ErrorRecoveryConfig
-from cyberdelta.apis.base.ws_memory_config import (
+from cyberdelta.apis.websocket.ws_context import ExchangeType
+from cyberdelta.apis.websocket.ws_error_recovery import ErrorRecoveryConfig
+from cyberdelta.apis.websocket.ws_memory_config import (
     MemoryOptimizationConfig,
     PerformanceMode,
     PerformanceModePresets,
     get_recommended_mode_for_scenario,
 )
-from cyberdelta.apis.base.ws_metrics import WebSocketMetricsCollector
-from cyberdelta.apis.base.ws_validators import WebSocketPayloadValidators
+from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 
 
 logger = get_logger(__name__)

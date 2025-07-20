@@ -11,20 +11,6 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
-# Type safety imports for future enhancement
-from cyberdelta.apis.base.ws_context import (
-    ExchangeType,
-    WebSocketContextUnion,
-)
-from cyberdelta.apis.base.ws_processor import (
-    PydanticWebSocketProcessor,
-)
-from cyberdelta.apis.base.ws_router import BaseWebSocketRouter, EnvelopeValidatorNotSetError
-from cyberdelta.apis.base.ws_transformer import (
-    BatchMapperTransformer,
-    ControlMessageTransformer,
-    MapperTransformer,
-)
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMids,
@@ -53,6 +39,20 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
+
+# Type safety imports for future enhancement
+from cyberdelta.apis.websocket.ws_context import ExchangeType
+from cyberdelta.apis.websocket.ws_processor import (
+    PydanticWebSocketProcessor,
+)
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter, EnvelopeValidatorNotSetError
+from cyberdelta.apis.websocket.ws_transformer import (
+    BatchMapperTransformer,
+    ControlMessageTransformer,
+    MapperTransformer,
+)
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.core.models import DerivativePosition, Order, OrderBook, Trade
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.mid_prices import MidPrices
@@ -60,7 +60,6 @@ from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.base.ws_error_handler import BaseErrorHandler
     from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
         BalanceMapperProtocol,
         HistoricalDataMapperProtocol,
@@ -70,6 +69,7 @@ if TYPE_CHECKING:
         PriceTickerMapperProtocol,
         TransactionMapperProtocol,
     )
+    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
     from cyberdelta.core.models import Order
 
 
@@ -114,6 +114,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
     def __init__(
         self,
         error_handler: BaseErrorHandler,
+        typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
         price_ticker_mapper: PriceTickerMapperProtocol,
         balance_mapper: BalanceMapperProtocol,
@@ -126,6 +127,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         Args:
             error_handler: Error handler for centralized error management.
+            typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book and trade transformations.
             price_ticker_mapper: Mapper for price ticker transformations.
             balance_mapper: Mapper for balance transformations.
@@ -154,6 +156,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             exchange_name="hyperliquid",
             exchange_type=ExchangeType.HYPERLIQUID,
             error_handler=error_handler,
+            typed_processor=typed_processor,
             envelope_validator=validate_hyperliquid_envelope,
         )
 
@@ -399,7 +402,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             channel="candle",
             subscribed_topics=list(subscribed_topics),
             envelope_data_type=type(envelope.data).__name__,
-            has_data_attr=hasattr(envelope, "data"),
+            has_data_attr=True,  # HyperliquidWebSocketMessage always has data attribute
             message="Attempting to route candle message",
         )
 
@@ -522,9 +525,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
     async def _enhance_typed_context(
         self,
-        context: WebSocketContextUnion,
+        context: WebSocketContextProtocol,
         routing_key: str,
-    ) -> WebSocketContextUnion:
+    ) -> WebSocketContextProtocol:
         """Enhance typed context with Hyperliquid-specific data.
 
         The typed context already includes computed fields for coin extraction

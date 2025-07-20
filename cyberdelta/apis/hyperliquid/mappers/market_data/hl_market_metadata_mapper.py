@@ -308,7 +308,7 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
             )
             raise MarketTransformationError(
                 reason=str(e),
-                symbol=asset_def.name if hasattr(asset_def, "name") else None,
+                symbol=asset_def.name,  # name is a required field in HyperliquidRawAssetDefinition
                 original_error=e,
             ) from e
         else:

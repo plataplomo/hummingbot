@@ -4,7 +4,7 @@ This module provides a registry for managing domain-specific response handlers,
 enabling loose coupling and consistent response processing across services.
 """
 
-from typing import Any, Protocol, cast
+from typing import Protocol
 
 from cyberdelta.apis.base.registry_interface import BaseComponentRegistry
 from cyberdelta.config.structlog_config import get_logger
@@ -276,9 +276,9 @@ class HyperliquidResponseHandlerRegistry(BaseComponentRegistry[IResponseHandler]
                     return self._handler.handle_response(response, status_code, headers, context)
                 except Exception as e:
                     # Try to map the error using the exchange-specific mapper
-                    if hasattr(self._error_mapper, "map_response_error"):
-                        error_mapper = cast(Any, self._error_mapper)
-                        mapped_error = error_mapper.map_response_error(e, status_code, context)
+                    map_response_error = getattr(self._error_mapper, "map_response_error", None)
+                    if map_response_error is not None:
+                        mapped_error = map_response_error(e, status_code, context)
                         raise mapped_error from e
                     # If no mapping available, re-raise original error
                     raise

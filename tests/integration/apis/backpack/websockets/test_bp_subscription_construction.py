@@ -27,18 +27,13 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackWsSignatureComponents,
 )
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.websockets,
-    pytest.mark.subscription_construction,
-    pytest.mark.timing,
-]
+pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 logger = get_logger(__name__)
 
@@ -83,16 +78,18 @@ class TestBackpackSubscriptionConstruction:
 
                     def create_test_handler(
                         current_topic: str,
-                    ) -> Callable[[WebSocketContextUnion], Coroutine[Any, Any, None]]:
-                        async def handler(context: WebSocketContextUnion) -> None:
+                    ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
+                        async def handler(context: WebSocketContextProtocol) -> None:
                             nonlocal received_data
                             await asyncio.sleep(0)
                             received_data = True
 
                             # Extract data from typed context if needed
-                            context_data = {}
-                            if hasattr(context, "validated_envelope") and hasattr(
-                                context.validated_envelope, "data"
+                            context_data: dict[str, Any] = {}
+                            if (
+                                hasattr(context, "validated_envelope")
+                                and context.validated_envelope is not None
+                                and hasattr(context.validated_envelope, "data")
                             ):
                                 data = context.validated_envelope.data
                                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -182,13 +179,15 @@ class TestBackpackSubscriptionConstruction:
     def _create_auth_test_handler(self, topic: str) -> MessageHandler:
         """Create a test handler for authenticated topics."""
 
-        async def handler(context: WebSocketContextUnion) -> None:
+        async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
             # Extract data from typed context
-            context_data = {}
-            if hasattr(context, "validated_envelope") and hasattr(
-                context.validated_envelope, "data"
+            context_data: dict[str, Any] = {}
+            if (
+                hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
+                and hasattr(context.validated_envelope, "data")
             ):
                 data = context.validated_envelope.data
                 context_data = data if isinstance(data, dict) else {"data": data}
@@ -308,7 +307,7 @@ class TestBackpackSubscriptionConstruction:
 
         for topic, should_succeed, description in topic_test_cases:
 
-            async def validation_test_handler(context: WebSocketContextUnion) -> None:
+            async def validation_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             try:
@@ -359,7 +358,7 @@ class TestBackpackSubscriptionConstruction:
                 await bp_api_for_test_env.connect_websocket()
 
             # Test that subscription works (payload construction succeeds)
-            async def immutability_test_handler(context: WebSocketContextUnion) -> None:
+            async def immutability_test_handler(context: WebSocketContextProtocol) -> None:
                 await asyncio.sleep(0)
 
             await bp_api_for_test_env.subscribe(topic, immutability_test_handler)
@@ -406,7 +405,7 @@ class TestBackpackSubscriptionConstruction:
         for i in range(iterations):
             try:
                 # Create unique handler for each subscription
-                async def unique_handler(context: WebSocketContextUnion) -> None:
+                async def unique_handler(context: WebSocketContextProtocol) -> None:
                     await asyncio.sleep(0)
 
                 # Subscribe (this constructs the payload)

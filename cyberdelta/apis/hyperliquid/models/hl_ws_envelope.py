@@ -275,7 +275,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
                     "hl_data_validation_success",
                     component="HyperliquidEnvelope",
                     duration_ms=duration * 1000,
-                    size=len(v) if hasattr(v, "__len__") else 0,
+                    size=len(v),
                 )
             return result
 
@@ -332,23 +332,22 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         This model validator performs cross-field validation to ensure
         channel type is consistent with data structure.
         """
-        if hasattr(self, "channel") and hasattr(self, "data"):
-            # Define expected data structures per channel type
-            data_expectations: dict[str, type | tuple[type, ...]] = {
-                "l2Book": dict,  # L2 book updates are always dict
-                "trades": (dict, list),  # Trades can be single dict or list of dicts
-                "userEvents": dict,  # User events are always dict with event arrays
-                "allMids": (dict, list),  # All mids can be dict or list
-                "notification": dict,  # Notifications are always dict
-                "webData2": (dict, list),  # Web data can be dict or list
-            }
+        # Define expected data structures per channel type
+        data_expectations: dict[str, type | tuple[type, ...]] = {
+            "l2Book": dict,  # L2 book updates are always dict
+            "trades": (dict, list),  # Trades can be single dict or list of dicts
+            "userEvents": dict,  # User events are always dict with event arrays
+            "allMids": (dict, list),  # All mids can be dict or list
+            "notification": dict,  # Notifications are always dict
+            "webData2": (dict, list),  # Web data can be dict or list
+        }
 
-            expected_types = data_expectations.get(self.channel)
-            if expected_types:
-                self._validate_data_type(expected_types)
+        expected_types = data_expectations.get(self.channel)
+        if expected_types:
+            self._validate_data_type(expected_types)
 
-            # Additional validation for specific channels
-            self._validate_channel_specific_fields()
+        # Additional validation for specific channels
+        self._validate_channel_specific_fields()
 
         return self
 

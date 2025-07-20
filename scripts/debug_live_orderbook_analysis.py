@@ -22,10 +22,10 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawDepthUpdateEvent
-from cyberdelta.apis.base.ws_context import WebSocketContextUnion
 from cyberdelta.apis.exceptions.parsing import MsgpackSerializationError
 from cyberdelta.apis.exceptions.websocket import InvalidWebSocketDataError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.structlog_config import get_logger
@@ -74,11 +74,12 @@ class LiveExchangeProof:
             return "INCREMENTAL_EMPTY"
         return "UNKNOWN"
 
-    async def capture_live_message(self, context: WebSocketContextUnion) -> None:
+    async def capture_live_message(self, context: WebSocketContextProtocol) -> None:
         """Capture and analyze each live message from Backpack."""
         try:
             if not (
                 hasattr(context, "validated_envelope")
+                and context.validated_envelope is not None
                 and hasattr(context.validated_envelope, "data")
             ):
                 return

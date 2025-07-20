@@ -6,7 +6,8 @@ operation failures, and service-specific errors.
 
 from datetime import UTC, datetime
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class ServiceParameterError(APIError):

@@ -20,18 +20,19 @@ from typing import Any, NoReturn
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.connectivity.json_security import secure_json_loads
+
 # Import performance components
-from cyberdelta.apis.base.ws_discriminated_unions import (
+from cyberdelta.apis.websocket.ws_discriminated_unions import (
     WebSocketEnvelopeUnion,
     detect_and_add_discriminator,
     validate_envelope_ultra_fast,
 )
-from cyberdelta.apis.base.ws_type_adapters import (
+from cyberdelta.apis.websocket.ws_type_adapters import (
     StreamingValidationAdapter,
     ValidationBenchmark,
     WebSocketTypeAdapters,
 )
-from cyberdelta.apis.connectivity.json_security import secure_json_loads
 
 
 class PerformanceMode:

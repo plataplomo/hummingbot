@@ -309,10 +309,9 @@ class HyperliquidRawWsFillEvent(BaseModel):
         # Validate timestamp consistency with order ID
         # Order IDs typically increase over time, so newer fills should have higher OIDs
         # This is a heuristic check, not strict validation
-        if hasattr(self, "oid") and hasattr(self, "time"):
-            # Basic sanity check: very old timestamps with very high order IDs might be suspicious
-            # This is just a warning-level validation
-            pass
+        # Both oid and time are required fields, so they always exist
+        # Basic sanity check: very old timestamps with very high order IDs might be suspicious
+        # This is just a warning-level validation
 
         return self
 

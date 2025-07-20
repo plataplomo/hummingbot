@@ -18,7 +18,7 @@ from .validation import Validatable
 @runtime_checkable
 class ValidationServiceProtocol(Protocol):
     """Protocol for validation services."""
-    
+
     def validate(self, obj: BaseStateModel) -> bool:
         """Validate an object."""
         ...
@@ -26,7 +26,7 @@ class ValidationServiceProtocol(Protocol):
 
 __all__ = [
     "AsyncLockProtocol",
-    "EventHandler", 
+    "EventHandler",
     "HealthCheckable",
     "Initializable",
     "MetricsCollectorProtocol",

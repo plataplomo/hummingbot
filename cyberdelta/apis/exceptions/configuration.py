@@ -4,7 +4,8 @@ These configuration exceptions are used exclusively within API modules
 and inherit from APIError to maintain proper error handling hierarchy.
 """
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.api_error_codes import APIErrorCode
 
 
 class TestnetConfigurationError(APIError):

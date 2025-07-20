@@ -4,7 +4,7 @@ These exceptions handle errors that occur during data transformation
 in mapper classes. They extend TransformationError (Layer 3).
 """
 
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.common.api_error import TransformationError
 
 
 class UnknownEnumError(TransformationError):

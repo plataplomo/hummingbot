@@ -6,7 +6,7 @@ and decorator-specific errors.
 
 from decimal import Decimal
 
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.common.api_error import TransformationError
 
 
 class SecurityValidationError(TransformationError):
