@@ -46,7 +46,7 @@ def test_valid_order_status_response() -> None:
     assert obj.order is not None
     assert obj.order.order.oid == 12345
     assert obj.order.order.coin == "ETH"
-    assert obj.order.order.limit_px == "2000.50"  # Keep original precision
+    assert obj.order.order.limit_px == "2000.5"  # Decimal normalization removes trailing zeros
     assert obj.order.order.sz == "0.5"
     assert obj.order.order.side == "B"
     assert obj.status == "open"  # Status is on the parent object
@@ -68,16 +68,31 @@ def test_invalid_order_structure() -> None:
     # Create a copy and invalidate a field within the nested order dict
     invalid_order_data = VALID_RAW_ORDER_DATA.copy()
     invalid_order_data["limitPx"] = "invalid-price"  # Invalid format
-    invalid_data = {"order": invalid_order_data}
+    invalid_data = {
+        "status": "open",
+        "order": {
+            "order": invalid_order_data,
+            "status": "open", 
+            "statusTimestamp": 1700000000000,
+        },
+    }
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data)
-    assert "order.limitPx" in str(exc_info.value)  # Check nested error path
+    assert "order.order.limitPx" in str(exc_info.value)  # Check nested error path
     assert "Cannot convert to Decimal" in str(exc_info.value)
 
 
 def test_extra_field_forbidden() -> None:
     """Test validation fails if extra fields are provided at the top level."""
-    invalid_data = {"order": VALID_RAW_ORDER_DATA, "extra_field": 123}
+    invalid_data = {
+        "status": "open",
+        "order": {
+            "order": VALID_RAW_ORDER_DATA,
+            "status": "open",
+            "statusTimestamp": 1700000000000,
+        },
+        "extra_field": 123,
+    }
     with pytest.raises(ValidationError) as exc_info:
         HyperliquidRawOrderStatusResponse.model_validate(invalid_data)
     assert "Extra inputs are not permitted" in str(exc_info.value)
@@ -86,7 +101,14 @@ def test_extra_field_forbidden() -> None:
 
 def test_frozen_instance() -> None:
     """Test that the validated instance is frozen."""
-    valid_data = {"order": VALID_RAW_ORDER_DATA}
+    valid_data = {
+        "status": "open",
+        "order": {
+            "order": VALID_RAW_ORDER_DATA,
+            "status": "open",
+            "statusTimestamp": 1700000000000,
+        },
+    }
     obj = HyperliquidRawOrderStatusResponse.model_validate(valid_data)
     with pytest.raises(ValidationError) as exc_info:
         obj.order = None  # type: ignore # Attempt invalid assignment

@@ -188,13 +188,13 @@ class TestHyperliquidSignL1Action:
             headers=None,
         )
 
-        # Check that order_type fields are preserved as provided
-        # (business logic doesn't remove None values)
+        # Check that order_type fields with None values are cleaned out
+        # (business logic removes None values during payload cleaning)
         assert result.data is not None
         processed_order = result.data["action"]["orders"][0]
-        assert "limit" in processed_order["order_type"]
-        assert processed_order["order_type"]["limit"] is None
+        assert "limit" not in processed_order["order_type"]  # None values are removed
         assert "market" in processed_order["order_type"]
+        assert processed_order["order_type"]["market"]["sz_decimals"] == 2
 
     @pytest.mark.asyncio
     async def test_action_hash_calculation(

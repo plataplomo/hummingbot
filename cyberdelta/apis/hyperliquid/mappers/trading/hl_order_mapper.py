@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, NoReturn, TypedDict
+from typing import Any, NoReturn, TypedDict, cast
 
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
@@ -195,8 +195,44 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         Returns:
             Order domain model
         """
+        # Extract trigger info if present in the order type dict
+        trigger = None
+        if "trigger" in raw_order.order_type:
+            trigger_data = raw_order.order_type["trigger"]
+            # Validate that trigger_data is a dict before unpacking
+            if isinstance(trigger_data, dict):
+                # Create a trigger info object from the dict with proper type conversion
+                # Use direct key access with get() and default values
+                try:
+                    # The trigger_data is guaranteed to be a dict[str, object] here
+                    trigger_dict = cast(dict[str, Any], trigger_data)
+                    trigger_px = trigger_dict.get("triggerPx")
+                    is_market = trigger_dict.get("isMarket")
+                    tpsl_value = trigger_dict.get("tpsl")
+
+                    if all(x is not None for x in [trigger_px, is_market, tpsl_value]):
+                        try:
+                            trigger = HyperliquidRawTriggerInfo(
+                                triggerPx=str(trigger_px),
+                                isMarket=bool(is_market),
+                                tpsl=str(tpsl_value),
+                            )
+                        except (TypeError, ValueError) as e:
+                            logger.warning(
+                                "trigger_info_creation_failed",
+                                component="HyperliquidOrderMapper",
+                                action="transform_raw_order_to_internal",
+                                error=str(e),
+                                trigger_keys=list(trigger_dict.keys()) if trigger_dict else [],
+                                message="Trigger info creation failed, continuing without trigger",
+                            )
+                            # trigger remains None, which is acceptable - order processing continues
+                except (TypeError, AttributeError):
+                    # If casting or access fails, trigger remains None
+                    pass
+
         # Delegate to existing implementation
-        return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(raw_order)
+        return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(raw_order, trigger)
 
     @staticmethod
     def _transform_raw_order_to_internal_impl(
@@ -775,6 +811,14 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             raw_historical_order.orig_sz,
             allow_none=False,
             field_name="orig_sz",
+        )
+
+        # Ensure quantity_requested is not None
+        HyperliquidOrderMapper._ensure_quantity_not_none(
+            quantity_requested,
+            field_name="orig_sz",
+            context="HyperliquidRawHistoricalOrder",
+            raw_data=raw_historical_order.model_dump(),
         )
 
         # For historical orders, calculate filled quantity from original size and remaining

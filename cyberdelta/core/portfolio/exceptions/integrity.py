@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any, Unpack
 
 from cyberdelta.core.portfolio.exceptions.base import PortfolioError
 from cyberdelta.core.portfolio.exceptions.service import ServiceError
-from cyberdelta.core.portfolio.exceptions.state import StateError
 
 
 if TYPE_CHECKING:
@@ -701,10 +700,4 @@ class InvalidServiceTimeoutError(ServiceError):
         )
 
 
-# State-specific exceptions
-class ContainerSizeLimitExceededError(StateError):
-    """Raised when container size limit is exceeded."""
-
-    def __init__(self, max_size: int, **kwargs: Unpack[ExceptionKwargs]) -> None:
-        """Initialize container size limit exceeded exception."""
-        super().__init__(f"Container size limit exceeded: {max_size}", **kwargs)
+# NOTE: ContainerSizeLimitExceededError moved to state.py to avoid circular imports

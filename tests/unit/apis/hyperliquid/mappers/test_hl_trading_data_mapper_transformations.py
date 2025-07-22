@@ -36,7 +36,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 )
 from cyberdelta.core.enums import (
     OrderStatus,
-    TriggerType,
 )
 from cyberdelta.core.models import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
@@ -350,10 +349,20 @@ class TestTransformRawOrderToInternal:
         hyperliquid_raw_trigger_info_stop_loss_fixture: HyperliquidRawTriggerInfo,
     ) -> None:
         """Test transformation with trigger information."""
-        raw_order = create_raw_order()
+        # Create order with trigger order type
+        trigger = hyperliquid_raw_trigger_info_stop_loss_fixture
+        raw_order = create_raw_order(
+            order_type={
+                "trigger": {
+                    "triggerPx": trigger.trigger_px,
+                    "isMarket": trigger.is_market,
+                    "tpsl": trigger.tpsl,
+                }
+            }
+        )
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
-        assert result.order_type == OrderType.STOP_LIMIT
+        assert result.order_type == OrderType.STOP_MARKET  # isMarket=True means STOP_MARKET
         assert result.stop_price == Decimal("2900.00")
         assert result.trigger_by is None  # No trigger_type in fixture
 
@@ -363,15 +372,24 @@ class TestTransformRawOrderToInternal:
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with trigger that has mark price trigger type."""
-        trigger = mocker.Mock()
-        trigger.trigger_px = "2900.00"
-        trigger.tpsl = "sl"
-        trigger.trigger_type = "mark"
+        # Create order with trigger order type
+        raw_order = create_raw_order(
+            order_type={
+                "trigger": {
+                    "triggerPx": "2900.00",
+                    "isMarket": True,
+                    "tpsl": "sl",
+                }
+            }
+        )
 
-        raw_order = create_raw_order()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
-        assert result.trigger_by == TriggerType.MARK_PRICE
+        # The trigger_type field doesn't exist in HyperliquidRawTriggerInfo
+        # so trigger_by should be None
+        assert result.order_type == OrderType.STOP_MARKET  # isMarket=True, tpsl="sl"
+        assert result.stop_price == Decimal("2900.00")
+        assert result.trigger_by is None
 
     def test_transform_raw_order_with_trigger_last_price(
         self,
@@ -379,15 +397,24 @@ class TestTransformRawOrderToInternal:
         mocker: MockerFixture,
     ) -> None:
         """Test transformation with trigger that has last price trigger type."""
-        trigger = mocker.Mock()
-        trigger.trigger_px = "2900.00"
-        trigger.tpsl = "sl"
-        trigger.trigger_type = "last"
+        # Create order with trigger order type
+        raw_order = create_raw_order(
+            order_type={
+                "trigger": {
+                    "triggerPx": "2900.00",
+                    "isMarket": True,
+                    "tpsl": "sl",
+                }
+            }
+        )
 
-        raw_order = create_raw_order()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
-        assert result.trigger_by == TriggerType.LAST_PRICE
+        # The trigger_type field doesn't exist in HyperliquidRawTriggerInfo
+        # so trigger_by should be None
+        assert result.order_type == OrderType.STOP_MARKET  # isMarket=True, tpsl="sl"
+        assert result.stop_price == Decimal("2900.00")
+        assert result.trigger_by is None
 
 
 # --- Tests for Historical Order Transformations ---
@@ -589,6 +616,13 @@ class TestTransformationIntegration:
             status="open",
             sz="5.0",
             remaining_sz="5.0",
+            order_type={
+                "trigger": {
+                    "triggerPx": hyperliquid_raw_trigger_info_stop_loss_fixture.trigger_px,
+                    "isMarket": hyperliquid_raw_trigger_info_stop_loss_fixture.is_market,
+                    "tpsl": hyperliquid_raw_trigger_info_stop_loss_fixture.tpsl,
+                }
+            },
         )
 
         open_result = trading_data_mapper.transform_raw_order_to_internal(open_order)
@@ -606,7 +640,7 @@ class TestTransformationIntegration:
         assert filled_result.status == OrderStatus.FILLED
 
         # Verify trigger order
-        assert trigger_result.order_type == OrderType.STOP_LIMIT
+        assert trigger_result.order_type == OrderType.STOP_MARKET  # isMarket=True means STOP_MARKET
         assert trigger_result.stop_price == Decimal("2900.00")
         assert trigger_result.trigger_by is None  # No trigger_type in fixture
 

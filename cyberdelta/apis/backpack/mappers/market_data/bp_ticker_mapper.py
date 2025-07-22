@@ -22,6 +22,7 @@ from cyberdelta.apis.exceptions import TickerTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.models.market.ticker import BackpackTickerDetails
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -135,7 +136,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
             # Use secure_transform for type-safe model creation
             ticker_data: dict[str, Any] = {
                 "symbol": symbol,
-                "exchange": "backpack",  # Required field for Ticker model
+                "exchange": ExchangeName.BACKPACK.value,
                 "timestamp": timestamp.isoformat(),
                 "price": str(last_price),  # Map lastPrice to core price field
                 "bid": None,  # Not available from Backpack ticker endpoint
@@ -205,7 +206,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
             # Use secure_transform for type-safe model creation
             ticker_data: dict[str, Any] = {
                 "symbol": raw_ticker.symbol,
-                "exchange": "backpack",  # Required field for Ticker model
+                "exchange": ExchangeName.BACKPACK.value,
                 "timestamp": timestamp.isoformat(),
                 "price": str(last_price) if last_price is not None else None,
                 "bid": None,  # Not available in ticker event

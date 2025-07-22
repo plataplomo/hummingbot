@@ -528,3 +528,11 @@ class ResultOrElseNoneValueError(StateValidationError):
             component="Result",
             **kwargs,
         )
+
+
+class ContainerSizeLimitExceededError(StateError):
+    """Raised when container size limit is exceeded."""
+
+    def __init__(self, max_size: int, **kwargs: Unpack[StateExceptionKwargs]) -> None:
+        """Initialize container size limit exceeded exception."""
+        super().__init__(f"Container size limit exceeded: {max_size}", **kwargs)

@@ -676,7 +676,7 @@ class TestOrderBookAndTradeIntegration:
 
         # Transform with different depth limits
         full_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
-        limited_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
+        limited_book = market_data_mapper.transform_raw_l2_book_to_internal(raw_book, depth=10)
 
         assert len(full_book.bids) == 100
         assert len(full_book.asks) == 100

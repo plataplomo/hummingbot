@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions import OrderTransformationError
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import HyperliquidRawHistoricalOrder
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
@@ -323,7 +324,7 @@ class TestErrorHandlingAndExceptions:
 
         # Mock to raise a nested exception chain
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
 
         original_exception = ValueError("Original error")
@@ -331,11 +332,11 @@ class TestErrorHandlingAndExceptions:
         chained_exception.__cause__ = original_exception
         mock_parse.side_effect = chained_exception
 
-        with pytest.raises(TransformationError) as exc_info:
+        with pytest.raises(OrderTransformationError) as exc_info:
             trading_data_mapper.transform_raw_order_to_internal(order)
 
         # Verify the exception chain is preserved
-        assert "Failed to parse order quantities and price" in str(exc_info.value)
+        assert "Failed to transform order" in str(exc_info.value)
 
     def test_logging_during_error_scenarios(
         self,
@@ -384,13 +385,13 @@ class TestErrorHandlingAndExceptions:
         orders = [create_raw_order(oid=i) for i in range(5)]
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 
-        # All should raise TransformationError
+        # All should raise OrderTransformationError
         for order in orders:
-            with pytest.raises(TransformationError):
+            with pytest.raises(OrderTransformationError):
                 trading_data_mapper.transform_raw_order_to_internal(order)
 
 

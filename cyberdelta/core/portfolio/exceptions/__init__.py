@@ -27,7 +27,6 @@ from .integrity import (
     ConfigurationValidationError,
     ConfigValueTooLargeError,
     ConfigValueTooSmallError,
-    ContainerSizeLimitExceededError,
     DataCorruptionError,
     EmptyAssetError,
     EmptyBalanceFieldError,
@@ -81,6 +80,7 @@ from .service import (
 )
 from .state import (
     ConcurrencyError,
+    ContainerSizeLimitExceededError,
     DeadlockError,
     ResultAndThenNoneErrorError,
     ResultAndThenNoneValueError,

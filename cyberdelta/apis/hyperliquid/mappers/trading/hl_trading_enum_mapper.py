@@ -273,11 +273,24 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         """
         try:
             # Hyperliquid uses nested dicts for orderType,
-            # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}
+            # e.g. {"limit": {"tif": "Gtc"}}, {"market": {}}, {"trigger": {...}}
             if "limit" in order_type:
                 return HyperliquidTradingEnumMapper.map_limit_order_type(trigger)
             if "market" in order_type:
                 return HyperliquidTradingEnumMapper.map_market_order_type(trigger)
+            if "trigger" in order_type:
+                # For trigger orders, determine market/limit based on trigger info
+                trigger_info = order_type.get("trigger", {})
+                is_market = trigger_info.get("isMarket", False)
+                tpsl = trigger_info.get("tpsl", "sl")
+
+                if is_market:
+                    if tpsl == "tp":
+                        return OrderType.TAKE_PROFIT_MARKET
+                    return OrderType.STOP_MARKET
+                if tpsl == "tp":
+                    return OrderType.TAKE_PROFIT_LIMIT
+                return OrderType.STOP_LIMIT
 
             logger.warning(
                 "unknown_order_type_structure_defaulting_to_limit",

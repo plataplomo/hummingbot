@@ -928,27 +928,6 @@ class ConfigTimestampNegativeError(ConfigManagerValidationError):
         )
 
 
-class ServiceProtocolValidationError(ServiceError):
-    """Raised when service protocol validation fails."""
-
-    def __init__(
-        self,
-        field_type: str,
-        requirement: str = "must be positive",
-        **kwargs: Unpack[ExceptionKwargs],
-    ) -> None:
-        """Initialize service protocol validation error."""
-        message = f"{field_type} {requirement}"
-        context = kwargs.get("context") or {}
-        context.update({
-            "field_type": field_type,
-            "requirement": requirement,
-        })
-        kwargs["context"] = context
-        kwargs["error_code"] = "SERVICE_PROTOCOL_VALIDATION_ERROR"
-        super().__init__(message, **kwargs)
-
-
 class AuditTrailValidationError(ServiceError):
     """Raised when audit trail validation fails."""
 

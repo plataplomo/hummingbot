@@ -213,7 +213,7 @@ class TestPortfolioOrchestratorInit:
     ) -> None:
         """Test initialization logs proper messages."""
         # Act
-        with patch("cyberdelta.core.services.portfolio_orchestrator.get_logger") as mock_get_logger:
+        with patch("cyberdelta.core.portfolio_orchestrator.get_logger") as mock_get_logger:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             orchestrator = PortfolioOrchestrator(

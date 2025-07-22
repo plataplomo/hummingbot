@@ -309,10 +309,26 @@ class TestOrderTypeMapping:
     [
         ({"limit": {"tif": "Gtc"}}, None, OrderType.LIMIT),
         ({"market": {}}, None, OrderType.MARKET),
-        ({"limit": {"tif": "Gtc"}}, "sl", OrderType.STOP_LIMIT),
-        ({"limit": {"tif": "Gtc"}}, "tp", OrderType.TAKE_PROFIT_LIMIT),
-        ({"market": {}}, "sl", OrderType.STOP_MARKET),
-        ({"market": {}}, "tp", OrderType.TAKE_PROFIT_MARKET),
+        (
+            {"trigger": {"triggerPx": "2950.0", "isMarket": False, "tpsl": "sl"}},
+            None,
+            OrderType.STOP_LIMIT,
+        ),
+        (
+            {"trigger": {"triggerPx": "3050.0", "isMarket": False, "tpsl": "tp"}},
+            None,
+            OrderType.TAKE_PROFIT_LIMIT,
+        ),
+        (
+            {"trigger": {"triggerPx": "2950.0", "isMarket": True, "tpsl": "sl"}},
+            None,
+            OrderType.STOP_MARKET,
+        ),
+        (
+            {"trigger": {"triggerPx": "3050.0", "isMarket": True, "tpsl": "tp"}},
+            None,
+            OrderType.TAKE_PROFIT_MARKET,
+        ),
     ],
 )
 def test_order_type_mapping_with_triggers(
@@ -323,8 +339,6 @@ def test_order_type_mapping_with_triggers(
 ) -> None:
     """Test order type mapping with and without triggers."""
     raw_order = create_raw_order(order_type=order_type_dict)
-
-    # Note: trigger_tpsl parameter is used in test parameterization but not in the test logic
 
     result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
     assert result.order_type == expected_type

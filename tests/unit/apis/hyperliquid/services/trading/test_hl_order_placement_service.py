@@ -545,7 +545,7 @@ class TestOrderPlacementService:
         mock_http_requester.return_value = mock_http_response
 
         # Mapper raises transformation error
-        mock_mapper.build_order_from_response.side_effect = APIError(
+        mock_mapper.map_place_order_response_to_order.side_effect = APIError(
             message="Failed to transform order",
             code=APIErrorCode.INVALID_RESPONSE.value,
         )

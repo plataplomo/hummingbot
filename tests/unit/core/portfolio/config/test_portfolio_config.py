@@ -5,7 +5,6 @@ including field validation, business logic validation, and edge cases.
 """
 
 import pytest
-from pydantic import ValidationError
 
 from cyberdelta.core.portfolio.config.factory import (
     PortfolioConfigFactory,
@@ -26,6 +25,17 @@ from cyberdelta.core.portfolio.config.validation import (
     ConfigurationValidator,
     create_validated_configuration,
 )
+from cyberdelta.core.portfolio.exceptions import (
+    ConfigPrecisionTooHighError,
+    ConfigurationValidationError,
+    ConfigValueTooLargeError,
+    ConfigValueTooSmallError,
+    InvalidConfigChoiceError,
+    InvalidNumericStringError,
+    NegativeConfigValueError,
+    NonFiniteConfigValueError,
+    NonPositiveConfigValueError,
+)
 
 
 class TestCacheConfiguration:
@@ -44,26 +54,26 @@ class TestCacheConfiguration:
     def test_invalid_cache_size(self) -> None:
         """Test cache size validation."""
         # Negative size
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info:
             CacheConfiguration(max_size=-1)
-        assert "Cache max_size must be positive" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info.value)
 
         # Too large size
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_large:
             CacheConfiguration(max_size=1000001)
-        assert "Cache max_size too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_large.value)
 
     def test_invalid_cache_ttl(self) -> None:
         """Test cache TTL validation."""
         # Negative TTL
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info:
             CacheConfiguration(default_ttl=-1.0)
-        assert "Time intervals must be positive" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info.value)
 
         # Too large TTL
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_large_ttl:
             CacheConfiguration(default_ttl=86401.0)
-        assert "Time interval too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_large_ttl.value)
 
 
 class TestPricingConfiguration:
@@ -83,14 +93,14 @@ class TestPricingConfiguration:
     def test_invalid_batch_size(self) -> None:
         """Test batch size validation."""
         # Negative batch size
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info:
             PricingConfiguration(batch_size_limit=-1)
-        assert "Batch size limit must be positive" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info.value)
 
         # Too large batch size
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_large_batch:
             PricingConfiguration(batch_size_limit=1001)
-        assert "Batch size limit too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_large_batch.value)
 
 
 class TestScreeningConfiguration:
@@ -110,29 +120,29 @@ class TestScreeningConfiguration:
     def test_invalid_numeric_strings(self) -> None:
         """Test numeric string validation."""
         # Invalid decimal string
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(InvalidNumericStringError) as exc_info:
             ScreeningConfiguration(max_price_value="not_a_number")
         assert "Invalid numeric string" in str(exc_info.value)
 
         # Non-finite value
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonFiniteConfigValueError) as exc_info_nonfinite:
             ScreeningConfiguration(max_price_value="inf")
-        assert "Invalid numeric string" in str(exc_info.value)
+        assert "Value must be finite" in str(exc_info_nonfinite.value)
 
         # Negative value
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info_negative:
             ScreeningConfiguration(min_price_value="-1.0")
-        assert "Invalid numeric string" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info_negative.value)
 
         # Value too large
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_large:
             ScreeningConfiguration(max_price_value="1000000001")
-        assert "Maximum value too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_large.value)
 
         # Value too small
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooSmallError) as exc_info_small:
             ScreeningConfiguration(min_price_value="0.000000001")
-        assert "Minimum value too small" in str(exc_info.value)
+        assert "Value too small" in str(exc_info_small.value)
 
 
 class TestBalanceConfiguration:
@@ -149,26 +159,26 @@ class TestBalanceConfiguration:
     def test_invalid_precision(self) -> None:
         """Test precision validation."""
         # Negative precision
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NegativeConfigValueError) as exc_info:
             BalanceConfiguration(precision=-1)
-        assert "Precision cannot be negative" in str(exc_info.value)
+        assert "Value cannot be negative" in str(exc_info.value)
 
         # Too high precision
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigPrecisionTooHighError) as exc_info_precision:
             BalanceConfiguration(precision=19)
-        assert "Precision too high" in str(exc_info.value)
+        assert "Precision too high" in str(exc_info_precision.value)
 
     def test_invalid_time_intervals(self) -> None:
         """Test time interval validation."""
         # Negative interval
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info:
             BalanceConfiguration(cleanup_interval=-1)
-        assert "Time interval must be positive" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info.value)
 
         # Too large interval
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_large_interval:
             BalanceConfiguration(max_balance_age=86401)
-        assert "Time interval too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_large_interval.value)
 
 
 class TestPnLConfiguration:
@@ -184,9 +194,9 @@ class TestPnLConfiguration:
 
     def test_invalid_calculation_method(self) -> None:
         """Test calculation method validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(InvalidConfigChoiceError) as exc_info:
             PnLConfiguration(calculation_method="INVALID")
-        assert "Calculation method must be one of" in str(exc_info.value)
+        assert "Must be one of:" in str(exc_info.value)
 
 
 class TestConcurrencyConfiguration:
@@ -203,26 +213,26 @@ class TestConcurrencyConfiguration:
     def test_invalid_max_operations(self) -> None:
         """Test max operations validation."""
         # Negative operations
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info:
             ConcurrencyConfiguration(max_concurrent_operations=-1)
-        assert "Max concurrent operations must be positive" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info.value)
 
         # Too many operations
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_operations:
             ConcurrencyConfiguration(max_concurrent_operations=101)
-        assert "Max concurrent operations too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_operations.value)
 
     def test_invalid_lock_timeout(self) -> None:
         """Test lock timeout validation."""
         # Negative timeout
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(NonPositiveConfigValueError) as exc_info:
             ConcurrencyConfiguration(lock_timeout=-1.0)
-        assert "Lock timeout must be positive" in str(exc_info.value)
+        assert "Value must be positive" in str(exc_info.value)
 
         # Too large timeout
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ConfigValueTooLargeError) as exc_info_timeout:
             ConcurrencyConfiguration(lock_timeout=301.0)
-        assert "Lock timeout too large" in str(exc_info.value)
+        assert "Value too large" in str(exc_info_timeout.value)
 
 
 class TestPortfolioConfiguration:
@@ -238,9 +248,9 @@ class TestPortfolioConfiguration:
 
     def test_invalid_log_level(self) -> None:
         """Test log level validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(InvalidConfigChoiceError) as exc_info:
             PortfolioConfiguration(log_level="INVALID")
-        assert "Log level must be one of" in str(exc_info.value)
+        assert "Must be one of:" in str(exc_info.value)
 
     def test_create_development_config(self) -> None:
         """Test development configuration creation."""
@@ -282,7 +292,7 @@ class TestPortfolioConfiguration:
     def test_merge_with_invalid_values(self) -> None:
         """Test merging with invalid values raises validation errors."""
         config = PortfolioConfiguration()
-        with pytest.raises(ValidationError):
+        with pytest.raises(NonPositiveConfigValueError):
             config.merge_with_dict({
                 "cache": {
                     "max_size": -1  # Invalid negative size
@@ -404,14 +414,14 @@ class TestValidatedConfiguration:
 
     def test_create_validated_config_invalid_field(self) -> None:
         """Test creating configuration with invalid field."""
-        with pytest.raises(ValidationError):
+        with pytest.raises(NonPositiveConfigValueError):
             create_validated_configuration(
                 cache={"max_size": -1}  # Invalid negative size
             )
 
     def test_create_validated_config_invalid_business_logic(self) -> None:
         """Test creating configuration with invalid business logic."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ConfigurationValidationError) as exc_info:
             create_validated_configuration(
                 screening={
                     "min_price_value": "100",

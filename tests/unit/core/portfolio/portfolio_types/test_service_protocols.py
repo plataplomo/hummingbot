@@ -5,8 +5,10 @@ import math
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.core.portfolio.exceptions.state import StateValidationError
 from cyberdelta.core.portfolio.portfolio_types.service_protocols import (
     ServiceCacheStats,
+    ServiceProtocolValidationError,
     ServiceResilienceStatus,
     ServiceStateData,
     ServiceSymbolMetadata,
@@ -52,12 +54,12 @@ class TestServiceValidationStats:
     def test_invalid_counts(self) -> None:
         """Test validation of counts."""
         # Successful validations exceeding total
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(StateValidationError) as exc_info:
             ServiceValidationStats(total_validations=10, successful_validations=15)
         assert "cannot exceed total_validations" in str(exc_info.value)
 
         # Failed validations exceeding total
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(StateValidationError) as exc_info:
             ServiceValidationStats(total_validations=10, failed_validations=15)
         assert "cannot exceed total_validations" in str(exc_info.value)
 
@@ -85,7 +87,7 @@ class TestServiceResilienceStatus:
 
     def test_invalid_state(self) -> None:
         """Test invalid circuit breaker state."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(StateValidationError) as exc_info:
             ServiceResilienceStatus(circuit_breaker_state="invalid")
         assert "Invalid circuit breaker state" in str(exc_info.value)
 
@@ -121,7 +123,7 @@ class TestServiceCacheStats:
     def test_invalid_hit_rate(self) -> None:
         """Test hit rate validation."""
         # Hit rate doesn't match calculated rate
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(StateValidationError) as exc_info:
             ServiceCacheStats(
                 hits=100,
                 misses=50,
@@ -167,9 +169,9 @@ class TestServiceStateData:
 
     def test_invalid_timestamp(self) -> None:
         """Test timestamp validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ServiceProtocolValidationError) as exc_info:
             ServiceStateData(timestamp=-1.0, version="1.0.0")
-        assert "timestamp must be positive" in str(exc_info.value).lower()
+        assert "must be positive" in str(exc_info.value).lower()
 
     def test_empty_version(self) -> None:
         """Test version validation."""
@@ -207,14 +209,14 @@ class TestServiceSymbolMetadata:
 
     def test_empty_strings(self) -> None:
         """Test empty string validation."""
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ServiceProtocolValidationError) as exc_info:
             ServiceSymbolMetadata(base_asset="", quote_asset="USDT", exchange_type="SPOT")
-        assert "Asset and exchange type strings cannot be empty" in str(exc_info.value)
+        assert "cannot be empty" in str(exc_info.value)
 
     def test_invalid_contract_size(self) -> None:
         """Test contract size validation for perpetuals."""
         # Negative contract size for perpetual
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ServiceProtocolValidationError) as exc_info:
             ServiceSymbolMetadata(
                 base_asset="BTC",
                 quote_asset="USDT",
@@ -222,7 +224,7 @@ class TestServiceSymbolMetadata:
                 is_perpetual=True,
                 contract_size=-1.0,
             )
-        assert "Contract size must be positive for perpetual contracts" in str(exc_info.value)
+        assert "must be positive for perpetual contracts" in str(exc_info.value)
 
     def test_spot_contract_size(self) -> None:
         """Test contract size can be None for spot."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from enum import Enum
 from typing import TYPE_CHECKING, TypeVar
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable
+    pass
 
 from cyberdelta.core.portfolio.exceptions.service import (
     ServiceTimeoutError,
@@ -43,7 +43,7 @@ class ResilienceErrorType(Enum):
 class ResilienceError(BaseModel):
     """Structured resilience error information."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", arbitrary_types_allowed=True)
 
     error_type: ResilienceErrorType
     message: str

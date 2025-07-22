@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 if TYPE_CHECKING:
@@ -294,7 +294,7 @@ class ValidationChain[T](BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    _result: ValidationResult[T] = Field(exclude=True)
+    _result: ValidationResult[T] = PrivateAttr()
 
     def __init__(self, value: T, **data: object) -> None:
         """Initialize validation chain."""

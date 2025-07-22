@@ -460,7 +460,8 @@ class TestBuildGetOrderHistoryParams:
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": symbol_eth_spot, "clientId": str(client_order_id)}
+        expected = {"symbol": symbol_eth_spot, "clientId": str(client_order_id), "limit": 100}
+        assert params_dict == expected
 
     def test_build_get_order_history_params_minimal(self) -> None:
         """Test build_get_order_history_params with minimal parameters."""
@@ -471,7 +472,7 @@ class TestBuildGetOrderHistoryParams:
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {}
+        assert params_dict == {"limit": 100}
 
     def test_build_get_order_history_params_formats_symbol(self) -> None:
         """Test build_get_order_history_params formats symbol correctly."""
@@ -482,12 +483,12 @@ class TestBuildGetOrderHistoryParams:
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "SOL_USDC"}
+        assert params_dict == {"symbol": "SOL_USDC", "limit": 100}
 
     @pytest.mark.parametrize(
         ("symbol", "limit", "expected_base"),
         [
-            (None, None, {}),
+            (None, None, {"limit": 100}),
             ("SOL_USDC", 25, {"symbol": "SOL_USDC", "limit": 25}),
             ("btc-usdt", 50, {"symbol": "BTC_USDT", "limit": 50}),
         ],

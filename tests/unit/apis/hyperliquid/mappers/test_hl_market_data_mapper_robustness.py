@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # Project-specific imports
-from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions import TickerTransformationError, TradeTransformationError
 from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper import (
     HyperliquidHistoricalDataMapper,
 )
@@ -54,7 +54,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
 from cyberdelta.core.models import Trade
-from cyberdelta.enums import OrderSide
 
 
 # Aliases for shorter method calls
@@ -192,7 +191,7 @@ class TestValidationErrorHandling:
         """Test that transformation errors are properly propagated."""
         # Mock parse_decimal_value to raise an error
         mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper.parse_decimal_value",
             side_effect=ValueError("Simulated parsing error"),
         )
 
@@ -205,7 +204,7 @@ class TestValidationErrorHandling:
             impact_px="1000.0",
         )
 
-        with pytest.raises(TransformationError, match="Failed to transform"):
+        with pytest.raises(TickerTransformationError, match="Simulated parsing error"):
             ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_asset_ctx)
 
 
@@ -628,23 +627,16 @@ class TestErrorRecoveryScenarios:
             users=["0xuser1"],
         )
 
-        # Mock the _map_side_to_internal method to raise an error for unknown sides
-        def mock_map_side_side_effect(hl_side: str) -> OrderSide:
-            """Return mock map side side effect for testing."""
-            if hl_side == "B":  # For our test trade
-                raise ValueError("Unknown side")  # Simulate unknown side error
-            return OrderSide.BUY  # Default for other cases
-
-        mocker.patch.object(
-            HyperliquidOrderBookMapper,
-            "_map_side_to_internal",
-            side_effect=mock_map_side_side_effect,
+        # Mock the map_side_to_internal function to raise an error for unknown sides
+        mocker.patch(
+            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper.map_side_to_internal",
+            side_effect=ValueError("Unknown side"),
         )
 
-        # Transform should raise TransformationError when side mapping fails
+        # Transform should raise TradeTransformationError when side mapping fails
         with pytest.raises(
-            TransformationError,
-            match="Failed to transform HyperliquidRawPublicTrade",
+            TradeTransformationError,
+            match="Unknown side",
         ):
             order_book_mapper.transform_raw_public_trade_to_internal(valid_trade)
 

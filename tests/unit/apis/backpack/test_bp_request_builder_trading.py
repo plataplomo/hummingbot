@@ -71,7 +71,7 @@ class TestBuildGetTradeHistoryParams:
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": symbol_eth_spot}
+        expected = {"symbol": symbol_eth_spot, "limit": 100}
         assert params_dict == expected
 
     def test_build_get_trade_history_params_formats_symbol(self) -> None:
@@ -101,7 +101,7 @@ class TestBuildGetTradeHistoryParams:
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": symbol_spot, "fromId": "startFillId"}
+        expected = {"symbol": symbol_spot, "limit": 100, "fromId": "startFillId"}
         assert params_dict == expected
 
     def test_build_get_trade_history_params_time_range_only(
@@ -118,6 +118,7 @@ class TestBuildGetTradeHistoryParams:
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {
             "symbol": symbol_spot,
+            "limit": 100,
             "from": past_timestamp_ms,
             "to": current_timestamp_ms,
         }
@@ -126,9 +127,9 @@ class TestBuildGetTradeHistoryParams:
     @pytest.mark.parametrize(
         ("symbol", "limit", "from_id", "expected_base"),
         [
-            ("SOL_USDC", None, None, {"symbol": "SOL_USDC"}),
+            ("SOL_USDC", None, None, {"symbol": "SOL_USDC", "limit": 100}),
             ("BTC_USDT", 50, None, {"symbol": "BTC_USDT", "limit": 50}),
-            ("eth-perp", None, "fillId", {"symbol": "ETH_PERP", "fromId": "fillId"}),
+            ("eth-perp", None, "fillId", {"symbol": "ETH_PERP", "limit": 100, "fromId": "fillId"}),
             ("sol-usdc", 25, "id123", {"symbol": "SOL_USDC", "limit": 25, "fromId": "id123"}),
         ],
     )
@@ -177,6 +178,6 @@ class TestBuildGetTradeHistoryParams:
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected: dict[str, Any] = {"symbol": symbol_spot}
+        expected: dict[str, Any] = {"symbol": symbol_spot, "limit": 100}
         expected.update(expected_time_params)
         assert params_dict == expected

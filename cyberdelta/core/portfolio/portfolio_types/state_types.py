@@ -7,7 +7,7 @@ from typing import TypeVar, cast
 
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
 
-from cyberdelta.core.portfolio.exceptions import ContainerSizeLimitExceededError
+from cyberdelta.core.portfolio.exceptions.state import ContainerSizeLimitExceededError
 
 
 T = TypeVar("T", bound=BaseModel)  # Properly bounded to BaseModel

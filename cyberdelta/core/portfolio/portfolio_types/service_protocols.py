@@ -8,8 +8,25 @@ from typing import TYPE_CHECKING, Protocol, TypeVar
 from pydantic import Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
-from cyberdelta.core.portfolio.exceptions.service import ServiceProtocolValidationError
+from cyberdelta.core.portfolio.exceptions.base import PortfolioError
 from cyberdelta.core.portfolio.exceptions.state import StateValidationError
+
+
+class ServiceProtocolValidationError(PortfolioError):
+    """Raised when service protocol validation fails."""
+
+    def __init__(
+        self,
+        field_type: str,
+        requirement: str = "must be positive",
+    ) -> None:
+        """Initialize service protocol validation error."""
+        message = f"{field_type} {requirement}"
+        super().__init__(
+            message,
+            error_code="SERVICE_PROTOCOL_VALIDATION_ERROR",
+            context={"field_type": field_type, "requirement": requirement},
+        )
 
 
 if TYPE_CHECKING:
