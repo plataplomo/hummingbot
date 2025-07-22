@@ -135,6 +135,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
             # Use secure_transform for type-safe model creation
             ticker_data: dict[str, Any] = {
                 "symbol": symbol,
+                "exchange": "backpack",  # Required field for Ticker model
                 "timestamp": timestamp.isoformat(),
                 "price": str(last_price),  # Map lastPrice to core price field
                 "bid": None,  # Not available from Backpack ticker endpoint
@@ -204,6 +205,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
             # Use secure_transform for type-safe model creation
             ticker_data: dict[str, Any] = {
                 "symbol": raw_ticker.symbol,
+                "exchange": "backpack",  # Required field for Ticker model
                 "timestamp": timestamp.isoformat(),
                 "price": str(last_price) if last_price is not None else None,
                 "bid": None,  # Not available in ticker event

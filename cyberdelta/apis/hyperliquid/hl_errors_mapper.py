@@ -38,6 +38,57 @@ class HyperliquidErrorMapper(IErrorMapper):
     Implements the IErrorMapper interface.
     """
 
+    # Pre-compiled regex patterns for better performance
+    _INSUFFICIENT_BALANCE_PATTERNS: re.Pattern[str] = re.compile(
+        r"insufficient (balance|margin|funds)|"
+        r"(exceeds|exceed) (max|maximum) (position|leverage|risk)|"
+        r"not enough (balance|margin|funds)",
+        re.IGNORECASE,
+    )
+
+    _AUTH_PATTERNS: re.Pattern[str] = re.compile(
+        r"invalid signature|unauthorized|user not found",
+        re.IGNORECASE,
+    )
+
+    _ORDER_NOT_FOUND_PATTERNS: re.Pattern[str] = re.compile(
+        r"does not exist for oid|order was never placed|already canceled|already filled|"
+        r"order not found|L1 error:.*does not exist for oid",
+        re.IGNORECASE,
+    )
+
+    _ASSET_ORDER_PATTERNS: re.Pattern[str] = re.compile(
+        r"invalid asset|invalid order type",
+        re.IGNORECASE,
+    )
+
+    _ORDER_SIZE_PATTERNS: re.Pattern[str] = re.compile(
+        r"invalid order size|order size too small|order size too large|(order )?value too large",
+        re.IGNORECASE,
+    )
+
+    _PRICE_PATTERNS: re.Pattern[str] = re.compile(
+        r"price out of bounds|order must have minimum value",
+        re.IGNORECASE,
+    )
+
+    _RATE_LIMIT_PATTERNS: re.Pattern[str] = re.compile(
+        r"(rate limit|ratelimit) exceeded|please wait and retry|too many requests.*please wait|"
+        r"exceeded.*address.*limit|one request every \d+ seconds|"
+        r"your ip has been rate limited|ip.*rate.*limit",
+        re.IGNORECASE,
+    )
+
+    _SERVER_ERROR_PATTERNS: re.Pattern[str] = re.compile(
+        r"internal server error",
+        re.IGNORECASE,
+    )
+
+    _TWAP_PATTERNS: re.Pattern[str] = re.compile(
+        r"invalid twap duration|twap was never placed|twap already canceled|twap already filled",
+        re.IGNORECASE,
+    )
+
     @staticmethod
     def _regex_match(msg: str, patterns: str | list[str]) -> bool:
         """Helper for regex-based error message matching.
@@ -97,27 +148,33 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _match_auth_and_balance_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match authentication and balance related patterns."""
-        if HyperliquidErrorMapper._regex_match(msg, r"insufficient (balance|margin)"):
+        # Check insufficient balance/margin patterns first (most specific)
+        if HyperliquidErrorMapper._INSUFFICIENT_BALANCE_PATTERNS.search(msg):
             return HyperliquidAPIErrorCategory.INSUFFICIENT_BALANCE
-        if HyperliquidErrorMapper._regex_match(msg, r"invalid signature"):
-            return HyperliquidAPIErrorCategory.INVALID_SIGNATURE
-        if HyperliquidErrorMapper._regex_match(msg, r"unauthorized"):
-            return HyperliquidAPIErrorCategory.UNAUTHORIZED
-        if HyperliquidErrorMapper._regex_match(msg, r"user not found"):
-            return HyperliquidAPIErrorCategory.UNAUTHORIZED
-        # Check for specific "does not exist for oid" pattern (order ownership issue)
-        if HyperliquidErrorMapper._regex_match(msg, r"does not exist for oid"):
+
+        # Check order not found patterns (more specific than generic auth)
+        if HyperliquidErrorMapper._ORDER_NOT_FOUND_PATTERNS.search(msg):
             return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
-        if HyperliquidErrorMapper._regex_match(msg, r"does not exist"):
+
+        # Check authentication patterns
+        if HyperliquidErrorMapper._AUTH_PATTERNS.search(msg):
+            if "invalid signature" in msg.lower():
+                return HyperliquidAPIErrorCategory.INVALID_SIGNATURE
             return HyperliquidAPIErrorCategory.UNAUTHORIZED
+
+        # Check for generic "does not exist" (fallback to unauthorized)
+        if "does not exist" in msg.lower():
+            return HyperliquidAPIErrorCategory.UNAUTHORIZED
+
         return HyperliquidAPIErrorCategory.UNKNOWN
 
     @staticmethod
     def _match_asset_and_order_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match asset and order validation patterns."""
-        if HyperliquidErrorMapper._regex_match(msg, r"invalid asset"):
-            return HyperliquidAPIErrorCategory.INVALID_ASSET
-        if HyperliquidErrorMapper._regex_match(msg, r"invalid order type"):
+        # Check asset and order type patterns
+        if HyperliquidErrorMapper._ASSET_ORDER_PATTERNS.search(msg):
+            if "invalid asset" in msg.lower():
+                return HyperliquidAPIErrorCategory.INVALID_ASSET
             return HyperliquidAPIErrorCategory.INVALID_ORDER_TYPE
 
         # Order size patterns
@@ -127,86 +184,41 @@ class HyperliquidErrorMapper(IErrorMapper):
     def _match_specialized_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match specialized error patterns (rate limit, price, server, order state, TWAP)."""
         # Rate limit patterns
-        if HyperliquidErrorMapper._match_rate_limit_patterns(msg):
+        if HyperliquidErrorMapper._RATE_LIMIT_PATTERNS.search(msg):
             return HyperliquidAPIErrorCategory.RATE_LIMIT_EXCEEDED
 
         # Price and value patterns
-        if HyperliquidErrorMapper._regex_match(msg, r"price out of bounds"):
-            return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
-        if HyperliquidErrorMapper._regex_match(msg, r"order must have minimum value"):
+        if HyperliquidErrorMapper._PRICE_PATTERNS.search(msg):
+            if "price out of bounds" in msg.lower():
+                return HyperliquidAPIErrorCategory.PRICE_OUT_OF_BOUNDS
             return HyperliquidAPIErrorCategory.ORDER_MIN_VALUE
 
         # Server error patterns
-        if HyperliquidErrorMapper._regex_match(msg, r"internal server error"):
+        if HyperliquidErrorMapper._SERVER_ERROR_PATTERNS.search(msg):
             return HyperliquidAPIErrorCategory.INTERNAL_SERVER_ERROR
 
-        # Order state patterns
-        category = HyperliquidErrorMapper._match_order_state_patterns(msg)
-        if category != HyperliquidAPIErrorCategory.UNKNOWN:
-            return category
+        # Order state patterns (already optimized in ORDER_NOT_FOUND_PATTERNS)
+        if HyperliquidErrorMapper._ORDER_NOT_FOUND_PATTERNS.search(msg):
+            return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
 
         # TWAP patterns
-        return HyperliquidErrorMapper._match_twap_patterns(msg)
+        if HyperliquidErrorMapper._TWAP_PATTERNS.search(msg):
+            msg_lower = msg.lower()
+            if "invalid twap duration" in msg_lower:
+                return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
+            return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
+
+        return HyperliquidAPIErrorCategory.UNKNOWN
 
     @staticmethod
     def _match_order_size_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match order size related error patterns."""
-        if HyperliquidErrorMapper._regex_match(msg, r"invalid order size"):
+        if HyperliquidErrorMapper._ORDER_SIZE_PATTERNS.search(msg):
+            msg_lower = msg.lower()
+            if "too large" in msg_lower or "value too large" in msg_lower:
+                return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
+            # Default to too small for other size-related errors
             return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
-        if HyperliquidErrorMapper._regex_match(msg, r"order size too small"):
-            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_SMALL
-        if HyperliquidErrorMapper._regex_match(msg, r"order size too large"):
-            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
-        # Match "Order value too large. Max is $XXX" pattern
-        if HyperliquidErrorMapper._regex_match(msg, r"(order )?value too large"):
-            return HyperliquidAPIErrorCategory.ORDER_SIZE_TOO_LARGE
-        return HyperliquidAPIErrorCategory.UNKNOWN
-
-    @staticmethod
-    def _match_rate_limit_patterns(msg: str) -> bool:
-        """Check if message matches rate limit patterns."""
-        if HyperliquidErrorMapper._regex_match(msg, r"(rate limit|ratelimit) exceeded"):
-            return True
-
-        # Detect address-based rate limit messages that indicate fallback to
-        # "one request every 10 seconds"
-        rate_limit_patterns = [
-            r"please wait and retry",
-            r"too many requests.*please wait",
-            r"exceeded.*address.*limit",
-            r"one request every \d+ seconds",
-            r"your ip has been rate limited",  # IP ban pattern
-            r"ip.*rate.*limit",  # General IP rate limit pattern
-        ]
-        return HyperliquidErrorMapper._regex_match(msg, rate_limit_patterns)
-
-    @staticmethod
-    def _match_order_state_patterns(msg: str) -> HyperliquidAPIErrorCategory:
-        """Match order state related error patterns."""
-        order_not_found_patterns = [
-            r"order was never placed",
-            r"already canceled",
-            r"already filled",
-            r"order not found",
-            r"L1 error:.*does not exist for oid",  # Order ownership/existence issue
-        ]
-        if HyperliquidErrorMapper._regex_match(msg, order_not_found_patterns):
-            return HyperliquidAPIErrorCategory.ORDER_NOT_FOUND_OR_FILLED
-        return HyperliquidAPIErrorCategory.UNKNOWN
-
-    @staticmethod
-    def _match_twap_patterns(msg: str) -> HyperliquidAPIErrorCategory:
-        """Match TWAP related error patterns."""
-        if HyperliquidErrorMapper._regex_match(msg, r"invalid twap duration"):
-            return HyperliquidAPIErrorCategory.INVALID_TWAP_DURATION
-
-        twap_not_found_patterns = [
-            r"twap was never placed",
-            r"twap already canceled",
-            r"twap already filled",
-        ]
-        if HyperliquidErrorMapper._regex_match(msg, twap_not_found_patterns):
-            return HyperliquidAPIErrorCategory.TWAP_NOT_FOUND_OR_FILLED
         return HyperliquidAPIErrorCategory.UNKNOWN
 
     @staticmethod

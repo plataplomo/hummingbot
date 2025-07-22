@@ -318,12 +318,13 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Create order with unrealistically large quantity to trigger insufficient margin
         # Use LIMIT order FAR BELOW market so it won't execute but will trigger margin check
-        current_price = await HyperliquidTestHelpers.get_current_market_price(
+        # Use dynamic test price to ensure proper tick size alignment
+        non_executable_price = await HyperliquidTestHelpers.get_dynamic_test_price(
             hl_api_for_test_env,
             test_symbol,
+            OrderSide.BUY,
+            Decimal("0.5"),  # 50% below market
         )
-        # Use price 50% below market - won't execute but will trigger margin validation
-        non_executable_price = current_price * Decimal("0.5")  # 50% below market
 
         large_position_args = PlaceOrderArgs(
             symbol=test_symbol,

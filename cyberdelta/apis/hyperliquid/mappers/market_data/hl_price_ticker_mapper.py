@@ -180,6 +180,7 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             # Use secure_transform for type-safe model creation
             ticker_data = {
                 "symbol": raw_asset_ctx.name,
+                "exchange": "hyperliquid",  # Required field for Ticker model
                 "timestamp": timestamp.isoformat(),
                 "price": str(mark_px),  # Using mark_px as the last price
                 "bid": None,  # Not available in asset context
