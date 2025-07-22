@@ -105,8 +105,8 @@ def create_raw_depth_event(
     raw_event = BackpackRawDepthUpdateEvent(
         u=last_update_id,
         U=first_update_id,
-        bids=bids,
-        asks=asks,
+        b=bids,
+        a=asks,
         e="depth",  # Use literal value directly
         E=event_time,
         T=engine_time,

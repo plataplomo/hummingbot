@@ -51,7 +51,19 @@ class TestBackpackOrderBookModelCreation:
         markets = await api.get_markets(GetMarketsArgs())
         if not markets:
             pytest.fail("No markets available for OrderBook testing")
-        return markets[0].symbol
+
+        # Prefer SOL/USDC spot market for better liquidity
+        preferred_symbol = next(
+            (
+                m.symbol
+                for m in markets
+                if m.base_symbol == "SOL" and m.quote_symbol == "USDC" and m.market_type == "Spot"
+            ),
+            markets[0].symbol,
+        )
+
+        # Convert symbol format from slash to underscore for WebSocket
+        return preferred_symbol.replace("/", "_") if "/" in preferred_symbol else preferred_symbol
 
     async def _create_orderbook_handler(
         self, received_orderbooks: list[OrderBook]
@@ -61,7 +73,14 @@ class TestBackpackOrderBookModelCreation:
         async def orderbook_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
-            # Extract data from typed context
+            # Check for OrderBook in context.domain_model (stateful transformer pattern)
+            if hasattr(context, "domain_model") and isinstance(context.domain_model, OrderBook):
+                orderbook = context.domain_model
+                received_orderbooks.append(orderbook)
+                self._log_orderbook_received(orderbook, "domain_model")
+                return
+
+            # Fallback: Extract data from typed context (legacy pattern)
             context_data: dict[str, Any] = {}
             if (
                 hasattr(context, "validated_envelope")
@@ -142,7 +161,8 @@ class TestBackpackOrderBookModelCreation:
             orderbook_handler = await self._create_orderbook_handler(received_orderbooks)
             await bp_api_for_test_env.subscribe(f"depth.{test_symbol}", orderbook_handler)
             # Rule #4: Use proper wait condition instead of asyncio.sleep
-            await wait_for_websocket_data(received_orderbooks, min_count=1, timeout_seconds=10.0)
+            # Wait longer for depth data - Backpack may take time to send initial snapshot
+            await wait_for_websocket_data(received_orderbooks, min_count=1, timeout_seconds=30.0)
 
             self._validate_all_received_orderbooks(received_orderbooks, test_symbol)
 
@@ -277,9 +297,23 @@ class TestBackpackOrderBookModelCreation:
         # DEFENSIVE CHECK: Handle None bids/asks from real depth data. Mypy=[index, arg-type]
         if real_depth.bids is not None and real_depth.asks is not None:
             # Test raw depth data transformation with REAL data
+            # Backpack sends incremental updates which may be empty - handle accordingly
+            bids_data = real_depth.bids[:3] if len(real_depth.bids) >= 3 else real_depth.bids
+            asks_data = real_depth.asks[:3] if len(real_depth.asks) >= 3 else real_depth.asks
+
+            # If the real data is completely empty, this is a critical issue
+            if not bids_data and not asks_data:
+                pytest.fail(
+                    f"Received completely empty depth data for {test_symbol}. "
+                    f"This indicates: 1) WebSocket subscription failed, "
+                    f"2) Depth processor is not accumulating state correctly, "
+                    f"3) Market maker pulled all orders (highly unlikely), "
+                    f"or 4) Data serialization issue. This must be investigated."
+                )
+
             raw_depth_data = {
-                "bids": real_depth.bids[:3],  # Use first 3 levels
-                "asks": real_depth.asks[:3],
+                "bids": bids_data,  # Use available levels
+                "asks": asks_data,
                 "U": "123",  # First update ID (required field)
                 "u": "456",  # Last update ID (required field)
             }
@@ -291,8 +325,15 @@ class TestBackpackOrderBookModelCreation:
                 # Symbol is passed separately since it's extracted from stream name
                 # DEFENSIVE CHECK: Handle None bids/asks in validation. Mypy=[arg-type]
                 if depth_event.bids is not None and depth_event.asks is not None:
-                    assert len(depth_event.bids) == 3
-                    assert len(depth_event.asks) == 3
+                    # Validate that we have the expected amount of data (or at least some)
+                    expected_bids = len(bids_data)
+                    expected_asks = len(asks_data)
+                    assert len(depth_event.bids) == expected_bids, (
+                        f"Expected {expected_bids} bids, got {len(depth_event.bids)}"
+                    )
+                    assert len(depth_event.asks) == expected_asks, (
+                        f"Expected {expected_asks} asks, got {len(depth_event.asks)}"
+                    )
 
                     # Test manual OrderBook creation (simulating transformer)
                     orderbook = OrderBook(
@@ -302,10 +343,12 @@ class TestBackpackOrderBookModelCreation:
                         timestamp=datetime.now(UTC),  # Would be set by transformer
                     )
 
-                    # Validate created OrderBook
+                    # Validate created OrderBook - only if we have data
                     self._validate_orderbook_structure(orderbook, test_symbol)
-                    self._validate_orderbook_financial_data(orderbook)
-                    self._validate_orderbook_integrity(orderbook)
+                    # Only validate financial data if we have price levels
+                    if orderbook.bids or orderbook.asks:
+                        self._validate_orderbook_financial_data(orderbook)
+                        self._validate_orderbook_integrity(orderbook)
 
                     logger.info(
                         "orderbook_creation_from_raw_data_success",

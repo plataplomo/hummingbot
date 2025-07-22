@@ -33,6 +33,9 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackRawWsSubscriptionRequest,
     BackpackWsSignatureComponents,
 )
+from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
+    BackpackDepthStateTransformer,
+)
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.exceptions import (
     UnsupportedWebSocketTopicError,
@@ -47,10 +50,9 @@ from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_transformer import (
     ControlMessageTransformer,
     MapperTransformer,
-    extract_symbol_from_context,
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.core.models import DerivativePosition, Order, OrderBook, Ticker, Trade
+from cyberdelta.core.models import DerivativePosition, Order, Ticker, Trade
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
 
@@ -137,12 +139,10 @@ class BackpackWebSocketRouter(
     def _setup_processors(self) -> None:
         """Setup Backpack-specific message processors for all message types."""
         # Market data processors
+        # Use stateful transformer for depth updates to handle incremental updates
         self.processors["depth"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawDepthUpdateEvent,
-            transformer=MapperTransformer[BackpackRawDepthUpdateEvent, OrderBook](
-                mapper_method=self.order_book_mapper.transform_ws_depth_event_to_internal,
-                context_extractor=extract_symbol_from_context,
-            ),
+            transformer=BackpackDepthStateTransformer(self.order_book_mapper),
             error_handler=self.error_handler,
             processor_name="backpack_depth",
         )
@@ -481,7 +481,6 @@ class BackpackWebSocketRouter(
         # For Backpack, handlers are registered as "type.symbol" (e.g., "ticker.SOL_USDC")
         # The routing key is now the full topic, so we can use it directly
         handler = handlers.get(routing_key)
-
         if not handler:
             await self._handle_missing_handler(message, routing_key, handlers)
             return

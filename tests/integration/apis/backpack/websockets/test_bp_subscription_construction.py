@@ -28,6 +28,7 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
     BackpackWsSignatureComponents,
 )
 from cyberdelta.apis.common import MessageHandler
+from cyberdelta.apis.exceptions.websocket import UnsupportedWebSocketTopicError
 from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
@@ -329,7 +330,14 @@ class TestBackpackSubscriptionConstruction:
                         message=f"{description} unexpectedly succeeded",
                     )
 
-            except (ValidationError, ValueError, TypeError, KeyError, AttributeError) as e:
+            except (
+                ValidationError,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+                UnsupportedWebSocketTopicError,
+            ) as e:
                 if should_succeed:
                     pytest.fail(
                         f"Valid topic '{topic}' ({description}) failed: {e}. "

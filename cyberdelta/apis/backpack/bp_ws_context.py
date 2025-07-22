@@ -14,12 +14,14 @@ from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelope]):
     """Backpack-specific message context with enhanced typing."""
 
+    @property
     @computed_field
     def stream_symbol(self) -> str | None:
         """Extract symbol from Backpack stream format."""
         parts = self.validated_envelope.stream.split(".")
         return parts[1] if len(parts) > 1 else None
 
+    @property
     @computed_field
     def stream_details(self) -> str | None:
         """Extract additional details from Backpack stream format."""
@@ -41,9 +43,10 @@ class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelop
         # Backpack uses symbol for market data streams
         if self.symbol:
             params["symbol"] = self.symbol
-        elif self.stream_symbol():
-            stream_sym = self.stream_symbol()
-            if stream_sym:
+        else:
+            # Get stream symbol value and check if it's valid
+            stream_sym = self.stream_symbol
+            if stream_sym is not None:
                 params["symbol"] = stream_sym
 
         return params
@@ -54,8 +57,8 @@ class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelop
         Returns:
             Dictionary with symbol parameter or None if not available
         """
-        # Check direct symbol first, then computed stream_symbol
-        symbol = self.symbol or self.stream_symbol()
+        # Check direct symbol first, then computed stream_symbol (property)
+        symbol = self.symbol or self.stream_symbol
         return {"symbol": symbol} if symbol else None
 
     def get_coin_param(self) -> dict[str, str] | None:

@@ -44,6 +44,8 @@ MIN_KLINE_PARTS = 3
 MAX_DICT_SIZE = 1000
 MAX_LIST_SIZE = 10000
 VALIDATION_THRESHOLD_MS = 0.001  # 1ms threshold for logging
+STANDARD_DEPTH_PARTS = 2  # depth.SYMBOL
+AGGREGATED_DEPTH_PARTS = 3  # depth.200ms.SYMBOL
 
 
 class BackpackSubscriptionResponse(BaseModel):
@@ -178,10 +180,14 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     def _normalize_depth_stream(cls, v: str) -> str:
         """Normalize depth stream format."""
         parts = v.split(".")
-        if len(parts) >= MIN_STREAM_PARTS:
-            # Normalize symbol part to uppercase
+        if len(parts) == STANDARD_DEPTH_PARTS:
+            # Standard depth stream: depth.SYMBOL
             symbol = parts[1].upper()
             return f"{parts[0]}.{symbol}"
+        if len(parts) == AGGREGATED_DEPTH_PARTS:
+            # Aggregated depth stream: depth.200ms.SYMBOL or depth.1000ms.SYMBOL
+            symbol = parts[2].upper()
+            return f"{parts[0]}.{parts[1]}.{symbol}"
         return v
 
     @classmethod

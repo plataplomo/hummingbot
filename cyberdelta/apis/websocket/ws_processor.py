@@ -186,6 +186,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         try:
             # Step 1: Validate with Pydantic
             validated = await self._validate_payload(payload, context, message_type)
+
             if validated is None:
                 return
 
@@ -198,6 +199,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             # WebSocketContextProtocol implementations should have domain_model attribute
             # The concrete WebSocketMessageContext class has this field defined
             context.domain_model = domain_model
+
             success = await self._handle_message(domain_model, handler, context, message_type)
 
             # Record successful processing only if handler succeeded
@@ -279,6 +281,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         """Transform validated message to domain model."""
         try:
             domain_model = self.transformer.transform(validated, context)
+
         except (ValidationError, ValueError, TypeError, AttributeError, KeyError) as e:
             self.metrics.record_transformation_error()
             if self.metrics_collector:
@@ -321,6 +324,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             # For now, we'll create a new context with domain model attached
             # This is temporary until handlers are updated to work with domain models directly
             await handler(context)
+
         except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
             # Re-raise critical exceptions that should not be caught
             raise

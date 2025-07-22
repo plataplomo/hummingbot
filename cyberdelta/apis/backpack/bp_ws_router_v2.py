@@ -20,6 +20,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
 )
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
+from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
+    BackpackDepthStateTransformer,
+)
 from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
@@ -237,10 +240,10 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
 
     def _setup_processors(self) -> None:
         """Setup Backpack-specific message processors."""
-        # Market data processors
+        # Market data processors - use stateful transformer for depth
         self.processors["depth"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawDepthUpdateEvent,
-            transformer=BackpackDepthTransformer(self.order_book_mapper),
+            transformer=BackpackDepthStateTransformer(self.order_book_mapper),
             error_handler=self.error_handler,
             processor_name="backpack_depth",
         )

@@ -82,12 +82,24 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     @computed_field
     def message_size_bytes(self) -> int:
-        """Calculate message size for monitoring."""
+        """Calculate message size for monitoring.
+
+        TODO: This computed field performs expensive JSON serialization and encoding
+        on every access. Consider caching this value or using a simpler approximation
+        for monitoring purposes to avoid performance overhead.
+        """
         try:
-            # Use model_dump with exclude to avoid serializing domain_model
-            # Then manually convert to JSON to get size
-            data = self.model_dump(mode="python", exclude={"domain_model"})
-            return len(json.dumps(data).encode("utf-8"))
+            # Exclude ALL computed fields to prevent infinite recursion
+            # This fixes the critical bug where computed fields trigger serialization loops
+            excluded_fields = {
+                "domain_model",
+                "message_size_bytes",
+                "processing_priority",
+                "topic",
+                "is_private_message",
+            }
+            data = self.model_dump(mode="python", exclude=excluded_fields)
+            return len(json.dumps(data, default=str).encode("utf-8"))
         except (TypeError, ValueError, UnicodeEncodeError):
             # If serialization fails, return 0
             return 0

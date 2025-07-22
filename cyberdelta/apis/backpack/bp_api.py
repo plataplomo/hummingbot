@@ -557,13 +557,14 @@ class BackpackAPI(ExchangeAPI):
 
     async def subscribe_to_trades(self, symbol: str) -> None:
         """Subscribe to public trade updates for a symbol."""
-        topic = f"trades.{symbol}"
+        # NOTE: Backpack uses "trade" (singular) not "trades" for the stream name
+        topic = f"trade.{symbol}"
         logger.debug(
             "backpack_trades_subscription_prepared",
             exchange=self.exchange_name,
             symbol=symbol,
             topic=topic,
-            subscription_type="trades",
+            subscription_type="trade",
             message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
         )
 

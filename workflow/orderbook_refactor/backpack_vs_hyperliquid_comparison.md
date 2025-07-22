@@ -47,8 +47,8 @@ Example: l2Book:BTC
 ```python
 # Model: BackpackRawDepthUpdateEvent
 class BackpackRawDepthUpdateEvent(BaseModel):
-    bids: list[tuple[str, str]] | None = Field(None, alias="bids")  # ⚠️ OPTIONAL
-    asks: list[tuple[str, str]] | None = Field(None, alias="asks")  # ⚠️ OPTIONAL
+    bids: list[tuple[str, str]] | None = Field(None, alias="b")  # ⚠️ OPTIONAL
+    asks: list[tuple[str, str]] | None = Field(None, alias="a")  # ⚠️ OPTIONAL
     first_update_id: str = Field(..., alias="U")
     last_update_id: str = Field(..., alias="u")
 ```

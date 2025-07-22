@@ -267,10 +267,10 @@ class BackpackRawDepthUpdateEvent(BaseModel):
 
     # symbol field is NOT in raw data - extracted from stream name
     bids: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] | None = Field(
-        None, alias="bids"
+        None, alias="b"
     )
     asks: list[tuple[RawBpDepthPriceString, RawBpDepthQuantityString]] | None = Field(
-        None, alias="asks"
+        None, alias="a"
     )
     first_update_id: RawBpIdStringMax64 = Field(..., alias="U")
     last_update_id: RawBpIdStringMax64 = Field(..., alias="u")

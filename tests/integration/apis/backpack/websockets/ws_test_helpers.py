@@ -6,6 +6,7 @@ All helpers follow security rules and use real market data.
 """
 
 import asyncio
+import operator
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -20,6 +21,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.common.types import MessageHandler
+from cyberdelta.apis.models.service_args_models import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
@@ -521,3 +523,95 @@ async def ensure_websocket_connected(api: BackpackAPI) -> None:
             "WebSocket connection not established. "
             "Integration tests require active WebSocket connection."
         )
+
+
+async def get_most_active_symbol(api: BackpackAPI) -> str:
+    """Get the most actively traded symbol based on volume and recent trades.
+
+    This ensures WebSocket tests use symbols with actual trading activity,
+    preventing timeouts due to inactive markets.
+
+    Args:
+        api: Backpack API instance
+
+    Returns:
+        Symbol string for the most active market
+
+    Raises:
+        RuntimeError: If unable to find any active markets
+    """
+    markets = await api.get_markets(GetMarketsArgs())
+    if not markets:
+        raise RuntimeError("No markets available from exchange")
+
+    # Try to get ticker data for markets to check volume
+    ticker_volumes: list[tuple[str, Decimal]] = []
+
+    # Check common active pairs first - use consistent naming
+    priority_symbols = ["SOL_USDC", "BTC_USDC", "ETH_USDC", "SOL_PERP", "BTC_PERP", "ETH_PERP"]
+    available_priority = [m.symbol for m in markets if m.symbol in priority_symbols]
+
+    # Check first 10 markets or priority symbols
+    symbols_to_check = (
+        available_priority[:5] if available_priority else [m.symbol for m in markets[:10]]
+    )
+
+    for symbol in symbols_to_check:
+        try:
+            ticker = await api.get_ticker(symbol)
+            # Use quote_volume from Backpack details if available, otherwise fallback to volume
+            quote_volume = ticker.bp_details.quote_volume if ticker.bp_details else None
+            volume = quote_volume or ticker.volume or Decimal(0)
+            if volume > 0:
+                ticker_volumes.append((symbol, volume))
+                logger.info(
+                    "market_volume_check",
+                    symbol=symbol,
+                    volume=str(volume),
+                    trades=(
+                        ticker.bp_details.trades
+                        if ticker.bp_details and ticker.bp_details.trades
+                        else "N/A"
+                    ),
+                    message=f"Market {symbol} has volume {volume}",
+                )
+        except (ConnectionError, TimeoutError, ValidationError) as e:
+            logger.warning(
+                "ticker_fetch_failed",
+                symbol=symbol,
+                error=str(e),
+                message=f"Failed to get ticker for {symbol}",
+            )
+            continue
+
+    # Sort by volume descending
+    ticker_volumes.sort(key=operator.itemgetter(1), reverse=True)
+
+    if ticker_volumes and ticker_volumes[0][1] > 0:
+        most_active = ticker_volumes[0][0]
+        logger.info(
+            "most_active_symbol_selected",
+            symbol=most_active,
+            volume=str(ticker_volumes[0][1]),
+            message=f"Selected {most_active} as most active symbol",
+        )
+        return most_active
+
+    # Fallback: try known active perpetual markets
+    for symbol in ["SOL_PERP", "BTC_PERP", "ETH_PERP"]:
+        if any(m.symbol == symbol for m in markets):
+            logger.warning(
+                "using_fallback_symbol",
+                symbol=symbol,
+                message=f"No volume data available, using known active market {symbol}",
+            )
+            return symbol
+
+    # Last resort: return first available market
+    fallback = markets[0].symbol
+    logger.error(
+        "no_active_markets_found",
+        fallback_symbol=fallback,
+        message="No active markets found, using first available market. Test may timeout.",
+    )
+    return fallback
