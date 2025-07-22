@@ -8,9 +8,12 @@ from __future__ import annotations
 import asyncio
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, TypeVar
+
+from pydantic import BaseModel, Field
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -27,12 +30,23 @@ def _str_list_factory() -> list[str]:
     return []
 
 
-def _any_dict_factory() -> dict[str, Any]:
-    """Factory function that preserves dict[str, Any] type information."""
-    return {}
+class StateManagerMetadata(BaseModel):
+    """Generic metadata for state manager operations."""
+
+    operation_type: str | None = Field(default=None, description="Type of operation performed")
+    source: str | None = Field(default=None, description="Source of the operation")
+    timestamp: float | None = Field(default=None, description="Operation timestamp")
+    version: int | None = Field(default=None, description="State version")
+    user_id: str | None = Field(default=None, description="User who performed operation")
+    session_id: str | None = Field(default=None, description="Session ID")
+    correlation_id: str | None = Field(default=None, description="Correlation ID for tracing")
+    additional_data: dict[str, str] = Field(
+        default_factory=dict, description="Additional string data"
+    )
 
 
 if TYPE_CHECKING:
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import StateContainerProtocol
 
 # Type variable for state data
@@ -47,7 +61,7 @@ class StateUpdate[T]:
     timestamp: datetime
     source: str
     version: int = 0
-    metadata: dict[str, Any] = field(default_factory=_any_dict_factory)
+    metadata: StateManagerMetadata | None = None
 
 
 @dataclass(frozen=True)
@@ -58,7 +72,7 @@ class StateManagerResult:
     message: str
     data: Any | None = None
     errors: list[str] = field(default_factory=_str_list_factory)
-    metadata: dict[str, Any] = field(default_factory=_any_dict_factory)
+    metadata: StateManagerMetadata | None = None
     execution_time_ms: float = 0.0
 
     @classmethod
@@ -66,7 +80,7 @@ class StateManagerResult:
         cls,
         message: str = "Operation successful",
         data: object | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: StateManagerMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> StateManagerResult:
         """Create a successful result."""
@@ -74,7 +88,7 @@ class StateManagerResult:
             success=True,
             message=message,
             data=data,
-            metadata=metadata or {},
+            metadata=metadata,
             execution_time_ms=execution_time_ms,
         )
 
@@ -83,7 +97,7 @@ class StateManagerResult:
         cls,
         message: str,
         errors: list[str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: StateManagerMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> StateManagerResult:
         """Create a failure result."""
@@ -91,7 +105,7 @@ class StateManagerResult:
             success=False,
             message=message,
             errors=errors or [message],
-            metadata=metadata or {},
+            metadata=metadata,
             execution_time_ms=execution_time_ms,
         )
 
@@ -109,7 +123,7 @@ class TypedStateManager[T](ABC):
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
         manager_name: str,
     ) -> None:
         """Initialize the typed state manager.
@@ -210,7 +224,7 @@ class TypedStateManager[T](ABC):
                     return StateManagerResult.failure_result(
                         message="State validation failed",
                         errors=validation_result.errors,
-                        metadata={"validation_result": validation_result},
+                        metadata=None,  # Can't serialize StateValidationResult to string dict
                         execution_time_ms=(time.time() - start_time) * 1000,
                     )
                 self.validation_count += 1

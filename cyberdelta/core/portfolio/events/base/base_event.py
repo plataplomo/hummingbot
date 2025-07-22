@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, NotRequired, TypedDict, TypeVar
 from uuid import UUID, uuid4
 
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions import MalformedTradeError
 
 
 # Type-preserving factory function for tags dict
@@ -111,19 +114,49 @@ class EventMetadataKwargsWithoutExchangeSymbol(TypedDict, total=False):
     tags: NotRequired[dict[str, str]]
 
 
-@dataclass
+@dataclass  # Mutable - supports progressive construction
 class EventMetadata:
     """Metadata for portfolio events."""
 
-    event_id: UUID = field(default_factory=uuid4)
-    timestamp: float = field(default_factory=time.time)
+    event_id: UUID = Field(default_factory=uuid4)
+    timestamp: float = Field(default_factory=time.time)
     source_component: str = ""
     correlation_id: UUID | None = None
     exchange_id: str | None = None
     symbol: str | None = None
     priority: EventPriority = EventPriority.NORMAL
     retry_count: int = 0
-    tags: dict[str, str] = field(default_factory=_str_str_dict_factory)
+    tags: dict[str, str] = Field(default_factory=_str_str_dict_factory)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: float) -> float:
+        """Validate timestamp is positive."""
+        if v <= 0:
+            raise MalformedTradeError(
+                message="Timestamp must be positive", field_name="timestamp", field_value=str(v)
+            )
+        return v
+
+    @field_validator("exchange_id", "symbol", mode="before")
+    @classmethod
+    def validate_optional_strings(cls, v: str | None) -> str | None:
+        """Validate optional string fields, returning None for empty strings."""
+        if v is not None and not v.strip():
+            return None
+        return v
+
+    @field_validator("retry_count", mode="before")
+    @classmethod
+    def validate_retry_count(cls, v: int) -> int:
+        """Validate retry count is non-negative."""
+        if v < 0:
+            raise MalformedTradeError(
+                message="Retry count cannot be negative",
+                field_name="retry_count",
+                field_value=str(v),
+            )
+        return v
 
     def to_dict(self) -> dict[str, Any]:
         """Convert metadata to dictionary."""
@@ -146,7 +179,7 @@ class BasePortfolioEvent[T](ABC):
 
     event_type: EventType
     data: T
-    metadata: EventMetadata = field(default_factory=EventMetadata)
+    metadata: EventMetadata = Field(default_factory=EventMetadata)
 
     def __post_init__(self) -> None:
         """Post-initialization setup."""

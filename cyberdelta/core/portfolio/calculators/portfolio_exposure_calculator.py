@@ -4,33 +4,19 @@ from __future__ import annotations
 
 import operator
 from collections import defaultdict
-from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions import InvalidCalculationInputError
 
 
-# Type-preserving factory functions for dataclass fields
-def _str_decimal_dict_factory() -> dict[str, Decimal]:
-    """Factory function that preserves dict[str, Decimal] type information."""
-    return {}
-
-
-def _str_int_dict_factory() -> dict[str, int]:
-    """Factory function that preserves dict[str, int] type information."""
-    return {}
-
-
-def _breach_list_factory() -> list[dict[str, Any]]:
-    """Factory function that preserves list[dict[str, Any]] type information."""
-    return []
-
-
-def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
-    return []
-
+# Constants
+REASONABLE_VALUE_MIN = -1e15
+REASONABLE_VALUE_MAX = 1e15
 
 if TYPE_CHECKING:
     from cyberdelta.core.portfolio.calculators.position_exposure_calculator import PositionExposure
@@ -38,54 +24,174 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _risk_limit_breach_list_factory() -> list[RiskLimitBreach]:
+    """Factory function that preserves list[RiskLimitBreach] type information."""
+    return []
+
+
+@dataclass
+class RiskLimitBreach:
+    """Risk limit breach with validation."""
+
+    limit_type: str = Field(min_length=1, description="Type of limit breached")
+    limit_value: float = Field(description="The configured limit value")
+    current_value: float = Field(description="The current value that breached the limit")
+    severity: str = Field(
+        pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$", description="Breach severity level"
+    )
+
+    @field_validator("limit_value", "current_value", mode="before")
+    @classmethod
+    def validate_values(cls, v: float | str | Decimal) -> float:
+        """Validate limit values are finite."""
+        value: float = float(v)
+        if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
+            raise InvalidCalculationInputError(
+                parameter="limit_value", value=value, expected="finite and reasonable value"
+            )
+        return value
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "limit_type": self.limit_type,
+            "limit_value": self.limit_value,
+            "current_value": self.current_value,
+            "severity": self.severity,
+        }
+
+
 @dataclass
 class PortfolioExposure:
-    """Aggregate portfolio exposure metrics."""
+    """Aggregate portfolio exposure metrics with validation."""
 
     # Portfolio totals
-    total_positions: int
-    total_market_value: Decimal
-    total_notional_value: Decimal
-    total_collateral: Decimal
+    total_positions: int = Field(ge=0, description="Total number of positions")
+    total_market_value: Decimal = Field(ge=0, description="Total market value")
+    total_notional_value: Decimal = Field(ge=0, description="Total notional value")
+    total_collateral: Decimal = Field(ge=0, description="Total collateral")
 
     # Exposure metrics
-    gross_exposure: Decimal  # Sum of absolute exposures
-    net_exposure: Decimal  # Sum of signed exposures
-    long_exposure: Decimal  # Total long exposure
-    short_exposure: Decimal  # Total short exposure (absolute value)
+    gross_exposure: Decimal = Field(ge=0, description="Sum of absolute exposures")
+    net_exposure: Decimal = Field(description="Sum of signed exposures")
+    long_exposure: Decimal = Field(ge=0, description="Total long exposure")
+    short_exposure: Decimal = Field(ge=0, description="Total short exposure (absolute value)")
 
     # Risk metrics
-    total_margin_requirement: Decimal
-    average_leverage: Decimal
-    max_leverage: Decimal
-    portfolio_var_95: Decimal
-    portfolio_var_99: Decimal
-    total_stress_loss: Decimal
+    total_margin_requirement: Decimal = Field(ge=0, description="Total margin requirement")
+    average_leverage: Decimal = Field(ge=0, description="Average portfolio leverage")
+    max_leverage: Decimal = Field(ge=0, description="Maximum position leverage")
+    portfolio_var_95: Decimal = Field(ge=0, description="Portfolio 95% VaR")
+    portfolio_var_99: Decimal = Field(ge=0, description="Portfolio 99% VaR")
+    total_stress_loss: Decimal = Field(ge=0, description="Total stress scenario loss")
 
     # Concentration metrics
-    largest_position_weight: Decimal
-    top_5_concentration: Decimal  # Weight of top 5 positions
-    herfindahl_index: Decimal  # Concentration index (0-1)
+    largest_position_weight: Decimal = Field(
+        ge=0, le=1, description="Largest position weight (0-100%)"
+    )
+    top_5_concentration: Decimal = Field(ge=0, le=1, description="Top 5 positions weight (0-100%)")
+    herfindahl_index: Decimal = Field(
+        ge=0, le=1, description="Herfindahl concentration index (0-1)"
+    )
 
     # Risk scores
-    overall_risk_score: Decimal  # 0-100
-    concentration_risk_score: Decimal  # 0-100
-    leverage_risk_score: Decimal  # 0-100
+    overall_risk_score: Decimal = Field(ge=0, le=100, description="Overall risk score (0-100)")
+    concentration_risk_score: Decimal = Field(
+        ge=0, le=100, description="Concentration risk score (0-100)"
+    )
+    leverage_risk_score: Decimal = Field(ge=0, le=100, description="Leverage risk score (0-100)")
 
     # Breakdown by exchange
-    exposure_by_exchange: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
-    margin_by_exchange: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
+    exposure_by_exchange: dict[str, Decimal] = Field(
+        default_factory=dict, description="Exposure by exchange"
+    )
+    margin_by_exchange: dict[str, Decimal] = Field(
+        default_factory=dict, description="Margin by exchange"
+    )
 
     # Breakdown by asset
-    exposure_by_asset: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
-    position_count_by_asset: dict[str, int] = field(default_factory=_str_int_dict_factory)
+    exposure_by_asset: dict[str, Decimal] = Field(
+        default_factory=dict, description="Exposure by asset"
+    )
+    position_count_by_asset: dict[str, int] = Field(
+        default_factory=dict, description="Position count by asset"
+    )
 
     # Currency exposure
-    currency_exposures: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
+    currency_exposures: dict[str, Decimal] = Field(
+        default_factory=dict, description="Currency exposures"
+    )
 
     # Risk limits
-    breached_limits: list[dict[str, Any]] = field(default_factory=_breach_list_factory)
-    warnings: list[str] = field(default_factory=_str_list_factory)
+    breached_limits: list[RiskLimitBreach] = Field(
+        default_factory=_risk_limit_breach_list_factory, description="Breached risk limits"
+    )
+    warnings: list[str] = Field(default_factory=list, description="Risk warnings")
+
+    @field_validator(
+        "total_market_value",
+        "total_notional_value",
+        "total_collateral",
+        "gross_exposure",
+        "net_exposure",
+        "long_exposure",
+        "short_exposure",
+        "total_margin_requirement",
+        "average_leverage",
+        "max_leverage",
+        "portfolio_var_95",
+        "portfolio_var_99",
+        "total_stress_loss",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure decimal values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="decimal_value", value=value, expected="finite decimal"
+            )
+        return value
+
+    @field_validator(
+        "exposure_by_exchange",
+        "margin_by_exchange",
+        "exposure_by_asset",
+        "currency_exposures",
+        mode="after",
+    )
+    @classmethod
+    def validate_decimal_dicts(
+        cls, v: dict[str, Decimal | str | float | int]
+    ) -> dict[str, Decimal]:
+        """Validate dictionaries with decimal values."""
+        result: dict[str, Decimal] = {}
+        for key, value in v.items():
+            val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
+            if not val.is_finite():
+                raise InvalidCalculationInputError(
+                    parameter=f"value_for_{key}", value=val, expected="finite decimal"
+                )
+            if val < 0:
+                raise InvalidCalculationInputError(
+                    parameter=f"value_for_{key}", value=val, expected="non-negative decimal"
+                )
+            result[key] = val
+        return result
+
+    @field_validator("position_count_by_asset", mode="after")
+    @classmethod
+    def validate_count_dict(cls, v: dict[str, int]) -> dict[str, int]:
+        """Validate position count dictionary."""
+        for key, count in v.items():
+            if count < 0:
+                raise InvalidCalculationInputError(
+                    parameter=f"position_count_for_{key}",
+                    value=count,
+                    expected="non-negative integer",
+                )
+        return v
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -115,7 +221,7 @@ class PortfolioExposure:
             "exposure_by_asset": {k: str(v) for k, v in self.exposure_by_asset.items()},
             "position_count_by_asset": self.position_count_by_asset,
             "currency_exposures": {k: str(v) for k, v in self.currency_exposures.items()},
-            "breached_limits": self.breached_limits,
+            "breached_limits": [breach.to_dict() for breach in self.breached_limits],
             "warnings": self.warnings,
         }
 
@@ -404,55 +510,63 @@ class PortfolioExposureCalculator:
 
     def _check_exposure_limits(
         self, gross_exposure: Decimal, net_exposure: Decimal
-    ) -> list[dict[str, Any]]:
+    ) -> list[RiskLimitBreach]:
         """Check exposure limits."""
-        breached_limits: list[dict[str, Any]] = []
+        breached_limits: list[RiskLimitBreach] = []
 
         if (
             self.risk_limits.max_gross_exposure
             and gross_exposure > self.risk_limits.max_gross_exposure
         ):
-            breached_limits.append({
-                "limit_type": "gross_exposure",
-                "limit_value": float(self.risk_limits.max_gross_exposure),
-                "current_value": float(gross_exposure),
-                "severity": "HIGH",
-            })
+            breached_limits.append(
+                RiskLimitBreach(
+                    limit_type="gross_exposure",
+                    limit_value=float(self.risk_limits.max_gross_exposure),
+                    current_value=float(gross_exposure),
+                    severity="HIGH",
+                )
+            )
 
         if (
             self.risk_limits.max_net_exposure
             and abs(net_exposure) > self.risk_limits.max_net_exposure
         ):
-            breached_limits.append({
-                "limit_type": "net_exposure",
-                "limit_value": float(self.risk_limits.max_net_exposure),
-                "current_value": float(abs(net_exposure)),
-                "severity": "MEDIUM",
-            })
+            breached_limits.append(
+                RiskLimitBreach(
+                    limit_type="net_exposure",
+                    limit_value=float(self.risk_limits.max_net_exposure),
+                    current_value=float(abs(net_exposure)),
+                    severity="MEDIUM",
+                )
+            )
 
         return breached_limits
 
     def _check_leverage_and_var_limits(
         self, max_leverage: Decimal, portfolio_var_95: Decimal
-    ) -> list[dict[str, Any]]:
+    ) -> list[RiskLimitBreach]:
         """Check leverage and VaR limits."""
-        breached_limits: list[dict[str, Any]] = []
+        breached_limits: list[RiskLimitBreach] = []
 
         if max_leverage > self.risk_limits.max_leverage:
-            breached_limits.append({
-                "limit_type": "leverage",
-                "limit_value": float(self.risk_limits.max_leverage),
-                "current_value": float(max_leverage),
-                "severity": "CRITICAL",
-            })
+            breached_limits.append(
+                RiskLimitBreach(
+                    limit_type="leverage",
+                    limit_value=float(self.risk_limits.max_leverage),
+                    current_value=float(max_leverage),
+                    severity="CRITICAL",
+                )
+            )
 
         if self.risk_limits.max_var_95 and portfolio_var_95 > self.risk_limits.max_var_95:
-            breached_limits.append({
-                "limit_type": "var_95",
-                "limit_value": float(self.risk_limits.max_var_95),
-                "current_value": float(portfolio_var_95),
-                "severity": "HIGH",
-            })
+            breached_limits.append(
+                RiskLimitBreach(
+                    limit_type="var_95",
+                    limit_value=float(self.risk_limits.max_var_95),
+                    current_value=float(portfolio_var_95),
+                    severity="HIGH",
+                )
+            )
 
         return breached_limits
 
@@ -463,18 +577,20 @@ class PortfolioExposureCalculator:
         position_count: int,
         exposure_by_exchange: dict[str, Decimal],
         total_exposure: Decimal,
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[RiskLimitBreach], list[str]]:
         """Check concentration limits."""
-        breached_limits: list[dict[str, Any]] = []
+        breached_limits: list[RiskLimitBreach] = []
         warnings: list[str] = []
 
         if largest_position_weight > self.risk_limits.max_concentration_single:
-            breached_limits.append({
-                "limit_type": "single_position_concentration",
-                "limit_value": float(self.risk_limits.max_concentration_single * 100),
-                "current_value": float(largest_position_weight * 100),
-                "severity": "HIGH",
-            })
+            breached_limits.append(
+                RiskLimitBreach(
+                    limit_type="single_position_concentration",
+                    limit_value=float(self.risk_limits.max_concentration_single * 100),
+                    current_value=float(largest_position_weight * 100),
+                    severity="HIGH",
+                )
+            )
 
         if top_5_concentration > self.risk_limits.max_concentration_top5:
             warnings.append(
@@ -509,9 +625,9 @@ class PortfolioExposureCalculator:
         position_count: int,
         exposure_by_exchange: dict[str, Decimal],
         total_exposure: Decimal,
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[RiskLimitBreach], list[str]]:
         """Check risk limits and generate warnings."""
-        breached_limits: list[dict[str, Any]] = []
+        breached_limits: list[RiskLimitBreach] = []
         warnings: list[str] = []
 
         # Check exposure limits

@@ -1,3 +1,5 @@
+# Worktree-specific .gitignore for CyberDeltaEngine
+worktrees.code-workspace
 
 # Python artifacts
 __pycache__/

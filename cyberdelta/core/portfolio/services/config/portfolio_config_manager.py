@@ -8,15 +8,72 @@ import json
 import os
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, cast
 
+from pydantic import BaseModel, Field, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.config.portfolio_config import PortfolioConfiguration
-from cyberdelta.core.portfolio.exceptions.service import ConfigurationError
+from cyberdelta.core.portfolio.config.validation import (
+    ConfigurationValidator,
+    create_validated_configuration,
+)
+from cyberdelta.core.portfolio.exceptions.service import (
+    ConfigChangeKeyValidationError,
+    ConfigManagerValidationError,
+    ConfigProfileNameValidationError,
+    ConfigStringValidationError,
+    ConfigTimestampNegativeError,
+    ConfigTimestampValidationError,
+    ConfigurationError,
+)
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+
+
+class ConfigData(BaseModel):
+    """Typed configuration data model."""
+
+    # Common configuration fields
+    debug_mode: bool | None = None
+    log_level: str | None = None
+
+    # Sub-configuration sections as dicts for flexibility
+    cache: dict[str, Any] | None = None
+    pricing: dict[str, Any] | None = None
+    symbol: dict[str, Any] | None = None
+    screening: dict[str, Any] | None = None
+    balance: dict[str, Any] | None = None
+    position: dict[str, Any] | None = None
+    order: dict[str, Any] | None = None
+    pnl: dict[str, Any] | None = None
+    concurrency: dict[str, Any] | None = None
+    state_manager: dict[str, Any] | None = None
+    monitoring: dict[str, Any] | None = None
+
+
+class ProfileMetadata(BaseModel):
+    """Metadata for configuration profiles."""
+
+    author: str | None = None
+    version: str | None = None
+    environment: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    description: str | None = None
+
+
+class ConfigurationStatistics(BaseModel):
+    """Typed statistics for configuration management."""
+
+    total_reloads: int = Field(default=0, ge=0, description="Total configuration reloads")
+    successful_reloads: int = Field(default=0, ge=0, description="Successful reloads")
+    failed_reloads: int = Field(default=0, ge=0, description="Failed reloads")
+    total_changes: int = Field(default=0, ge=0, description="Total configuration changes")
+    validation_errors: int = Field(default=0, ge=0, description="Validation errors encountered")
+    last_reload_time: float = Field(default=0.0, ge=0, description="Timestamp of last reload")
+    last_change_time: float = Field(default=0.0, ge=0, description="Timestamp of last change")
 
 
 logger = get_logger(__name__)
@@ -82,14 +139,22 @@ class ConfigSourceDescriptor:
     source_type: ConfigSource
     location: str
     format: ConfigFormat
-    priority: int = 100
+    priority: int = Field(default=100, ge=0, le=10000)
     enabled: bool = True
     readonly: bool = False
     watch_enabled: bool = True
-    reload_interval: float = 60.0
-    last_modified: float = 0.0
+    reload_interval: float = Field(default=60.0, gt=0, le=3600)  # Max 1 hour
+    last_modified: float = Field(default=0.0, ge=0)
     checksum: str = ""
-    metadata: dict[str, object] = field(default_factory=_str_object_dict_factory)
+    metadata: dict[str, object] = Field(default_factory=_str_object_dict_factory)
+
+    @field_validator("name", "location", mode="before")
+    @classmethod
+    def validate_strings(cls, v: str) -> str:
+        """Validate string fields are non-empty."""
+        if not v or not v.strip():
+            raise ConfigStringValidationError
+        return v.strip()
 
 
 @dataclass
@@ -101,10 +166,26 @@ class ConfigChange:
     old_value: object = None
     new_value: object = None
     source: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = Field(default_factory=time.time)
     user: str = ""
     reason: str = ""
-    metadata: dict[str, object] = field(default_factory=_str_object_dict_factory)
+    metadata: dict[str, object] = Field(default_factory=_str_object_dict_factory)
+
+    @field_validator("key", mode="before")
+    @classmethod
+    def validate_key(cls, v: str) -> str:
+        """Validate key is non-empty."""
+        if not v or not v.strip():
+            raise ConfigChangeKeyValidationError
+        return v.strip()
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: float) -> float:
+        """Validate timestamp is non-negative."""
+        if v < 0:
+            raise ConfigTimestampNegativeError
+        return v
 
 
 @dataclass
@@ -112,11 +193,19 @@ class ConfigValidationResult:
     """Configuration validation result."""
 
     is_valid: bool
-    errors: list[str] = field(default_factory=_str_list_factory)
-    warnings: list[str] = field(default_factory=_str_list_factory)
-    affected_components: list[str] = field(default_factory=_str_list_factory)
-    validation_time: float = field(default_factory=time.time)
-    metadata: dict[str, object] = field(default_factory=_str_object_dict_factory)
+    errors: list[str] = Field(default_factory=_str_list_factory)
+    warnings: list[str] = Field(default_factory=_str_list_factory)
+    affected_components: list[str] = Field(default_factory=_str_list_factory)
+    validation_time: float = Field(default_factory=time.time)
+    metadata: dict[str, object] = Field(default_factory=_str_object_dict_factory)
+
+    @field_validator("validation_time", mode="before")
+    @classmethod
+    def validate_time(cls, v: float) -> float:
+        """Validate validation time is non-negative."""
+        if v < 0:
+            raise ConfigTimestampNegativeError(field_type="validation_time")
+        return v
 
 
 @dataclass
@@ -125,13 +214,29 @@ class ConfigProfile:
 
     name: str
     description: str = ""
-    base_config: dict[str, object] = field(default_factory=_str_object_dict_factory)
-    overrides: dict[str, object] = field(default_factory=_str_object_dict_factory)
-    sources: list[ConfigSourceDescriptor] = field(default_factory=_config_source_list_factory)
+    base_config: ConfigData = Field(default_factory=ConfigData)
+    overrides: ConfigData = Field(default_factory=ConfigData)
+    sources: list[ConfigSourceDescriptor] = Field(default_factory=_config_source_list_factory)
     active: bool = False
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
-    metadata: dict[str, object] = field(default_factory=_str_object_dict_factory)
+    created_at: float = Field(default_factory=time.time)
+    updated_at: float = Field(default_factory=time.time)
+    metadata: ProfileMetadata = Field(default_factory=ProfileMetadata)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Validate profile name is non-empty."""
+        if not v or not v.strip():
+            raise ConfigProfileNameValidationError
+        return v.strip()
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def validate_timestamps(cls, v: float) -> float:
+        """Validate timestamps are non-negative."""
+        if v < 0:
+            raise ConfigTimestampNegativeError(field_type="created_at/updated_at")
+        return v
 
 
 @dataclass
@@ -139,13 +244,29 @@ class ConfigSnapshot:
     """Configuration snapshot for versioning."""
 
     snapshot_id: str
-    timestamp: float
     profile: str
     configuration: dict[str, object]
-    changes: list[ConfigChange] = field(default_factory=_config_change_list_factory)
+    timestamp: float = Field(gt=0)
+    changes: list[ConfigChange] = Field(default_factory=_config_change_list_factory)
     description: str = ""
-    tags: list[str] = field(default_factory=_str_list_factory)
-    metadata: dict[str, object] = field(default_factory=_str_object_dict_factory)
+    tags: list[str] = Field(default_factory=_str_list_factory)
+    metadata: dict[str, object] = Field(default_factory=_str_object_dict_factory)
+
+    @field_validator("snapshot_id", "profile", mode="before")
+    @classmethod
+    def validate_strings(cls, v: str) -> str:
+        """Validate string fields are non-empty."""
+        if not v or not v.strip():
+            raise ConfigStringValidationError
+        return v.strip()
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_timestamp(cls, v: float) -> float:
+        """Validate timestamp is positive."""
+        if v <= 0:
+            raise ConfigTimestampValidationError
+        return v
 
 
 class PortfolioConfigManager(BasePortfolioService):
@@ -186,7 +307,7 @@ class PortfolioConfigManager(BasePortfolioService):
     validation_schemas: dict[str, dict[str, object]]
 
     # Monitoring
-    config_statistics: dict[str, Any]
+    config_statistics: ConfigurationStatistics
 
     # Background tasks
     reload_task: asyncio.Task[None] | None
@@ -279,15 +400,7 @@ class PortfolioConfigManager(BasePortfolioService):
         self.validation_schemas: dict[str, dict[str, object]] = {}
 
         # Monitoring
-        self.config_statistics = {
-            "total_reloads": 0,
-            "successful_reloads": 0,
-            "failed_reloads": 0,
-            "total_changes": 0,
-            "validation_errors": 0,
-            "last_reload_time": 0.0,
-            "last_change_time": 0.0,
-        }
+        self.config_statistics = ConfigurationStatistics()
 
         # Background tasks
         self.reload_task: asyncio.Task[None] | None = None
@@ -410,9 +523,8 @@ class PortfolioConfigManager(BasePortfolioService):
 
             current[keys[-1]] = value
 
-            # Create new configuration
-            new_config = PortfolioConfiguration()
-            new_config.merge_with_dict(config_dict)
+            # Create new configuration with validation
+            new_config = create_validated_configuration(**config_dict)
 
             # Validate configuration
             validation_result = await self._validate_configuration(new_config)
@@ -444,8 +556,8 @@ class PortfolioConfigManager(BasePortfolioService):
             await self._notify_change_subscribers(key, old_value, value)
 
             # Update statistics
-            self.config_statistics["total_changes"] += 1
-            self.config_statistics["last_change_time"] = time.time()
+            self.config_statistics.total_changes += 1
+            self.config_statistics.last_change_time = time.time()
 
             logger.info(
                 "config_value_updated",
@@ -480,13 +592,13 @@ class PortfolioConfigManager(BasePortfolioService):
             # Validate reloaded configuration
             if self.current_config is None:
                 logger.error("config_reload_failed_no_config")
-                self.config_statistics["failed_reloads"] += 1
+                self.config_statistics.failed_reloads += 1
                 return False
 
             validation_result = await self._validate_configuration(self.current_config)
             if not validation_result.is_valid:
                 logger.error("config_reload_validation_failed", errors=validation_result.errors)
-                self.config_statistics["failed_reloads"] += 1
+                self.config_statistics.failed_reloads += 1
                 return False
 
             # Track reload
@@ -500,14 +612,14 @@ class PortfolioConfigManager(BasePortfolioService):
                 await self._track_change(change)
 
             # Update statistics
-            self.config_statistics["total_reloads"] += 1
-            self.config_statistics["successful_reloads"] += 1
-            self.config_statistics["last_reload_time"] = time.time()
+            self.config_statistics.total_reloads += 1
+            self.config_statistics.successful_reloads += 1
+            self.config_statistics.last_reload_time = time.time()
 
             logger.info("configuration_reloaded")
 
         except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
-            self.config_statistics["failed_reloads"] += 1
+            self.config_statistics.failed_reloads += 1
             logger.exception("configuration_reload_failed")
             return False
         else:
@@ -579,7 +691,10 @@ class PortfolioConfigManager(BasePortfolioService):
         snapshot_id = f"snapshot_{int(time.time())}"
 
         if self.current_config is None:
-            raise ValueError
+            raise ConfigManagerValidationError(
+                validation_type="configuration_snapshot",
+                requirement="current configuration must be available",
+            )
 
         # Use current_profile (already a string)
         profile_name = self.current_profile
@@ -628,9 +743,8 @@ class PortfolioConfigManager(BasePortfolioService):
                 description=f"Backup before restoring {snapshot_id}", tags=["restore", "backup"]
             )
 
-            # Restore configuration
-            new_config = PortfolioConfiguration()
-            new_config.merge_with_dict(snapshot.configuration)
+            # Restore configuration with validation
+            new_config = create_validated_configuration(**snapshot.configuration)
 
             # Validate restored configuration
             validation_result = await self._validate_configuration(new_config)
@@ -728,7 +842,7 @@ class PortfolioConfigManager(BasePortfolioService):
     async def get_config_statistics(self) -> dict[str, object]:
         """Get configuration management statistics."""
         return {
-            **self.config_statistics,
+            **self.config_statistics.model_dump(),
             "profiles_count": len(self.config_profiles),
             "sources_count": len(self.config_sources),
             "snapshots_count": len(self.config_snapshots),
@@ -753,37 +867,18 @@ class PortfolioConfigManager(BasePortfolioService):
             for profile_file in profiles_dir.glob("*.json"):
                 try:
 
-                    def _load_profile(file_path: Path) -> dict[str, object]:
+                    def _load_profile(file_path: Path) -> ConfigProfile:
                         with file_path.open(encoding="utf-8") as f:
-                            return json.load(f)  # type: ignore[no-any-return]
+                            data = json.load(f)
+                            # For Pydantic dataclasses, we need to use the constructor
+                            # First ensure base_config and overrides are ConfigData instances
+                            if "base_config" in data and isinstance(data["base_config"], dict):
+                                data["base_config"] = ConfigData.model_validate(data["base_config"])
+                            if "overrides" in data and isinstance(data["overrides"], dict):
+                                data["overrides"] = ConfigData.model_validate(data["overrides"])
+                            return ConfigProfile(**data)
 
-                    profile_data = await asyncio.to_thread(_load_profile, profile_file)
-
-                    # Type-safe profile data extraction with proper casting
-                    profile_name = profile_data.get("name", "")
-                    profile_desc = profile_data.get("description", "")
-                    profile_base_raw = profile_data.get("base_config", {})
-                    profile_overrides_raw = profile_data.get("overrides", {})
-                    profile_base = (
-                        cast(dict[str, object], profile_base_raw)
-                        if isinstance(profile_base_raw, dict)
-                        else {}
-                    )
-                    profile_overrides = (
-                        cast(dict[str, object], profile_overrides_raw)
-                        if isinstance(profile_overrides_raw, dict)
-                        else {}
-                    )
-                    profile_active = profile_data.get("active", False)
-
-                    profile = ConfigProfile(
-                        name=str(profile_name) if profile_name is not None else "",
-                        description=str(profile_desc) if profile_desc is not None else "",
-                        base_config=profile_base,
-                        overrides=profile_overrides,
-                        active=bool(profile_active) if profile_active is not None else False,
-                    )
-
+                    profile = await asyncio.to_thread(_load_profile, profile_file)
                     self.config_profiles[profile.name] = profile
 
                 except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
@@ -822,29 +917,30 @@ class PortfolioConfigManager(BasePortfolioService):
             priority=10,
         )
 
-    async def _load_configuration(self) -> None:
-        """Load configuration from sources."""
-        # Start with default configuration
+    def _create_base_configuration(self) -> PortfolioConfiguration:
+        """Create base configuration based on current profile."""
         if self.current_profile == "development":
-            config = PortfolioConfiguration.create_development()
-        elif self.current_profile == "production":
-            config = PortfolioConfiguration.create_production()
-        elif self.current_profile == "test":
-            config = PortfolioConfiguration.create_test()
-        else:
-            config = PortfolioConfiguration.create_default()
+            return PortfolioConfiguration.create_development()
+        if self.current_profile == "production":
+            return PortfolioConfiguration.create_production()
+        if self.current_profile == "test":
+            return PortfolioConfiguration.create_test()
+        return PortfolioConfiguration.create_default()
 
-        # Get profile for dict access
-        profile_key = self.current_profile
-        profile = self.config_profiles.get(profile_key)
-        if profile:
-            # Apply profile base config
-            config.merge_with_dict(profile.base_config)
+    def _apply_profile_configuration(self, config: PortfolioConfiguration) -> None:
+        """Apply profile-specific configuration."""
+        profile = self.config_profiles.get(self.current_profile)
+        if not profile:
+            return
 
-            # Apply profile overrides
-            config.merge_with_dict(profile.overrides)
+        if profile.base_config:
+            config.merge_with_dict(profile.base_config.model_dump(exclude_none=True))
 
-        # Apply sources in priority order
+        if profile.overrides:
+            config.merge_with_dict(profile.overrides.model_dump(exclude_none=True))
+
+    async def _apply_source_configurations(self, config: PortfolioConfiguration) -> None:
+        """Apply configuration from all enabled sources."""
         sorted_sources = sorted(self.config_sources.values(), key=lambda x: x.priority)
 
         for source in sorted_sources:
@@ -858,6 +954,11 @@ class PortfolioConfigManager(BasePortfolioService):
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
                 logger.exception("source_config_loading_failed", source=source.name)
 
+    async def _load_configuration(self) -> None:
+        """Load configuration from sources."""
+        config = self._create_base_configuration()
+        self._apply_profile_configuration(config)
+        await self._apply_source_configurations(config)
         self.current_config = config
 
     async def _load_source_config(self, source: ConfigSourceDescriptor) -> dict[str, object] | None:
@@ -888,12 +989,12 @@ class PortfolioConfigManager(BasePortfolioService):
     async def _validate_configuration(
         self, config: PortfolioConfiguration
     ) -> ConfigValidationResult:
-        """Validate configuration."""
+        """Validate configuration using Pydantic and business logic validation."""
         if not self.validation_enabled:
             return ConfigValidationResult(is_valid=True)
 
-        # Use built-in validation
-        validation_errors = config.validate()
+        # Use ConfigurationValidator for comprehensive validation
+        validation_errors = ConfigurationValidator.validate_configuration(config)
 
         result = ConfigValidationResult(
             is_valid=len(validation_errors) == 0, errors=validation_errors
@@ -901,7 +1002,7 @@ class PortfolioConfigManager(BasePortfolioService):
 
         # Update statistics
         if not result.is_valid:
-            self.config_statistics["validation_errors"] += 1
+            self.config_statistics.validation_errors += 1
 
         return result
 

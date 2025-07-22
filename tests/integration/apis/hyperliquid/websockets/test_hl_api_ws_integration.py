@@ -121,6 +121,7 @@ class TestHyperliquidWebSocketIntegration:
             # Simulate WebSocket ticker update using real market data
             ws_ticker = Ticker(
                 symbol=test_symbol,
+                exchange="hyperliquid",
                 price=rest_ticker.price,  # Use real price from exchange
                 timestamp=datetime.now(UTC),
                 volume=getattr(rest_ticker, "volume", Decimal(0)),
@@ -380,6 +381,7 @@ class TestHyperliquidWebSocketIntegration:
         # Create test ticker for timestamp validation only
         fresh_ticker = Ticker(
             symbol=test_symbol,
+            exchange="hyperliquid",
             price=Decimal(1),  # Placeholder - testing timestamps only
             timestamp=current_time,  # Current timestamp
             volume=Decimal(1),  # Placeholder - testing timestamps only
@@ -395,6 +397,7 @@ class TestHyperliquidWebSocketIntegration:
         stale_timestamp = current_time - timedelta(minutes=10)  # 10 minutes old
         stale_ticker = Ticker(
             symbol=test_symbol,
+            exchange="hyperliquid",
             price=Decimal(1),  # Placeholder - testing timestamps only
             timestamp=stale_timestamp,
             volume=Decimal(1),  # Placeholder - testing timestamps only
@@ -422,6 +425,7 @@ class TestHyperliquidWebSocketIntegration:
         try:
             invalid_ticker = Ticker(
                 symbol=test_symbol,
+                exchange="hyperliquid",
                 price=Decimal("100.00"),
                 timestamp=naive_timestamp,  # This should cause issues
                 volume=Decimal("1000.0"),
@@ -608,6 +612,7 @@ class TestHyperliquidWebSocketIntegration:
             try:
                 ticker = Ticker(
                     symbol=ticker_data["symbol"],
+                    exchange="hyperliquid",
                     price=Decimal(ticker_data["price"]),
                     timestamp=datetime.fromisoformat(ticker_data["timestamp"]),
                     volume=Decimal(ticker_data["volume"]),
@@ -652,6 +657,7 @@ class TestHyperliquidWebSocketIntegration:
             # Using message_id to ensure unique tickers for concurrency validation
             ticker = Ticker(
                 symbol=test_symbol,
+                exchange="hyperliquid",
                 price=Decimal(1),  # Placeholder for concurrency test - not financial calculation
                 timestamp=datetime.now(UTC),
                 volume=Decimal(1),  # Placeholder for concurrency test - not financial calculation

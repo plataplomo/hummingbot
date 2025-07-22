@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -122,6 +121,32 @@ class PortfolioSummary(BaseModel):
     timestamp: float
 
 
+class UpdateMetadata(BaseModel):
+    """Typed metadata for updates and operations."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    created_at: float = 0.0
+    updated_at: float = 0.0
+    source_component: str = ""
+    operation_id: str = ""
+    correlation_id: str = ""
+    tags: dict[str, str] = Field(default_factory=dict)
+    notes: str = ""
+
+
+class PerformanceMetadata(BaseModel):
+    """Performance metrics metadata."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    duration_ms: float = 0.0
+    memory_usage_mb: float = 0.0
+    cpu_usage_percent: float = 0.0
+    operations_per_second: float = 0.0
+    cache_hit_rate: float = 0.0
+
+
 class ManagerStats(BaseModel):
     """Statistics for portfolio managers."""
 
@@ -131,8 +156,8 @@ class ManagerStats(BaseModel):
     processed_items: int
     error_count: int
     last_update: float
-    performance_metrics: dict[str, float]
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    performance_metrics: PerformanceMetadata = Field(default_factory=PerformanceMetadata)
+    metadata: UpdateMetadata = Field(default_factory=UpdateMetadata)
 
 
 class StateValidationResult(BaseModel):
@@ -144,17 +169,30 @@ class StateValidationResult(BaseModel):
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     validation_time: float
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: UpdateMetadata = Field(default_factory=UpdateMetadata)
+
+
+class StateData(BaseModel):
+    """Structured state data for backups."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    balances: dict[str, dict[str, float]] = Field(default_factory=dict)
+    positions: dict[str, dict[str, float]] = Field(default_factory=dict)
+    orders: dict[str, dict[str, str]] = Field(default_factory=dict)
+    trades: dict[str, dict[str, float]] = Field(default_factory=dict)
+    configuration: dict[str, str] = Field(default_factory=dict)
+    version: str = "1.0"
 
 
 class StateBackup(BaseModel):
-    """State backup data."""
+    """State backup data with proper typing."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     backup_id: str
     timestamp: float
-    state_data: dict[str, Any]
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    state_data: StateData = Field(default_factory=StateData)
+    metadata: UpdateMetadata = Field(default_factory=UpdateMetadata)
     compressed: bool = False
     checksum: str | None = None

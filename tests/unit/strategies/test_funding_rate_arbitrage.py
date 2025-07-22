@@ -381,6 +381,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
             # Mock ticker prices for valid opportunity
             perp_ticker = Ticker(
                 symbol="BTC-PERP",
+                exchange="hyperliquid",
                 timestamp=datetime.now(UTC),
                 price=Decimal("50000.5"),
                 bid=Decimal("50000.0"),
@@ -388,6 +389,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
             )
             spot_ticker = Ticker(
                 symbol="BTC_USDC",
+                exchange="backpack",
                 timestamp=datetime.now(UTC),
                 price=Decimal("49900.5"),
                 bid=Decimal("49900.0"),
@@ -430,6 +432,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         # Mock tickers
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -437,6 +440,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -530,6 +534,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -537,6 +542,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -677,6 +683,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -684,6 +691,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49999.5"),
             bid=Decimal("49999.0"),
@@ -739,6 +747,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         perp_ticker = Ticker(
             symbol="ETH-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("3000.5"),
             bid=Decimal("3000.0"),
@@ -746,6 +755,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         spot_ticker = Ticker(
             symbol="ETH_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("2999.5"),
             bid=Decimal("2999.0"),
@@ -799,6 +809,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.0"),
             bid=Decimal("50000.0"),
@@ -806,6 +817,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.0"),
             bid=Decimal("50000.0"),
@@ -859,6 +871,7 @@ class TestEvaluateOpportunityPriceScenarios:
         large_price = Decimal("999999999.99")
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=large_price + Decimal("0.005"),
             bid=large_price,
@@ -866,6 +879,7 @@ class TestEvaluateOpportunityPriceScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=large_price - Decimal("0.5"),
             bid=large_price - Decimal("1.0"),
@@ -946,6 +960,7 @@ class TestEvaluateOpportunityPriceScenarios:
 
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -998,6 +1013,7 @@ class TestEvaluateOpportunityPriceScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1085,6 +1101,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1092,6 +1109,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -1145,6 +1163,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1152,6 +1171,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("50100.5"),
             bid=Decimal("50100.0"),
@@ -1205,6 +1225,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1212,6 +1233,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -1266,6 +1288,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1273,6 +1296,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -1326,6 +1350,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1333,6 +1358,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -1386,6 +1412,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1393,6 +1420,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("50100.5"),
             bid=Decimal("50100.0"),
@@ -1464,6 +1492,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1471,6 +1500,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),
@@ -1524,6 +1554,7 @@ class TestFundingRateValidationScenarios:
 
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1531,6 +1562,7 @@ class TestFundingRateValidationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("50100.5"),
             bid=Decimal("50100.0"),
@@ -1787,6 +1819,7 @@ class TestIntegrationScenarios:
         # Mock tickers with profitable spread
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1794,6 +1827,7 @@ class TestIntegrationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("49900.5"),
             bid=Decimal("49900.0"),  # Lower price on spot
@@ -1878,6 +1912,7 @@ class TestIntegrationScenarios:
         # Mock tickers
         perp_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -1885,6 +1920,7 @@ class TestIntegrationScenarios:
         )
         spot_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),

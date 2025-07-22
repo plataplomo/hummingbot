@@ -252,6 +252,7 @@ class TestPortfolioTracker:
         # Test that portfolio tracker can update ticker data
         ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),

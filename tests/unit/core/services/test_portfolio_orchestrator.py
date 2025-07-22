@@ -298,6 +298,7 @@ class TestPortfolioOrchestrator:
         # Setup mock ticker
         mock_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),

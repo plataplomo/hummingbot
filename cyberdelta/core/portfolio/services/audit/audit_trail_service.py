@@ -7,12 +7,16 @@ import io
 import json
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 from uuid import uuid4
 
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions.service import AuditTrailValidationError
+from cyberdelta.core.portfolio.portfolio_types.domain_models import OperationMetadata
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
 
 
@@ -79,23 +83,29 @@ class AuditLevel(Enum):
 class AuditEntry:
     """Individual audit trail entry."""
 
-    id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: float = field(default_factory=time.time)
-    action: AuditAction = AuditAction.SYSTEM_EVENT
-    level: AuditLevel = AuditLevel.INFO
-    component: str = "unknown"
-    exchange_id: str | None = None
-    symbol: str | None = None
-    user_id: str | None = None
-    session_id: str | None = None
-    message: str = ""
-    details: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    before_state: dict[str, Any] | None = None
-    after_state: dict[str, Any] | None = None
-    correlation_id: str | None = None
-    duration_ms: float | None = None
-    tags: list[str] = field(default_factory=_str_list_factory)
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    id: str = Field(default_factory=lambda: str(uuid4()), description="Unique audit entry ID")
+    timestamp: float = Field(default_factory=time.time, gt=0, description="Entry timestamp")
+    action: AuditAction = Field(default=AuditAction.SYSTEM_EVENT, description="Audit action type")
+    level: AuditLevel = Field(default=AuditLevel.INFO, description="Audit level")
+    component: str = Field(default="unknown", min_length=1, description="Component name")
+    exchange_id: str | None = Field(default=None, description="Exchange identifier")
+    symbol: str | None = Field(default=None, description="Trading symbol")
+    user_id: str | None = Field(default=None, description="User identifier")
+    session_id: str | None = Field(default=None, description="Session identifier")
+    message: str = Field(default="", description="Audit message")
+    details: dict[str, Any] = Field(
+        default_factory=_str_any_dict_factory, description="Additional details"
+    )
+    before_state: dict[str, Any] | None = Field(default=None, description="State before change")
+    after_state: dict[str, Any] | None = Field(default=None, description="State after change")
+    correlation_id: str | None = Field(
+        default=None, description="Correlation ID for related entries"
+    )
+    duration_ms: float | None = Field(
+        default=None, ge=0, description="Operation duration in milliseconds"
+    )
+    tags: list[str] = Field(default_factory=_str_list_factory, description="Entry tags")
+    metadata: OperationMetadata | None = Field(default=None, description="Entry metadata")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert audit entry to dictionary."""
@@ -147,44 +157,86 @@ class AuditEntry:
 class AuditFilter:
     """Filter criteria for audit queries."""
 
-    start_time: float | None = None
-    end_time: float | None = None
-    actions: list[AuditAction] | None = None
-    levels: list[AuditLevel] | None = None
-    components: list[str] | None = None
-    exchanges: list[str] | None = None
-    symbols: list[str] | None = None
-    user_ids: list[str] | None = None
-    session_ids: list[str] | None = None
-    correlation_ids: list[str] | None = None
-    tags: list[str] | None = None
-    text_search: str | None = None
-    limit: int | None = None
-    offset: int | None = None
+    start_time: float | None = Field(default=None, gt=0, description="Start time for filtering")
+    end_time: float | None = Field(default=None, gt=0, description="End time for filtering")
+    actions: list[AuditAction] | None = Field(default=None, description="Filter by actions")
+    levels: list[AuditLevel] | None = Field(default=None, description="Filter by levels")
+    components: list[str] | None = Field(default=None, description="Filter by components")
+    exchanges: list[str] | None = Field(default=None, description="Filter by exchanges")
+    symbols: list[str] | None = Field(default=None, description="Filter by symbols")
+    user_ids: list[str] | None = Field(default=None, description="Filter by user IDs")
+    session_ids: list[str] | None = Field(default=None, description="Filter by session IDs")
+    correlation_ids: list[str] | None = Field(default=None, description="Filter by correlation IDs")
+    tags: list[str] | None = Field(default=None, description="Filter by tags")
+    text_search: str | None = Field(default=None, description="Text search query")
+    limit: int | None = Field(default=None, gt=0, le=10000, description="Result limit")
+    offset: int | None = Field(default=None, ge=0, description="Result offset")
+
+    @field_validator("end_time", mode="before")
+    @classmethod
+    def validate_time_range(cls, v: float | None, info: ValidationInfo) -> float | None:
+        """Validate end_time is after start_time."""
+        if (
+            v is not None
+            and "start_time" in info.data
+            and info.data["start_time"] is not None
+            and v <= info.data["start_time"]
+        ):
+            raise AuditTrailValidationError(
+                field_type="end_time", valid_values=["must be after start_time"]
+            )
+        return v
 
 
 @dataclass
 class AuditQuery:
     """Query for audit trail entries."""
 
-    filter: AuditFilter = field(default_factory=AuditFilter)
-    sort_by: str = "timestamp"
-    sort_order: str = "desc"  # "asc" or "desc"
-    include_details: bool = True
-    include_states: bool = True
+    filter: AuditFilter = Field(default_factory=AuditFilter, description="Query filter criteria")
+    sort_by: str = Field(default="timestamp", description="Sort field")
+    sort_order: str = Field(default="desc", description="Sort order: asc or desc")
+    include_details: bool = Field(default=True, description="Include entry details")
+    include_states: bool = Field(default=True, description="Include before/after states")
+
+    @field_validator("sort_order", mode="before")
+    @classmethod
+    def validate_sort_order(cls, v: str) -> str:
+        """Validate sort order."""
+        if v not in {"asc", "desc"}:
+            raise AuditTrailValidationError(field_type="Sort order", valid_values=["asc", "desc"])
+        return v
+
+    @field_validator("sort_by", mode="before")
+    @classmethod
+    def validate_sort_by(cls, v: str) -> str:
+        """Validate sort field."""
+        valid_fields = {"timestamp", "id", "action", "level", "component", "exchange_id", "symbol"}
+        if v not in valid_fields:
+            raise AuditTrailValidationError(
+                field_type="Sort field", valid_values=list(valid_fields)
+            )
+        return v
 
 
 @dataclass
 class AuditReport:
     """Audit report with statistics and entries."""
 
-    total_entries: int = 0
-    filtered_entries: int = 0
-    entries: list[AuditEntry] = field(default_factory=_audit_entry_list_factory)
-    statistics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    time_range: dict[str, float] = field(default_factory=_str_float_dict_factory)
-    query: AuditQuery | None = None
-    generated_at: float = field(default_factory=time.time)
+    total_entries: int = Field(default=0, ge=0, description="Total number of entries")
+    filtered_entries: int = Field(default=0, ge=0, description="Number of filtered entries")
+    entries: list[AuditEntry] = Field(
+        default_factory=_audit_entry_list_factory, description="Audit entries"
+    )
+    statistics: dict[str, Any] = Field(
+        default_factory=_str_any_dict_factory, description="Report statistics"
+    )
+    time_range: dict[str, float] = Field(
+        default_factory=_str_float_dict_factory, description="Time range"
+    )
+    query: AuditQuery | None = Field(default=None, description="Query used to generate report")
+    generated_at: float = Field(
+        default_factory=time.time, gt=0, description="Report generation timestamp"
+    )
 
 
 class PortfolioAuditTrailService(BasePortfolioService):
@@ -287,7 +339,7 @@ class PortfolioAuditTrailService(BasePortfolioService):
         correlation_id: str | None = None,
         duration_ms: float | None = None,
         tags: list[str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: OperationMetadata | None = None,
     ) -> str:
         """Record an audit entry."""
         try:
@@ -308,7 +360,7 @@ class PortfolioAuditTrailService(BasePortfolioService):
                 correlation_id=correlation_id,
                 duration_ms=duration_ms,
                 tags=tags or [],
-                metadata=metadata or {},
+                metadata=metadata,
             )
 
             # Store entry

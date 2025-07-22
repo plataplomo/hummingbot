@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.exceptions.service import PriceServiceError
+from cyberdelta.core.portfolio.exceptions.service import (
+    CurrencyConverterError,
+    ExchangeRateUnavailableError,
+    PriceServiceError,
+)
 
 
 if TYPE_CHECKING:
@@ -24,14 +30,57 @@ logger = get_logger(__name__)
 class FXRate:
     """Foreign exchange rate."""
 
-    from_currency: str
-    to_currency: str
-    rate: Decimal
-    timestamp: float
-    source: str  # e.g., "market", "fixed", "derived"
-    bid: Decimal | None = None
-    ask: Decimal | None = None
-    mid: Decimal | None = None
+    from_currency: str = Field(description="Source currency code")
+    to_currency: str = Field(description="Target currency code")
+    rate: Decimal = Field(gt=0, description="Exchange rate")
+    timestamp: float = Field(gt=0, description="Rate timestamp")
+    source: str = Field(
+        description="Rate source: market, fixed, or derived"
+    )  # e.g., "market", "fixed", "derived"
+    bid: Decimal | None = Field(default=None, gt=0, description="Bid price")
+    ask: Decimal | None = Field(default=None, gt=0, description="Ask price")
+    mid: Decimal | None = Field(default=None, gt=0, description="Mid price")
+
+    @field_validator("from_currency", "to_currency", mode="before")
+    @classmethod
+    def validate_currency_code(cls, v: str) -> str:
+        """Validate currency codes are uppercase and non-empty."""
+        if not v or not v.strip():
+            raise CurrencyConverterError(
+                operation_type="currency_validation",
+                requirement="currency code cannot be empty"
+            )
+        return v.upper().strip()
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def validate_source(cls, v: str) -> str:
+        """Validate source is one of allowed values."""
+        valid_sources = {"market", "fixed", "derived"}
+        if v not in valid_sources:
+            raise CurrencyConverterError(
+                operation_type="source_validation",
+                requirement=f"source must be one of: {', '.join(valid_sources)}"
+            )
+        return v
+
+    @field_validator("bid", "ask", mode="before")
+    @classmethod
+    def validate_bid_ask(cls, v: Decimal | None, info: ValidationInfo) -> Decimal | None:
+        """Validate bid/ask relationship."""
+        if v is None:
+            return v
+        if (
+            info.field_name == "ask"
+            and "bid" in info.data
+            and info.data["bid"] is not None
+            and v <= info.data["bid"]
+        ):
+            raise CurrencyConverterError(
+                operation_type="price_validation",
+                requirement="ask price must be greater than bid price"
+            )
+        return v
 
     @property
     def age_seconds(self) -> float:
@@ -181,7 +230,9 @@ class CurrencyConverter:
         if fallback_rate:
             return fallback_rate
 
-        raise ValueError
+        raise ExchangeRateUnavailableError(
+            from_currency=from_currency, to_currency=to_currency
+        )
 
     async def convert(
         self, amount: Decimal, from_currency: str, to_currency: str, use_cache: bool = True

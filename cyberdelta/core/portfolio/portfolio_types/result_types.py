@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,6 +33,7 @@ from cyberdelta.core.portfolio.portfolio_types.discriminated_unions import (
     NetworkErrorData,
     ValidationErrorData,
 )
+from cyberdelta.core.portfolio.portfolio_types.exception_models import ExceptionContext
 
 
 T = TypeVar("T", bound=object)  # Success value type
@@ -161,7 +162,9 @@ class PortfolioResultError(BaseModel):
     message: str = Field(..., description="Human-readable error message")
     details: ErrorUnion | None = Field(default=None, description="Error-specific details")
     timestamp: float = Field(..., description="Error timestamp")
-    context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
+    context: ExceptionContext = Field(
+        default_factory=ExceptionContext, description="Additional context"
+    )
     is_retryable: bool = Field(default=False, description="Whether the operation can be retried")
 
 
@@ -226,19 +229,19 @@ def error_result(
     message: str,
     details: ErrorUnion | None = None,
     timestamp: float | None = None,
-    context: dict[str, Any] | None = None,
+    context: ExceptionContext | None = None,
     is_retryable: bool = False,
-) -> PortfolioResult[Any]:
+) -> PortfolioResult[object]:
     """Create an error portfolio result."""
     error = PortfolioResultError(
         code=code,
         message=message,
         details=details,
         timestamp=timestamp or time.time(),
-        context=context or {},
+        context=context or ExceptionContext(),
         is_retryable=is_retryable,
     )
-    return Result[Any, PortfolioResultError].error(error)
+    return Result[object, PortfolioResultError].error(error)
 
 
 def validation_error_result(
@@ -246,7 +249,7 @@ def validation_error_result(
     constraint: str,
     actual_value: str,
     message: str | None = None,
-) -> PortfolioResult[Any]:
+) -> PortfolioResult[object]:
     """Create a validation error result."""
     details = ValidationErrorData(
         field_name=field_name,
@@ -266,7 +269,7 @@ def network_error_result(
     status_code: int | None = None,
     retry_count: int = 0,
     message: str | None = None,
-) -> PortfolioResult[Any]:
+) -> PortfolioResult[object]:
     """Create a network error result."""
     details = NetworkErrorData(
         status_code=status_code,
@@ -286,7 +289,7 @@ def business_logic_error_result(
     rule_name: str,
     context: dict[str, str] | None = None,
     message: str | None = None,
-) -> PortfolioResult[Any]:
+) -> PortfolioResult[object]:
     """Create a business logic error result."""
     details = BusinessLogicErrorData(
         rule_name=rule_name,
@@ -301,12 +304,12 @@ def business_logic_error_result(
 
 
 # Result combinators for working with multiple results
-def combine_results(*results: PortfolioResult[Any]) -> PortfolioResult[list[Any]]:
+def combine_results(*results: PortfolioResult[object]) -> PortfolioResult[list[object]]:
     """Combine multiple results into one. Fails if any result fails."""
-    values: list[Any] = []
+    values: list[object] = []
     for result in results:
         if result.is_error:
-            return result
+            return Result[list[object], PortfolioResultError].error(result.unwrap_error())
         values.append(result.unwrap())
     return ok_result(values)
 
@@ -324,12 +327,19 @@ def collect_results[T](results: list[PortfolioResult[T]]) -> PortfolioResult[lis
 
 def first_ok_result[T](*results: PortfolioResult[T]) -> PortfolioResult[T]:
     """Return the first successful result, or the last error if all fail."""
-    last_error = None
+    last_error: PortfolioResult[T] | None = None
     for result in results:
         if result.is_ok:
             return result
         last_error = result
-    return last_error or error_result("NO_RESULTS", "No results provided")
+    return (
+        last_error if last_error is not None 
+        else Result[T, PortfolioResultError].error(PortfolioResultError(
+            code="NO_RESULTS", 
+            message="No results provided",
+            timestamp=time.time()
+        ))
+    )
 
 
 # Async result utilities
@@ -383,10 +393,13 @@ async def wrap_async_operation[T](
             was_cached=was_cached,
         )
 
-        error = error_result(
-            code="OPERATION_FAILED",
-            message=f"Operation {operation_name} failed: {e}",
-            context={"exception_type": type(e).__name__},
+        error: PortfolioResult[T] = Result[T, PortfolioResultError].error(
+            PortfolioResultError(
+                code="OPERATION_FAILED",
+                message=f"Operation {operation_name} failed: {e}",
+                timestamp=time.time(),
+                context=ExceptionContext(tags={"exception_type": type(e).__name__}),
+            )
         )
 
         return AsyncOperationResult(

@@ -11,11 +11,12 @@ import time
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions.service import BackupServiceValidationError
 from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData
 from cyberdelta.core.portfolio.services import serialization
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
@@ -83,6 +84,141 @@ class BackupStatus(Enum):
     EXPIRED = "expired"
 
 
+class BackupMetadataInfo(BaseModel):
+    """Backup metadata information with validation."""
+
+    backup_source: str = Field(default="system", min_length=1, description="Source of the backup")
+    backup_version: str = Field(
+        default="1.0", pattern="^[0-9]+\\.[0-9]+$", description="Backup version"
+    )
+    compression_algorithm: str = Field(
+        default="gzip", min_length=1, description="Compression algorithm used"
+    )
+    encryption_enabled: bool = Field(default=False, description="Whether backup is encrypted")
+
+    @field_validator("backup_source", mode="before")
+    @classmethod
+    def validate_backup_source(cls, v: str) -> str:
+        """Validate backup source is non-empty."""
+        if not v or not v.strip():
+            return "system"
+        return v.strip()
+
+
+class CustomBackupMetadata(BaseModel):
+    """Custom metadata for backup configurations with validation."""
+
+    creator: str = Field(default="system", min_length=1, description="Creator of the backup")
+    environment: str = Field(
+        default="production",
+        pattern="^(development|staging|production)$",
+        description="Environment",
+    )
+    backup_category: str = Field(
+        default="automatic",
+        pattern="^(automatic|manual|scheduled|emergency)$",
+        description="Backup category",
+    )
+    priority: int = Field(default=1, ge=1, le=5, description="Backup priority (1-5)")
+
+    @field_validator("creator", mode="before")
+    @classmethod
+    def validate_creator(cls, v: str) -> str:
+        """Validate creator is non-empty."""
+        if not v or not v.strip():
+            return "system"
+        return v.strip()
+
+
+class RecoveryMetadataInfo(BaseModel):
+    """Recovery metadata information with validation."""
+
+    recovery_type: str = Field(
+        default="full", pattern="^(full|partial|selective)$", description="Type of recovery"
+    )
+    recovery_source: str = Field(
+        default="backup", min_length=1, description="Source of recovery data"
+    )
+    validation_level: str = Field(
+        default="standard",
+        pattern="^(minimal|standard|comprehensive)$",
+        description="Validation level",
+    )
+    performance_impact: str = Field(
+        default="medium", pattern="^(low|medium|high)$", description="Expected performance impact"
+    )
+
+    @field_validator("recovery_source", mode="before")
+    @classmethod
+    def validate_recovery_source(cls, v: str) -> str:
+        """Validate recovery source is non-empty."""
+        if not v or not v.strip():
+            return "backup"
+        return v.strip()
+
+
+class SerializablePositionData(BaseModel):
+    """Serializable position data with validation."""
+
+    position_id: str = Field(min_length=1, description="Position identifier")
+    symbol: str = Field(min_length=1, description="Trading symbol")
+    size: str = Field(description="Position size as string")
+    value: str = Field(description="Position value as string")
+
+    @field_validator("size", "value", mode="before")
+    @classmethod
+    def validate_decimal_strings(cls, v: str | float) -> str:
+        """Validate decimal string representations."""
+        value: str = str(v) if not isinstance(v, str) else v
+        # Basic validation for decimal string format
+        try:
+            float(value)  # Test if it can be converted to a number
+        except ValueError as e:
+            raise BackupServiceValidationError(value_type="Value") from e
+        return value
+
+
+class SerializableBalanceData(BaseModel):
+    """Serializable balance data with validation."""
+
+    exchange_id: str = Field(min_length=1, description="Exchange identifier")
+    asset: str = Field(min_length=1, description="Asset identifier")
+    balance: str = Field(description="Balance amount as string")
+    available: str = Field(description="Available balance as string")
+
+    @field_validator("balance", "available", mode="before")
+    @classmethod
+    def validate_balance_strings(cls, v: str | float) -> str:
+        """Validate balance string representations."""
+        value: str = str(v) if not isinstance(v, str) else v
+        try:
+            float(value)  # Test if it can be converted to a number
+        except ValueError as e:
+            raise BackupServiceValidationError(value_type="Balance") from e
+        return value
+
+
+class SerializableOrderData(BaseModel):
+    """Serializable order data with validation."""
+
+    order_id: str = Field(min_length=1, description="Order identifier")
+    symbol: str = Field(min_length=1, description="Trading symbol")
+    side: str = Field(pattern="^(buy|sell|BUY|SELL)$", description="Order side")
+    quantity: str = Field(description="Order quantity as string")
+    price: str = Field(description="Order price as string")
+
+    @field_validator("quantity", "price", mode="before")
+    @classmethod
+    def validate_order_strings(cls, v: str | float) -> str:
+        """Validate order string representations."""
+        value: str = str(v) if not isinstance(v, str) else v
+        try:
+            float(value)  # Test if it can be converted to a number
+        except ValueError as e:
+            raise BackupServiceValidationError(value_type="Order value") from e
+        return value
+
+
 class BackupMetadata(BaseModel):
     """Pydantic model for backup metadata."""
 
@@ -120,7 +256,7 @@ class BackupMetadata(BaseModel):
     # Additional metadata
     description: str = ""
     tags: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: BackupMetadataInfo = Field(default_factory=BackupMetadataInfo)
 
 
 class BackupConfig(BaseModel):
@@ -141,7 +277,7 @@ class BackupConfig(BaseModel):
     backup_on_critical_events: bool = True
     exclude_patterns: list[str] = Field(default_factory=list)
     include_patterns: list[str] = Field(default_factory=list)
-    custom_metadata: dict[str, Any] = Field(default_factory=dict)
+    custom_metadata: CustomBackupMetadata = Field(default_factory=CustomBackupMetadata)
 
 
 class BackupStatistics(BaseModel):
@@ -168,7 +304,7 @@ class RecoveryResult(BaseModel):
     validation_passed: bool = False
     validation_errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: RecoveryMetadataInfo = Field(default_factory=RecoveryMetadataInfo)
 
 
 class PortfolioBackupService(BasePortfolioService):
@@ -298,7 +434,7 @@ class PortfolioBackupService(BasePortfolioService):
             tags=tags or [],
             retention_period=self.backup_config.retention_days,
             expires_at=start_time + (self.backup_config.retention_days * 24 * 3600),
-            metadata=custom_metadata or {},
+            metadata=BackupMetadataInfo(),
         )
 
         try:
@@ -903,17 +1039,60 @@ class PortfolioBackupService(BasePortfolioService):
                 logger.exception("cleanup_scheduler_error")
                 await asyncio.sleep(CLEANUP_INTERVAL)  # Wait before retrying
 
-    def _serialize_positions(self, positions: dict[str, Any]) -> dict[str, object]:
+    def _serialize_positions(
+        self, positions: dict[str, dict[str, str]]
+    ) -> dict[str, SerializablePositionData]:
         """Serialize positions for backup."""
-        # Convert positions to JSON-serializable format
-        return {k: str(v) for k, v in positions.items()}
+        # Convert positions to typed serializable format
+        serialized: dict[str, SerializablePositionData] = {}
+        for position_id, position_data in positions.items():
+            try:
+                serialized[position_id] = SerializablePositionData(
+                    position_id=position_id,
+                    symbol=str(position_data.get("symbol", "")),
+                    size=str(position_data.get("size", "0")),
+                    value=str(position_data.get("value", "0")),
+                )
+            except (ValueError, TypeError, KeyError):
+                # Skip invalid positions with logging
+                logger.warning("position_serialization_skipped", position_id=position_id)
+        return serialized
 
-    def _serialize_balances(self, balances: dict[str, Any]) -> dict[str, object]:
+    def _serialize_balances(
+        self, balances: dict[str, dict[str, str]]
+    ) -> dict[str, SerializableBalanceData]:
         """Serialize balances for backup."""
-        # Convert balances to JSON-serializable format
-        return {k: str(v) for k, v in balances.items()}
+        # Convert balances to typed serializable format
+        serialized: dict[str, SerializableBalanceData] = {}
+        for balance_id, balance_data in balances.items():
+            try:
+                serialized[balance_id] = SerializableBalanceData(
+                    exchange_id=str(balance_data.get("exchange_id", "")),
+                    asset=str(balance_data.get("asset", "")),
+                    balance=str(balance_data.get("balance", "0")),
+                    available=str(balance_data.get("available", "0")),
+                )
+            except (ValueError, TypeError, KeyError):
+                # Skip invalid balances with logging
+                logger.warning("balance_serialization_skipped", balance_id=balance_id)
+        return serialized
 
-    def _serialize_orders(self, orders: dict[str, Any]) -> dict[str, object]:
+    def _serialize_orders(
+        self, orders: dict[str, dict[str, str]]
+    ) -> dict[str, SerializableOrderData]:
         """Serialize orders for backup."""
-        # Convert orders to JSON-serializable format
-        return {k: str(v) for k, v in orders.items()}
+        # Convert orders to typed serializable format
+        serialized: dict[str, SerializableOrderData] = {}
+        for order_id, order_data in orders.items():
+            try:
+                serialized[order_id] = SerializableOrderData(
+                    order_id=order_id,
+                    symbol=str(order_data.get("symbol", "")),
+                    side=str(order_data.get("side", "buy")),
+                    quantity=str(order_data.get("quantity", "0")),
+                    price=str(order_data.get("price", "0")),
+                )
+            except (ValueError, TypeError, KeyError):
+                # Skip invalid orders with logging
+                logger.warning("order_serialization_skipped", order_id=order_id)
+        return serialized

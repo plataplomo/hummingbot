@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.calculators.base.base_calculator import BaseCalculator
 from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
+    BreakdownMetrics,
     CalculationMetadata,
+    PerformanceMetrics,
+    PortfolioSummaryMetrics,
     PortfolioUnrealizedPnLResult,
+    UnrealizedPnLConfiguration,
     UnrealizedPnLResult,
 )
 
@@ -53,25 +57,24 @@ class UnrealizedPnLCalculator(BaseCalculator[UnrealizedPnLResult]):
 
     def __init__(
         self,
-        name: str = "UnrealizedPnLCalculator",
-        config: dict[str, Any] | None = None,
+        config: UnrealizedPnLConfiguration | None = None,
         price_service: PriceServiceProtocol | None = None,
         currency_converter: CurrencyConverter | None = None,
     ) -> None:
         """Initialize the unrealized P&L calculator.
 
         Args:
-            name: Calculator name
-            config: Configuration dictionary
+            config: Pydantic configuration model
             price_service: Service for price data
             currency_converter: Service for currency conversions
         """
-        super().__init__(name, config)
+        self._pydantic_config = config or UnrealizedPnLConfiguration()
+        super().__init__(self._pydantic_config.name, {})
 
         self.price_service = price_service
         self.currency_converter = currency_converter or CurrencyConverter()
 
-        logger.info("unrealized_pnl_calculator_created", calculator_name=name)
+        logger.info("unrealized_pnl_calculator_created", calculator_name=self._pydantic_config.name)
 
     async def calculate(
         self, position: DerivativePosition, base_currency: str = "USD", **kwargs: object
@@ -277,7 +280,7 @@ class UnrealizedPnLCalculator(BaseCalculator[UnrealizedPnLResult]):
 
     async def calculate_portfolio_summary(
         self, positions: list[DerivativePosition], base_currency: str = "USD"
-    ) -> dict[str, Any]:
+    ) -> PortfolioSummaryMetrics:
         """Calculate portfolio summary metrics.
 
         Args:
@@ -285,38 +288,45 @@ class UnrealizedPnLCalculator(BaseCalculator[UnrealizedPnLResult]):
             base_currency: Currency for calculations
 
         Returns:
-            Dictionary with portfolio summary metrics
+            Pydantic model with portfolio summary metrics
         """
         portfolio_result = await self.calculate_for_portfolio(positions, base_currency)
 
-        # Calculate additional metrics
-        long_pnl = sum(
-            result.pnl
-            for result in portfolio_result.position_results
-            if result.position_size > Decimal(0)
+        # Create basic performance metrics
+        performance_metrics = PerformanceMetrics(
+            total_pnl=portfolio_result.total_pnl,
+            realized_pnl=Decimal(0),  # This calculator only handles unrealized P&L
+            unrealized_pnl=portfolio_result.total_pnl,
+            total_return_pct=Decimal(0),  # Not calculated in this simple version
+            sharpe_ratio=None,
+            max_drawdown=None,
+            currency=base_currency,
+            calculation_timestamp=self._get_current_timestamp(),
         )
 
-        short_pnl = sum(
-            result.pnl
-            for result in portfolio_result.position_results
-            if result.position_size < Decimal(0)
+        # Create simple breakdown metrics
+        breakdown = BreakdownMetrics(
+            by_exchange={},  # Empty for now - would need exchange info
+            by_symbol={},  # Empty for now - would need symbol extraction
+            long_positions=[
+                r for r in portfolio_result.position_results if r.position_size > Decimal(0)
+            ],
+            short_positions=[
+                r for r in portfolio_result.position_results if r.position_size < Decimal(0)
+            ],
         )
 
-        winning_positions = len([
-            result for result in portfolio_result.position_results if result.pnl > Decimal(0)
-        ])
-
-        losing_positions = len([
-            result for result in portfolio_result.position_results if result.pnl < Decimal(0)
-        ])
-
-        return {
-            "total_unrealized_pnl": portfolio_result.total_pnl,
-            "long_pnl": long_pnl,
-            "short_pnl": short_pnl,
-            "winning_positions": winning_positions,
-            "losing_positions": losing_positions,
-            "total_positions": len(portfolio_result.position_results),
-            "currency": base_currency,
-            "calculation_timestamp": self._get_current_timestamp(),
-        }
+        return PortfolioSummaryMetrics(
+            performance_metrics=performance_metrics,
+            realized_pnl=Decimal(0),
+            unrealized_pnl=portfolio_result.total_pnl,
+            total_pnl=portfolio_result.total_pnl,
+            total_return_pct=Decimal(0),
+            sharpe_ratio=None,
+            max_drawdown=None,
+            currency=base_currency,
+            position_count=len(portfolio_result.position_results),
+            trade_count=0,  # This calculator doesn't track trades
+            calculation_timestamp=self._get_current_timestamp(),
+            breakdown=breakdown,
+        )

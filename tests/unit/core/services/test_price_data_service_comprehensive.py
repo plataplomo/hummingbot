@@ -66,6 +66,7 @@ def sample_ticker() -> Ticker:
     """Create sample ticker for testing."""
     return Ticker(
         symbol="BTC-PERP",
+        exchange="test_exchange",
         bid=Decimal("50000.0"),
         ask=Decimal("50100.0"),
         timestamp=datetime.now(UTC),
@@ -77,6 +78,7 @@ def sample_ticker_with_mid_price() -> Ticker:
     """Create sample ticker with mid price for testing."""
     return Ticker(
         symbol="ETH-PERP",
+        exchange="test_exchange",
         bid=Decimal("3000.0"),
         ask=Decimal("3010.0"),
         price=Decimal("3005.0"),
@@ -266,6 +268,7 @@ class TestGetTicker:
 
         new_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal("51000.0"),
             ask=Decimal("51100.0"),
             timestamp=datetime.now(UTC),
@@ -387,6 +390,7 @@ class TestCacheTicker:
         # Arrange
         old_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal("49000.0"),
             ask=Decimal("49100.0"),
             timestamp=datetime.now(UTC) - timedelta(minutes=5),
@@ -459,6 +463,7 @@ class TestGetCachedTicker:
         # by caching a ticker and relying on the service's expiry logic
         new_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal("51000.0"),
             ask=Decimal("51100.0"),
             timestamp=datetime.now(UTC),
@@ -566,6 +571,7 @@ class TestGetPriceInBaseCurrency:
         # Arrange
         ticker = Ticker(
             symbol="BTC-USDC",
+            exchange="hyperliquid",
             bid=Decimal("50000.0"),
             timestamp=datetime.now(UTC),
         )
@@ -586,6 +592,7 @@ class TestGetPriceInBaseCurrency:
         # Arrange
         ticker = Ticker(
             symbol="BTC-USDC",
+            exchange="hyperliquid",
             ask=Decimal("50100.0"),
             timestamp=datetime.now(UTC),
         )
@@ -630,6 +637,7 @@ class TestGetPriceInBaseCurrency:
         """Test handling zero mid price."""
         # Arrange
         ticker = Ticker(
+            exchange="hyperliquid",
             symbol="BTC-USDC",
             bid=Decimal("50000.0"),
             ask=Decimal("50100.0"),
@@ -662,12 +670,13 @@ class TestGetPriceInBaseCurrency:
     @pytest.mark.asyncio
     async def test_get_price_in_base_currency_failure_no_price_data(
         self,
-        price_service: PriceDataService,
+    price_service: PriceDataService,
     ) -> None:
         """Test getting price when ticker has no usable price data."""
         # Arrange
         ticker = Ticker(
             symbol="BTC-USDC",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             # No bid, ask, or mid_price
         )
@@ -982,6 +991,7 @@ class TestConcurrentOperations:
             await asyncio.sleep(0.05)
             return Ticker(
                 symbol=symbol,
+                exchange="hyperliquid",
                 bid=Decimal("50000.0"),
                 ask=Decimal("50100.0"),
                 timestamp=datetime.now(UTC),
@@ -1208,6 +1218,7 @@ class TestParametrizedScenarios:
         # Arrange
         ticker = Ticker(
             symbol="TEST-USDC",
+            exchange="hyperliquid",
             bid=bid,
             ask=ask,
             price=mid_price,
@@ -1220,3 +1231,4 @@ class TestParametrizedScenarios:
 
         # Assert
         assert result == expected_price
+

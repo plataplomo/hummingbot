@@ -159,6 +159,7 @@ class TestSignalGenerator:
         # Mock Ticker data for data_handler.tickers
         mock_hl_btc_ticker = Ticker(
             symbol="BTC",
+            exchange="hyperliquid",
             price=Decimal(30000),
             bid=Decimal(29999),
             ask=Decimal(30001),
@@ -166,6 +167,7 @@ class TestSignalGenerator:
         )
         mock_bp_btc_ticker = Ticker(
             symbol="BTC-USDC",
+            exchange="backpack",
             price=Decimal(30010),
             bid=Decimal(30009),
             ask=Decimal(30011),
@@ -173,6 +175,7 @@ class TestSignalGenerator:
         )
         mock_hl_eth_ticker = Ticker(
             symbol="ETH",
+            exchange="hyperliquid",
             price=Decimal(2000),
             bid=Decimal(1999),
             ask=Decimal(2001),
@@ -180,6 +183,7 @@ class TestSignalGenerator:
         )
         mock_bp_eth_ticker = Ticker(
             symbol="ETH-USDC",
+            exchange="backpack",
             price=Decimal(2005),
             bid=Decimal(2004),
             ask=Decimal(2006),
@@ -343,7 +347,12 @@ class TestSignalGenerator:
                 Ticker | None: Ticker with base price and adjustments.
             """
             base_price = Decimal(30000) if exchange == "hyperliquid" else Decimal(30010)
-            return Ticker(symbol=symbol, price=base_price + price_chg, timestamp=datetime.now(UTC))
+            return Ticker(
+                symbol=symbol,
+                exchange=exchange,
+                price=base_price + price_chg,
+                timestamp=datetime.now(UTC),
+            )
 
         for i in range(sample_count + 5):
             rate_change = Decimal(str(i * 0.00001))
@@ -661,6 +670,7 @@ class TestSignalGenerator:
         ticker_data: dict[str, Ticker] = {
             "hyperliquid": Ticker(
                 symbol="BTC",
+                exchange="hyperliquid",
                 price=Decimal(41000),
                 bid=Decimal(40999),
                 ask=Decimal(41001),
@@ -668,6 +678,7 @@ class TestSignalGenerator:
             ),
             "backpack": Ticker(
                 symbol="BTC-USDC",
+                exchange="backpack",
                 price=Decimal(41100),
                 bid=Decimal(41099),
                 ask=Decimal(41101),

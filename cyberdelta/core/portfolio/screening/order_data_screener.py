@@ -205,8 +205,8 @@ class OrderDataScreener(BaseScreener):
         if not is_valid:
             logger.warning(
                 "order_validation_failed",
-                order_id=getattr(order, "order_id", "unknown"),
-                symbol=getattr(order, "symbol", "unknown"),
+                order_id=order.client_order_id or "unknown",
+                symbol=order.symbol or "unknown",
                 exchange_id=order.exchange,
                 error_count=len(errors),
                 warning_count=len(warnings),
@@ -214,8 +214,8 @@ class OrderDataScreener(BaseScreener):
         elif warnings:
             logger.info(
                 "order_validation_warnings",
-                order_id=getattr(order, "order_id", "unknown"),
-                symbol=getattr(order, "symbol", "unknown"),
+                order_id=order.client_order_id or "unknown",
+                symbol=order.symbol or "unknown",
                 exchange_id=order.exchange,
                 warning_count=len(warnings),
             )
@@ -816,8 +816,8 @@ class OrderDataScreener(BaseScreener):
                 valid_count += 1
 
                 # Track order statistics
-                status = getattr(order, "status", "unknown")
-                order_type = getattr(order, "order_type", "unknown")
+                status = order.status.value if order.status else "unknown"
+                order_type = order.order_type.value if order.order_type else "unknown"
                 exchange = order.exchange
 
                 status_summary[status] = status_summary.get(status, 0) + 1

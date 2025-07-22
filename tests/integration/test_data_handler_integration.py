@@ -121,6 +121,7 @@ class TestDataHandlerIntegration:
         now = datetime.now(UTC)
         test_ticker_obj = Ticker(
             symbol="BTC",
+            exchange="test_exchange",
             timestamp=now,
             price=Decimal("41500.0"),
             bid=Decimal("41499.0"),

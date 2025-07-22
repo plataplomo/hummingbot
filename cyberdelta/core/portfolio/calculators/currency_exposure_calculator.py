@@ -3,30 +3,22 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
-
-
-# Type-preserving factory functions for dataclass fields
-def _str_set_factory() -> set[str]:
-    """Factory function that preserves set[str] type information."""
-    return set()
-
-
-def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
-    return []
-
-
-def _currency_exposure_dict_factory() -> dict[str, CurrencyExposure]:
-    """Factory function that preserves dict[str, CurrencyExposure] type information."""
-    return {}
+from cyberdelta.core.portfolio.exceptions import (
+    CurrencyMismatchError,
+    InvalidCalculationInputError,
+)
+from cyberdelta.enums import OrderSide
 
 
 if TYPE_CHECKING:
+    from cyberdelta.core.models import DerivativePosition
     from cyberdelta.core.portfolio.services.currency_converter import CurrencyConverter
 
 logger = get_logger(__name__)
@@ -34,29 +26,79 @@ logger = get_logger(__name__)
 
 @dataclass
 class CurrencyExposure:
-    """Currency exposure for a single currency."""
+    """Currency exposure for a single currency with validation."""
 
-    currency: str
-    gross_exposure: Decimal  # Total absolute exposure
-    net_exposure: Decimal  # Net long/short exposure
-    long_exposure: Decimal  # Total long positions
-    short_exposure: Decimal  # Total short positions
+    currency: str = Field(min_length=1, max_length=10, description="Currency code")
+    gross_exposure: Decimal = Field(ge=0, description="Total absolute exposure (non-negative)")
+    net_exposure: Decimal = Field(description="Net long/short exposure")
+    long_exposure: Decimal = Field(ge=0, description="Total long positions (non-negative)")
+    short_exposure: Decimal = Field(le=0, description="Total short positions (non-positive)")
 
     # Breakdown by source
-    spot_exposure: Decimal = Decimal(0)
-    derivative_exposure: Decimal = Decimal(0)
-    collateral_exposure: Decimal = Decimal(0)
+    spot_exposure: Decimal = Field(default=Decimal(0), description="Spot exposure")
+    derivative_exposure: Decimal = Field(default=Decimal(0), description="Derivative exposure")
+    collateral_exposure: Decimal = Field(default=Decimal(0), description="Collateral exposure")
 
     # Risk metrics
-    value_in_base_currency: Decimal | None = None  # Value in portfolio base currency
-    fx_rate: Decimal | None = None  # Current FX rate to base
-    fx_volatility: Decimal | None = None  # Historical volatility
-    var_95: Decimal | None = None  # FX VaR
-    stress_loss: Decimal | None = None  # Loss in stress scenario
+    value_in_base_currency: Decimal | None = Field(
+        default=None, description="Value in portfolio base currency"
+    )
+    fx_rate: Decimal | None = Field(default=None, gt=0, description="Current FX rate to base")
+    fx_volatility: Decimal | None = Field(
+        default=None, ge=0, le=5, description="Historical volatility (0-500%)"
+    )
+    var_95: Decimal | None = Field(default=None, le=0, description="95% FX VaR (non-positive)")
+    stress_loss: Decimal | None = Field(
+        default=None, le=0, description="Loss in stress scenario (non-positive)"
+    )
 
     # Position details
-    position_count: int = 0
-    exchanges: set[str] = field(default_factory=_str_set_factory)
+    position_count: int = Field(default=0, ge=0, description="Number of positions")
+    exchanges: set[str] = Field(default_factory=set, description="Exchanges with exposure")
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def validate_currency(cls, v: str) -> str:
+        """Validate and normalize currency code."""
+        if not v:
+            raise InvalidCalculationInputError(
+                parameter="currency", value=v, expected="non-empty string"
+            )
+        return v.upper().strip()
+
+    @field_validator(
+        "gross_exposure",
+        "net_exposure",
+        "long_exposure",
+        "short_exposure",
+        "spot_exposure",
+        "derivative_exposure",
+        "collateral_exposure",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure all decimal values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="exposure", value=value, expected="finite number"
+            )
+        return value
+
+    @field_validator("long_exposure", "short_exposure", mode="after")
+    @classmethod
+    def validate_exposure_consistency(cls, v: Decimal, info: ValidationInfo) -> Decimal:
+        """Validate exposure sign consistency."""
+        if info.field_name == "long_exposure" and v < 0:
+            raise InvalidCalculationInputError(
+                parameter="long_exposure", value=v, expected="non-negative value"
+            )
+        if info.field_name == "short_exposure" and v > 0:
+            raise InvalidCalculationInputError(
+                parameter="short_exposure", value=v, expected="non-positive value"
+            )
+        return v
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -83,33 +125,92 @@ class CurrencyExposure:
 
 @dataclass
 class PortfolioCurrencyExposure:
-    """Aggregate currency exposure for the portfolio."""
+    """Aggregate currency exposure for the portfolio with validation."""
 
-    base_currency: str
-    total_currencies: int
+    base_currency: str = Field(min_length=1, max_length=10, description="Base currency code")
+    total_currencies: int = Field(ge=0, description="Total number of currencies")
 
     # Aggregate metrics
-    total_fx_exposure: Decimal  # Total non-base currency exposure
-    total_fx_risk: Decimal  # Total FX VaR
+    total_fx_exposure: Decimal = Field(
+        ge=0, description="Total non-base currency exposure (non-negative)"
+    )
+    total_fx_risk: Decimal = Field(ge=0, description="Total FX VaR (non-negative)")
 
     # Individual currency exposures
-    currency_exposures: dict[str, CurrencyExposure] = field(
-        default_factory=_currency_exposure_dict_factory
+    currency_exposures: dict[str, CurrencyExposure] = Field(
+        default_factory=dict, description="Individual currency exposures"
     )
 
     # Concentration metrics
-    largest_currency_weight: Decimal = Decimal(0)
-    top_3_currency_concentration: Decimal = Decimal(0)
+    largest_currency_weight: Decimal = Field(
+        default=Decimal(0), ge=0, le=1, description="Largest currency weight (0-100%)"
+    )
+    top_3_currency_concentration: Decimal = Field(
+        default=Decimal(0), ge=0, le=1, description="Top 3 concentration (0-100%)"
+    )
 
     # Risk metrics
-    portfolio_fx_var_95: Decimal = Decimal(0)
-    portfolio_fx_stress_loss: Decimal = Decimal(0)
-    correlation_benefit: Decimal = Decimal(0)  # Diversification benefit
+    portfolio_fx_var_95: Decimal = Field(
+        default=Decimal(0), ge=0, description="Portfolio 95% FX VaR"
+    )
+    portfolio_fx_stress_loss: Decimal = Field(
+        default=Decimal(0), ge=0, description="Portfolio FX stress loss"
+    )
+    correlation_benefit: Decimal = Field(
+        default=Decimal(0), ge=0, description="Diversification benefit"
+    )
 
     # Risk indicators
-    concentrated_currencies: list[str] = field(default_factory=_str_list_factory)  # > 20% exposure
-    volatile_currencies: list[str] = field(default_factory=_str_list_factory)  # High volatility
-    warnings: list[str] = field(default_factory=_str_list_factory)
+    concentrated_currencies: list[str] = Field(
+        default_factory=list, description="Currencies with >20% exposure"
+    )
+    volatile_currencies: list[str] = Field(
+        default_factory=list, description="High volatility currencies"
+    )
+    warnings: list[str] = Field(default_factory=list, description="Risk warnings")
+
+    @field_validator("base_currency", mode="before")
+    @classmethod
+    def validate_base_currency(cls, v: str) -> str:
+        """Validate and normalize base currency."""
+        if not v:
+            raise InvalidCalculationInputError(
+                parameter="base_currency", value=v, expected="non-empty string"
+            )
+        return v.upper().strip()
+
+    @field_validator(
+        "total_fx_exposure",
+        "total_fx_risk",
+        "portfolio_fx_var_95",
+        "portfolio_fx_stress_loss",
+        "correlation_benefit",
+        mode="before",
+    )
+    @classmethod
+    def validate_risk_metrics(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure risk metrics are finite and non-negative."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="risk_metric", value=value, expected="finite number"
+            )
+        return value
+
+    @field_validator("currency_exposures", mode="after")
+    @classmethod
+    def validate_currency_exposures(
+        cls, v: dict[str, CurrencyExposure]
+    ) -> dict[str, CurrencyExposure]:
+        """Validate currency exposures dictionary."""
+        # v is already typed as dict[str, CurrencyExposure] by Pydantic
+        for currency, exposure in v.items():
+            # exposure is already typed as CurrencyExposure by Pydantic
+            if exposure.currency != currency:
+                raise CurrencyMismatchError(
+                    expected_currency=currency, actual_currency=exposure.currency
+                )
+        return v
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -130,6 +231,20 @@ class PortfolioCurrencyExposure:
             "volatile_currencies": self.volatile_currencies,
             "warnings": self.warnings,
         }
+
+
+class CurrencyAccumulator(BaseModel):
+    """Model for accumulating currency exposure data during calculation."""
+
+    gross: Decimal = Field(default=Decimal(0), description="Gross exposure")
+    net: Decimal = Field(default=Decimal(0), description="Net exposure")
+    long: Decimal = Field(default=Decimal(0), description="Long exposure")
+    short: Decimal = Field(default=Decimal(0), description="Short exposure")
+    spot: Decimal = Field(default=Decimal(0), description="Spot exposure")
+    derivative: Decimal = Field(default=Decimal(0), description="Derivative exposure")
+    collateral: Decimal = Field(default=Decimal(0), description="Collateral exposure")
+    position_count: int = Field(default=0, ge=0, description="Number of positions")
+    exchanges: set[str] = Field(default_factory=set, description="Exchanges involved")
 
 
 class CurrencyExposureCalculator:
@@ -195,7 +310,7 @@ class CurrencyExposureCalculator:
 
     async def calculate_currency_exposure(
         self,
-        positions: list[dict[str, Any]],
+        positions: list[DerivativePosition],
         balances: dict[str, dict[str, Decimal]],
         prices: dict[str, Decimal] | None = None,
     ) -> PortfolioCurrencyExposure:
@@ -210,19 +325,7 @@ class CurrencyExposureCalculator:
             Portfolio currency exposure metrics
         """
         # Initialize currency accumulators
-        currency_data: dict[str, dict[str, Any]] = defaultdict(
-            lambda: {
-                "gross": Decimal(0),
-                "net": Decimal(0),
-                "long": Decimal(0),
-                "short": Decimal(0),
-                "spot": Decimal(0),
-                "derivative": Decimal(0),
-                "collateral": Decimal(0),
-                "position_count": 0,
-                "exchanges": set(),
-            }
-        )
+        currency_data: dict[str, CurrencyAccumulator] = defaultdict(CurrencyAccumulator)
 
         # Process positions
         for position in positions:
@@ -235,11 +338,11 @@ class CurrencyExposureCalculator:
         for exchange, exchange_balances in balances.items():
             for currency, balance in exchange_balances.items():
                 if balance > 0:
-                    currency_data[currency]["gross"] += balance
-                    currency_data[currency]["net"] += balance
-                    currency_data[currency]["long"] += balance
-                    currency_data[currency]["spot"] += balance
-                    currency_data[currency]["exchanges"].add(exchange)
+                    currency_data[currency].gross += balance
+                    currency_data[currency].net += balance
+                    currency_data[currency].long += balance
+                    currency_data[currency].spot += balance
+                    currency_data[currency].exchanges.add(exchange)
 
         # Create currency exposure objects
         currency_exposures: dict[str, CurrencyExposure] = {}
@@ -254,7 +357,7 @@ class CurrencyExposureCalculator:
             fx_vol = Decimal(str(self.fx_volatilities.get(currency, 0.2)))
 
             # Calculate value in base currency
-            value_in_base = data["net"] * fx_rate if fx_rate else None
+            value_in_base = data.net * fx_rate if fx_rate else None
 
             # Calculate FX VaR (simplified)
             var_95 = None
@@ -270,20 +373,20 @@ class CurrencyExposureCalculator:
 
             exposure = CurrencyExposure(
                 currency=currency,
-                gross_exposure=data["gross"],
-                net_exposure=data["net"],
-                long_exposure=data["long"],
-                short_exposure=data["short"],
-                spot_exposure=data["spot"],
-                derivative_exposure=data["derivative"],
-                collateral_exposure=data["collateral"],
+                gross_exposure=data.gross,
+                net_exposure=data.net,
+                long_exposure=data.long,
+                short_exposure=data.short,
+                spot_exposure=data.spot,
+                derivative_exposure=data.derivative,
+                collateral_exposure=data.collateral,
                 value_in_base_currency=value_in_base,
                 fx_rate=fx_rate,
                 fx_volatility=fx_vol,
                 var_95=var_95,
                 stress_loss=stress_loss,
-                position_count=data["position_count"],
-                exchanges=data["exchanges"],
+                position_count=data.position_count,
+                exchanges=data.exchanges,
             )
 
             currency_exposures[currency] = exposure
@@ -298,64 +401,55 @@ class CurrencyExposureCalculator:
 
     async def _process_position_currency_exposure(
         self,
-        position: dict[str, Any],
-        currency_data: dict[str, dict[str, Any]],
+        position: DerivativePosition,
+        currency_data: dict[str, CurrencyAccumulator],
     ) -> None:
         """Process currency exposure from a position."""
-        # Parse currencies from position
-        base_ccy = position.get("base_currency")
-        quote_ccy = position.get("quote_currency")
+        # Parse currencies from position symbol - DerivativePosition doesn't have currency fields
+        base_ccy, quote_ccy = self._parse_position_currencies(position)
 
-        # If not provided, try to parse from symbol
-        if not base_ccy or not quote_ccy:
-            base_ccy, quote_ccy = self._parse_position_currencies(position)
-
-        position_value = Decimal(str(position.get("notional_value", 0)))
-        position_size = Decimal(str(position.get("size", 0)))
-        side = position.get("side", "LONG")
-        exchange = position.get("exchange_id", "unknown")
+        position_size = position.size
+        side = position.side
+        exchange = position.exchange
+        
+        # Calculate position value from size and mark_price
+        mark_price = position.mark_price or Decimal(0)
+        position_value = abs(position_size) * mark_price
 
         # Base currency exposure (what we're holding)
         if base_ccy:
-            if side == "LONG":
-                currency_data[base_ccy]["gross"] += abs(position_size)
-                currency_data[base_ccy]["net"] += position_size
-                currency_data[base_ccy]["long"] += abs(position_size)
-            else:
-                currency_data[base_ccy]["gross"] += abs(position_size)
-                currency_data[base_ccy]["net"] -= abs(position_size)
-                currency_data[base_ccy]["short"] += abs(position_size)
+            if side == OrderSide.BUY:  # Long position
+                currency_data[base_ccy].gross += abs(position_size)
+                currency_data[base_ccy].net += position_size
+                currency_data[base_ccy].long += abs(position_size)
+            else:  # Short position
+                currency_data[base_ccy].gross += abs(position_size)
+                currency_data[base_ccy].net -= abs(position_size)
+                currency_data[base_ccy].short += abs(position_size)
 
-            currency_data[base_ccy]["derivative"] += abs(position_size)
-            currency_data[base_ccy]["position_count"] += 1
-            currency_data[base_ccy]["exchanges"].add(exchange)
+            currency_data[base_ccy].derivative += abs(position_size)
+            currency_data[base_ccy].position_count += 1
+            currency_data[base_ccy].exchanges.add(exchange)
 
         # Quote currency exposure (what we're paying/receiving)
         if quote_ccy and quote_ccy != base_ccy:
-            if side == "LONG":
-                # Long position = short quote currency
-                currency_data[quote_ccy]["gross"] += position_value
-                currency_data[quote_ccy]["net"] -= position_value
-                currency_data[quote_ccy]["short"] += position_value
-            else:
-                # Short position = long quote currency
-                currency_data[quote_ccy]["gross"] += position_value
-                currency_data[quote_ccy]["net"] += position_value
-                currency_data[quote_ccy]["long"] += position_value
+            if side == OrderSide.BUY:  # Long position = short quote currency
+                currency_data[quote_ccy].gross += position_value
+                currency_data[quote_ccy].net -= position_value
+                currency_data[quote_ccy].short += position_value
+            else:  # Short position = long quote currency
+                currency_data[quote_ccy].gross += position_value
+                currency_data[quote_ccy].net += position_value
+                currency_data[quote_ccy].long += position_value
 
-            currency_data[quote_ccy]["derivative"] += position_value
-            currency_data[quote_ccy]["exchanges"].add(exchange)
+            currency_data[quote_ccy].derivative += position_value
+            currency_data[quote_ccy].exchanges.add(exchange)
 
-        # Collateral currency (usually USD or USDT)
-        collateral_value = Decimal(str(position.get("collateral_value", 0)))
-        collateral_ccy = position.get("collateral_currency", "USD")
-        if collateral_value > 0:
-            currency_data[collateral_ccy]["collateral"] += collateral_value
-            currency_data[collateral_ccy]["exchanges"].add(exchange)
-
-    def _parse_position_currencies(self, position: dict[str, Any]) -> tuple[str | None, str | None]:
+    def _parse_position_currencies(
+        self, position: DerivativePosition
+    ) -> tuple[str | None, str | None]:
         """Parse currencies from position symbol."""
-        symbol = position.get("symbol", "")
+        symbol = position.symbol
 
         # Handle perpetuals
         if "-PERP" in symbol:

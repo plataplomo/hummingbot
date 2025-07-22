@@ -6,7 +6,8 @@ This module provides secure alternatives to pickle for internal data persistence
 from __future__ import annotations
 
 import json
-from typing import Any, cast
+import time
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -16,23 +17,100 @@ type JsonValue = str | int | float | bool | None
 type SerializableType = dict[str, JsonValue] | list[JsonValue] | JsonValue
 
 
-class SerializedPortfolioData(BaseModel):
-    """Model for serialized portfolio data."""
+class SerializedBalanceData(BaseModel):
+    """Model for serialized balance data."""
 
-    balances: dict[str, Any] = Field(default_factory=dict)
-    positions: dict[str, Any] = Field(default_factory=dict)
-    orders: dict[str, Any] = Field(default_factory=dict)
-    trades: dict[str, Any] = Field(default_factory=dict)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    timestamp: float = 0.0
+    exchange_id: str
+    asset: str
+    amount: Decimal
+    locked_amount: Decimal = Decimal(0)
+    available_amount: Decimal = Decimal(0)
+    timestamp: float
+
+
+class SerializedPositionData(BaseModel):
+    """Model for serialized position data."""
+
+    position_id: str
+    exchange_id: str
+    symbol: str
+    side: str
+    size: Decimal
+    entry_price: Decimal
+    current_price: Decimal
+    unrealized_pnl: Decimal
+    realized_pnl: Decimal
+    margin_used: Decimal = Decimal(0)
+    leverage: Decimal = Decimal(1)
+    timestamp: float
+
+
+class SerializedOrderData(BaseModel):
+    """Model for serialized order data."""
+
+    order_id: str
+    exchange_id: str
+    symbol: str
+    side: str
+    order_type: str
+    quantity: Decimal
+    price: Decimal
+    filled_quantity: Decimal = Decimal(0)
+    status: str
+    timestamp: float
+
+
+class SerializedTradeData(BaseModel):
+    """Model for serialized trade data."""
+
+    trade_id: str
+    order_id: str
+    exchange_id: str
+    symbol: str
+    side: str
+    quantity: Decimal
+    price: Decimal
+    fee: Decimal = Decimal(0)
+    fee_currency: str = ""
+    timestamp: float
+
+
+class SerializedMetadata(BaseModel):
+    """Model for serialized metadata."""
+
+    created_at: float
+    updated_at: float
     version: str = "1.0"
+    source_component: str = ""
+    notes: str = ""
+    tags: dict[str, str] = Field(default_factory=dict)
+
+
+class SerializedPortfolioData(BaseModel):
+    """Model for serialized portfolio data with proper typing."""
+
+    balances: dict[str, SerializedBalanceData] = Field(default_factory=dict)
+    positions: dict[str, SerializedPositionData] = Field(default_factory=dict)
+    orders: dict[str, SerializedOrderData] = Field(default_factory=dict)
+    trades: dict[str, SerializedTradeData] = Field(default_factory=dict)
+    metadata: SerializedMetadata = Field(
+        default_factory=lambda: SerializedMetadata(created_at=time.time(), updated_at=time.time())
+    )
+    timestamp: float = Field(default_factory=time.time)
+    version: str = "1.0"
+
+
+class SerializableData(BaseModel):
+    """Model for generic serializable data."""
+
+    data: dict[str, JsonValue] | list[JsonValue] | JsonValue
 
 
 class SecureSerializer:
     """Secure serializer using JSON for internal data persistence."""
 
     @staticmethod
-    def dumps(obj: SerializableType) -> bytes:
+    def dumps(obj: SerializableType | BaseModel) -> bytes:
         """Serialize object to bytes using JSON.
 
         Args:
@@ -41,6 +119,10 @@ class SecureSerializer:
         Returns:
             Serialized bytes
         """
+        # If it's a Pydantic model, use model_dump
+        if isinstance(obj, BaseModel):
+            return obj.model_dump_json().encode("utf-8")
+        # For other objects, use standard JSON serialization
         return json.dumps(obj, default=str, ensure_ascii=False).encode("utf-8")
 
     @staticmethod
@@ -53,32 +135,13 @@ class SecureSerializer:
         Returns:
             Deserialized object
         """
-        # Parse JSON with explicit type annotation
+        # Parse JSON and validate with Pydantic
         raw_data = data.decode("utf-8")
         parsed = json.loads(raw_data)
 
-        # Type narrowing after isinstance check
-        if isinstance(parsed, dict):
-            typed_dict = cast(dict[Any, Any], parsed)  # type: ignore[redundant-cast]
-            result: dict[str, JsonValue] = {}
-            for k, v in typed_dict.items():
-                if isinstance(v, (str, int, float, bool)) or v is None:
-                    result[str(k)] = v
-            return result
-
-        if isinstance(parsed, list):
-            typed_list = cast(list[Any], parsed)  # type: ignore[redundant-cast]
-            result_list: list[JsonValue] = [
-                item
-                for item in typed_list
-                if isinstance(item, (str, int, float, bool)) or item is None
-            ]
-            return result_list
-
-        if isinstance(parsed, (str, int, float, bool)) or parsed is None:
-            return parsed
-
-        return str(parsed)
+        # Use Pydantic to validate the structure
+        validated = SerializableData(data=parsed)
+        return validated.data
 
     @staticmethod
     def loads_portfolio_data(data: bytes) -> SerializedPortfolioData:

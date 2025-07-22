@@ -215,17 +215,6 @@ def is_valid_asset(value: object) -> TypeGuard[str]:
 
 
 # Validation helpers
-def validate_required_fields(obj: object, fields: list[str]) -> bool:
-    """Validate that an object has all required fields.
-
-    Note: This function is deprecated. Use isinstance() checks with proper Pydantic models instead.
-    For Pydantic models, all required fields are validated automatically.
-    """
-    # Deprecated - always return True since Pydantic models validate required fields
-    # This function should be removed in favor of proper isinstance checks
-    return True
-
-
 def validate_numeric_range(
     value: object, min_val: float | None = None, max_val: float | None = None
 ) -> bool:

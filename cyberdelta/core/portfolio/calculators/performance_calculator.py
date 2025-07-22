@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from cyberdelta.config import AppSettings
 from cyberdelta.core.portfolio.base import CalculationResult, TypedCalculator
+from cyberdelta.core.portfolio.base.typed_calculator import CalculationMetadata
+from cyberdelta.core.portfolio.exceptions import (
+    CalculatorValidationError,
+    InvalidCalculationInputError,
+)
 
 
 if TYPE_CHECKING:
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import StateContainerProtocol
 
 
@@ -24,48 +31,173 @@ TRADING_DAYS_PER_YEAR = 252
 MINIMUM_TRADES_FOR_STATS = 10
 
 
-@dataclass
-class PerformanceMetrics:
-    """Performance calculation result."""
+class PerformanceMetrics(BaseModel):
+    """Performance calculation result with validation."""
 
     # Return metrics
-    total_return: Decimal
-    total_return_percent: Decimal
-    annualized_return: Decimal
+    total_return: Decimal = Field(description="Total return amount")
+    total_return_percent: Decimal = Field(description="Total return percentage")
+    annualized_return: Decimal = Field(description="Annualized return percentage")
 
     # Risk metrics
-    volatility: Decimal
-    sharpe_ratio: Decimal | None
-    max_drawdown: Decimal
-    max_drawdown_percent: Decimal
+    volatility: Decimal = Field(ge=0, description="Portfolio volatility (non-negative)")
+    sharpe_ratio: Decimal | None = Field(default=None, description="Risk-adjusted return metric")
+    max_drawdown: Decimal = Field(le=0, description="Maximum drawdown (non-positive)")
+    max_drawdown_percent: Decimal = Field(
+        le=0, description="Maximum drawdown percentage (non-positive)"
+    )
 
     # Additional metrics
-    calmar_ratio: Decimal | None
-    sortino_ratio: Decimal | None
-    win_rate: Decimal | None
-    average_win: Decimal | None
-    average_loss: Decimal | None
-    profit_factor: Decimal | None
+    calmar_ratio: Decimal | None = Field(default=None, description="Return over max drawdown")
+    sortino_ratio: Decimal | None = Field(default=None, description="Downside risk-adjusted return")
+    win_rate: Decimal | None = Field(
+        default=None, ge=0, le=1, description="Percentage of winning trades"
+    )
+    average_win: Decimal | None = Field(
+        default=None, ge=0, description="Average winning trade amount"
+    )
+    average_loss: Decimal | None = Field(
+        default=None, le=0, description="Average losing trade amount"
+    )
+    profit_factor: Decimal | None = Field(
+        default=None, ge=0, description="Ratio of gross profit to gross loss"
+    )
 
     # Time metrics
-    analysis_period_days: int
-    number_of_trades: int
+    analysis_period_days: int = Field(gt=0, description="Number of days in analysis period")
+    number_of_trades: int = Field(ge=0, description="Total number of trades")
 
     # Statistical metrics
-    var_95: Decimal | None
-    var_99: Decimal | None
-    expected_shortfall: Decimal | None
+    var_95: Decimal | None = Field(default=None, le=0, description="95% Value at Risk")
+    var_99: Decimal | None = Field(default=None, le=0, description="99% Value at Risk")
+    expected_shortfall: Decimal | None = Field(
+        default=None, le=0, description="Expected shortfall beyond VaR"
+    )
+
+    @field_validator("total_return", "total_return_percent", "annualized_return", mode="before")
+    @classmethod
+    def validate_finite_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure all return metrics are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="return_metric", value=value, expected="finite decimal value"
+            )
+        return value
+
+    @field_validator("win_rate", mode="before")
+    @classmethod
+    def validate_win_rate(cls, v: Decimal | str | float | None) -> Decimal | None:
+        """Validate win rate is a valid percentage."""
+        if v is not None:
+            value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+            if not (Decimal(0) <= value <= Decimal(1)):
+                raise InvalidCalculationInputError(
+                    parameter="win_rate", value=value, expected="value between 0 and 1"
+                )
+            return value
+        return v
 
 
-@dataclass
-class PerformanceInput:
-    """Input for performance calculation."""
+class PerformanceInput(BaseModel):
+    """Input for performance calculation with validation."""
 
-    portfolio_values: list[Decimal]  # Time series of portfolio values
-    timestamps: list[int] | None = None  # Unix timestamps (optional)
-    benchmark_values: list[Decimal] | None = None  # Benchmark comparison
-    trade_returns: list[Decimal] | None = None  # Individual trade returns
-    risk_free_rate: Decimal | None = None  # Override default risk-free rate
+    portfolio_values: list[Decimal] = Field(
+        min_length=MIN_PORTFOLIO_VALUES, description="Time series of portfolio values"
+    )
+    timestamps: list[int] | None = Field(default=None, description="Unix timestamps (optional)")
+    benchmark_values: list[Decimal] | None = Field(
+        default=None, description="Benchmark comparison values"
+    )
+    trade_returns: list[Decimal] | None = Field(
+        default=None, description="Individual trade returns"
+    )
+    risk_free_rate: Decimal | None = Field(
+        default=None, ge=0, le=1, description="Risk-free rate for Sharpe ratio"
+    )
+
+    @field_validator("portfolio_values", mode="before")
+    @classmethod
+    def validate_portfolio_values(cls, v: list[Decimal | str | float | int]) -> list[Decimal]:
+        """Validate portfolio values are positive and finite."""
+        if not v:
+            raise CalculatorValidationError(
+                field_name="portfolio_values", constraint="cannot be empty"
+            )
+
+        validated_values: list[Decimal] = []
+        for i, value in enumerate(v):
+            val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
+            if not val.is_finite():
+                raise InvalidCalculationInputError(
+                    parameter=f"portfolio_value[{i}]", value=val, expected="finite decimal value"
+                )
+            if val <= 0:
+                raise InvalidCalculationInputError(
+                    parameter=f"portfolio_value[{i}]", value=val, expected="positive decimal value"
+                )
+            validated_values.append(val)
+
+        return validated_values
+
+    @field_validator("timestamps", mode="before")
+    @classmethod
+    def validate_timestamps(cls, v: list[int] | None, info: ValidationInfo) -> list[int] | None:
+        """Validate timestamps if provided."""
+        if v is not None:
+            portfolio_values = info.data.get("portfolio_values", [])
+            if len(v) != len(portfolio_values):
+                raise CalculatorValidationError(
+                    field_name="timestamps",
+                    constraint=(
+                        f"length ({len(v)}) must match portfolio values "
+                        f"length ({len(portfolio_values)})"
+                    ),
+                )
+            if any(ts < 0 for ts in v):
+                raise InvalidCalculationInputError(
+                    parameter="timestamps",
+                    value="negative timestamp found",
+                    expected="non-negative integers",
+                )
+        return v
+
+    @field_validator("benchmark_values", mode="before")
+    @classmethod
+    def validate_benchmark_values(
+        cls, v: list[Decimal | str | float | int] | None, info: ValidationInfo
+    ) -> list[Decimal] | None:
+        """Validate benchmark values if provided."""
+        if v is not None:
+            portfolio_values = info.data.get("portfolio_values", [])
+            if len(v) != len(portfolio_values):
+                raise CalculatorValidationError(
+                    field_name="benchmark_values",
+                    constraint=(
+                        f"length ({len(v)}) must match portfolio values "
+                        f"length ({len(portfolio_values)})"
+                    ),
+                )
+
+            validated_values: list[Decimal] = []
+            for i, value in enumerate(v):
+                val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
+                if not val.is_finite():
+                    raise InvalidCalculationInputError(
+                        parameter=f"benchmark_value[{i}]",
+                        value=val,
+                        expected="finite decimal value",
+                    )
+                if val <= 0:
+                    raise InvalidCalculationInputError(
+                        parameter=f"benchmark_value[{i}]",
+                        value=val,
+                        expected="positive decimal value",
+                    )
+                validated_values.append(val)
+
+            return validated_values
+        return v
 
 
 class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics]):
@@ -81,7 +213,7 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
     ) -> None:
         """Initialize the performance calculator.
 
@@ -121,7 +253,9 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
             if len(portfolio_values) < MIN_PORTFOLIO_VALUES:
                 return CalculationResult[PerformanceMetrics].failure_result(
                     errors=["Insufficient data: need at least 2 portfolio values"],
-                    metadata={"calculator": self.calculator_name},
+                    metadata=CalculationMetadata(
+                        calculator=self.calculator_name, error_type="InsufficientData"
+                    ),
                 )
 
             # Calculate returns from portfolio values
@@ -206,17 +340,15 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
             return CalculationResult[PerformanceMetrics].success_result(
                 result=metrics,
                 warnings=warnings,
-                metadata={
-                    "calculator": self.calculator_name,
-                    "risk_free_rate_used": risk_free_rate,
-                    "periods_analyzed": len(returns),
-                },
+                metadata=CalculationMetadata(calculator=self.calculator_name),
             )
 
         except (ValueError, TypeError, ArithmeticError) as e:
             return CalculationResult[PerformanceMetrics].failure_result(
                 errors=[f"Performance calculation failed: {e}"],
-                metadata={"calculator": self.calculator_name},
+                metadata=CalculationMetadata(
+                    calculator=self.calculator_name, error_type=type(e).__name__
+                ),
             )
 
     async def validate_input(self, input_data: PerformanceInput) -> tuple[bool, list[str]]:

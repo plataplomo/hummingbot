@@ -564,3 +564,476 @@ class ServiceNotFoundError(ServiceError):
         kwargs["context"] = context
         kwargs["error_code"] = "SERVICE_NOT_FOUND"
         super().__init__(message, **kwargs)
+
+
+class ReconciliationValueError(ServiceError):
+    """Raised when reconciliation values are invalid."""
+
+    def __init__(
+        self,
+        value_type: str,
+        actual_value: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize reconciliation value error."""
+        message = f"Invalid {value_type} value"
+        if actual_value:
+            message += f": {actual_value}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "value_type": value_type,
+            "actual_value": actual_value,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "RECONCILIATION_VALUE_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class ReconciliationMetadataTypeError(ServiceError):
+    """Raised when reconciliation metadata has invalid type."""
+
+    def __init__(
+        self,
+        expected_type: str,
+        actual_type: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize reconciliation metadata type error."""
+        message = f"Invalid metadata type: expected {expected_type}, got {actual_type}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "expected_type": expected_type,
+            "actual_type": actual_type,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "RECONCILIATION_METADATA_TYPE_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class ReconciliationDiscrepancyTypeError(ServiceError):
+    """Raised when reconciliation discrepancy type is invalid."""
+
+    def __init__(
+        self,
+        invalid_type: str,
+        valid_types: list[str] | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize reconciliation discrepancy type error."""
+        if valid_types:
+            message = f"Type must be one of: {', '.join(valid_types)}, got '{invalid_type}'"
+        else:
+            message = f"Invalid discrepancy type: {invalid_type}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "invalid_type": invalid_type,
+            "valid_types": valid_types,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "RECONCILIATION_DISCREPANCY_TYPE_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class ReconciliationSeverityError(ServiceError):
+    """Raised when reconciliation severity is invalid."""
+
+    def __init__(
+        self,
+        invalid_severity: str,
+        valid_severities: list[str] | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize reconciliation severity error."""
+        if valid_severities:
+            message = (
+                f"Severity must be one of: {', '.join(valid_severities)}, got '{invalid_severity}'"
+            )
+        else:
+            message = f"Invalid severity: {invalid_severity}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "invalid_severity": invalid_severity,
+            "valid_severities": valid_severities,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "RECONCILIATION_SEVERITY_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class CircuitBreakerThresholdError(ServiceError):
+    """Raised when circuit breaker thresholds are invalid."""
+
+    def __init__(
+        self,
+        threshold_type: str,
+        invalid_relationship: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize circuit breaker threshold error."""
+        message = f"{threshold_type} threshold error: {invalid_relationship}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "threshold_type": threshold_type,
+            "invalid_relationship": invalid_relationship,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CIRCUIT_BREAKER_THRESHOLD_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class ResilienceConfigurationError(ServiceError):
+    """Raised when resilience configuration is invalid."""
+
+    def __init__(
+        self,
+        config_type: str,
+        invalid_relationship: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize resilience configuration error."""
+        message = f"{config_type} configuration error: {invalid_relationship}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "config_type": config_type,
+            "invalid_relationship": invalid_relationship,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "RESILIENCE_CONFIGURATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class AnalyticsValueError(ServiceError):
+    """Raised when analytics values are invalid."""
+
+    def __init__(
+        self,
+        value_type: str,
+        value: str | None = None,
+        requirement: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize analytics value error."""
+        message = f"Invalid {value_type}"
+        if requirement:
+            message += f": {requirement}"
+        if value:
+            message += f" (value: {value})"
+        context = kwargs.get("context") or {}
+        context.update({
+            "value_type": value_type,
+            "value": value,
+            "requirement": requirement,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "ANALYTICS_VALUE_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class AnalyticsConfigurationError(ServiceError):
+    """Raised when analytics configuration is invalid."""
+
+    def __init__(
+        self,
+        config_type: str,
+        invalid_value: str | None = None,
+        valid_values: list[str] | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize analytics configuration error."""
+        if valid_values and invalid_value:
+            message = (
+                f"Invalid {config_type}: must be one of {', '.join(valid_values)}, "
+                f"got '{invalid_value}'"
+            )
+        elif invalid_value:
+            message = f"Invalid {config_type}: {invalid_value}"
+        else:
+            message = f"Invalid {config_type} configuration"
+        context = kwargs.get("context") or {}
+        context.update({
+            "config_type": config_type,
+            "invalid_value": invalid_value,
+            "valid_values": valid_values,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "ANALYTICS_CONFIGURATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class CurrencyConverterError(ServiceError):
+    """Raised when currency conversion operations fail."""
+
+    def __init__(
+        self,
+        operation_type: str,
+        currency_pair: str | None = None,
+        requirement: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize currency converter error."""
+        message = f"Currency conversion error: {operation_type}"
+        if requirement:
+            message += f" - {requirement}"
+        if currency_pair:
+            message += f" (pair: {currency_pair})"
+        context = kwargs.get("context") or {}
+        context.update({
+            "operation_type": operation_type,
+            "currency_pair": currency_pair,
+            "requirement": requirement,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CURRENCY_CONVERTER_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class HealthCheckValidationError(ServiceError):
+    """Raised when health check validation fails."""
+
+    def __init__(
+        self,
+        metric_type: str,
+        requirement: str,
+        value: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize health check validation error."""
+        message = f"Health check validation failed for {metric_type}: {requirement}"
+        if value:
+            message += f" (value: {value})"
+        context = kwargs.get("context") or {}
+        context.update({
+            "metric_type": metric_type,
+            "requirement": requirement,
+            "value": value,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "HEALTH_CHECK_VALIDATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class ExchangeRateUnavailableError(PriceServiceError):
+    """Raised when exchange rate cannot be determined."""
+
+    def __init__(
+        self,
+        from_currency: str,
+        to_currency: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize exchange rate unavailable error."""
+        message = "Unable to determine exchange rate"
+        context = kwargs.get("context") or {}
+        context.update({
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "EXCHANGE_RATE_UNAVAILABLE"
+        super().__init__(
+            message=message,
+            symbol=f"{from_currency}/{to_currency}",
+            **kwargs,
+        )
+
+
+class ConfigManagerValidationError(ServiceError):
+    """Raised when config manager validation fails."""
+
+    def __init__(
+        self,
+        validation_type: str,
+        requirement: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize config manager validation error."""
+        message = f"Configuration validation failed: {validation_type}"
+        if requirement:
+            message += f" - {requirement}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "validation_type": validation_type,
+            "requirement": requirement,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CONFIG_MANAGER_VALIDATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class ConfigStringValidationError(ConfigManagerValidationError):
+    """Raised when string fields in configuration are invalid."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize config string validation error."""
+        super().__init__(
+            validation_type="string_field",
+            requirement="cannot be empty",
+            **kwargs,
+        )
+
+
+class ConfigTimestampValidationError(ConfigManagerValidationError):
+    """Raised when timestamp fields in configuration are invalid."""
+
+    def __init__(
+        self,
+        requirement: str = "must be positive",
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize config timestamp validation error."""
+        super().__init__(
+            validation_type="timestamp_field",
+            requirement=requirement,
+            **kwargs,
+        )
+
+
+class ConfigChangeKeyValidationError(ConfigManagerValidationError):
+    """Raised when change key fields are invalid."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize config change key validation error."""
+        super().__init__(
+            validation_type="change_key",
+            requirement="cannot be empty",
+            **kwargs,
+        )
+
+
+class ConfigProfileNameValidationError(ConfigManagerValidationError):
+    """Raised when profile name fields are invalid."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize config profile name validation error."""
+        super().__init__(
+            validation_type="profile_name",
+            requirement="cannot be empty",
+            **kwargs,
+        )
+
+
+class ConfigTimestampNegativeError(ConfigManagerValidationError):
+    """Raised when timestamp values are negative."""
+
+    def __init__(
+        self,
+        field_type: str = "timestamp",
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize config timestamp negative error."""
+        super().__init__(
+            validation_type=field_type,
+            requirement="cannot be negative",
+            **kwargs,
+        )
+
+
+class ServiceProtocolValidationError(ServiceError):
+    """Raised when service protocol validation fails."""
+
+    def __init__(
+        self,
+        field_type: str,
+        requirement: str = "must be positive",
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize service protocol validation error."""
+        message = f"{field_type} {requirement}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "field_type": field_type,
+            "requirement": requirement,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "SERVICE_PROTOCOL_VALIDATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class AuditTrailValidationError(ServiceError):
+    """Raised when audit trail validation fails."""
+
+    def __init__(
+        self,
+        field_type: str,
+        valid_values: list[str] | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize audit trail validation error."""
+        if valid_values:
+            message = f"{field_type} must be one of: {', '.join(valid_values)}"
+        else:
+            message = f"Invalid {field_type}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "field_type": field_type,
+            "valid_values": valid_values,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "AUDIT_TRAIL_VALIDATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class BackupServiceValidationError(ServiceError):
+    """Raised when backup service validation fails."""
+
+    def __init__(
+        self,
+        value_type: str,
+        requirement: str = "must be a valid number string",
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize backup service validation error."""
+        message = f"{value_type} {requirement}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "value_type": value_type,
+            "requirement": requirement,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "BACKUP_SERVICE_VALIDATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class AnalyticsTypeError(ServiceError):
+    """Raised when analytics type validation fails."""
+
+    def __init__(
+        self,
+        field_type: str,
+        valid_types: list[str] | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize analytics type error."""
+        if valid_types:
+            message = f"{field_type} must be one of: {', '.join(valid_types)}"
+        else:
+            message = f"Invalid {field_type}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "field_type": field_type,
+            "valid_types": valid_types,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "ANALYTICS_TYPE_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class AnalyticsRequiredFieldError(ServiceError):
+    """Raised when required analytics fields are missing or empty."""
+
+    def __init__(
+        self,
+        field_name: str,
+        requirement: str = "cannot be empty",
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize analytics required field error."""
+        message = f"{field_name} {requirement}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "field_name": field_name,
+            "requirement": requirement,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "ANALYTICS_REQUIRED_FIELD_ERROR"
+        super().__init__(message, **kwargs)

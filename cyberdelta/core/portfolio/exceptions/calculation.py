@@ -56,21 +56,30 @@ class InvalidCalculationInputError(CalculationError):
 
     def __init__(
         self,
-        message: str,
         parameter: str | None = None,
         value: Decimal | float | str | None = None,
         expected: str | None = None,
+        message: str | None = None,
         **kwargs: Unpack[ExceptionKwargs],
     ) -> None:
         """Initialize invalid input exception.
 
         Args:
-            message: Error message
             parameter: Parameter name
             value: Invalid value
             expected: Expected value or type
+            message: Optional custom error message
             **kwargs: Additional context
         """
+        # Build default message if not provided
+        if message is None:
+            if parameter and expected:
+                message = f"Invalid input for {parameter}: expected {expected}, got {value}"
+            elif parameter:
+                message = f"Invalid input for {parameter}: {value}"
+            else:
+                message = f"Invalid calculation input: {value}"
+
         context = kwargs.get("context") or {}
         context.update({
             "parameter": parameter,
@@ -229,4 +238,212 @@ class RiskLimitExceededError(CalculationError):
         kwargs["context"] = context
         kwargs["recoverable"] = severity != "CRITICAL"
         kwargs["error_code"] = "CALC_RISK_LIMIT_EXCEEDED"
+        super().__init__(message, **kwargs)
+
+
+class CalculatorConfigurationError(CalculationError):
+    """Raised when calculator configuration is invalid."""
+
+    def __init__(
+        self,
+        message: str,
+        parameter: str | None = None,
+        value: str | float | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize calculator configuration exception.
+
+        Args:
+            message: Error message
+            parameter: Configuration parameter name
+            value: Invalid configuration value
+            **kwargs: Additional context
+        """
+        context = kwargs.get("context") or {}
+        context.update({
+            "parameter": parameter,
+            "value": str(value) if value is not None else None,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_CONFIGURATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class CalculatorValidationError(CalculationError):
+    """Raised when calculator input validation fails."""
+
+    def __init__(
+        self,
+        field_name: str | None = None,
+        constraint: str | None = None,
+        message: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize calculator validation exception.
+
+        Args:
+            field_name: Field that failed validation
+            constraint: Constraint that was violated
+            message: Optional custom error message
+            **kwargs: Additional context
+        """
+        # Build default message if not provided
+        if message is None:
+            if field_name and constraint:
+                message = f"Validation failed for {field_name}: {constraint}"
+            elif field_name:
+                message = f"Validation failed for {field_name}"
+            elif constraint:
+                message = f"Validation constraint violated: {constraint}"
+            else:
+                message = "Calculator validation failed"
+
+        context = kwargs.get("context") or {}
+        context.update({
+            "field_name": field_name,
+            "constraint": constraint,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_VALIDATION_ERROR"
+        super().__init__(message, **kwargs)
+
+
+class InvalidCalculatorNameError(CalculatorConfigurationError):
+    """Raised when calculator name is invalid."""
+
+    def __init__(
+        self,
+        calculator_name: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize invalid calculator name exception.
+
+        Args:
+            calculator_name: The invalid calculator name
+            **kwargs: Additional context
+        """
+        message = f"Invalid calculator name: '{calculator_name}'"
+        context = kwargs.get("context") or {}
+        context.update({
+            "calculator_name": calculator_name,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_INVALID_NAME"
+        super().__init__(message, **kwargs)
+
+
+class NegativeExecutionTimeError(CalculatorConfigurationError):
+    """Raised when execution time is negative."""
+
+    def __init__(
+        self,
+        execution_time: float,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize negative execution time exception.
+
+        Args:
+            execution_time: The negative execution time value
+            **kwargs: Additional context
+        """
+        message = f"Execution time cannot be negative: {execution_time}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "execution_time": execution_time,
+            "parameter": "execution_time",
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_NEGATIVE_EXECUTION_TIME"
+        super().__init__(message, **kwargs)
+
+
+class InvalidRateRangeError(CalculatorConfigurationError):
+    """Raised when rate is outside valid range [0, 1]."""
+
+    def __init__(
+        self,
+        rate: float,
+        rate_type: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize invalid rate range exception.
+
+        Args:
+            rate: The invalid rate value
+            rate_type: Type of rate (e.g., 'profit_rate', 'loss_rate')
+            **kwargs: Additional context
+        """
+        message = f"{rate_type} must be between 0 and 1, got {rate}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "rate": rate,
+            "rate_type": rate_type,
+            "valid_range": "[0, 1]",
+            "parameter": rate_type,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_INVALID_RATE_RANGE"
+        super().__init__(message, **kwargs)
+
+
+class CurrencyExposureTypeError(CalculatorConfigurationError):
+    """Raised when currency exposure type is invalid."""
+
+    def __init__(
+        self,
+        exposure_type: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize currency exposure type exception.
+
+        Args:
+            exposure_type: The name of the invalid exposure type
+            **kwargs: Additional context
+        """
+        message = f"Currency exposure must be a dictionary, got {exposure_type}"
+        context = kwargs.get("context") or {}
+        context.update({
+            "exposure_type": str(type(exposure_type).__name__),
+            "expected_type": "dict",
+            "parameter": "currency_exposure",
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_CURRENCY_EXPOSURE_TYPE"
+        super().__init__(message, **kwargs)
+
+
+class CurrencyMismatchError(CalculatorConfigurationError):
+    """Raised when currencies don't match where they should."""
+
+    def __init__(
+        self,
+        expected_currency: str,
+        actual_currency: str,
+        context_info: str | None = None,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize currency mismatch exception.
+
+        Args:
+            expected_currency: The expected currency
+            actual_currency: The actual currency found
+            context_info: Additional context about where the mismatch occurred
+            **kwargs: Additional context
+        """
+        if context_info:
+            message = (
+                f"Currency mismatch in {context_info}: "
+                f"expected '{expected_currency}', got '{actual_currency}'"
+            )
+        else:
+            message = f"Currency mismatch: expected '{expected_currency}', got '{actual_currency}'"
+
+        context = kwargs.get("context") or {}
+        context.update({
+            "expected_currency": expected_currency,
+            "actual_currency": actual_currency,
+            "mismatch_context": context_info,
+        })
+        kwargs["context"] = context
+        kwargs["error_code"] = "CALC_CURRENCY_MISMATCH"
         super().__init__(message, **kwargs)

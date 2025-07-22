@@ -133,6 +133,7 @@ class TestBackpackMarketDataServicePublicData:
 
         mock_internal_ticker = Ticker(
             symbol=symbol,
+            exchange="backpack",
             price=Decimal("100.0"),
             volume=Decimal("1000.0"),
             bid=Decimal("99.9"),

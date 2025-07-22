@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.base import StateUpdate
+from cyberdelta.core.portfolio.base.typed_state_manager import StateManagerMetadata
 from cyberdelta.core.portfolio.exceptions.state import (
     StateManagerInitializationFailedError,
     StateManagerNotInitializedError,
@@ -172,12 +173,14 @@ class PortfolioStateManager:
                 data=update_request.balances,
                 timestamp=datetime.now(UTC),
                 source=f"balance_update_{exchange}",
-                metadata={
-                    "exchange": exchange,
-                    "operation": "update_balances",
-                    "source": update_request.update_source,
-                    "force_update": update_request.force_update,
-                },
+                metadata=StateManagerMetadata(
+                    operation_type="update_balances",
+                    source=update_request.update_source,
+                    additional_data={
+                        "exchange": exchange,
+                        "force_update": str(update_request.force_update),
+                    },
+                ),
             )
 
             # Perform atomic update
@@ -233,12 +236,14 @@ class PortfolioStateManager:
                 data=update_request.positions,
                 timestamp=datetime.now(UTC),
                 source=f"position_update_{exchange}",
-                metadata={
-                    "exchange": exchange,
-                    "operation": "update_positions",
-                    "source": update_request.update_source,
-                    "force_update": update_request.force_update,
-                },
+                metadata=StateManagerMetadata(
+                    operation_type="update_positions",
+                    source=update_request.update_source,
+                    additional_data={
+                        "exchange": exchange,
+                        "force_update": str(update_request.force_update),
+                    },
+                ),
             )
 
             # Perform atomic update
@@ -297,12 +302,14 @@ class PortfolioStateManager:
                 data=update_request.orders,
                 timestamp=datetime.now(UTC),
                 source=f"order_update_{exchange}",
-                metadata={
-                    "exchange": exchange,
-                    "operation": "update_orders",
-                    "source": update_request.update_source,
-                    "force_update": update_request.force_update,
-                },
+                metadata=StateManagerMetadata(
+                    operation_type="update_orders",
+                    source=update_request.update_source,
+                    additional_data={
+                        "exchange": exchange,
+                        "force_update": str(update_request.force_update),
+                    },
+                ),
             )
 
             # Perform atomic update
@@ -360,7 +367,7 @@ class PortfolioStateManager:
                 if not validation_result.valid:
                     logger.warning(
                         "trade_validation_failed",
-                        trade_id=getattr(trade, "trade_id", "unknown"),
+                        trade_id=trade.id,
                         errors=validation_result.errors,
                     )
                     return False
@@ -371,31 +378,31 @@ class PortfolioStateManager:
                 data=trade,
                 timestamp=datetime.now(UTC),
                 source="trade_processing",
-                metadata={
-                    "trade_id": getattr(trade, "id", "unknown"),
-                    "symbol": getattr(trade, "symbol", "unknown"),
-                    "exchange": getattr(trade, "exchange", "unknown"),
-                },
+                metadata=StateManagerMetadata(
+                    operation_type="trade_processing",
+                    additional_data={
+                        "trade_id": str(trade.id or "unknown"),
+                        "symbol": str(trade.symbol or "unknown"),
+                        "exchange": str(trade.exchange or "unknown"),
+                    },
+                ),
             )
 
             # Process trade with atomic update
             async with self._state_lock:
                 # Use add_trade method from StateContainerProtocol
                 # Get exchange as string, then convert to enum if needed
-                exchange_str = getattr(trade, "exchange", "unknown")
+                exchange_str = trade.exchange or "unknown"
 
                 # Convert exchange string to ExchangeName enum
                 try:
-                    if isinstance(exchange_str, str):
-                        exchange_enum = ExchangeName(exchange_str)
-                    else:
-                        exchange_enum = exchange_str
+                    exchange_enum = ExchangeName(exchange_str)
                 except (ValueError, AttributeError):
                     # Skip trade if we can't determine exchange
                     self.logger.warning(
                         "Unknown exchange for trade",
                         exchange=exchange_str,
-                        trade_id=getattr(trade, "id", "unknown"),
+                        trade_id=trade.id or "unknown",
                     )
                     return False
 
@@ -410,7 +417,7 @@ class PortfolioStateManager:
                     if self.metrics_collector:
                         self.metrics_collector.record_state_update(
                             "trade_processing",
-                            getattr(trade, "exchange", "unknown"),
+                            trade.exchange or "unknown",
                             "success" if result.success else "failed",
                         )
                 else:
@@ -418,9 +425,9 @@ class PortfolioStateManager:
 
             logger.info(
                 "trade_processed",
-                trade_id=getattr(trade, "id", "unknown"),
-                symbol=getattr(trade, "symbol", "unknown"),
-                exchange=getattr(trade, "exchange", "unknown"),
+                trade_id=trade.id or "unknown",
+                symbol=trade.symbol or "unknown",
+                exchange=trade.exchange or "unknown",
                 success=result.success,
             )
             return bool(result.success)
@@ -429,7 +436,7 @@ class PortfolioStateManager:
             self.error_count += 1
             logger.exception(
                 "trade_processing_failed",
-                trade_id=getattr(trade, "id", "unknown"),
+                trade_id=trade.id or "unknown",
             )
             return False
 

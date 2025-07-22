@@ -635,6 +635,7 @@ class TestBackpackAPIMarketDataOperations:
 
         expected_ticker = Ticker(
             symbol="SOL",
+            exchange="backpack",
             price=Decimal("150.0"),
             timestamp=datetime.now(UTC),
         )

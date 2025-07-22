@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions.service import CircuitBreakerThresholdError
 from cyberdelta.core.portfolio.portfolio_types.resilience_types import (
     ResilienceError,
     ResilienceErrorType,
@@ -44,29 +47,53 @@ def _state_changes_factory() -> list[tuple[float, CircuitState]]:
 class CircuitBreakerConfig:
     """Configuration for circuit breaker."""
 
-    failure_threshold: int = 5
-    success_threshold: int = 2
-    timeout: float = 30.0
-    recovery_timeout: float = 60.0
-    excluded_exceptions: tuple[type[BaseException], ...] = field(
-        default_factory=lambda: (asyncio.CancelledError,)
+    failure_threshold: int = Field(
+        default=5, gt=0, le=100, description="Failures before opening circuit"
     )
+    success_threshold: int = Field(
+        default=2, gt=0, le=50, description="Successes needed to close circuit"
+    )
+    timeout: float = Field(default=30.0, ge=0, le=300, description="Operation timeout in seconds")
+    recovery_timeout: float = Field(
+        default=60.0, gt=0, le=600, description="Recovery timeout in seconds"
+    )
+    excluded_exceptions: tuple[type[BaseException], ...] = Field(
+        default_factory=lambda: (asyncio.CancelledError,),
+        description="Exceptions to exclude from failure counting",
+    )
+
+    @field_validator("success_threshold", mode="before")
+    @classmethod
+    def validate_success_threshold(cls, v: int, info: ValidationInfo) -> int:
+        """Validate success_threshold is less than failure_threshold."""
+        if "failure_threshold" in info.data and v >= info.data["failure_threshold"]:
+            raise CircuitBreakerThresholdError(
+                threshold_type="success_threshold",
+                invalid_relationship="must be less than failure_threshold"
+            )
+        return v
 
 
 @dataclass
 class CircuitBreakerMetrics:
     """Metrics for circuit breaker."""
 
-    total_calls: int = 0
-    successful_calls: int = 0
-    failed_calls: int = 0
-    rejected_calls: int = 0
-    timeouts: int = 0
-    last_failure_time: float | None = None
-    last_success_time: float | None = None
-    state_changes: list[tuple[float, CircuitState]] = field(default_factory=_state_changes_factory)
-    consecutive_failures: int = 0
-    consecutive_successes: int = 0
+    total_calls: int = Field(default=0, ge=0, description="Total number of calls")
+    successful_calls: int = Field(default=0, ge=0, description="Number of successful calls")
+    failed_calls: int = Field(default=0, ge=0, description="Number of failed calls")
+    rejected_calls: int = Field(default=0, ge=0, description="Number of rejected calls")
+    timeouts: int = Field(default=0, ge=0, description="Number of timeouts")
+    last_failure_time: float | None = Field(
+        default=None, gt=0, description="Last failure timestamp"
+    )
+    last_success_time: float | None = Field(
+        default=None, gt=0, description="Last success timestamp"
+    )
+    state_changes: list[tuple[float, CircuitState]] = Field(
+        default_factory=_state_changes_factory, description="State change history"
+    )
+    consecutive_failures: int = Field(default=0, ge=0, description="Consecutive failure count")
+    consecutive_successes: int = Field(default=0, ge=0, description="Consecutive success count")
 
 
 class CircuitBreaker[T]:

@@ -3,32 +3,26 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, TypeVar
+from typing import TypeVar, cast
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
+
+from cyberdelta.core.portfolio.exceptions import ContainerSizeLimitExceededError
 
 
 T = TypeVar("T", bound=BaseModel)  # Properly bounded to BaseModel
 
 
-def make_entity_dict() -> dict[str, Any]:
-    """Factory for entity dictionary."""
-    return {}
+class StateValidationMetadata(BaseModel):
+    """Typed metadata for state validation results."""
 
-
-def make_typed_dict() -> dict[str, BaseModel]:
-    """Factory for typed entity dictionary."""
-    return {}
-
-
-def make_change_list() -> list[Any]:
-    """Factory for change history list."""
-    return []
-
-
-def make_snapshot_list() -> list[Any]:
-    """Factory for snapshot list."""
-    return []
+    validation_timestamp: float | None = None
+    validator_version: str | None = None
+    check_type: str | None = None
+    data_source: str | None = None
+    validation_scope: str | None = None
+    performance_metrics: dict[str, float] = Field(default_factory=dict)
+    related_components: list[str] = Field(default_factory=list)
 
 
 class StateChangeType(Enum):
@@ -95,11 +89,13 @@ class StateContainer[T: BaseModel](BaseModel):
     max_size: int | None = None
 
     # Current state
-    # NOTE: pyright shows "dict[Unknown, Unknown]" due to generic type inference limitation
-    # This is a known issue with pyright and Pydantic generics. The type is correct at runtime.
-    _entities: dict[str, T] = PrivateAttr(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
-    _change_history: list[Any] = PrivateAttr(default_factory=make_change_list)
-    _snapshots: list[Any] = PrivateAttr(default_factory=make_snapshot_list)
+    _entities: dict[str, T] = PrivateAttr(default_factory=lambda: cast(dict[str, T], {}))
+    _change_history: list[StateChange[T]] = PrivateAttr(
+        default_factory=lambda: cast(list[StateChange[T]], [])
+    )
+    _snapshots: list[StateSnapshot[T]] = PrivateAttr(
+        default_factory=lambda: cast(list[StateSnapshot[T]], [])
+    )
 
     # Metadata
     created_at: float = Field(default=0.0)
@@ -109,7 +105,7 @@ class StateContainer[T: BaseModel](BaseModel):
     def add(self, entity_id: str, entity: T) -> None:
         """Add entity to container."""
         if self.max_size and len(self._entities) >= self.max_size:
-            raise ValueError
+            raise ContainerSizeLimitExceededError(max_size=self.max_size)
 
         previous = self._entities.get(entity_id)
         self._entities[entity_id] = entity
@@ -171,7 +167,9 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def restore_snapshot(self, snapshot_id: str) -> bool:
         """Restore state from snapshot."""
-        snapshot = next((s for s in self._snapshots if s.snapshot_id == snapshot_id), None)
+        snapshot: StateSnapshot[T] | None = next(
+            (s for s in self._snapshots if s.snapshot_id == snapshot_id), None
+        )
         if not snapshot:
             return False
 
@@ -218,7 +216,21 @@ class StateValidationResult(BaseModel):
     is_valid: bool
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: StateValidationMetadata | dict[str, object] = Field(
+        default_factory=StateValidationMetadata
+    )
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def validate_metadata(
+        cls, v: dict[str, object] | StateValidationMetadata
+    ) -> StateValidationMetadata:
+        """Convert dict to StateValidationMetadata if needed."""
+        if isinstance(v, StateValidationMetadata):
+            return v
+
+        # Use Pydantic's model_validate for proper type handling
+        return StateValidationMetadata.model_validate(v)
 
 
 class StateUpdateResult(BaseModel):

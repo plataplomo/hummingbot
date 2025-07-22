@@ -645,7 +645,11 @@ class AdvancedPortfolioStrategy:
             "performance_analysis_completed",
             return_ratio=performance_metrics["return_ratio"],
             total_return=performance_metrics["total_return"],
-            validation_success_rate=validation_stats.get("validation_success_rate", 0),
+            validation_success_rate=(
+                validation_stats.successful_validations / validation_stats.total_validations
+                if validation_stats.total_validations > 0
+                else 0
+            ),
         )
 
         return performance_analysis

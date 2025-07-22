@@ -2,43 +2,201 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config import AppSettings
 from cyberdelta.core.portfolio.base import CalculationResult, TypedCalculator
+from cyberdelta.core.portfolio.base.typed_calculator import CalculationMetadata
+from cyberdelta.core.portfolio.exceptions import InvalidCalculationInputError
 
+
+# Constants
+MAX_VOLATILITY_DECIMAL = 10  # 1000% max volatility
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import DerivativePosition
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import StateContainerProtocol
 
 
 @dataclass
 class ExposureMetrics:
-    """Exposure calculation result."""
+    """Exposure calculation result with validation."""
 
-    position_id: str
-    symbol: str
-    gross_exposure: Decimal
-    net_exposure: Decimal
-    leverage: Decimal
-    margin_requirement: Decimal
-    liquidation_price: Decimal | None
-    var_95: Decimal | None
-    stress_loss: Decimal | None
-    currency_exposures: dict[str, Decimal]
+    position_id: str = Field(min_length=1, description="Position identifier")
+    symbol: str = Field(min_length=1, description="Trading symbol")
+    gross_exposure: Decimal = Field(ge=0, description="Gross exposure (non-negative)")
+    net_exposure: Decimal = Field(description="Net exposure (can be positive or negative)")
+    leverage: Decimal = Field(ge=0, description="Position leverage (non-negative)")
+    margin_requirement: Decimal = Field(ge=0, description="Required margin (non-negative)")
+    liquidation_price: Decimal | None = Field(
+        default=None, gt=0, description="Liquidation price if applicable"
+    )
+    var_95: Decimal | None = Field(default=None, description="95% Value at Risk")
+    stress_loss: Decimal | None = Field(default=None, description="Loss under stress scenario")
+    currency_exposures: dict[str, Decimal] = Field(
+        default_factory=dict, description="Exposure by currency"
+    )
+
+    @field_validator(
+        "gross_exposure", "net_exposure", "leverage", "margin_requirement", mode="before"
+    )
+    @classmethod
+    def validate_finite_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure all decimal values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="exposure_metrics", value=value, expected="finite decimal value"
+            )
+        return value
+
+    @field_validator("currency_exposures", mode="before")
+    @classmethod
+    def validate_currency_exposures(
+        cls, v: dict[str, Decimal | str | float | int]
+    ) -> dict[str, Decimal]:
+        """Validate currency exposure values."""
+        validated: dict[str, Decimal] = {}
+        for currency, exposure in v.items():
+            if not currency:
+                raise InvalidCalculationInputError(
+                    parameter="currency_code", value=currency, expected="non-empty string"
+                )
+            exposure_val: Decimal = (
+                exposure if isinstance(exposure, Decimal) else Decimal(str(exposure))
+            )
+            if not exposure_val.is_finite():
+                raise InvalidCalculationInputError(
+                    parameter=f"exposure_{currency}",
+                    value=exposure_val,
+                    expected="finite decimal value",
+                )
+            validated[currency.upper()] = exposure_val
+        return validated
 
 
 @dataclass
 class ExposureInput:
-    """Input for exposure calculation."""
+    """Input for exposure calculation with validation."""
 
     position: DerivativePosition
-    current_price: Decimal
-    volatility: Decimal | None = None
-    correlation_data: dict[str, float] | None = None
+    current_price: Decimal = Field(gt=0, description="Current market price (positive)")
+    volatility: Decimal | None = Field(
+        default=None, ge=0, le=10, description="Market volatility (0-1000%)"
+    )
+    correlation_data: dict[str, float] | None = Field(
+        default=None, description="Correlation matrix data"
+    )
+
+
+@dataclass
+class AggregateExposureMetrics:
+    """Aggregate exposure metrics for a portfolio of positions."""
+
+    total_gross_exposure: Decimal = Field(
+        ge=0, description="Total absolute exposure (non-negative)"
+    )
+    total_net_exposure: Decimal = Field(
+        description="Total signed exposure (can be positive or negative)"
+    )
+    position_count: int = Field(ge=0, description="Number of positions included (non-negative)")
+    currency_exposures: dict[str, Decimal] = Field(
+        default_factory=dict, description="Currency exposure breakdown"
+    )
+
+    @field_validator("total_gross_exposure", "total_net_exposure", mode="before")
+    @classmethod
+    def validate_exposure_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure exposure values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="exposure_value", value=value, expected="finite decimal value"
+            )
+        return value
+
+    @field_validator("currency_exposures", mode="before")
+    @classmethod
+    def validate_currency_exposures_dict(
+        cls, v: dict[str, Decimal | str | float | int]
+    ) -> dict[str, Decimal]:
+        """Validate currency exposure dictionary."""
+        validated: dict[str, Decimal] = {}
+        for currency, exposure in v.items():
+            if not currency:
+                raise InvalidCalculationInputError(
+                    parameter="currency_code", value=currency, expected="non-empty string"
+                )
+            exposure_val: Decimal = (
+                exposure if isinstance(exposure, Decimal) else Decimal(str(exposure))
+            )
+            if not exposure_val.is_finite():
+                raise InvalidCalculationInputError(
+                    parameter=f"exposure_{currency}",
+                    value=exposure_val,
+                    expected="finite decimal value",
+                )
+            validated[currency.upper()] = exposure_val
+        return validated
+
+    @field_validator("current_price", mode="before")
+    @classmethod
+    def validate_current_price(cls, v: Decimal | str | float) -> Decimal:
+        """Validate current price is positive and finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="current_price", value=value, expected="finite decimal value"
+            )
+        if value <= 0:
+            raise InvalidCalculationInputError(
+                parameter="current_price", value=value, expected="positive decimal value"
+            )
+        return value
+
+    @field_validator("volatility", mode="before")
+    @classmethod
+    def validate_volatility(cls, v: Decimal | str | float | None) -> Decimal | None:
+        """Validate volatility if provided."""
+        if v is not None:
+            value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+            if not value.is_finite():
+                raise InvalidCalculationInputError(
+                    parameter="volatility", value=value, expected="finite decimal value"
+                )
+            if value < 0:
+                raise InvalidCalculationInputError(
+                    parameter="volatility", value=value, expected="non-negative decimal value"
+                )
+            if value > MAX_VOLATILITY_DECIMAL:
+                raise InvalidCalculationInputError(
+                    parameter="volatility",
+                    value=value,
+                    expected=f"value <= {MAX_VOLATILITY_DECIMAL}",
+                )
+            return value
+        return v
+
+    @field_validator("correlation_data", mode="before")
+    @classmethod
+    def validate_correlation_data(cls, v: dict[str, float] | None) -> dict[str, float] | None:
+        """Validate correlation data if provided."""
+        if v is not None:
+            for key, corr in v.items():
+                # Type validation is handled by dict[str, float] annotation
+                # Additional validation for correlation range
+                if not -1 <= corr <= 1:
+                    raise InvalidCalculationInputError(
+                        parameter=f"correlation_{key}",
+                        value=corr,
+                        expected="value between -1 and 1",
+                    )
+        return v
 
 
 class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
@@ -54,7 +212,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
     ) -> None:
         """Initialize the exposure calculator.
 
@@ -139,16 +297,15 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
             return CalculationResult[ExposureMetrics].success_result(
                 result=metrics,
                 warnings=warnings,
-                metadata={
-                    "calculator": self.calculator_name,
-                    "volatility_used": volatility,
-                },
+                metadata=CalculationMetadata(calculator=self.calculator_name),
             )
 
         except (ValueError, TypeError, ArithmeticError) as e:
             return CalculationResult[ExposureMetrics].failure_result(
                 errors=[f"Exposure calculation failed: {e}"],
-                metadata={"calculator": self.calculator_name},
+                metadata=CalculationMetadata(
+                    calculator=self.calculator_name, error_type=type(e).__name__
+                ),
             )
 
     async def validate_input(self, input_data: ExposureInput) -> tuple[bool, list[str]]:
@@ -235,7 +392,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
 
     async def calculate_portfolio_exposure(
         self, positions: list[DerivativePosition]
-    ) -> dict[str, Any]:
+    ) -> AggregateExposureMetrics:
         """Calculate aggregate exposure for a portfolio of positions."""
         total_gross_exposure = Decimal(0)
         total_net_exposure = Decimal(0)
@@ -266,9 +423,9 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
                     error=str(e),
                 )
 
-        return {
-            "total_gross_exposure": total_gross_exposure,
-            "total_net_exposure": total_net_exposure,
-            "currency_exposures": currency_exposures,
-            "position_count": len(positions),
-        }
+        return AggregateExposureMetrics(
+            total_gross_exposure=total_gross_exposure,
+            total_net_exposure=total_net_exposure,
+            currency_exposures=currency_exposures,
+            position_count=len(positions),
+        )

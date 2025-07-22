@@ -155,6 +155,7 @@ def sample_ticker() -> Ticker:
     """Create sample ticker for testing."""
     return Ticker(
         symbol="BTC-PERP",
+        exchange="test_exchange",
         bid=Decimal("50000.0"),
         ask=Decimal("50100.0"),
         timestamp=datetime.now(UTC),

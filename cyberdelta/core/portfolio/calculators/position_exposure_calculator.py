@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions import InvalidCalculationInputError
 
 
 if TYPE_CHECKING:
@@ -16,6 +19,8 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Constants
+REASONABLE_PERCENTAGE_MIN = -1e10
+REASONABLE_PERCENTAGE_MAX = 1e10
 MINIMUM_SYMBOL_PARTS = 2
 HIGH_LEVERAGE_THRESHOLD = 30
 MEDIUM_LEVERAGE_THRESHOLD = 20
@@ -24,45 +29,108 @@ LOW_LEVERAGE_THRESHOLD = 10
 
 @dataclass
 class PositionExposure:
-    """Position exposure metrics."""
+    """Position exposure metrics with validation."""
 
     # Position identification
-    position_id: str
-    exchange_id: str
-    symbol: str
-    side: str  # "LONG" or "SHORT"
+    position_id: str = Field(min_length=1, description="Position identifier")
+    exchange_id: str = Field(min_length=1, description="Exchange identifier")
+    symbol: str = Field(min_length=1, description="Trading symbol")
+    side: str = Field(pattern="^(LONG|SHORT)$", description="Position side (LONG or SHORT)")
 
     # Size and value metrics
-    size: Decimal
-    notional_value: Decimal  # size * price
-    market_value: Decimal  # For spot: same as notional. For derivatives: margin
+    size: Decimal = Field(description="Position size")
+    notional_value: Decimal = Field(ge=0, description="Notional value (size * price)")
+    market_value: Decimal = Field(description="Market value (margin for derivatives)")
 
     # Exposure metrics
-    gross_exposure: Decimal  # Absolute notional value
-    net_exposure: Decimal  # Signed notional value (positive for long, negative for short)
+    gross_exposure: Decimal = Field(ge=0, description="Absolute notional value")
+    net_exposure: Decimal = Field(description="Signed notional value")
 
     # Risk metrics
-    margin_requirement: Decimal
-    leverage: Decimal
-    liquidation_price: Decimal | None
-    distance_to_liquidation: Decimal | None  # Percentage distance
+    margin_requirement: Decimal = Field(ge=0, description="Required margin")
+    leverage: Decimal = Field(ge=0, description="Position leverage")
+    liquidation_price: Decimal | None = Field(
+        default=None, gt=0, description="Liquidation price if applicable"
+    )
+    distance_to_liquidation: Decimal | None = Field(
+        default=None, ge=-100, le=100, description="Distance to liquidation (%)"
+    )
 
     # Greeks (for options, set to 0 for futures/spot)
-    delta: Decimal
-    gamma: Decimal
-    vega: Decimal
-    theta: Decimal
+    delta: Decimal = Field(default=Decimal(0), ge=-1, le=1, description="Delta (rate of change)")
+    gamma: Decimal = Field(default=Decimal(0), ge=0, description="Gamma (convexity)")
+    vega: Decimal = Field(default=Decimal(0), description="Vega (volatility sensitivity)")
+    theta: Decimal = Field(default=Decimal(0), le=0, description="Theta (time decay)")
 
     # Additional risk metrics
-    var_95: Decimal | None = None  # Value at Risk (95% confidence)
-    var_99: Decimal | None = None  # Value at Risk (99% confidence)
-    stress_loss: Decimal | None = None  # Loss in stress scenario
+    var_95: Decimal | None = Field(default=None, ge=0, description="95% Value at Risk")
+    var_99: Decimal | None = Field(default=None, ge=0, description="99% Value at Risk")
+    stress_loss: Decimal | None = Field(default=None, ge=0, description="Stress scenario loss")
 
     # Currency exposure
-    base_currency: str | None = None
-    quote_currency: str | None = None
-    base_exposure: Decimal | None = None
-    quote_exposure: Decimal | None = None
+    base_currency: str | None = Field(
+        default=None, min_length=1, max_length=10, description="Base currency"
+    )
+    quote_currency: str | None = Field(
+        default=None, min_length=1, max_length=10, description="Quote currency"
+    )
+    base_exposure: Decimal | None = Field(default=None, description="Base currency exposure")
+    quote_exposure: Decimal | None = Field(default=None, description="Quote currency exposure")
+
+    @field_validator(
+        "size",
+        "notional_value",
+        "gross_exposure",
+        "net_exposure",
+        "margin_requirement",
+        "leverage",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Ensure decimal values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise InvalidCalculationInputError(
+                parameter="decimal_value",
+                value=value,
+                expected="finite decimal"
+            )
+        return value
+
+    @field_validator("side", mode="after")
+    @classmethod
+    def validate_side_consistency(cls, v: str, info: ValidationInfo) -> str:
+        """Validate side consistency with net exposure."""
+        if "net_exposure" in info.data:
+            net = info.data["net_exposure"]
+            if v == "LONG" and net < 0:
+                raise InvalidCalculationInputError(
+                    parameter="side_consistency",
+                    value=f"LONG with net_exposure={net}",
+                    expected="LONG position with positive net exposure"
+                )
+            if v == "SHORT" and net > 0:
+                raise InvalidCalculationInputError(
+                    parameter="side_consistency",
+                    value=f"SHORT with net_exposure={net}",
+                    expected="SHORT position with negative net exposure"
+                )
+        return v
+
+    @field_validator("base_currency", "quote_currency", mode="before")
+    @classmethod
+    def validate_currency_codes(cls, v: str | None) -> str | None:
+        """Validate and normalize currency codes."""
+        if v is not None:
+            if not v.strip():
+                raise InvalidCalculationInputError(
+                    parameter="currency_code",
+                    value=v,
+                    expected="non-empty string"
+                )
+            return v.upper().strip()
+        return v
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -94,6 +162,33 @@ class PositionExposure:
             "base_exposure": str(self.base_exposure) if self.base_exposure else None,
             "quote_exposure": str(self.quote_exposure) if self.quote_exposure else None,
         }
+
+
+@dataclass
+class PortfolioImpactMetrics:
+    """Position impact metrics on overall portfolio with validation."""
+
+    position_weight: float = Field(
+        ge=0, le=100, description="Position weight as % of total portfolio (0-100%)"
+    )
+    exposure_weight: float = Field(ge=0, description="Exposure weight as % of total portfolio")
+    var_contribution: float = Field(ge=0, description="VaR contribution as % of total portfolio")
+    concentration_risk: str = Field(
+        pattern="^(LOW|MEDIUM|HIGH|CRITICAL|N/A)$", description="Concentration risk level"
+    )
+
+    @field_validator("position_weight", "exposure_weight", "var_contribution", mode="before")
+    @classmethod
+    def validate_percentages(cls, v: float | str) -> float:
+        """Validate percentage values are finite."""
+        value: float = v if isinstance(v, (int, float)) else float(v)
+        if not (REASONABLE_PERCENTAGE_MIN < value < REASONABLE_PERCENTAGE_MAX):
+            raise InvalidCalculationInputError(
+                parameter="percentage_value",
+                value=value,
+                expected="finite and reasonable percentage"
+            )
+        return value
 
 
 class PositionExposureCalculator:
@@ -302,7 +397,7 @@ class PositionExposureCalculator:
 
     def calculate_portfolio_impact(
         self, exposure: PositionExposure, total_portfolio_value: Decimal
-    ) -> dict[str, Any]:
+    ) -> PortfolioImpactMetrics:
         """Calculate position's impact on overall portfolio.
 
         Args:
@@ -313,12 +408,12 @@ class PositionExposureCalculator:
             Portfolio impact metrics
         """
         if total_portfolio_value == 0:
-            return {
-                "position_weight": 0,
-                "exposure_weight": 0,
-                "var_contribution": 0,
-                "concentration_risk": "N/A",
-            }
+            return PortfolioImpactMetrics(
+                position_weight=0.0,
+                exposure_weight=0.0,
+                var_contribution=0.0,
+                concentration_risk="N/A",
+            )
 
         position_weight = exposure.market_value / total_portfolio_value * 100
         exposure_weight = exposure.gross_exposure / total_portfolio_value * 100
@@ -334,12 +429,12 @@ class PositionExposureCalculator:
         else:
             concentration_risk = "LOW"
 
-        return {
-            "position_weight": float(position_weight),
-            "exposure_weight": float(exposure_weight),
-            "var_contribution": float(var_contribution),
-            "concentration_risk": concentration_risk,
-        }
+        return PortfolioImpactMetrics(
+            position_weight=float(position_weight),
+            exposure_weight=float(exposure_weight),
+            var_contribution=float(var_contribution),
+            concentration_risk=concentration_risk,
+        )
 
     async def calculate_batch(
         self,

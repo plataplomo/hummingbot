@@ -92,6 +92,7 @@ class TestPriceDataService:
         # Setup mock ticker
         mock_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -118,6 +119,7 @@ class TestPriceDataService:
         # Pre-populate cache using public API
         mock_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -143,6 +145,7 @@ class TestPriceDataService:
         # Pre-populate cache with entry that will expire during test
         old_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             bid=Decimal(49000),
             ask=Decimal(49100),
             timestamp=datetime.now(UTC),
@@ -157,6 +160,7 @@ class TestPriceDataService:
         # Setup new ticker from API
         new_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -217,6 +221,7 @@ class TestPriceDataService:
         """Test caching ticker data."""
         ticker = Ticker(
             symbol="ETH-PERP",
+            exchange="test_exchange",
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
@@ -254,6 +259,7 @@ class TestPriceDataService:
         # Add ticker that will expire
         ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -297,6 +303,7 @@ class TestPriceDataService:
     ) -> None:
         """Test getting price using mid price."""
         ticker = Ticker(
+            exchange="hyperliquid",
             symbol="BTC-USDC",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -317,6 +324,7 @@ class TestPriceDataService:
     ) -> None:
         """Test getting price using bid/ask average."""
         ticker = Ticker(
+            exchange="hyperliquid",
             symbol="BTC-USDC",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -336,6 +344,7 @@ class TestPriceDataService:
     ) -> None:
         """Test getting price using only bid."""
         ticker = Ticker(
+            exchange="hyperliquid",
             symbol="BTC-USDC",
             bid=Decimal(50000),
             timestamp=datetime.now(UTC),
@@ -354,6 +363,7 @@ class TestPriceDataService:
     ) -> None:
         """Test getting price using only ask."""
         ticker = Ticker(
+            exchange="hyperliquid",
             symbol="BTC-USDC",
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -377,6 +387,7 @@ class TestPriceDataService:
             if symbol == "BTC_USDC":
                 return Ticker(
                     symbol="BTC_USDC",
+                    exchange="backpack",
                     bid=Decimal(50000),
                     ask=Decimal(50100),
                     timestamp=datetime.now(UTC),
@@ -412,11 +423,13 @@ class TestPriceDataService:
         # Add some cached data using public API
         ticker1 = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
         ticker2 = Ticker(
+            exchange="test_exchange",
             symbol="ETH-PERP",
             bid=Decimal(3000),
             ask=Decimal(3010),
@@ -445,12 +458,14 @@ class TestPriceDataService:
         """Test clearing all cache."""
         # Add some cached data using public API
         ticker1 = Ticker(
+            exchange="test_exchange",
             symbol="BTC-PERP",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
         ticker2 = Ticker(
+            exchange="test_exchange",
             symbol="ETH-PERP",
             bid=Decimal(3000),
             ask=Decimal(3010),
@@ -477,18 +492,21 @@ class TestPriceDataService:
         """Test getting cache statistics."""
         # Add some cached data using public API
         ticker1 = Ticker(
+            exchange="test_exchange",
             symbol="BTC-PERP",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
         ticker2 = Ticker(
+            exchange="test_exchange",
             symbol="ETH-PERP",
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
         )
         ticker3 = Ticker(
+            exchange="test_exchange",
             symbol="SOL-PERP",
             bid=Decimal(100),
             ask=Decimal(101),
@@ -515,11 +533,13 @@ class TestPriceDataService:
         # Add some tickers with different ages
         ticker1 = Ticker(
             symbol="BTC-PERP",
+            exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
         ticker2 = Ticker(
+            exchange="test_exchange",
             symbol="ETH-PERP",
             bid=Decimal(3000),
             ask=Decimal(3010),
@@ -527,6 +547,7 @@ class TestPriceDataService:
         )
         ticker3 = Ticker(
             symbol="SOL-PERP",
+            exchange="test_exchange",
             bid=Decimal(100),
             ask=Decimal(101),
             timestamp=datetime.now(UTC),
@@ -592,6 +613,7 @@ class TestPriceDataService:
             await asyncio.sleep(0.1)  # Simulate network delay
             return Ticker(
                 symbol=symbol,
+                exchange="hyperliquid",
                 bid=Decimal(50000),
                 ask=Decimal(50100),
                 timestamp=datetime.now(UTC),

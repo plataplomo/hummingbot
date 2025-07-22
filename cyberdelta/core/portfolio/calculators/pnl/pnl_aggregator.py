@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.calculators.base.base_calculator import BaseCalculator
@@ -12,10 +12,15 @@ from cyberdelta.core.portfolio.calculators.pnl.realized_pnl_calculator import (
     PnLCalculationMethod,
 )
 from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
+    BreakdownMetrics,
     CalculationMetadata,
+    ExchangeBreakdown,
     PerformanceMetrics,
+    PnLAggregatorConfiguration,
+    PortfolioSummaryMetrics,
     PortfolioUnrealizedPnLResult,
     RealizedPnLResult,
+    RealizedPnLSummaryMetrics,
     UnrealizedPnLResult,
 )
 
@@ -51,29 +56,26 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
     - Portfolio-wide performance metrics
     """
 
-    # History size limits
-    MAX_TRADE_HISTORY_SIZE = 1000  # Maximum trades to keep in history
-    TRADE_HISTORY_RETENTION_SIZE = 500  # Number of trades to retain after cleanup
+    # Default history size limits (moved to PnLAggregatorConfiguration)
 
-    # Minimum data requirements
-    MIN_DATA_POINTS_FOR_METRICS = 2  # Minimum data points for Sharpe/drawdown calculations
+    # Minimum data requirements (now in config)
+    # MIN_DATA_POINTS_FOR_METRICS moved to PnLAggregatorConfiguration
 
     def __init__(
         self,
-        name: str = "PnLAggregator",
-        config: dict[str, Any] | None = None,
+        config: PnLAggregatorConfiguration | None = None,
         realized_pnl_calculator: RealizedPnLCalculator | None = None,
         unrealized_pnl_calculator: UnrealizedPnLCalculator | None = None,
     ) -> None:
         """Initialize the P&L aggregator.
 
         Args:
-            name: Aggregator name
-            config: Configuration dictionary
+            config: Pydantic configuration model
             realized_pnl_calculator: Calculator for realized P&L
             unrealized_pnl_calculator: Calculator for unrealized P&L
         """
-        super().__init__(name, config)
+        self._pydantic_config = config or PnLAggregatorConfiguration()
+        super().__init__(self._pydantic_config.name, {})
 
         self.realized_pnl_calculator = realized_pnl_calculator
         self.unrealized_pnl_calculator = unrealized_pnl_calculator
@@ -84,7 +86,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
         logger.info(
             "pnl_aggregator_created",
-            aggregator_name=name,
+            aggregator_name=self._pydantic_config.name,
             has_realized_calculator=realized_pnl_calculator is not None,
             has_unrealized_calculator=unrealized_pnl_calculator is not None,
         )
@@ -214,8 +216,10 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             self._trade_history.append((trade, realized_result))
 
             # Limit history size to prevent memory issues
-            if len(self._trade_history) > self.MAX_TRADE_HISTORY_SIZE:
-                self._trade_history = self._trade_history[-self.TRADE_HISTORY_RETENTION_SIZE :]
+            if len(self._trade_history) > self._pydantic_config.max_trade_history_size:
+                self._trade_history = self._trade_history[
+                    -self._pydantic_config.trade_history_retention_size :
+                ]
 
             logger.debug(
                 "trade_processed",
@@ -229,7 +233,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
     async def get_portfolio_summary(
         self, positions: list[DerivativePosition], base_currency: str = "USD"
-    ) -> dict[str, Any]:
+    ) -> PortfolioSummaryMetrics:
         """Get comprehensive portfolio summary with all metrics.
 
         Args:
@@ -237,44 +241,45 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             base_currency: Currency for calculations
 
         Returns:
-            Dictionary with portfolio summary metrics
+            Portfolio summary metrics using Pydantic model
         """
         performance_metrics = await self.calculate_portfolio_performance(positions, base_currency)
 
         # Calculate additional breakdown metrics
         breakdown_metrics = await self._calculate_breakdown_metrics(positions, base_currency)
 
-        return {
-            "performance_metrics": performance_metrics,
-            "realized_pnl": performance_metrics.realized_pnl,
-            "unrealized_pnl": performance_metrics.unrealized_pnl,
-            "total_pnl": performance_metrics.total_pnl,
-            "total_return_pct": performance_metrics.total_return_pct,
-            "sharpe_ratio": performance_metrics.sharpe_ratio,
-            "max_drawdown": performance_metrics.max_drawdown,
-            "currency": base_currency,
-            "position_count": len(positions),
-            "trade_count": len(self._trade_history),
-            "breakdown": breakdown_metrics,
-            "calculation_timestamp": performance_metrics.calculation_timestamp,
-        }
+        return PortfolioSummaryMetrics(
+            performance_metrics=performance_metrics,
+            realized_pnl=performance_metrics.realized_pnl,
+            unrealized_pnl=performance_metrics.unrealized_pnl,
+            total_pnl=performance_metrics.total_pnl,
+            total_return_pct=performance_metrics.total_return_pct,
+            sharpe_ratio=performance_metrics.sharpe_ratio,
+            max_drawdown=performance_metrics.max_drawdown,
+            currency=base_currency,
+            position_count=len(positions),
+            trade_count=len(self._trade_history),
+            breakdown=breakdown_metrics,
+            calculation_timestamp=performance_metrics.calculation_timestamp,
+        )
 
-    async def get_realized_pnl_summary(self) -> dict[str, Any]:
+    async def get_realized_pnl_summary(self) -> RealizedPnLSummaryMetrics:
         """Get summary of realized P&L from trade history.
 
         Returns:
-            Dictionary with realized P&L summary
+            Realized P&L summary using Pydantic model
         """
         if not self._trade_history:
-            return {
-                "cumulative_realized_pnl": self._cumulative_realized_pnl,
-                "trade_count": 0,
-                "winning_trades": 0,
-                "losing_trades": 0,
-                "average_win": Decimal(0),
-                "average_loss": Decimal(0),
-                "win_rate": Decimal(0),
-            }
+            return RealizedPnLSummaryMetrics(
+                cumulative_realized_pnl=self._cumulative_realized_pnl,
+                trade_count=0,
+                winning_trades=0,
+                losing_trades=0,
+                average_win=Decimal(0),
+                average_loss=Decimal(0),
+                win_rate=Decimal(0),
+                profit_factor=None,
+            )
 
         winning_trades = [result for _, result in self._trade_history if result.pnl > Decimal(0)]
 
@@ -295,16 +300,16 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             else Decimal(0)
         )
 
-        return {
-            "cumulative_realized_pnl": self._cumulative_realized_pnl,
-            "trade_count": total_trades,
-            "winning_trades": len(winning_trades),
-            "losing_trades": len(losing_trades),
-            "average_win": average_win,
-            "average_loss": average_loss,
-            "win_rate": win_rate,
-            "profit_factor": abs(average_win / average_loss) if average_loss != 0 else None,
-        }
+        return RealizedPnLSummaryMetrics(
+            cumulative_realized_pnl=self._cumulative_realized_pnl,
+            trade_count=total_trades,
+            winning_trades=len(winning_trades),
+            losing_trades=len(losing_trades),
+            average_win=average_win,
+            average_loss=average_loss,
+            win_rate=win_rate,
+            profit_factor=abs(average_win / average_loss) if average_loss != 0 else None,
+        )
 
     def reset_cumulative_pnl(self) -> None:
         """Reset cumulative realized P&L (for new trading sessions)."""
@@ -338,7 +343,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
     async def _calculate_breakdown_metrics(
         self, positions: list[DerivativePosition], base_currency: str
-    ) -> dict[str, Any]:
+    ) -> BreakdownMetrics:
         """Calculate breakdown metrics by exchange, symbol, etc.
 
         Args:
@@ -346,17 +351,21 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             base_currency: Currency for calculations
 
         Returns:
-            Dictionary with breakdown metrics
+            Breakdown metrics using Pydantic model
         """
-        breakdown: dict[str, Any] = {
-            "by_exchange": {},
-            "by_symbol": {},
-            "long_positions": [],
-            "short_positions": [],
-        }
+        # Initialize with empty typed structures
+        by_exchange: dict[str, ExchangeBreakdown] = {}
+        by_symbol: dict[str, UnrealizedPnLResult] = {}
+        long_positions: list[UnrealizedPnLResult] = []
+        short_positions: list[UnrealizedPnLResult] = []
 
         if not self.unrealized_pnl_calculator:
-            return breakdown
+            return BreakdownMetrics(
+                by_exchange=by_exchange,
+                by_symbol=by_symbol,
+                long_positions=long_positions,
+                short_positions=short_positions,
+            )
 
         try:
             # Get unrealized P&L for all positions
@@ -365,37 +374,49 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             )
 
             # Process breakdown by different dimensions
-            self._group_by_exchange(positions, unrealized_result, breakdown)
-            self._group_by_symbol(unrealized_result, breakdown)
-            self._separate_long_short(unrealized_result, breakdown)
+            by_exchange = self._group_by_exchange_typed(positions, unrealized_result)
+            by_symbol = self._group_by_symbol_typed(unrealized_result)
+            long_positions, short_positions = self._separate_long_short_typed(unrealized_result)
 
         except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
             logger.exception("breakdown_metrics_calculation_failed", position_count=len(positions))
 
-        return breakdown
+        return BreakdownMetrics(
+            by_exchange=by_exchange,
+            by_symbol=by_symbol,
+            long_positions=long_positions,
+            short_positions=short_positions,
+        )
 
-    def _group_by_exchange(
+    def _group_by_exchange_typed(
         self,
         positions: list[DerivativePosition],
         unrealized_result: PortfolioUnrealizedPnLResult,
-        breakdown: dict[str, Any],
-    ) -> None:
-        """Group positions by exchange."""
+    ) -> dict[str, ExchangeBreakdown]:
+        """Group positions by exchange with typed return."""
+        by_exchange: dict[str, ExchangeBreakdown] = {}
+
         for position in positions:
-            exchange_id = getattr(position, "exchange_id", "unknown")
-            if exchange_id not in breakdown["by_exchange"]:
-                breakdown["by_exchange"][exchange_id] = {
-                    "positions": [],
-                    "total_pnl": Decimal(0),
-                    "position_count": 0,
-                }
+            exchange_id = position.exchange or "unknown"
+            if exchange_id not in by_exchange:
+                by_exchange[exchange_id] = ExchangeBreakdown(
+                    positions=[],
+                    total_pnl=Decimal(0),
+                    position_count=0,
+                )
 
             # Find corresponding unrealized result
             position_result = self._find_position_result(position, unrealized_result)
             if position_result:
-                breakdown["by_exchange"][exchange_id]["positions"].append(position_result)
-                breakdown["by_exchange"][exchange_id]["total_pnl"] += position_result.pnl
-                breakdown["by_exchange"][exchange_id]["position_count"] += 1
+                # Create new breakdown with updated data (immutable model)
+                current_breakdown = by_exchange[exchange_id]
+                by_exchange[exchange_id] = ExchangeBreakdown(
+                    positions=[*current_breakdown.positions, position_result],
+                    total_pnl=current_breakdown.total_pnl + position_result.pnl,
+                    position_count=current_breakdown.position_count + 1,
+                )
+
+        return by_exchange
 
     def _find_position_result(
         self, position: DerivativePosition, unrealized_result: PortfolioUnrealizedPnLResult
@@ -414,13 +435,17 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             None,
         )
 
-    def _group_by_symbol(
-        self, unrealized_result: PortfolioUnrealizedPnLResult, breakdown: dict[str, Any]
-    ) -> None:
-        """Group results by symbol."""
+    def _group_by_symbol_typed(
+        self, unrealized_result: PortfolioUnrealizedPnLResult
+    ) -> dict[str, UnrealizedPnLResult]:
+        """Group results by symbol with typed return."""
+        by_symbol: dict[str, UnrealizedPnLResult] = {}
+
         for result in unrealized_result.position_results:
             symbol = self._extract_symbol_from_result(result)
-            breakdown["by_symbol"][symbol] = result
+            by_symbol[symbol] = result
+
+        return by_symbol
 
     def _extract_symbol_from_result(self, result: UnrealizedPnLResult) -> str:
         """Extract symbol from result metadata."""
@@ -431,15 +456,20 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
                     return part.split("=", 1)[1]
         return "unknown"
 
-    def _separate_long_short(
-        self, unrealized_result: PortfolioUnrealizedPnLResult, breakdown: dict[str, Any]
-    ) -> None:
-        """Separate positions into long and short."""
+    def _separate_long_short_typed(
+        self, unrealized_result: PortfolioUnrealizedPnLResult
+    ) -> tuple[list[UnrealizedPnLResult], list[UnrealizedPnLResult]]:
+        """Separate positions into long and short with typed return."""
+        long_positions: list[UnrealizedPnLResult] = []
+        short_positions: list[UnrealizedPnLResult] = []
+
         for result in unrealized_result.position_results:
             if result.position_size > Decimal(0):
-                breakdown["long_positions"].append(result)
+                long_positions.append(result)
             elif result.position_size < Decimal(0):
-                breakdown["short_positions"].append(result)
+                short_positions.append(result)
+
+        return long_positions, short_positions
 
     def _calculate_total_return_percentage(
         self, total_pnl: Decimal, positions: list[DerivativePosition]
@@ -471,7 +501,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         Returns:
             Sharpe ratio or None if insufficient data
         """
-        if len(self._trade_history) < self.MIN_DATA_POINTS_FOR_METRICS:
+        if len(self._trade_history) < self._pydantic_config.min_data_points_for_metrics:
             return None
 
         # Calculate returns from trades
@@ -496,7 +526,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         Returns:
             Maximum drawdown or None if insufficient data
         """
-        if len(self._trade_history) < self.MIN_DATA_POINTS_FOR_METRICS:
+        if len(self._trade_history) < self._pydantic_config.min_data_points_for_metrics:
             return None
 
         # Calculate cumulative P&L series

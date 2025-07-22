@@ -759,7 +759,12 @@ class MockExchangeAPI(ExchangeAPI):
             asset_to_check = quote_asset
             ticker_price = self._mock_tickers.get(
                 args.symbol,
-                Ticker(symbol=args.symbol, price=Decimal(0), timestamp=now),
+                Ticker(
+                    symbol=args.symbol,
+                    exchange="mock_exchange",
+                    price=Decimal(0),
+                    timestamp=now,
+                ),
             ).price or Decimal(0)
             required_balance = args.quantity * (args.price or ticker_price)
         else:  # SELL
@@ -827,7 +832,12 @@ class MockExchangeAPI(ExchangeAPI):
 
         ticker = self._mock_tickers.get(
             args.symbol,
-            Ticker(symbol=args.symbol, price=Decimal(0), timestamp=timestamp),
+            Ticker(
+                symbol=args.symbol,
+                exchange="mock_exchange",
+                price=Decimal(0),
+                timestamp=timestamp,
+            ),
         )
         return ticker.price or Decimal(0)
 

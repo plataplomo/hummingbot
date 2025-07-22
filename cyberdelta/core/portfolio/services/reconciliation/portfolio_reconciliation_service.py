@@ -3,14 +3,24 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from pydantic import BaseModel, Field, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.portfolio.exceptions.service import (
+    ReconciliationDiscrepancyTypeError,
+    ReconciliationSeverityError,
+    ReconciliationValueError,
+)
+from cyberdelta.core.portfolio.services.base.base_service import (
+    BasePortfolioService,
+    ServiceConfiguration,
+)
 from cyberdelta.enums import OrderType
 
 
@@ -20,19 +30,157 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+class ReconciliationDiscrepancyMetadata(BaseModel):
+    """Typed metadata for reconciliation discrepancies."""
+
+    reconciliation_timestamp: float | None = None
+    data_source: str | None = None
+    check_method: str | None = None
+    tolerance_used: Decimal | None = None
+    related_transactions: list[str] = Field(default_factory=list)
+    confidence_score: float | None = None
+    auto_fixable: bool = False
+    fix_suggestions: list[str] = Field(default_factory=list)
+
+    # Allow additional dynamic fields for discrepancy-specific data
+    additional_data: dict[str, str | int | float | bool] = Field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> ReconciliationDiscrepancyMetadata | None:
+        """Create metadata from dict, extracting known fields."""
+        if not data:
+            return None
+
+        # Extract known fields with proper typing
+        known_fields: dict[str, Any] = {}
+        additional_data: dict[str, str | int | float | bool] = {}
+
+        for key, value in data.items():
+            if key in cls.model_fields:
+                known_fields[key] = value
+            # Store unknown fields in additional_data
+            elif isinstance(value, (str, int, float, bool)):
+                additional_data[key] = value
+            else:
+                # Convert other types to string
+                additional_data[key] = str(value)
+
+        known_fields["additional_data"] = additional_data
+        return cls(**known_fields)
+
+
+class ReconciliationServiceConfiguration(ServiceConfiguration):
+    """Configuration for portfolio reconciliation service with validation."""
+
+    # Reconciliation settings
+    tolerance: Decimal = Field(
+        default=Decimal("0.00001"), gt=0, description="Tolerance for reconciliation checks"
+    )
+    check_balance_consistency: bool = Field(
+        default=True, description="Enable balance consistency checks"
+    )
+    check_position_consistency: bool = Field(
+        default=True, description="Enable position consistency checks"
+    )
+    check_order_consistency: bool = Field(
+        default=True, description="Enable order consistency checks"
+    )
+    check_trade_integrity: bool = Field(default=True, description="Enable trade integrity checks")
+
+    # Warning thresholds
+    balance_warning_threshold: Decimal = Field(
+        default=Decimal("0.01"), gt=0, description="Balance warning threshold"
+    )
+    position_warning_threshold: Decimal = Field(
+        default=Decimal("0.01"), gt=0, description="Position warning threshold"
+    )
+
+    # Limits and constraints
+    max_discrepancies_per_type: int = Field(
+        default=100, gt=0, description="Maximum discrepancies per type"
+    )
+    allow_negative_balances: bool = Field(default=False, description="Allow negative balances")
+    max_balance_warning: Decimal = Field(
+        default=Decimal(1000000), gt=0, description="Maximum balance before warning"
+    )
+    max_position_size: Decimal = Field(
+        default=Decimal(1000000), gt=0, description="Maximum position size"
+    )
+    max_position_value: Decimal = Field(
+        default=Decimal(10000000), gt=0, description="Maximum position value"
+    )
+    max_order_age_seconds: int = Field(
+        default=86400, gt=0, description="Maximum order age in seconds"
+    )
+
+    @field_validator(
+        "tolerance",
+        "balance_warning_threshold",
+        "position_warning_threshold",
+        "max_balance_warning",
+        "max_position_size",
+        "max_position_value",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_fields(cls, v: Decimal | str | float) -> Decimal:
+        """Validate Decimal fields are positive and finite."""
+        decimal_v = Decimal(str(v)) if isinstance(v, (str, float, int)) else v
+        # decimal_v is now guaranteed to be Decimal
+
+        if not decimal_v.is_finite() or decimal_v <= 0:
+            raise ReconciliationValueError(value_type="decimal", actual_value=str(decimal_v))
+        return decimal_v
+
+
 @dataclass
 class ReconciliationDiscrepancy:
     """Represents a discrepancy found during reconciliation."""
 
-    type: str  # 'balance', 'position', 'order', 'trade'
-    severity: str  # 'error', 'warning', 'info'
-    description: str
-    expected_value: Any
-    actual_value: Any
-    exchange_id: str
-    symbol: str | None = None
-    currency: str | None = None
-    metadata: dict[str, Any] | None = None
+    type: str = Field(description="Discrepancy type: balance, position, order, or trade")
+    severity: str = Field(description="Severity level: error, warning, or info")
+    description: str = Field(min_length=1, description="Discrepancy description")
+    expected_value: Any = Field(description="Expected value")
+    actual_value: Any = Field(description="Actual value")
+    exchange_id: str = Field(min_length=1, description="Exchange identifier")
+    symbol: str | None = Field(default=None, description="Trading symbol")
+    currency: str | None = Field(default=None, pattern="^[A-Z]{3,4}$", description="Currency code")
+    metadata: ReconciliationDiscrepancyMetadata | dict[str, Any] | None = Field(
+        default=None, description="Additional metadata"
+    )
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def validate_metadata(
+        cls, v: dict[str, Any] | ReconciliationDiscrepancyMetadata | None
+    ) -> ReconciliationDiscrepancyMetadata | None:
+        """Convert dict to ReconciliationDiscrepancyMetadata if needed."""
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return ReconciliationDiscrepancyMetadata.from_dict(v)
+        # v is already ReconciliationDiscrepancyMetadata by type annotation
+        return v
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate discrepancy type."""
+        valid_types = {"balance", "position", "order", "trade"}
+        if v not in valid_types:
+            raise ReconciliationDiscrepancyTypeError(invalid_type=v, valid_types=list(valid_types))
+        return v
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def validate_severity(cls, v: str) -> str:
+        """Validate severity level."""
+        valid_severities = {"error", "warning", "info"}
+        if v not in valid_severities:
+            raise ReconciliationSeverityError(
+                invalid_severity=v, valid_severities=list(valid_severities)
+            )
+        return v
 
 
 class ReconciliationResult(NamedTuple):
@@ -72,22 +220,34 @@ class PortfolioReconciliationService(BasePortfolioService):
             name: Service name
             config: Configuration dictionary
         """
-        cfg = config or {}
-        super().__init__(name, config)
+        # Convert raw config to validated ReconciliationServiceConfiguration
+        config_dict = dict(config) if config else {}
+        config_dict["name"] = name  # Ensure name is set
 
-        # Reconciliation configuration
-        self.tolerance = Decimal(cfg.get("tolerance", "0.00001"))
-        self.check_balance_consistency = cfg.get("check_balance_consistency", True)
-        self.check_position_consistency = cfg.get("check_position_consistency", True)
-        self.check_order_consistency = cfg.get("check_order_consistency", True)
-        self.check_trade_integrity = cfg.get("check_trade_integrity", True)
+        try:
+            self.recon_config = ReconciliationServiceConfiguration.model_validate(config_dict)
+        except (ValueError, TypeError, AttributeError) as e:
+            # Fallback to default config with provided name if validation fails
+            logger.warning(
+                "reconciliation_config_validation_failed",
+                service_name=name,
+                error=str(e),
+                fallback_to_default=True,
+            )
+            self.recon_config = ReconciliationServiceConfiguration(name=name)
 
-        # Thresholds for warnings
-        self.balance_warning_threshold = Decimal(cfg.get("balance_warning_threshold", "0.01"))
-        self.position_warning_threshold = Decimal(cfg.get("position_warning_threshold", "0.01"))
+        # Pass the validated config to parent
+        super().__init__(name, self.recon_config.model_dump())
 
-        # Rate limiting
-        self.max_discrepancies_per_type = cfg.get("max_discrepancies_per_type", 100)
+        # Set reconciliation-specific attributes for easy access
+        self.tolerance = self.recon_config.tolerance
+        self.check_balance_consistency = self.recon_config.check_balance_consistency
+        self.check_position_consistency = self.recon_config.check_position_consistency
+        self.check_order_consistency = self.recon_config.check_order_consistency
+        self.check_trade_integrity = self.recon_config.check_trade_integrity
+        self.balance_warning_threshold = self.recon_config.balance_warning_threshold
+        self.position_warning_threshold = self.recon_config.position_warning_threshold
+        self.max_discrepancies_per_type = self.recon_config.max_discrepancies_per_type
 
         logger.info(
             "portfolio_reconciliation_service_created",
@@ -219,8 +379,13 @@ class PortfolioReconciliationService(BasePortfolioService):
                     # Check balance internal consistency
                     total = balance.total_quantity
                     available = balance.available_quantity
-                    locked = getattr(balance, "locked", Decimal(0))
-                    reserved = getattr(balance, "reserved", Decimal(0))
+                    # SpotBalance model doesn't have locked/reserved fields - use extension details
+                    locked = Decimal(0)
+                    reserved = Decimal(0)
+
+                    # Extract locked amounts dynamically from bp_details
+                    if balance.bp_details:
+                        locked += self._extract_locked_amounts(balance.bp_details)
 
                     expected_total = available + locked + reserved
 
@@ -249,7 +414,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                         )
 
                     # Check for negative balances (if not allowed)
-                    if total < 0 and not self.config.get("allow_negative_balances", False):
+                    if total < 0 and not self.recon_config.allow_negative_balances:
                         discrepancies.append(
                             ReconciliationDiscrepancy(
                                 type="balance",
@@ -276,14 +441,13 @@ class PortfolioReconciliationService(BasePortfolioService):
                         )
 
                     # Check for unusually large balances
-                    max_balance = self.config.get("max_balance_warning", 1000000)
-                    if total > max_balance:
+                    if total > self.recon_config.max_balance_warning:
                         discrepancies.append(
                             ReconciliationDiscrepancy(
                                 type="balance",
                                 severity="warning",
                                 description="Unusually large balance detected",
-                                expected_value=float(max_balance),
+                                expected_value=float(self.recon_config.max_balance_warning),
                                 actual_value=float(total),
                                 exchange_id=exchange_id,
                                 currency=currency,
@@ -354,14 +518,13 @@ class PortfolioReconciliationService(BasePortfolioService):
                         )
 
                     # Check for unusually large positions
-                    max_position_size = self.config.get("max_position_size", 1000000)
-                    if abs(size) > max_position_size:
+                    if abs(size) > self.recon_config.max_position_size:
                         discrepancies.append(
                             ReconciliationDiscrepancy(
                                 type="position",
                                 severity="warning",
                                 description="Unusually large position size",
-                                expected_value=float(max_position_size),
+                                expected_value=float(self.recon_config.max_position_size),
                                 actual_value=float(abs(size)),
                                 exchange_id=exchange_id,
                                 symbol=symbol,
@@ -371,15 +534,14 @@ class PortfolioReconciliationService(BasePortfolioService):
                     # Check position value consistency
                     if size != 0 and entry_price is not None and entry_price > 0:
                         position_value = abs(size) * entry_price
-                        max_position_value = self.config.get("max_position_value", 10000000)
 
-                        if position_value > max_position_value:
+                        if position_value > self.recon_config.max_position_value:
                             discrepancies.append(
                                 ReconciliationDiscrepancy(
                                     type="position",
                                     severity="warning",
                                     description="Position value exceeds threshold",
-                                    expected_value=float(max_position_value),
+                                    expected_value=float(self.recon_config.max_position_value),
                                     actual_value=float(position_value),
                                     exchange_id=exchange_id,
                                     symbol=symbol,
@@ -434,7 +596,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=float(quantity),
                                 actual_value=float(filled_quantity),
                                 exchange_id=exchange_id,
-                                symbol=getattr(order, "symbol", None),
+                                symbol=order.symbol,
                                 metadata={"order_id": order_id},
                             )
                         )
@@ -453,7 +615,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=float(quantity),
                                 actual_value=float(filled_quantity),
                                 exchange_id=exchange_id,
-                                symbol=getattr(order, "symbol", None),
+                                symbol=order.symbol,
                                 metadata={"order_id": order_id, "status": status},
                             )
                         )
@@ -473,19 +635,18 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=1.0,  # Minimum expected price
                                 actual_value=float(price) if price else None,
                                 exchange_id=exchange_id,
-                                symbol=getattr(order, "symbol", None),
+                                symbol=order.symbol,
                                 metadata={"order_id": order_id, "order_type": order_type},
                             )
                         )
 
                     # Check for stale orders (most orders have created_at)
-                    order_created_at = getattr(order, "created_at", None)
+                    order_created_at = order.created_at
                     if order_created_at:
                         current_time = datetime.now(UTC)
                         order_age = (current_time - order_created_at).total_seconds()
-                        max_order_age = self.config.get("max_order_age_seconds", 86400)  # 24 hours
 
-                        if order_age > max_order_age and status in {
+                        if order_age > self.recon_config.max_order_age_seconds and status in {
                             OrderStatus.NEW,
                             OrderStatus.PARTIALLY_FILLED,
                         }:
@@ -494,10 +655,10 @@ class PortfolioReconciliationService(BasePortfolioService):
                                     type="order",
                                     severity="warning",
                                     description="Stale order detected",
-                                    expected_value=float(max_order_age),
+                                    expected_value=float(self.recon_config.max_order_age_seconds),
                                     actual_value=float(order_age),
                                     exchange_id=exchange_id,
-                                    symbol=getattr(order, "symbol", None),
+                                    symbol=order.symbol,
                                     metadata={"order_id": order_id, "status": status},
                                 )
                             )
@@ -511,7 +672,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             expected_value=None,
                             actual_value=None,
                             exchange_id=exchange_id,
-                            symbol=getattr(order, "symbol", None),
+                            symbol=order.symbol,
                             metadata={"order_id": order_id},
                         )
                     )
@@ -551,7 +712,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             actual_value=float(price),
                             exchange_id=exchange_id,
                             symbol=symbol,
-                            metadata={"trade_id": getattr(trade, "trade_id", None)},
+                            metadata={"trade_id": trade.id},
                         )
                     )
 
@@ -565,7 +726,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             actual_value=float(quantity),
                             exchange_id=exchange_id,
                             symbol=symbol,
-                            metadata={"trade_id": getattr(trade, "trade_id", None)},
+                            metadata={"trade_id": trade.id},
                         )
                     )
 
@@ -580,15 +741,15 @@ class PortfolioReconciliationService(BasePortfolioService):
                             actual_value=False,
                             exchange_id=exchange_id,
                             symbol=symbol,
-                            metadata={"trade_id": getattr(trade, "trade_id", None)},
+                            metadata={"trade_id": trade.id},
                         )
                     )
 
                 # Check trade timestamp validity (most trades have timestamp)
-                trade_timestamp = getattr(trade, "timestamp", None)
+                trade_timestamp = trade.executed_at
                 if trade_timestamp:
                     current_time = time.time()
-                    trade_age = current_time - trade_timestamp
+                    trade_age = current_time - trade_timestamp.timestamp()
 
                     if trade_age < 0:
                         discrepancies.append(
@@ -600,7 +761,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 actual_value=trade.executed_at.timestamp(),
                                 exchange_id=exchange_id,
                                 symbol=symbol,
-                                metadata={"trade_id": getattr(trade, "trade_id", None)},
+                                metadata={"trade_id": trade.id},
                             )
                         )
 
@@ -612,9 +773,9 @@ class PortfolioReconciliationService(BasePortfolioService):
                         description=f"Error processing trade: {e!s}",
                         expected_value=None,
                         actual_value=None,
-                        exchange_id=getattr(trade, "exchange_id", "unknown"),
-                        symbol=getattr(trade, "symbol", None),
-                        metadata={"trade_id": getattr(trade, "trade_id", None)},
+                        exchange_id=trade.exchange,
+                        symbol=trade.symbol,
+                        metadata={"trade_id": trade.id},
                     )
                 )
 
@@ -853,3 +1014,38 @@ class PortfolioReconciliationService(BasePortfolioService):
             recommendations.append("Consider implementing cross-exchange validation rules")
 
         return recommendations
+
+    def _extract_locked_amounts(self, balance_details: BaseModel) -> Decimal:
+        """Extract locked amounts dynamically from balance details.
+
+        This method decouples the reconciliation service from exchange-specific
+        implementations by dynamically extracting locked amount fields.
+
+        Args:
+            balance_details: Exchange-specific balance details model
+
+        Returns:
+            Total locked amount extracted from the balance details
+        """
+        locked_amount = Decimal(0)
+
+        # Define field names that represent locked amounts
+        locked_field_names = [
+            "open_order_quantity",
+            "lend_quantity",
+            "locked_quantity",
+            "frozen_quantity",
+            "reserved_quantity",
+        ]
+
+        # Extract values dynamically
+        for field_name in locked_field_names:
+            try:
+                value = getattr(balance_details, field_name, None)
+                if value is not None and isinstance(value, (Decimal, int, float)):
+                    locked_amount += Decimal(str(value))
+            except (AttributeError, TypeError, ValueError):
+                # Skip fields that don't exist or can't be converted
+                continue
+
+        return locked_amount

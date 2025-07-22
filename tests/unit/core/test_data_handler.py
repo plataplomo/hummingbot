@@ -315,6 +315,7 @@ class TestGetLatestTicker:
         # Arrange
         eth_ticker = Ticker(
             symbol="ETH-PERP",
+            exchange="hyperliquid",
             bid=Decimal("3000.0"),
             ask=Decimal("3010.0"),
             price=Decimal("3005.0"),
@@ -580,6 +581,7 @@ class TestGetAllTickers:
         # Arrange
         eth_ticker = Ticker(
             symbol="ETH-PERP",
+            exchange="hyperliquid",
             bid=Decimal("3000.0"),
             ask=Decimal("3010.0"),
             price=Decimal("3005.0"),
@@ -817,6 +819,7 @@ def test_get_all_tickers_parametrized(
     # Arrange
     eth_ticker = Ticker(
         symbol="ETH-PERP",
+        exchange="test_exchange",
         bid=Decimal("3000.0"),
         ask=Decimal("3010.0"),
         price=Decimal("3005.0"),
@@ -855,6 +858,7 @@ def test_ticker_data_integrity_parametrized(
     # Arrange
     ticker = Ticker(
         symbol="BTC-PERP",
+        exchange="hyperliquid",
         bid=bid,
         ask=ask,
         price=price,

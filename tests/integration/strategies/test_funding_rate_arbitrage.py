@@ -159,6 +159,7 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
     if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
         return Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             price=Decimal("30000.0"),
             timestamp=now,
             bid=Decimal("29999.0"),
@@ -168,6 +169,7 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
     if exchange_id == "backpack" and symbol == "BTC_USDC":
         return Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             price=Decimal("29990.0"),
             timestamp=now,
             bid=Decimal("29989.0"),
@@ -265,6 +267,7 @@ async def test_process_data_rebalance_signal_generation(
         if (ex, sym) == ("hyperliquid", "BTC-PERP"):
             return Ticker(
                 symbol="BTC-PERP",
+                exchange="hyperliquid",
                 price=Decimal("31000.0"),
                 timestamp=now,
                 bid=Decimal("30999.0"),
@@ -274,6 +277,7 @@ async def test_process_data_rebalance_signal_generation(
         if (ex, sym) == ("backpack", "BTC_USDC"):
             return Ticker(
                 symbol="BTC_USDC",
+                exchange="backpack",
                 price=Decimal("30500.0"),
                 timestamp=now,
                 bid=Decimal("30499.0"),
@@ -482,6 +486,7 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
     """Create mock ticker for testing."""
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
+        "exchange": "test_exchange",  # Default exchange for testing
         "price": Decimal("30000.0"),
         "timestamp": datetime.now(UTC),
         "bid": Decimal("29999.0"),
@@ -491,6 +496,7 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
     merged_args = {**defaults, **kwargs}
     return Ticker(
         symbol=str(merged_args["symbol"]),
+        exchange=str(merged_args["exchange"]),
         timestamp=cast("datetime", merged_args["timestamp"]),
         price=Decimal(str(merged_args["price"])) if merged_args.get("price") is not None else None,
         bid=Decimal(str(merged_args["bid"])) if merged_args.get("bid") is not None else None,

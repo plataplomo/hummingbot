@@ -6,10 +6,12 @@ import asyncio
 import contextlib
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+from pydantic import Field
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.calculators.position_exposure_calculator import PositionExposure
@@ -19,6 +21,7 @@ from cyberdelta.core.portfolio.exceptions.calculation import (
     InsufficientDataError,
     PnLCalculationError,
 )
+from cyberdelta.core.portfolio.portfolio_types.domain_models import MetricsMetadata
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -184,8 +187,8 @@ class MetricSnapshot:
     exchange_id: str | None = None
     symbol: str | None = None
     base_currency: str = "USD"
-    metrics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    metrics: dict[str, Any] = Field(default_factory=_str_any_dict_factory)
+    metadata: MetricsMetadata | None = None
 
 
 @dataclass
@@ -194,7 +197,7 @@ class MetricSeries:
 
     metric_type: MetricType
     period: AggregationPeriod
-    snapshots: list[MetricSnapshot] = field(default_factory=_metric_snapshot_list_factory)
+    snapshots: list[MetricSnapshot] = Field(default_factory=_metric_snapshot_list_factory)
     start_time: float | None = None
     end_time: float | None = None
 
@@ -256,13 +259,13 @@ class AggregatedMetrics:
     turnover_ratio: Decimal = Decimal(0)
 
     # Allocation Metrics
-    exchange_allocation: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
-    symbol_allocation: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
-    currency_allocation: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
+    exchange_allocation: dict[str, Decimal] = Field(default_factory=_str_decimal_dict_factory)
+    symbol_allocation: dict[str, Decimal] = Field(default_factory=_str_decimal_dict_factory)
+    currency_allocation: dict[str, Decimal] = Field(default_factory=_str_decimal_dict_factory)
 
     # Correlation Metrics
-    portfolio_correlation: dict[str, Decimal] = field(default_factory=_str_decimal_dict_factory)
-    exchange_correlation: dict[str, dict[str, Decimal]] = field(
+    portfolio_correlation: dict[str, Decimal] = Field(default_factory=_str_decimal_dict_factory)
+    exchange_correlation: dict[str, dict[str, Decimal]] = Field(
         default_factory=_nested_decimal_dict_factory
     )
 
@@ -278,7 +281,7 @@ class AggregatedMetrics:
     metrics_count: int = 0
     calculation_time_ms: float = 0.0
     data_quality_score: Decimal = Decimal("1.0")
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    metadata: MetricsMetadata | None = None
 
 
 @dataclass
@@ -311,44 +314,44 @@ class MetricsReport:
     base_currency: str = "USD"
 
     # Current snapshot
-    current_metrics: AggregatedMetrics = field(
+    current_metrics: AggregatedMetrics = Field(
         default_factory=lambda: AggregatedMetrics(
             timestamp=time.time(), period=AggregationPeriod.REALTIME
         )
     )
 
     # Historical data
-    historical_metrics: list[AggregatedMetrics] = field(
+    historical_metrics: list[AggregatedMetrics] = Field(
         default_factory=_aggregated_metrics_list_factory
     )
 
     # Trend analysis
-    trends: dict[str, MetricsTrend] = field(default_factory=_str_metrics_trend_dict_factory)
+    trends: dict[str, MetricsTrend] = Field(default_factory=_str_metrics_trend_dict_factory)
 
     # Performance attribution
-    attribution_by_exchange: dict[str, dict[str, Decimal]] = field(
+    attribution_by_exchange: dict[str, dict[str, Decimal]] = Field(
         default_factory=_nested_decimal_dict_factory
     )
-    attribution_by_symbol: dict[str, dict[str, Decimal]] = field(
+    attribution_by_symbol: dict[str, dict[str, Decimal]] = Field(
         default_factory=_nested_decimal_dict_factory
     )
-    attribution_by_strategy: dict[str, dict[str, Decimal]] = field(
+    attribution_by_strategy: dict[str, dict[str, Decimal]] = Field(
         default_factory=_nested_decimal_dict_factory
     )
 
     # Risk analysis
-    risk_metrics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    risk_alerts: list[dict[str, Any]] = field(default_factory=_dict_any_list_factory)
+    risk_metrics: dict[str, Any] = Field(default_factory=_str_any_dict_factory)
+    risk_alerts: list[dict[str, Any]] = Field(default_factory=_dict_any_list_factory)
 
     # Quality metrics
-    data_quality: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    coverage: dict[str, float] = field(default_factory=_str_float_dict_factory)
+    data_quality: dict[str, Any] = Field(default_factory=_str_any_dict_factory)
+    coverage: dict[str, float] = Field(default_factory=_str_float_dict_factory)
 
     # Summary statistics
-    summary: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    summary: dict[str, Any] = Field(default_factory=_str_any_dict_factory)
 
     # Metadata
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    metadata: MetricsMetadata | None = None
 
 
 class PortfolioMetricsAggregationService(BasePortfolioService):
@@ -524,7 +527,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
                 period=period,
                 base_currency=base_currency,
                 metrics=self._metrics_to_dict(metrics),
-                metadata={"calculation_time_ms": calculation_time},
+                metadata=MetricsMetadata(
+                    calculation_method="aggregated",
+                    data_quality_score=1.0,
+                ),
             )
 
             # Store snapshot

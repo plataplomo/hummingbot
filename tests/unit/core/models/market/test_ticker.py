@@ -34,8 +34,8 @@ class TestTicker:
     """Unit tests for the cyberdelta.core.models.market.ticker.Ticker model."""
 
     def test_minimal_creation_required_fields(self) -> None:
-        """Test creating a Ticker with only required fields (symbol, timestamp)."""
-        ticker = Ticker(symbol=VALID_SYMBOL, timestamp=NOW)
+        """Test creating a Ticker with only required fields (symbol, exchange, timestamp)."""
+        ticker = Ticker(symbol=VALID_SYMBOL, exchange="test_exchange", timestamp=NOW)
         assert ticker.symbol == VALID_SYMBOL
         assert ticker.timestamp == NOW
         assert ticker.price is None
@@ -47,6 +47,7 @@ class TestTicker:
         """Test creating a Ticker with all fields populated with valid data types."""
         ticker = Ticker(
             symbol=VALID_SYMBOL,
+            exchange="test_exchange",
             timestamp=NOW,
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -68,6 +69,7 @@ class TestTicker:
 
         ticker = Ticker(
             symbol=VALID_SYMBOL,
+            exchange="test_exchange",
             timestamp=expected_dt_from_ms,  # Use the already calculated datetime
             price=Decimal("50000.5"),  # Use Decimal
             bid=Decimal("50000.0"),  # Use Decimal
@@ -86,29 +88,35 @@ class TestTicker:
     def test_required_fields_validation(self) -> None:
         """Test that required fields (symbol, timestamp) raise errors if missing."""
         with pytest.raises(ValidationError, match="Field required"):
-            Ticker(timestamp=NOW)  # type: ignore[call-arg] # Missing symbol
+            Ticker(exchange="test_exchange", timestamp=NOW)  # type: ignore[call-arg] # Missing symbol
         with pytest.raises(ValidationError, match="Field required"):
-            Ticker(symbol=VALID_SYMBOL)  # type: ignore[call-arg] # Missing timestamp
+            Ticker(symbol=VALID_SYMBOL, exchange="test_exchange")  # type: ignore[call-arg] # Missing timestamp
+        with pytest.raises(ValidationError, match="Field required"):
+            Ticker(symbol=VALID_SYMBOL, timestamp=NOW)  # type: ignore[call-arg] # Missing exchange
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field (required, non-empty, length)."""
         with pytest.raises(EmptyStringError, match="String cannot be empty"):
-            Ticker(symbol="", timestamp=NOW)
+            Ticker(symbol="", exchange="test_exchange", timestamp=NOW)
         with pytest.raises(EmptyStringError, match="String cannot be empty"):
-            Ticker(symbol="   ", timestamp=NOW)
+            Ticker(symbol="   ", exchange="test_exchange", timestamp=NOW)
         with pytest.raises(
             TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
         ):
-            Ticker(symbol="A" * 65, timestamp=NOW)
+            Ticker(symbol="A" * 65, exchange="test_exchange", timestamp=NOW)
         # Valid symbol should pass
-        Ticker(symbol="VALID-SYM_123", timestamp=NOW)
+        Ticker(symbol="VALID-SYM_123", exchange="test_exchange", timestamp=NOW)
 
     def test_timestamp_validation(self) -> None:
         """Test timestamp validation (required, parsing, None handling)."""
         # Test None raises error
         with pytest.raises(ValidationError, match=r"timestamp.*Ticker timestamp is required"):
             # Use Any to test validator behavior
-            kwargs: dict[str, Any] = {"symbol": VALID_SYMBOL, "timestamp": None}
+            kwargs: dict[str, Any] = {
+                "symbol": VALID_SYMBOL,
+                "exchange": "test_exchange",
+                "timestamp": None,
+            }
             Ticker(**kwargs)
 
         # Test invalid format raises error (Pydantic wraps underlying errors)
@@ -118,6 +126,7 @@ class TestTicker:
             # Use Any to test validator behavior
             kwargs_invalid: dict[str, Any] = {
                 "symbol": VALID_SYMBOL,
+                "exchange": "test_exchange",
                 "timestamp": "invalid-date-string",
             }
             Ticker(**kwargs_invalid)
@@ -128,17 +137,29 @@ class TestTicker:
         expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
 
         # Test int timestamp parsing
-        kwargs_int: dict[str, Any] = {"symbol": VALID_SYMBOL, "timestamp": ms_timestamp}
+        kwargs_int: dict[str, Any] = {
+            "symbol": VALID_SYMBOL,
+            "exchange": "test_exchange",
+            "timestamp": ms_timestamp,
+        }
         assert Ticker(**kwargs_int).timestamp == expected_dt_from_ms
         # Test string timestamp parsing
-        kwargs_str: dict[str, Any] = {"symbol": VALID_SYMBOL, "timestamp": iso_timestamp}
+        kwargs_str: dict[str, Any] = {
+            "symbol": VALID_SYMBOL,
+            "exchange": "test_exchange",
+            "timestamp": iso_timestamp,
+        }
         assert Ticker(**kwargs_str).timestamp == NOW
-        assert Ticker(symbol=VALID_SYMBOL, timestamp=NOW).timestamp == NOW
+        assert Ticker(symbol=VALID_SYMBOL, exchange="test_exchange", timestamp=NOW).timestamp == NOW
 
     @pytest.mark.parametrize("field_name", ["price", "bid", "ask", "volume"])
     def test_decimal_fields_parsing_and_validation(self, field_name: str) -> None:
         """Test parsing, finiteness, and non-negativity for optional decimal fields."""
-        valid_kwargs_base: dict[str, Any] = {"symbol": VALID_SYMBOL, "timestamp": NOW}
+        valid_kwargs_base: dict[str, Any] = {
+            "symbol": VALID_SYMBOL,
+            "exchange": "test_exchange",
+            "timestamp": NOW,
+        }
 
         # Helper function to create Ticker instance and get attribute
         def get_ticker_field_value(value: str | float | Decimal | None) -> Decimal | None:
@@ -198,13 +219,14 @@ class TestTicker:
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             Ticker(
                 symbol=VALID_SYMBOL,
+                exchange="test_exchange",
                 timestamp=NOW,
                 extra_field="invalid",  # type: ignore[call-arg]
             )
 
     def test_immutability(self) -> None:
         """Test that the Ticker model is immutable (frozen=True)."""
-        ticker = Ticker(symbol=VALID_SYMBOL, timestamp=NOW, price=DEC_ONE)
+        ticker = Ticker(symbol=VALID_SYMBOL, exchange="test_exchange", timestamp=NOW, price=DEC_ONE)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ticker.symbol = "NEW-SYM"

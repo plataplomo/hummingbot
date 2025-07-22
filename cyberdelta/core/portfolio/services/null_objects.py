@@ -29,6 +29,7 @@ from cyberdelta.core.portfolio.portfolio_types.update_models import (
     CapitalSummary,
     ExposureMetrics,
     ManagerStats,
+    PerformanceMetadata,
     PnLSummary,
     PortfolioSummary,
 )
@@ -237,7 +238,7 @@ class NullStateManager(StateManagerProtocol):
             processed_items=0,
             error_count=0,
             last_update=0.0,
-            performance_metrics={},
+            performance_metrics=PerformanceMetadata(),
         )
 
     async def update_balances(self, exchange_id: str, balances: dict[str, SpotBalance]) -> None:

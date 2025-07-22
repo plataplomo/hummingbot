@@ -102,7 +102,7 @@ class BaseScreener(ABC):  # BasePortfolioManager removed in refactor
         """
         return {
             "screener_name": self.name,
-            "is_running": getattr(self, "is_running", False),
+            "is_initialized": self.is_initialized,
             "enabled": self.enabled,
             **self._validation_stats,
         }

@@ -576,6 +576,7 @@ class DataHandler:
             if price is not None:
                 ticker = Ticker(
                     symbol=str(symbol),
+                    exchange=exchange_id,
                     price=Decimal(str(price)) if price is not None else None,
                     timestamp=dt_real.now(UTC),
                     bid=Decimal(str(data_payload.get("bid", price)))
@@ -1701,6 +1702,7 @@ class DataHandler:
         default_time = dt_real.min.replace(tzinfo=UTC)
         return Ticker(
             symbol=symbol,
+            exchange="unknown",  # Default exchange for initialization
             timestamp=default_time,
             price=Decimal("1.0"),  # Ensure price is non-zero
             bid=Decimal("0.99"),  # Example bid

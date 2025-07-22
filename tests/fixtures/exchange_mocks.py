@@ -84,6 +84,7 @@ def mock_exchange_api() -> AsyncMock:
 
     mock_api.get_ticker.return_value = Ticker(
         symbol="BTC",
+        exchange="test_exchange",
         bid=Decimal("40000.0"),
         ask=Decimal("40002.0"),
         price=Decimal("40001.0"),
@@ -160,6 +161,7 @@ def mock_data_handler() -> MagicMock:
     # Configure mock methods
     mock_handler.get_ticker.return_value = Ticker(
         symbol="BTC",
+        exchange="test_exchange",
         bid=Decimal("40000.0"),
         ask=Decimal("40002.0"),
         price=Decimal("40001.0"),

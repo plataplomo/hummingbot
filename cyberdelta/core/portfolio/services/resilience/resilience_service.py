@@ -7,12 +7,16 @@ import contextlib
 import secrets
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TypeVar, cast
 
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.exceptions.service import (
+    CircuitBreakerThresholdError,
+    ResilienceConfigurationError,
     ServiceTimeoutError,
     ServiceUnavailableError,
 )
@@ -48,31 +52,82 @@ class CircuitBreakerState(Enum):
 class RetryConfig:
     """Configuration for retry mechanisms."""
 
-    max_attempts: int = 3
-    initial_delay: float = 1.0
-    max_delay: float = 60.0
-    backoff_multiplier: float = 2.0
-    jitter: bool = True
-    retriable_exceptions: tuple[type[Exception], ...] = field(default_factory=lambda: (Exception,))
+    max_attempts: int = Field(default=3, gt=0, le=10, description="Maximum retry attempts")
+    initial_delay: float = Field(
+        default=1.0, gt=0, le=60, description="Initial retry delay in seconds"
+    )
+    max_delay: float = Field(
+        default=60.0, gt=0, le=300, description="Maximum retry delay in seconds"
+    )
+    backoff_multiplier: float = Field(
+        default=2.0, gt=1, le=10, description="Exponential backoff multiplier"
+    )
+    jitter: bool = Field(default=True, description="Add jitter to retry delays")
+    retriable_exceptions: tuple[type[Exception], ...] = Field(
+        default_factory=lambda: (Exception,), description="Exceptions to retry"
+    )
+
+    @field_validator("max_delay", mode="before")
+    @classmethod
+    def validate_delays(cls, v: float, info: ValidationInfo) -> float:
+        """Validate max_delay is greater than initial_delay."""
+        if "initial_delay" in info.data and v <= info.data["initial_delay"]:
+            raise ResilienceConfigurationError(
+                config_type="retry_delay",
+                invalid_relationship="max_delay must be greater than initial_delay"
+            )
+        return v
 
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker."""
 
-    failure_threshold: int = 5
-    recovery_timeout: float = 60.0
-    success_threshold: int = 2
-    timeout: float = 30.0
+    failure_threshold: int = Field(
+        default=5, gt=0, le=100, description="Failures before opening circuit"
+    )
+    recovery_timeout: float = Field(
+        default=60.0, gt=0, le=600, description="Recovery timeout in seconds"
+    )
+    success_threshold: int = Field(
+        default=2, gt=0, le=50, description="Successes needed to close circuit"
+    )
+    timeout: float = Field(default=30.0, ge=0, le=300, description="Operation timeout in seconds")
+
+    @field_validator("success_threshold", mode="before")
+    @classmethod
+    def validate_success_threshold(cls, v: int, info: ValidationInfo) -> int:
+        """Validate success_threshold is less than failure_threshold."""
+        if "failure_threshold" in info.data and v >= info.data["failure_threshold"]:
+            raise CircuitBreakerThresholdError(
+                threshold_type="success_threshold",
+                invalid_relationship="must be less than failure_threshold"
+            )
+        return v
 
 
 @dataclass
 class HealthCheckConfig:
     """Configuration for health checks."""
 
-    check_interval: float = 30.0
-    timeout: float = 5.0
-    consecutive_failures_threshold: int = 3
+    check_interval: float = Field(
+        default=30.0, gt=0, le=3600, description="Health check interval in seconds"
+    )
+    timeout: float = Field(default=5.0, gt=0, le=60, description="Health check timeout in seconds")
+    consecutive_failures_threshold: int = Field(
+        default=3, gt=0, le=10, description="Consecutive failures before marking unhealthy"
+    )
+
+    @field_validator("timeout", mode="before")
+    @classmethod
+    def validate_timeout(cls, v: float, info: ValidationInfo) -> float:
+        """Validate timeout is less than check_interval."""
+        if "check_interval" in info.data and v >= info.data["check_interval"]:
+            raise ResilienceConfigurationError(
+                config_type="health_check_timeout",
+                invalid_relationship="timeout must be less than check_interval"
+            )
+        return v
 
 
 class CircuitBreaker[T]:

@@ -2,26 +2,79 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import psutil
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
 
 
-# Type-preserving factory functions
-def _str_any_dict_factory() -> dict[str, Any]:
-    """Factory function that preserves dict[str, Any] type information."""
-    return {}
+class HealthMetricMetadata(BaseModel):
+    """Typed metadata for health metrics."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # Metric source information
+    source_service: str | None = None
+    collection_method: str | None = None
+    aggregation_period: str | None = None
+
+    # Threshold information
+    baseline_value: float | None = None
+    previous_value: float | None = None
+    trend_direction: str | None = None  # "up", "down", "stable"
+
+    # Additional context
+    related_metrics: list[str] = Field(default_factory=list)
+    tags: dict[str, str] = Field(default_factory=dict)
 
 
-# Type annotation and conditional import
+class HealthAlertMetadata(BaseModel):
+    """Typed metadata for health alerts."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # Alert tracking
+    trigger_condition: str | None = None
+    escalation_level: int | None = Field(default=None, ge=0, le=5)
+    auto_resolve: bool = Field(default=False)
+
+    # Context information
+    related_alerts: list[str] = Field(default_factory=list)
+    impact_assessment: str | None = None
+    recommended_action: str | None = None
+
+    # Timing information
+    first_occurrence: datetime | None = None
+    last_occurrence: datetime | None = None
+    occurrence_count: int = Field(default=1, ge=1)
+
+
+class HealthReportMetadata(BaseModel):
+    """Typed metadata for health reports."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # Report generation
+    generation_time_ms: float | None = Field(default=None, ge=0)
+    report_version: str | None = None
+    included_components: list[str] = Field(default_factory=list)
+
+    # Aggregation information
+    metrics_count: int = Field(default=0, ge=0)
+    alerts_count: int = Field(default=0, ge=0)
+    data_freshness: str | None = None  # "real-time", "cached", "stale"
+
+    # Context
+    trigger_reason: str | None = None  # "scheduled", "manual", "threshold"
+    requested_by: str | None = None
 
 
 if TYPE_CHECKING:
@@ -54,8 +107,8 @@ class HealthMetric:
     threshold_critical: float | None = None
     unit: str = ""
     description: str = ""
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    measured_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    metadata: HealthMetricMetadata = Field(default_factory=HealthMetricMetadata)
+    measured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -70,10 +123,10 @@ class HealthAlert:
     metric_name: str
     metric_value: float
     threshold_value: float
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     acknowledged: bool = False
     resolved: bool = False
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    metadata: HealthAlertMetadata = Field(default_factory=HealthAlertMetadata)
 
 
 @dataclass
@@ -85,8 +138,8 @@ class HealthReport:
     metrics: list[HealthMetric]
     alerts: list[HealthAlert]
     recommendations: list[str]
-    report_timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    report_timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    metadata: HealthReportMetadata = Field(default_factory=HealthReportMetadata)
 
 
 class PortfolioHealthMonitor(BasePortfolioService):
@@ -313,9 +366,12 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     total_balances += 1
 
                     # Check balance consistency
-                    expected_total = balance.available_quantity + getattr(
-                        balance, "locked", Decimal(0)
-                    )
+                    # SpotBalance model doesn't have locked field - check extension details
+                    locked = Decimal(0)
+                    if balance.bp_details:
+                        locked += balance.bp_details.open_order_quantity or Decimal(0)
+                        locked += balance.bp_details.lend_quantity or Decimal(0)
+                    expected_total = balance.available_quantity + locked
                     if abs(balance.total_quantity - expected_total) > Decimal("0.001"):
                         inconsistent_balances += 1
 
@@ -337,10 +393,12 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     threshold_critical=self.thresholds["balance_inconsistency"]["critical"],
                     unit="ratio",
                     description="Ratio of inconsistent balances to total balances",
-                    metadata={
-                        "inconsistent_balances": inconsistent_balances,
-                        "total_balances": total_balances,
-                    },
+                    metadata=HealthMetricMetadata(
+                        tags={
+                            "inconsistent_balances": str(inconsistent_balances),
+                            "total_balances": str(total_balances),
+                        }
+                    ),
                 )
             )
 
@@ -370,12 +428,14 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     status=HealthStatus.HEALTHY,
                     unit="USD",
                     description="Total value of all balances",
-                    metadata={
-                        "total_exchanges": len(balances),
-                        "total_currencies": sum(
-                            len(ex_balances) for ex_balances in balances.values()
-                        ),
-                    },
+                    metadata=HealthMetricMetadata(
+                        tags={
+                            "total_exchanges": str(len(balances)),
+                            "total_currencies": str(sum(
+                                len(ex_balances) for ex_balances in balances.values()
+                            )),
+                        }
+                    ),
                 )
             )
 
@@ -443,10 +503,12 @@ class PortfolioHealthMonitor(BasePortfolioService):
                         threshold_critical=self.thresholds["position_risk"]["critical"],
                         unit="ratio",
                         description="Ratio of high-risk positions to total positions",
-                        metadata={
-                            "high_risk_positions": high_risk_positions,
-                            "total_positions": total_positions,
-                        },
+                        metadata=HealthMetricMetadata(
+                            tags={
+                                "high_risk_positions": str(high_risk_positions),
+                                "total_positions": str(total_positions),
+                            }
+                        ),
                     )
                 )
 
@@ -476,10 +538,12 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     status=HealthStatus.HEALTHY,
                     unit="USD",
                     description="Total value of all positions",
-                    metadata={
-                        "total_exchanges": len(positions),
-                        "total_positions": total_positions,
-                    },
+                    metadata=HealthMetricMetadata(
+                        tags={
+                            "total_exchanges": str(len(positions)),
+                            "total_positions": str(total_positions),
+                        }
+                    ),
                 )
             )
 
@@ -526,8 +590,8 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     if order.status == OrderStatus.FILLED:
                         filled_orders += 1
 
-                    # Check for stale orders (most orders have created_at)
-                    order_created_at = getattr(order, "created_at", None)
+                    # Check for stale orders (Order model has created_at field)
+                    order_created_at = order.created_at
                     if order_created_at:
                         # Order model guarantees created_at is datetime object
                         order_age = (current_time - order_created_at).total_seconds()
@@ -553,10 +617,12 @@ class PortfolioHealthMonitor(BasePortfolioService):
                         threshold_critical=self.thresholds["order_fill_rate"]["critical"],
                         unit="ratio",
                         description="Ratio of filled orders to total orders",
-                        metadata={
-                            "filled_orders": filled_orders,
-                            "total_orders": total_orders,
-                        },
+                        metadata=HealthMetricMetadata(
+                            tags={
+                                "filled_orders": str(filled_orders),
+                                "total_orders": str(total_orders),
+                            }
+                        ),
                     )
                 )
 
@@ -583,10 +649,12 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     status=HealthStatus.WARNING if stale_orders > 0 else HealthStatus.HEALTHY,
                     unit="count",
                     description="Number of stale orders (>1 hour old)",
-                    metadata={
-                        "stale_orders": stale_orders,
-                        "total_orders": total_orders,
-                    },
+                    metadata=HealthMetricMetadata(
+                        tags={
+                            "stale_orders": str(stale_orders),
+                            "total_orders": str(total_orders),
+                        }
+                    ),
                 )
             )
 
@@ -681,7 +749,13 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     threshold_critical=self.thresholds["error_rate"]["critical"],
                     unit="ratio",
                     description="System error rate",
-                    metadata=self.performance_metrics,
+                    metadata=HealthMetricMetadata(
+                        tags={
+                            k: str(v)
+                            for k, v in self.performance_metrics.items()
+                            if isinstance(v, (str, int, float))
+                        }
+                    ),
                 )
             )
 

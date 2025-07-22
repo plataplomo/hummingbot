@@ -135,6 +135,7 @@ def mock_ticker() -> Ticker:
     """Create a mock ticker."""
     return Ticker(
         symbol="ETH",
+        exchange="hyperliquid",
         timestamp=datetime.now(UTC),
         price=Decimal("3500.00"),
         bid=Decimal("3499.50"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -9,12 +10,16 @@ from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Trade
 from cyberdelta.core.portfolio.base import StateUpdate, TypedStateManager
-from cyberdelta.core.portfolio.base.typed_state_manager import StateManagerResult
+from cyberdelta.core.portfolio.base.typed_state_manager import (
+    StateManagerMetadata,
+    StateManagerResult,
+)
 from cyberdelta.core.portfolio.portfolio_types.state_types import StateValidationResult
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import (
         MetricsCollectorProtocol,
         StateContainerProtocol,
@@ -41,7 +46,7 @@ class TradeManager(TypedStateManager[TradeState]):
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
         validation_service: ValidationServiceProtocol | None = None,
         metrics_collector: MetricsCollectorProtocol | None = None,
     ) -> None:
@@ -90,22 +95,18 @@ class TradeManager(TypedStateManager[TradeState]):
         try:
             # For each trade in the update, add it via the state container
             for trade in update.data:
-                # Get exchange from trade object
-                exchange_str = getattr(trade, "exchange_id", getattr(trade, "exchange", "unknown"))
+                # Get exchange from trade object using type-safe field access
+                exchange_str = self._get_trade_exchange(trade)
 
                 # Convert string to ExchangeName enum
                 try:
-                    exchange = (
-                        ExchangeName(exchange_str)
-                        if isinstance(exchange_str, str)
-                        else exchange_str
-                    )
+                    exchange = ExchangeName(exchange_str)
                 except (ValueError, AttributeError):
                     # Skip trade if we can't determine exchange
                     logger.warning(
                         "trade_exchange_conversion_failed",
-                        trade_exchange=getattr(trade, "exchange", "unknown"),
-                        trade_id=getattr(trade, "id", "unknown"),
+                        trade_exchange=self._get_trade_exchange(trade),
+                        trade_id=self._get_trade_id(trade),
                     )
                     continue
 
@@ -221,12 +222,16 @@ class TradeManager(TypedStateManager[TradeState]):
                 data=updated_trades,
                 timestamp=datetime.now(UTC),
                 source=f"add_trade_{trade.id}",
-                metadata={
-                    "operation": "add_trade",
-                    "trade_id": trade.id,
-                    "exchange": trade.exchange,
-                    "symbol": trade.symbol,
-                },
+                metadata=StateManagerMetadata(
+                    operation_type="add_trade",
+                    source=f"add_trade_{trade.id}",
+                    timestamp=time.time(),
+                    additional_data={
+                        "trade_id": trade.id,
+                        "exchange": trade.exchange,
+                        "symbol": trade.symbol,
+                    },
+                ),
             )
 
             # Apply update with validation
@@ -358,12 +363,16 @@ class TradeManager(TypedStateManager[TradeState]):
                 data=trimmed_trades,
                 timestamp=datetime.now(UTC),
                 source="clear_old_trades",
-                metadata={
-                    "operation": "clear_old_trades",
-                    "original_count": len(all_trades),
-                    "new_count": len(trimmed_trades),
-                    "removed_count": len(all_trades) - len(trimmed_trades),
-                },
+                metadata=StateManagerMetadata(
+                    operation_type="clear_old_trades",
+                    source="clear_old_trades",
+                    timestamp=time.time(),
+                    additional_data={
+                        "original_count": str(len(all_trades)),
+                        "new_count": str(len(trimmed_trades)),
+                        "removed_count": str(len(all_trades) - len(trimmed_trades)),
+                    },
+                ),
             )
 
             return await self.update_with_validation(update)
@@ -374,3 +383,27 @@ class TradeManager(TypedStateManager[TradeState]):
                 message=f"Clear old trades failed: {e}",
                 errors=[str(e)],
             )
+
+    def _get_trade_exchange(self, trade: Trade) -> str:
+        """Get exchange from trade using type-safe field access.
+
+        Args:
+            trade: Trade object
+
+        Returns:
+            Exchange identifier
+        """
+        # Trade model has consistent exchange field
+        return trade.exchange
+
+    def _get_trade_id(self, trade: Trade) -> str:
+        """Get trade ID using type-safe field access.
+
+        Args:
+            trade: Trade object
+
+        Returns:
+            Trade identifier
+        """
+        # Trade model has consistent id field
+        return trade.id

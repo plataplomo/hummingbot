@@ -238,7 +238,11 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
         Returns:
             State field value or default
         """
-        return getattr(self.state_data, key, default)
+        # Check if field exists in model fields
+        if key in self.state_data.__class__.model_fields:
+            # Access the attribute directly - will exist if in model_fields
+            return self.state_data.__dict__.get(key, default)
+        return default
 
     def has_state_field(self, field_name: str) -> bool:
         """Check if a state field exists in the snapshot.
@@ -567,7 +571,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
     def __iter__(self) -> Generator[tuple[str, str | int | float | bool | None]]:
         """Iterate over state field names."""
         for field in self.get_state_fields():
-            yield field, getattr(self, field, None)
+            yield field, self.get_state_value(field)
 
     def __eq__(self, other: object) -> bool:
         """Check equality with another snapshot."""

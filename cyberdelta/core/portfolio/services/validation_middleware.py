@@ -12,6 +12,7 @@ from typing import Any, ParamSpec, TypeVar
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions import StateValidationError
 from cyberdelta.core.portfolio.models.base import BaseStateModel, ValidationResult
 
 
@@ -268,8 +269,10 @@ class ValidationMiddleware[T: BaseStateModel](BaseStateModel):
                     if not validation_result.valid and should_fail:
                         error_msg = f"Validation failed for {target_type.__name__}"
                         if validation_result.errors:
-                            error_msg += f": {validation_result.errors[0]}"
-                        raise ValueError(error_msg)
+                            # Include all validation errors with context for better debugging
+                            error_details = "; ".join(validation_result.errors)
+                            error_msg += f": {error_details}"
+                        raise StateValidationError(error_msg)
 
                     # Log validation results
                     if not validation_result.valid:

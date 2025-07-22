@@ -323,15 +323,15 @@ class PortfolioUpdate(BaseModel):
             "timestamp": self.timestamp,
             "update_type": self.update_type,
             "exchange_id": self.exchange_id,
-            "trades": [getattr(t, "to_dict", lambda item=t: str(item))() for t in self.trades],
+            "trades": [t.model_dump() for t in self.trades],
             "balances": {
-                k: getattr(v, "to_dict", lambda item=v: str(item))()
+                k: v.model_dump()
                 for k, v in self.balances.items()
             },
             "positions": [
-                getattr(p, "to_dict", lambda item=p: str(item))() for p in self.positions
+                p.model_dump() for p in self.positions
             ],
-            "orders": [getattr(o, "to_dict", lambda item=o: str(item))() for o in self.orders],
+            "orders": [o.model_dump() for o in self.orders],
             "metrics": self.metrics,
             "errors": self.errors,
         }

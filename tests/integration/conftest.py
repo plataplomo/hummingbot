@@ -108,6 +108,7 @@ def create_mock_ticker(
     ask: str | float | Decimal,
     price: str | float | Decimal,
     timestamp: datetime,  # Expect datetime object
+    exchange: str = "test_exchange",  # Default for integration tests
 ) -> Ticker:  # Return Ticker object
     """Create a Ticker object with Decimal conversion.
 
@@ -116,6 +117,7 @@ def create_mock_ticker(
     """
     return Ticker(
         symbol=symbol,
+        exchange=exchange,
         bid=Decimal(str(bid)),
         ask=Decimal(str(ask)),
         price=Decimal(str(price)),

@@ -518,6 +518,7 @@ class TestPortfolioTrackerReset:
         for i in range(5):
             ticker = Ticker(
                 symbol=f"TEST-{i}",
+                exchange="test_exchange",
                 bid=Decimal("100.0"),
                 ask=Decimal("101.0"),
                 price=Decimal("100.5"),

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.events import (
@@ -15,6 +16,7 @@ from cyberdelta.core.portfolio.events import (
     EventType,
 )
 from cyberdelta.core.portfolio.events.base import BasePortfolioEvent, EventMetadata
+from cyberdelta.core.portfolio.events.error_events import ErrorContext
 
 
 if TYPE_CHECKING:
@@ -24,8 +26,62 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-@dataclass
-class MarginRequirement:
+# Typed interfaces for exchange API data (replacing dict[str, Any])
+class HyperliquidMarginSummary(BaseModel):
+    """Typed interface for Hyperliquid margin summary data."""
+
+    account_value: float = Field(
+        default=0, alias="accountValue", description="Account value in USD"
+    )
+    total_margin_used: float = Field(
+        default=0, alias="totalMarginUsed", description="Total margin used"
+    )
+    total_position_margin: float = Field(
+        default=0, alias="totalPositionMargin", description="Position margin"
+    )
+    total_order_margin: float = Field(
+        default=0, alias="totalOrderMargin", description="Order margin"
+    )
+    total_initial_margin_required: float = Field(
+        default=0, alias="totalInitialMarginRequired", description="Initial margin required"
+    )
+    total_maintenance_margin_required: float = Field(
+        default=0, alias="totalMaintenanceMarginRequired", description="Maintenance margin required"
+    )
+    total_unrealized_pnl: float = Field(
+        default=0, alias="totalUnrealizedPnl", description="Unrealized PnL"
+    )
+
+
+class HyperliquidAccountData(BaseModel):
+    """Typed interface for Hyperliquid account data."""
+
+    margin_summary: HyperliquidMarginSummary = Field(
+        default_factory=HyperliquidMarginSummary, alias="marginSummary"
+    )
+
+
+class BackpackAccountData(BaseModel):
+    """Typed interface for Backpack account data."""
+
+    equity: float = Field(default=0, description="Account equity")
+    margin_used: float = Field(default=0, description="Used margin")
+    margin_available: float = Field(default=0, description="Available margin")
+    unrealized_pnl: float = Field(default=0, description="Unrealized PnL")
+    realized_pnl: float = Field(default=0, description="Realized PnL")
+
+
+class GenericExchangeAccountData(BaseModel):
+    """Typed interface for generic exchange account data."""
+
+    account_value: float = Field(default=0, description="Account value")
+    used_margin: float = Field(default=0, description="Used margin")
+    free_margin: float = Field(default=0, description="Free margin")
+    unrealized_pnl: float = Field(default=0, description="Unrealized PnL")
+    realized_pnl: float = Field(default=0, description="Realized PnL")
+
+
+class MarginRequirement(BaseModel):
     """Margin requirement details."""
 
     initial_margin: Decimal
@@ -35,8 +91,7 @@ class MarginRequirement:
     liquidation_price: Decimal | None = None
 
 
-@dataclass
-class AccountSummary:
+class AccountSummary(BaseModel):
     """Complete margin account summary."""
 
     exchange_id: str
@@ -47,7 +102,7 @@ class AccountSummary:
     unrealized_pnl: Decimal
     realized_pnl: Decimal
     margin_requirement: MarginRequirement
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = Field(default_factory=time.time)
 
     # Additional fields for detailed tracking
     total_position_value: Decimal | None = None
@@ -55,7 +110,7 @@ class AccountSummary:
     leverage: Decimal | None = None
     health_score: Decimal | None = None  # 0-100 score
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, str | float | dict[str, str | None] | None]:
         """Convert to dictionary."""
         return {
             "exchange_id": self.exchange_id,
@@ -105,7 +160,7 @@ class MarginAccountSummaryManager:
     def __init__(
         self,
         event_dispatcher: EventDispatcher | None = None,
-        cache_service: MemoryCacheService[str, Any] | None = None,
+        cache_service: MemoryCacheService[str, AccountSummary] | None = None,
         health_check_interval: float = 60.0,  # seconds
         risk_threshold_margin_ratio: float = 0.7,
         critical_threshold_margin_ratio: float = 0.85,
@@ -142,7 +197,7 @@ class MarginAccountSummaryManager:
         )
 
     async def update_account_summary(
-        self, exchange_id: str, account_data: dict[str, Any]
+        self, exchange_id: str, account_data: dict[str, object]
     ) -> AccountSummary:
         """Update account summary from exchange data.
 
@@ -156,11 +211,17 @@ class MarginAccountSummaryManager:
         try:
             # Parse account data based on exchange format
             if exchange_id == "hyperliquid":
-                summary = self._parse_hyperliquid_data(account_data)
+                # Validate and parse Hyperliquid data with type safety
+                hyperliquid_data = HyperliquidAccountData.model_validate(account_data)
+                summary = self._parse_hyperliquid_data(hyperliquid_data)
             elif exchange_id == "backpack":
-                summary = self._parse_backpack_data(account_data)
+                # Validate and parse Backpack data with type safety
+                backpack_data = BackpackAccountData.model_validate(account_data)
+                summary = self._parse_backpack_data(backpack_data)
             else:
-                summary = self._parse_generic_data(exchange_id, account_data)
+                # Validate and parse generic data with type safety
+                generic_data = GenericExchangeAccountData.model_validate(account_data)
+                summary = self._parse_generic_data(exchange_id, generic_data)
 
             # Store current summary
             old_summary = self._summaries.get(exchange_id)
@@ -177,7 +238,7 @@ class MarginAccountSummaryManager:
             # Cache if service available
             if self.cache_service:
                 cache_key = f"margin_summary:{exchange_id}"
-                await self.cache_service.set(cache_key, summary.to_dict(), ttl=300)
+                await self.cache_service.set(cache_key, summary, ttl=300)
 
             # Check for risk conditions
             await self._check_risk_conditions(summary, old_summary)
@@ -202,24 +263,24 @@ class MarginAccountSummaryManager:
         else:
             return summary
 
-    def _parse_hyperliquid_data(self, data: dict[str, Any]) -> AccountSummary:
+    def _parse_hyperliquid_data(self, data: HyperliquidAccountData) -> AccountSummary:
         """Parse Hyperliquid account data format."""
-        # Hyperliquid specific parsing
-        margin_summary = data.get("marginSummary", {})
+        # Hyperliquid specific parsing with type safety
+        margin_summary = data.margin_summary
 
-        account_value = Decimal(margin_summary.get("accountValue", 0))
-        total_collateral = Decimal(margin_summary.get("totalMarginUsed", 0))
+        account_value = Decimal(margin_summary.account_value)
+        total_collateral = Decimal(margin_summary.total_margin_used)
 
         # Calculate various components
-        total_position_margin = Decimal(margin_summary.get("totalPositionMargin", 0))
-        total_order_margin = Decimal(margin_summary.get("totalOrderMargin", 0))
+        total_position_margin = Decimal(margin_summary.total_position_margin)
+        total_order_margin = Decimal(margin_summary.total_order_margin)
 
         free_collateral = account_value - total_collateral
 
         # Build margin requirement
         margin_req = MarginRequirement(
-            initial_margin=Decimal(margin_summary.get("totalInitialMarginRequired", 0)),
-            maintenance_margin=Decimal(margin_summary.get("totalMaintenanceMarginRequired", 0)),
+            initial_margin=Decimal(margin_summary.total_initial_margin_required),
+            maintenance_margin=Decimal(margin_summary.total_maintenance_margin_required),
             available_margin=free_collateral,
             margin_ratio=total_collateral / account_value if account_value > 0 else Decimal(0),
         )
@@ -230,27 +291,25 @@ class MarginAccountSummaryManager:
             total_collateral=total_collateral,
             free_collateral=free_collateral,
             used_margin=total_position_margin + total_order_margin,
-            unrealized_pnl=Decimal(margin_summary.get("totalUnrealizedPnl", 0)),
-            realized_pnl=Decimal(margin_summary.get("totalRealizedPnl", 0)),
+            unrealized_pnl=Decimal(margin_summary.total_unrealized_pnl),
+            realized_pnl=Decimal(0),  # Hyperliquid doesn't provide realized PnL in this API
             margin_requirement=margin_req,
-            total_position_value=Decimal(margin_summary.get("totalPositionValue", 0)),
+            total_position_value=None,  # Not provided in the typed interface
             total_order_margin=total_order_margin,
-            leverage=Decimal(margin_summary.get("leverage", 1)),
+            leverage=None,  # Not provided in the typed interface
         )
 
-    def _parse_backpack_data(self, data: dict[str, Any]) -> AccountSummary:
+    def _parse_backpack_data(self, data: BackpackAccountData) -> AccountSummary:
         """Parse Backpack account data format."""
-        # Backpack specific parsing
-        account_info = data.get("accountInfo", {})
-
-        total_equity = Decimal(account_info.get("totalAccountValue", 0))
-        margin_used = Decimal(account_info.get("marginUsed", 0))
-        free_margin = Decimal(account_info.get("freeMargin", 0))
+        # Backpack specific parsing with type safety
+        total_equity = Decimal(data.equity)
+        margin_used = Decimal(data.margin_used)
+        free_margin = Decimal(data.margin_available)
 
         # Build margin requirement
         margin_req = MarginRequirement(
-            initial_margin=Decimal(account_info.get("initialMargin", 0)),
-            maintenance_margin=Decimal(account_info.get("maintenanceMargin", 0)),
+            initial_margin=margin_used,  # Backpack API structure
+            maintenance_margin=margin_used,  # Use same value for maintenance
             available_margin=free_margin,
             margin_ratio=margin_used / total_equity if total_equity > 0 else Decimal(0),
         )
@@ -261,22 +320,25 @@ class MarginAccountSummaryManager:
             total_collateral=total_equity,
             free_collateral=free_margin,
             used_margin=margin_used,
-            unrealized_pnl=Decimal(account_info.get("unrealizedPnl", 0)),
-            realized_pnl=Decimal(account_info.get("realizedPnl", 0)),
+            unrealized_pnl=Decimal(data.unrealized_pnl),
+            realized_pnl=Decimal(data.realized_pnl),
             margin_requirement=margin_req,
-            leverage=Decimal(account_info.get("accountLeverage", 1)),
+            leverage=None,  # Not provided in the typed interface
         )
 
-    def _parse_generic_data(self, exchange_id: str, data: dict[str, Any]) -> AccountSummary:
+    def _parse_generic_data(
+        self, exchange_id: str, data: GenericExchangeAccountData
+    ) -> AccountSummary:
         """Parse generic account data format."""
-        # Generic parsing for unknown exchanges
-        account_value = Decimal(data.get("account_value", 0))
-        used_margin = Decimal(data.get("used_margin", 0))
+        # Generic parsing for unknown exchanges with type safety
+        account_value = Decimal(data.account_value)
+        used_margin = Decimal(data.used_margin)
+        free_margin = Decimal(data.free_margin)
 
         margin_req = MarginRequirement(
-            initial_margin=Decimal(data.get("initial_margin", 0)),
-            maintenance_margin=Decimal(data.get("maintenance_margin", 0)),
-            available_margin=Decimal(data.get("available_margin", 0)),
+            initial_margin=used_margin,  # Use used margin as initial
+            maintenance_margin=used_margin,  # Use used margin as maintenance
+            available_margin=free_margin,
             margin_ratio=used_margin / account_value if account_value > 0 else Decimal(0),
         )
 
@@ -284,10 +346,10 @@ class MarginAccountSummaryManager:
             exchange_id=exchange_id,
             account_value=account_value,
             total_collateral=account_value,
-            free_collateral=account_value - used_margin,
+            free_collateral=free_margin,
             used_margin=used_margin,
-            unrealized_pnl=Decimal(data.get("unrealized_pnl", 0)),
-            realized_pnl=Decimal(data.get("realized_pnl", 0)),
+            unrealized_pnl=Decimal(data.unrealized_pnl),
+            realized_pnl=Decimal(data.realized_pnl),
             margin_requirement=margin_req,
         )
 
@@ -307,16 +369,19 @@ class MarginAccountSummaryManager:
                 error_type="CRITICAL_MARGIN_LEVEL",
                 error_message=f"Critical margin level reached: {float(margin_ratio * 100):.2f}%",
                 error_code="MARGIN_CRITICAL",
-                context={
-                    "exchange_id": current.exchange_id,
-                    "margin_ratio": float(margin_ratio),
-                    "account_value": float(current.account_value),
-                    "used_margin": float(current.used_margin),
-                },
+                context=ErrorContext(
+                    operation="check_risk_conditions",
+                    additional_info={
+                        "exchange_id": current.exchange_id,
+                        "margin_ratio": str(margin_ratio),
+                        "account_value": str(current.account_value),
+                        "used_margin": str(current.used_margin),
+                    },
+                ),
                 recoverable=True,
             )
 
-            event = ErrorOccurredEvent(
+            event = ErrorOccurredEvent.create(
                 error=error_data, severity=EventPriority.CRITICAL, exchange_id=current.exchange_id
             )
 
@@ -325,8 +390,8 @@ class MarginAccountSummaryManager:
         # Check warning threshold
         elif margin_ratio >= self.risk_threshold_margin_ratio:
             # Create a risk warning event
-            class RiskWarningEvent(BasePortfolioEvent[dict[str, Any]]):
-                def _serialize_data(self) -> dict[str, Any]:
+            class RiskWarningEvent(BasePortfolioEvent[dict[str, str | float]]):
+                def _serialize_data(self) -> dict[str, str | float]:
                     return self.data
 
             warning_event = RiskWarningEvent(
@@ -417,7 +482,7 @@ class MarginAccountSummaryManager:
             return history[-limit:]
         return history.copy()
 
-    def get_aggregate_metrics(self) -> dict[str, Any]:
+    def get_aggregate_metrics(self) -> dict[str, float | int]:
         """Get aggregate metrics across all exchanges."""
         if not self._summaries:
             return {

@@ -30,6 +30,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import DerivativePosition, SpotBalance, Trade
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import (
         StateContainerProtocol,
     )
@@ -291,7 +292,7 @@ class PortfolioValidationService:
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
     ) -> None:
         """Initialize portfolio validation service.
 

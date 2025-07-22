@@ -85,6 +85,7 @@ def sample_ticker() -> Ticker:
     """Create a sample Ticker for testing."""
     return Ticker(
         symbol="BTC-PERP",
+        exchange="test_exchange",
         bid=Decimal("49900.0"),
         ask=Decimal("50100.0"),
         price=Decimal("50000.0"),
@@ -458,6 +459,7 @@ class TestDataHandlerDataRetrieval:
         exchange_id = "hyperliquid"
         ticker1 = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             bid=Decimal("49900.0"),
             ask=Decimal("50100.0"),
             price=Decimal("50000.0"),
@@ -465,6 +467,7 @@ class TestDataHandlerDataRetrieval:
         )
         ticker2 = Ticker(
             symbol="ETH-PERP",
+            exchange="hyperliquid",
             bid=Decimal("2990.0"),
             ask=Decimal("3010.0"),
             price=Decimal("3000.0"),

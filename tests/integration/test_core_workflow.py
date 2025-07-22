@@ -94,6 +94,7 @@ def create_mock_ticker(
     ask: str | float | Decimal | None,
     price: str | float | Decimal | None,
     timestamp: datetime,
+    exchange: str = "test_exchange",  # Default for integration tests
 ) -> Ticker:
     """Create mock ticker for testing.
 
@@ -105,6 +106,7 @@ def create_mock_ticker(
     processed_price = Decimal(str(price)) if price is not None else Decimal(0)
     return Ticker(
         symbol=symbol,
+        exchange=exchange,
         bid=processed_bid,
         ask=processed_ask,
         price=processed_price,

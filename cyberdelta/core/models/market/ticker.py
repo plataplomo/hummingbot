@@ -36,6 +36,7 @@ class Ticker(BaseModel):
 
     Attributes:
         symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
+        exchange: Exchange name (validated: required, non-empty, max 64 chars).
         timestamp: UTC timestamp of the ticker snapshot (validated: required).
         price: Last traded price. Must be non-negative if provided.
         bid: Best bid price. Must be non-negative if provided.
@@ -52,6 +53,7 @@ class Ticker(BaseModel):
     """
 
     symbol: str
+    exchange: str
     timestamp: datetime
     # Using Field for default=None and validation (ge=0)
     price: Decimal | None = Field(default=None, ge=Decimal(0))
@@ -63,11 +65,12 @@ class Ticker(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("symbol", mode="before")
+    @field_validator("symbol", "exchange", mode="before")
     @classmethod
-    def validate_symbol(cls, v: object) -> str:
-        """Validate the 'symbol' field."""
-        return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
+    def validate_symbol_exchange(cls, v: object, info: ValidationInfo) -> str:
+        """Validate the 'symbol' and 'exchange' fields."""
+        field_name = info.field_name if info.field_name is not None else "field"
+        return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
     @field_validator("timestamp", mode="before")
     @classmethod

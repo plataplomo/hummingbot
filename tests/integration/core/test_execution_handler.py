@@ -564,6 +564,7 @@ class TestExecutionHandler:
         """Test successful compensation placement."""
         mock_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             bid=Decimal(40900),
             ask=Decimal(40950),
@@ -670,6 +671,7 @@ class TestExecutionHandler:
         """Test compensation failure due to API error during placement."""
         mock_hl_api.get_ticker.return_value = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             bid=Decimal(40900),
             ask=Decimal(40950),
@@ -742,12 +744,14 @@ class TestExecutionHandler:
         """
         hl_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=now_ts,
             bid=Decimal(41000),
             ask=Decimal(41050),
         )
         bp_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=now_ts,
             bid=Decimal(41100),
             ask=Decimal(41150),
@@ -1104,12 +1108,14 @@ class TestExecutionHandler:
         # For now, create minimal test objects
         hl_ticker = Ticker(
             symbol="BTC-PERP",
+            exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             bid=Decimal(41000),
             ask=Decimal(41050),
         )
         bp_ticker = Ticker(
             symbol="BTC_USDC",
+            exchange="backpack",
             timestamp=datetime.now(UTC),
             bid=Decimal(41100),
             ask=Decimal(41150),

@@ -7,32 +7,31 @@ import contextlib
 import csv
 import json
 import time
-from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions import StateValidationError
+from cyberdelta.core.portfolio.exceptions.service import (
+    AnalyticsRequiredFieldError,
+    AnalyticsTypeError,
+    AnalyticsValueError,
+)
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
 
 
-# Type-preserving factory functions
-def _str_any_dict_factory() -> dict[str, Any]:
-    """Factory function that preserves dict[str, Any] type information."""
-    return {}
+# Constants
+MAX_DECIMAL_PLACES = 8  # Maximum decimal places for financial values
+REASONABLE_VALUE_MIN = -1e15  # Minimum reasonable financial value
+REASONABLE_VALUE_MAX = 1e15  # Maximum reasonable financial value
 
 
-def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
-    return []
-
-
-def _dict_list_factory() -> list[dict[str, Any]]:
-    """Factory function that preserves list[dict[str, Any]] type information."""
-    return []
-
-
+# Typed model factories for Pydantic
 def _report_section_list_factory() -> list[ReportSection]:
     """Factory function that preserves list[ReportSection] type information."""
     return []
@@ -60,6 +59,37 @@ if TYPE_CHECKING:
 
 
 logger = get_logger(__name__)
+
+
+# Type-preserving factory functions
+def _chart_data_factory() -> list[dict[str, float | str]]:
+    """Factory function that preserves chart data type information."""
+    return []
+
+
+def _table_data_factory() -> list[list[str | float | int]]:
+    """Factory function that preserves table data type information."""
+    return []
+
+
+def _position_data_factory() -> list[PositionData]:
+    """Factory function that preserves list[PositionData] type information."""
+    return []
+
+
+def _chart_data_list_factory() -> list[ChartData]:
+    """Factory function that preserves list[ChartData] type information."""
+    return []
+
+
+def _table_data_list_factory() -> list[TableData]:
+    """Factory function that preserves list[TableData] type information."""
+    return []
+
+
+def _analytics_alert_factory() -> list[AnalyticsAlert]:
+    """Factory function that preserves list[AnalyticsAlert] type information."""
+    return []
 
 
 class ReportType(Enum):
@@ -106,77 +136,424 @@ class AnalyticsType(Enum):
 
 
 @dataclass
+class ReportFilters:
+    """Filters for report generation with validation."""
+
+    start_date: str | None = Field(default=None, description="Start date for filtering")
+    end_date: str | None = Field(default=None, description="End date for filtering")
+    exchange_ids: list[str] = Field(default_factory=list, description="Exchange IDs to include")
+    symbols: list[str] = Field(default_factory=list, description="Symbols to include")
+    position_types: list[str] = Field(default_factory=list, description="Position types to include")
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def validate_dates(cls, v: str | None) -> str | None:
+        """Validate date format if provided."""
+        if v is not None and v.strip():
+            # Basic validation - could be enhanced with actual date parsing
+            if len(v.strip()) < MAX_DECIMAL_PLACES:
+                raise StateValidationError(
+                    message="Date must be at least 8 characters (YYYY-MM-DD)",
+                    validation_errors=["Date must be at least 8 characters (YYYY-MM-DD)"],
+                    component="AnalyticsReport",
+                )
+            return v.strip()
+        return None
+
+
+@dataclass
+class ReportMetadata:
+    """Metadata for reports with validation."""
+
+    created_by: str = Field(default="system", min_length=1, description="Report creator")
+    version: str = Field(default="1.0", pattern="^[0-9]+\\.[0-9]+$", description="Report version")
+    tags: list[str] = Field(default_factory=list, description="Report tags")
+    priority: str = Field(
+        default="normal", pattern="^(low|normal|high|urgent)$", description="Report priority"
+    )
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def validate_tags(cls, v: list[str] | None) -> list[str]:
+        """Validate tags are non-empty strings."""
+        if v is None:
+            return []
+        # v is already validated as list[str] by Pydantic
+        return [tag.strip() for tag in v if tag.strip()]
+
+
+@dataclass
+class PortfolioSummaryData:
+    """Portfolio summary data with validation."""
+
+    total_value: Decimal = Field(ge=0, description="Total portfolio value")
+    positions_value: Decimal = Field(ge=0, description="Total positions value")
+    cash_balance: Decimal = Field(ge=0, description="Cash balance")
+    position_count: int = Field(ge=0, description="Number of positions")
+
+    @field_validator("total_value", "positions_value", "cash_balance", mode="before")
+    @classmethod
+    def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Validate decimal values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise AnalyticsValueError(
+                value_type="decimal", requirement="must be finite", value=str(value)
+            )
+        return value
+
+
+@dataclass
+class PositionData:
+    """Position data with validation."""
+
+    symbol: str = Field(min_length=1, description="Position symbol")
+    size: Decimal = Field(description="Position size")
+    market_value: Decimal = Field(description="Market value")
+    unrealized_pnl: Decimal = Field(description="Unrealized P&L")
+    weight: float = Field(ge=0, le=1, description="Position weight (0-1)")
+
+    @field_validator("size", "market_value", "unrealized_pnl", mode="before")
+    @classmethod
+    def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
+        """Validate decimal values are finite."""
+        value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
+        if not value.is_finite():
+            raise AnalyticsValueError(
+                value_type="decimal", requirement="must be finite", value=str(value)
+            )
+        return value
+
+
+@dataclass
+class PerformanceMetricsData:
+    """Performance metrics data with validation."""
+
+    total_return: float = Field(default=0.0, description="Total return")
+    annualized_return: float = Field(default=0.0, description="Annualized return")
+    sharpe_ratio: float | None = Field(default=None, description="Sharpe ratio")
+    sortino_ratio: float | None = Field(default=None, description="Sortino ratio")
+    max_drawdown: float = Field(default=0.0, le=0, description="Maximum drawdown (negative)")
+    volatility: float = Field(default=0.0, ge=0, description="Volatility")
+
+    @field_validator(
+        "total_return", "annualized_return", "max_drawdown", "volatility", mode="before"
+    )
+    @classmethod
+    def validate_metrics(cls, v: float | str) -> float:
+        """Validate metrics are finite."""
+        value: float = v if isinstance(v, (int, float)) else float(v)
+        # Check for reasonable finite values
+        if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
+            raise AnalyticsValueError(
+                value_type="metric", requirement="must be finite and reasonable", value=str(value)
+            )
+        return value
+
+
+@dataclass
+class RiskMetricsData:
+    """Risk metrics data with validation."""
+
+    var_95: float = Field(ge=0, description="95% Value at Risk")
+    var_99: float = Field(ge=0, description="99% Value at Risk")
+    expected_shortfall: float = Field(ge=0, description="Expected shortfall")
+    leverage_ratio: float = Field(ge=0, description="Leverage ratio")
+    concentration_risk: float = Field(ge=0, le=1, description="Concentration risk (0-1)")
+
+    @field_validator("var_95", "var_99", "expected_shortfall", "leverage_ratio", mode="before")
+    @classmethod
+    def validate_risk_metrics(cls, v: float | str | Decimal) -> float:
+        """Validate risk metrics are finite and positive."""
+        value: float = float(v)
+        if not (0 <= value < REASONABLE_VALUE_MAX):  # Must be positive and reasonable
+            raise AnalyticsValueError(
+                value_type="Risk metric", requirement="must be non-negative and finite"
+            )
+        return value
+
+
+@dataclass
+class AttributionData:
+    """Attribution analysis data with validation."""
+
+    by_exchange: dict[str, Decimal] = Field(
+        default_factory=_decimal_dict_factory, description="Attribution by exchange"
+    )
+    by_symbol: dict[str, Decimal] = Field(
+        default_factory=_decimal_dict_factory, description="Attribution by symbol"
+    )
+    by_strategy: dict[str, Decimal] = Field(
+        default_factory=_decimal_dict_factory, description="Attribution by strategy"
+    )
+    by_sector: dict[str, Decimal] = Field(
+        default_factory=_decimal_dict_factory, description="Attribution by sector"
+    )
+
+    @field_validator("by_exchange", "by_symbol", "by_strategy", "by_sector", mode="after")
+    @classmethod
+    def validate_attribution_dicts(
+        cls, v: dict[str, Decimal | str | float | int]
+    ) -> dict[str, Decimal]:
+        """Validate attribution dictionaries have finite decimal values."""
+        result: dict[str, Decimal] = {}
+        for key, value in v.items():
+            val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
+            if not val.is_finite():
+                raise AnalyticsValueError(
+                    value_type=f"Attribution value for {key}", requirement="must be finite"
+                )
+            result[key] = val
+        return result
+
+
+@dataclass
+class ChartData:
+    """Chart data with validation."""
+
+    chart_type: str = Field(min_length=1, description="Chart type (line, bar, pie, etc.)")
+    title: str = Field(min_length=1, description="Chart title")
+    data: list[dict[str, float | str]] = Field(
+        default_factory=_chart_data_factory, description="Chart data points"
+    )
+    config: dict[str, str | int | float | bool] = Field(
+        default_factory=dict, description="Chart configuration"
+    )
+
+    @field_validator("chart_type", mode="before")
+    @classmethod
+    def validate_chart_type(cls, v: str) -> str:
+        """Validate chart type is one of allowed values."""
+        valid_types = {"line", "bar", "pie", "scatter", "area", "heatmap"}
+        if v.lower() not in valid_types:
+            raise AnalyticsTypeError(field_type="Chart type", valid_types=list(valid_types))
+        return v.lower()
+
+
+@dataclass
+class TableData:
+    """Table data with validation."""
+
+    title: str = Field(min_length=1, description="Table title")
+    headers: list[str] = Field(default_factory=list, description="Table headers")
+    data: list[list[str | float | int]] = Field(
+        default_factory=_table_data_factory, description="Table data rows"
+    )
+
+    @field_validator("headers", mode="before")
+    @classmethod
+    def validate_headers(cls, v: list[str]) -> list[str]:
+        """Validate headers are non-empty strings."""
+        if not v:
+            raise AnalyticsRequiredFieldError(
+                field_name="Headers", requirement="must be a non-empty list"
+            )
+        return [str(header).strip() for header in v if str(header).strip()]
+
+
+@dataclass
+class RawDataCollection:
+    """Raw data collection with validation."""
+
+    positions: dict[str, PositionData] = Field(
+        default_factory=dict, description="Position data by symbol"
+    )
+    balances: dict[str, Decimal] = Field(
+        default_factory=_decimal_dict_factory, description="Balance data"
+    )
+    orders: dict[str, str] = Field(default_factory=dict, description="Order data")
+    trades: dict[str, str] = Field(default_factory=dict, description="Trade data")
+
+    @field_validator("balances", mode="after")
+    @classmethod
+    def validate_balances(cls, v: dict[str, Decimal | str | float | int]) -> dict[str, Decimal]:
+        """Validate balance values are finite decimals."""
+        result: dict[str, Decimal] = {}
+        for key, value in v.items():
+            val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
+            if not val.is_finite():
+                raise AnalyticsValueError(
+                    value_type=f"Balance value for {key}", requirement="must be finite"
+                )
+            result[key] = val
+        return result
+
+
+@dataclass
 class ReportConfiguration:
     """Configuration for report generation."""
 
     report_type: ReportType
     output_format: OutputFormat
-    time_period: str = "daily"  # daily, weekly, monthly, etc.
-    base_currency: str = "USD"
-    include_charts: bool = True
-    include_tables: bool = True
-    include_statistics: bool = True
-    include_raw_data: bool = False
-    filters: dict[str, Any] = field(default_factory=_str_any_dict_factory)
-    custom_sections: list[str] = field(default_factory=_str_list_factory)
-    template: str | None = None
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    time_period: str = Field(
+        default="daily", description="Time period: daily, weekly, monthly, etc."
+    )
+    base_currency: str = Field(
+        default="USD", pattern="^[A-Z]{3}$", description="Base currency code"
+    )
+    include_charts: bool = Field(default=True, description="Include charts in report")
+    include_tables: bool = Field(default=True, description="Include tables in report")
+    include_statistics: bool = Field(default=True, description="Include statistics in report")
+    include_raw_data: bool = Field(default=False, description="Include raw data in report")
+    filters: ReportFilters = Field(default_factory=ReportFilters, description="Report filters")
+    custom_sections: list[str] = Field(default_factory=list, description="Custom report sections")
+    template: str | None = Field(default=None, description="Report template")
+    metadata: ReportMetadata = Field(default_factory=ReportMetadata, description="Report metadata")
+
+    @field_validator("time_period", mode="before")
+    @classmethod
+    def validate_time_period(cls, v: str) -> str:
+        """Validate time period is one of allowed values."""
+        valid_periods = {"daily", "weekly", "monthly", "quarterly", "yearly"}
+        if v not in valid_periods:
+            raise AnalyticsTypeError(field_type="Time period", valid_types=list(valid_periods))
+        return v
 
 
 @dataclass
 class ReportSection:
     """Individual section of a report."""
 
-    title: str
-    content_type: str  # "table", "chart", "text", "metrics"
-    data: Any
-    description: str = ""
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    title: str = Field(min_length=1, description="Section title")
+    content_type: str = Field(description="Content type: table, chart, text, or metrics")
+    data: str | dict[str, str | int | float] | list[dict[str, str | int | float]] = Field(
+        description="Section data"
+    )
+    description: str = Field(default="", description="Section description")
+    metadata: ReportMetadata = Field(default_factory=ReportMetadata, description="Section metadata")
+
+    @field_validator("content_type", mode="before")
+    @classmethod
+    def validate_content_type(cls, v: str) -> str:
+        """Validate content type is one of allowed values."""
+        valid_types = {"table", "chart", "text", "metrics"}
+        if v not in valid_types:
+            raise AnalyticsTypeError(field_type="Content type", valid_types=list(valid_types))
+        return v
 
 
 @dataclass
 class PortfolioReport:
     """Complete portfolio report."""
 
-    report_id: str
     report_type: ReportType
-    generated_at: float
-    time_period: str
-    base_currency: str
+    time_period: str = Field(description="Report time period")
+    base_currency: str = Field(pattern="^[A-Z]{3}$", description="Base currency code")
+    report_id: str = Field(min_length=1, description="Report identifier")
+    generated_at: float = Field(gt=0, description="Report generation timestamp")
 
     # Report sections
-    sections: list[ReportSection] = field(default_factory=_report_section_list_factory)
+    sections: list[ReportSection] = Field(default_factory=_report_section_list_factory)
 
     # Summary data
-    summary: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    summary: PortfolioSummaryData = Field(
+        default_factory=lambda: PortfolioSummaryData(
+            total_value=Decimal(0),
+            positions_value=Decimal(0),
+            cash_balance=Decimal(0),
+            position_count=0,
+        )
+    )
 
     # Position data
-    positions: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    positions: list[PositionData] = Field(default_factory=_position_data_factory)
 
     # Performance metrics
-    performance_metrics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    performance_metrics: PerformanceMetricsData = Field(
+        default_factory=lambda: PerformanceMetricsData(
+            total_return=0.0, annualized_return=0.0, max_drawdown=0.0, volatility=0.0
+        )
+    )
 
     # Risk metrics
-    risk_metrics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    risk_metrics: RiskMetricsData = Field(
+        default_factory=lambda: RiskMetricsData(
+            var_95=0.0,
+            var_99=0.0,
+            expected_shortfall=0.0,
+            leverage_ratio=0.0,
+            concentration_risk=0.0,
+        )
+    )
 
     # Attribution analysis
-    attribution: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    attribution: AttributionData = Field(default_factory=AttributionData)
 
     # Charts and visualizations
-    charts: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    charts: list[ChartData] = Field(default_factory=_chart_data_list_factory)
 
     # Tables
-    tables: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    tables: list[TableData] = Field(default_factory=_table_data_list_factory)
 
     # Raw data
-    raw_data: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    raw_data: RawDataCollection = Field(default_factory=RawDataCollection)
 
     # Metadata
-    generation_time: float = 0.0
-    data_quality: float = 1.0
-    coverage: float = 1.0
-    warnings: list[str] = field(default_factory=_str_list_factory)
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    generation_time: float = Field(default=0.0, ge=0, description="Report generation time")
+    data_quality: float = Field(default=1.0, ge=0, le=1, description="Data quality score")
+    coverage: float = Field(default=1.0, ge=0, le=1, description="Data coverage score")
+    warnings: list[str] = Field(default_factory=list)
+    metadata: ReportMetadata = Field(default_factory=ReportMetadata)
+
+
+@dataclass
+class AnalyticsAlert:
+    """Analytics alert with validation."""
+
+    alert_type: str = Field(min_length=1, description="Alert type")
+    severity: str = Field(pattern="^(low|medium|high|critical)$", description="Alert severity")
+    message: str = Field(min_length=1, description="Alert message")
+    timestamp: float = Field(gt=0, description="Alert timestamp")
+
+    @field_validator("alert_type", mode="before")
+    @classmethod
+    def validate_alert_type(cls, v: str) -> str:
+        """Validate alert type is non-empty."""
+        if not v or not v.strip():
+            raise AnalyticsRequiredFieldError(field_name="Alert type")
+        return v.strip()
+
+
+@dataclass
+class AnalyticsStatistics:
+    """Analytics statistics with validation."""
+
+    mean: float = Field(description="Mean value")
+    median: float = Field(description="Median value")
+    std_dev: float = Field(ge=0, description="Standard deviation")
+    min_value: float = Field(description="Minimum value")
+    max_value: float = Field(description="Maximum value")
+
+    @field_validator("mean", "median", "min_value", "max_value", mode="before")
+    @classmethod
+    def validate_statistics(cls, v: float | str | Decimal) -> float:
+        """Validate statistics are finite."""
+        value: float = float(v)
+        if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
+            raise AnalyticsValueError(
+                value_type="Statistic", requirement="must be finite and reasonable"
+            )
+        return value
+
+
+@dataclass
+class AnalyticsResults:
+    """Analytics results with validation."""
+
+    calculated: bool = Field(default=True, description="Whether calculation completed")
+    result_data: dict[str, str | int | float | bool] = Field(
+        default_factory=dict, description="Result data"
+    )
+    errors: list[str] = Field(default_factory=list, description="Calculation errors")
+
+    @field_validator("result_data", mode="after")
+    @classmethod
+    def validate_result_data(
+        cls, v: dict[str, str | int | float | bool]
+    ) -> dict[str, str | int | float | bool]:
+        """Validate result data contains only basic types."""
+        # Type is already constrained by annotation
+        return v
 
 
 @dataclass
@@ -184,66 +561,121 @@ class AnalyticsResult:
     """Result of analytics calculation."""
 
     analytics_type: AnalyticsType
-    calculated_at: float
-    base_currency: str
+    base_currency: str = Field(pattern="^[A-Z]{3}$", description="Base currency code")
+    calculated_at: float = Field(gt=0, description="Calculation timestamp")
 
     # Results
-    results: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    results: AnalyticsResults = Field(default_factory=AnalyticsResults)
 
     # Metrics
-    metrics: dict[str, Decimal] = field(default_factory=_decimal_dict_factory)
+    metrics: dict[str, Decimal] = Field(default_factory=_decimal_dict_factory)
 
     # Statistics
-    statistics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    statistics: AnalyticsStatistics = Field(
+        default_factory=lambda: AnalyticsStatistics(
+            mean=0.0, median=0.0, std_dev=0.0, min_value=0.0, max_value=0.0
+        )
+    )
 
     # Charts data
-    charts_data: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    charts_data: list[ChartData] = Field(default_factory=_chart_data_list_factory)
 
     # Recommendations
-    recommendations: list[str] = field(default_factory=_str_list_factory)
+    recommendations: list[str] = Field(default_factory=list)
 
     # Alerts
-    alerts: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    alerts: list[AnalyticsAlert] = Field(default_factory=_analytics_alert_factory)
 
     # Metadata
-    calculation_time: float = 0.0
-    data_quality: float = 1.0
-    confidence: float = 1.0
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    calculation_time: float = Field(default=0.0, ge=0, description="Calculation time in seconds")
+    data_quality: float = Field(default=1.0, ge=0, le=1, description="Data quality score")
+    confidence: float = Field(default=1.0, ge=0, le=1, description="Confidence score")
+    metadata: ReportMetadata = Field(default_factory=ReportMetadata)
+
+
+@dataclass
+class DashboardMetrics:
+    """Dashboard key metrics with validation."""
+
+    total_pnl: float = Field(description="Total P&L")
+    unrealized_pnl: float = Field(description="Unrealized P&L")
+    total_exposure: float = Field(ge=0, description="Total exposure")
+    positions_count: int = Field(ge=0, description="Number of positions")
+    active_orders: int = Field(ge=0, description="Number of active orders")
+
+    @field_validator("total_pnl", "unrealized_pnl", mode="before")
+    @classmethod
+    def validate_pnl_metrics(cls, v: float | str | Decimal) -> float:
+        """Validate P&L metrics are finite."""
+        value: float = float(v)
+        if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
+            raise AnalyticsValueError(
+                value_type="P&L metric", requirement="must be finite and reasonable"
+            )
+        return value
 
 
 @dataclass
 class DashboardData:
     """Dashboard data for real-time analytics."""
 
-    dashboard_id: str
-    updated_at: float
+    dashboard_id: str = Field(min_length=1, description="Dashboard identifier")
+    updated_at: float = Field(gt=0, description="Update timestamp")
 
     # Key metrics
-    key_metrics: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    key_metrics: DashboardMetrics = Field(
+        default_factory=lambda: DashboardMetrics(
+            total_pnl=0.0,
+            unrealized_pnl=0.0,
+            total_exposure=0.0,
+            positions_count=0,
+            active_orders=0,
+        )
+    )
 
     # Charts
-    charts: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    charts: list[ChartData] = Field(default_factory=_chart_data_list_factory)
 
     # Tables
-    tables: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    tables: list[TableData] = Field(default_factory=_table_data_list_factory)
 
     # Alerts
-    alerts: list[dict[str, Any]] = field(default_factory=_dict_list_factory)
+    alerts: list[AnalyticsAlert] = Field(default_factory=_analytics_alert_factory)
 
     # Performance summary
-    performance_summary: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    performance_summary: PerformanceMetricsData = Field(
+        default_factory=lambda: PerformanceMetricsData(
+            total_return=0.0, annualized_return=0.0, max_drawdown=0.0, volatility=0.0
+        )
+    )
 
     # Risk summary
-    risk_summary: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    risk_summary: RiskMetricsData = Field(
+        default_factory=lambda: RiskMetricsData(
+            var_95=0.0,
+            var_99=0.0,
+            expected_shortfall=0.0,
+            leverage_ratio=0.0,
+            concentration_risk=0.0,
+        )
+    )
 
     # Position summary
-    position_summary: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    position_summary: PortfolioSummaryData = Field(
+        default_factory=lambda: PortfolioSummaryData(
+            total_value=Decimal(0),
+            positions_value=Decimal(0),
+            cash_balance=Decimal(0),
+            position_count=0,
+        )
+    )
 
     # Metadata
-    refresh_rate: int = 60  # seconds
-    data_quality: float = 1.0
-    metadata: dict[str, Any] = field(default_factory=_str_any_dict_factory)
+    refresh_rate: int = Field(default=60, gt=0, le=3600, description="Refresh rate in seconds")
+    data_quality: float = Field(default=1.0, ge=0, le=1, description="Data quality score")
+    metadata: ReportMetadata = Field(
+        default_factory=ReportMetadata, description="Dashboard metadata"
+    )
 
 
 class PortfolioAnalyticsService(BasePortfolioService):
@@ -401,11 +833,17 @@ class PortfolioAnalyticsService(BasePortfolioService):
                 base_currency=base_currency,
             )
 
-            # Apply custom configuration using getattr with safe defaults
+            # Apply custom configuration by creating new instance with updated values
             if custom_config:
-                for key, value in custom_config.items():
-                    if getattr(config, key, None) is not None:
-                        setattr(config, key, value)
+                # Filter out keys that don't exist in ReportConfiguration
+                valid_fields = {f.name for f in config.__dataclass_fields__.values()}
+                valid_config = {k: v for k, v in custom_config.items() if k in valid_fields}
+
+                # Create new config with updated values
+                if valid_config:
+                    config_dict = config.__dict__.copy()
+                    config_dict.update(valid_config)
+                    config = ReportConfiguration(**config_dict)
 
             # Create report
             report = PortfolioReport(
@@ -705,12 +1143,31 @@ class PortfolioAnalyticsService(BasePortfolioService):
         if self.portfolio_state_manager:
             try:
                 portfolio_summary = await self.portfolio_state_manager.get_portfolio_summary()
-                report.summary = portfolio_summary.model_dump()
+                # Create PortfolioSummaryData from portfolio_summary
+                summary_dict = portfolio_summary.model_dump()
+                report.summary = PortfolioSummaryData(
+                    total_value=Decimal(str(summary_dict.get("total_value", 0))),
+                    positions_value=Decimal(str(summary_dict.get("positions_value", 0))),
+                    cash_balance=Decimal(str(summary_dict.get("cash_balance", 0))),
+                    position_count=summary_dict.get("position_count", 0),
+                )
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
                 logger.warning("report_summary_generation_failed")
-                report.summary = {"error": "Summary unavailable"}
+                # Create empty summary
+                report.summary = PortfolioSummaryData(
+                    total_value=Decimal(0),
+                    positions_value=Decimal(0),
+                    cash_balance=Decimal(0),
+                    position_count=0,
+                )
         else:
-            report.summary = {"error": "Portfolio manager unavailable"}
+            # Create empty summary
+            report.summary = PortfolioSummaryData(
+                total_value=Decimal(0),
+                positions_value=Decimal(0),
+                cash_balance=Decimal(0),
+                position_count=0,
+            )
 
     async def _generate_performance_metrics(
         self, report: PortfolioReport, config: ReportConfiguration
@@ -728,40 +1185,37 @@ class PortfolioAnalyticsService(BasePortfolioService):
                 else:
                     performance_metrics = None
                 if performance_metrics:
-                    report.performance_metrics = {
-                        "total_return": float(performance_metrics.total_return),
-                        "annualized_return": float(performance_metrics.annualized_return),
-                        "sharpe_ratio": (
+                    report.performance_metrics = PerformanceMetricsData(
+                        total_return=float(performance_metrics.total_return),
+                        annualized_return=float(performance_metrics.annualized_return),
+                        sharpe_ratio=(
                             float(performance_metrics.sharpe_ratio)
                             if performance_metrics.sharpe_ratio
-                            else 0.0
+                            else None
                         ),
-                        "sortino_ratio": (
+                        sortino_ratio=(
                             float(performance_metrics.sortino_ratio)
                             if performance_metrics.sortino_ratio
-                            else 0.0
+                            else None
                         ),
-                        "max_drawdown": float(performance_metrics.max_drawdown),
-                        "volatility": float(performance_metrics.volatility),
-                        "calmar_ratio": (
-                            float(performance_metrics.calmar_ratio)
-                            if performance_metrics.calmar_ratio
-                            else 0.0
-                        ),
-                    }
+                        max_drawdown=float(performance_metrics.max_drawdown),
+                        volatility=float(performance_metrics.volatility),
+                    )
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
                 logger.warning("performance_metrics_generation_failed")
-                report.performance_metrics = {"error": "Performance metrics unavailable"}
+                # Create empty performance metrics
+                report.performance_metrics = PerformanceMetricsData()
         else:
-            report.performance_metrics = {"error": "Performance calculator unavailable"}
+            # Create empty performance metrics
+            report.performance_metrics = PerformanceMetricsData()
 
     async def _generate_risk_metrics(
         self, report: PortfolioReport, config: ReportConfiguration
     ) -> None:
         """Generate risk metrics."""
         # Calculate actual risk metrics
-        total_value = Decimal(str(report.summary.get("total_value", 0)))
-        positions_value = Decimal(str(report.summary.get("positions_value", 0)))
+        total_value = report.summary.total_value
+        positions_value = report.summary.positions_value
 
         # Calculate leverage ratio
         leverage_ratio = float(positions_value / total_value) if total_value > 0 else 0.0
@@ -769,76 +1223,64 @@ class PortfolioAnalyticsService(BasePortfolioService):
         # Calculate concentration risk (simplified - largest position as % of total)
         concentration_risk = 0.0
         if report.positions:
-            largest_position_value = max(
-                abs(float(str(p.get("value", 0) or 0))) for p in report.positions
-            )
+            largest_position_value = max(abs(float(p.market_value)) for p in report.positions)
             concentration_risk = (
                 largest_position_value / float(total_value) if total_value > 0 else 0.0
             )
 
-        report.risk_metrics = {
-            "var_95": 0.0,  # Would need historical data for proper VaR calculation
-            "var_99": 0.0,  # Would need historical data for proper VaR calculation
-            "expected_shortfall": 0.0,  # Would need historical data
-            "leverage_ratio": leverage_ratio,
-            "concentration_risk": concentration_risk,
-        }
+        report.risk_metrics = RiskMetricsData(
+            var_95=0.0,  # Would need historical data for proper VaR calculation
+            var_99=0.0,  # Would need historical data for proper VaR calculation
+            expected_shortfall=0.0,  # Would need historical data
+            leverage_ratio=leverage_ratio,
+            concentration_risk=concentration_risk,
+        )
 
     async def _generate_attribution_analysis(
         self, report: PortfolioReport, config: ReportConfiguration
     ) -> None:
         """Generate attribution analysis."""
         # Placeholder implementation
-        report.attribution = {
-            "by_exchange": {},
-            "by_symbol": {},
-            "by_strategy": {},
-            "by_sector": {},
-        }
+        report.attribution = AttributionData()
 
     async def _generate_charts(self, report: PortfolioReport, config: ReportConfiguration) -> None:
         """Generate charts and visualizations."""
         # Placeholder implementation
         report.charts = [
-            {
-                "type": "line",
-                "title": "Portfolio Performance",
-                "data": [],
-                "config": {},
-            },
-            {
-                "type": "pie",
-                "title": "Asset Allocation",
-                "data": [],
-                "config": {},
-            },
+            ChartData(
+                chart_type="line",
+                title="Portfolio Performance",
+                data=[],
+                config={},
+            ),
+            ChartData(
+                chart_type="pie",
+                title="Asset Allocation",
+                data=[],
+                config={},
+            ),
         ]
 
     async def _generate_tables(self, report: PortfolioReport, config: ReportConfiguration) -> None:
         """Generate tables."""
         # Placeholder implementation
         report.tables = [
-            {
-                "title": "Top Holdings",
-                "headers": ["Symbol", "Position", "Market Value", "Weight"],
-                "data": [],
-            },
-            {
-                "title": "Performance by Exchange",
-                "headers": ["Exchange", "P&L", "Return", "Allocation"],
-                "data": [],
-            },
+            TableData(
+                title="Top Holdings",
+                headers=["Symbol", "Position", "Market Value", "Weight"],
+                data=[],
+            ),
+            TableData(
+                title="Performance by Exchange",
+                headers=["Exchange", "P&L", "Return", "Allocation"],
+                data=[],
+            ),
         ]
 
     async def _add_raw_data(self, report: PortfolioReport, config: ReportConfiguration) -> None:
         """Add raw data to report."""
         # Placeholder implementation
-        report.raw_data = {
-            "positions": {},
-            "balances": {},
-            "orders": {},
-            "trades": {},
-        }
+        report.raw_data = RawDataCollection()
 
     async def _export_report(self, report: PortfolioReport, output_format: OutputFormat) -> None:
         """Export report to file."""
@@ -931,42 +1373,41 @@ class PortfolioAnalyticsService(BasePortfolioService):
     async def _update_dashboard_metrics(self, dashboard: DashboardData) -> None:
         """Update dashboard key metrics."""
         # Placeholder implementation
-        dashboard.key_metrics = {
-            "total_pnl": 0.0,
-            "unrealized_pnl": 0.0,
-            "total_exposure": 0.0,
-            "positions_count": 0,
-            "active_orders": 0,
-        }
+        dashboard.key_metrics = DashboardMetrics(
+            total_pnl=0.0,
+            unrealized_pnl=0.0,
+            total_exposure=0.0,
+            positions_count=0,
+            active_orders=0,
+        )
 
     async def _update_dashboard_charts(self, dashboard: DashboardData) -> None:
         """Update dashboard charts."""
         # Placeholder implementation
         dashboard.charts = [
-            {
-                "id": "pnl_chart",
-                "type": "line",
-                "title": "P&L Over Time",
-                "data": [],
-            },
-            {
-                "id": "exposure_chart",
-                "type": "bar",
-                "title": "Exposure by Exchange",
-                "data": [],
-            },
+            ChartData(
+                chart_type="line",
+                title="P&L Over Time",
+                data=[],
+                config={"id": "pnl_chart"},
+            ),
+            ChartData(
+                chart_type="bar",
+                title="Exposure by Exchange",
+                data=[],
+                config={"id": "exposure_chart"},
+            ),
         ]
 
     async def _update_dashboard_tables(self, dashboard: DashboardData) -> None:
         """Update dashboard tables."""
         # Placeholder implementation
         dashboard.tables = [
-            {
-                "id": "positions_table",
-                "title": "Active Positions",
-                "headers": ["Symbol", "Size", "Market Value", "P&L"],
-                "data": [],
-            },
+            TableData(
+                title="Active Positions",
+                headers=["Symbol", "Size", "Market Value", "P&L"],
+                data=[],
+            ),
         ]
 
     async def _update_dashboard_alerts(self, dashboard: DashboardData) -> None:
@@ -977,16 +1418,29 @@ class PortfolioAnalyticsService(BasePortfolioService):
     async def _update_dashboard_summaries(self, dashboard: DashboardData) -> None:
         """Update dashboard summaries."""
         # Placeholder implementation
-        dashboard.performance_summary = {}
-        dashboard.risk_summary = {}
-        dashboard.position_summary = {}
+        dashboard.performance_summary = PerformanceMetricsData(
+            total_return=0.0, annualized_return=0.0, max_drawdown=0.0, volatility=0.0
+        )
+        dashboard.risk_summary = RiskMetricsData(
+            var_95=0.0,
+            var_99=0.0,
+            expected_shortfall=0.0,
+            leverage_ratio=0.0,
+            concentration_risk=0.0,
+        )
+        dashboard.position_summary = PortfolioSummaryData(
+            total_value=Decimal(0),
+            positions_value=Decimal(0),
+            cash_balance=Decimal(0),
+            position_count=0,
+        )
 
     async def _calculate_performance_analytics(
         self, result: AnalyticsResult, parameters: dict[str, object] | None
     ) -> None:
         """Calculate performance analytics."""
         # Placeholder implementation
-        result.results = {"performance_calculated": True}
+        result.results = AnalyticsResults(result_data={"performance_calculated": True})
         result.metrics = {}
 
     async def _calculate_risk_analytics(
@@ -994,7 +1448,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate risk analytics."""
         # Placeholder implementation
-        result.results = {"risk_calculated": True}
+        result.results = AnalyticsResults(result_data={"risk_calculated": True})
         result.metrics = {}
 
     async def _calculate_attribution_analytics(
@@ -1002,7 +1456,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate attribution analytics."""
         # Placeholder implementation
-        result.results = {"attribution_calculated": True}
+        result.results = AnalyticsResults(result_data={"attribution_calculated": True})
         result.metrics = {}
 
     async def _calculate_exposure_analytics(
@@ -1010,7 +1464,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate exposure analytics."""
         # Placeholder implementation
-        result.results = {"exposure_calculated": True}
+        result.results = AnalyticsResults(result_data={"exposure_calculated": True})
         result.metrics = {}
 
     async def _calculate_liquidity_analytics(
@@ -1018,7 +1472,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate liquidity analytics."""
         # Placeholder implementation
-        result.results = {"liquidity_calculated": True}
+        result.results = AnalyticsResults(result_data={"liquidity_calculated": True})
         result.metrics = {}
 
     async def _calculate_correlation_analytics(
@@ -1026,7 +1480,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate correlation analytics."""
         # Placeholder implementation
-        result.results = {"correlation_calculated": True}
+        result.results = AnalyticsResults(result_data={"correlation_calculated": True})
         result.metrics = {}
 
     async def _calculate_stress_test_analytics(
@@ -1034,7 +1488,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate stress test analytics."""
         # Placeholder implementation
-        result.results = {"stress_test_calculated": True}
+        result.results = AnalyticsResults(result_data={"stress_test_calculated": True})
         result.metrics = {}
 
     async def _calculate_scenario_analytics(
@@ -1042,7 +1496,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate scenario analytics."""
         # Placeholder implementation
-        result.results = {"scenario_calculated": True}
+        result.results = AnalyticsResults(result_data={"scenario_calculated": True})
         result.metrics = {}
 
     async def _calculate_backtesting_analytics(
@@ -1050,7 +1504,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
     ) -> None:
         """Calculate backtesting analytics."""
         # Placeholder implementation
-        result.results = {"backtesting_calculated": True}
+        result.results = AnalyticsResults(result_data={"backtesting_calculated": True})
         result.metrics = {}
 
     async def _get_portfolio_values(self, base_currency: str) -> list[Decimal] | None:

@@ -6,9 +6,10 @@ import asyncio
 import contextlib
 import time
 from collections import defaultdict
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
+
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 

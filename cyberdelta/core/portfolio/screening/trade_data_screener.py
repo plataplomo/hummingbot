@@ -166,16 +166,16 @@ class TradeDataScreener(BaseScreener):
         if not is_valid:
             logger.warning(
                 "trade_validation_failed",
-                trade_id=getattr(trade, "trade_id", "unknown"),
-                symbol=getattr(trade, "symbol", "unknown"),
+                trade_id=trade.id or "unknown",
+                symbol=trade.symbol or "unknown",
                 error_count=len(errors),
                 warning_count=len(warnings),
             )
         elif warnings:
             logger.info(
                 "trade_validation_warnings",
-                trade_id=getattr(trade, "trade_id", "unknown"),
-                symbol=getattr(trade, "symbol", "unknown"),
+                trade_id=trade.id or "unknown",
+                symbol=trade.symbol or "unknown",
                 warning_count=len(warnings),
             )
 

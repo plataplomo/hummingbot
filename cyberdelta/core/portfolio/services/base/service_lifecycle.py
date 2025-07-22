@@ -6,9 +6,11 @@ import asyncio
 import contextlib
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pydantic import Field
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.exceptions.service import (
@@ -21,6 +23,7 @@ from cyberdelta.core.portfolio.exceptions.service import (
     ServiceStartStateError,
     ServiceStartupTimeoutError,
 )
+from cyberdelta.core.portfolio.services.base.base_service import ServiceConfiguration
 
 
 # Type-preserving factory function
@@ -30,7 +33,7 @@ def _str_list_factory() -> list[str]:
 
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Callable, Coroutine, Mapping
 
 
 logger = get_logger(__name__)
@@ -54,14 +57,16 @@ class ServiceStatus(Enum):
 class ServiceMetrics:
     """Metrics for service lifecycle."""
 
-    initialization_time_ms: float = 0.0
-    startup_time_ms: float = 0.0
-    shutdown_time_ms: float = 0.0
-    total_uptime_seconds: float = 0.0
-    restart_count: int = 0
-    error_count: int = 0
-    last_error: str | None = None
-    last_error_time: float | None = None
+    initialization_time_ms: float = Field(
+        default=0.0, ge=0, description="Initialization time in milliseconds"
+    )
+    startup_time_ms: float = Field(default=0.0, ge=0, description="Startup time in milliseconds")
+    shutdown_time_ms: float = Field(default=0.0, ge=0, description="Shutdown time in milliseconds")
+    total_uptime_seconds: float = Field(default=0.0, ge=0, description="Total uptime in seconds")
+    restart_count: int = Field(default=0, ge=0, description="Number of restarts")
+    error_count: int = Field(default=0, ge=0, description="Number of errors")
+    last_error: str | None = Field(default=None, description="Last error message")
+    last_error_time: float | None = Field(default=None, gt=0, description="Last error timestamp")
 
 
 @dataclass
@@ -69,16 +74,18 @@ class ServiceHealthInfo:
     """Service health information."""
 
     status: ServiceStatus
-    is_healthy: bool
-    last_health_check: float
-    health_issues: list[str] = field(default_factory=_str_list_factory)
-    metrics: ServiceMetrics = field(default_factory=ServiceMetrics)
+    is_healthy: bool = Field(description="Whether the service is healthy")
+    last_health_check: float = Field(gt=0, description="Last health check timestamp")
+    health_issues: list[str] = Field(
+        default_factory=_str_list_factory, description="Current health issues"
+    )
+    metrics: ServiceMetrics = Field(default_factory=ServiceMetrics, description="Service metrics")
 
 
 class ServiceLifecycle(ABC):
     """Base class for services with proper lifecycle management."""
 
-    def __init__(self, service_name: str, config: dict[str, Any] | None = None) -> None:
+    def __init__(self, service_name: str, config: Mapping[str, object] | None = None) -> None:
         """Initialize service lifecycle.
 
         Args:
@@ -86,19 +93,35 @@ class ServiceLifecycle(ABC):
             config: Service configuration
         """
         self.service_name = service_name
-        self.config = config or {}
+
+        # Convert raw config to validated ServiceConfiguration
+        config_dict = dict(config) if config else {}
+        config_dict["name"] = service_name  # Ensure name is set
+
+        try:
+            self.config = ServiceConfiguration.model_validate(config_dict)
+        except (ValueError, TypeError, AttributeError) as e:
+            # Fallback to default config with provided name if validation fails
+            logger.warning(
+                "service_lifecycle_config_validation_failed",
+                service_name=service_name,
+                error=str(e),
+                fallback_to_default=True
+            )
+            self.config = ServiceConfiguration(name=service_name)
+
         self._status = ServiceStatus.CREATED
         self._metrics = ServiceMetrics()
         self._start_time: float | None = None
         self._health_check_task: asyncio.Task[None] | None = None
-        self._shutdown_handlers: list[Callable[[], Coroutine[Any, Any, None]]] = []
-        self._startup_handlers: list[Callable[[], Coroutine[Any, Any, None]]] = []
+        self._shutdown_handlers: list[Callable[[], Coroutine[object, object, None]]] = []
+        self._startup_handlers: list[Callable[[], Coroutine[object, object, None]]] = []
 
-        # Configuration
-        self._health_check_interval = float(self.config.get("health_check_interval", 30.0))
-        self._startup_timeout = float(self.config.get("startup_timeout", 30.0))
-        self._shutdown_timeout = float(self.config.get("shutdown_timeout", 30.0))
-        self._enable_health_checks = bool(self.config.get("enable_health_checks", True))
+        # Configuration - use validated config
+        self._health_check_interval = self.config.health_check_interval_seconds
+        self._startup_timeout = self.config.startup_timeout_seconds
+        self._shutdown_timeout = self.config.shutdown_timeout_seconds
+        self._enable_health_checks = self.config.health_check_enabled
 
         logger.info(
             "service_lifecycle_created",
@@ -394,11 +417,11 @@ class ServiceLifecycle(ABC):
                 cause=str(e),
             ) from e
 
-    def add_startup_handler(self, handler: Callable[[], Coroutine[Any, Any, None]]) -> None:
+    def add_startup_handler(self, handler: Callable[[], Coroutine[object, object, None]]) -> None:
         """Add a startup handler."""
         self._startup_handlers.append(handler)
 
-    def add_shutdown_handler(self, handler: Callable[[], Coroutine[Any, Any, None]]) -> None:
+    def add_shutdown_handler(self, handler: Callable[[], Coroutine[object, object, None]]) -> None:
         """Add a shutdown handler."""
         self._shutdown_handlers.append(handler)
 
@@ -467,7 +490,7 @@ class ServiceLifecycle(ABC):
             metrics=self._metrics,
         )
 
-    def get_metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> dict[str, str | float]:
         """Get service metrics."""
         current_uptime = 0.0
         if self._start_time and self._status == ServiceStatus.RUNNING:
@@ -483,6 +506,6 @@ class ServiceLifecycle(ABC):
             "current_uptime_seconds": current_uptime,
             "restart_count": self._metrics.restart_count,
             "error_count": self._metrics.error_count,
-            "last_error": self._metrics.last_error,
-            "last_error_time": self._metrics.last_error_time,
+            "last_error": self._metrics.last_error or "",
+            "last_error_time": self._metrics.last_error_time or 0.0,
         }

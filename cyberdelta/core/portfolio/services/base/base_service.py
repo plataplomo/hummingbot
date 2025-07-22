@@ -4,13 +4,63 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.exceptions import EmptyServiceNameError, InvalidServiceTimeoutError
+
+
+# Constants
+MAX_TIMEOUT_SECONDS = 3600  # 1 hour maximum timeout
 
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+
+class ServiceConfiguration(BaseModel):
+    """Base configuration for portfolio services with validation."""
+
+    name: str = Field(min_length=1, description="Service name")
+    health_check_enabled: bool = Field(default=True, description="Enable health checks")
+    health_check_interval_seconds: float = Field(
+        default=30.0, gt=0, le=3600, description="Health check interval"
+    )
+    startup_timeout_seconds: float = Field(
+        default=30.0, gt=0, le=300, description="Startup timeout"
+    )
+    shutdown_timeout_seconds: float = Field(
+        default=30.0, gt=0, le=300, description="Shutdown timeout"
+    )
+    log_level: str = Field(
+        default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$", description="Log level"
+    )
+    enable_metrics: bool = Field(default=True, description="Enable metrics collection")
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Validate service name is non-empty."""
+        if not v or not v.strip():
+            raise EmptyServiceNameError
+        return v.strip()
+
+    @field_validator(
+        "health_check_interval_seconds",
+        "startup_timeout_seconds",
+        "shutdown_timeout_seconds",
+        mode="before",
+    )
+    @classmethod
+    def validate_timeouts(cls, v: float) -> float:
+        """Validate timeout values are reasonable."""
+        value: float = float(v)
+        if not (0 < value <= MAX_TIMEOUT_SECONDS):  # Between 0 and 1 hour
+            raise InvalidServiceTimeoutError(timeout=value, max_timeout=MAX_TIMEOUT_SECONDS)
+        return value
+
 
 logger = get_logger(__name__)
 
@@ -22,7 +72,7 @@ class BasePortfolioService(ABC):
     health checks, and proper shutdown procedures.
     """
 
-    def __init__(self, name: str, config: Mapping[str, Any] | None = None) -> None:
+    def __init__(self, name: str, config: Mapping[str, object] | None = None) -> None:
         """Initialize the base service.
 
         Args:
@@ -30,10 +80,26 @@ class BasePortfolioService(ABC):
             config: Optional configuration dictionary
         """
         self.name = name
-        self.config = config or {}
+
+        # Convert raw config to validated ServiceConfiguration
+        config_dict = dict(config) if config else {}
+        config_dict["name"] = name  # Ensure name is set
+
+        try:
+            self.config = ServiceConfiguration.model_validate(config_dict)
+        except (ValueError, TypeError, AttributeError) as e:
+            # Fallback to default config with provided name if validation fails
+            logger.warning(
+                "service_config_validation_failed",
+                service_name=name,
+                error=str(e),
+                fallback_to_default=True,
+            )
+            self.config = ServiceConfiguration(name=name)
+
         self._lock = asyncio.Lock()
         self._running = False
-        self._health_check_enabled = True
+        self._health_check_enabled = self.config.health_check_enabled
 
         logger.info(
             "service_created",

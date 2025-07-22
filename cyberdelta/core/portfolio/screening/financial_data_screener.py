@@ -157,14 +157,14 @@ class FinancialDataScreener(BaseScreener):
         if not is_valid:
             logger.warning(
                 "margin_summary_validation_failed",
-                exchange_id=getattr(summary, "exchange", "unknown"),
+                exchange_id=summary.exchange or "unknown",
                 error_count=len(errors),
                 warning_count=len(warnings),
             )
         elif warnings:
             logger.info(
                 "margin_summary_validation_warnings",
-                exchange_id=getattr(summary, "exchange", "unknown"),
+                exchange_id=summary.exchange or "unknown",
                 warning_count=len(warnings),
             )
 
@@ -235,16 +235,16 @@ class FinancialDataScreener(BaseScreener):
         if not is_valid:
             logger.warning(
                 "ticker_validation_failed",
-                symbol=getattr(ticker, "symbol", "unknown"),
-                exchange_id=getattr(ticker, "exchange", "unknown"),
+                symbol=ticker.symbol or "unknown",
+                exchange_id=ticker.exchange,
                 error_count=len(errors),
                 warning_count=len(warnings),
             )
         elif warnings:
             logger.info(
                 "ticker_validation_warnings",
-                symbol=getattr(ticker, "symbol", "unknown"),
-                exchange_id=getattr(ticker, "exchange", "unknown"),
+                symbol=ticker.symbol or "unknown",
+                exchange_id=ticker.exchange,
                 warning_count=len(warnings),
             )
 
@@ -325,9 +325,10 @@ class FinancialDataScreener(BaseScreener):
         """
         errors: list[str] = []
 
-        # Get exchange_id from the data object
-        # MarginAccountSummary has exchange field, Ticker might not
-        exchange_id = getattr(data, "exchange", None)
+        # Type-safe exchange field access based on known model types
+        exchange_id = None
+        if isinstance(data, (MarginAccountSummary, Ticker)):
+            exchange_id = data.exchange
 
         if not exchange_id:
             errors.append("Exchange ID is required")
@@ -359,9 +360,10 @@ class FinancialDataScreener(BaseScreener):
         errors: list[str] = []
         warnings: list[str] = []
 
-        # Get symbol from the data object
-        # Ticker has symbol field
-        symbol = getattr(data, "symbol", None)
+        # Get symbol from the data object - Ticker has symbol field
+        symbol = None
+        if isinstance(data, Ticker):
+            symbol = data.symbol
 
         if not symbol:
             errors.append("Symbol is required")
@@ -457,29 +459,8 @@ class FinancialDataScreener(BaseScreener):
         errors: list[str] = []
         warnings: list[str] = []
 
-        # Check for additional ratio fields if they exist
-        ratio_fields = ["margin_ratio", "maintenance_margin_ratio", "initial_margin_ratio"]
-
-        for field in ratio_fields:
-            field_value = getattr(summary, field, None)
-            if field_value is not None:
-                value = field_value
-
-                try:
-                    ratio = Decimal(str(value))
-                except (ValueError, TypeError):
-                    errors.append(f"{field} must be a valid decimal number")
-                    continue
-
-                # Range validation
-                if ratio < self.min_margin_ratio:
-                    errors.append(f"{field} {ratio} below minimum {self.min_margin_ratio}")
-                elif ratio > self.max_margin_ratio:
-                    errors.append(f"{field} {ratio} above maximum {self.max_margin_ratio}")
-
-                # Warning for dangerous ratios
-                if ratio < Decimal("0.1"):  # 10%
-                    warnings.append(f"{field} is dangerously low: {ratio}")
+        # MarginAccountSummary validation - no additional optional ratio fields needed
+        # The model already has all required margin fields defined
 
         return errors, warnings
 
@@ -542,27 +523,20 @@ class FinancialDataScreener(BaseScreener):
         errors: list[str] = []
         warnings: list[str] = []
 
-        # Check for volume fields if they exist (not part of protocol)
-        volume_fields = ["volume", "volume_24h", "quote_volume"]
-
-        for field in volume_fields:
-            field_value = getattr(ticker, field, None)
-            if field_value is not None:
-                value = field_value
-
-                try:
-                    volume = Decimal(str(value))
-                except (ValueError, TypeError):
-                    errors.append(f"{field} must be a valid decimal number")
-                    continue
-
+        # Validate ticker volume field
+        if ticker.volume is not None:
+            try:
+                volume = Decimal(str(ticker.volume))
+            except (ValueError, TypeError):
+                errors.append("volume must be a valid decimal number")
+            else:
                 # Negative volume validation
                 if volume < 0:
-                    errors.append(f"{field} cannot be negative")
+                    errors.append("volume cannot be negative")
 
                 # Warning for zero volume
                 if volume == 0:
-                    warnings.append(f"{field} is zero - possible inactive market")
+                    warnings.append("volume is zero - possible inactive market")
 
         return errors, warnings
 
@@ -578,33 +552,25 @@ class FinancialDataScreener(BaseScreener):
         errors: list[str] = []
         warnings: list[str] = []
 
-        # Check for timestamp fields if they exist (not part of core protocols)
-        timestamp_fields = ["timestamp", "updated_at", "last_updated"]
+        # Validate timestamp field for known model types
+        if isinstance(data, (MarginAccountSummary, Ticker)):
+            timestamp_value = data.timestamp
 
-        for field in timestamp_fields:
-            field_value = getattr(data, field, None)
-            if field_value is not None:
-                timestamp = field_value
-
-                # Basic type validation
-                # Convert to timestamp if it's a datetime object
-                try:
-                    # Try to get timestamp - works for datetime objects
-                    if not isinstance(timestamp, (int, float)):
-                        timestamp = timestamp.timestamp()
-                except (AttributeError, ValueError):
-                    errors.append(f"{field} must be a number or datetime")
-                    continue
-
+            # Convert datetime to timestamp for validation
+            try:
+                timestamp_float = timestamp_value.timestamp()
+            except (AttributeError, ValueError):
+                errors.append("timestamp must be a valid datetime")
+            else:
                 # Range validation
                 current_time = time.time()
                 max_age = current_time - self.max_data_age_seconds
                 one_hour_future = current_time + (60 * 60)
 
-                if timestamp < max_age:
-                    warnings.append(f"{field} is older than {self.max_data_age_seconds} seconds")
-                elif timestamp > one_hour_future:
-                    warnings.append(f"{field} is more than one hour in the future")
+                if timestamp_float < max_age:
+                    warnings.append(f"timestamp is older than {self.max_data_age_seconds} seconds")
+                elif timestamp_float > one_hour_future:
+                    warnings.append("timestamp is more than one hour in the future")
 
         return errors, warnings
 

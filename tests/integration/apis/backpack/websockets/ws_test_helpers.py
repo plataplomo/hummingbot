@@ -448,6 +448,7 @@ async def test_model_transformation_with_real_data(
             ticker_raw_data = await get_real_ticker_data(api, symbol)
             ticker_model = Ticker(
                 symbol=symbol,
+                exchange="backpack",
                 price=Decimal(ticker_raw_data.last_price),
                 timestamp=datetime.now(UTC),
                 volume=Decimal(ticker_raw_data.volume) if ticker_raw_data.volume else None,

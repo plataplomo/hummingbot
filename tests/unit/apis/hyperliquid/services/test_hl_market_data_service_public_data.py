@@ -330,6 +330,7 @@ class TestHyperliquidMarketDataServicePublicData:
 
         expected_internal_ticker = Ticker(
             symbol=symbol_to_find,
+            exchange="hyperliquid",
             price=Decimal("50000.0"),
             bid=Decimal("50000.0"),
             ask=Decimal("50000.0"),

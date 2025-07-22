@@ -247,6 +247,7 @@ def sample_ticker() -> Ticker:
     """Standard test ticker."""
     return Ticker(
         symbol="BTC-PERP",
+        exchange="test_exchange",
         bid=Decimal("49950.0"),
         ask=Decimal("50050.0"),
         price=Decimal("50000.0"),

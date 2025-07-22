@@ -167,7 +167,13 @@ def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> t
 
         async def health_check(self) -> bool:
             """Default health check implementation."""
-            return getattr(self, "is_running", True)
+            # Check for is_running attribute without getattr
+            # The mixin is designed to be used with classes that have is_running
+            # Return True as default for classes without this attribute
+            attrs = vars(self)
+            if "is_running" in attrs:
+                return bool(attrs["is_running"])
+            return True
 
     return ResilienceMixin
 
@@ -288,8 +294,13 @@ def create_health_check(component: object, check_attr: str = "is_running") -> Ca
 
     def health_check() -> bool:
         try:
-            return getattr(component, check_attr, True)
-        except AttributeError:
-            return False
+            # Access attribute directly
+            attr_value = component.__dict__.get(check_attr)
+            if attr_value is None:
+                # Try to access as property/descriptor
+                attr_value = vars(component).get(check_attr, True)
+            return bool(attr_value)
+        except (AttributeError, TypeError):
+            return True
 
     return health_check

@@ -6,6 +6,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Unpack
 
 from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.portfolio.exceptions.service import ServiceError
+from cyberdelta.core.portfolio.exceptions.state import StateError
 
 
 if TYPE_CHECKING:
@@ -399,3 +401,310 @@ class CacheSizeMustBePositiveError(ConfigurationError):
     def __init__(self, size: int, **kwargs: Unpack[ExceptionKwargs]) -> None:
         """Initialize cache size must be positive exception."""
         super().__init__("Cache size must be positive", key="max_size", value=str(size), **kwargs)
+
+
+class CalculatorCreationError(ConfigurationError):
+    """Raised when calculator creation fails."""
+
+    def __init__(self, error_details: str, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize calculator creation exception."""
+        super().__init__(
+            "Calculator creation failed",
+            config_section="calculator",
+            invalid_fields=[error_details],
+            **kwargs,
+        )
+
+
+class ConfigurationValidationError(ConfigurationError):
+    """Raised when configuration validation fails."""
+
+    def __init__(self, critical_errors: list[str], **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize configuration validation exception."""
+        super().__init__(
+            f"Configuration validation failed: {'; '.join(critical_errors)}",
+            config_section="startup",
+            invalid_fields=critical_errors,
+            **kwargs,
+        )
+
+
+# Balance validation exceptions
+class EmptyBalanceFieldError(PortfolioIntegrityError):
+    """Raised when a required balance field is empty."""
+
+    def __init__(self, field_name: str, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize empty balance field exception."""
+        super().__init__(f"Balance field '{field_name}' cannot be empty", **kwargs)
+
+
+class NonFiniteBalanceError(PortfolioIntegrityError):
+    """Raised when balance amount is not finite."""
+
+    def __init__(self, field_name: str = "balance", **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-finite balance exception."""
+        super().__init__(f"{field_name} amounts must be finite", **kwargs)
+
+
+class NegativeBalanceError(PortfolioIntegrityError):
+    """Raised when balance amount is negative."""
+
+    def __init__(self, field_name: str = "balance", **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize negative balance exception."""
+        super().__init__(f"{field_name} amounts cannot be negative", **kwargs)
+
+
+# Position validation exceptions
+class EmptyPositionFieldError(InvalidPositionError):
+    """Raised when a required position field is empty."""
+
+    def __init__(self, field_name: str, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize empty position field exception."""
+        super().__init__(
+            f"Position field '{field_name}' cannot be empty", reason="empty_field", **kwargs
+        )
+
+
+class InvalidPositionSideError(InvalidPositionError):
+    """Raised when position side is invalid."""
+
+    def __init__(self, side: str, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize invalid position side exception."""
+        super().__init__("Side must be LONG or SHORT", reason=f"invalid_side: {side}", **kwargs)
+
+
+class NonFinitePriceError(PortfolioIntegrityError):
+    """Raised when price is not finite."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-finite price exception."""
+        super().__init__("Prices must be finite", **kwargs)
+
+
+class NonPositivePriceError(PortfolioIntegrityError):
+    """Raised when price is not positive."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-positive price exception."""
+        super().__init__("Prices must be positive", **kwargs)
+
+
+class NonFiniteFinancialValueError(PortfolioIntegrityError):
+    """Raised when financial value is not finite."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-finite financial value exception."""
+        super().__init__("Financial values must be finite", **kwargs)
+
+
+class NonFiniteMarginError(PortfolioIntegrityError):
+    """Raised when margin value is not finite."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-finite margin exception."""
+        super().__init__("Margin used must be finite", **kwargs)
+
+
+class NegativeMarginError(PortfolioIntegrityError):
+    """Raised when margin value is negative."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize negative margin exception."""
+        super().__init__("Margin used cannot be negative", **kwargs)
+
+
+class NonFiniteLeverageError(PortfolioIntegrityError):
+    """Raised when leverage is not finite."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-finite leverage exception."""
+        super().__init__("Leverage must be finite", **kwargs)
+
+
+class NonPositiveLeverageError(PortfolioIntegrityError):
+    """Raised when leverage is not positive."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-positive leverage exception."""
+        super().__init__("Leverage must be positive", **kwargs)
+
+
+# Timestamp validation exceptions
+class NonPositiveTimestampError(PortfolioIntegrityError):
+    """Raised when timestamp is not positive."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize non-positive timestamp exception."""
+        super().__init__("Timestamp must be positive", **kwargs)
+
+
+# Configuration value validation exceptions
+class InvalidNumericStringError(ConfigurationError):
+    """Raised when numeric string cannot be parsed."""
+
+    def __init__(
+        self, value: str, field_name: str, section: str, **kwargs: Unpack[ExceptionKwargs]
+    ) -> None:
+        """Initialize invalid numeric string exception."""
+        super().__init__(
+            "Invalid numeric string", config_section=section, key=field_name, value=value, **kwargs
+        )
+
+
+class NonFiniteConfigValueError(ConfigurationError):
+    """Raised when configuration value is not finite."""
+
+    def __init__(
+        self, value: str, field_name: str, section: str, **kwargs: Unpack[ExceptionKwargs]
+    ) -> None:
+        """Initialize non-finite config value exception."""
+        super().__init__(
+            "Value must be finite", config_section=section, key=field_name, value=value, **kwargs
+        )
+
+
+class NonPositiveConfigValueError(ConfigurationError):
+    """Raised when configuration value must be positive but isn't."""
+
+    def __init__(
+        self, value: str, field_name: str, section: str, **kwargs: Unpack[ExceptionKwargs]
+    ) -> None:
+        """Initialize non-positive config value exception."""
+        super().__init__(
+            "Value must be positive", config_section=section, key=field_name, value=value, **kwargs
+        )
+
+
+class ConfigValueTooLargeError(ConfigurationError):
+    """Raised when configuration value exceeds maximum."""
+
+    def __init__(
+        self,
+        value: str,
+        field_name: str,
+        section: str,
+        max_value: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize config value too large exception."""
+        super().__init__(
+            f"Value too large (max {max_value})",
+            config_section=section,
+            key=field_name,
+            value=value,
+            **kwargs,
+        )
+
+
+class ConfigValueTooSmallError(ConfigurationError):
+    """Raised when configuration value is below minimum."""
+
+    def __init__(
+        self,
+        value: str,
+        field_name: str,
+        section: str,
+        min_value: str,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize config value too small exception."""
+        super().__init__(
+            f"Value too small (min {min_value})",
+            config_section=section,
+            key=field_name,
+            value=value,
+            **kwargs,
+        )
+
+
+class InvalidConfigChoiceError(ConfigurationError):
+    """Raised when configuration value is not one of valid choices."""
+
+    def __init__(
+        self,
+        value: str,
+        field_name: str,
+        section: str,
+        valid_choices: list[str],
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize invalid config choice exception."""
+        super().__init__(
+            f"Must be one of: {', '.join(valid_choices)}",
+            config_section=section,
+            key=field_name,
+            value=value,
+            valid_values=valid_choices,
+            **kwargs,
+        )
+
+
+class NegativeConfigValueError(ConfigurationError):
+    """Raised when configuration value cannot be negative."""
+
+    def __init__(
+        self, value: str, field_name: str, section: str, **kwargs: Unpack[ExceptionKwargs]
+    ) -> None:
+        """Initialize negative config value exception."""
+        super().__init__(
+            "Value cannot be negative",
+            config_section=section,
+            key=field_name,
+            value=value,
+            **kwargs,
+        )
+
+
+class ConfigPrecisionTooHighError(ConfigurationError):
+    """Raised when precision configuration is too high."""
+
+    def __init__(
+        self,
+        value: str,
+        field_name: str,
+        section: str,
+        max_precision: int = 18,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize precision too high exception."""
+        super().__init__(
+            f"Precision too high (max {max_precision})",
+            config_section=section,
+            key=field_name,
+            value=value,
+            **kwargs,
+        )
+
+
+# Service-specific exceptions
+class EmptyServiceNameError(ServiceError):
+    """Raised when service name is empty."""
+
+    def __init__(self, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize empty service name exception."""
+        super().__init__("Service name cannot be empty", **kwargs)
+
+
+class InvalidServiceTimeoutError(ServiceError):
+    """Raised when service timeout is invalid."""
+
+    def __init__(
+        self,
+        timeout: float,
+        min_timeout: float = 0,
+        max_timeout: float = 3600,
+        **kwargs: Unpack[ExceptionKwargs],
+    ) -> None:
+        """Initialize invalid service timeout exception."""
+        super().__init__(
+            f"Timeout must be between {min_timeout} and {max_timeout} seconds", **kwargs
+        )
+
+
+# State-specific exceptions
+class ContainerSizeLimitExceededError(StateError):
+    """Raised when container size limit is exceeded."""
+
+    def __init__(self, max_size: int, **kwargs: Unpack[ExceptionKwargs]) -> None:
+        """Initialize container size limit exceeded exception."""
+        super().__init__(f"Container size limit exceeded: {max_size}", **kwargs)

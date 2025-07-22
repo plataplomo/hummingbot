@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+from pydantic import Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.portfolio.base import CalculationResult, TypedCalculator
+from cyberdelta.core.portfolio.base.typed_calculator import (
+    CalculationMetadata as TypedCalculatorMetadata,
+)
+from cyberdelta.core.portfolio.exceptions import InvalidCalculationInputError
 from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
     CalculationMetadata,
     RealizedPnLResult,
@@ -21,7 +28,7 @@ logger = get_logger(__name__)
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import DerivativePosition, Trade
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import StateContainerProtocol
 
 
@@ -35,11 +42,47 @@ class PnLCalculationMethod(Enum):
 
 @dataclass
 class RealizedPnLInput:
-    """Input for realized P&L calculation."""
+    """Input for realized P&L calculation with validation."""
 
-    position: DerivativePosition
-    trade: Trade
-    calculation_method: PnLCalculationMethod | None = None
+    position: DerivativePosition = Field(description="Current derivative position")
+    trade: Trade = Field(description="Trade to calculate P&L for")
+    calculation_method: PnLCalculationMethod | None = Field(
+        default=None, description="P&L calculation method"
+    )
+
+    @field_validator("trade", mode="after")
+    @classmethod
+    def validate_trade(cls, v: Trade) -> Trade:
+        """Validate trade has required fields."""
+        if v.quantity <= 0:
+            raise InvalidCalculationInputError(
+                parameter="quantity",
+                value=v.quantity,
+                expected="positive value"
+            )
+        if v.price <= 0:
+            raise InvalidCalculationInputError(
+                parameter="price",
+                value=v.price,
+                expected="positive value"
+            )
+        return v
+
+    @field_validator("position", "trade", mode="after")
+    @classmethod
+    def validate_symbol_match(
+        cls, v: DerivativePosition | Trade, info: ValidationInfo
+    ) -> DerivativePosition | Trade:
+        """Validate position and trade symbols match."""
+        if info.field_name == "trade" and "position" in info.data:
+            position = info.data["position"]
+            if position.symbol != v.symbol:
+                raise InvalidCalculationInputError(
+                    parameter="trade",
+                    value=f"{position.symbol} != {v.symbol}",
+                    expected="matching symbols"
+                )
+        return v
 
 
 class RealizedPnLCalculator(TypedCalculator[RealizedPnLInput, RealizedPnLResult]):
@@ -58,7 +101,7 @@ class RealizedPnLCalculator(TypedCalculator[RealizedPnLInput, RealizedPnLResult]
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
         default_calculation_method: PnLCalculationMethod = PnLCalculationMethod.FIFO,
     ) -> None:
         """Initialize the realized P&L calculator.
@@ -96,16 +139,18 @@ class RealizedPnLCalculator(TypedCalculator[RealizedPnLInput, RealizedPnLResult]
 
             return CalculationResult[RealizedPnLResult].success_result(
                 result=result,
-                metadata={
-                    "calculator": self.calculator_name,
-                    "method": method.value,
-                },
+                metadata=TypedCalculatorMetadata(
+                    calculator=self.calculator_name
+                ),
             )
 
         except (ValueError, TypeError, ArithmeticError) as e:
             return CalculationResult[RealizedPnLResult].failure_result(
                 errors=[f"Realized P&L calculation failed: {e}"],
-                metadata={"calculator": self.calculator_name},
+                metadata=TypedCalculatorMetadata(
+                    calculator=self.calculator_name,
+                    error_type=type(e).__name__
+                ),
             )
 
     async def calculate_from_trade(

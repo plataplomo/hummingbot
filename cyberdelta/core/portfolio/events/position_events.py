@@ -2,15 +2,29 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Unpack
 
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic.dataclasses import dataclass
+
 from cyberdelta.core.portfolio.events.base.base_event import (
     BasePortfolioEvent,
+    EventMetadata,
     EventMetadataKwargsWithoutExchange,
     EventMetadataKwargsWithoutExchangeSymbol,
     EventType,
+)
+from cyberdelta.core.portfolio.exceptions import (
+    EmptyPositionFieldError,
+    InvalidPositionSideError,
+    NegativeMarginError,
+    NonFiniteFinancialValueError,
+    NonFiniteLeverageError,
+    NonFiniteMarginError,
+    NonFinitePriceError,
+    NonPositiveLeverageError,
+    NonPositivePriceError,
 )
 
 
@@ -30,48 +44,104 @@ class PositionData:
     margin_used: Decimal | None = None
     leverage: Decimal | None = None
 
+    @field_validator("position_id", "exchange_id", "symbol", mode="before")
+    @classmethod
+    def validate_strings(cls, v: str, info: ValidationInfo) -> str:
+        """Validate required string fields are non-empty."""
+        if not v or not v.strip():
+            raise EmptyPositionFieldError(field_name=info.field_name or "position_field")
+        return v.strip()
+
+    @field_validator("side", mode="before")
+    @classmethod
+    def validate_side(cls, v: str) -> str:
+        """Validate position side is LONG or SHORT."""
+        if v.upper() not in {"LONG", "SHORT"}:
+            raise InvalidPositionSideError(side=v)
+        return v.upper()
+
+    @field_validator("entry_price", "current_price", mode="before")
+    @classmethod
+    def validate_prices(cls, v: Decimal) -> Decimal:
+        """Validate prices are finite and positive."""
+        if not v.is_finite():
+            raise NonFinitePriceError
+        if v <= 0:
+            raise NonPositivePriceError
+        return v
+
+    @field_validator("size", "unrealized_pnl", "realized_pnl", mode="before")
+    @classmethod
+    def validate_decimals(cls, v: Decimal) -> Decimal:
+        """Validate decimal values are finite."""
+        if not v.is_finite():
+            raise NonFiniteFinancialValueError
+        return v
+
+    @field_validator("margin_used", mode="before")
+    @classmethod
+    def validate_margin_used(cls, v: Decimal | None) -> Decimal | None:
+        """Validate margin used is finite and non-negative if provided."""
+        if v is not None:
+            if not v.is_finite():
+                raise NonFiniteMarginError
+            if v < 0:
+                raise NegativeMarginError
+        return v
+
+    @field_validator("leverage", mode="before")
+    @classmethod
+    def validate_leverage(cls, v: Decimal | None) -> Decimal | None:
+        """Validate leverage is finite and positive if provided."""
+        if v is not None:
+            if not v.is_finite():
+                raise NonFiniteLeverageError
+            if v <= 0:
+                raise NonPositiveLeverageError
+        return v
+
 
 @dataclass
 class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
     """Event fired when a new position is opened."""
 
-    def __init__(
-        self,
+    @classmethod
+    def create(
+        cls,
         position: PositionData,
         opening_trade_id: str | None = None,
         **kwargs: Unpack[EventMetadataKwargsWithoutExchange],
-    ) -> None:
-        """Initialize position opened event.
+    ) -> PositionOpenedEvent:
+        """Create a position opened event with proper initialization.
 
         Args:
             position: The opened position data
             opening_trade_id: ID of trade that opened position
             **kwargs: Additional metadata fields
         """
-        super().__init__(
-            event_type=EventType.POSITION_OPENED,
-            data=position,
-        )
+        # Build metadata with explicit fields first
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
 
-        self.metadata.exchange_id = position.exchange_id
-        self.metadata.symbol = position.symbol
-        self.metadata.tags["position_id"] = position.position_id
-        self.metadata.tags["side"] = position.side
+        # Apply additional fields from kwargs
+        if "source_component" in kwargs:
+            metadata.source_component = kwargs["source_component"]
+        if "correlation_id" in kwargs:
+            metadata.correlation_id = kwargs["correlation_id"]
+        if "priority" in kwargs:
+            metadata.priority = kwargs["priority"]
+        if "retry_count" in kwargs:
+            metadata.retry_count = kwargs["retry_count"]
+        if "tags" in kwargs:
+            metadata.tags.update(kwargs["tags"])
+
+        # Set standard tags
+        metadata.tags["position_id"] = position.position_id
+        metadata.tags["side"] = position.side
 
         if opening_trade_id:
-            self.metadata.tags["opening_trade_id"] = opening_trade_id
+            metadata.tags["opening_trade_id"] = opening_trade_id
 
-        # Apply any additional metadata using typed fields
-        if "source_component" in kwargs:
-            self.metadata.source_component = kwargs["source_component"]
-        if "correlation_id" in kwargs:
-            self.metadata.correlation_id = kwargs["correlation_id"]
-        if "priority" in kwargs:
-            self.metadata.priority = kwargs["priority"]
-        if "retry_count" in kwargs:
-            self.metadata.retry_count = kwargs["retry_count"]
-        if "tags" in kwargs:
-            self.metadata.tags.update(kwargs["tags"])
+        return cls(event_type=EventType.POSITION_OPENED, data=position, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize position data."""
@@ -94,15 +164,16 @@ class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
 class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
     """Event fired when a position is updated."""
 
-    def __init__(
-        self,
+    @classmethod
+    def create(
+        cls,
         position: PositionData,
         update_reason: str,
         previous_size: Decimal | None = None,
         size_change: Decimal | None = None,
         **kwargs: Unpack[EventMetadataKwargsWithoutExchange],
-    ) -> None:
-        """Initialize position updated event.
+    ) -> PositionUpdatedEvent:
+        """Create a position updated event with proper initialization.
 
         Args:
             position: The updated position data
@@ -111,33 +182,32 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
             size_change: Change in position size
             **kwargs: Additional metadata fields
         """
-        super().__init__(
-            event_type=EventType.POSITION_UPDATED,
-            data=position,
-        )
+        # Build metadata with explicit fields first
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
 
-        self.metadata.exchange_id = position.exchange_id
-        self.metadata.symbol = position.symbol
-        self.metadata.tags["position_id"] = position.position_id
-        self.metadata.tags["side"] = position.side
-        self.metadata.tags["update_reason"] = update_reason
+        # Apply additional fields from kwargs
+        if "source_component" in kwargs:
+            metadata.source_component = kwargs["source_component"]
+        if "correlation_id" in kwargs:
+            metadata.correlation_id = kwargs["correlation_id"]
+        if "priority" in kwargs:
+            metadata.priority = kwargs["priority"]
+        if "retry_count" in kwargs:
+            metadata.retry_count = kwargs["retry_count"]
+        if "tags" in kwargs:
+            metadata.tags.update(kwargs["tags"])
+
+        # Set standard tags
+        metadata.tags["position_id"] = position.position_id
+        metadata.tags["side"] = position.side
+        metadata.tags["update_reason"] = update_reason
 
         if previous_size is not None:
-            self.metadata.tags["previous_size"] = str(previous_size)
+            metadata.tags["previous_size"] = str(previous_size)
         if size_change is not None:
-            self.metadata.tags["size_change"] = str(size_change)
+            metadata.tags["size_change"] = str(size_change)
 
-        # Apply any additional metadata using typed fields
-        if "source_component" in kwargs:
-            self.metadata.source_component = kwargs["source_component"]
-        if "correlation_id" in kwargs:
-            self.metadata.correlation_id = kwargs["correlation_id"]
-        if "priority" in kwargs:
-            self.metadata.priority = kwargs["priority"]
-        if "retry_count" in kwargs:
-            self.metadata.retry_count = kwargs["retry_count"]
-        if "tags" in kwargs:
-            self.metadata.tags.update(kwargs["tags"])
+        return cls(event_type=EventType.POSITION_UPDATED, data=position, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize position data."""
@@ -160,15 +230,16 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
 class PositionClosedEvent(BasePortfolioEvent[PositionData]):
     """Event fired when a position is closed."""
 
-    def __init__(
-        self,
+    @classmethod
+    def create(
+        cls,
         position: PositionData,
         closing_trade_id: str | None = None,
         close_reason: str | None = None,
         final_pnl: Decimal | None = None,
         **kwargs: Unpack[EventMetadataKwargsWithoutExchange],
-    ) -> None:
-        """Initialize position closed event.
+    ) -> PositionClosedEvent:
+        """Create a position closed event with proper initialization.
 
         Args:
             position: The closed position data
@@ -177,34 +248,33 @@ class PositionClosedEvent(BasePortfolioEvent[PositionData]):
             final_pnl: Final realized P&L
             **kwargs: Additional metadata fields
         """
-        super().__init__(
-            event_type=EventType.POSITION_CLOSED,
-            data=position,
-        )
+        # Build metadata with explicit fields first
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
 
-        self.metadata.exchange_id = position.exchange_id
-        self.metadata.symbol = position.symbol
-        self.metadata.tags["position_id"] = position.position_id
-        self.metadata.tags["side"] = position.side
+        # Apply additional fields from kwargs
+        if "source_component" in kwargs:
+            metadata.source_component = kwargs["source_component"]
+        if "correlation_id" in kwargs:
+            metadata.correlation_id = kwargs["correlation_id"]
+        if "priority" in kwargs:
+            metadata.priority = kwargs["priority"]
+        if "retry_count" in kwargs:
+            metadata.retry_count = kwargs["retry_count"]
+        if "tags" in kwargs:
+            metadata.tags.update(kwargs["tags"])
+
+        # Set standard tags
+        metadata.tags["position_id"] = position.position_id
+        metadata.tags["side"] = position.side
 
         if closing_trade_id:
-            self.metadata.tags["closing_trade_id"] = closing_trade_id
+            metadata.tags["closing_trade_id"] = closing_trade_id
         if close_reason:
-            self.metadata.tags["close_reason"] = close_reason
+            metadata.tags["close_reason"] = close_reason
         if final_pnl is not None:
-            self.metadata.tags["final_pnl"] = str(final_pnl)
+            metadata.tags["final_pnl"] = str(final_pnl)
 
-        # Apply any additional metadata using typed fields
-        if "source_component" in kwargs:
-            self.metadata.source_component = kwargs["source_component"]
-        if "correlation_id" in kwargs:
-            self.metadata.correlation_id = kwargs["correlation_id"]
-        if "priority" in kwargs:
-            self.metadata.priority = kwargs["priority"]
-        if "retry_count" in kwargs:
-            self.metadata.retry_count = kwargs["retry_count"]
-        if "tags" in kwargs:
-            self.metadata.tags.update(kwargs["tags"])
+        return cls(event_type=EventType.POSITION_CLOSED, data=position, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize position data."""
@@ -223,12 +293,24 @@ class PositionClosedEvent(BasePortfolioEvent[PositionData]):
         }
 
 
+class PositionErrorData(BaseModel):
+    """Data for position-related errors."""
+
+    exchange_id: str = Field(description="Exchange where error occurred")
+    symbol: str = Field(description="Trading symbol")
+    position_id: str | None = Field(default=None, description="Position ID if applicable")
+    error_type: str = Field(description="Type of error")
+    error_message: str = Field(description="Error message")
+    error_data: dict[str, Any] = Field(default_factory=dict, description="Additional error data")
+
+
 @dataclass
-class PositionErrorEvent(BasePortfolioEvent[dict[str, Any]]):
+class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
     """Event fired when a position operation fails."""
 
-    def __init__(
-        self,
+    @classmethod
+    def create(
+        cls,
         exchange_id: str,
         symbol: str,
         position_id: str | None,
@@ -236,8 +318,8 @@ class PositionErrorEvent(BasePortfolioEvent[dict[str, Any]]):
         error_message: str,
         error_data: dict[str, Any] | None = None,
         **kwargs: Unpack[EventMetadataKwargsWithoutExchangeSymbol],
-    ) -> None:
-        """Initialize position error event.
+    ) -> PositionErrorEvent:
+        """Create a position error event with proper initialization.
 
         Args:
             exchange_id: Exchange where error occurred
@@ -248,39 +330,44 @@ class PositionErrorEvent(BasePortfolioEvent[dict[str, Any]]):
             error_data: Additional error data
             **kwargs: Additional metadata fields
         """
-        data = {
-            "exchange_id": exchange_id,
-            "symbol": symbol,
-            "position_id": position_id,
-            "error_type": error_type,
-            "error_message": error_message,
-            "error_data": error_data or {},
-        }
-
-        super().__init__(
-            event_type=EventType.POSITION_ERROR,
-            data=data,
+        # Create PositionErrorData
+        data = PositionErrorData(
+            exchange_id=exchange_id,
+            symbol=symbol,
+            position_id=position_id,
+            error_type=error_type,
+            error_message=error_message,
+            error_data=error_data or {},
         )
 
-        self.metadata.exchange_id = exchange_id
-        self.metadata.symbol = symbol
-        self.metadata.tags["error_type"] = error_type
+        # Build metadata with explicit fields first
+        metadata = EventMetadata(exchange_id=exchange_id, symbol=symbol)
+
+        # Apply additional fields from kwargs
+        if "source_component" in kwargs:
+            metadata.source_component = kwargs["source_component"]
+        if "correlation_id" in kwargs:
+            metadata.correlation_id = kwargs["correlation_id"]
+        if "priority" in kwargs:
+            metadata.priority = kwargs["priority"]
+        if "retry_count" in kwargs:
+            metadata.retry_count = kwargs["retry_count"]
+        if "tags" in kwargs:
+            metadata.tags.update(kwargs["tags"])
+        metadata.tags["error_type"] = error_type
 
         if position_id:
-            self.metadata.tags["position_id"] = position_id
+            metadata.tags["position_id"] = position_id
 
-        # Apply any additional metadata using typed fields
-        if "source_component" in kwargs:
-            self.metadata.source_component = kwargs["source_component"]
-        if "correlation_id" in kwargs:
-            self.metadata.correlation_id = kwargs["correlation_id"]
-        if "priority" in kwargs:
-            self.metadata.priority = kwargs["priority"]
-        if "retry_count" in kwargs:
-            self.metadata.retry_count = kwargs["retry_count"]
-        if "tags" in kwargs:
-            self.metadata.tags.update(kwargs["tags"])
+        return cls(event_type=EventType.POSITION_ERROR, data=data, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize error data."""
-        return self.data
+        return {
+            "exchange_id": self.data.exchange_id,
+            "symbol": self.data.symbol,
+            "position_id": self.data.position_id,
+            "error_type": self.data.error_type,
+            "error_message": self.data.error_message,
+            "error_data": self.data.error_data,
+        }

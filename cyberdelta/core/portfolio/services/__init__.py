@@ -1,6 +1,6 @@
 """Portfolio services for various support functions."""
 
-from .base.base_service import BasePortfolioService
+from .base.base_service import BasePortfolioService, ServiceConfiguration
 from .cache import CacheService
 from .concurrency_manager import ConcurrencyManager
 from .currency_converter import CurrencyConverter, FXRate
@@ -48,6 +48,7 @@ __all__ = [
     "PydanticJSONSerializer",
     "ReconciliationDiscrepancy",
     "ReconciliationResult",
+    "ServiceConfiguration",
     "StatePersistenceService",
     "StateSerializer",
     "SymbolService",

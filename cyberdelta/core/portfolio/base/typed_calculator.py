@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+from pydantic import Field, field_validator
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -17,21 +19,14 @@ from cyberdelta.core.portfolio.exceptions.calculation import (
     CalculationError,
     InsufficientDataError,
     InvalidCalculationInputError,
+    InvalidCalculatorNameError,
+    InvalidRateRangeError,
+    NegativeExecutionTimeError,
 )
 
 
-# Type-preserving factory functions for dataclass fields
-def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
-    return []
-
-
-def _any_dict_factory() -> dict[str, Any]:
-    """Factory function that preserves dict[str, Any] type information."""
-    return {}
-
-
 if TYPE_CHECKING:
+    from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import StateContainerProtocol
 
 # Type variables for input and result
@@ -39,24 +34,55 @@ TInput = TypeVar("TInput", bound=object)
 TResult = TypeVar("TResult", bound=object)
 
 
-@dataclass(frozen=True)
-class CalculationResult[TResult]:
-    """Generic calculation result with metadata."""
+@dataclass
+class CalculationMetadata:
+    """Calculation metadata with validation."""
 
-    success: bool
-    result: TResult | None
-    errors: list[str] = field(default_factory=_str_list_factory)
-    warnings: list[str] = field(default_factory=_str_list_factory)
-    metadata: dict[str, Any] = field(default_factory=_any_dict_factory)
-    execution_time_ms: float = 0.0
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    calculator: str = Field(min_length=1, description="Calculator name")
+    error_type: str | None = Field(default=None, description="Error type if applicable")
+    cache_hit: bool = Field(default=False, description="Whether result came from cache")
+    data_source: str | None = Field(default=None, description="Data source used")
+
+    @field_validator("calculator", mode="before")
+    @classmethod
+    def validate_calculator_name(cls, v: str) -> str:
+        """Validate calculator name is non-empty."""
+        if not v:
+            raise InvalidCalculatorNameError(calculator_name=v)
+        return v.strip()
+
+
+@dataclass
+class CalculationResult[TResult]:
+    """Generic calculation result with validation."""
+
+    success: bool = Field(description="Whether calculation succeeded")
+    result: TResult | None = Field(default=None, description="Calculation result if successful")
+    errors: list[str] = Field(default_factory=list, description="Error messages if failed")
+    warnings: list[str] = Field(default_factory=list, description="Warning messages")
+    metadata: CalculationMetadata | None = Field(default=None, description="Calculation metadata")
+    execution_time_ms: float = Field(
+        default=0.0, ge=0, description="Execution time in milliseconds"
+    )
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(UTC), description="Result timestamp"
+    )
+
+    @field_validator("execution_time_ms", mode="before")
+    @classmethod
+    def validate_execution_time(cls, v: float | str) -> float:
+        """Validate execution time is non-negative."""
+        value: float = v if isinstance(v, (int, float)) else float(v)
+        if value < 0:
+            raise NegativeExecutionTimeError(execution_time=value)
+        return value
 
     @classmethod
     def success_result(
         cls,
         result: TResult,
         warnings: list[str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: CalculationMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> CalculationResult[TResult]:
         """Create a successful result."""
@@ -64,7 +90,7 @@ class CalculationResult[TResult]:
             success=True,
             result=result,
             warnings=warnings or [],
-            metadata=metadata or {},
+            metadata=metadata,
             execution_time_ms=execution_time_ms,
         )
 
@@ -73,7 +99,7 @@ class CalculationResult[TResult]:
         cls,
         errors: list[str],
         warnings: list[str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: CalculationMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> CalculationResult[TResult]:
         """Create a failure result."""
@@ -82,9 +108,38 @@ class CalculationResult[TResult]:
             result=None,
             errors=errors,
             warnings=warnings or [],
-            metadata=metadata or {},
+            metadata=metadata,
             execution_time_ms=execution_time_ms,
         )
+
+
+@dataclass
+class CalculatorMetrics:
+    """Calculator performance metrics with validation."""
+
+    calculator_name: str = Field(min_length=1, description="Calculator name")
+    calculation_count: int = Field(ge=0, description="Total calculations performed")
+    error_count: int = Field(ge=0, description="Total errors encountered")
+    error_rate: float = Field(ge=0, le=1, description="Error rate (0-1)")
+    average_execution_time_ms: float = Field(
+        ge=0, description="Average execution time in milliseconds"
+    )
+    total_execution_time_ms: float = Field(ge=0, description="Total execution time in milliseconds")
+    cache_hits: int = Field(ge=0, description="Cache hits")
+    cache_misses: int = Field(ge=0, description="Cache misses")
+    cache_hit_rate: float = Field(ge=0, le=1, description="Cache hit rate (0-1)")
+
+    @field_validator("error_rate", "cache_hit_rate", mode="before")
+    @classmethod
+    def validate_rates(cls, v: float | str) -> float:
+        """Validate rates are between 0 and 1."""
+        value: float = v if isinstance(v, (int, float)) else float(v)
+        if not 0 <= value <= 1:
+            raise InvalidRateRangeError(
+                rate=value,
+                rate_type="Cache hit rate"
+            )
+        return value
 
 
 class TypedCalculator[TInput, TResult](ABC):
@@ -100,7 +155,7 @@ class TypedCalculator[TInput, TResult](ABC):
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[Any],
+        state_container: StateContainerProtocol[BaseStateModel],
         calculator_name: str,
     ) -> None:
         """Initialize the typed calculator.
@@ -170,7 +225,7 @@ class TypedCalculator[TInput, TResult](ABC):
                 execution_time = (time.time() - start_time) * 1000
                 return CalculationResult[TResult].failure_result(
                     errors=errors,
-                    metadata={"calculator": self.calculator_name},
+                    metadata=CalculationMetadata(calculator=self.calculator_name),
                     execution_time_ms=execution_time,
                 )
 
@@ -207,10 +262,10 @@ class TypedCalculator[TInput, TResult](ABC):
             )
             return CalculationResult[TResult].failure_result(
                 errors=[str(e)],
-                metadata={
-                    "calculator": self.calculator_name,
-                    "error_type": type(e).__name__,
-                },
+                metadata=CalculationMetadata(
+                    calculator=self.calculator_name,
+                    error_type=type(e).__name__,
+                ),
                 execution_time_ms=execution_time,
             )
         except Exception as e:
@@ -223,7 +278,7 @@ class TypedCalculator[TInput, TResult](ABC):
             )
             return CalculationResult[TResult].failure_result(
                 errors=[f"Unexpected error: {e}"],
-                metadata={"calculator": self.calculator_name},
+                metadata=CalculationMetadata(calculator=self.calculator_name),
                 execution_time_ms=execution_time,
             )
 
@@ -245,11 +300,11 @@ class TypedCalculator[TInput, TResult](ABC):
             results.append(result)
         return results
 
-    def get_metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> CalculatorMetrics:
         """Get performance metrics.
 
         Returns:
-            Dictionary of metrics
+            Calculator metrics using Pydantic model
         """
         avg_execution_time = (
             self.total_execution_time / self.calculation_count if self.calculation_count > 0 else 0
@@ -258,17 +313,17 @@ class TypedCalculator[TInput, TResult](ABC):
         cache_total = self.cache_hits + self.cache_misses
         cache_hit_rate = self.cache_hits / cache_total if cache_total > 0 else 0
 
-        return {
-            "calculator_name": self.calculator_name,
-            "calculation_count": self.calculation_count,
-            "error_count": self.error_count,
-            "error_rate": self.error_count / max(self.calculation_count, 1),
-            "average_execution_time_ms": avg_execution_time,
-            "total_execution_time_ms": self.total_execution_time,
-            "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses,
-            "cache_hit_rate": cache_hit_rate,
-        }
+        return CalculatorMetrics(
+            calculator_name=self.calculator_name,
+            calculation_count=self.calculation_count,
+            error_count=self.error_count,
+            error_rate=self.error_count / max(self.calculation_count, 1),
+            average_execution_time_ms=avg_execution_time,
+            total_execution_time_ms=self.total_execution_time,
+            cache_hits=self.cache_hits,
+            cache_misses=self.cache_misses,
+            cache_hit_rate=cache_hit_rate,
+        )
 
     def reset_metrics(self) -> None:
         """Reset performance metrics."""
