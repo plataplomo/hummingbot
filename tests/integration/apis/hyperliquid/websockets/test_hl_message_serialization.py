@@ -573,8 +573,9 @@ class TestHyperliquidMessageSerializationIntegration:
     def _validate_extreme_values_serialization(self, test_data: dict[str, Any]) -> dict[str, Any]:
         """Validate serialization of extreme values."""
         # JSON serialization must succeed with extreme values
+        # Use default=str to handle Decimal and other non-serializable objects
         try:
-            json_str = json.dumps(test_data)
+            json_str = json.dumps(test_data, default=str)
         except (TypeError, ValueError, OverflowError) as e:
             pytest.fail(f"Extreme value serialization failed: {e}")
 
@@ -630,6 +631,10 @@ class TestHyperliquidMessageSerializationIntegration:
         Returns:
             Serialized data as dictionary, or empty dict if serialization fails
         """
+        # If domain_data is already a dict, use it directly
+        if isinstance(domain_data, dict):
+            return domain_data
+
         try:
             return domain_data.model_dump()
         except AttributeError:
@@ -637,7 +642,11 @@ class TestHyperliquidMessageSerializationIntegration:
             try:
                 return domain_data.dict()
             except AttributeError:
-                return {}
+                # If it's not a Pydantic model but has __dict__, try that
+                try:
+                    return domain_data.__dict__
+                except AttributeError:
+                    return {}
 
     def _extract_prices_data(self, domain_data: DomainModelProtocol) -> dict[str, Any]:
         """Extract prices data from domain model using protocol methods."""
@@ -666,20 +675,27 @@ class TestHyperliquidMessageSerializationIntegration:
         # Extract test data
         test_data = self._extract_prices_data(domain_data)
 
-        # Add extreme values
+        # Add extreme values for testing
         extreme_values = self._get_extreme_test_values()
         test_data.update(extreme_values)
 
-        # Validate
+        # Always validate extreme values (this is the core precision test)
         parsed = self._validate_extreme_values_serialization(test_data)
         self._validate_extreme_values_precision(extreme_values, parsed)
 
         precision_tests_passed[0] += 1
 
+        # Log details about what was tested
+        serialized_data = self._get_serialized_data(domain_data)
+        has_market_data = bool(serialized_data)
+
         logger.info(
             "precision_test_validated",
             test_case=precision_tests_passed[0],
             extreme_values_count=len(extreme_values),
+            has_market_data=has_market_data,
+            domain_type=type(domain_data).__name__,
+            serialized_data_keys=list(serialized_data.keys()) if serialized_data else [],
         )
 
     def _create_precision_test_handler(

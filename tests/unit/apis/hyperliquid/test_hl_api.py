@@ -4,12 +4,13 @@ Tests use dependency injection patterns to mock collaborators and focus on isola
 """
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import ValidationError
+from pydantic import AnyUrl, ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -24,10 +25,37 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
     HyperliquidMarketDataService,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
+from cyberdelta.apis.models.service_args_models import (
+    CancelOrderArgs,
+    GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
+    GetMarketDataArgs,
+    GetMarketsArgs,
+    GetOrderArgs,
+    GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
+    PlaceOrderArgs,
+)
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.core.models.market.market import Market
+from cyberdelta.core.enums import CancelOrderResultStatus, OrderStatus
+from cyberdelta.core.models import (
+    DerivativePosition,
+    FundingRate,
+    MarginAccountSummary,
+    SpotBalance,
+    Ticker,
+    Trade,
+)
+from cyberdelta.core.models.market import Candle, Market, OrderBook
+from cyberdelta.core.models.market.order import (
+    CancelOrderResult,
+    Order,
+)
+from cyberdelta.enums.environment import EnvironmentType
+from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
@@ -612,3 +640,982 @@ class TestHyperliquidAPIMarketDataMethods:
         with pytest.raises(ValidationError):
             # This should fail due to extra fields being forbidden
             GetMarketsArgs(extra_field="not_allowed")  # type: ignore[call-arg]
+
+
+class TestHyperliquidAPIAccountMethods:
+    """Test account-related methods in HyperliquidAPI."""
+
+    @pytest.mark.asyncio
+    async def test_get_balances_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
+    ) -> None:
+        """Test successful get_balances call delegates to account service."""
+        # Create test data
+        expected_balances = {
+            "USDC": SpotBalance(
+                exchange="hyperliquid",
+                asset="USDC",
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("1050.00"),
+                available_quantity=Decimal("1000.00"),
+                hl_details=None,
+                bp_details=None,
+            ),
+            "BTC": SpotBalance(
+                exchange="hyperliquid",
+                asset="BTC",
+                timestamp=datetime.now(UTC),
+                total_quantity=Decimal("0.6"),
+                available_quantity=Decimal("0.5"),
+                hl_details=None,
+                bp_details=None,
+            ),
+        }
+
+        # Configure mock service
+        mock_hl_account_service.get_balances.return_value = expected_balances
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(account_service=mock_hl_account_service)
+
+        # Execute
+        result = await api.get_balances()
+
+        # Verify
+        assert result == expected_balances
+        assert len(result) == 2
+        assert "USDC" in result
+        assert "BTC" in result
+        assert result["USDC"].total_quantity == Decimal("1050.00")
+
+        # Verify service was called correctly
+        mock_hl_account_service.get_balances.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_get_positions_with_symbol(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
+    ) -> None:
+        """Test get_positions with specific symbol."""
+        # Create test data
+        expected_positions = [
+            DerivativePosition(
+                exchange="hyperliquid",
+                symbol="BTC-USD",
+                side=OrderSide.BUY,
+                size=Decimal("1.0"),
+                entry_price=Decimal("50000.00"),
+                timestamp=datetime.now(UTC),
+                mark_price=Decimal("51000.00"),
+                liquidation_price=None,
+                unrealized_pnl=Decimal("1000.00"),
+                realized_pnl=Decimal("100.00"),
+                strategy_name=None,
+                signal_id=None,
+                hl_details=None,
+                bp_details=None,
+            )
+        ]
+
+        # Configure mock service
+        mock_hl_account_service.get_positions.return_value = expected_positions
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(account_service=mock_hl_account_service)
+
+        # Execute
+        result = await api.get_positions(symbol="BTC-USD")
+
+        # Verify
+        assert result == expected_positions
+        assert len(result) == 1
+        assert result[0].symbol == "BTC-USD"
+        assert result[0].unrealized_pnl == Decimal("1000.00")
+
+        # Verify service was called correctly
+        mock_hl_account_service.get_positions.assert_called_once_with(symbol="BTC-USD")
+
+    @pytest.mark.asyncio
+    async def test_get_positions_all(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
+    ) -> None:
+        """Test get_positions without symbol (all positions)."""
+        # Configure mock service to return empty list
+        mock_hl_account_service.get_positions.return_value = []
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(account_service=mock_hl_account_service)
+
+        # Execute
+        result = await api.get_positions()
+
+        # Verify
+        assert result == []
+        mock_hl_account_service.get_positions.assert_called_once_with(symbol=None)
+
+    @pytest.mark.asyncio
+    async def test_get_account_summary_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
+    ) -> None:
+        """Test successful get_account_summary call."""
+        # Create test data
+        expected_summary = MarginAccountSummary(
+            exchange="hyperliquid",
+            timestamp=datetime.now(UTC),
+            total_equity=Decimal("10000.00"),
+            available_equity=Decimal("8000.00"),
+            total_initial_margin_required=Decimal("2000.00"),
+            total_maintenance_margin_required=Decimal("1500.00"),
+            total_position_notional=Decimal("50000.00"),
+            total_unrealized_pnl=Decimal("500.00"),
+            hl_details=None,
+            bp_details=None,
+        )
+
+        # Configure mock service
+        mock_hl_account_service.get_account_summary.return_value = expected_summary
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(account_service=mock_hl_account_service)
+
+        # Execute
+        result = await api.get_account_summary()
+
+        # Verify
+        assert result == expected_summary
+        assert result.total_equity == Decimal("10000.00")
+        assert result.available_equity == Decimal("8000.00")
+
+        # Verify service was called correctly
+        mock_hl_account_service.get_account_summary.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_get_order_history_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
+    ) -> None:
+        """Test successful get_order_history call."""
+        # Create test data
+        expected_orders = [
+            Order(
+                client_order_id="order123",
+                exchange_order_id="ex123",
+                related_order_id=None,
+                exchange="hyperliquid",
+                symbol="BTC-USD",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                status=OrderStatus.FILLED,
+                quantity_requested=Decimal("1.0"),
+                quote_quantity_requested=None,
+                quantity_filled=Decimal("1.0"),
+                price=Decimal("50000.00"),
+                stop_price=None,
+                average_fill_price=Decimal("50000.00"),
+                trigger_by=None,
+                time_in_force=TimeInForce.GTC,
+                reduce_only=False,
+                post_only=False,
+                created_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+                updated_at=None,
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                trades=[],
+                hl_details=None,
+                bp_details=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_account_service.get_order_history.return_value = expected_orders
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(account_service=mock_hl_account_service)
+
+        # Execute
+        args = GetOrderHistoryArgs(symbol="BTC-USD", limit=10)
+        result = await api.get_order_history(args)
+
+        # Verify
+        assert result == expected_orders
+        assert len(result) == 1
+        assert result[0].client_order_id == "order123"
+
+        # Verify service was called correctly
+        mock_hl_account_service.get_order_history.assert_called_once_with(args)
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_account_service: MagicMock,
+    ) -> None:
+        """Test successful get_trade_history call."""
+        # Create test data
+        expected_trades = [
+            Trade(
+                id="trade123",
+                symbol="BTC-USD",
+                executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+                side=OrderSide.BUY,
+                order_id="order123",
+                exchange="hyperliquid",
+                price=Decimal("50000.00"),
+                quantity=Decimal("1.0"),
+                client_order_id="order123",
+                fee=Decimal("5.00"),
+                fee_asset="USDC",
+                is_maker=False,
+                hl_details=None,
+                bp_details=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_account_service.get_trade_history.return_value = expected_trades
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(account_service=mock_hl_account_service)
+
+        # Execute
+        args = GetTradeHistoryArgs(symbol="BTC-USD", limit=10)
+        result = await api.get_trade_history(args)
+
+        # Verify
+        assert result == expected_trades
+        assert len(result) == 1
+        assert result[0].id == "trade123"
+
+        # Verify service was called correctly
+        mock_hl_account_service.get_trade_history.assert_called_once_with(args)
+
+
+class TestHyperliquidAPITradingMethods:
+    """Test trading-related methods in HyperliquidAPI."""
+
+    @pytest.mark.asyncio
+    async def test_place_order_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+    ) -> None:
+        """Test successful place_order call."""
+        # Create test data
+        args = PlaceOrderArgs(
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1.0"),
+            price=Decimal("50000.00"),
+            time_in_force=TimeInForce.GTC,
+        )
+
+        expected_order = Order(
+            client_order_id="order123",
+            exchange_order_id="ex123",
+            related_order_id=None,
+            exchange="hyperliquid",
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.OPEN,
+            quantity_requested=Decimal("1.0"),
+            quote_quantity_requested=None,
+            quantity_filled=Decimal("0.0"),
+            price=Decimal("50000.00"),
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.GTC,
+            reduce_only=False,
+            post_only=False,
+            created_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
+            hl_details=None,
+            bp_details=None,
+        )
+
+        # Configure mock service
+        mock_hl_trading_service.place_order.return_value = expected_order
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(trading_service=mock_hl_trading_service)
+
+        # Execute
+        result = await api.place_order(args)
+
+        # Verify
+        assert result == expected_order
+        assert result.client_order_id == "order123"
+        assert result.status == OrderStatus.OPEN
+
+        # Verify service was called correctly
+        mock_hl_trading_service.place_order.assert_called_once_with(args)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+    ) -> None:
+        """Test successful cancel_order call."""
+        # Create test data
+        args = CancelOrderArgs(
+            order_id="order123",
+            symbol="BTC-USD",
+        )
+
+        expected_result = CancelOrderResult(
+            symbol="BTC-USD",
+            order_id="order123",
+            client_order_id=None,
+            success=True,
+            message=None,
+            status=CancelOrderResultStatus.SUCCESS,
+            raw_response=None,
+        )
+
+        # Configure mock service
+        mock_hl_trading_service.cancel_order.return_value = expected_result
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(trading_service=mock_hl_trading_service)
+
+        # Execute
+        result = await api.cancel_order(args)
+
+        # Verify
+        assert result == expected_result
+        assert result.success is True
+        assert result.status == CancelOrderResultStatus.SUCCESS
+
+        # Verify service was called correctly
+        mock_hl_trading_service.cancel_order.assert_called_once_with(args)
+
+    @pytest.mark.asyncio
+    async def test_cancel_all_orders_with_symbol(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+    ) -> None:
+        """Test cancel_all_orders with specific symbol."""
+        # Create test data
+        expected_results = [
+            CancelOrderResult(
+                symbol="BTC-USD",
+                order_id="order1",
+                client_order_id=None,
+                success=True,
+                message=None,
+                status=CancelOrderResultStatus.SUCCESS,
+                raw_response=None,
+            ),
+            CancelOrderResult(
+                symbol="BTC-USD",
+                order_id="order2",
+                client_order_id=None,
+                success=True,
+                message=None,
+                status=CancelOrderResultStatus.SUCCESS,
+                raw_response=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_trading_service.cancel_all_orders.return_value = expected_results
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(trading_service=mock_hl_trading_service)
+
+        # Execute
+        result = await api.cancel_all_orders(symbol="BTC-USD")
+
+        # Verify
+        assert result == expected_results
+        assert len(result) == 2
+        assert all(r.success for r in result)
+
+        # Verify service was called correctly
+        mock_hl_trading_service.cancel_all_orders.assert_called_once_with(symbol="BTC-USD")
+
+    @pytest.mark.asyncio
+    async def test_get_open_orders_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+    ) -> None:
+        """Test successful get_open_orders call."""
+        # Create test data
+        expected_orders = [
+            Order(
+                client_order_id="order123",
+                exchange_order_id="ex123",
+                related_order_id=None,
+                exchange="hyperliquid",
+                symbol="BTC-USD",
+                side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                status=OrderStatus.OPEN,
+                quantity_requested=Decimal("1.0"),
+                quote_quantity_requested=None,
+                quantity_filled=Decimal("0.0"),
+                price=Decimal("50000.00"),
+                stop_price=None,
+                average_fill_price=None,
+                trigger_by=None,
+                time_in_force=TimeInForce.GTC,
+                reduce_only=False,
+                post_only=False,
+                created_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+                updated_at=None,
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
+                trades=[],
+                hl_details=None,
+                bp_details=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_trading_service.get_open_orders.return_value = expected_orders
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(trading_service=mock_hl_trading_service)
+
+        # Execute
+        result = await api.get_open_orders(symbol="BTC-USD")
+
+        # Verify
+        assert result == expected_orders
+        assert len(result) == 1
+        assert result[0].status == OrderStatus.OPEN
+
+        # Verify service was called correctly
+        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol="BTC-USD")
+
+    @pytest.mark.asyncio
+    async def test_get_order_status_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+    ) -> None:
+        """Test successful get_order_status call."""
+        # Create test data
+        args = GetOrderArgs(order_id="order123", symbol="BTC-USD")
+        expected_order = Order(
+            client_order_id="order123",
+            exchange_order_id="ex123",
+            related_order_id=None,
+            exchange="hyperliquid",
+            symbol="BTC-USD",
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.PARTIALLY_FILLED,
+            quantity_requested=Decimal("1.0"),
+            quote_quantity_requested=None,
+            quantity_filled=Decimal("0.5"),
+            price=Decimal("50000.00"),
+            stop_price=None,
+            average_fill_price=None,
+            trigger_by=None,
+            time_in_force=TimeInForce.GTC,
+            reduce_only=False,
+            post_only=False,
+            created_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
+            hl_details=None,
+            bp_details=None,
+        )
+
+        # Configure mock service
+        mock_hl_trading_service.get_order.return_value = expected_order
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(trading_service=mock_hl_trading_service)
+
+        # Execute
+        result = await api.get_order_status(args)
+
+        # Verify
+        assert result == expected_order
+        assert result is not None
+        assert result.status == OrderStatus.PARTIALLY_FILLED
+
+        # Verify service was called correctly
+        mock_hl_trading_service.get_order.assert_called_once_with(args)
+
+    @pytest.mark.asyncio
+    async def test_get_order_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_trading_service: MagicMock,
+    ) -> None:
+        """Test successful get_order call (alias for get_order_status)."""
+        # Create test data
+        args = GetOrderArgs(order_id="order123", symbol="BTC-USD")
+        expected_order = Order(
+            client_order_id="order123",
+            exchange_order_id="ex123",
+            related_order_id=None,
+            exchange="hyperliquid",
+            symbol="BTC-USD",
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            status=OrderStatus.FILLED,
+            quantity_requested=Decimal("1.0"),
+            quote_quantity_requested=None,
+            quantity_filled=Decimal("1.0"),
+            price=None,
+            stop_price=None,
+            average_fill_price=Decimal("50000.00"),
+            trigger_by=None,
+            time_in_force=TimeInForce.GTC,
+            reduce_only=False,
+            post_only=False,
+            created_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            trades=[],
+            hl_details=None,
+            bp_details=None,
+        )
+
+        # Configure mock service
+        mock_hl_trading_service.get_order.return_value = expected_order
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(trading_service=mock_hl_trading_service)
+
+        # Execute
+        result = await api.get_order(args)
+
+        # Verify
+        assert result == expected_order
+        assert result is not None
+        assert result.status == OrderStatus.FILLED
+
+        # Verify service was called correctly
+        mock_hl_trading_service.get_order.assert_called_once_with(args)
+
+
+class TestHyperliquidAPIMarketDataAdditionalMethods:
+    """Test additional market data methods in HyperliquidAPI."""
+
+    @pytest.mark.asyncio
+    async def test_get_ticker_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_ticker call."""
+        # Create test data
+        expected_ticker = Ticker(
+            symbol="BTC-USD",
+            exchange="hyperliquid",
+            timestamp=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+            price=Decimal("50000.50"),
+            bid=Decimal("50000.00"),
+            ask=Decimal("50001.00"),
+            volume=Decimal("1000.00"),
+            hl_details=None,
+            bp_details=None,
+        )
+
+        # Configure mock service
+        mock_hl_market_data_service.get_ticker.return_value = expected_ticker
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        result = await api.get_ticker("BTC-USD")
+
+        # Verify
+        assert result == expected_ticker
+        assert result is not None
+        assert result.symbol == "BTC-USD"
+        assert result.bid == Decimal("50000.00")
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol="BTC-USD")
+
+    @pytest.mark.asyncio
+    async def test_get_order_book_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_order_book call."""
+        # Create test data
+        expected_order_book = OrderBook(
+            symbol="BTC-USD",
+            timestamp=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+            bids=[(Decimal("50000.00"), Decimal("10.0"))],
+            asks=[(Decimal("50001.00"), Decimal("10.0"))],
+        )
+
+        # Configure mock service
+        mock_hl_market_data_service.get_order_book.return_value = expected_order_book
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        result = await api.get_order_book("BTC-USD", depth=10)
+
+        # Verify
+        assert result == expected_order_book
+        assert result is not None
+        assert result.symbol == "BTC-USD"
+        assert len(result.bids) == 1
+        assert len(result.asks) == 1
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_order_book.assert_called_once_with(
+            symbol="BTC-USD", depth=10
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_recent_trades_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_recent_trades call."""
+        # Create test data
+        expected_trades = [
+            Trade(
+                id="trade123",
+                symbol="BTC-USD",
+                executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
+                side=OrderSide.BUY,
+                order_id="order123",
+                exchange="hyperliquid",
+                price=Decimal("50000.00"),
+                quantity=Decimal("0.1"),
+                client_order_id=None,
+                fee=Decimal("0.0"),
+                fee_asset=None,
+                is_maker=None,
+                hl_details=None,
+                bp_details=None,
+            ),
+            Trade(
+                id="trade124",
+                symbol="BTC-USD",
+                executed_at=datetime.fromisoformat("2024-01-01T10:00:01+00:00"),
+                side=OrderSide.SELL,
+                order_id="order124",
+                exchange="hyperliquid",
+                price=Decimal("50001.00"),
+                quantity=Decimal("0.2"),
+                client_order_id=None,
+                fee=Decimal("0.0"),
+                fee_asset=None,
+                is_maker=None,
+                hl_details=None,
+                bp_details=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_market_data_service.get_recent_trades.return_value = expected_trades
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        result = await api.get_recent_trades("BTC-USD", limit=50)
+
+        # Verify
+        assert result == expected_trades
+        assert len(result) == 2
+        assert result[0].id == "trade123"
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(
+            symbol="BTC-USD", limit=50
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_funding_rates_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_funding_rates call."""
+        # Create test data
+        args = GetFundingRatesArgs(symbols=["BTC-USD", "ETH-USD"])
+        expected_rates = [
+            FundingRate(
+                symbol="BTC-USD",
+                timestamp=datetime.fromisoformat("2024-01-01T08:00:00+00:00"),
+                funding_rate=Decimal("0.0001"),
+                predicted_rate=None,
+                mark_price=None,
+                index_price=None,
+                next_funding_time=None,
+                hl_details=None,
+                bp_details=None,
+            ),
+            FundingRate(
+                symbol="ETH-USD",
+                timestamp=datetime.fromisoformat("2024-01-01T08:00:00+00:00"),
+                funding_rate=Decimal("0.0002"),
+                predicted_rate=None,
+                mark_price=None,
+                index_price=None,
+                next_funding_time=None,
+                hl_details=None,
+                bp_details=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_market_data_service.get_funding_rates.return_value = expected_rates
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        result = await api.get_funding_rates(args)
+
+        # Verify
+        assert result == expected_rates
+        assert len(result) == 2
+        assert result[0].funding_rate == Decimal("0.0001")
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(args)
+
+    @pytest.mark.asyncio
+    async def test_get_market_data_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_market_data call."""
+        # Create test data
+        args = GetMarketDataArgs(
+            symbol="BTC-USD",
+            timeframe="1h",
+            start_time_ms=1704067200000,  # 2024-01-01T00:00:00Z
+            end_time_ms=1704110400000,  # 2024-01-01T12:00:00Z
+            limit=10,
+        )
+        expected_candles = [
+            Candle(
+                symbol="BTC-USD",
+                interval="1h",
+                open_time=datetime.fromisoformat("2024-01-01T00:00:00+00:00"),
+                open=Decimal("50000.00"),
+                high=Decimal("51000.00"),
+                low=Decimal("49500.00"),
+                close=Decimal("50500.00"),
+                volume=Decimal("100.00"),
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_market_data_service.get_market_data.return_value = expected_candles
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        result = await api.get_market_data(args)
+
+        # Verify
+        assert result == expected_candles
+        assert len(result) == 1
+        assert result[0].high == Decimal("51000.00")
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_market_data.assert_called_once_with(args)
+
+    @pytest.mark.asyncio
+    async def test_get_historical_funding_rates_success(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_market_data_service: MagicMock,
+    ) -> None:
+        """Test successful get_historical_funding_rates call."""
+        # Create test data
+        args = GetHistoricalFundingRatesArgs(
+            symbol="BTC-USD",
+            start_time=datetime.fromisoformat("2024-01-01T00:00:00+00:00"),
+            end_time=datetime.fromisoformat("2024-01-02T00:00:00+00:00"),
+        )
+        expected_rates = [
+            FundingRate(
+                symbol="BTC-USD",
+                timestamp=datetime.fromisoformat("2024-01-01T00:00:00+00:00"),
+                funding_rate=Decimal("0.0001"),
+                predicted_rate=None,
+                mark_price=None,
+                index_price=None,
+                next_funding_time=None,
+                hl_details=None,
+                bp_details=None,
+            ),
+            FundingRate(
+                symbol="BTC-USD",
+                timestamp=datetime.fromisoformat("2024-01-01T08:00:00+00:00"),
+                funding_rate=Decimal("0.0002"),
+                predicted_rate=None,
+                mark_price=None,
+                index_price=None,
+                next_funding_time=None,
+                hl_details=None,
+                bp_details=None,
+            ),
+        ]
+
+        # Configure mock service
+        mock_hl_market_data_service.get_historical_funding_rates.return_value = expected_rates
+
+        # Create API instance with mocked service
+        api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
+
+        # Execute
+        result = await api.get_historical_funding_rates(args)
+
+        # Verify
+        assert result == expected_rates
+        assert len(result) == 2
+
+        # Verify service was called correctly
+        mock_hl_market_data_service.get_historical_funding_rates.assert_called_once_with(args)
+
+
+class TestHyperliquidAPIInitializationPaths:
+    """Test different initialization paths for HyperliquidAPI."""
+
+    def test_api_initialization_mainnet(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        active_hl_config: ExchangeSpecificConfig,
+    ) -> None:
+        """Test API initialization with mainnet configuration."""
+        # Ensure config is set to mainnet
+        config = active_hl_config.model_copy(update={"environment_type": EnvironmentType.MAINNET})
+
+        # Create API instance
+        api = hl_api_with_di(config=config)
+
+        # Verify initialization
+        assert api is not None
+        assert api.exchange_name == "hyperliquid"
+        assert api.rest_endpoint == str(config.api_base_url_mainnet)
+        if config.ws_url_mainnet:
+            assert api.ws_endpoint == str(config.ws_url_mainnet)
+
+    def test_api_initialization_testnet(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        active_hl_config: ExchangeSpecificConfig,
+    ) -> None:
+        """Test API initialization with testnet configuration."""
+        # Create testnet config
+        config = active_hl_config.model_copy(
+            update={
+                "environment_type": EnvironmentType.TESTNET,
+                "api_base_url_testnet": AnyUrl("https://api.testnet.hyperliquid.xyz"),
+                "ws_url_testnet": AnyUrl("wss://api.testnet.hyperliquid.xyz/ws"),
+            }
+        )
+
+        # Create API instance
+        api = hl_api_with_di(config=config)
+
+        # Verify initialization
+        assert api is not None
+        assert api.exchange_name == "hyperliquid"
+        assert api.rest_endpoint == "https://api.testnet.hyperliquid.xyz"
+        assert api.ws_endpoint == "wss://api.testnet.hyperliquid.xyz/ws"
+
+    def test_api_initialization_testnet_fallback_to_mainnet(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        active_hl_config: ExchangeSpecificConfig,
+    ) -> None:
+        """Test API initialization falls back to mainnet when testnet URLs missing."""
+        # Create testnet config without testnet URLs
+        config = active_hl_config.model_copy(
+            update={
+                "environment_type": EnvironmentType.TESTNET,
+                "api_base_url_testnet": None,
+                "ws_url_testnet": None,
+            }
+        )
+
+        # Create API instance - should fallback to mainnet
+        api = hl_api_with_di(config=config)
+
+        # Verify initialization with mainnet URLs
+        assert api is not None
+        assert api.exchange_name == "hyperliquid"
+        assert api.rest_endpoint == str(config.api_base_url_mainnet)
+        if config.ws_url_mainnet:
+            assert api.ws_endpoint == str(config.ws_url_mainnet)
+
+    def test_api_initialization_missing_chain_id(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        active_hl_config: ExchangeSpecificConfig,
+    ) -> None:
+        """Test API initialization fails when chain_id is missing."""
+        # Create config without chain_id
+        config = active_hl_config.model_copy(update={"chain_id": None})
+
+        # Attempt to create API instance should raise error
+        with pytest.raises(RequiredParameterError) as exc_info:
+            hl_api_with_di(config=config)
+
+        assert exc_info.value.parameter == "chain_id"
+        assert "Hyperliquid" in str(exc_info.value)
+
+
+class TestHyperliquidAPIHelperMethods:
+    """Test helper methods in HyperliquidAPI."""
+
+    @pytest.mark.asyncio
+    async def test_close_method(
+        self,
+        hl_api_with_di: Callable[..., HyperliquidAPI],
+        mock_hl_http_client: MagicMock,
+    ) -> None:
+        """Test that close method properly closes HTTP client."""
+        # Create API instance with mocked HTTP client
+        api = hl_api_with_di(http_client=mock_hl_http_client)
+
+        # Call close
+        await api.close()
+
+        # Verify HTTP client close was called
+        mock_hl_http_client.close_session.assert_called_once()
+
+    # NOTE: Authentication and asset index functionality are tested through public methods
+    # that internally use these components. Testing private methods (_authenticate,
+    # _get_asset_index) violates the principle of testing only through already exposed
+    # public behavior.
