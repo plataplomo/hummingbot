@@ -509,18 +509,25 @@ class TestProtocolMethodSignatures:
         )
 
     @pytest.mark.parametrize(("method_name", "args"), MARKET_DATA_BUILDER_TEST_METHODS)
-    def test_market_data_builder_methods_return_dict(
+    def test_market_data_builder_methods_return_pydantic_models(
         self,
         market_data_builder: HyperliquidMarketDataRequestBuilder,
         method_name: str,
         args: list[str | int],
     ) -> None:
-        """Test that market data builder methods return dict."""
+        """Test that market data builder methods return Pydantic models (improved type safety)."""
         method = getattr(market_data_builder, method_name)
-        result: dict[str, Any] = method(*args)
-        assert isinstance(result, dict), f"{method_name} should return dict"
+        result = method(*args)
+
+        # Verify it's a Pydantic model (has model_dump method)
+        assert hasattr(result, "model_dump"), f"{method_name} should return Pydantic model"
+
+        # Verify it can be serialized to dict for JSON
+        dict_result: dict[str, Any] = result.model_dump(mode="json", by_alias=True)
+        assert isinstance(dict_result, dict), f"{method_name} should be serializable to dict"
+
         # All keys should be strings for JSON serialization
-        for key in result:
+        for key in dict_result:
             assert isinstance(key, str), f"Keys should be strings in {method_name}"
 
 

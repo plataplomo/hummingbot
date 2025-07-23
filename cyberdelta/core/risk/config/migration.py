@@ -7,11 +7,24 @@ from __future__ import annotations
 
 import copy
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypeVar
+
+
+T = TypeVar("T")
 
 
 class ConfigurationMigrator:
     """Utility to migrate legacy configurations to enhanced structure."""
+
+    @staticmethod
+    def _get_with_default(
+        config: dict[str, Any],
+        key: str,
+        default: T,
+    ) -> T:
+        """Get value from config, returning default if key is missing or None."""
+        value = config.get(key)
+        return default if value is None else value
 
     @staticmethod
     def migrate_legacy_config(legacy_config: dict[str, Any]) -> dict[str, Any]:
@@ -25,8 +38,9 @@ class ConfigurationMigrator:
 
         """
         enhanced_config: dict[str, Any] = {
-            "enabled": legacy_config.get("enabled", True),
-            "global": legacy_config.get(
+            "enabled": ConfigurationMigrator._get_with_default(legacy_config, "enabled", True),
+            "global": ConfigurationMigrator._get_with_default(
+                legacy_config,
                 "global",
                 {
                     "max_position_usd": 200.0,
@@ -34,78 +48,184 @@ class ConfigurationMigrator:
                 },
             ),
             "checkers": {
-                "enable_required_fields": legacy_config.get("enable_required_fields_check", True),
-                "enable_profitability": legacy_config.get("enable_profitability_check", True),
-                "enable_price_sanity": legacy_config.get("enable_price_sanity_check", True),
-                "enable_volatility": legacy_config.get("enable_volatility_check", True),
-                "enable_funding_rate": legacy_config.get("enable_funding_rate_check", True),
-                "enable_circuit_breaker": legacy_config.get("enable_circuit_breaker_check", True),
-                "enable_balance": legacy_config.get("enable_balance_check", True),
+                "enable_required_fields": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_required_fields_check", True
+                ),
+                "enable_profitability": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_profitability_check", True
+                ),
+                "enable_price_sanity": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_price_sanity_check", True
+                ),
+                "enable_volatility": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_volatility_check", True
+                ),
+                "enable_funding_rate": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_funding_rate_check", True
+                ),
+                "enable_circuit_breaker": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_circuit_breaker_check", True
+                ),
+                "enable_balance": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_balance_check", True
+                ),
                 "thresholds": {
-                    "min_profitability": legacy_config.get("min_profitability_threshold", 0.001),
-                    "max_price_spread": legacy_config.get("max_price_spread", 0.05),
-                    "max_price_deviation": legacy_config.get("max_price_deviation", 0.1),
-                    "min_price": legacy_config.get("min_price", 0.0000001),
-                    "max_price": legacy_config.get("max_price", 1000000),
-                    "outlier_z_score_threshold": legacy_config.get(
-                        "outlier_z_score_threshold", 3.0
+                    "min_profitability": ConfigurationMigrator._get_with_default(
+                        legacy_config, "min_profitability_threshold", 0.001
                     ),
-                    "max_funding_rate": legacy_config.get("max_funding_rate", 0.01),
-                    "max_funding_rate_spread": legacy_config.get("max_funding_rate_spread", 0.005),
-                    "max_volatility": legacy_config.get("max_volatility", 0.2),
-                    "min_volatility": legacy_config.get("min_volatility", 0.001),
-                    "min_balance_ratio": legacy_config.get("min_balance_ratio", 0.1),
+                    "max_price_spread": ConfigurationMigrator._get_with_default(
+                        legacy_config, "max_price_spread", 0.05
+                    ),
+                    "max_price_deviation": ConfigurationMigrator._get_with_default(
+                        legacy_config, "max_price_deviation", 0.1
+                    ),
+                    "min_price": ConfigurationMigrator._get_with_default(
+                        legacy_config, "min_price", 0.0000001
+                    ),
+                    "max_price": ConfigurationMigrator._get_with_default(
+                        legacy_config, "max_price", 1000000
+                    ),
+                    "outlier_z_score_threshold": ConfigurationMigrator._get_with_default(
+                        legacy_config, "outlier_z_score_threshold", 3.0
+                    ),
+                    "max_funding_rate": ConfigurationMigrator._get_with_default(
+                        legacy_config, "max_funding_rate", 0.01
+                    ),
+                    "max_funding_rate_spread": ConfigurationMigrator._get_with_default(
+                        legacy_config, "max_funding_rate_spread", 0.005
+                    ),
+                    "max_volatility": ConfigurationMigrator._get_with_default(
+                        legacy_config, "max_volatility", 0.2
+                    ),
+                    "min_volatility": ConfigurationMigrator._get_with_default(
+                        legacy_config, "min_volatility", 0.001
+                    ),
+                    "min_balance_ratio": ConfigurationMigrator._get_with_default(
+                        legacy_config, "min_balance_ratio", 0.1
+                    ),
                 },
-                "fail_fast": legacy_config.get("fail_fast", True),
-                "max_concurrent_checks": legacy_config.get("max_concurrent_checks", 5),
-                "check_timeout_seconds": legacy_config.get("check_timeout_seconds", 5.0),
-                "funding_rate_lookback_hours": legacy_config.get("funding_rate_lookback_hours", 24),
-                "volatility_lookback_hours": legacy_config.get("volatility_lookback_hours", 24),
-                "include_fees_in_profitability": legacy_config.get("include_fees", True),
-                "enable_outlier_detection": legacy_config.get("enable_outlier_detection", True),
-                "check_both_exchanges": legacy_config.get("check_both_exchanges", True),
+                "fail_fast": ConfigurationMigrator._get_with_default(
+                    legacy_config, "fail_fast", True
+                ),
+                "max_concurrent_checks": ConfigurationMigrator._get_with_default(
+                    legacy_config, "max_concurrent_checks", 5
+                ),
+                "check_timeout_seconds": ConfigurationMigrator._get_with_default(
+                    legacy_config, "check_timeout_seconds", 5.0
+                ),
+                "funding_rate_lookback_hours": ConfigurationMigrator._get_with_default(
+                    legacy_config, "funding_rate_lookback_hours", 24
+                ),
+                "volatility_lookback_hours": ConfigurationMigrator._get_with_default(
+                    legacy_config, "volatility_lookback_hours", 24
+                ),
+                "include_fees_in_profitability": ConfigurationMigrator._get_with_default(
+                    legacy_config, "include_fees", True
+                ),
+                "enable_outlier_detection": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_outlier_detection", True
+                ),
+                "check_both_exchanges": ConfigurationMigrator._get_with_default(
+                    legacy_config, "check_both_exchanges", True
+                ),
                 "extra_config": legacy_config.get("extra_check_config"),
             },
             "sizing": {
                 "method": (
-                    "simple" if legacy_config.get("use_simple_sizing_path", True) else "kelly"
+                    "simple"
+                    if ConfigurationMigrator._get_with_default(
+                        legacy_config, "use_simple_sizing_path", True
+                    )
+                    else "kelly"
                 ),
-                "simple_method": legacy_config.get("simple_sizing_method", "fixed_fraction"),
-                "simple_fixed_fraction": legacy_config.get("simple_fixed_fraction", 0.1),
-                "simple_fixed_usd": legacy_config.get("simple_fixed_usd_size", 10.0),
-                "kelly_multiplier": legacy_config.get("kelly_multiplier", 0.25),
-                "kelly_max_allocation": legacy_config.get("kelly_max_allocation", 0.1),
-                "kelly_min_allocation": legacy_config.get("kelly_min_allocation", 0.01),
-                "kelly_risk_free_rate": legacy_config.get("kelly_risk_free_rate", 0.02),
-                "min_position_size": legacy_config.get("min_position_size", 100),
-                "max_position_size": legacy_config.get("max_position_size", 10000),
-                "max_leverage": legacy_config.get("max_leverage", 5.0),
-                "max_portfolio_allocation": legacy_config.get("max_portfolio_allocation", 0.5),
+                "simple_method": ConfigurationMigrator._get_with_default(
+                    legacy_config, "simple_sizing_method", "fixed_fraction"
+                ),
+                "simple_fixed_fraction": ConfigurationMigrator._get_with_default(
+                    legacy_config, "simple_fixed_fraction", 0.1
+                ),
+                "simple_fixed_usd": ConfigurationMigrator._get_with_default(
+                    legacy_config, "simple_fixed_usd_size", 10.0
+                ),
+                "kelly_multiplier": ConfigurationMigrator._get_with_default(
+                    legacy_config, "kelly_multiplier", 0.25
+                ),
+                "kelly_max_allocation": ConfigurationMigrator._get_with_default(
+                    legacy_config, "kelly_max_allocation", 0.1
+                ),
+                "kelly_min_allocation": ConfigurationMigrator._get_with_default(
+                    legacy_config, "kelly_min_allocation", 0.01
+                ),
+                "kelly_risk_free_rate": ConfigurationMigrator._get_with_default(
+                    legacy_config, "kelly_risk_free_rate", 0.02
+                ),
+                "min_position_size": ConfigurationMigrator._get_with_default(
+                    legacy_config, "min_position_size", 100
+                ),
+                "max_position_size": ConfigurationMigrator._get_with_default(
+                    legacy_config, "max_position_size", 10000
+                ),
+                "max_leverage": ConfigurationMigrator._get_with_default(
+                    legacy_config, "max_leverage", 5.0
+                ),
+                "max_portfolio_allocation": ConfigurationMigrator._get_with_default(
+                    legacy_config, "max_portfolio_allocation", 0.5
+                ),
                 "total_capital": legacy_config.get("total_capital"),
-                "min_volatility": legacy_config.get("min_volatility_for_sizing", 0.001),
-                "max_volatility_bound": legacy_config.get("max_volatility_bound", 1.0),
-                "volatility_lookback_hours": legacy_config.get(
-                    "volatility_lookback_hours_for_sizing", 24
+                "min_volatility": ConfigurationMigrator._get_with_default(
+                    legacy_config, "min_volatility_for_sizing", 0.001
                 ),
-                "enable_validation_factors": legacy_config.get("enable_validation_factors", True),
-                "enable_volatility_adjustment": legacy_config.get(
-                    "enable_volatility_adjustment", True
+                "max_volatility_bound": ConfigurationMigrator._get_with_default(
+                    legacy_config, "max_volatility_bound", 1.0
                 ),
-                "enable_spread_adjustment": legacy_config.get("enable_spread_adjustment", True),
-                "base_validation_factor": legacy_config.get("base_validation_factor", 0.8),
-                "sizing_timeout_seconds": legacy_config.get("sizing_timeout_seconds", 10.0),
+                "volatility_lookback_hours": ConfigurationMigrator._get_with_default(
+                    legacy_config, "volatility_lookback_hours_for_sizing", 24
+                ),
+                "enable_validation_factors": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_validation_factors", True
+                ),
+                "enable_volatility_adjustment": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_volatility_adjustment", True
+                ),
+                "enable_spread_adjustment": ConfigurationMigrator._get_with_default(
+                    legacy_config, "enable_spread_adjustment", True
+                ),
+                "base_validation_factor": ConfigurationMigrator._get_with_default(
+                    legacy_config, "base_validation_factor", 0.8
+                ),
+                "sizing_timeout_seconds": ConfigurationMigrator._get_with_default(
+                    legacy_config, "sizing_timeout_seconds", 10.0
+                ),
             },
             # Preserve backward compatibility fields
-            "use_simple_sizing_path": legacy_config.get("use_simple_sizing_path", True),
-            "simple_sizing_method": legacy_config.get("simple_sizing_method", "fixed_fraction"),
-            "simple_fixed_fraction": legacy_config.get("simple_fixed_fraction", 0.1),
-            "simple_fixed_usd_size": legacy_config.get("simple_fixed_usd_size", 10.0),
+            "use_simple_sizing_path": ConfigurationMigrator._get_with_default(
+                legacy_config, "use_simple_sizing_path", True
+            ),
+            "simple_sizing_method": ConfigurationMigrator._get_with_default(
+                legacy_config, "simple_sizing_method", "fixed_fraction"
+            ),
+            "simple_fixed_fraction": ConfigurationMigrator._get_with_default(
+                legacy_config, "simple_fixed_fraction", 0.1
+            ),
+            "simple_fixed_usd_size": ConfigurationMigrator._get_with_default(
+                legacy_config, "simple_fixed_usd_size", 10.0
+            ),
             # System configuration
-            "log_level": legacy_config.get("log_level", "INFO"),
-            "log_all_checks": legacy_config.get("log_all_checks", False),
-            "log_performance_metrics": legacy_config.get("log_performance_metrics", True),
-            "max_concurrent_checks": legacy_config.get("max_concurrent_checks_system", 10),
-            "max_concurrent_sizing": legacy_config.get("max_concurrent_sizing", 5),
+            "log_level": ConfigurationMigrator._get_with_default(
+                legacy_config, "log_level", "INFO"
+            ),
+            "log_all_checks": ConfigurationMigrator._get_with_default(
+                legacy_config, "log_all_checks", False
+            ),
+            "log_performance_metrics": ConfigurationMigrator._get_with_default(
+                legacy_config, "log_performance_metrics", True
+            ),
+            "max_concurrent_checks": ConfigurationMigrator._get_with_default(
+                legacy_config, "max_concurrent_checks_system", 10
+            ),
+            "max_concurrent_sizing": ConfigurationMigrator._get_with_default(
+                legacy_config, "max_concurrent_sizing", 5
+            ),
         }
 
         return enhanced_config

@@ -22,6 +22,7 @@ from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from tests.fixtures.time_fixtures import FreezerProtocol
 
 
 pytestmark = pytest.mark.timing
@@ -360,11 +361,13 @@ class TestEvaluateEntryOpportunityWithFundingRates:
     ) -> None:
         """Test successful opportunity evaluation with valid funding rate."""
         # Arrange
+        # Use a fixed timestamp for deterministic testing
+        fixed_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         expected_rate = FundingRate(
             symbol="BTC-PERP",
-            timestamp=datetime.now(UTC),
+            timestamp=fixed_time,
             funding_rate=Decimal("0.002"),  # Increased to ensure profit
-            next_funding_time=datetime.now(UTC) + timedelta(hours=8),
+            next_funding_time=fixed_time + timedelta(hours=8),
         )
 
         # Mock funding rate
@@ -382,7 +385,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
             perp_ticker = Ticker(
                 symbol="BTC-PERP",
                 exchange="hyperliquid",
-                timestamp=datetime.now(UTC),
+                timestamp=fixed_time,
                 price=Decimal("50000.5"),
                 bid=Decimal("50000.0"),
                 ask=Decimal("50001.0"),
@@ -390,7 +393,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
             spot_ticker = Ticker(
                 symbol="BTC_USDC",
                 exchange="backpack",
-                timestamp=datetime.now(UTC),
+                timestamp=fixed_time,
                 price=Decimal("49900.5"),
                 bid=Decimal("49900.0"),
                 ask=Decimal("49901.0"),
@@ -418,10 +421,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_success_after_funding_rate_retries(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test successful opportunity evaluation after initial funding rate failures."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         expected_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -499,9 +503,10 @@ class TestEvaluateEntryOpportunityWithFundingRates:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_no_funding_rate_available(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation when no funding rate is available."""
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
 
         def mock_get_funding_rate(exchange: str, symbol: str) -> FundingRate | None:
             return None
@@ -521,10 +526,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_funding_rate_below_threshold(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with funding rate below minimum threshold."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         low_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -583,9 +589,10 @@ class TestEvaluateEntryOpportunityWithFundingRates:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_funding_rate_unavailable(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when funding rate is consistently unavailable."""
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
 
         def mock_get_funding_rate(exchange: str, symbol: str) -> FundingRate | None:
             return None
@@ -608,9 +615,10 @@ class TestEvaluateEntryOpportunityWithFundingRates:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_data_handler_exception(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when data handler raises exception."""
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         with (
             patch.object(
                 funding_rate_strategy.data_handler,
@@ -634,10 +642,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_missing_ticker_data(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when ticker data is missing."""
         # Arrange - valid funding rate but missing ticker
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -671,10 +680,11 @@ class TestEvaluateOpportunityPriceScenarios:
     # SUCCESS CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_success_with_price_differential(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test successful opportunity evaluation with favorable price differential."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -732,10 +742,11 @@ class TestEvaluateOpportunityPriceScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_success_different_symbols(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test successful opportunity evaluation with different symbol mapping."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate_strategy.symbol_mapping = {"ETH-PERP": "ETH_USDC"}
         funding_rate_strategy.symbol = "ETH-PERP"
 
@@ -797,10 +808,11 @@ class TestEvaluateOpportunityPriceScenarios:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_zero_bid_ask_spread(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with zero bid-ask spread."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -858,10 +870,11 @@ class TestEvaluateOpportunityPriceScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_very_large_numbers(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with very large price numbers."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -921,10 +934,11 @@ class TestEvaluateOpportunityPriceScenarios:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_missing_symbol_mapping(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when symbol mapping is missing."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate_strategy.symbol_mapping = {}  # Empty mapping
 
         funding_rate = FundingRate(
@@ -948,9 +962,10 @@ class TestEvaluateOpportunityPriceScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_none_perp_ticker(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when perp ticker is None."""
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1001,9 +1016,10 @@ class TestEvaluateOpportunityPriceScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_none_spot_ticker(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when spot ticker is None."""
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1054,9 +1070,10 @@ class TestEvaluateOpportunityPriceScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_both_tickers_none(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when both tickers are None."""
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         funding_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1088,10 +1105,11 @@ class TestFundingRateValidationScenarios:
     # SUCCESS CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_with_positive_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with positive funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         positive_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1150,10 +1168,11 @@ class TestFundingRateValidationScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_with_negative_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with negative funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         negative_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1212,10 +1231,11 @@ class TestFundingRateValidationScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_with_very_small_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with very small funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         very_small_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1275,10 +1295,11 @@ class TestFundingRateValidationScenarios:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_zero_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with zero funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         zero_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1337,10 +1358,11 @@ class TestFundingRateValidationScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_large_positive_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with large positive funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         large_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1399,10 +1421,11 @@ class TestFundingRateValidationScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_edge_large_negative_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with large negative funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         large_negative_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1462,10 +1485,11 @@ class TestFundingRateValidationScenarios:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_none_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test failure when funding rate is None."""
         # Already covered in earlier tests
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         with patch.object(
             funding_rate_strategy.data_handler,
             "get_latest_funding_rate",
@@ -1479,10 +1503,11 @@ class TestFundingRateValidationScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_extreme_positive_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with extreme positive funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         extreme_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1541,10 +1566,11 @@ class TestFundingRateValidationScenarios:
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_failure_extreme_negative_funding_rate(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test opportunity evaluation with extreme negative funding rate."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         extreme_negative_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
@@ -1608,10 +1634,11 @@ class TestProcessData:
     # SUCCESS CASES
     @pytest.mark.asyncio
     async def test_process_data_success_valid_candle(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test successful data processing with valid candle."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         candle = Candle(
             symbol="BTC-PERP",
             interval="1h",
@@ -1647,10 +1674,11 @@ class TestProcessData:
 
     @pytest.mark.asyncio
     async def test_process_data_success_no_signals_generated(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test successful data processing with no signals generated."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         candle = Candle(
             symbol="BTC-PERP",
             interval="1h",
@@ -1675,10 +1703,11 @@ class TestProcessData:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_process_data_edge_zero_volume_candle(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test data processing with zero volume candle."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         candle = Candle(
             symbol="BTC-PERP",
             interval="1h",
@@ -1702,10 +1731,11 @@ class TestProcessData:
 
     @pytest.mark.asyncio
     async def test_process_data_edge_very_old_candle(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test data processing with very old candle."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         old_timestamp = datetime.now(UTC) - timedelta(days=1)
         candle = Candle(
             symbol="BTC-PERP",
@@ -1731,10 +1761,11 @@ class TestProcessData:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_process_data_failure_evaluate_raises_exception(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test data processing failure when evaluate_entry_opportunity raises exception."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         candle = Candle(
             symbol="BTC-PERP",
             interval="1h",
@@ -1759,19 +1790,21 @@ class TestProcessData:
 
     @pytest.mark.asyncio
     async def test_process_data_failure_none_candle(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test data processing failure with None candle."""
         # Act & Assert
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         with pytest.raises(AttributeError):
             await funding_rate_strategy.process_data(None)  # type: ignore[arg-type]
 
     @pytest.mark.asyncio
     async def test_process_data_failure_invalid_candle_data(
-        self, funding_rate_strategy: FundingRateArbitrageStrategy
+        self, funding_rate_strategy: FundingRateArbitrageStrategy, frozen_time: FreezerProtocol
     ) -> None:
         """Test data processing with invalid candle data."""
         # Arrange - Create candle with missing required fields
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         incomplete_candle = Mock()
         incomplete_candle.symbol = None
         incomplete_candle.close = None
@@ -1795,9 +1828,11 @@ class TestIntegrationScenarios:
         mock_portfolio_tracker: Mock,
         mock_risk_manager: Mock,
         strategy_params: dict[str, Any],
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test complete flow from opportunity detection to signal generation."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         strategy = FundingRateArbitrageStrategy(
             name="integration_test",
             symbol="BTC-PERP",
@@ -1888,9 +1923,11 @@ class TestIntegrationScenarios:
         mock_portfolio_tracker: Mock,
         mock_risk_manager: Mock,
         strategy_params: dict[str, Any],
+        frozen_time: FreezerProtocol,
     ) -> None:
         """Test that no signals are generated when funding rate is below threshold."""
         # Arrange
+        frozen_time.move_to("2024-01-01 12:00:00+00:00")
         strategy = FundingRateArbitrageStrategy(
             name="integration_test",
             symbol="BTC-PERP",

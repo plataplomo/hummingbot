@@ -302,7 +302,7 @@ class TestRiskManagerDependencyFailures:
         assert sized_opp is None
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("bad_metrics_return", [None, Exception("Simulated FV Error")])
+    @pytest.mark.parametrize("bad_metrics_return", [None, ValueError("Simulated FV Error")])
     async def test_size_opportunity_funding_validation_error_or_none(
         self,
         risk_manager: RiskManager,
