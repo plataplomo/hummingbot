@@ -42,6 +42,8 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
         response: HyperliquidRawMetaAndAssetCtxsResponse = (
             HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
         )
         assert isinstance(response, HyperliquidRawMetaAndAssetCtxsResponse)
@@ -58,6 +60,8 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "2-element list" in exc_info.value.message
@@ -71,19 +75,24 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert "Invalid info (MetaAndAssetCtxs) response from exchange:" in exc_info.value.message
+        assert "Invalid info_meta_and_asset_ctxs response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_top_level_type(self) -> None:
         """Test meta and asset contexts response with wrong top-level type."""
         raw_data = {"invalid": "data"}
-        with pytest.raises(StructureTypeError) as exc_info:
+        with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_meta_and_asset_ctxs_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
-        assert "Expected a list, got dict" in str(exc_info.value)
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "expected list, got dict" in str(exc_info.value)
 
 
 class TestHandleInfoFundingRateResponse:
@@ -95,6 +104,7 @@ class TestHandleInfoFundingRateResponse:
         response = HyperliquidResponseHandler().handle_info_funding_rate_response(
             cast("RawJsonResponse", raw_data),
             status_code=200,
+            headers={},
         )
         assert response.name == "ETH-PERP"
         assert response.funding == "0.00015"
@@ -106,12 +116,10 @@ class TestHandleInfoFundingRateResponse:
             HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
                 status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Invalid info (funding rate for {symbol}) response from exchange:"
-            in exc_info.value.message
-        )
+        assert "Invalid info_funding_rate response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
         assert "funding" in str(exc_info.value.original_exception)
 
@@ -122,12 +130,10 @@ class TestHandleInfoFundingRateResponse:
             HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
                 status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert (
-            f"Unexpected info (funding rate for {symbol}) response format:"
-            in exc_info.value.message
-        )
+        assert "Unexpected info_funding_rate response format:" in exc_info.value.message
         assert "expected dict, got list" in exc_info.value.message
 
 
@@ -140,6 +146,8 @@ class TestHandleInfoL2BookResponse:
         response: HyperliquidRawL2Book = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
             symbol,
+            status_code=200,
+            headers={},
         )
         assert isinstance(response, HyperliquidRawL2Book)
         assert response.coin == "ETH-PERP"
@@ -153,21 +161,27 @@ class TestHandleInfoL2BookResponse:
             HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Invalid L2 book ({symbol}) response from exchange:" in exc_info.value.message
+        assert "Invalid info_l2_book" in exc_info.value.message
+        assert "response from exchange:" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
         assert "levels" in str(exc_info.value.original_exception)
 
     def test_invalid_top_level_type(self, symbol: str) -> None:
         """Test L2 book response with wrong top-level type."""
         raw_data = "invalid"
-        with pytest.raises(StructureTypeError) as exc_info:
+        with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
-        assert "Expected a dict, got str" in str(exc_info.value)
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "expected dict, got str" in str(exc_info.value)
 
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""
@@ -179,6 +193,8 @@ class TestHandleInfoL2BookResponse:
         response = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
             symbol,
+            status_code=200,
+            headers={},
         )
         assert response.coin == "ETH-PERP"
         assert len(response.levels) == 2
@@ -196,6 +212,8 @@ class TestHandleInfoRecentTradesResponse:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
         )
         assert isinstance(response_list, list)
@@ -212,6 +230,8 @@ class TestHandleInfoRecentTradesResponse:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
@@ -225,6 +245,8 @@ class TestHandleInfoRecentTradesResponse:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
         assert "Expected dict" in str(exc_info.value)
 
@@ -235,6 +257,8 @@ class TestHandleInfoRecentTradesResponse:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
         assert "Expected list" in str(exc_info.value)
 
@@ -250,6 +274,8 @@ class TestHandleInfoCandleSnapshotResponse:
                 cast("RawJsonResponse", raw_data),
                 symbol,
                 "1m",
+                status_code=200,
+                headers={},
             )
         )
         assert isinstance(response, HyperliquidRawCandleSnapshot)
@@ -264,6 +290,8 @@ class TestHandleInfoCandleSnapshotResponse:
                 cast("RawJsonResponse", raw_data),
                 symbol,
                 "1m",
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
@@ -281,6 +309,8 @@ class TestHandleInfoCandleSnapshotResponse:
                 cast("RawJsonResponse", raw_data),
                 symbol,
                 "1m",
+                status_code=200,
+                headers={},
             )
         assert "Expected dict" in str(exc_info.value)
 
@@ -300,6 +330,8 @@ class TestHandleInfoCandleSnapshotResponse:
                 cast("RawJsonResponse", raw_data),
                 symbol,
                 "1m",
+                status_code=200,
+                headers={},
             )
         assert "OHLCV data lists must all have the same length" in str(exc_info.value)
 
@@ -312,6 +344,8 @@ class TestHandleHistoricalFundingRatesResponse:
         raw_data = valid_raw_historical_funding_rates_data
         response = HyperliquidResponseHandler().handle_historical_funding_rates_response(
             cast("RawJsonResponse", raw_data),
+            status_code=200,
+            headers={},
         )
         assert isinstance(response, HyperliquidRawFundingHistoryResponse)
         assert isinstance(response.items, list)
@@ -327,6 +361,8 @@ class TestHandleHistoricalFundingRatesResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_historical_funding_rates_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Invalid historical_funding_rates response from exchange:" in exc_info.value.message
@@ -338,23 +374,30 @@ class TestHandleHistoricalFundingRatesResponse:
         with pytest.raises(StructureTypeError) as exc_info:
             HyperliquidResponseHandler().handle_historical_funding_rates_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
         assert "Expected dict" in str(exc_info.value)
 
     def test_invalid_top_level_type(self) -> None:
         """Test historical funding rates response with wrong top-level type."""
         raw_data = {"invalid": "data"}
-        with pytest.raises(StructureTypeError) as exc_info:
+        with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_historical_funding_rates_response(
                 cast("RawJsonResponse", raw_data),
+                status_code=200,
+                headers={},
             )
-        assert "expected list" in str(exc_info.value).lower()
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "expected list, got dict" in str(exc_info.value)
 
     def test_empty_list_response(self) -> None:
         """Test historical funding rates response with empty list."""
         raw_data: list[Any] = []
         response = HyperliquidResponseHandler().handle_historical_funding_rates_response(
             cast("RawJsonResponse", raw_data),
+            status_code=200,
+            headers={},
         )
         assert isinstance(response, HyperliquidRawFundingHistoryResponse)
         assert isinstance(response.items, list)
@@ -380,6 +423,7 @@ class TestMarketDataEdgeCases:
             HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
                 status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
@@ -394,6 +438,8 @@ class TestMarketDataEdgeCases:
         response = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
             symbol,
+            status_code=200,
+            headers={},
         )
         assert response.coin == "ETH-PERP"
         assert len(response.levels) == 2
@@ -416,6 +462,8 @@ class TestMarketDataEdgeCases:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
                 symbol,
+                status_code=200,
+                headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "1.side" in exc_info.value.message  # Should fail on second item (index 1)
