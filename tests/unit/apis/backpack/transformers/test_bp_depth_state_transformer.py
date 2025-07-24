@@ -252,41 +252,51 @@ class TestBackpackDepthStateTransformer:
     def test_transform_snapshot_resets_state(
         self, transformer: BackpackDepthStateTransformer, mock_context: Mock
     ) -> None:
-        """Test that snapshots reset orderbook state."""
-        # Add some existing state manually
-        transformer.states["BTC_USDC"] = OrderBookState()
-        transformer.states["BTC_USDC"].bids[Decimal("99.0")] = Decimal("5.0")
+        """Test that WebSocket updates are always incremental (no snapshot support)."""
+        # First establish state with an initial update
+        initial_update = BackpackRawDepthUpdateEvent(
+            b=[("99.0", "5.0")],
+            a=[("100.5", "3.0")],
+            U="999",
+            u="999",
+            e="depth",
+            E=1705314600000,
+            T=1705314600001,
+        )
+        transformer.transform(initial_update, mock_context)
 
-        # Send snapshot (has both bids and asks, same update IDs)
-        snapshot = BackpackRawDepthUpdateEvent(
+        # Send update with same U and u (which might look like a snapshot but isn't)
+        # Current implementation treats all WebSocket updates as incremental
+        update = BackpackRawDepthUpdateEvent(
             b=[("100.0", "10.0")],
             a=[("101.0", "5.0")],
             U="1000",
             u="1000",
             e="depth",
-            E=1705314600000,
-            T=1705314600001,
+            E=1705314600002,
+            T=1705314600003,
         )
 
-        result = transformer.transform(snapshot, mock_context)
+        result = transformer.transform(update, mock_context)
 
-        # Should return valid OrderBook
+        # Should return valid OrderBook with BOTH old and new bids
         assert isinstance(result, OrderBook)
         assert result.symbol == "BTC_USDC"
-        assert len(result.bids) == 1
-        assert len(result.asks) == 1
+        assert len(result.bids) == 2  # Both old and new bids present
+        assert len(result.asks) == 2  # Both old and new asks present
 
-        # Stats should be updated
+        # Stats should show incremental updates, not snapshot
         stats = transformer.get_statistics()
-        assert stats["snapshots_processed"] == 1
+        assert stats["snapshots_processed"] == 0  # No snapshots in WebSocket
+        assert stats["incremental_updates_processed"] == 2
         assert stats["symbols_tracked"] == 1
 
     def test_transform_incremental_update(
         self, transformer: BackpackDepthStateTransformer, mock_context: Mock
     ) -> None:
         """Test processing incremental updates."""
-        # First, establish state with snapshot
-        snapshot = BackpackRawDepthUpdateEvent(
+        # First, establish state with initial update
+        initial_update = BackpackRawDepthUpdateEvent(
             b=[("100.0", "10.0")],
             a=[("101.0", "5.0")],
             U="1000",
@@ -295,7 +305,7 @@ class TestBackpackDepthStateTransformer:
             E=1705314600000,
             T=1705314600001,
         )
-        transformer.transform(snapshot, mock_context)
+        transformer.transform(initial_update, mock_context)
 
         # Send incremental update (only bids, different update IDs)
         update = BackpackRawDepthUpdateEvent(
@@ -313,7 +323,8 @@ class TestBackpackDepthStateTransformer:
         assert isinstance(result, OrderBook)
         assert len(result.bids) == 2  # Original + new bid
         stats = transformer.get_statistics()
-        assert stats["incremental_updates_processed"] == 1
+        # Both updates are counted as incremental (no snapshots in WebSocket)
+        assert stats["incremental_updates_processed"] == 2
 
     def test_transform_sequence_error_clears_state(
         self, transformer: BackpackDepthStateTransformer, mock_context: Mock
@@ -377,8 +388,8 @@ class TestBackpackDepthStateTransformer:
         mock_context.get_symbol_param = Mock(return_value={"symbol": "BTC_USDC"})
         mock_context.symbol = "BTC_USDC"
 
-        # Send snapshot
-        snapshot = BackpackRawDepthUpdateEvent(
+        # Send first update (WebSocket doesn't support snapshots)
+        update1 = BackpackRawDepthUpdateEvent(
             b=[("100.0", "10.0")],
             a=[("101.0", "5.0")],
             U="1000",
@@ -387,10 +398,10 @@ class TestBackpackDepthStateTransformer:
             E=1705314600000,
             T=1705314600001,
         )
-        transformer.transform(snapshot, mock_context)
+        transformer.transform(update1, mock_context)
 
         # Send incremental update
-        update = BackpackRawDepthUpdateEvent(
+        update2 = BackpackRawDepthUpdateEvent(
             b=[("99.5", "15.0")],
             a=None,
             U="1001",
@@ -399,19 +410,19 @@ class TestBackpackDepthStateTransformer:
             E=1705314600002,
             T=1705314600003,
         )
-        transformer.transform(update, mock_context)
+        transformer.transform(update2, mock_context)
 
         stats = transformer.get_statistics()
 
-        # Should return current stats
-        assert stats["snapshots_processed"] == 1
-        assert stats["incremental_updates_processed"] == 1
+        # Should return current stats (all updates are incremental)
+        assert stats["snapshots_processed"] == 0  # No snapshots in WebSocket
+        assert stats["incremental_updates_processed"] == 2
         assert stats["symbols_tracked"] == 1
 
         # Modifying returned stats shouldn't affect internal stats
-        stats["snapshots_processed"] = 10
+        stats["incremental_updates_processed"] = 10
         new_stats = transformer.get_statistics()
-        assert new_stats["snapshots_processed"] == 1
+        assert new_stats["incremental_updates_processed"] == 2
 
     def test_multiple_symbols_isolated_state(
         self, transformer: BackpackDepthStateTransformer

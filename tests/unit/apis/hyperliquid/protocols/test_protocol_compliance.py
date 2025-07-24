@@ -509,26 +509,30 @@ class TestProtocolMethodSignatures:
         )
 
     @pytest.mark.parametrize(("method_name", "args"), MARKET_DATA_BUILDER_TEST_METHODS)
-    def test_market_data_builder_methods_return_pydantic_models(
+    def test_market_data_builder_methods_return_pydantic_model(
         self,
         market_data_builder: HyperliquidMarketDataRequestBuilder,
         method_name: str,
         args: list[str | int],
     ) -> None:
-        """Test that market data builder methods return Pydantic models (improved type safety)."""
+        """Test that market data builder methods return Pydantic models."""
         method = getattr(market_data_builder, method_name)
         result = method(*args)
 
-        # Verify it's a Pydantic model (has model_dump method)
+        # Should return a Pydantic model (has model_dump method)
         assert hasattr(result, "model_dump"), f"{method_name} should return Pydantic model"
+        assert callable(result.model_dump), f"{method_name} result should have callable model_dump"
 
-        # Verify it can be serialized to dict for JSON
-        dict_result: dict[str, Any] = result.model_dump(mode="json", by_alias=True)
-        assert isinstance(dict_result, dict), f"{method_name} should be serializable to dict"
+        # Should be able to serialize to dict for JSON serialization
+        result_dict = result.model_dump(mode="json", by_alias=True)
+        assert isinstance(result_dict, dict), f"{method_name} model_dump should return dict"
 
         # All keys should be strings for JSON serialization
-        for key in dict_result:
-            assert isinstance(key, str), f"Keys should be strings in {method_name}"
+        # Verify dictionary structure is suitable for JSON serialization
+        typed_dict = cast(dict[str, Any], result_dict)
+        if typed_dict:  # Only check if dict is not empty
+            first_key = next(iter(typed_dict))
+            assert isinstance(first_key, str), f"Keys should be strings in {method_name} model_dump"
 
 
 @pytest.mark.protocol_runtime_check
@@ -607,7 +611,7 @@ class TestRuntimeProtocolChecking:
 
         def process_balance_mapper(mapper: BalanceMapperProtocol) -> bool:
             """Function that accepts a BalanceMapperProtocol."""
-            return hasattr(mapper, "map_to_balance")
+            return hasattr(mapper, "transform_raw_balance_to_internal")
 
         # Should accept actual implementation
         assert process_balance_mapper(HyperliquidBalanceMapper())

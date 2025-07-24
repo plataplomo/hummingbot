@@ -360,7 +360,7 @@ class TestHyperliquidOrderBookService:
         # Create two raw trades
         raw_trade2 = HyperliquidRawPublicTrade(
             coin="ETH",
-            side="S",
+            side="A",  # Use "A" for Ask/Sell instead of "S"
             px="3501.00",
             sz="1.0",
             hash="0xdef456",
@@ -375,12 +375,20 @@ class TestHyperliquidOrderBookService:
         ]
 
         # First succeeds, second fails
+        validation_error = ValidationError.from_exception_data(
+            "validation_error",
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("sz",),
+                    "input": "Invalid size",
+                    "ctx": {"error": "Invalid size value"},
+                }
+            ],
+        )
         mock_mapper.transform_raw_public_trade_to_internal.side_effect = [
             mock_trade,
-            ValidationError.from_exception_data(
-                "validation_error",
-                [{"type": "value_error", "loc": ("sz",), "input": "Invalid size"}],
-            ),
+            validation_error,
         ]
 
         # Act
@@ -425,12 +433,18 @@ class TestHyperliquidOrderBookService:
         mock_request_builder.build_recent_trades_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ([{"invalid": "data"}], 200, {})
 
-        mock_response_handler.handle_info_recent_trades_response.side_effect = (
-            ValidationError.from_exception_data(
-                "validation_error",
-                [{"type": "missing", "loc": ("coin",), "input": "Field required"}],
-            )
+        validation_error = ValidationError.from_exception_data(
+            "validation_error",
+            [
+                {
+                    "type": "missing",
+                    "loc": ("coin",),
+                    "input": "Field required",
+                    "ctx": {"error": "Field required"},
+                }
+            ],
         )
+        mock_response_handler.handle_info_recent_trades_response.side_effect = validation_error
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
@@ -486,4 +500,4 @@ class TestHyperliquidOrderBookService:
             await order_book_service.get_order_book(symbol)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Network timeout" in str(exc_info.value)
+        assert "Unexpected service failure" in str(exc_info.value)

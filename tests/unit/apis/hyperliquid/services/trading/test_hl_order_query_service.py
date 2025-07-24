@@ -37,7 +37,6 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import 
     HyperliquidOrderQueryService,
 )
 from cyberdelta.apis.models.service_args_models import (
-    GetOpenOrdersArgs,
     GetOrderArgs,
 )
 from cyberdelta.core.enums import OrderStatus
@@ -73,15 +72,27 @@ def mock_mapper() -> Mock:
 
 
 @pytest.fixture
+def mock_error_mapper() -> Mock:
+    """Create a mock error mapper."""
+    return Mock(spec=HyperliquidErrorMapper)
+
+
+@pytest.fixture
+def mock_authenticator() -> Mock:
+    """Create a mock authenticator."""
+    return Mock(spec=IAuthenticator)
+
+
+@pytest.fixture
 def order_query_service(
     mock_http_requester: AsyncMock,
     mock_request_builder: Mock,
     mock_response_handler: Mock,
     mock_mapper: Mock,
+    mock_error_mapper: Mock,
+    mock_authenticator: Mock,
 ) -> HyperliquidOrderQueryService:
     """Create an order query service instance with mocks."""
-    mock_error_mapper = Mock(spec=HyperliquidErrorMapper)
-    mock_authenticator = Mock(spec=IAuthenticator)
     return HyperliquidOrderQueryService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -174,7 +185,6 @@ class TestOrderQueryService:
     ) -> None:
         """Test successful retrieval of open orders."""
         # Arrange
-        args = GetOpenOrdersArgs(wallet_address="0x123...abc")
 
         mock_request_builder.build_open_orders_payload.return_value = {"type": "openOrders"}
 
@@ -186,26 +196,26 @@ class TestOrderQueryService:
             oid=12345,
             timestamp=int(datetime.now(UTC).timestamp() * 1000),
             origSz="0.1",
-            cloid="client_123",
+            cloid="0xclient123",  # Must start with '0x' prefix
         )
         mock_raw_response = HyperliquidRawOpenOrdersResponse([mock_raw_open_order])
-        mock_response_handler.handle_open_orders_response.return_value = mock_raw_response
+        mock_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 
         mock_http_response: tuple[Any, int, dict[str, str]] = ([{"coin": "BTC-USD"}], 200, {})
         mock_http_requester.return_value = mock_http_response
 
-        mock_mapper.transform_raw_open_order_to_internal.return_value = mock_open_order
+        mock_mapper.transform_raw_simple_open_order_to_internal.return_value = mock_open_order
 
         # Act
-        result = await order_query_service.get_open_orders(args.wallet_address)
+        result = await order_query_service.get_open_orders("BTC-USD")
 
         # Assert
         assert len(result) == 1
         assert result[0] == mock_open_order
-        mock_request_builder.build_open_orders_payload.assert_called_once_with(args)
+        mock_request_builder.build_open_orders_payload.assert_called_once()
         mock_http_requester.assert_called_once()
-        mock_response_handler.handle_open_orders_response.assert_called_once()
-        mock_mapper.transform_raw_open_order_to_internal.assert_called_once()
+        mock_response_handler.handle_info_open_orders_response.assert_called_once()
+        mock_mapper.transform_raw_simple_open_order_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_open_orders_empty(
@@ -217,18 +227,16 @@ class TestOrderQueryService:
     ) -> None:
         """Test retrieval of open orders when none exist."""
         # Arrange
-        args = GetOpenOrdersArgs(wallet_address="0x123...abc")
-
         mock_request_builder.build_open_orders_payload.return_value = {"type": "openOrders"}
 
         mock_raw_response = HyperliquidRawOpenOrdersResponse([])
-        mock_response_handler.handle_open_orders_response.return_value = mock_raw_response
+        mock_response_handler.handle_info_open_orders_response.return_value = mock_raw_response
 
         mock_http_response: tuple[Any, int, dict[str, str]] = ([], 200, {})
         mock_http_requester.return_value = mock_http_response
 
         # Act
-        result = await order_query_service.get_open_orders(args.wallet_address)
+        result = await order_query_service.get_open_orders()
 
         # Assert
         assert result == []
@@ -242,14 +250,12 @@ class TestOrderQueryService:
     ) -> None:
         """Test open orders retrieval with HTTP error."""
         # Arrange
-        args = GetOpenOrdersArgs(wallet_address="0x123...abc")
-
         mock_request_builder.build_open_orders_payload.return_value = {"type": "openOrders"}
         mock_http_requester.side_effect = Exception("Network error")
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
-            await order_query_service.get_open_orders(args.wallet_address)
+            await order_query_service.get_open_orders()
 
         assert "Network error" in str(exc_info.value)
 
@@ -275,22 +281,22 @@ class TestOrderQueryService:
             status="ok",
             order=MagicMock(),
         )
-        mock_response_handler.handle_order_status_response.return_value = mock_raw_response
+        mock_response_handler.handle_info_order_status_response.return_value = mock_raw_response
 
         mock_http_response: tuple[Any, int, dict[str, str]] = ({"status": "filled"}, 200, {})
         mock_http_requester.return_value = mock_http_response
 
-        mock_mapper.transform_raw_order_info_to_internal.return_value = mock_filled_order
+        mock_mapper.transform_raw_historical_order_to_internal.return_value = mock_filled_order
 
         # Act
         result = await order_query_service.get_order(args)
 
         # Assert
         assert result == mock_filled_order
-        mock_request_builder.build_order_status_payload.assert_called_once_with(args)
+        mock_request_builder.build_order_status_payload.assert_called_once()
         mock_http_requester.assert_called_once()
-        mock_response_handler.handle_order_status_response.assert_called_once()
-        mock_mapper.transform_raw_order_info_to_internal.assert_called_once()
+        mock_response_handler.handle_info_order_status_response.assert_called_once()
+        mock_mapper.transform_raw_historical_order_to_internal.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_order_status_not_found(
@@ -355,12 +361,11 @@ class TestOrderQueryService:
     ) -> None:
         """Test open orders retrieval with response validation error."""
         # Arrange
-        args = GetOpenOrdersArgs(wallet_address="0x123...abc")
 
         mock_request_builder.build_open_orders_payload.return_value = {"type": "openOrders"}
 
         # Response handler raises validation error
-        mock_response_handler.handle_open_orders_response.side_effect = (
+        mock_response_handler.handle_info_open_orders_response.side_effect = (
             ValidationError.from_exception_data(
                 "validation_error",
                 [{"type": "missing", "loc": ("0", "coin"), "input": {"invalid": "data"}}],
@@ -372,7 +377,7 @@ class TestOrderQueryService:
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
-            await order_query_service.get_open_orders(args.wallet_address)
+            await order_query_service.get_open_orders()
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
 
@@ -403,7 +408,7 @@ class TestOrderQueryService:
         mock_http_requester.return_value = mock_http_response
 
         # Mapper raises transformation error
-        mock_mapper.transform_raw_order_info_to_internal.side_effect = APIError(
+        mock_mapper.transform_raw_historical_order_to_internal.side_effect = APIError(
             message="Failed to transform order",
             code=APIErrorCode.INVALID_RESPONSE.value,
         )

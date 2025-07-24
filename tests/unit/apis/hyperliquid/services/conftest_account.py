@@ -151,8 +151,11 @@ def hyperliquid_account_service(
         authenticator=mock_authenticator,
         exchange_name="hyperliquid_test_account",
         wallet_address="0xTestWalletAddress",
-        account_summary_mapper=mock_hl_account_mapper,
+        balance_mapper=mock_hl_account_mapper,  # For balance tests
+        position_mapper=mock_hl_account_mapper,  # For position tests
+        account_summary_mapper=mock_hl_account_mapper,  # For account summary tests
         order_mapper=mock_hl_trading_mapper,
+        transaction_mapper=mock_hl_account_mapper,  # For trade history tests
     )
 
 

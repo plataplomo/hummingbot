@@ -291,14 +291,14 @@ class TestBuildCancelOrderPayload:
         assert payload_dict == expected_payload
 
     def test_build_cancel_order_payload_formats_symbol(self, order_id: str) -> None:
-        """Test build_cancel_order_payload formats symbol correctly."""
+        """Test build_cancel_order_payload passes symbol as-is (no formatting)."""
         payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
             "SOL-USDC", order_id=order_id
         )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {"symbol": "SOL_USDC", "orderId": order_id}
+        expected_payload = {"symbol": "SOL-USDC", "orderId": order_id}
         assert payload_dict == expected_payload
 
     @pytest.mark.parametrize(
@@ -306,7 +306,7 @@ class TestBuildCancelOrderPayload:
         [
             ("SOL_USDC", "123", None, {"symbol": "SOL_USDC", "orderId": "123"}),
             ("BTC_USDT", None, 456789, {"symbol": "BTC_USDT", "clientId": 456789}),
-            ("eth-perp", "456", None, {"symbol": "ETH_PERP", "orderId": "456"}),
+            ("eth-perp", "456", None, {"symbol": "eth-perp", "orderId": "456"}),
         ],
     )
     def test_build_cancel_order_payload_parametrized(
@@ -350,19 +350,19 @@ class TestBuildGetOpenOrdersParams:
         assert params_dict == {"symbol": symbol_spot}
 
     def test_build_get_open_orders_params_formats_symbol(self) -> None:
-        """Test build_get_open_orders_params formats symbol correctly."""
+        """Test build_get_open_orders_params passes symbol as-is (no formatting)."""
         params = BackpackTradingRequestBuilder.build_get_open_orders_params("SOL-USDC")
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "SOL_USDC"}
+        assert params_dict == {"symbol": "SOL-USDC"}
 
     @pytest.mark.parametrize(
         ("symbol", "expected_dict"),
         [
             (None, {}),
             ("SOL_USDC", {"symbol": "SOL_USDC"}),
-            ("btc-usdt", {"symbol": "BTC_USDT"}),
+            ("btc-usdt", {"symbol": "btc-usdt"}),
             ("ETH_PERP", {"symbol": "ETH_PERP"}),
         ],
     )
@@ -391,19 +391,19 @@ class TestBuildGetOrderParams:
         assert params_dict == {"symbol": symbol_spot}
 
     def test_build_get_order_params_formats_symbol(self) -> None:
-        """Test build_get_order_params formats symbol correctly."""
+        """Test build_get_order_params passes symbol as-is (no formatting)."""
         params = BackpackTradingRequestBuilder.build_get_order_params("SOL-USDC")
 
         assert isinstance(params, BackpackRawGetOrderParams)
         params_dict = params.model_dump(by_alias=True)
-        assert params_dict == {"symbol": "SOL_USDC"}
+        assert params_dict == {"symbol": "SOL-USDC"}
 
     @pytest.mark.parametrize(
         ("input_symbol", "expected_symbol"),
         [
             ("SOL_USDC", "SOL_USDC"),
-            ("btc-usdt", "BTC_USDT"),
-            ("ETH-PERP", "ETH_PERP"),
+            ("btc-usdt", "btc-usdt"),
+            ("ETH-PERP", "ETH-PERP"),
         ],
     )
     def test_build_get_order_params_parametrized(
@@ -475,7 +475,7 @@ class TestBuildGetOrderHistoryParams:
         assert params_dict == {"limit": 100}
 
     def test_build_get_order_history_params_formats_symbol(self) -> None:
-        """Test build_get_order_history_params formats symbol correctly."""
+        """Test build_get_order_history_params passes symbol as-is (no formatting)."""
         params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol="SOL-USDC",
             # Use defaults for optional params
@@ -483,14 +483,14 @@ class TestBuildGetOrderHistoryParams:
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "SOL_USDC", "limit": 100}
+        assert params_dict == {"symbol": "SOL-USDC", "limit": 100}
 
     @pytest.mark.parametrize(
         ("symbol", "limit", "expected_base"),
         [
             (None, None, {"limit": 100}),
             ("SOL_USDC", 25, {"symbol": "SOL_USDC", "limit": 25}),
-            ("btc-usdt", 50, {"symbol": "BTC_USDT", "limit": 50}),
+            ("btc-usdt", 50, {"symbol": "btc-usdt", "limit": 50}),
         ],
     )
     def test_build_get_order_history_params_parametrized(
@@ -524,19 +524,19 @@ class TestBuildCancelAllOrdersPayload:
         assert payload_dict == {"symbol": symbol_spot}
 
     def test_build_cancel_all_orders_payload_formats_symbol(self) -> None:
-        """Test build_cancel_all_orders_payload formats symbol correctly."""
+        """Test build_cancel_all_orders_payload passes symbol as-is (no formatting)."""
         payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload("SOL-USDC")
 
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        assert payload_dict == {"symbol": "SOL_USDC"}
+        assert payload_dict == {"symbol": "SOL-USDC"}
 
     @pytest.mark.parametrize(
         ("symbol", "expected_dict"),
         [
             ("SOL_USDC", {"symbol": "SOL_USDC"}),
-            ("btc-usdt", {"symbol": "BTC_USDT"}),
-            ("ETH-PERP", {"symbol": "ETH_PERP"}),
+            ("btc-usdt", {"symbol": "btc-usdt"}),
+            ("ETH-PERP", {"symbol": "ETH-PERP"}),
         ],
     )
     def test_build_cancel_all_orders_payload_parametrized(

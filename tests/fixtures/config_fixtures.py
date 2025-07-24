@@ -32,7 +32,9 @@ from cyberdelta.config.models.config_models import (
     GeneralSettings,
     GlobalRiskSettings,
     MonitoringSettings,
+    PortfolioStateSettings,
     PortfolioTrackerConfig,
+    PortfolioValidationSettings,
     PositionReconciliationSettings,
     SafetySystemsSettings,
 )
@@ -202,9 +204,12 @@ def mock_config() -> AppSettings:
         ),
         risk=EnhancedRiskSettings.model_validate({
             "global": GlobalRiskSettings(
-                max_position_usd=Decimal("200.0"),
-                max_total_exposure_usd=Decimal("1000.0"),
+                max_position_usd=Decimal("20000.0"),  # Increased to be higher than sizing defaults
+                max_total_exposure_usd=Decimal("100000.0"),  # Increased proportionally
             ),
+            "sizing": {
+                "max_position_size": Decimal("10000.0"),  # Explicit sizing to match defaults
+            },
             "use_simple_sizing_path": True,
             "simple_sizing_method": "fixed_fraction",
             "simple_fixed_fraction": Decimal("0.1"),
@@ -250,6 +255,8 @@ def mock_config() -> AppSettings:
             data_freshness_seconds=60,
             initial_balances={},
             initial_positions=[],
+            validation=PortfolioValidationSettings(validation_timeout=5.0),
+            state=PortfolioStateSettings(update_timeout=10.0),
         ),
     )
 

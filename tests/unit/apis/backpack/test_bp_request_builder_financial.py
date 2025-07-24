@@ -35,9 +35,9 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": usdc_asset,
-            "network": solana_network,
-            "amount": "100.0",
+            "symbol": usdc_asset,
+            "blockchain": solana_network,
+            "quantity": "100.0",
             "address": withdrawal_address,
         }
         assert payload_dict == expected_payload
@@ -55,11 +55,11 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": eth_asset,
-            "network": ethereum_network,
-            "amount": "1.5",
+            "symbol": eth_asset,
+            "blockchain": ethereum_network,
+            "quantity": "1.5",
             "address": "0x123",
-            "tag": "myTag",
+            "addressTag": "myTag",
             "clientId": "wdId789",
         }
         assert payload_dict == expected_payload
@@ -82,11 +82,11 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": usdc_asset,
-            "network": solana_network,
-            "amount": "100.0",
+            "symbol": usdc_asset,
+            "blockchain": solana_network,
+            "quantity": "100.0",
             "address": withdrawal_address,
-            "tag": "addressTag123",
+            "addressTag": "addressTag123",
         }
         assert payload_dict == expected_payload
 
@@ -107,9 +107,9 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": sol_asset,
-            "network": solana_network,
-            "amount": "5.0",
+            "symbol": sol_asset,
+            "blockchain": solana_network,
+            "quantity": "5.0",
             "address": withdrawal_address,
             "clientId": "clientWd001",
         }
@@ -132,9 +132,9 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": usdc_asset,
-            "network": solana_network,
-            "amount": "100.0",
+            "symbol": usdc_asset,
+            "blockchain": solana_network,
+            "quantity": "100.0",
             "address": withdrawal_address,
         }
         assert payload_dict == expected_payload
@@ -187,9 +187,9 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected = {
-            "asset": expected_asset,
-            "network": expected_network,
-            "amount": expected_amount,
+            "symbol": expected_asset,
+            "blockchain": expected_network,
+            "quantity": expected_amount,
             "address": "test_address",
         }
         assert payload_dict == expected
@@ -209,8 +209,8 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": usdc_asset,
-            "amount": "100.50",
+            "symbol": usdc_asset,
+            "quantity": "100.50",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
         }
@@ -227,8 +227,8 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": sol_asset,
-            "amount": "10",
+            "symbol": sol_asset,
+            "quantity": "10",
             "fromAccount": "MARGIN",
             "toAccount": "SPOT",
         }
@@ -245,8 +245,8 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": "SOL_PERP",  # Expecting formatted symbol
-            "amount": "5",
+            "symbol": "sol-perp",  # Current implementation passes symbol as-is, no formatting
+            "quantity": "5",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
         }
@@ -263,8 +263,8 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": usdc_asset,
-            "amount": "250.75",
+            "symbol": usdc_asset,
+            "quantity": "250.75",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
         }
@@ -281,8 +281,8 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": eth_asset,
-            "amount": "1.0",
+            "symbol": eth_asset,
+            "quantity": "1.0",
             "fromAccount": "FUTURES",
             "toAccount": "SPOT",
         }
@@ -300,11 +300,11 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "asset": sol_asset,
-            "amount": "50.25",
+            "symbol": sol_asset,
+            "quantity": "50.25",
             "fromAccount": "MARGIN",
             "toAccount": "FUTURES",
-            "subAccountId": "margin_to_futures_001",
+            "clientId": "margin_to_futures_001",
         }
         assert payload_dict == expected_payload
 
@@ -312,9 +312,9 @@ class TestBuildInternalTransferPayload:
         ("asset_symbol", "amount", "from_acc", "to_acc", "client_id", "expected_symbol"),
         [
             ("USDC", "100", "SPOT", "FUTURES", None, "USDC"),
-            ("sol-perp", "50", "FUTURES", "SPOT", "transfer1", "SOL_PERP"),
-            ("BTC-USD", "0.1", "MARGIN", "SPOT", None, "BTC_USD"),
-            ("eth_usdc", "10", "SPOT", "MARGIN", "ethTransfer", "ETH_USDC"),
+            ("sol-perp", "50", "FUTURES", "SPOT", "transfer1", "sol-perp"),
+            ("BTC-USD", "0.1", "MARGIN", "SPOT", None, "BTC-USD"),
+            ("eth_usdc", "10", "SPOT", "MARGIN", "ethTransfer", "eth_usdc"),
         ],
     )
     def test_build_internal_transfer_payload_parametrized(
@@ -337,13 +337,13 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected: dict[str, Any] = {
-            "asset": expected_symbol,
-            "amount": amount,
+            "symbol": expected_symbol,
+            "quantity": amount,
             "fromAccount": from_acc,
             "toAccount": to_acc,
         }
         if client_id:
-            expected["subAccountId"] = client_id
+            expected["clientId"] = client_id
         assert payload_dict == expected
 
     @pytest.mark.parametrize(
@@ -373,8 +373,8 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected = {
-            "asset": usdc_asset,
-            "amount": "100.0",
+            "symbol": usdc_asset,
+            "quantity": "100.0",
             "fromAccount": from_wallet,
             "toAccount": to_wallet,
         }

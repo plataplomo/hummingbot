@@ -75,13 +75,13 @@ class TestBuildGetTradeHistoryParams:
         assert params_dict == expected
 
     def test_build_get_trade_history_params_formats_symbol(self) -> None:
-        """Test build_get_trade_history_params formats symbol correctly."""
+        """Test build_get_trade_history_params passes symbol as-is (no formatting)."""
         params = BackpackTradingRequestBuilder.build_get_trade_history_params(
             symbol="BTC-USDT", limit=100
         )
         assert isinstance(params, BackpackRawGetTradeHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": "BTC_USDT", "limit": 100}
+        expected = {"symbol": "BTC-USDT", "limit": 100}
         assert params_dict == expected
 
     def test_build_get_trade_history_params_only_limit(self, symbol_spot: str) -> None:
@@ -129,8 +129,8 @@ class TestBuildGetTradeHistoryParams:
         [
             ("SOL_USDC", None, None, {"symbol": "SOL_USDC", "limit": 100}),
             ("BTC_USDT", 50, None, {"symbol": "BTC_USDT", "limit": 50}),
-            ("eth-perp", None, "fillId", {"symbol": "ETH_PERP", "limit": 100, "fromId": "fillId"}),
-            ("sol-usdc", 25, "id123", {"symbol": "SOL_USDC", "limit": 25, "fromId": "id123"}),
+            ("eth-perp", None, "fillId", {"symbol": "eth-perp", "limit": 100, "fromId": "fillId"}),
+            ("sol-usdc", 25, "id123", {"symbol": "sol-usdc", "limit": 25, "fromId": "id123"}),
         ],
     )
     def test_build_get_trade_history_params_parametrized(

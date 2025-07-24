@@ -107,8 +107,8 @@ strategies:
 # Risk management (Simplified for Prototype 0.0.1)
 risk:
   global:
-    max_position_usd: 200.0      # Max size per single arbitrage position
-    max_total_exposure_usd: 1000.0 # Max total value across all open positions
+    max_position_usd: 20000.0      # Increased to be higher than sizing defaults
+    max_total_exposure_usd: 100000.0 # Increased proportionally
 
   # --- Simple Sizing Path (Optional Alternative to Kelly) ---
   use_simple_sizing_path: true            # Default to standard Kelly sizing
@@ -116,9 +116,9 @@ risk:
   simple_fixed_fraction: "0.01"          # Default fraction (1%) if method is fixed_fraction
   simple_fixed_usd_size: "10.0"          # Default USD size if method is fixed_usd
 
-  # Override default sizing settings to match our limits
+  # Override default sizing settings to ensure validation passes
   sizing:
-    max_position_size: 200.0  # Match global max_position_usd
+    max_position_size: 10000.0  # Explicitly set to default (must be <= global max_position_usd)
 
 # Execution parameters
 execution:
@@ -175,6 +175,10 @@ portfolio_tracker:
   data_freshness_seconds: 60
   initial_balances: {}  # Example: { "hyperliquid": { "USDC": "10000.00" } }
   initial_positions: []  # Example: List of initial derivative positions
+  validation:
+    validation_timeout: 5.0  # Set to be less than state.update_timeout
+  state:
+    update_timeout: 10.0  # Set to be greater than validation.validation_timeout
   cache:
     enabled: true
     default_ttl: 300.0

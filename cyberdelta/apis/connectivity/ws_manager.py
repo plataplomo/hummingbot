@@ -400,7 +400,7 @@ class WebSocketManager:
             )
             self._should_reconnect = False
             return False
-        except (TimeoutError, aiohttp.ClientError) as e:
+        except (TimeoutError, aiohttp.ClientError, OSError) as e:
             self._logger.warning(
                 "connection_attempt_failed",
                 action="attempt_single_connection",
@@ -1139,6 +1139,15 @@ class WebSocketManager:
                 exchange=self._exchange_name,
                 error_details=str(e),
                 message=f"[{self._exchange_name}] Error during WS send_json (serialize/send): {e}",
+            )
+            return False
+        except Exception as e:
+            self._logger.exception(
+                "send_json_unexpected_error",
+                action="send_json",
+                exchange=self._exchange_name,
+                error_details=str(e),
+                message=f"[{self._exchange_name}] Unexpected error during WS send_json: {e}",
             )
             return False
         else:

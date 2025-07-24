@@ -10,6 +10,7 @@ Tests cover all methods of the HyperliquidMarketMetadataService including:
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -24,7 +25,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawAssetDefinition,
     HyperliquidRawMetaAndAssetCtxsResponse,
-    HyperliquidRawMetaResponse,
 )
 from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
     HyperliquidMarketDataRequestBuilder,
@@ -163,13 +163,15 @@ def mock_meta_and_asset_ctxs_response(
     mock_asset_ctxs: list[HyperliquidRawAssetCtx],
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
     """Create a mock meta and asset contexts response."""
-    return HyperliquidRawMetaAndAssetCtxsResponse(
-        meta=HyperliquidRawMetaResponse(
-            universe=mock_asset_definitions,
-            marginTables=None,
-        ),
-        asset_ctxs=mock_asset_ctxs,
-    )
+    # HyperliquidRawMetaAndAssetCtxsResponse expects a list format [meta, assetCtxs]
+    # as that's what the API actually returns
+    meta_dict = {
+        "universe": [asset_def.model_dump(by_alias=True) for asset_def in mock_asset_definitions],
+        "marginTables": None,
+    }
+    asset_ctxs_list = [asset_ctx.model_dump(by_alias=True) for asset_ctx in mock_asset_ctxs]
+
+    return HyperliquidRawMetaAndAssetCtxsResponse.model_validate([meta_dict, asset_ctxs_list])
 
 
 @pytest.fixture
@@ -233,7 +235,11 @@ class TestHyperliquidMarketMetadataService:
         mock_request_payload = MagicMock()
         mock_request_builder.build_info_request_payload.return_value = mock_request_payload
 
-        raw_response: dict[str, object] = {"meta": {}, "assetCtxs": []}
+        # HTTP response should be a list format [meta, assetCtxs] as per API documentation
+        raw_response: list[dict[str, object] | list[object]] = [
+            {"universe": [], "marginTables": None},  # meta
+            cast(list[object], []),  # assetCtxs as empty list
+        ]
         mock_http_requester.return_value = (raw_response, 200, {})
 
         mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
@@ -267,12 +273,15 @@ class TestHyperliquidMarketMetadataService:
         args = GetMarketsArgs()
 
         mock_request_builder.build_info_request_payload.return_value = MagicMock()
-        mock_http_requester.return_value = ({"meta": {}, "assetCtxs": []}, 200, {})
+        # HTTP response should be a list format [meta, assetCtxs] as per API documentation
+        mock_http_requester.return_value = ([{"universe": [], "marginTables": None}, []], 200, {})
 
-        empty_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
-            asset_ctxs=[],
-        )
+        # Use list format for empty response too
+        empty_meta_dict: dict[str, list[object] | None] = {"universe": [], "marginTables": None}
+        empty_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            empty_meta_dict,
+            [],
+        ])
         mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = empty_response
         mock_mapper.transform_raw_meta_and_asset_ctxs_to_markets.return_value = []
 
@@ -301,7 +310,7 @@ class TestHyperliquidMarketMetadataService:
             await market_metadata_service.get_markets(args)
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Network error" in str(exc_info.value)
+        assert "Unexpected error occurred" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_markets_transformation_error(
@@ -318,7 +327,8 @@ class TestHyperliquidMarketMetadataService:
         args = GetMarketsArgs()
 
         mock_request_builder.build_info_request_payload.return_value = MagicMock()
-        mock_http_requester.return_value = ({"meta": {}, "assetCtxs": []}, 200, {})
+        # HTTP response should be a list format [meta, assetCtxs] as per API documentation
+        mock_http_requester.return_value = ([{"universe": [], "marginTables": None}, []], 200, {})
         mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_meta_and_asset_ctxs_response
         )
@@ -456,7 +466,8 @@ class TestHyperliquidMarketMetadataService:
         args = GetMarketsArgs()
 
         mock_request_builder.build_info_request_payload.return_value = MagicMock()
-        mock_http_requester.return_value = ({"meta": {}, "assetCtxs": []}, 200, {})
+        # HTTP response should be a list format [meta, assetCtxs] as per API documentation
+        mock_http_requester.return_value = ([{"universe": [], "marginTables": None}, []], 200, {})
         mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_meta_and_asset_ctxs_response
         )

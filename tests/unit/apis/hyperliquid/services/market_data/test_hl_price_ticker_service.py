@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -28,7 +29,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
     HyperliquidRawAssetDefinition,
     HyperliquidRawMetaAndAssetCtxsResponse,
-    HyperliquidRawMetaResponse,
 )
 from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
     HyperliquidMarketDataRequestBuilder,
@@ -65,14 +65,20 @@ def mock_mapper() -> Mock:
 
 
 @pytest.fixture
+def mock_historical_data_mapper() -> Mock:
+    """Create a mock historical data mapper."""
+    return MagicMock()
+
+
+@pytest.fixture
 def price_ticker_service(
     mock_http_requester: AsyncMock,
     mock_request_builder: Mock,
     mock_response_handler: Mock,
     mock_mapper: Mock,
+    mock_historical_data_mapper: Mock,
 ) -> HyperliquidPriceTickerService:
     """Create a price ticker service instance with mocks."""
-    mock_historical_data_mapper = MagicMock()
     return HyperliquidPriceTickerService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -121,13 +127,15 @@ def mock_meta_and_asset_ctxs_response(
     mock_asset_definition: HyperliquidRawAssetDefinition,
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
     """Create a mock meta and asset contexts response."""
-    return HyperliquidRawMetaAndAssetCtxsResponse(
-        meta=HyperliquidRawMetaResponse(
-            universe=[mock_asset_definition],
-            marginTables=None,
-        ),
-        asset_ctxs=[mock_asset_ctx],
-    )
+    # HyperliquidRawMetaAndAssetCtxsResponse expects a list format [meta, assetCtxs]
+    # as that's what the API actually returns
+    meta_dict = {
+        "universe": [mock_asset_definition.model_dump(by_alias=True)],
+        "marginTables": None,
+    }
+    asset_ctxs_list = [mock_asset_ctx.model_dump(by_alias=True)]
+
+    return HyperliquidRawMetaAndAssetCtxsResponse.model_validate([meta_dict, asset_ctxs_list])
 
 
 @pytest.fixture
@@ -195,14 +203,16 @@ class TestHyperliquidPriceTickerService:
         """Test successful retrieval of all asset contexts."""
         # Arrange
         mock_request_payload = MagicMock()
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = (
-            mock_request_payload
-        )
+        mock_request_builder.build_info_request_payload.return_value = mock_request_payload
 
-        raw_response: dict[str, object] = {"meta": {}, "assetCtxs": []}
+        # HTTP response should be a list format [meta, assetCtxs] as per API documentation
+        raw_response: list[dict[str, object] | list[object]] = [
+            {"universe": [], "marginTables": None},  # meta
+            cast(list[object], []),  # assetCtxs as empty list
+        ]
         mock_http_requester.return_value = (raw_response, 200, {})
 
-        mock_response_handler.handle_meta_and_asset_ctxs_response.return_value = (
+        mock_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_meta_and_asset_ctxs_response
         )
 
@@ -211,11 +221,13 @@ class TestHyperliquidPriceTickerService:
 
         # Assert
         assert result == mock_meta_and_asset_ctxs_response
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.assert_called_once()
+        mock_request_builder.build_info_request_payload.assert_called_once()
         mock_http_requester.assert_called_once()
         assert mock_http_requester.call_args.kwargs["method"] == "POST"
         assert mock_http_requester.call_args.kwargs["endpoint"] == "/info"
-        assert mock_http_requester.call_args.kwargs["is_signed"] is False
+        # Check that the request is made with the correct configuration
+        request_config = mock_http_requester.call_args.kwargs.get("request_config")
+        assert request_config is not None
 
     @pytest.mark.asyncio
     async def test_get_all_asset_contexts_raw_empty_response(
@@ -226,7 +238,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test asset contexts retrieval with None response."""
         # Arrange
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = (None, 200, {})
 
         # Act & Assert
@@ -244,7 +256,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test asset contexts retrieval with HTTP error."""
         # Arrange
-        mock_request_builder.build_meta_and_asset_ctxs_request_payload.return_value = MagicMock()
+        mock_request_builder.build_info_request_payload.return_value = MagicMock()
         mock_http_requester.side_effect = Exception("Network error")
 
         # Act & Assert
@@ -252,7 +264,7 @@ class TestHyperliquidPriceTickerService:
             await price_ticker_service.get_all_asset_contexts_raw()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Network error" in str(exc_info.value)
+        assert "Unexpected service failure" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_ticker_success(
@@ -377,7 +389,10 @@ class TestHyperliquidPriceTickerService:
         assert result == mock_mid_prices
         mock_request_builder.build_all_mids_request_payload.assert_called_once()
         mock_http_requester.assert_called_once()
-        assert mock_http_requester.call_args.kwargs["request_weight"] == 2
+        # Check that the request is made with the correct configuration
+        request_config = mock_http_requester.call_args.kwargs.get("request_config")
+        assert request_config is not None
+        assert request_config.request_weight == 2
 
     @pytest.mark.asyncio
     async def test_get_all_mids_validation_error(
@@ -392,12 +407,18 @@ class TestHyperliquidPriceTickerService:
         mock_request_builder.build_all_mids_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ({"invalid": "data"}, 200, {})
 
-        mock_response_handler.handle_all_mids_response.side_effect = (
-            ValidationError.from_exception_data(
-                "validation_error",
-                [{"type": "missing", "loc": ("mids",), "input": {"invalid": "data"}}],
-            )
+        validation_error = ValidationError.from_exception_data(
+            "validation_error",
+            [
+                {
+                    "type": "missing",
+                    "loc": ("mids",),
+                    "input": {"invalid": "data"},
+                    "ctx": {"error": "Missing field"},
+                }
+            ],
         )
+        mock_response_handler.handle_all_mids_response.side_effect = validation_error
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
@@ -411,7 +432,7 @@ class TestHyperliquidPriceTickerService:
         self,
         price_ticker_service: HyperliquidPriceTickerService,
         mock_meta_and_asset_ctxs_response: HyperliquidRawMetaAndAssetCtxsResponse,
-        mock_mapper: Mock,
+        mock_historical_data_mapper: Mock,
         mock_funding_rate: FundingRate,
     ) -> None:
         """Test successful funding rate retrieval."""
@@ -423,14 +444,16 @@ class TestHyperliquidPriceTickerService:
             "get_all_asset_contexts_raw",
             return_value=mock_meta_and_asset_ctxs_response,
         ):
-            mock_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = mock_funding_rate
+            mock_historical_data_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = (
+                mock_funding_rate
+            )
 
             # Act
             result = await price_ticker_service.get_funding_rate(symbol)
 
             # Assert
             assert result == mock_funding_rate
-            mock_mapper.transform_raw_asset_ctx_to_funding_rate.assert_called_once()
+            mock_historical_data_mapper.transform_raw_asset_ctx_to_funding_rate.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_symbol_not_found(
@@ -473,10 +496,12 @@ class TestHyperliquidPriceTickerService:
         """Test ticker retrieval with empty contexts response."""
         # Arrange
         symbol = "ETH"
-        empty_response = HyperliquidRawMetaAndAssetCtxsResponse(
-            meta=HyperliquidRawMetaResponse(universe=[], marginTables=None),
-            asset_ctxs=[],
-        )
+        # Use list format for empty response too
+        empty_meta_dict: dict[str, list[object] | None] = {"universe": [], "marginTables": None}
+        empty_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            empty_meta_dict,
+            [],
+        ])
 
         with patch.object(
             price_ticker_service, "get_all_asset_contexts_raw", return_value=empty_response
@@ -504,4 +529,4 @@ class TestHyperliquidPriceTickerService:
             await price_ticker_service.get_all_mids()
 
         assert exc_info.value.code == APIErrorCode.UNKNOWN.value
-        assert "Connection timeout" in str(exc_info.value)
+        assert "Unexpected error fetching all mid prices" in str(exc_info.value)

@@ -181,14 +181,14 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         )
 
         request_dict: dict[str, Any] = {
-            "asset": asset_symbol,
+            "symbol": asset_symbol,
             "address": address,
-            "network": network,
-            "amount": str(amount),
+            "blockchain": network,
+            "quantity": str(amount),
         }
 
         if tag is not None:
-            request_dict["tag"] = tag
+            request_dict["addressTag"] = tag
         if transaction_priority is not None:
             request_dict["transactionPriority"] = transaction_priority
         if client_withdraw_id is not None:
@@ -243,14 +243,14 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         )
 
         request_dict: dict[str, Any] = {
-            "asset": asset_symbol,
+            "symbol": asset_symbol,
             "fromAccount": from_wallet,
             "toAccount": to_wallet,
-            "amount": str(amount),
+            "quantity": str(amount),
         }
 
         if sub_account_id is not None:
-            request_dict["subAccountId"] = sub_account_id
+            request_dict["clientId"] = sub_account_id
 
         return BackpackRawInternalTransferRequest(**request_dict)
 
