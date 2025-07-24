@@ -338,8 +338,7 @@ class TestErrorHandling:
         engine.set_signal_handler(handler)
         engine.add_strategy(mock_strategy)
         engine.enable_strategy("test_strategy")
-        # Current business logic doesn't catch generic Exception, so it propagates
-        mock_strategy.on_start.side_effect = Exception("Strategy start error")
+        mock_strategy.on_start.side_effect = RuntimeError("Strategy start error")
 
         # Act & Assert - Current business logic lets generic Exception propagate
         # This is the current behavior and source of truth
@@ -363,8 +362,7 @@ class TestErrorHandling:
         engine.add_strategy(mock_strategy)
         engine.enable_strategy("test_strategy")
         engine.start()
-        # Current business logic doesn't catch generic Exception, so it propagates
-        mock_strategy.process_data.side_effect = Exception("Strategy processing error")
+        mock_strategy.process_data.side_effect = ValueError("Strategy processing error")
 
         # Act & Assert - Current business logic lets generic Exception propagate
         # This is the current behavior and source of truth

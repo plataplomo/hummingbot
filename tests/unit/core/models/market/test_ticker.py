@@ -12,7 +12,11 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.ticker import Ticker
+from cyberdelta.core.models.market.ticker import (
+    BackpackTickerDetails,
+    HyperliquidTickerDetails,
+    Ticker,
+)
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -239,3 +243,267 @@ class TestTicker:
         # Setting non-existent field
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ticker.new_field = "test"  # type: ignore[attr-defined]
+
+    # --- Mid-Price Calculation Tests --- #
+
+    def test_mid_price_valid_calculation(self) -> None:
+        """Test mid_price calculation with valid bid and ask prices."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="test_exchange",
+            timestamp=NOW,
+            bid=Decimal("100.0"),
+            ask=Decimal("102.0"),
+        )
+        assert ticker.mid_price == Decimal("101.0")
+
+    def test_mid_price_precise_calculation(self) -> None:
+        """Test mid_price calculation preserves decimal precision."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="test_exchange",
+            timestamp=NOW,
+            bid=Decimal("100.123"),
+            ask=Decimal("100.567"),
+        )
+        expected = (Decimal("100.123") + Decimal("100.567")) / Decimal(2)
+        assert ticker.mid_price == expected
+        assert ticker.mid_price == Decimal("100.345")
+
+    def test_mid_price_none_when_bid_missing(self) -> None:
+        """Test mid_price returns None when bid is None."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="test_exchange",
+            timestamp=NOW,
+            bid=None,
+            ask=Decimal("102.0"),
+        )
+        assert ticker.mid_price is None
+
+    def test_mid_price_none_when_ask_missing(self) -> None:
+        """Test mid_price returns None when ask is None."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="test_exchange",
+            timestamp=NOW,
+            bid=Decimal("100.0"),
+            ask=None,
+        )
+        assert ticker.mid_price is None
+
+    def test_mid_price_none_when_both_missing(self) -> None:
+        """Test mid_price returns None when both bid and ask are None."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="test_exchange",
+            timestamp=NOW,
+            bid=None,
+            ask=None,
+        )
+        assert ticker.mid_price is None
+
+    @pytest.mark.parametrize(
+        ("field_name", "value"),
+        [
+            ("bid", DEC_NAN),
+            ("ask", DEC_NAN),
+            ("bid", DEC_INF),
+            ("ask", DEC_INF),
+            ("bid", DEC_NEG_INF),
+            ("ask", DEC_NEG_INF),
+        ],
+    )
+    def test_mid_price_validation_prevents_non_finite_inputs(
+        self, field_name: str, value: Decimal
+    ) -> None:
+        """Test that non-finite bid/ask values are rejected during ticker creation."""
+        kwargs: dict[str, Any] = {
+            "symbol": VALID_SYMBOL,
+            "exchange": "test_exchange",
+            "timestamp": NOW,
+            "bid": Decimal("100.0"),
+            "ask": Decimal("102.0"),
+        }
+        kwargs[field_name] = value
+
+        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
+            Ticker(**kwargs)
+
+    def test_mid_price_with_zero_values(self) -> None:
+        """Test mid_price calculation with zero bid/ask values."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="test_exchange",
+            timestamp=NOW,
+            bid=DEC_ZERO,
+            ask=DEC_ZERO,
+        )
+        assert ticker.mid_price == DEC_ZERO
+
+    # --- Exchange-Specific Details Tests --- #
+
+    def test_hyperliquid_details_creation(self) -> None:
+        """Test creating ticker with Hyperliquid-specific details."""
+        hl_details = HyperliquidTickerDetails(mid_price_source="allMids")
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="hyperliquid",
+            timestamp=NOW,
+            price=Decimal(30000),
+            hl_details=hl_details,
+        )
+        assert ticker.hl_details is not None
+        assert ticker.hl_details.mid_price_source == "allMids"
+        assert ticker.bp_details is None
+
+    def test_backpack_details_creation(self) -> None:
+        """Test creating ticker with Backpack-specific details."""
+        bp_details = BackpackTickerDetails(
+            first_price=Decimal(29000),
+            high=Decimal(31000),
+            low=Decimal(28500),
+            price_change=Decimal(1000),
+            price_change_percent=Decimal("3.45"),
+            quote_volume=Decimal(1000000),
+            trades=1500,
+        )
+        ticker = Ticker(
+            symbol="BTC_USDC",
+            exchange="backpack",
+            timestamp=NOW,
+            price=Decimal(30000),
+            bp_details=bp_details,
+        )
+        assert ticker.bp_details is not None
+        assert ticker.bp_details.first_price == Decimal(29000)
+        assert ticker.bp_details.high == Decimal(31000)
+        assert ticker.bp_details.low == Decimal(28500)
+        assert ticker.bp_details.price_change == Decimal(1000)
+        assert ticker.bp_details.price_change_percent == Decimal("3.45")
+        assert ticker.bp_details.quote_volume == Decimal(1000000)
+        assert ticker.bp_details.trades == 1500
+        assert ticker.hl_details is None
+
+    def test_both_exchange_details_none_by_default(self) -> None:
+        """Test that exchange-specific details are None by default."""
+        ticker = Ticker(
+            symbol=VALID_SYMBOL,
+            exchange="generic_exchange",
+            timestamp=NOW,
+        )
+        assert ticker.hl_details is None
+        assert ticker.bp_details is None
+
+
+class TestHyperliquidTickerDetails:
+    """Unit tests for HyperliquidTickerDetails model."""
+
+    def test_minimal_creation(self) -> None:
+        """Test creating HyperliquidTickerDetails with minimal data."""
+        details = HyperliquidTickerDetails()
+        assert details.mid_price_source is None
+
+    def test_creation_with_data(self) -> None:
+        """Test creating HyperliquidTickerDetails with data."""
+        details = HyperliquidTickerDetails(mid_price_source="orderbook")
+        assert details.mid_price_source == "orderbook"
+
+    def test_immutability(self) -> None:
+        """Test that HyperliquidTickerDetails is immutable."""
+        details = HyperliquidTickerDetails(mid_price_source="allMids")
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            details.mid_price_source = "orderbook"
+
+    def test_extra_fields_ignored(self) -> None:
+        """Test that extra fields are ignored in HyperliquidTickerDetails."""
+        # Should not raise error due to extra="ignore"
+        details = HyperliquidTickerDetails(
+            mid_price_source="allMids",
+            unknown_field="should_be_ignored",  # type: ignore[call-arg]
+        )
+        assert details.mid_price_source == "allMids"
+        assert not hasattr(details, "unknown_field")
+
+
+class TestBackpackTickerDetails:
+    """Unit tests for BackpackTickerDetails model."""
+
+    def test_minimal_creation(self) -> None:
+        """Test creating BackpackTickerDetails with minimal data."""
+        details = BackpackTickerDetails()
+        assert details.first_price is None
+        assert details.high is None
+        assert details.low is None
+        assert details.price_change is None
+        assert details.price_change_percent is None
+        assert details.quote_volume is None
+        assert details.trades is None
+
+    def test_creation_with_all_fields(self) -> None:
+        """Test creating BackpackTickerDetails with all fields."""
+        details = BackpackTickerDetails(
+            first_price=Decimal(29000),
+            high=Decimal(31000),
+            low=Decimal(28500),
+            price_change=Decimal(-500),  # Can be negative
+            price_change_percent=Decimal("-1.67"),  # Can be negative
+            quote_volume=Decimal(500000),
+            trades=750,
+        )
+        assert details.first_price == Decimal(29000)
+        assert details.high == Decimal(31000)
+        assert details.low == Decimal(28500)
+        assert details.price_change == Decimal(-500)
+        assert details.price_change_percent == Decimal("-1.67")
+        assert details.quote_volume == Decimal(500000)
+        assert details.trades == 750
+
+    @pytest.mark.parametrize("field_name", ["first_price", "high", "low", "quote_volume"])
+    def test_non_negative_price_fields_validation(self, field_name: str) -> None:
+        """Test that price and volume fields reject negative values."""
+        kwargs: dict[str, Any] = {}
+        kwargs[field_name] = Decimal(-1)
+
+        with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
+            BackpackTickerDetails(**kwargs)
+
+    @pytest.mark.parametrize("field_name", ["price_change", "price_change_percent"])
+    def test_price_change_fields_allow_negative(self, field_name: str) -> None:
+        """Test that price change fields allow negative values."""
+        kwargs: dict[str, Any] = {}
+        kwargs[field_name] = Decimal("-10.5")
+
+        # Should not raise error
+        details = BackpackTickerDetails(**kwargs)
+        assert getattr(details, field_name) == Decimal("-10.5")
+
+    def test_trades_field_validation(self) -> None:
+        """Test trades field validation (integer, non-negative)."""
+        # Valid positive integer
+        details = BackpackTickerDetails(trades=100)
+        assert details.trades == 100
+
+        # Valid zero
+        details = BackpackTickerDetails(trades=0)
+        assert details.trades == 0
+
+        # Invalid negative
+        with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
+            BackpackTickerDetails(trades=-1)
+
+    def test_immutability(self) -> None:
+        """Test that BackpackTickerDetails is immutable."""
+        details = BackpackTickerDetails(first_price=Decimal(30000))
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            details.first_price = Decimal(31000)
+
+    def test_extra_fields_ignored(self) -> None:
+        """Test that extra fields are ignored in BackpackTickerDetails."""
+        # Should not raise error due to extra="ignore"
+        details = BackpackTickerDetails(
+            first_price=Decimal(30000),
+            unknown_field="should_be_ignored",  # type: ignore[call-arg]
+        )
+        assert details.first_price == Decimal(30000)
+        assert not hasattr(details, "unknown_field")

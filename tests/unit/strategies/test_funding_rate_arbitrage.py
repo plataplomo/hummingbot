@@ -366,7 +366,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         expected_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=fixed_time,
-            funding_rate=Decimal("0.002"),  # Increased to ensure profit
+            funding_rate=Decimal("0.002"),  # Above threshold to ensure opportunity
             next_funding_time=fixed_time + timedelta(hours=8),
         )
 
@@ -381,7 +381,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
             "get_latest_funding_rate",
             side_effect=mock_get_funding_rate,
         ):
-            # Mock ticker prices for valid opportunity
+            # Mock ticker prices for valid opportunity with significant spread
             perp_ticker = Ticker(
                 symbol="BTC-PERP",
                 exchange="hyperliquid",
@@ -394,9 +394,9 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 symbol="BTC_USDC",
                 exchange="backpack",
                 timestamp=fixed_time,
-                price=Decimal("49900.5"),
-                bid=Decimal("49900.0"),
-                ask=Decimal("49901.0"),
+                price=Decimal("49800.5"),  # Larger spread to ensure profitability
+                bid=Decimal("49800.0"),
+                ask=Decimal("49801.0"),
             )
 
             def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
@@ -406,10 +406,18 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                     return spot_ticker
                 return None
 
-            with patch.object(
-                funding_rate_strategy.data_handler,
-                "get_latest_ticker",
-                side_effect=mock_get_ticker,
+            with (
+                patch.object(
+                    funding_rate_strategy.data_handler,
+                    "get_latest_ticker",
+                    side_effect=mock_get_ticker,
+                ),
+                patch.object(
+                    funding_rate_strategy.data_handler,
+                    "fetch_funding_rates",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ),
             ):
                 # Act
                 result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -418,6 +426,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 # Should return signals when valid funding rate and price differential exists
                 assert result is not None
                 assert isinstance(result, list)
+                assert len(result) == 2  # Should generate perp and spot signals
 
     @pytest.mark.asyncio
     async def test_evaluate_opportunity_success_after_funding_rate_retries(
@@ -429,11 +438,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         expected_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.002"),  # Increased to ensure profit
+            funding_rate=Decimal("0.002"),  # Above threshold to ensure opportunity
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
-        # Mock tickers
+        # Mock tickers with profitable spread
         perp_ticker = Ticker(
             symbol="BTC-PERP",
             exchange="hyperliquid",
@@ -446,9 +455,9 @@ class TestEvaluateEntryOpportunityWithFundingRates:
             symbol="BTC_USDC",
             exchange="backpack",
             timestamp=datetime.now(UTC),
-            price=Decimal("49900.5"),
-            bid=Decimal("49900.0"),
-            ask=Decimal("49901.0"),
+            price=Decimal("49800.5"),  # Larger spread for profitability
+            bid=Decimal("49800.0"),
+            ask=Decimal("49801.0"),
         )
 
         def mock_get_ticker(exchange: str, symbol: str) -> Ticker | None:
@@ -481,10 +490,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 "get_latest_ticker",
                 side_effect=mock_get_ticker,
             ),
-            patch("asyncio.sleep"),
+            patch("asyncio.sleep", new_callable=AsyncMock),
             patch.object(
                 funding_rate_strategy.data_handler,
                 "fetch_funding_rates",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
         ):
@@ -534,7 +544,7 @@ class TestEvaluateEntryOpportunityWithFundingRates:
         low_rate = FundingRate(
             symbol="BTC-PERP",
             timestamp=datetime.now(UTC),
-            funding_rate=Decimal("0.00001"),  # Below default threshold
+            funding_rate=Decimal("0.00001"),  # Below default threshold of 0.0001
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         )
 
@@ -578,6 +588,12 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 "get_latest_ticker",
                 side_effect=mock_get_ticker,
             ),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -603,7 +619,13 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 "get_latest_funding_rate",
                 side_effect=mock_get_funding_rate,
             ) as mock_get_rate,
-            patch("asyncio.sleep"),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch.object(
+                funding_rate_strategy.data_handler,
+                "fetch_funding_rates",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
         ):
             # Act
             result = await funding_rate_strategy.evaluate_entry_opportunity()
@@ -625,10 +647,11 @@ class TestEvaluateEntryOpportunityWithFundingRates:
                 "get_latest_funding_rate",
                 side_effect=Exception("Network error"),
             ) as mock_get_rate,
-            patch("asyncio.sleep"),
+            patch("asyncio.sleep", new_callable=AsyncMock),
             patch.object(
                 funding_rate_strategy.data_handler,
                 "fetch_funding_rates",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
         ):

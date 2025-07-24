@@ -110,7 +110,15 @@ class StateManager:
             )
             return self._recover_from_backup()
 
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            ArithmeticError,
+            OSError,
+            PermissionError,
+        ) as e:
             logger.exception(
                 "state_loading_error",
                 state_file=self.state_file,
@@ -168,7 +176,15 @@ class StateManager:
                 message=f"Successfully saved state to {self.state_file}",
             )
 
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            ArithmeticError,
+            OSError,
+            PermissionError,
+        ) as e:
             logger.exception(
                 "state_saving_error",
                 state_file=self.state_file,
@@ -218,7 +234,15 @@ class StateManager:
                 message=f"Created state backup at {backup_path}",
             )
 
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            ArithmeticError,
+            OSError,
+            PermissionError,
+        ) as e:
             logger.exception(
                 "state_backup_creation_error",
                 backup_dir=self.backup_dir,
@@ -259,7 +283,15 @@ class StateManager:
                     message=f"Removed old state backup {backup_path}",
                 )
 
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            ArithmeticError,
+            OSError,
+            PermissionError,
+        ) as e:
             logger.exception(
                 "backup_rotation_error",
                 backup_dir=self.backup_dir,
@@ -344,7 +376,15 @@ class StateManager:
                 message="Failed to recover state from any backup",
             )
 
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            ArithmeticError,
+            OSError,
+            PermissionError,
+        ) as e:
             logger.exception(
                 "recovery_process_error",
                 backup_dir=self.backup_dir,

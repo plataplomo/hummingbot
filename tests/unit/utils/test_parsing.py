@@ -10,8 +10,24 @@ from typing import cast
 
 import pytest
 
-from cyberdelta.exceptions.parsing import DateTimeParsingError, TimestampFormatError
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.exceptions.field_validation import (
+    DecimalFieldError,
+    EnumFieldError,
+    TypeFieldError,
+)
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    TimestampFormatError,
+)
+from cyberdelta.utils.parsing import (
+    check_str_parsable_to_finite_decimal,
+    parse_datetime_utc,
+    parse_decimal_value,
+    timeframe_to_ms,
+    validate_enum_field,
+    validate_str_field,
+)
 
 
 class TestParseDecimalValue:
@@ -208,6 +224,198 @@ class TestParseDatetimeUTC:
         assert offset.total_seconds() == 0
 
     def test_datetime_empty_string(self) -> None:
-        """Should raise DateTimeParsingError for empty string."""
+        """Test parsing empty string raises DateTimeParsingError."""
         with pytest.raises(DateTimeParsingError):
             parse_datetime_utc("")
+
+    def test_datetime_invalid_iso_string(self) -> None:
+        """Test parsing invalid ISO string raises DateTimeParsingError."""
+        with pytest.raises(DateTimeParsingError):
+            parse_datetime_utc("not-a-valid-datetime")
+
+    def test_datetime_numeric_timestamp_seconds(self) -> None:
+        """Test parsing timestamp in seconds."""
+        timestamp = 1672574400.0  # 2023-01-01 12:00:00 UTC
+        dt = parse_datetime_utc(timestamp)
+        assert dt is not None
+        assert dt.year == 2023
+        assert dt.month == 1
+        assert dt.day == 1
+
+    def test_datetime_numeric_timestamp_milliseconds(self) -> None:
+        """Test parsing timestamp in milliseconds."""
+        timestamp = 1672574400000.0  # 2023-01-01 12:00:00 UTC in ms
+        dt = parse_datetime_utc(timestamp)
+        assert dt is not None
+        assert dt.year == 2023
+        assert dt.month == 1
+        assert dt.day == 1
+
+    def test_datetime_numeric_timestamp_microseconds(self) -> None:
+        """Test parsing timestamp in microseconds."""
+        timestamp = 1672574400000000.0  # 2023-01-01 12:00:00 UTC in microseconds
+        dt = parse_datetime_utc(timestamp)
+        assert dt is not None
+        assert dt.year == 2023
+        assert dt.month == 1
+        assert dt.day == 1
+
+    def test_datetime_numeric_timestamp_nanoseconds(self) -> None:
+        """Test parsing timestamp in nanoseconds."""
+        timestamp = 1672574400000000000.0  # 2023-01-01 12:00:00 UTC in nanoseconds
+        dt = parse_datetime_utc(timestamp)
+        assert dt is not None
+        assert dt.year == 2023
+        assert dt.month == 1
+        assert dt.day == 1
+
+    def test_datetime_invalid_numeric_timestamp(self) -> None:
+        """Test parsing invalid numeric timestamp raises TimestampFormatError."""
+        with pytest.raises(TimestampFormatError):
+            parse_datetime_utc(float("nan"))  # Invalid timestamp
+
+    def test_datetime_string_as_numeric_fallback(self) -> None:
+        """Test parsing string that represents numeric timestamp."""
+        timestamp_str = "1672574400"  # 2023-01-01 12:00:00 UTC as string
+        dt = parse_datetime_utc(timestamp_str)
+        assert dt is not None
+        assert dt.year == 2023
+
+    def test_datetime_error_context_includes_field(self) -> None:
+        """Test error message includes field_name when provided."""
+        with pytest.raises(DateTimeParsingError) as exc:
+            parse_datetime_utc("invalid", field_name="test_field")
+        assert "test_field" in str(exc.value)
+
+
+class TestValidateStrField:
+    """Test cases for validate_str_field function."""
+
+    def test_validate_str_field_success(self) -> None:
+        """Test successful string validation."""
+        result = validate_str_field("valid_string", field_name="test")
+        assert result == "valid_string"
+
+    def test_validate_str_field_empty_not_allowed(self) -> None:
+        """Test empty string raises error when not allowed."""
+        with pytest.raises(EmptyStringError):
+            validate_str_field("", field_name="test", allow_empty=False)
+
+    def test_validate_str_field_empty_allowed(self) -> None:
+        """Test empty string passes when allowed."""
+        result = validate_str_field("", field_name="test", allow_empty=True)
+        assert not result
+
+    def test_validate_str_field_max_length_exceeded(self) -> None:
+        """Test string exceeding max length raises error."""
+        with pytest.raises(TypeFieldError):
+            validate_str_field("toolong", field_name="test", max_length=5)
+
+    def test_validate_str_field_whitespace_handling(self) -> None:
+        """Test whitespace handling in string validation."""
+        # Whitespace strings are treated as empty if allow_empty=False
+        result = validate_str_field("test", field_name="test", allow_empty=False)
+        assert result == "test"
+
+    def test_validate_str_field_non_string_type(self) -> None:
+        """Test non-string type raises error."""
+        with pytest.raises(TypeFieldError):
+            validate_str_field(123, field_name="test")
+
+
+class TestValidateEnumField:
+    """Test cases for validate_enum_field function."""
+
+    def test_validate_enum_field_success(self) -> None:
+        """Test successful enum validation."""
+        allowed_values = {"value1", "value2"}
+        result = validate_enum_field("value1", allowed_values, field_name="test")
+        assert result == "value1"
+
+    def test_validate_enum_field_invalid_value(self) -> None:
+        """Test invalid enum value raises error."""
+        allowed_values = {"value1", "value2"}
+        with pytest.raises(EnumFieldError):
+            validate_enum_field("invalid", allowed_values, field_name="test")
+
+    def test_validate_enum_field_case_sensitive(self) -> None:
+        """Test case sensitive enum validation (default behavior)."""
+        allowed_values = {"value1", "value2"}
+        # Should work with exact match
+        result = validate_enum_field("value1", allowed_values, field_name="test")
+        assert result == "value1"
+
+        # Should fail with different case
+        with pytest.raises(EnumFieldError):
+            validate_enum_field("VALUE1", allowed_values, field_name="test")
+
+
+class TestTimeframeToMs:
+    """Test cases for timeframe_to_ms function."""
+
+    def test_timeframe_minutes(self) -> None:
+        """Test parsing minutes timeframe."""
+        assert timeframe_to_ms("5m") == 300000
+        assert timeframe_to_ms("1m") == 60000
+
+    def test_timeframe_hours(self) -> None:
+        """Test parsing hours timeframe."""
+        assert timeframe_to_ms("2h") == 7200000
+        assert timeframe_to_ms("1h") == 3600000
+
+    def test_timeframe_days(self) -> None:
+        """Test parsing days timeframe."""
+        assert timeframe_to_ms("1d") == 86400000
+
+    def test_timeframe_invalid_format(self) -> None:
+        """Test invalid timeframe format raises error."""
+        with pytest.raises(ValueError):
+            timeframe_to_ms("invalid", default_to_minutes=None)
+
+    def test_timeframe_no_unit_uses_default(self) -> None:
+        """Test number without unit uses default minutes."""
+        assert timeframe_to_ms("5") == 300000  # 5 minutes
+
+    def test_timeframe_invalid_with_default(self) -> None:
+        """Test invalid timeframe with default fallback."""
+        result = timeframe_to_ms("invalid", default_to_minutes=2)
+        assert result == 120000  # 2 minutes
+
+    def test_timeframe_empty_string(self) -> None:
+        """Test empty timeframe string."""
+        result = timeframe_to_ms("", default_to_minutes=1)
+        assert result == 60000  # 1 minute default
+
+
+class TestCheckStrParsableToFiniteDecimal:
+    """Test cases for check_str_parsable_to_finite_decimal function."""
+
+    def test_check_valid_decimal_string(self) -> None:
+        """Test valid decimal string passes check."""
+        result = check_str_parsable_to_finite_decimal("123.45", field_name="test")
+        assert result == "123.45"
+
+    def test_check_integer_string(self) -> None:
+        """Test integer string passes check."""
+        result = check_str_parsable_to_finite_decimal("123", field_name="test")
+        assert result == "123"
+
+    def test_check_invalid_string(self) -> None:
+        """Test invalid string raises error."""
+        with pytest.raises(DecimalFieldError):
+            check_str_parsable_to_finite_decimal("not_a_number", field_name="test")
+
+    def test_check_non_string_type(self) -> None:
+        """Test non-string type raises error."""
+        with pytest.raises(TypeFieldError):
+            check_str_parsable_to_finite_decimal(123, field_name="test")
+
+    def test_check_infinity_string(self) -> None:
+        """Test infinity string raises error."""
+        with pytest.raises(DecimalFieldError):
+            check_str_parsable_to_finite_decimal("inf", field_name="test")
+
+    def test_check_nan_string(self) -> None:
+        """Test NaN string raises error."""
+        with pytest.raises(DecimalFieldError):
+            check_str_parsable_to_finite_decimal("nan", field_name="test")

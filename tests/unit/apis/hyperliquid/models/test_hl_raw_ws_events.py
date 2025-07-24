@@ -20,16 +20,20 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.fixtures.time_fixtures import FreezerProtocol
 
 
-def test_ws_fill_event_happy_path() -> None:
+def test_ws_fill_event_happy_path(freezer: FreezerProtocol) -> None:
     """Test ws fill event happy path."""
+    freezer.move_to("2025-01-15 12:00:00")
+    # Use the frozen time for the timestamp
+    frozen_time_ms = int(datetime.now(UTC).timestamp() * 1000)
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
+        "time": frozen_time_ms,  # Use frozen timestamp
         "hash": "abc123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -82,14 +86,16 @@ def test_ws_fill_event_constraint_errors() -> None:
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
-def test_ws_fill_event_optional_cloid() -> None:
+def test_ws_fill_event_optional_cloid(freezer: FreezerProtocol) -> None:
     """Test ws fill event optional cloid."""
+    freezer.move_to("2025-01-15 12:00:00")
+    frozen_time_ms = int(datetime.now(UTC).timestamp() * 1000)
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
         "sz": "1.5",
         "side": "A",
-        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
+        "time": frozen_time_ms,
         "hash": "abc123",
         "oid": 42,
         "isMaker": False,
@@ -116,14 +122,16 @@ def test_ws_fill_event_extra_field() -> None:
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
-def test_ws_fill_event_adversarial_strings() -> None:
+def test_ws_fill_event_adversarial_strings(freezer: FreezerProtocol) -> None:
     """Test ws fill event adversarial strings."""
+    freezer.move_to("2025-01-15 12:00:00")
+    frozen_time_ms = int(datetime.now(UTC).timestamp() * 1000)
     obj: dict[str, object] = {
         "coin": "DROP TABLE users;",
         "px": "123.456",
         "sz": "789.012",
         "side": "A",
-        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
+        "time": frozen_time_ms,
         "hash": "abc123",
         "oid": 1,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -547,15 +555,17 @@ def test_ws_fill_event_cloid_empty_string() -> None:
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
-def test_ws_fill_event_cloid_omitted() -> None:
+def test_ws_fill_event_cloid_omitted(freezer: FreezerProtocol) -> None:
     """Test ws fill event cloid omitted."""
+    freezer.move_to("2025-01-15 12:00:00")
+    frozen_time_ms = int(datetime.now(UTC).timestamp() * 1000)
     # cloid omitted
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
+        "time": frozen_time_ms,
         "hash": "abc123",
         "oid": 42,
         "isMaker": True,
@@ -582,15 +592,17 @@ def test_ws_fill_event_cloid_very_long() -> None:
         HyperliquidRawWsFillEvent.model_validate(obj)
 
 
-def test_ws_fill_event_hash_unicode_control() -> None:
+def test_ws_fill_event_hash_unicode_control(freezer: FreezerProtocol) -> None:
     """Test ws fill event hash unicode control."""
+    freezer.move_to("2025-01-15 12:00:00")
+    frozen_time_ms = int(datetime.now(UTC).timestamp() * 1000)
     # hash with unicode or control characters
     obj: dict[str, object] = {
         "coin": "ETH",
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
+        "time": frozen_time_ms,
         "hash": "abc\n123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
