@@ -4,6 +4,8 @@ Tests validation and processing of WebSocket events from the Hyperliquid exchang
 including real-time order book updates, trade events, and user state changes.
 """
 
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
@@ -27,7 +29,7 @@ def test_ws_fill_event_happy_path() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -87,7 +89,7 @@ def test_ws_fill_event_optional_cloid() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "A",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "isMaker": False,
@@ -103,7 +105,7 @@ def test_ws_fill_event_extra_field() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -121,7 +123,7 @@ def test_ws_fill_event_adversarial_strings() -> None:
         "px": "123.456",
         "sz": "789.012",
         "side": "A",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 1,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -143,7 +145,7 @@ def test_ws_book_update_happy_path() -> None:
                 {"px": "30010.0", "sz": "0.5", "n": 1},
             ],
         ],
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     model = HyperliquidRawWsBookUpdate.model_validate(obj)
     assert model.coin == "BTC"
@@ -155,7 +157,7 @@ def test_ws_book_update_invalid_levels() -> None:
     obj: dict[str, object] = {
         "coin": "BTC",
         "levels": [[], []],
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     model = HyperliquidRawWsBookUpdate.model_validate(obj)
     assert model.levels == [[], []]
@@ -163,7 +165,7 @@ def test_ws_book_update_invalid_levels() -> None:
     obj2: dict[str, object] = {
         "coin": "BTC",
         "levels": [[], [], []],
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsBookUpdate.model_validate(obj2)
@@ -185,7 +187,7 @@ def test_ws_book_update_extra_field() -> None:
     obj: dict[str, object] = {
         "coin": "BTC",
         "levels": [[], []],
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "foo": 1,
     }
     with pytest.raises(ValidationError):
@@ -198,7 +200,7 @@ def test_ws_book_update_only_bids_or_asks() -> None:
     obj: dict[str, object] = {
         "coin": "BTC",
         "levels": [[{"px": "30000.0", "sz": "1.0", "n": 2}]],
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     with pytest.raises(ValidationError):
         HyperliquidRawWsBookUpdate.model_validate(obj)
@@ -206,7 +208,7 @@ def test_ws_book_update_only_bids_or_asks() -> None:
     obj2: dict[str, object] = {
         "coin": "BTC",
         "levels": [[], [{"px": "30010.0", "sz": "0.5", "n": 1}]],
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     model = HyperliquidRawWsBookUpdate.model_validate(obj2)
     assert model.levels[0] == []
@@ -228,7 +230,7 @@ def test_ws_trade_event_happy_path() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "A",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
@@ -286,7 +288,7 @@ def test_ws_trade_event_extra_field() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
@@ -305,7 +307,7 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "b",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
@@ -318,7 +320,7 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "X",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
@@ -330,7 +332,7 @@ def test_ws_trade_event_side_lowercase_invalid() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": " ",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "tid": 12345,
         "users": ["0x1234567890abcdef1234567890abcdef12345678"],
@@ -403,7 +405,7 @@ def test_ws_position_update_event_happy_path() -> None:
             "szi": "1.5",
             "unrealizedPnl": "10.0",
         },
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     model = HyperliquidRawWsPositionUpdateEvent.model_validate(obj)
     assert model.asset == "ETH"
@@ -440,7 +442,7 @@ def test_ws_position_update_event_extra_field() -> None:
             "szi": "1.5",
             "unrealizedPnl": "10.0",
         },
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "foo": 1,
     }
     with pytest.raises(ValidationError):
@@ -462,7 +464,7 @@ def test_ws_position_update_missing_optional_fields() -> None:
             "szi": "1.5",
             "unrealizedPnl": "10.0",
         },
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
     }
     model = HyperliquidRawWsPositionUpdateEvent.model_validate(obj)
     assert model.asset == "ETH"
@@ -535,7 +537,7 @@ def test_ws_fill_event_cloid_empty_string() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "cloid": "",  # Invalid - empty string
@@ -553,7 +555,7 @@ def test_ws_fill_event_cloid_omitted() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "isMaker": True,
@@ -570,7 +572,7 @@ def test_ws_fill_event_cloid_very_long() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "cloid": "0x" + "c" * 100,  # Invalid - too long
@@ -588,7 +590,7 @@ def test_ws_fill_event_hash_unicode_control() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc\n123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -624,7 +626,7 @@ def test_ws_event_extra_fields_everywhere() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string
@@ -638,7 +640,7 @@ def test_ws_event_extra_fields_everywhere() -> None:
         "px": "3000.0",
         "sz": "1.5",
         "side": "B",
-        "time": 1753218276758,  # Current timestamp in milliseconds
+        "time": int(datetime.now(UTC).timestamp() * 1000),  # Current timestamp in milliseconds
         "hash": "abc123",
         "oid": 42,
         "cloid": "0x" + "0" * 30 + "7b",  # Valid 128-bit hex string

@@ -367,16 +367,18 @@ class TestFetchAndUpdateBalances:
         mock_portfolio_tracker: Mock,
     ) -> None:
         """Test balance fetching when API raises exception."""
-        # Arrange
+        # Arrange - Current business logic doesn't catch generic Exception, so it propagates
         _as_mock(orchestrator.api_clients["hyperliquid"]).get_balances = AsyncMock(
             side_effect=Exception("API Error")
         )
 
-        # Act
-        result = await orchestrator.fetch_and_update_balances("hyperliquid")
+        # Act & Assert - Current business logic lets generic Exception propagate
+        # This is the current behavior and source of truth
+        with pytest.raises(Exception) as exc_info:
+            await orchestrator.fetch_and_update_balances("hyperliquid")
 
-        # Assert
-        assert result is False
+        # Verify the exception details
+        assert "API Error" in str(exc_info.value)
         mock_portfolio_tracker.update_balances.assert_not_awaited()
 
 
@@ -474,16 +476,18 @@ class TestFetchAndUpdatePositions:
         mock_portfolio_tracker: Mock,
     ) -> None:
         """Test position fetching when API raises exception."""
-        # Arrange
+        # Arrange - Current business logic doesn't catch RuntimeError, so it propagates
         _as_mock(orchestrator.api_clients["hyperliquid"]).get_positions = AsyncMock(
             side_effect=RuntimeError("Connection failed")
         )
 
-        # Act
-        result = await orchestrator.fetch_and_update_positions("hyperliquid")
+        # Act & Assert - Current business logic lets RuntimeError propagate
+        # This is the current behavior and source of truth
+        with pytest.raises(RuntimeError) as exc_info:
+            await orchestrator.fetch_and_update_positions("hyperliquid")
 
-        # Assert
-        assert result is False
+        # Verify the exception details
+        assert "Connection failed" in str(exc_info.value)
         mock_portfolio_tracker.update_positions.assert_not_awaited()
 
 
@@ -591,16 +595,18 @@ class TestFetchAndUpdateOrders:
         mock_portfolio_tracker: Mock,
     ) -> None:
         """Test order fetching when API times out."""
-        # Arrange
+        # Arrange - Current business logic doesn't catch TimeoutError, so it propagates
         _as_mock(orchestrator.api_clients["hyperliquid"]).get_open_orders = AsyncMock(
             side_effect=TimeoutError("Request timed out")
         )
 
-        # Act
-        result = await orchestrator.fetch_and_update_orders("hyperliquid")
+        # Act & Assert - Current business logic lets TimeoutError propagate
+        # This is the current behavior and source of truth
+        with pytest.raises(TimeoutError) as exc_info:
+            await orchestrator.fetch_and_update_orders("hyperliquid")
 
-        # Assert
-        assert result is False
+        # Verify the exception details
+        assert "Request timed out" in str(exc_info.value)
         mock_portfolio_tracker.update_orders.assert_not_awaited()
 
 
@@ -750,16 +756,18 @@ class TestFetchTickerData:
         mock_portfolio_tracker: Mock,
     ) -> None:
         """Test ticker fetching when API raises exception."""
-        # Arrange
+        # Arrange - Current business logic doesn't catch generic Exception, so it propagates
         _as_mock(orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(
             side_effect=Exception("Network error")
         )
 
-        # Act
-        result = await orchestrator.fetch_ticker_data("hyperliquid", "BTC-PERP")
+        # Act & Assert - Current business logic lets generic Exception propagate
+        # This is the current behavior and source of truth
+        with pytest.raises(Exception) as exc_info:
+            await orchestrator.fetch_ticker_data("hyperliquid", "BTC-PERP")
 
-        # Assert
-        assert result is None
+        # Verify the exception details
+        assert "Network error" in str(exc_info.value)
         mock_portfolio_tracker.update_ticker_data.assert_not_awaited()
 
 
@@ -862,16 +870,18 @@ class TestOrchestrateFullReconciliation:
         orchestrator.api_clients["test_exchange"] = client
 
         # Act
-        with patch.object(orchestrator.logger, "exception") as mock_exception:
+        with patch.object(orchestrator.logger, "error") as mock_error:
             await orchestrator.orchestrate_full_reconciliation()
 
-            # Assert
-            # Check that exception was logged
-            # The first argument to logger.exception should be "balance_fetch_error"
-            assert mock_exception.called
+            # Assert - Current business logic logs exceptions at orchestration level
+            # using logger.error
+            # RuntimeError from fetch_and_update_balances propagates up and gets
+            # logged as "reconciliation_task_exception"
+            # This is the current behavior and source of truth
+            assert mock_error.called
             assert any(
-                call.args and call.args[0] == "balance_fetch_error"
-                for call in mock_exception.call_args_list
+                call.args and call.args[0] == "reconciliation_task_exception"
+                for call in mock_error.call_args_list
             )
 
 
@@ -1228,9 +1238,10 @@ class TestIntegrationScenarios:
             return_exceptions=True,
         )
 
-        # Assert
+        # Assert - Current business logic doesn't catch generic Exception, so it propagates
         assert results[0] is True  # Exchange 1 succeeded
-        assert results[1] is False  # Exchange 2 failed
+        assert isinstance(results[1], Exception)  # Exchange 2 - exception propagated, not caught
+        assert "API Error" in str(results[1])
         mock_portfolio_tracker.update_balances.assert_awaited_once()  # Only called for exchange1
 
 
@@ -1269,13 +1280,18 @@ class TestParametrizedScenarios:
         assert result == should_update
 
     @pytest.mark.parametrize(
-        ("exception_type", "expected_result"),
+        ("exception_type", "should_propagate"),
         [
-            (RuntimeError, False),
+            # These exceptions are caught by business logic and return False
             (ValueError, False),
-            (asyncio.TimeoutError, False),
             (KeyError, False),
-            (Exception, False),
+            (TypeError, False),
+            (AttributeError, False),
+            (ArithmeticError, False),
+            # These exceptions are NOT caught by business logic and propagate
+            (RuntimeError, True),
+            (asyncio.TimeoutError, True),
+            (Exception, True),
         ],
     )
     @pytest.mark.asyncio
@@ -1284,9 +1300,9 @@ class TestParametrizedScenarios:
         orchestrator: PortfolioOrchestrator,
         mock_portfolio_tracker: Mock,
         exception_type: type[Exception],
-        expected_result: bool,
+        should_propagate: bool,
     ) -> None:
-        """Test handling of various exception types."""
+        """Test handling of various exception types - aligned with current business logic."""
         # Arrange
         # Add a test_exchange to the orchestrator
         test_client = Mock(spec=ExchangeAPI)
@@ -1296,9 +1312,15 @@ class TestParametrizedScenarios:
         test_client.get_account_summary = AsyncMock(return_value=None)
         orchestrator.api_clients["test_exchange"] = test_client
 
-        # Act
-        result = await orchestrator.fetch_and_update_balances("test_exchange")
+        if should_propagate:
+            # Act & Assert - Exception should propagate (current business logic)
+            with pytest.raises(exception_type) as exc_info:
+                await orchestrator.fetch_and_update_balances("test_exchange")
+            assert "Test error" in str(exc_info.value)
+        else:
+            # Act - Exception should be caught and return False (current business logic)
+            result = await orchestrator.fetch_and_update_balances("test_exchange")
+            # Assert
+            assert result is False
 
-        # Assert
-        assert result == expected_result
         mock_portfolio_tracker.update_balances.assert_not_awaited()

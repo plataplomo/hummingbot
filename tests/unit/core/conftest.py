@@ -14,7 +14,9 @@ from pydantic import AnyUrl, HttpUrl
 from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
     ExchangeSpecificConfig,
+    PortfolioStateSettings,
     PortfolioTrackerConfig,
+    PortfolioValidationSettings,
 )
 from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import (
@@ -75,6 +77,13 @@ def pt_config() -> PortfolioTrackerConfig:
     """Standard portfolio tracker configuration."""
     return PortfolioTrackerConfig(
         data_freshness_seconds=60,
+        # Ensure validation timeout <= state update timeout to satisfy business logic
+        validation=PortfolioValidationSettings(
+            validation_timeout=5.0,  # Set to 5.0 to be <= state.update_timeout default (5.0)
+        ),
+        state=PortfolioStateSettings(
+            update_timeout=10.0,  # Increase to 10.0 to provide buffer above validation_timeout
+        ),
     )
 
 
