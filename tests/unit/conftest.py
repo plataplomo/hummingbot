@@ -572,6 +572,8 @@ def test_app_settings() -> AppSettings:
             data_freshness_seconds=60,
             initial_balances={},
             initial_positions=[],
+            validation=PortfolioValidationSettings(validation_timeout=5.0),
+            state=PortfolioStateSettings(update_timeout=10.0),
         ),
     )
 

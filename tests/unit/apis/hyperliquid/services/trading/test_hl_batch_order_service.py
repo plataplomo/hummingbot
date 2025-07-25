@@ -10,11 +10,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.common import APIError
+from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
+    HyperliquidRawExchangeResponse,
+)
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.market.order import CancelOrderResult
@@ -33,6 +36,7 @@ class TestBatchOrderService:
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
         mock_http_client_requester: AsyncMock,
+        mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test successful batch order placement."""
         wallet_address = "0xBatchSuccessWallet"
@@ -73,6 +77,15 @@ class TestBatchOrderService:
             }
         }
         mock_http_client_requester.return_value = (mock_batch_response, 200, {})
+
+        # Mock response handler to return successful exchange response
+        mock_order_response = MagicMock(spec=HyperliquidRawExchangeResponse)
+        mock_order_response.data = MagicMock()
+        mock_order_response.data.statuses = [
+            {"filled": {"totalSz": "0.5", "avgPx": "50000.0", "oid": "123456"}},
+            {"filled": {"totalSz": "1.0", "avgPx": "3000.0", "oid": "123457"}},
+        ]
+        mock_hl_response_handler.handle_exchange_response.return_value = mock_order_response
 
         result = await hl_trading_service.place_batch_orders(orders)
 
@@ -126,20 +139,37 @@ class TestBatchOrderService:
         orders: list[PlaceOrderArgs] = []
 
         # Test the public interface - when calling place_batch_orders with empty list,
-        # it should handle this gracefully and return an empty list
-        result = await hl_trading_service.place_batch_orders(orders)
+        # it should raise ValueError (business logic validation)
+        with pytest.raises(ValueError) as exc_info:
+            await hl_trading_service.place_batch_orders(orders)
 
-        # Verify the public behavior
-        assert isinstance(result, list)
-        assert len(result) == 0
+        # Verify the public behavior - should reject empty batch
+        assert "Cannot place empty batch of orders" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_batch_orders_too_many(
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
+        mock_http_client_requester: AsyncMock,
+        mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test batch order placement with too many orders."""
         wallet_address = "0xBatchTooManyWallet"
+
+        # Configure mock to return error response for too many orders
+        mock_http_client_requester.return_value = (
+            {"status": "error", "response": "Too many orders in batch"},
+            400,
+            {},
+        )
+
+        # Mock response handler to raise APIError for too many orders
+        mock_hl_response_handler.handle_exchange_response.side_effect = APIError(
+            message="Too many orders in batch",
+            code=APIErrorCode.INVALID_REQUEST.value,
+            http_status=400,
+        )
+
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         # Create a batch that's too large
@@ -169,9 +199,31 @@ class TestBatchOrderService:
     async def test_cancel_batch_orders_success(
         self,
         make_hl_trading_service: Callable[..., HyperliquidTradingService],
+        mock_http_client_requester: AsyncMock,
+        mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test successful batch order cancellation."""
         wallet_address = "0xBatchCancelSuccessWallet"
+
+        # Configure mock to return successful batch cancel response
+        mock_http_client_requester.return_value = (
+            {
+                "status": "ok",
+                "response": {
+                    "type": "cancel",
+                    "data": {"statuses": [{"success": True}, {"success": True}]},
+                },
+            },
+            200,
+            {},
+        )
+
+        # Mock response handler to return successful cancel results
+        mock_cancel_response = MagicMock(spec=HyperliquidRawExchangeResponse)
+        mock_cancel_response.data = MagicMock()
+        mock_cancel_response.data.statuses = [{"success": True}, {"success": True}]
+        mock_hl_response_handler.handle_exchange_response.return_value = mock_cancel_response
+
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         # Create test cancellation args

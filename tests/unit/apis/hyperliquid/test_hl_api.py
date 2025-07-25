@@ -56,8 +56,6 @@ from cyberdelta.core.models.market.order import (
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
@@ -618,12 +616,15 @@ class TestHyperliquidAPIMarketDataMethods:
         assert valid_args.symbol == "BTC-USD"
 
         # Test invalid args - empty symbol should fail validation
-        with pytest.raises(EmptyStringError):
+        with pytest.raises(ValidationError) as exc_info:
             GetMarketArgs(symbol="")
+        assert "String cannot be empty" in str(exc_info.value)
 
         # Test args with very long symbol (should fail max length validation)
-        with pytest.raises(TypeFieldError):
+        with pytest.raises(ValidationError) as exc_info:
             GetMarketArgs(symbol="A" * 65)  # Max length is 64
+        # The validation error should contain the max length message
+        assert "expected string with max length 64" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_markets_args_validation(
@@ -851,7 +852,7 @@ class TestHyperliquidAPIAccountMethods:
         assert result[0].client_order_id == "order123"
 
         # Verify service was called correctly
-        mock_hl_account_service.get_order_history.assert_called_once_with(args)
+        mock_hl_account_service.get_order_history.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
     async def test_get_trade_history_success(
@@ -896,7 +897,7 @@ class TestHyperliquidAPIAccountMethods:
         assert result[0].id == "trade123"
 
         # Verify service was called correctly
-        mock_hl_account_service.get_trade_history.assert_called_once_with(args)
+        mock_hl_account_service.get_trade_history.assert_called_once_with(args=args)
 
 
 class TestHyperliquidAPITradingMethods:
@@ -963,7 +964,7 @@ class TestHyperliquidAPITradingMethods:
         assert result.status == OrderStatus.OPEN
 
         # Verify service was called correctly
-        mock_hl_trading_service.place_order.assert_called_once_with(args)
+        mock_hl_trading_service.place_order.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_success(
@@ -1003,7 +1004,7 @@ class TestHyperliquidAPITradingMethods:
         assert result.status == CancelOrderResultStatus.SUCCESS
 
         # Verify service was called correctly
-        mock_hl_trading_service.cancel_order.assert_called_once_with(args)
+        mock_hl_trading_service.cancel_order.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
     async def test_cancel_all_orders_with_symbol(
@@ -1160,7 +1161,7 @@ class TestHyperliquidAPITradingMethods:
         assert result.status == OrderStatus.PARTIALLY_FILLED
 
         # Verify service was called correctly
-        mock_hl_trading_service.get_order.assert_called_once_with(args)
+        mock_hl_trading_service.get_order.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
     async def test_get_order_success(
@@ -1215,7 +1216,7 @@ class TestHyperliquidAPITradingMethods:
         assert result.status == OrderStatus.FILLED
 
         # Verify service was called correctly
-        mock_hl_trading_service.get_order.assert_called_once_with(args)
+        mock_hl_trading_service.get_order.assert_called_once_with(args=args)
 
 
 class TestHyperliquidAPIMarketDataAdditionalMethods:
@@ -1291,9 +1292,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         assert len(result.asks) == 1
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_order_book.assert_called_once_with(
-            symbol="BTC-USD", depth=10
-        )
+        mock_hl_market_data_service.get_order_book.assert_called_once_with(symbol="BTC-USD")
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -1353,9 +1352,8 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         assert result[0].id == "trade123"
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(
-            symbol="BTC-USD", limit=50
-        )
+        # Note: Hyperliquid's get_recent_trades only takes symbol parameter, not limit
+        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(symbol="BTC-USD")
 
     @pytest.mark.asyncio
     async def test_get_funding_rates_success(
@@ -1406,7 +1404,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         assert result[0].funding_rate == Decimal("0.0001")
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(args)
+        mock_hl_market_data_service.get_funding_rates.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
     async def test_get_market_data_success(
@@ -1451,7 +1449,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         assert result[0].high == Decimal("51000.00")
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_market_data.assert_called_once_with(args)
+        mock_hl_market_data_service.get_market_data.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -1505,7 +1503,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         assert len(result) == 2
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_historical_funding_rates.assert_called_once_with(args)
+        mock_hl_market_data_service.get_historical_funding_rates.assert_called_once_with(args=args)
 
 
 class TestHyperliquidAPIInitializationPaths:

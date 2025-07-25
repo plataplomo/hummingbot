@@ -355,10 +355,14 @@ class TestHyperliquidHistoricalDataService:
         mock_http_requester.return_value = (raw_response, 200, {})
 
         # Response handler returns the validated response model from raw dict data
-        funding_item = HyperliquidRawFundingHistoryItem(
-            coin="ETH", fundingRate="0.0001", premium="0.0001", time=1704067200000
+        # Create the response using raw dict data (not instantiated objects)
+        raw_funding_data = HyperliquidRawFundingHistoryItem(
+            coin="ETH",
+            fundingRate="0.0001",
+            premium="0.0001",
+            time=1704067200000,
         )
-        response_model = HyperliquidRawFundingHistoryResponse([funding_item])
+        response_model = HyperliquidRawFundingHistoryResponse([raw_funding_data])
         mock_response_handler.handle_historical_funding_rates_response.return_value = response_model
         mock_mapper.transform_raw_funding_history_item_to_internal.return_value = mock_funding_rate
 

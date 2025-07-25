@@ -332,7 +332,7 @@ class TestErrorHandling:
     def test_strategy_exception_during_start_is_handled_gracefully(
         self, engine: Engine, mock_strategy: Mock
     ) -> None:
-        """Test that strategy exceptions during start don't prevent engine from starting."""
+        """Test that strategy exceptions during start are caught and strategy is disabled."""
         # Arrange
         handler = AsyncMock()
         engine.set_signal_handler(handler)
@@ -340,22 +340,19 @@ class TestErrorHandling:
         engine.enable_strategy("test_strategy")
         mock_strategy.on_start.side_effect = RuntimeError("Strategy start error")
 
-        # Act & Assert - Current business logic lets generic Exception propagate
-        # This is the current behavior and source of truth
-        with pytest.raises(Exception) as exc_info:
-            engine.start()
+        # Act - Engine catches RuntimeError and disables the strategy
+        engine.start()
 
-        # Verify the exception details
-        assert "Strategy start error" in str(exc_info.value)
-        # Engine is_running flag is set to True before strategy.on_start() is called
-        # So even though exception propagates, is_running remains True (current behavior)
+        # Assert - Engine started successfully but strategy was disabled
         assert engine.is_running is True
+        assert "test_strategy" not in engine.enabled_strategies
+        mock_strategy.disable.assert_called()  # Strategy was disabled due to error
 
     @pytest.mark.asyncio
     async def test_strategy_exception_during_data_processing_is_handled(
         self, engine: Engine, mock_strategy: Mock, sample_candle: Candle
     ) -> None:
-        """Test that strategy exceptions during data processing don't crash engine."""
+        """Test that strategy exceptions during data processing are caught and logged."""
         # Arrange
         handler = AsyncMock()
         engine.set_signal_handler(handler)
@@ -364,12 +361,12 @@ class TestErrorHandling:
         engine.start()
         mock_strategy.process_data.side_effect = ValueError("Strategy processing error")
 
-        # Act & Assert - Current business logic lets generic Exception propagate
-        # This is the current behavior and source of truth
-        with pytest.raises(Exception) as exc_info:
-            await engine.process_market_data(sample_candle)
+        # Act - Engine catches ValueError and continues
+        await engine.process_market_data(sample_candle)
 
-        # Verify the exception details
-        assert "Strategy processing error" in str(exc_info.value)
-        # Handler should not be called when exception propagates
+        # Assert - Engine handled the error gracefully
+        mock_strategy.process_data.assert_called_once_with(sample_candle)
+        # Handler should not be called when strategy throws exception
         handler.assert_not_called()
+        # Strategy remains enabled (errors during processing don't disable strategies)
+        assert "test_strategy" in engine.enabled_strategies

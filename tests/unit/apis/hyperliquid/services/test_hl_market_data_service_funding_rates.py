@@ -2,14 +2,19 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from cyberdelta.apis.common import APIError
+from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
+    HyperliquidRawMetaAndAssetCtxsResponse,
+)
 
 # Removed unused imports - tests now focus on service delegation
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
+from cyberdelta.core.models import FundingRate
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
@@ -31,19 +36,70 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
     async def test_get_funding_rate_success(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
+        mock_http_client_requester: AsyncMock,
+        mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_funding_rate successfully delegates to price ticker service."""
         symbol = "BTC"
-        # Test focuses on public behavior, not exact data matching
+        
+        # Mock the HTTP response structure
+        mock_response_data = {"test": "data"}
+        mock_http_client_requester.return_value = (mock_response_data, 200, {})
+        
+        # Mock the response handler to return valid raw data
+        # The response handler will return the validated response model
+        mock_asset_def_dict = {
+            "name": symbol,
+            "szDecimals": 5,
+            "maxLeverage": 100
+        }
+        mock_asset_ctx_dict = {
+            "funding": "0.0001",
+            "markPx": "50000.5",
+            "prevDayPx": "49000.0",
+            "dayNtlVlm": "1000000.0",
+            "openInterest": "100000.0",
+            "oraclePx": "50000.0",
+            "dayBaseVlm": "2000.0"
+        }
+        
+        # Create the response as it would be validated and returned by the response handler
+        mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
+            {"universe": [mock_asset_def_dict]},
+            [mock_asset_ctx_dict]
+        ])
+        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
+            mock_raw_response
+        )
+        
+        # Mock the mapper to return a FundingRate object
+        expected_funding_rate = FundingRate(
+            symbol=symbol,
+            timestamp=datetime.now(UTC),
+            funding_rate=Decimal("0.0001"),
+            mark_price=Decimal("50000.5"),
+        )
+        # Note: The historical_data_mapper is used for funding rate transformation
+        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = expected_funding_rate
 
-        # Test the public interface - get_funding_rate should return a Decimal or None
+        # Test the public interface - get_funding_rate should return a FundingRate or None 
         result = await hyperliquid_market_data_service.get_funding_rate(symbol)
 
-        # Verify result structure - should return a Decimal or None
-        assert result is None or isinstance(result, Decimal)
+        # Verify that the underlying components were called correctly
+        mock_http_client_requester.assert_called_once()
+        mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.assert_called_once()
+        mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.assert_called_once()
+
+        # Verify result structure - should return a FundingRate object or None
+        assert result is None or isinstance(result, FundingRate)
         if result is not None:
-            # Funding rate should be a reasonable value (between -1 and 1 typically)
-            assert -1 <= result <= 1
+            # Verify the FundingRate object properties
+            assert result.symbol == symbol
+            assert isinstance(result.funding_rate, Decimal) or result.funding_rate is None
+            if result.funding_rate is not None:
+                # Funding rate should be a reasonable value (between -1 and 1 typically)
+                assert -1 <= result.funding_rate <= 1
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_not_found(

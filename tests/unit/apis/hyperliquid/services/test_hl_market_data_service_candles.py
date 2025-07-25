@@ -1,13 +1,17 @@
 """Unit tests for HyperliquidMarketDataService market data/candles functionality."""
 
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
+from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args_models import GetCandleSnapshotArgs, GetMarketDataArgs
+from cyberdelta.core.models.market.candle import Candle
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
@@ -27,6 +31,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data (candlesticks) successfully retrieves and processes data."""
         symbol = "ETH"
@@ -75,6 +80,51 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_model.model_dump.return_value = mock_payload_dict
         mock_hl_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
 
+        # Create mock raw candle snapshot that would be returned by response handler
+        mock_raw_candle_snapshot = HyperliquidRawCandleSnapshot(
+            t=raw_times,
+            o=raw_opens,
+            h=raw_highs,
+            l=raw_lows,
+            c=raw_closes,
+            v=raw_volumes,
+            s=raw_status,
+        )
+
+        # Configure response handler to return the raw candle snapshot
+        mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
+            mock_raw_candle_snapshot
+        )
+
+        # Create expected candle objects
+        expected_candles = [
+            Candle(
+                symbol=symbol,
+                interval=interval,
+                open_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
+                open=Decimal(3000),
+                high=Decimal(3005),
+                low=Decimal(2995),
+                close=Decimal(3002),
+                volume=Decimal(100),
+            ),
+            Candle(
+                symbol=symbol,
+                interval=interval,
+                open_time=datetime.fromtimestamp((start_time_ms + 60000) / 1000, tz=UTC),
+                open=Decimal(3002),
+                high=Decimal(3010),
+                low=Decimal(3000),
+                close=Decimal(3008),
+                volume=Decimal(120),
+            ),
+        ]
+
+        # Configure the historical data mapper (via the service fixture) to return expected candles
+        # The service uses the mock_hl_mapper for historical_data_mapper
+        # Access the mapper through the fixture which is the same instance used by the service
+        mock_hl_mapper.transform_raw_candle_snapshot_to_candles.return_value = expected_candles
+
         # Use GetMarketDataArgs instead of individual parameters
         args = GetMarketDataArgs(
             symbol=symbol,
@@ -87,9 +137,32 @@ class TestHyperliquidMarketDataServiceCandles:
         # Verify the HTTP request was made
         mock_http_client_requester.assert_called_once()
 
-        # Verify result structure (we test the public behavior)
+        # Verify result structure and content
         assert isinstance(result_candles, list)
-        assert len(result_candles) >= 0  # May be empty or contain candles
+        assert len(result_candles) == 2
+
+        # Verify candles are properly returned
+        assert all(isinstance(candle, Candle) for candle in result_candles)
+        assert result_candles[0].symbol == symbol
+        assert result_candles[0].interval == interval
+        assert result_candles[0].open == Decimal(3000)
+        assert result_candles[1].open == Decimal(3002)
+
+        # Verify response handler was called with correct parameters
+        mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
+            mock_raw_candle_data,
+            symbol,
+            interval,
+            200,
+            mock_headers,
+        )
+
+        # Verify mapper was called with the raw candle snapshot
+        mock_hl_mapper.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
+            mock_raw_candle_snapshot,
+            symbol,
+            interval,
+        )
 
     @pytest.mark.asyncio
     async def test_get_market_data_http_client_returns_none(
@@ -340,6 +413,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data handles mapper errors gracefully."""
         symbol = "BTC"
@@ -347,9 +421,9 @@ class TestHyperliquidMarketDataServiceCandles:
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
 
-        # Configure HTTP mocks to simulate mapper error via response handler
-        mock_invalid_response = {
-            "t": "invalid_time_format",  # Should be list of integers
+        # Configure HTTP mocks to return valid response data
+        mock_valid_response = {
+            "t": [start_time_ms],
             "o": ["3000"],
             "h": ["3010"],
             "l": ["2990"],
@@ -357,7 +431,7 @@ class TestHyperliquidMarketDataServiceCandles:
             "v": ["100"],
             "s": "ok",
         }
-        mock_http_client_requester.return_value = (mock_invalid_response, 200, {})
+        mock_http_client_requester.return_value = (mock_valid_response, 200, {})
 
         # Configure request builder mock
         mock_payload_model = MagicMock()
@@ -373,6 +447,28 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_model.model_dump.return_value = mock_payload_dict
         mock_hl_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
 
+        # Create valid raw candle snapshot that would be returned by response handler
+        mock_raw_candle_snapshot = HyperliquidRawCandleSnapshot(
+            t=[start_time_ms],
+            o=["3000"],
+            h=["3010"],
+            l=["2990"],
+            c=["3005"],
+            v=["100"],
+            s="ok",
+        )
+
+        # Configure response handler to return valid raw data
+        mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
+            mock_raw_candle_snapshot
+        )
+
+        # Configure mapper to raise a TransformationError (simulating mapping failure)
+        mock_hl_mapper.transform_raw_candle_snapshot_to_candles.side_effect = TransformationError(
+            message="Failed to transform candle data: invalid decimal value",
+            original_exception=ValueError("Invalid decimal format"),
+        )
+
         with pytest.raises(APIError) as exc_info:
             # Use GetMarketDataArgs instead of individual parameters
             args = GetMarketDataArgs(
@@ -383,9 +479,28 @@ class TestHyperliquidMarketDataServiceCandles:
             )
             await hyperliquid_market_data_service.get_market_data(args)
 
+        # Verify the error propagation
+        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
+        assert "Failed to process/transform exchange data" in exc_info.value.message
+
         # Verify the HTTP request was made
         mock_http_client_requester.assert_called_once()
-        assert exc_info.value.message is not None
+
+        # Verify response handler was called with correct parameters
+        mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
+            mock_valid_response,
+            symbol,
+            interval,
+            200,
+            {},
+        )
+
+        # Verify mapper was called with the raw candle snapshot
+        mock_hl_mapper.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
+            mock_raw_candle_snapshot,
+            symbol,
+            interval,
+        )
 
     @pytest.mark.asyncio
     async def test_get_market_data_empty_successful_response(
@@ -394,6 +509,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data handles empty but successful response correctly."""
         symbol = "ETH"
@@ -427,6 +543,25 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_model.model_dump.return_value = mock_payload_dict
         mock_hl_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
 
+        # Create empty raw candle snapshot that would be returned by response handler
+        mock_empty_raw_candle_snapshot = HyperliquidRawCandleSnapshot(
+            t=[],
+            o=[],
+            h=[],
+            l=[],
+            c=[],
+            v=[],
+            s="ok",
+        )
+
+        # Configure response handler to return the empty raw candle snapshot
+        mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
+            mock_empty_raw_candle_snapshot
+        )
+
+        # Configure mapper to return empty list for empty snapshot (business logic)
+        mock_hl_mapper.transform_raw_candle_snapshot_to_candles.return_value = []
+
         # Use GetMarketDataArgs instead of individual parameters
         args = GetMarketDataArgs(
             symbol=symbol,
@@ -441,7 +576,23 @@ class TestHyperliquidMarketDataServiceCandles:
 
         # Verify result structure
         assert isinstance(result, list)
-        assert len(result) >= 0
+        assert len(result) == 0  # Should be exactly 0 for empty response
+
+        # Verify response handler was called with correct parameters
+        mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
+            mock_empty_response,
+            symbol,
+            interval,
+            200,
+            {},
+        )
+
+        # Verify mapper was called with the empty raw candle snapshot
+        mock_hl_mapper.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
+            mock_empty_raw_candle_snapshot,
+            symbol,
+            interval,
+        )
 
     @pytest.mark.asyncio
     async def test_get_market_data_server_error_propagation(
@@ -496,6 +647,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_http_client_requester: AsyncMock,
         mock_hl_request_builder: MagicMock,
         mock_hl_response_handler: MagicMock,
+        mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data works with various interval types."""
         symbol = "ETH"
@@ -504,8 +656,11 @@ class TestHyperliquidMarketDataServiceCandles:
         end_time_ms = 1672534800000
 
         for interval in intervals:
-            # Create expected candle for this interval
-            # Note: Not directly used in test, but represents expected structure
+            # Reset mocks for each iteration
+            mock_http_client_requester.reset_mock()
+            mock_hl_request_builder.reset_mock()
+            mock_hl_response_handler.reset_mock()
+            mock_hl_mapper.reset_mock()
 
             # Configure HTTP mocks to return valid candle data for this interval
             mock_interval_response = {
@@ -533,6 +688,37 @@ class TestHyperliquidMarketDataServiceCandles:
             mock_payload_model.model_dump.return_value = mock_payload_dict
             mock_hl_request_builder.build_candle_snapshot_payload.return_value = mock_payload_model
 
+            # Create mock raw candle snapshot that would be returned by response handler
+            mock_raw_candle_snapshot = HyperliquidRawCandleSnapshot(
+                t=[start_time_ms],
+                o=["3000"],
+                h=["3010"],
+                l=["2990"],
+                c=["3005"],
+                v=["100"],
+                s="ok",
+            )
+
+            # Configure response handler to return the raw candle snapshot
+            mock_hl_response_handler.handle_info_candle_snapshot_response.return_value = (
+                mock_raw_candle_snapshot
+            )
+
+            # Create expected candle for this interval
+            expected_candle = Candle(
+                symbol=symbol,
+                interval=interval,
+                open_time=datetime.fromtimestamp(start_time_ms / 1000, tz=UTC),
+                open=Decimal(3000),
+                high=Decimal(3010),
+                low=Decimal(2990),
+                close=Decimal(3005),
+                volume=Decimal(100),
+            )
+
+            # Configure mapper to return expected candle
+            mock_hl_mapper.transform_raw_candle_snapshot_to_candles.return_value = [expected_candle]
+
             # Use GetMarketDataArgs instead of individual parameters
             args = GetMarketDataArgs(
                 symbol=symbol,
@@ -543,8 +729,38 @@ class TestHyperliquidMarketDataServiceCandles:
             result = await hyperliquid_market_data_service.get_market_data(args)
 
             # Verify the HTTP request was made
-            mock_http_client_requester.assert_called()
+            mock_http_client_requester.assert_called_once()
 
             # Verify result structure
             assert isinstance(result, list)
-            assert len(result) >= 0  # May be empty or contain candles
+            assert len(result) == 1
+            assert isinstance(result[0], Candle)
+            assert result[0].symbol == symbol
+            assert result[0].interval == interval
+            assert result[0].open == Decimal(3000)
+
+            # Verify request builder was called with correct parameters
+            mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
+                GetCandleSnapshotArgs(
+                    symbol=symbol,
+                    timeframe=interval,
+                    start_time_ms=start_time_ms,
+                    end_time_ms=end_time_ms,
+                ),
+            )
+
+            # Verify response handler was called with correct parameters
+            mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
+                mock_interval_response,
+                symbol,
+                interval,
+                200,
+                {},
+            )
+
+            # Verify mapper was called with the raw candle snapshot
+            mock_hl_mapper.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
+                mock_raw_candle_snapshot,
+                symbol,
+                interval,
+            )
