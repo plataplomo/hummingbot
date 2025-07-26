@@ -37,7 +37,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.backpack.protocols.base_protocols import MapperProtocol
-from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,

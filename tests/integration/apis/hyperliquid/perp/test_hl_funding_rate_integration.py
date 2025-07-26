@@ -35,7 +35,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import GetHistoricalFundingRatesArgs
+from cyberdelta.apis.models.service_args.market_data import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models import FundingRate
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 

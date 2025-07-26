@@ -39,12 +39,12 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
     MarketDataResponseHandlerProtocol,
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import HistoricalDataMapperProtocol
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
 )
-from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import FundingRate
 from cyberdelta.core.models.market.candle import Candle

@@ -31,7 +31,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     RequestConfiguration,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.models.service_args import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order, Trade

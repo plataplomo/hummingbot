@@ -28,7 +28,7 @@ from cyberdelta.apis.backpack.services.account.bp_transfer_service import (
     BackpackTransferService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.models.service_args import TransferArgs, WithdrawArgs
+from cyberdelta.apis.models.service_args.account import TransferArgs, WithdrawArgs
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.exceptions.service_validation import (

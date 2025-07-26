@@ -54,12 +54,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawUserStateRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.protocols.base_protocols import RequestBuilderProtocol
-from cyberdelta.apis.models.service_args import (
-    GetHistoricalFundingRatesArgs,
-    GetL2BookArgs,
-    GetRecentTradesArgs,
-    PlaceOrderArgs,
-)
 from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidGetCandleSnapshotArgs,
     HyperliquidGetOpenOrdersArgs,
@@ -67,6 +61,12 @@ from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidGetUserFillsArgs,
     HyperliquidGetUserStateArgs,
 )
+from cyberdelta.apis.models.service_args.market_data import (
+    GetHistoricalFundingRatesArgs,
+    GetL2BookArgs,
+    GetRecentTradesArgs,
+)
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.enums import OrderSide, OrderType
 
 

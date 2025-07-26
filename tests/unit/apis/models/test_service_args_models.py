@@ -22,13 +22,15 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.exceptions.field_validation import (
     TypeFieldError,
 )
-from cyberdelta.apis.models.service_args import (
-    GetMarketArgs,
-    GetMarketsArgs,
-    PlaceOrderArgs,
+from cyberdelta.apis.models.service_args.account import (
     TransferArgs,
     WithdrawArgs,
 )
+from cyberdelta.apis.models.service_args.market_data import (
+    GetMarketArgs,
+    GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 

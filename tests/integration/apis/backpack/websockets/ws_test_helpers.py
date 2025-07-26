@@ -21,7 +21,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.common.types import MessageHandler
-from cyberdelta.apis.models.service_args import GetMarketsArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook

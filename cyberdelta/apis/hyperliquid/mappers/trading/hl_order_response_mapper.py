@@ -29,7 +29,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     OrderResponseMapperProtocol,
 )
-from cyberdelta.apis.models.service_args import PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order

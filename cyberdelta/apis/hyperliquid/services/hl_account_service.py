@@ -57,12 +57,14 @@ from cyberdelta.apis.hyperliquid.services.account.hl_position_service import (
 from cyberdelta.apis.hyperliquid.services.account.hl_trade_history_service import (
     HyperliquidTradeHistoryService,
 )
-from cyberdelta.apis.models.service_args import (
-    GetOrderHistoryArgs,
-    GetTradeHistoryArgs,
+from cyberdelta.apis.models.service_args.account import (
     TransferArgs,
     UpdateAccountSettingsArgs,
     WithdrawArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (

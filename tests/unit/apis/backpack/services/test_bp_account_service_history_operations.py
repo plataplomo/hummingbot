@@ -10,10 +10,10 @@ import pytest
 
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.account import WithdrawArgs
+from cyberdelta.apis.models.service_args.trading import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
-    WithdrawArgs,
 )
 from cyberdelta.core.models.operations import Withdrawal
 from cyberdelta.enums import OrderSide

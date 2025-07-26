@@ -26,7 +26,7 @@ from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollate
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import AccountSummaryMapperProtocol
 from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
-from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,

@@ -8,7 +8,7 @@ from datetime import datetime
 
 # Use the existing codebase
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import PlaceOrderArgs, CancelOrderArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs, CancelOrderArgs
 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.config.app_settings import AppSettings
 from cyberdelta.config.secrets_config import SecretsConfig

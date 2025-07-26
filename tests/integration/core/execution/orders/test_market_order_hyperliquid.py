@@ -17,7 +17,7 @@ import pytest_asyncio
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid import HyperliquidAPI
-from cyberdelta.apis.models.service_args import GetMarketArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,

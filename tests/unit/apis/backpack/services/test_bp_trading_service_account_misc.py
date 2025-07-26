@@ -10,7 +10,7 @@ import pytest
 
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
     GetOrderArgs,
     PlaceOrderArgs,

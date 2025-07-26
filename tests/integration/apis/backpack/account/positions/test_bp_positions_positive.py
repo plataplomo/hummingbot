@@ -14,7 +14,8 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args import GetMarketsArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce

@@ -11,7 +11,7 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper i
     HyperliquidHistoricalDataMapper,
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
-from cyberdelta.apis.models.service_args import GetMarketDataArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
 

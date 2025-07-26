@@ -9,7 +9,7 @@ from decimal import ROUND_DOWN, Decimal
 from typing import cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.models.service_args import GetMarketArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (

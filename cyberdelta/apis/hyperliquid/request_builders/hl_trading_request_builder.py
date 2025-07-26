@@ -51,15 +51,15 @@ from cyberdelta.apis.hyperliquid.protocols.builder_protocols import TradingReque
 from cyberdelta.apis.hyperliquid.request_builders.hl_request_builder_base import (
     HyperliquidRequestBuilderBase,
 )
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
-    PlaceOrderArgs,
-)
 from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidGetOpenOrdersArgs,
     HyperliquidGetOrderHistoryArgs,
     HyperliquidGetOrderStatusArgs,
     HyperliquidGetUserFillsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderSide, OrderType

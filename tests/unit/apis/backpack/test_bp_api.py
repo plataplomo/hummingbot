@@ -15,9 +15,9 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.market_data import GetFundingRatesArgs
+from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
-    GetFundingRatesArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,

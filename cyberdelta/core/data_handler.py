@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from cyberdelta.apis.models.service_args import GetFundingRatesArgs
+from cyberdelta.apis.models.service_args.market_data import GetFundingRatesArgs
 
 
 if TYPE_CHECKING:

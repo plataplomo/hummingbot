@@ -16,7 +16,7 @@ from typing import Any
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.market_data import (
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,
     GetMarketsArgs,

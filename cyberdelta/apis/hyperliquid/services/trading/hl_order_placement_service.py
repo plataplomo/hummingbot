@@ -49,7 +49,7 @@ from cyberdelta.apis.hyperliquid.services.utils.status_processing import (
     check_error_response,
     process_exchange_status,
 )
-from cyberdelta.apis.models.service_args import PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce

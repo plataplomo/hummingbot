@@ -32,7 +32,7 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
 from cyberdelta.apis.hyperliquid.services.market_data.hl_market_metadata_service import (
     HyperliquidMarketMetadataService,
 )
-from cyberdelta.apis.models.service_args import GetMarketArgs, GetMarketsArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market import Market
 
 

@@ -24,7 +24,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawDepthUpdateEvent
 from cyberdelta.apis.exceptions.parsing import MsgpackSerializationError
 from cyberdelta.apis.exceptions.websocket import InvalidWebSocketDataError
-from cyberdelta.apis.models.service_args import GetMarketsArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager

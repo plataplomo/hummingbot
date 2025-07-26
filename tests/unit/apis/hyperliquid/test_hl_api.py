@@ -25,13 +25,15 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
     HyperliquidMarketDataService,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,
     GetMarketDataArgs,
     GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,

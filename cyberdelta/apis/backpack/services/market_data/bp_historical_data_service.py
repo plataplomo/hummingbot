@@ -42,7 +42,7 @@ from cyberdelta.apis.exceptions.market_data_service import (
     UnsupportedIntervalError,
 )
 from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
-from cyberdelta.apis.models.service_args import GetMarketDataArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Trade

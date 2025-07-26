@@ -42,7 +42,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
-from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import AccountSettings, MarginAccountSummary

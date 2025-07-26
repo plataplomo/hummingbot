@@ -26,7 +26,7 @@ from cyberdelta.apis.hyperliquid.hl_ws_router import UnsupportedTopicFormatError
 from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsSubscribeRequest,
 )
-from cyberdelta.apis.models.service_args import GetMarketsArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 

@@ -10,7 +10,7 @@ import pytest
 
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args import TransferArgs
+from cyberdelta.apis.models.service_args.account import TransferArgs
 from cyberdelta.core.enums import InternalTransferStatus
 from cyberdelta.core.models.operations import BackpackTransferDetails, Transfer
 from cyberdelta.utils.typing import ParsedJsonResponse

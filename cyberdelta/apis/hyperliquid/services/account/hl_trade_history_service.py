@@ -26,8 +26,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawU
 from cyberdelta.apis.hyperliquid.protocols.builder_protocols import TradingRequestBuilderProtocol
 from cyberdelta.apis.hyperliquid.protocols.handler_protocols import AccountResponseHandlerProtocol
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TransactionMapperProtocol
-from cyberdelta.apis.models.service_args import GetTradeHistoryArgs
 from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserFillsArgs
+from cyberdelta.apis.models.service_args.trading import GetTradeHistoryArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Trade

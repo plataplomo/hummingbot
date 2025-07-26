@@ -44,7 +44,7 @@ from cyberdelta.apis.hyperliquid.response_handlers.hl_trading_response_handler i
 from cyberdelta.apis.hyperliquid.services.trading.hl_order_placement_service import (
     HyperliquidOrderPlacementService,
 )
-from cyberdelta.apis.models.service_args import PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce

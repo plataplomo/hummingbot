@@ -39,7 +39,7 @@ from cyberdelta.apis.exceptions.market_data_service import (
     NoFundingDataError,
     NullSymbolsError,
 )
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetMarketArgs,
     GetMarketsArgs,

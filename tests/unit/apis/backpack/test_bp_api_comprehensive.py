@@ -17,20 +17,24 @@ from cyberdelta.apis.base.trading_execution_domain import (
     PositionIntent,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
-    GetAllOpenOrdersArgs,
+from cyberdelta.apis.models.service_args.account import (
+    TransferArgs,
+    WithdrawArgs,
+)
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,
     GetMarketDataArgs,
     GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
-    TransferArgs,
-    WithdrawArgs,
 )
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets

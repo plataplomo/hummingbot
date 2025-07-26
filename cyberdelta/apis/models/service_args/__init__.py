@@ -1,86 +1,15 @@
 """Service arguments models module.
 
-This module provides structured access to service argument models organized by exchange and
-functionality.
+This module provides structured access to service argument models organized by domain.
+No re-exports - explicit imports required as per clean break refactor plan.
 """
 
-# Re-export all common (generic) models
-from .common import (
-    CancelAllOrdersArgs,
-    CancelOrderArgs,
-    GetAllMidsArgs,
-    GetAllOpenOrdersArgs,
-    GetFundingRatesArgs,
-    GetHistoricalFundingRatesArgs,
-    GetL2BookArgs,
-    GetMarketArgs,
-    GetMarketDataArgs,
-    GetMarketsArgs,
-    GetMaxBorrowQuantityArgs,
-    GetMaxOrderQuantityArgs,
-    GetMaxWithdrawalQuantityArgs,
-    GetOrderArgs,
-    GetOrderBookArgs,
-    GetOrderHistoryArgs,
-    GetOrderStatusArgs,  # This is an alias for GetOrderArgs
-    GetRecentTradesArgs,
-    GetTickerArgs,
-    GetTradeHistoryArgs,
-    PlaceOrderArgs,
-    TransferArgs,
-    UpdateAccountSettingsArgs,
-    WithdrawArgs,
-)
+# No re-exports as per the reorganization plan
+# Users must explicitly import from the appropriate submodule:
+# - from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
+# - from cyberdelta.apis.models.service_args.account import TransferArgs
+# - from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
+# - from cyberdelta.apis.models.service_args.internal import GetMaxOrderQuantityArgs
+# - from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetOrderStatusArgs
 
-# Re-export all Hyperliquid-specific models
-from .hyperliquid import (
-    HyperliquidGetCandleSnapshotArgs,
-    HyperliquidGetOpenOrdersArgs,
-    HyperliquidGetOrderHistoryArgs,
-    HyperliquidGetOrderStatusArgs,
-    HyperliquidGetUserFillsArgs,
-    HyperliquidGetUserStateArgs,
-    HyperliquidTransferL2UsdArgs,
-    HyperliquidUpdateLeverageArgs,
-    HyperliquidWithdrawL1Args,
-)
-
-
-# Re-export from backpack when models are added
-# Future: from .backpack import BackpackSpecificModels
-
-__all__ = [
-    "CancelAllOrdersArgs",
-    "CancelOrderArgs",
-    "GetAllMidsArgs",
-    "GetAllOpenOrdersArgs",
-    "GetFundingRatesArgs",
-    "GetHistoricalFundingRatesArgs",
-    "GetL2BookArgs",
-    "GetMarketArgs",
-    "GetMarketDataArgs",
-    "GetMarketsArgs",
-    "GetMaxBorrowQuantityArgs",
-    "GetMaxOrderQuantityArgs",
-    "GetMaxWithdrawalQuantityArgs",
-    "GetOrderArgs",
-    "GetOrderBookArgs",
-    "GetOrderHistoryArgs",
-    "GetOrderStatusArgs",
-    "GetRecentTradesArgs",
-    "GetTickerArgs",
-    "GetTradeHistoryArgs",
-    "HyperliquidGetCandleSnapshotArgs",
-    "HyperliquidGetOpenOrdersArgs",
-    "HyperliquidGetOrderHistoryArgs",
-    "HyperliquidGetOrderStatusArgs",
-    "HyperliquidGetUserFillsArgs",
-    "HyperliquidGetUserStateArgs",
-    "HyperliquidTransferL2UsdArgs",
-    "HyperliquidUpdateLeverageArgs",
-    "HyperliquidWithdrawL1Args",
-    "PlaceOrderArgs",
-    "TransferArgs",
-    "UpdateAccountSettingsArgs",
-    "WithdrawArgs",
-]
+__all__: list[str] = []

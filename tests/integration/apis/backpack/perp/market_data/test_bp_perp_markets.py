@@ -22,7 +22,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetMarketArgs,
     GetMarketsArgs,

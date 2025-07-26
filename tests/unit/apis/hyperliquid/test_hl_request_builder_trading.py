@@ -20,12 +20,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 from cyberdelta.apis.hyperliquid.request_builders.hl_trading_request_builder import (
     HyperliquidTradingRequestBuilder,
 )
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
-    PlaceOrderArgs,
-)
 from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidGetOrderHistoryArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    PlaceOrderArgs,
 )
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 

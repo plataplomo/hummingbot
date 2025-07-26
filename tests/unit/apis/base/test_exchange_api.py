@@ -16,21 +16,25 @@ from pydantic import BaseModel
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
-    GetAllOpenOrdersArgs,
+from cyberdelta.apis.models.service_args.account import (
+    TransferArgs,
+    UpdateAccountSettingsArgs,
+    WithdrawArgs,
+)
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,
     GetMarketDataArgs,
     GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
-    TransferArgs,
-    UpdateAccountSettingsArgs,
-    WithdrawArgs,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig

@@ -13,7 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 )
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.trading import (
     GetAllOpenOrdersArgs,
     GetOrderArgs,
 )

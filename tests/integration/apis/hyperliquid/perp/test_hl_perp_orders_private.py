@@ -25,7 +25,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
     GetOrderArgs,
     PlaceOrderArgs,

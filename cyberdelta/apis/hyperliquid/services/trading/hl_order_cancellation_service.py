@@ -57,7 +57,7 @@ from cyberdelta.apis.hyperliquid.services.utils.status_processing import (
     process_exchange_status,
     validate_batch_response_counts,
 )
-from cyberdelta.apis.models.service_args import CancelOrderArgs
+from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import CancelOrderResult

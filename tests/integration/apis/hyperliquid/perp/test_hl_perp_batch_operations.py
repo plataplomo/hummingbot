@@ -24,7 +24,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.exceptions import ServiceParameterError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,

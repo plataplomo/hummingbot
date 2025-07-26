@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
 )
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.exceptions.websocket import UnsupportedWebSocketTopicError
-from cyberdelta.apis.models.service_args import GetMarketsArgs
+from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 

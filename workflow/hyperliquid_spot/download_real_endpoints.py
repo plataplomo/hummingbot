@@ -60,7 +60,7 @@ async def main():
 
             if "order_id" in params:
                 # Cancel operation
-                from cyberdelta.apis.models.service_args import CancelOrderArgs
+                from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
                 result = await api.cancel_order(CancelOrderArgs(**params))
                 response_data = {
                     "timestamp": datetime.now().isoformat(),
@@ -79,7 +79,7 @@ async def main():
                 }
             else:
                 # Place order operation
-                from cyberdelta.apis.models.service_args import PlaceOrderArgs
+                from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
                 from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
 
                 order_args = PlaceOrderArgs(

@@ -36,13 +36,13 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderMapperPr
 from cyberdelta.apis.hyperliquid.services.trading.hl_base_trading_service import (
     HyperliquidBaseTradingService,
 )
-from cyberdelta.apis.models.service_args import (
-    GetAllOpenOrdersArgs,
-    GetOrderArgs,
-)
 from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidGetOpenOrdersArgs,
     HyperliquidGetOrderStatusArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    GetAllOpenOrdersArgs,
+    GetOrderArgs,
 )
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger

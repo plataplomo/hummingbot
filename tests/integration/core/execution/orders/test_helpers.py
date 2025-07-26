@@ -16,10 +16,12 @@ from cyberdelta.apis.common import APIError
 
 # Exchange-specific imports
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
+from cyberdelta.apis.models.service_args.market_data import (
     GetMarketArgs,
     GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,

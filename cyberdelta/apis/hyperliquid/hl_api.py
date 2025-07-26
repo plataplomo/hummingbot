@@ -37,21 +37,25 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
     HyperliquidMarketDataService,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
-    GetAllOpenOrdersArgs,
+from cyberdelta.apis.models.service_args.account import (
+    TransferArgs,
+    UpdateAccountSettingsArgs,
+    WithdrawArgs,
+)
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,
     GetMarketDataArgs,
     GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
-    TransferArgs,
-    UpdateAccountSettingsArgs,
-    WithdrawArgs,
 )
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
@@ -97,39 +101,12 @@ if TYPE_CHECKING:
         HyperliquidMarketDataService,
     )
     from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-    from cyberdelta.apis.models.service_args import (
-        CancelOrderArgs,
-        GetAllOpenOrdersArgs,
-        GetFundingRatesArgs,
-        GetHistoricalFundingRatesArgs,
-        GetMarketArgs,
-        GetMarketDataArgs,
-        GetMarketsArgs,
-        GetOrderArgs,
-        GetOrderHistoryArgs,
-        GetTradeHistoryArgs,
-        PlaceOrderArgs,
+    from cyberdelta.apis.models.service_args.account import (
         TransferArgs,
         UpdateAccountSettingsArgs,
         WithdrawArgs,
     )
-    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
-    from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
-    from cyberdelta.core.models import (
-        AccountSettings,
-        DerivativePosition,
-        FundingRate,
-        MarginAccountSummary,
-        SpotBalance,
-        Ticker,
-        Trade,
-    )
-    from cyberdelta.core.models.market import Candle, Market, OrderBook
-    from cyberdelta.core.models.market.order import (
-        CancelOrderResult,
-        Order,
-    )
-    from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
 
 
 logger = get_logger(__name__)

@@ -34,12 +34,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawRecentTradesRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.protocols.builder_protocols import MarketDataRequestBuilderProtocol
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
+from cyberdelta.apis.models.service_args.market_data import (
     GetHistoricalFundingRatesArgs,
     GetL2BookArgs,
     GetRecentTradesArgs,
 )
-from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.config.structlog_config import get_logger
 
 

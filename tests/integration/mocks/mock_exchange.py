@@ -23,21 +23,25 @@ from cyberdelta.apis.base.trading_execution_domain import (
     PositionIntent,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper, MessageHandler
-from cyberdelta.apis.models.service_args import (
-    CancelOrderArgs,
-    GetAllOpenOrdersArgs,
+from cyberdelta.apis.models.service_args.account import (
+    TransferArgs,
+    UpdateAccountSettingsArgs,
+    WithdrawArgs,
+)
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,
     GetMarketDataArgs,
     GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
     GetOrderArgs,
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,
-    TransferArgs,
-    UpdateAccountSettingsArgs,
-    WithdrawArgs,
 )
 
 # Correct the import to use the new typing module

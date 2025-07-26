@@ -40,7 +40,7 @@ from cyberdelta.apis.exceptions import (
     MissingRequiredParameterError,
 )
 from cyberdelta.apis.exceptions.request_validation import InvalidParameterTypeError
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.internal import (
     GetMaxBorrowQuantityArgs,
     GetMaxOrderQuantityArgs,
     GetMaxWithdrawalQuantityArgs,

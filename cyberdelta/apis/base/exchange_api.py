@@ -45,40 +45,45 @@ if TYPE_CHECKING:
 
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
     from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
-    from cyberdelta.apis.models.service_args import (
-        CancelOrderArgs,
-        GetAllOpenOrdersArgs,
-        GetFundingRatesArgs,
-        GetHistoricalFundingRatesArgs,
-        GetMarketArgs,
-        GetMarketDataArgs,
-        GetMarketsArgs,
-        GetOrderArgs,
-        GetOrderHistoryArgs,
-        GetTradeHistoryArgs,
-        PlaceOrderArgs,
+    from cyberdelta.apis.models.service_args.account import (
         TransferArgs,
         UpdateAccountSettingsArgs,
         WithdrawArgs,
     )
-    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
-    from cyberdelta.config.secrets_models import AnyExchangeSecrets
-    from cyberdelta.core.models import (
-        AccountSettings,
-        DerivativePosition,
-        FundingRate,
-        MarginAccountSummary,
-        Order,
-        OrderBook,
-        SpotBalance,
-        Ticker,
-        Trade,
-    )
-    from cyberdelta.core.models.market import Market
-    from cyberdelta.core.models.market.candle import Candle
-    from cyberdelta.core.models.market.order import CancelOrderResult
-    from cyberdelta.core.models.operations import Transfer, Withdrawal
-    from cyberdelta.utils.typing import ParsedJsonResponse
+from cyberdelta.apis.models.service_args.market_data import (
+    GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
+    GetMarketDataArgs,
+    GetMarketsArgs,
+)
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
+    GetOrderArgs,
+    GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
+    PlaceOrderArgs,
+)
+from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.secrets_models import AnyExchangeSecrets
+from cyberdelta.core.models import (
+    AccountSettings,
+    DerivativePosition,
+    FundingRate,
+    MarginAccountSummary,
+    Order,
+    OrderBook,
+    SpotBalance,
+    Ticker,
+    Trade,
+)
+from cyberdelta.core.models.market import Market
+from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.utils.typing import ParsedJsonResponse
+
 
 # Define what is explicitly exported by this module
 __all__ = [

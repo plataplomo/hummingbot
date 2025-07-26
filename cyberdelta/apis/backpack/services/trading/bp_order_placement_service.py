@@ -32,7 +32,7 @@ from cyberdelta.apis.exceptions import (
     InvalidParameterTypeError,
     MissingRequiredParameterError,
 )
-from cyberdelta.apis.models.service_args import PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order

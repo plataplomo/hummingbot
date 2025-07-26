@@ -69,7 +69,7 @@ class HyperliquidSpotSignedTester:
         """Test placing a spot order."""
         logger.info("Testing spot order placement...")
 
-        from cyberdelta.apis.models.service_args import PlaceOrderArgs
+        from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
         from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
         from decimal import Decimal
 
@@ -109,7 +109,7 @@ class HyperliquidSpotSignedTester:
         """Test cancelling a spot order."""
         logger.info("Testing spot order cancellation...")
 
-        from cyberdelta.apis.models.service_args import CancelOrderArgs
+        from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 
         # Try to cancel a non-existent spot order
         cancel_args = CancelOrderArgs(
@@ -142,7 +142,7 @@ class HyperliquidSpotSignedTester:
         """Test operations with NAME/USDC format symbols."""
         logger.info("Testing NAME/USDC format spot symbol...")
 
-        from cyberdelta.apis.models.service_args import PlaceOrderArgs
+        from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
         from cyberdelta.core.models.enums import OrderSide, OrderType, TimeInForce
         from decimal import Decimal
 

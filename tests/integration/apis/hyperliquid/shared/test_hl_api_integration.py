@@ -37,9 +37,9 @@ from cyberdelta.apis.base.trading_execution_domain import (
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.market_data import GetMarketArgs
+from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
-    GetMarketArgs,
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger

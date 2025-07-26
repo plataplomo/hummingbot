@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.base.trading_execution_domain import OrderExecution
-from cyberdelta.apis.models.service_args import PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig

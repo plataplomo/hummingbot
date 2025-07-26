@@ -39,7 +39,7 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
 from cyberdelta.apis.hyperliquid.services.market_data.hl_historical_data_service import (
     HyperliquidHistoricalDataService,
 )
-from cyberdelta.apis.models.service_args import (
+from cyberdelta.apis.models.service_args.market_data import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,

@@ -30,7 +30,7 @@ from cyberdelta.apis.backpack.services.account.bp_transaction_history_service im
     BackpackTransactionHistoryService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.models.service_args import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order, Trade
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce

@@ -32,7 +32,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderResponse
 from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import (
     HyperliquidOrderQueryService,
 )
-from cyberdelta.apis.models.service_args import GetOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args.trading import GetOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order
