@@ -7,14 +7,16 @@ import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from structlog.contextvars import merge_contextvars
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
 from structlog.typing import EventDict, Processor
 
-from cyberdelta.config.models.config_models import AppSettings
+
+if TYPE_CHECKING:
+    from cyberdelta.config.models.config_models import AppSettings
 
 
 # Add TRACE level below DEBUG

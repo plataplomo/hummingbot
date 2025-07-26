@@ -66,13 +66,22 @@ class TestConfigManager:
                         "funding_threshold": "0.01",
                         "max_price_spread_pct": "0.05",
                         "min_profit_usd": "10.0",
+                        "min_funding_differential": "0.0001",
+                        "check_interval": 60,
+                        "risk_aversion": "1.5",
+                        "rebalance_threshold": "0.05",
+                        "perp_exchange": "hyperliquid",
+                        "spot_exchange": "backpack",
                     },
                 },
             },
             "risk": {
                 "global": {
-                    "max_position_usd": "1000.0",
-                    "max_total_exposure_usd": "5000.0",
+                    "max_position_usd": "20000.0",
+                    "max_total_exposure_usd": "100000.0",
+                },
+                "sizing": {
+                    "max_position_size": "10000.0",
                 },
             },
             "execution": {
@@ -104,6 +113,28 @@ class TestConfigManager:
             "portfolio_tracker": {
                 "data_freshness_seconds": 30,
                 "initial_positions": [],
+                "validation": {
+                    "validation_timeout": 3.0,
+                },
+                "state": {
+                    "update_timeout": 5.0,
+                },
+            },
+            "symbols": {
+                "list": ["BTC", "ETH"],
+                "patterns": {
+                    "hyperliquid": {
+                        "perp": "{symbol}",
+                    },
+                    "backpack": {
+                        "perp": "{symbol}-PERP",
+                        "spot": "{symbol}_USDC",
+                    },
+                },
+                "defaults": {
+                    "market_type": "PERP",
+                },
+                "overrides": {},
             },
         }
 
