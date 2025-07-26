@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
     GetOrderArgs,
     PlaceOrderArgs,
@@ -52,7 +52,7 @@ class TestBackpackTradingServiceAccountMisc:
 
         # Set up mocks for a get_open_orders call
         symbol = "SOL_USDC"
-        BackpackRawOrder(
+        BackpackRawOrderResponse(
             id="123",
             clientId="client_123",
             relatedOrderId="rel_123",
@@ -130,7 +130,7 @@ class TestBackpackTradingServiceAccountMisc:
 
         # Set up mocks for a get_open_orders call
         symbol = "SOL_USDC"
-        BackpackRawOrder(
+        BackpackRawOrderResponse(
             id="123",
             symbol=symbol,
             side="Buy",
@@ -168,7 +168,7 @@ class TestBackpackTradingServiceAccountMisc:
         assert result is not None
         assert len(result) == 1
         # The result should be an internal order object, not the raw order
-        assert type(result[0]).__name__ != "BackpackRawOrder"
+        assert type(result[0]).__name__ != "BackpackRawOrderResponse"
 
     @pytest.mark.asyncio
     async def test_service_handles_authenticated_requests_correctly(
@@ -187,7 +187,7 @@ class TestBackpackTradingServiceAccountMisc:
         time_in_force = TimeInForce.GTC
 
         # Convert internal OrderSide to Backpack side format
-        BackpackRawOrder(
+        BackpackRawOrderResponse(
             id="123",
             symbol=symbol,
             side="Buy",
@@ -245,7 +245,7 @@ class TestBackpackTradingServiceAccountMisc:
         symbol = "SOL_USDC"
         order_id = "12345"
 
-        BackpackRawOrder(
+        BackpackRawOrderResponse(
             id=order_id,
             symbol=symbol,
             side="Buy",

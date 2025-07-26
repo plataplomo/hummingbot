@@ -41,7 +41,7 @@ from cyberdelta.apis.hyperliquid.response_handlers.hl_trading_response_handler i
 from cyberdelta.apis.hyperliquid.services.trading.hl_order_cancellation_service import (
     HyperliquidOrderCancellationService,
 )
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs
+from cyberdelta.apis.models.service_args import CancelOrderArgs
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,

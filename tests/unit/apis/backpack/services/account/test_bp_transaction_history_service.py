@@ -18,8 +18,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
     BackpackTradingRequestBuilder,
 )
@@ -30,7 +30,7 @@ from cyberdelta.apis.backpack.services.account.bp_transaction_history_service im
     BackpackTransactionHistoryService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order, Trade
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
@@ -86,9 +86,9 @@ def transaction_history_service(
 
 
 @pytest.fixture
-def mock_raw_order() -> BackpackRawOrder:
+def mock_raw_order() -> BackpackRawOrderResponse:
     """Create a mock raw order."""
-    return BackpackRawOrder(
+    return BackpackRawOrderResponse(
         id="order_123",
         symbol="BTC-USDC",
         side="Buy",
@@ -140,9 +140,9 @@ def mock_order() -> Order:
 
 
 @pytest.fixture
-def mock_raw_fill() -> BackpackRawFill:
+def mock_raw_fill() -> BackpackRawFillResponse:
     """Create a mock raw fill."""
-    return BackpackRawFill(
+    return BackpackRawFillResponse(
         tradeId=456,
         orderId="order_123",
         symbol="BTC-USDC",
@@ -185,7 +185,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_order: BackpackRawOrder,
+        mock_raw_order: BackpackRawOrderResponse,
         mock_order: Order,
     ) -> None:
         """Test successful order history retrieval."""
@@ -220,7 +220,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_order: BackpackRawOrder,
+        mock_raw_order: BackpackRawOrderResponse,
         mock_order: Order,
     ) -> None:
         """Test order history retrieval with specific order ID."""
@@ -249,7 +249,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_order: BackpackRawOrder,
+        mock_raw_order: BackpackRawOrderResponse,
         mock_order: Order,
     ) -> None:
         """Test order history retrieval with client order ID."""
@@ -298,7 +298,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_order: BackpackRawOrder,
+        mock_raw_order: BackpackRawOrderResponse,
         mock_order: Order,
     ) -> None:
         """Test order history with some orders failing to map."""
@@ -306,7 +306,7 @@ class TestBackpackTransactionHistoryService:
         args = GetOrderHistoryArgs(limit=3)
 
         # Create multiple raw orders - business logic requires valid decimal values
-        raw_order2 = BackpackRawOrder(
+        raw_order2 = BackpackRawOrderResponse(
             id="order_invalid",
             clientId="client_invalid",
             symbol="INVALID",
@@ -408,7 +408,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_fill: BackpackRawFill,
+        mock_raw_fill: BackpackRawFillResponse,
         mock_trade: Trade,
     ) -> None:
         """Test successful trade history retrieval."""
@@ -463,7 +463,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_fill: BackpackRawFill,
+        mock_raw_fill: BackpackRawFillResponse,
         mock_trade: Trade,
     ) -> None:
         """Test trade history with some fills failing to map."""
@@ -471,7 +471,7 @@ class TestBackpackTransactionHistoryService:
         args = GetTradeHistoryArgs(limit=2)
 
         # Create multiple raw fills
-        raw_fill2 = BackpackRawFill.model_validate({
+        raw_fill2 = BackpackRawFillResponse.model_validate({
             "tradeId": 123457,
             "orderId": "order_invalid",
             "symbol": "INVALID",
@@ -520,7 +520,7 @@ class TestBackpackTransactionHistoryService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_fill: BackpackRawFill,
+        mock_raw_fill: BackpackRawFillResponse,
         mock_trade: Trade,
     ) -> None:
         """Test trade history when mapper returns None for some fills."""

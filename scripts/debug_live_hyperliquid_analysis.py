@@ -24,7 +24,7 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_order_book_mapper import
     HyperliquidOrderBookMapper,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import HyperliquidRawWsBookUpdate
-from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.config_manager import ConfigManager
 from cyberdelta.config.secrets_manager import SecretsManager

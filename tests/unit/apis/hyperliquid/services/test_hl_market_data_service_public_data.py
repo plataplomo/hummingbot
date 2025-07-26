@@ -17,7 +17,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawL2Book,
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
-from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketsArgs
 from cyberdelta.core.models.market import Market, OrderBook, Ticker, Trade
 
 

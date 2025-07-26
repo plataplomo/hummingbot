@@ -6,7 +6,7 @@ from decimal import Decimal
 from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
     HyperliquidAccountSummaryMapper,
 )
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 
 

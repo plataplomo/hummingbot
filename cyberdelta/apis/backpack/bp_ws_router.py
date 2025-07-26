@@ -19,7 +19,7 @@ from cyberdelta.apis.backpack.models import (
     BackpackRawPositionUpdate,
     BackpackRawPublicTradeEvent,
 )
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawTickerEvent,
@@ -30,8 +30,8 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import (
     validate_backpack_envelope,
 )
 from cyberdelta.apis.backpack.models.bp_ws_payloads import (
+    BackpackRawWsSignatureComponents,
     BackpackRawWsSubscriptionRequest,
-    BackpackWsSignatureComponents,
 )
 from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
@@ -190,8 +190,8 @@ class BackpackWebSocketRouter(
 
         # Account fills processor (different transformer than public trades)
         self.processors["fills"] = PydanticWebSocketProcessor(
-            raw_model=BackpackRawFill,
-            transformer=MapperTransformer[BackpackRawFill, Trade](
+            raw_model=BackpackRawFillResponse,
+            transformer=MapperTransformer[BackpackRawFillResponse, Trade](
                 mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal_trade,
             ),
             error_handler=self.error_handler,
@@ -304,7 +304,7 @@ class BackpackWebSocketRouter(
     def construct_subscription_payload(
         self,
         topic: str,
-        signature_components: BackpackWsSignatureComponents | None = None,
+        signature_components: BackpackRawWsSignatureComponents | None = None,
     ) -> BackpackRawWsSubscriptionRequest:
         """Construct the subscription payload for a given topic for Backpack.
 
@@ -317,7 +317,7 @@ class BackpackWebSocketRouter(
 
         Args:
             topic: The WebSocket topic to subscribe to
-            signature_components: Optional BackpackWsSignatureComponents model
+            signature_components: Optional BackpackRawWsSignatureComponents model
                                 for private stream authentication
 
         Returns:
@@ -370,13 +370,13 @@ class BackpackWebSocketRouter(
     def construct_unsubscription_payload(
         self,
         topic: str,
-        signature_components: BackpackWsSignatureComponents | None = None,
+        signature_components: BackpackRawWsSignatureComponents | None = None,
     ) -> BackpackRawWsSubscriptionRequest:
         """Construct the unsubscription payload for a given topic for Backpack.
 
         Args:
             topic: The WebSocket topic to unsubscribe from
-            signature_components: Optional BackpackWsSignatureComponents model
+            signature_components: Optional BackpackRawWsSignatureComponents model
                                 for private stream authentication
 
         Returns:

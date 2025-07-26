@@ -38,7 +38,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
 
 
 # --- Core Backpack Fill Model ---
-class BackpackRawFill(BaseModel):
+class BackpackRawFillResponse(BaseModel):
     """Pydantic model for a raw fill object from Backpack API responses.
 
     This model enforces strict validation of the raw data structure and types
@@ -126,7 +126,7 @@ class BackpackRawFill(BaseModel):
 
 # The BackpackRawFillsList model remains structurally the same but benefits from
 # the BackpackRawFill model being refactored.
-class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
+class BackpackRawFillsList(RootModel[list[BackpackRawFillResponse]]):
     """Pydantic model for a list of raw fill objects from the Backpack API.
 
     This typically represents the direct JSON response which is a list of fills.
@@ -140,12 +140,14 @@ class BackpackRawFillsList(RootModel[list[BackpackRawFill]]):
     )
 
     @overload
-    def __getitem__(self, item: int) -> BackpackRawFill: ...
+    def __getitem__(self, item: int) -> BackpackRawFillResponse: ...
 
     @overload
-    def __getitem__(self, item: slice) -> list[BackpackRawFill]: ...
+    def __getitem__(self, item: slice) -> list[BackpackRawFillResponse]: ...
 
-    def __getitem__(self, item: int | slice) -> BackpackRawFill | list[BackpackRawFill]:
+    def __getitem__(
+        self, item: int | slice
+    ) -> BackpackRawFillResponse | list[BackpackRawFillResponse]:
         """Return a fill by index or a slice of fills for list-like access."""
         return self.root[item]
 

@@ -22,7 +22,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.exceptions.field_validation import (
     TypeFieldError,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetMarketArgs,
     GetMarketsArgs,
     PlaceOrderArgs,

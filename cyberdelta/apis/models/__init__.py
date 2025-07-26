@@ -9,7 +9,7 @@ from cyberdelta.apis.common.api_error_codes import APIErrorCode
 from cyberdelta.apis.common.api_error_response import APIErrorResponse
 
 from .exchange_api_config import ExchangeAPIConfig
-from .service_args_models import (
+from .service_args import (
     CancelAllOrdersArgs,
     CancelOrderArgs,
     GetAllMidsArgs,

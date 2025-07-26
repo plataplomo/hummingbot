@@ -26,7 +26,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
     PlaceOrderArgs,
 )

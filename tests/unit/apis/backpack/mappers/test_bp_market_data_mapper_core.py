@@ -28,16 +28,16 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import Backpa
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
-    BackpackRawFundingRate,
+    BackpackRawFundingRateResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.models.bp_raw_market import (
-    BackpackRawMarket,
+    BackpackRawMarketResponse,
     BackpackRawOrderBook,
     BackpackRawOrderBookFilters,
     BackpackRawPriceFilter,
     BackpackRawQuantityFilter,
-    BackpackRawTicker,
+    BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
@@ -71,12 +71,12 @@ class CompositeMarketDataMapper:
 
     # Delegate methods
     def transform_raw_ticker_to_internal(
-        self, raw_ticker: BackpackRawTicker, symbol_override: str | None = None
+        self, raw_ticker: BackpackRawTickerResponse, symbol_override: str | None = None
     ) -> Ticker:
         """Transform raw ticker to internal format."""
         return self.ticker_mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override)
 
-    def transform_raw_market_to_internal(self, raw_market: BackpackRawMarket) -> Market:
+    def transform_raw_market_to_internal(self, raw_market: BackpackRawMarketResponse) -> Market:
         """Transform raw market to internal format."""
         return self.market_mapper.transform_raw_market_to_internal(raw_market)
 
@@ -91,7 +91,7 @@ class CompositeMarketDataMapper:
         return self.trade_mapper.transform_raw_trade_to_internal(raw_trade)
 
     def transform_raw_funding_rate_to_internal(
-        self, raw_funding_rate: BackpackRawFundingRate
+        self, raw_funding_rate: BackpackRawFundingRateResponse
     ) -> FundingRate:
         """Transform raw funding rate to internal format."""
         return self.funding_rate_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
@@ -105,7 +105,7 @@ class CompositeMarketDataMapper:
         )
 
     def transform_raw_kline_to_internal(
-        self, symbol: str, interval: str, raw_kline: BackpackRawKline
+        self, symbol: str, interval: str, raw_kline: BackpackRawKlineResponse
     ) -> Candle:
         """Transform raw kline to internal format."""
         return self.candle_mapper.transform_raw_kline_to_internal(symbol, interval, raw_kline)
@@ -152,13 +152,13 @@ def create_raw_ticker(
     volume: str = "1000.0",
     quote_volume: str = "100500.0",
     trades: str = "500",
-) -> BackpackRawTicker:
-    """Create BackpackRawTicker instances for testing ticker transformations.
+) -> BackpackRawTickerResponse:
+    """Create BackpackRawTickerResponse instances for testing ticker transformations.
 
     Returns:
-        BackpackRawTicker: Raw ticker data for testing.
+        BackpackRawTickerResponse: Raw ticker data for testing.
     """
-    return BackpackRawTicker(
+    return BackpackRawTickerResponse(
         symbol=symbol,
         firstPrice=first_price,
         lastPrice=last_price,
@@ -224,13 +224,13 @@ def create_raw_funding_rate(
     mark_price: str = "100.50",
     index_price: str = "100.25",
     time: int = 1705314600000,
-) -> BackpackRawFundingRate:
-    """Create BackpackRawFundingRate instances for testing funding rate transformations.
+) -> BackpackRawFundingRateResponse:
+    """Create BackpackRawFundingRateResponse instances for testing funding rate transformations.
 
     Returns:
-        BackpackRawFundingRate: Raw funding rate data for testing.
+        BackpackRawFundingRateResponse: Raw funding rate data for testing.
     """
-    return BackpackRawFundingRate(
+    return BackpackRawFundingRateResponse(
         symbol=symbol,
         rate=rate,
         markPrice=mark_price,
@@ -264,13 +264,13 @@ def create_raw_kline(
     low_price: str = "99.50",
     close_price: str = "100.50",
     volume: str = "1000.0",
-) -> BackpackRawKline:
-    """Create BackpackRawKline instances for testing kline transformations.
+) -> BackpackRawKlineResponse:
+    """Create BackpackRawKlineResponse instances for testing kline transformations.
 
     Returns:
-        BackpackRawKline: Raw kline data for testing.
+        BackpackRawKlineResponse: Raw kline data for testing.
     """
-    # BackpackRawKline expects a list/tuple of 12 elements in this order:
+    # BackpackRawKlineResponse expects a list/tuple of 12 elements in this order:
     # [start_time_ms, open_price, high_price, low_price, close_price, volume,
     #  end_time_ms, quote_volume, trade_count, taker_buy_base_volume,
     #  taker_buy_quote_volume, ignored]
@@ -288,7 +288,7 @@ def create_raw_kline(
         "50250.0",  # taker_buy_quote_volume (string)
         "0",  # ignored (string)
     ]
-    return BackpackRawKline.model_validate(kline_data)
+    return BackpackRawKlineResponse.model_validate(kline_data)
 
 
 def create_raw_market(
@@ -304,13 +304,13 @@ def create_raw_market(
     max_quantity: str = "1000000.0",
     order_book_state: str = "NORMAL",
     created_at: str = "2024-01-01T00:00:00.000Z",
-) -> BackpackRawMarket:
-    """Create BackpackRawMarket instances for testing market transformations.
+) -> BackpackRawMarketResponse:
+    """Create BackpackRawMarketResponse instances for testing market transformations.
 
     Returns:
-        BackpackRawMarket: Raw market data for testing.
+        BackpackRawMarketResponse: Raw market data for testing.
     """
-    return BackpackRawMarket(
+    return BackpackRawMarketResponse(
         symbol=symbol,
         baseSymbol=base_symbol,
         quoteSymbol=quote_symbol,
@@ -339,7 +339,7 @@ class TestMarketTransformation:
         self,
         mapper: CompositeMarketDataMapper,
     ) -> None:
-        """Test successful transformation of BackpackRawMarket to internal Market."""
+        """Test successful transformation of BackpackRawMarketResponse to internal Market."""
         raw_market = create_raw_market(
             symbol="SOL_USDC",
             base_symbol="SOL",
@@ -411,7 +411,7 @@ class TestMarketTransformation:
     ) -> None:
         """Test market transformation with None optional fields."""
         # Create market with None optional fields (only maxPrice and maxQuantity can be None)
-        raw_market = BackpackRawMarket(
+        raw_market = BackpackRawMarketResponse(
             symbol="SOL_USDC",
             baseSymbol="SOL",
             quoteSymbol="USDC",
@@ -542,7 +542,7 @@ class TestTickerTransformation:
         mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawTicker to internal Ticker."""
+        """Test successful transformation of BackpackRawTickerResponse to internal Ticker."""
         raw_ticker = create_raw_ticker(
             symbol="SOL-USDC",
             last_price="100.50",
@@ -579,7 +579,7 @@ class TestTickerTransformation:
     ) -> None:
         """Test ticker transformation with zero values for optional fields."""
         # Create ticker with zero values by constructing directly
-        raw_ticker = BackpackRawTicker(
+        raw_ticker = BackpackRawTickerResponse(
             symbol="SOL-USDC",
             firstPrice="0.0",
             lastPrice="0.0",
@@ -610,7 +610,7 @@ class TestTickerTransformation:
         frozen_time.move_to(mock_now)
 
         # Create a valid raw ticker first
-        raw_ticker = BackpackRawTicker(
+        raw_ticker = BackpackRawTickerResponse(
             symbol="SOL-USDC",
             firstPrice="99.50",
             lastPrice="100.50",
@@ -649,7 +649,7 @@ class TestTickerTransformation:
 
             with pytest.raises(
                 TickerTransformationError,
-                match="Failed to transform BackpackRawTicker to Ticker",
+                match="Failed to transform BackpackRawTickerResponse to Ticker",
             ):
                 mapper.transform_raw_ticker_to_internal(raw_ticker)
 
@@ -1008,7 +1008,7 @@ class TestFundingRateTransformation:
         mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawFundingRate to internal FundingRate."""
+        """Test successful transformation of BackpackRawFundingRateResponse to FundingRate."""
         raw_funding = create_raw_funding_rate(
             symbol="SOL-USDC",
             rate="0.0001",
@@ -1084,7 +1084,7 @@ class TestFundingRateTransformation:
 
             with pytest.raises(
                 FundingRateTransformationError,
-                match="Failed to transform BackpackRawFundingRate to FundingRate",
+                match="Failed to transform BackpackRawFundingRateResponse to FundingRate",
             ):
                 mapper.transform_raw_funding_rate_to_internal(raw_funding)
 
@@ -1097,7 +1097,7 @@ class TestKlineTransformation:
         mapper: CompositeMarketDataMapper,
         test_timestamp_ms: int,
     ) -> None:
-        """Test successful transformation of BackpackRawKline to internal Candle."""
+        """Test successful transformation of BackpackRawKlineResponse to internal Candle."""
         raw_kline = create_raw_kline(
             symbol="SOL-USDC",
             start_time_ms=test_timestamp_ms,
@@ -1139,7 +1139,7 @@ class TestKlineTransformation:
 
             with pytest.raises(
                 CandleTransformationError,
-                match="Failed to transform BackpackRawKline to Candle",
+                match="Failed to transform BackpackRawKlineResponse to Candle",
             ):
                 mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
 

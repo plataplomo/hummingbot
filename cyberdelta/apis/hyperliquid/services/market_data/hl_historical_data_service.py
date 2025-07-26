@@ -39,12 +39,12 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
     MarketDataResponseHandlerProtocol,
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import HistoricalDataMapperProtocol
-from cyberdelta.apis.models.service_args_models import (
-    GetCandleSnapshotArgs,
+from cyberdelta.apis.models.service_args import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
 )
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import FundingRate
 from cyberdelta.core.models.market.candle import Candle
@@ -624,7 +624,7 @@ class HyperliquidHistoricalDataService:
         endpoint_path = "/info"
         try:
             payload = self._request_builder.build_candle_snapshot_payload(
-                GetCandleSnapshotArgs(
+                HyperliquidGetCandleSnapshotArgs(
                     symbol=symbol,
                     timeframe=interval,
                     start_time_ms=start_time_ms,

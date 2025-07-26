@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.common import TransformationError
 
 
@@ -56,13 +56,13 @@ def create_raw_fill(
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
     client_id: str | None = None,
-) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing edge cases.
+) -> BackpackRawFillResponse:
+    """Create BackpackRawFillResponse instances for testing edge cases.
 
     Returns:
-        BackpackRawFill: Test fill instance with specified parameters for edge case testing.
+        BackpackRawFillResponse: Test fill instance with specified parameters for edge case testing.
     """
-    return BackpackRawFill(
+    return BackpackRawFillResponse(
         fee=fee,
         feeSymbol=fee_symbol,
         isMaker=is_maker,
@@ -213,7 +213,7 @@ class TestEdgeCasesAndRobustness:
         # Should raise TransformationError due to client_order_id length validation (max 64 chars)
         with pytest.raises(
             TransformationError,
-            match="Failed to transform BackpackRawFill to Trade",
+            match="Failed to transform BackpackRawFillResponse to Trade",
         ):
             mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -372,7 +372,7 @@ class TestEdgeCasesAndRobustness:
                 mapper.transform_raw_fill_to_internal(raw_fill)
 
             # Verify error context is preserved
-            assert "Failed to transform BackpackRawFill to Trade" in str(exc_info.value)
+            assert "Failed to transform BackpackRawFillResponse to Trade" in str(exc_info.value)
             assert exc_info.value.__cause__ == original_error
 
     def test_malformed_timestamp_handling(self, mapper: BackpackTransactionMapper) -> None:

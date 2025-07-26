@@ -15,7 +15,7 @@ from typing import Any
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
-    BackpackRawFundingRate,
+    BackpackRawFundingRateResponse,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import FundingRateMapperProtocol
 from cyberdelta.apis.exceptions import (
@@ -91,7 +91,7 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
         """
         if timestamp is None:
             raise DataTransformationError(
-                source_model="BackpackRawFundingRate.time",
+                source_model="BackpackRawFundingRateResponse.time",
                 target_model="datetime",
                 reason="timestamp should not be None after validation",
                 source_data=source_data,
@@ -99,8 +99,10 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
         return timestamp
 
     @staticmethod
-    def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
-        """Transform a BackpackRawFundingRate to an Internal FundingRate model.
+    def transform_raw_funding_rate_to_internal(
+        raw_funding: BackpackRawFundingRateResponse,
+    ) -> FundingRate:
+        """Transform a BackpackRawFundingRateResponse to an Internal FundingRate model.
 
         Args:
             raw_funding: Validated raw funding rate data from Backpack
@@ -120,7 +122,7 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
                 field_name="fundingRate",
             )
             BackpackFundingRateMapper._validate_funding_rate_data(
-                funding_rate, "BackpackRawFundingRate"
+                funding_rate, "BackpackRawFundingRateResponse"
             )
 
             # Parse timestamp
@@ -163,7 +165,7 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
 
         except Exception as e:
             raise FundingRateTransformationError(
-                source_type="BackpackRawFundingRate",
+                source_type="BackpackRawFundingRateResponse",
                 reason=str(e),
                 symbol=raw_funding.symbol,
                 original_error=e,

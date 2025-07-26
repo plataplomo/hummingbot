@@ -18,8 +18,8 @@ from unittest.mock import patch
 import pytest
 
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
@@ -63,13 +63,13 @@ def create_raw_fill(
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
     client_id: str | None = None,
-) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing fills and orders.
+) -> BackpackRawFillResponse:
+    """Create BackpackRawFillResponse instances for testing fills and orders.
 
     Returns:
-        BackpackRawFill instance configured with test data.
+        BackpackRawFillResponse instance configured with test data.
     """
-    return BackpackRawFill(
+    return BackpackRawFillResponse(
         fee=fee,
         feeSymbol=fee_symbol,
         isMaker=is_maker,
@@ -99,13 +99,13 @@ def create_raw_order(
     avg_fill_price: str | None = None,
     trigger_price: str | None = None,
     trigger_by: str | None = None,
-) -> BackpackRawOrder:
-    """Create BackpackRawOrder instances for testing order transformations.
+) -> BackpackRawOrderResponse:
+    """Create BackpackRawOrderResponse instances for testing order transformations.
 
     Returns:
-        BackpackRawOrder instance configured with test data.
+        BackpackRawOrderResponse instance configured with test data.
     """
-    return BackpackRawOrder(
+    return BackpackRawOrderResponse(
         clientId=None,
         id=order_id,
         symbol=symbol,
@@ -164,7 +164,7 @@ class TestFillTransformation:
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawFill to internal Trade."""
+        """Test successful transformation of BackpackRawFillResponse to internal Trade."""
         raw_fill = create_raw_fill(
             fee="0.05",
             fee_symbol="USDC",
@@ -224,7 +224,7 @@ class TestFillTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawFill to Trade",
+                match="Failed to transform BackpackRawFillResponse to Trade",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -298,7 +298,7 @@ class TestOrderTransformation:
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawOrder to internal Order."""
+        """Test successful transformation of BackpackRawOrderResponse to internal Order."""
         raw_order = create_raw_order(
             order_id="order123",
             symbol="SOL-USDC",

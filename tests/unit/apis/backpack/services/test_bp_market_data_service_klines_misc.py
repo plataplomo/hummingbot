@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args import GetMarketDataArgs
 from cyberdelta.core.models.market import Candle
 
 
@@ -96,7 +96,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            BackpackRawKline.model_validate(["invalid", "data"])
+            BackpackRawKlineResponse.model_validate(["invalid", "data"])
         except ValidationError as validation_error:
             # Mock the historical data service to raise a validation error
             with patch.object(

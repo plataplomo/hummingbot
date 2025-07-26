@@ -54,16 +54,18 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawUserStateRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.protocols.base_protocols import RequestBuilderProtocol
-from cyberdelta.apis.models.service_args_models import (
-    GetCandleSnapshotArgs,
+from cyberdelta.apis.models.service_args import (
     GetHistoricalFundingRatesArgs,
     GetL2BookArgs,
-    GetOpenOrdersArgs,
     GetRecentTradesArgs,
-    GetUserFillsArgs,
-    GetUserStateArgs,
-    HyperliquidGetOrderStatusArgs,
     PlaceOrderArgs,
+)
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidGetCandleSnapshotArgs,
+    HyperliquidGetOpenOrdersArgs,
+    HyperliquidGetOrderStatusArgs,
+    HyperliquidGetUserFillsArgs,
+    HyperliquidGetUserStateArgs,
 )
 from cyberdelta.enums import OrderSide, OrderType
 
@@ -90,7 +92,7 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_user_state_payload(
-        args: GetUserStateArgs,
+        args: HyperliquidGetUserStateArgs,
     ) -> HyperliquidRawUserStateRequestPayload:
         """Build parameters for user state retrieval using service args.
 
@@ -274,7 +276,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_open_orders_payload(
-        args: GetOpenOrdersArgs,
+        args: HyperliquidGetOpenOrdersArgs,
     ) -> HyperliquidRawOpenOrdersRequestPayload:
         """Build the payload for fetching open orders.
 
@@ -341,7 +343,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_user_fills_request_payload(
-        args: GetUserFillsArgs,
+        args: HyperliquidGetUserFillsArgs,
     ) -> HyperliquidRawUserFillsRequestPayload:
         """Build the payload for fetching user fills/trades.
 
@@ -408,12 +410,12 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_candle_snapshot_payload(
-        args: GetCandleSnapshotArgs,
+        args: HyperliquidGetCandleSnapshotArgs,
     ) -> HyperliquidRawCandleSnapshotRequestPayload:
         """Build the request payload for candle/OHLCV data.
 
         Args:
-            args: Validated GetCandleSnapshotArgs containing candle parameters
+            args: Validated HyperliquidGetCandleSnapshotArgs containing candle parameters
 
         Returns:
             Validated Pydantic model containing request parameters

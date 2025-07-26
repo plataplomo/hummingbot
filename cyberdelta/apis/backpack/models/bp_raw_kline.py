@@ -34,7 +34,7 @@ from .bp_common_raw_types import (
 BACKPACK_KLINE_FIELDS_COUNT = 12  # Expected number of fields in kline data
 
 
-class BackpackRawKline(BaseModel):
+class BackpackRawKlineResponse(BaseModel):
     """Strict boundary Pydantic model for a kline (candlestick) object from Backpack API.
 
     Expects input as a list/tuple of 12 elements. Uses common raw types for validation after

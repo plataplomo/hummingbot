@@ -26,7 +26,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawU
 from cyberdelta.apis.hyperliquid.protocols.builder_protocols import TradingRequestBuilderProtocol
 from cyberdelta.apis.hyperliquid.protocols.handler_protocols import AccountResponseHandlerProtocol
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TransactionMapperProtocol
-from cyberdelta.apis.models.service_args_models import GetTradeHistoryArgs, GetUserFillsArgs
+from cyberdelta.apis.models.service_args import GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserFillsArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Trade
@@ -187,7 +188,7 @@ class HyperliquidTradeHistoryService:
             )
 
         endpoint = "/info"
-        user_fills_args = GetUserFillsArgs(wallet_address=self._wallet_address)
+        user_fills_args = HyperliquidGetUserFillsArgs(wallet_address=self._wallet_address)
         payload = self._request_builder.build_user_fills_request_payload(user_fills_args)
 
         logger.debug(

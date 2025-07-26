@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import SecretStr
 
-from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
+from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import (
     AuthenticatedRequestComponents,
     IAuthenticator,
@@ -370,7 +370,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
         self,
         subscription_type: str,
         symbol: str | None = None,
-    ) -> BackpackWsSignatureComponents:
+    ) -> BackpackRawWsSignatureComponents:
         """Generate ED25519 signature components for WebSocket subscription.
 
         Args:
@@ -378,7 +378,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             symbol: Optional symbol for market data subscriptions
 
         Returns:
-            BackpackWsSignatureComponents model with api_key, timestamp, window, and signature
+            BackpackRawWsSignatureComponents model with api_key, timestamp, window, and signature
 
         Raises:
             APIError: If signature generation fails due to any error during the signing process.
@@ -397,7 +397,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             signature_bytes = self._ed25519_private_key.sign(string_to_sign.encode("utf-8"))
             signature_b64 = base64.b64encode(signature_bytes).decode("utf-8")
 
-            return BackpackWsSignatureComponents(
+            return BackpackRawWsSignatureComponents(
                 api_key=self._api_key_b64,
                 timestamp=str(timestamp_ms),
                 window=str(window_ms),

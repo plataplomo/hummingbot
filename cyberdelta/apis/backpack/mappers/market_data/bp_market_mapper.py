@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarket
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarketResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import MarketMapperProtocol
 from cyberdelta.apis.exceptions import MarketTransformationError
 from cyberdelta.config.structlog_config import get_logger
@@ -34,8 +34,8 @@ class BackpackMarketMapper(MarketMapperProtocol):
     """
 
     @staticmethod
-    def transform_raw_market_to_internal(raw_market: BackpackRawMarket) -> Market:
-        """Transform a BackpackRawMarket to an Internal Market model.
+    def transform_raw_market_to_internal(raw_market: BackpackRawMarketResponse) -> Market:
+        """Transform a BackpackRawMarketResponse to an Internal Market model.
 
         Args:
             raw_market: Validated raw market data from Backpack

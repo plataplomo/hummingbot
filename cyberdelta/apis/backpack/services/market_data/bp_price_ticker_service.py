@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackTickerMapper
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawTicker
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawTickerResponse
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
@@ -150,11 +150,13 @@ class BackpackPriceTickerService:
 
             validated_data = ensure_dict_response(raw_data, f"ticker ({symbol})", status_code)
 
-            raw_ticker_model: BackpackRawTicker = self._response_handler.handle_get_ticker_response(
-                validated_data,
-                symbol,
-                status_code,
-                headers,
+            raw_ticker_model: BackpackRawTickerResponse = (
+                self._response_handler.handle_get_ticker_response(
+                    validated_data,
+                    symbol,
+                    status_code,
+                    headers,
+                )
             )
             internal_ticker = self._ticker_mapper.transform_raw_ticker_to_internal(
                 raw_ticker_model,

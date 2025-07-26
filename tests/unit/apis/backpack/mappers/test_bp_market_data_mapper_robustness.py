@@ -22,7 +22,10 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawOrderBook, BackpackRawTicker
+from cyberdelta.apis.backpack.models.bp_raw_market import (
+    BackpackRawOrderBook,
+    BackpackRawTickerResponse,
+)
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import Ticker
@@ -64,9 +67,9 @@ def create_raw_ticker(
     volume: str = "1000.0",
     quote_volume: str = "100500.0",
     trades: str = "500",
-) -> BackpackRawTicker:
-    """Create BackpackRawTicker instances for robustness testing."""
-    return BackpackRawTicker(
+) -> BackpackRawTickerResponse:
+    """Create BackpackRawTickerResponse instances for robustness testing."""
+    return BackpackRawTickerResponse(
         symbol=symbol,
         firstPrice=first_price,
         lastPrice=last_price,
@@ -379,7 +382,7 @@ class TestErrorHandlingAndRecovery:
     ) -> None:
         """Test handling of ticker with minimal/zero data."""
         # Test ticker with minimal data
-        minimal_ticker = BackpackRawTicker(
+        minimal_ticker = BackpackRawTickerResponse(
             symbol="SOL-USDC",
             firstPrice="0.0",
             lastPrice="0.0",
@@ -439,7 +442,7 @@ class TestErrorHandlingAndRecovery:
                 ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
 
             # Verify error context is preserved
-            assert "Failed to transform BackpackRawTicker to Ticker" in str(exc_info.value)
+            assert "Failed to transform BackpackRawTickerResponse to Ticker" in str(exc_info.value)
             assert exc_info.value.__cause__ == original_error
 
 
@@ -453,7 +456,7 @@ class TestPerformanceAndMemoryConsiderations:
     ) -> None:
         """Test transformation of large datasets efficiently."""
         # Create a large number of tickers to test batch processing efficiency
-        tickers: list[BackpackRawTicker] = []
+        tickers: list[BackpackRawTickerResponse] = []
         for i in range(100):
             ticker = create_raw_ticker(
                 symbol=f"SYMBOL{i:03d}-USDC",

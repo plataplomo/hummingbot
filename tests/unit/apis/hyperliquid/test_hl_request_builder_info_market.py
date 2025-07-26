@@ -16,8 +16,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder import (
     HyperliquidMarketDataRequestBuilder,
 )
-from cyberdelta.apis.models.service_args_models import (
-    GetCandleSnapshotArgs,
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidGetCandleSnapshotArgs,
 )
 
 
@@ -50,7 +50,7 @@ class TestHyperliquidMarketDataRequestBuilder:
         """Test build_candle_snapshot_payload with valid inputs."""
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        args = GetCandleSnapshotArgs(
+        args = HyperliquidGetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="1h",
             start_time_ms=start_time_ms,
@@ -74,7 +74,7 @@ class TestHyperliquidMarketDataRequestBuilder:
         # Test with 1m timeframe
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        args_1m = GetCandleSnapshotArgs(
+        args_1m = HyperliquidGetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="1m",
             start_time_ms=start_time_ms,
@@ -84,7 +84,7 @@ class TestHyperliquidMarketDataRequestBuilder:
         assert payload_1m.req.interval == "1m"
 
         # Test with 15m timeframe
-        args_15m = GetCandleSnapshotArgs(
+        args_15m = HyperliquidGetCandleSnapshotArgs(
             symbol=symbol,
             timeframe="15m",
             start_time_ms=start_time_ms,
@@ -100,12 +100,12 @@ class TestHyperliquidMarketDataRequestBuilder:
         """Test that multiple candle requests with different args produce different payloads."""
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
-        args1 = GetCandleSnapshotArgs(
+        args1 = HyperliquidGetCandleSnapshotArgs(
             symbol="BTC-PERP", timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         payload1 = builder.build_candle_snapshot_payload(args1)
 
-        args2 = GetCandleSnapshotArgs(
+        args2 = HyperliquidGetCandleSnapshotArgs(
             symbol="ETH-PERP", timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         payload2 = builder.build_candle_snapshot_payload(args2)

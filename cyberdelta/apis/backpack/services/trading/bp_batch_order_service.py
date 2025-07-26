@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestBuilderProtocol
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
@@ -270,9 +270,9 @@ class BackpackBatchOrderService:
         except APIError:
             return self._handle_invalid_cancel_all_response(raw_data, status_code, symbol)
 
-        # Use the response handler to get validated BackpackRawOrder objects
+        # Use the response handler to get validated BackpackRawOrderResponse objects
         try:
-            raw_orders: list[BackpackRawOrder] = (
+            raw_orders: list[BackpackRawOrderResponse] = (
                 self._response_handler.handle_cancel_all_orders_response(
                     validated_data,
                     symbol,

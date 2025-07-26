@@ -15,7 +15,10 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder, BackpackRawOrderUpdate
+from cyberdelta.apis.backpack.models.bp_raw_order import (
+    BackpackRawOrderResponse,
+    BackpackRawOrderUpdate,
+)
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
 from cyberdelta.apis.exceptions import (
     InvalidQuantityError,
@@ -100,7 +103,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
     def _map_type_to_internal(
         bp_type: str,
         trigger_price: str | None = None,
-        raw_order: BackpackRawOrder | None = None,
+        raw_order: BackpackRawOrderResponse | None = None,
     ) -> OrderType:
         """Map a Backpack order type string to internal OrderType enum.
 
@@ -160,7 +163,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
         return None
 
     @staticmethod
-    def _check_triggered_order(raw_order: BackpackRawOrder) -> OrderType | None:
+    def _check_triggered_order(raw_order: BackpackRawOrderResponse) -> OrderType | None:
         """Check if order was a triggered stop/take profit order."""
         if raw_order.stopLossTriggerPrice or raw_order.stopLossLimitPrice:
             return OrderType.STOP_MARKET
@@ -170,7 +173,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _check_trigger_price_order(
-        bp_type_lower: str, raw_order: BackpackRawOrder | None
+        bp_type_lower: str, raw_order: BackpackRawOrderResponse | None
     ) -> OrderType:
         """Determine order type based on trigger price."""
         # Check if this is a take profit order
@@ -326,7 +329,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
             ) from e
 
     @staticmethod
-    def _parse_order_quantities(raw_order: BackpackRawOrder) -> tuple[Decimal, Decimal]:
+    def _parse_order_quantities(raw_order: BackpackRawOrderResponse) -> tuple[Decimal, Decimal]:
         """Parse and validate order quantities.
 
         Raises:
@@ -378,7 +381,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _calculate_average_fill_price(
-        raw_order: BackpackRawOrder,
+        raw_order: BackpackRawOrderResponse,
         quantity_filled: Decimal,
     ) -> Decimal | None:
         """Calculate average fill price for filled orders.
@@ -437,7 +440,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _parse_order_timestamps(
-        raw_order: BackpackRawOrder,
+        raw_order: BackpackRawOrderResponse,
     ) -> tuple[datetime, datetime | None, datetime | None]:
         """Parse order timestamps.
 
@@ -466,8 +469,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
         return created_timestamp, updated_timestamp, triggered_timestamp
 
     @staticmethod
-    def transform_raw_order_to_internal(raw_order: BackpackRawOrder) -> Order:
-        """Transform a BackpackRawOrder to an Internal Order model.
+    def transform_raw_order_to_internal(raw_order: BackpackRawOrderResponse) -> Order:
+        """Transform a BackpackRawOrderResponse to an Internal Order model.
 
         Args:
             raw_order: Validated raw order data from Backpack

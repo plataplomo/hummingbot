@@ -21,13 +21,13 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
-    BackpackRawFundingRate,
+    BackpackRawFundingRateResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.models.bp_raw_market import (
-    BackpackRawMarket,
+    BackpackRawMarketResponse,
     BackpackRawOrderBook,
-    BackpackRawTicker,
+    BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
@@ -179,11 +179,11 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         symbol: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> BackpackRawTicker:
+    ) -> BackpackRawTickerResponse:
         """Validate the raw response for the Get Ticker endpoint.
 
         Returns:
-            Validated BackpackRawTicker model.
+            Validated BackpackRawTickerResponse model.
 
         Raises:
             APIError: If validation fails or response format is invalid.
@@ -195,7 +195,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             status_code,
         )
         try:
-            return BackpackRawTicker.model_validate(validated_data)
+            return BackpackRawTickerResponse.model_validate(validated_data)
         except ValidationError as e:
             api_error = BackpackMarketDataResponseHandler._handle_validation_error(
                 e,
@@ -282,11 +282,11 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         symbol: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> BackpackRawFundingRate:
+    ) -> BackpackRawFundingRateResponse:
         """Validate the raw response for the Get Funding Rate endpoint.
 
         Returns:
-            Validated BackpackRawFundingRate model.
+            Validated BackpackRawFundingRateResponse model.
 
         Raises:
             APIError: If response format is unexpected (empty list or non-dict/list type) or
@@ -321,7 +321,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             )
 
         try:
-            return BackpackRawFundingRate.model_validate(raw_data_to_validate)
+            return BackpackRawFundingRateResponse.model_validate(raw_data_to_validate)
         except ValidationError as e:
             raise BackpackMarketDataResponseHandler._handle_validation_error(
                 e,
@@ -333,11 +333,11 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     def handle_get_markets_response(
         raw_response_content: RawJsonResponse,
         status_code: int,
-    ) -> list[BackpackRawMarket]:
+    ) -> list[BackpackRawMarketResponse]:
         """Validate the raw response for the Get Markets endpoint.
 
         Returns:
-            List of validated BackpackRawMarket models.
+            List of validated BackpackRawMarketResponse models.
 
         Raises:
             APIError: If validation of market data fails.
@@ -349,7 +349,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             status_code,
         )
 
-        markets: list[BackpackRawMarket] = []
+        markets: list[BackpackRawMarketResponse] = []
         for i, market_data in enumerate(validated_list):
             validated_item = ensure_dict_response(
                 market_data,
@@ -357,7 +357,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
                 status_code,
             )
             try:
-                market_model = BackpackRawMarket.model_validate(validated_item)
+                market_model = BackpackRawMarketResponse.model_validate(validated_item)
                 markets.append(market_model)
             except ValidationError as e:
                 raise BackpackMarketDataResponseHandler._handle_validation_error(
@@ -374,7 +374,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         symbol: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> BackpackRawMarket:
+    ) -> BackpackRawMarketResponse:
         """Validate the raw response for the Get Market endpoint.
 
         Args:
@@ -384,7 +384,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             headers: HTTP response headers.
 
         Returns:
-            BackpackRawMarket: The validated market model.
+            BackpackRawMarketResponse: The validated market model.
 
         Raises:
             APIError: If validation fails or response format is unexpected.
@@ -397,7 +397,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         )
 
         try:
-            return BackpackRawMarket.model_validate(validated_data)
+            return BackpackRawMarketResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackMarketDataResponseHandler._handle_validation_error(
                 e,
@@ -412,11 +412,11 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         timeframe: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> list[BackpackRawKline]:  # Changed return type
+    ) -> list[BackpackRawKlineResponse]:  # Changed return type
         """Validate the raw response for the Get Market Data (Klines) endpoint.
 
         Returns:
-            List of validated BackpackRawKline models.
+            List of validated BackpackRawKlineResponse models.
 
         Raises:
             APIError: If unexpected error occurs validating kline items or validation of
@@ -429,7 +429,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             status_code,
         )
 
-        validated_klines: list[BackpackRawKline] = []
+        validated_klines: list[BackpackRawKlineResponse] = []
         for item_raw in validated_list:
             if not _is_list_of_any(item_raw):  # Backpack klines are lists of values
                 # Convert item_raw to string representation for logging
@@ -447,8 +447,8 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             # For logging, we'll convert the entire list to string at once
             # This avoids iterating over unknown types
             try:
-                # BackpackRawKline is now imported at module level
-                validated_klines.append(BackpackRawKline.model_validate(item_raw))
+                # BackpackRawKlineResponse is now imported at module level
+                validated_klines.append(BackpackRawKlineResponse.model_validate(item_raw))
             except ValidationError as e:
                 # Log the specific item that failed validation
                 # Use JSON-style formatting for better readability of kline data
@@ -530,11 +530,11 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         symbol: str,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> BackpackRawFundingRate:
+    ) -> BackpackRawFundingRateResponse:
         """Validate the raw response for the Get Current Funding Rate endpoint.
 
         Returns:
-            Validated BackpackRawFundingRate model.
+            Validated BackpackRawFundingRateResponse model.
         """
         context = f"current funding rate ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -543,8 +543,8 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             status_code,
         )
         try:
-            # Assuming BackpackRawFundingRate is the correct model for a single, current rate
-            return BackpackRawFundingRate.model_validate(validated_data)
+            # Assuming BackpackRawFundingRateResponse is the correct model for a single rate
+            return BackpackRawFundingRateResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackMarketDataResponseHandler._handle_validation_error(
                 e,

@@ -12,7 +12,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError, TransformationError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 
 

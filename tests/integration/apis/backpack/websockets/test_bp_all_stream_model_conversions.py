@@ -24,9 +24,9 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.common.types import MessageHandler
-from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
@@ -72,9 +72,9 @@ class TestBackpackAllStreamModelConversions:
         """Type guard for Trade objects."""
         return isinstance(obj, Trade)
 
-    def _is_backpack_fill(self, obj: object) -> TypeGuard[BackpackRawFill]:
-        """Type guard for BackpackRawFill objects."""
-        return isinstance(obj, BackpackRawFill)
+    def _is_backpack_fill(self, obj: object) -> TypeGuard[BackpackRawFillResponse]:
+        """Type guard for BackpackRawFillResponse objects."""
+        return isinstance(obj, BackpackRawFillResponse)
 
     def _get_domain_model_keys(self, context_data: dict[str, Any]) -> list[str]:
         """Extract domain model keys with proper typing."""
@@ -102,9 +102,11 @@ class TestBackpackAllStreamModelConversions:
         result: list[Trade] = [item for item in items if self._is_trade(item)]
         return result
 
-    def _extract_fills(self, items: SupportsIteration) -> list[BackpackRawFill]:
-        """Extract BackpackRawFill objects from iterable with proper typing."""
-        result: list[BackpackRawFill] = [item for item in items if self._is_backpack_fill(item)]
+    def _extract_fills(self, items: SupportsIteration) -> list[BackpackRawFillResponse]:
+        """Extract BackpackRawFillResponse objects from iterable with proper typing."""
+        result: list[BackpackRawFillResponse] = [
+            item for item in items if self._is_backpack_fill(item)
+        ]
         return result
 
     async def _setup_websocket_connection(self, api: BackpackAPI) -> None:
@@ -465,8 +467,8 @@ class TestBackpackAllStreamModelConversions:
 
     def _process_fill_list(
         self,
-        potential_fills: list[BackpackRawFill],
-        received_fills: list[BackpackRawFill],
+        potential_fills: list[BackpackRawFillResponse],
+        received_fills: list[BackpackRawFillResponse],
         key: str,
     ) -> bool:
         """Process a list of potential fill objects."""
@@ -546,7 +548,7 @@ class TestBackpackAllStreamModelConversions:
                 "Fills stream conversion testing not working."
             )
 
-    def _validate_fill_model(self, fill: BackpackRawFill | object) -> None:
+    def _validate_fill_model(self, fill: BackpackRawFillResponse | object) -> None:
         """Validate fill/order model structure and data."""
         model_type = type(fill).__name__
 

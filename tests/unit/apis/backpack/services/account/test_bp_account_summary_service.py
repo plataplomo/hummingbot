@@ -19,12 +19,12 @@ import pytest
 from cyberdelta.apis.backpack.mappers.account.bp_account_summary_mapper import (
     BackpackAccountSummaryMapper,
 )
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import (
     BackpackRawCollateralResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
     BackpackAccountRequestBuilder,
 )
@@ -40,7 +40,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.core.models import AccountSettings
 from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 
@@ -103,9 +103,9 @@ def account_summary_service(
 
 
 @pytest.fixture
-def mock_raw_account_summary() -> BackpackRawAccountSummary:
+def mock_raw_account_summary() -> BackpackRawAccountSummaryResponse:
     """Create a mock raw account summary."""
-    return BackpackRawAccountSummary.model_validate({
+    return BackpackRawAccountSummaryResponse.model_validate({
         "autoBorrowSettlements": True,
         "autoLend": True,
         "autoRealizePnl": True,
@@ -124,9 +124,9 @@ def mock_raw_account_summary() -> BackpackRawAccountSummary:
 
 
 @pytest.fixture
-def mock_raw_balance() -> BackpackRawBalance:
+def mock_raw_balance() -> BackpackRawBalanceResponse:
     """Create a mock raw balance."""
-    return BackpackRawBalance(
+    return BackpackRawBalanceResponse(
         available="1000.00",
         locked="100.00",
         staked="0.00",
@@ -134,9 +134,9 @@ def mock_raw_balance() -> BackpackRawBalance:
 
 
 @pytest.fixture
-def mock_raw_position() -> BackpackRawPosition:
+def mock_raw_position() -> BackpackRawPositionResponse:
     """Create a mock raw position."""
-    return BackpackRawPosition.model_validate({
+    return BackpackRawPositionResponse.model_validate({
         "symbol": "BTC-PERP",
         "netQuantity": "1.5",
         "entryPrice": "50000.00",
@@ -239,9 +239,9 @@ class TestBackpackAccountSummaryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
-        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
         mock_collateral_response: BackpackRawCollateralResponse,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test successful enhanced account summary retrieval."""
@@ -287,9 +287,9 @@ class TestBackpackAccountSummaryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
-        mock_raw_account_summary: BackpackRawAccountSummary,
-        mock_raw_balance: BackpackRawBalance,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
+        mock_raw_balance: BackpackRawBalanceResponse,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary falls back to basic when collateral unavailable."""
@@ -335,8 +335,8 @@ class TestBackpackAccountSummaryService:
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
         mock_collateral_response: BackpackRawCollateralResponse,
-        mock_raw_account_summary: BackpackRawAccountSummary,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary with subaccount ID."""
@@ -462,9 +462,9 @@ class TestBackpackAccountSummaryService:
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
         mock_collateral_response: BackpackRawCollateralResponse,
-        mock_raw_account_summary: BackpackRawAccountSummary,
-        mock_raw_position: BackpackRawPosition,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
+        mock_raw_position: BackpackRawPositionResponse,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test enhanced account info with transformation error falls back to basic mode."""
@@ -514,8 +514,8 @@ class TestBackpackAccountSummaryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
-        mock_raw_account_summary: BackpackRawAccountSummary,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test basic account info with empty positions."""
@@ -561,8 +561,8 @@ class TestBackpackAccountSummaryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
-        mock_raw_account_summary: BackpackRawAccountSummary,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary when collateral fetch returns empty response."""
@@ -607,9 +607,9 @@ class TestBackpackAccountSummaryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_collateral_response: BackpackRawCollateralResponse,
-        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary when positions API returns dict response (instead of list)."""
@@ -657,7 +657,7 @@ class TestBackpackAccountSummaryService:
         mock_mapper: MagicMock,
         mock_account_state_service: AsyncMock,
         mock_collateral_response: BackpackRawCollateralResponse,
-        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
         mock_margin_account_summary: MarginAccountSummary,
     ) -> None:
         """Test account summary when positions fetch returns 404 (should handle gracefully)."""
@@ -705,7 +705,7 @@ class TestBackpackAccountSummaryService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_account_summary: BackpackRawAccountSummary,
+        mock_raw_account_summary: BackpackRawAccountSummaryResponse,
     ) -> None:
         """Test account summary when authenticator is None."""
         # Arrange

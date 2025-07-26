@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 # Project-specific imports
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.enums import OrderStatus
 
@@ -63,14 +63,14 @@ def create_raw_order(
     created_at: str | None = None,
     updated_at: str | None = None,
     avg_fill_price: str | None = None,
-) -> BackpackRawOrder:
-    """Create a BackpackRawOrder with customizable parameters."""
+) -> BackpackRawOrderResponse:
+    """Create a BackpackRawOrderResponse with customizable parameters."""
     if created_at is None:
         created_at = datetime.now(UTC).isoformat()
     if updated_at is None:
         updated_at = datetime.now(UTC).isoformat()
 
-    return BackpackRawOrder(
+    return BackpackRawOrderResponse(
         id=order_id,
         clientId=client_id,
         relatedOrderId=None,
@@ -411,7 +411,7 @@ class TestPerformanceAndMemoryConsiderations:
     ) -> None:
         """Test transformation efficiency with large batches of orders."""
         # Create a large number of orders
-        orders: list[BackpackRawOrder] = []
+        orders: list[BackpackRawOrderResponse] = []
         for i in range(100):
             # Ensure quantity is always > 0 for validation
             quantity_value = max(0.1, i * 0.1)  # Minimum 0.1, then increment

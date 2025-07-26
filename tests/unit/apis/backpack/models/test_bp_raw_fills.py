@@ -39,7 +39,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -84,7 +84,7 @@ def test_backpack_raw_fill_valid(valid_fill_data: dict[str, Any]) -> None:
     that the model configuration (frozen=True, extra='forbid') is correctly
     applied for immutability and strict schema enforcement.
     """
-    fill = BackpackRawFill.model_validate(valid_fill_data)
+    fill = BackpackRawFillResponse.model_validate(valid_fill_data)
 
     assert fill.fee == "0.1"
     assert fill.fee_symbol == "USDC"
@@ -110,7 +110,7 @@ def test_backpack_raw_fill_optional_client_id_none(valid_fill_data: dict[str, An
     include null values for optional fields.
     """
     valid_fill_data["clientId"] = None
-    fill = BackpackRawFill.model_validate(valid_fill_data)
+    fill = BackpackRawFillResponse.model_validate(valid_fill_data)
     assert fill.client_id is None
 
 
@@ -123,7 +123,7 @@ def test_backpack_raw_fill_optional_client_id_missing(valid_fill_data: dict[str,
     in the response payload at all.
     """
     del valid_fill_data["clientId"]
-    fill = BackpackRawFill.model_validate(valid_fill_data)
+    fill = BackpackRawFillResponse.model_validate(valid_fill_data)
     assert fill.client_id is None  # Default is None
 
 
@@ -162,11 +162,11 @@ def test_backpack_raw_fill_invalid_types(
     # Special case: isMaker field raises ValidationError for string values
     if field == "isMaker" and invalid_value == "true":
         with pytest.raises(ValidationError) as exc_info:
-            BackpackRawFill.model_validate(valid_fill_data)
+            BackpackRawFillResponse.model_validate(valid_fill_data)
         assert "must be one of ['True', 'False', '1', '0']" in str(exc_info.value)
     else:
         with pytest.raises(TypeError) as type_exc_info:
-            BackpackRawFill.model_validate(valid_fill_data)
+            BackpackRawFillResponse.model_validate(valid_fill_data)
 
         # Determine expected field name in error message (Pydantic normalizes to snake_case)
         expected_error_field = field
@@ -263,7 +263,7 @@ def test_backpack_raw_fill_invalid_formats_and_values(
         expected_exc_type = ValidationError
 
     with pytest.raises(expected_exc_type) as exc_info:
-        BackpackRawFill.model_validate(valid_fill_data)
+        BackpackRawFillResponse.model_validate(valid_fill_data)
 
     # Adjust assertion to handle tuple of expected parts for robust checking
     if isinstance(expected_msg_part, tuple):
@@ -312,7 +312,7 @@ def test_backpack_raw_fill_missing_required(
     """
     del valid_fill_data[field_to_remove]
     with pytest.raises(ValidationError) as exc_info:
-        BackpackRawFill.model_validate(valid_fill_data)
+        BackpackRawFillResponse.model_validate(valid_fill_data)
     assert f"{field_to_remove}\n  Field required" in str(exc_info.value)
 
 
@@ -331,5 +331,5 @@ def test_backpack_raw_fill_extra_field(valid_fill_data: dict[str, Any]) -> None:
     """
     valid_fill_data["extraField"] = "should_not_be_here"
     with pytest.raises(ValidationError) as exc_info:
-        BackpackRawFill.model_validate(valid_fill_data)
+        BackpackRawFillResponse.model_validate(valid_fill_data)
     assert "Extra inputs are not permitted" in str(exc_info.value)

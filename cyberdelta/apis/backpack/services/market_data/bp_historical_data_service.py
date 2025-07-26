@@ -23,7 +23,7 @@ from cyberdelta.apis.backpack.mappers import (
     BackpackFundingRateMapper,
     BackpackTradeMapper,
 )
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentPublicTrade
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
@@ -42,7 +42,7 @@ from cyberdelta.apis.exceptions.market_data_service import (
     UnsupportedIntervalError,
 )
 from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args import GetMarketDataArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Trade
@@ -443,12 +443,14 @@ class BackpackHistoricalDataService:
             status_code,
         )
 
-        raw_klines: list[BackpackRawKline] = self._response_handler.handle_get_market_data_response(
-            validated_data,
-            symbol,
-            interval,
-            status_code,
-            headers,
+        raw_klines: list[BackpackRawKlineResponse] = (
+            self._response_handler.handle_get_market_data_response(
+                validated_data,
+                symbol,
+                interval,
+                status_code,
+                headers,
+            )
         )
 
         return [

@@ -92,7 +92,7 @@ class BackpackRawOrderBookFilters(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
 
 
-class BackpackRawMarket(BaseModel):
+class BackpackRawMarketResponse(BaseModel):
     """Pydantic model for a market metadata object from `/api/v1/markets` (Backpack REST API).
 
     This model correctly represents the Market schema from Backpack's OpenAPI spec,
@@ -120,7 +120,7 @@ class BackpackRawMarket(BaseModel):
     created_at: RawBpNonEmptyStringMax64 = Field(..., alias="createdAt")
 
 
-class BackpackRawTicker(BaseModel):
+class BackpackRawTickerResponse(BaseModel):
     """Raw model for a ticker update from the Backpack API (REST /api/v1/ticker).
 
     This model matches the actual 24-hour ticker statistics returned by the API,

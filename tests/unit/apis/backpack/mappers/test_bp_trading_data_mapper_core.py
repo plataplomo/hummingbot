@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 # Project-specific imports
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.enums import OrderStatus
 
@@ -70,14 +70,14 @@ def create_raw_order(
     created_at: str | None = None,
     updated_at: str | None = None,
     avg_fill_price: str | None = None,
-) -> BackpackRawOrder:
-    """Create a BackpackRawOrder with customizable parameters."""
+) -> BackpackRawOrderResponse:
+    """Create a BackpackRawOrderResponse with customizable parameters."""
     if created_at is None:
         created_at = datetime.now(UTC).isoformat()
     if updated_at is None:
         updated_at = datetime.now(UTC).isoformat()
 
-    return BackpackRawOrder(
+    return BackpackRawOrderResponse(
         id=order_id,
         clientId=client_id,
         relatedOrderId=None,
@@ -186,7 +186,7 @@ def test_invalid_order_side_raises_error(
         ("REJECTED", OrderStatus.REJECTED),
         ("PARTIALLY_FILLED", OrderStatus.PARTIALLY_FILLED),
         ("EXPIRED", OrderStatus.UNKNOWN),
-        # Remove invalid statuses that aren't supported by BackpackRawOrder validation
+        # Remove invalid statuses that aren't supported by BackpackRawOrderResponse validation
     ],
 )
 def test_order_status_mapping(
@@ -262,7 +262,7 @@ def test_invalid_order_status_defaults_to_unknown(
         ("LIMIT", OrderType.LIMIT),
         ("MARKET", OrderType.MARKET),
         ("TAKE_PROFIT", OrderType.LIMIT),
-        # Remove invalid order types that aren't supported by BackpackRawOrder validation
+        # Remove invalid order types that aren't supported by BackpackRawOrderResponse validation
     ],
 )
 def test_order_type_mapping(
@@ -287,7 +287,7 @@ def test_order_type_mapping(
     [
         ("STOP", OrderType.STOP_MARKET),
         ("TRAILING_STOP", OrderType.STOP_MARKET),
-        # Remove STOP_MARKET as it's not a valid orderType in BackpackRawOrder
+        # Remove STOP_MARKET as it's not a valid orderType in BackpackRawOrderResponse
     ],
 )
 def test_stop_order_type_mapping(

@@ -47,7 +47,7 @@ from cyberdelta.apis.backpack.services.account.bp_transaction_history_service im
 from cyberdelta.apis.backpack.services.account.bp_transfer_service import (
     BackpackTransferService,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     TransferArgs,

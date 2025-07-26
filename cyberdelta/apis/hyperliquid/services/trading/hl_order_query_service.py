@@ -36,10 +36,12 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderMapperPr
 from cyberdelta.apis.hyperliquid.services.trading.hl_base_trading_service import (
     HyperliquidBaseTradingService,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetAllOpenOrdersArgs,
-    GetOpenOrdersArgs,
     GetOrderArgs,
+)
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidGetOpenOrdersArgs,
     HyperliquidGetOrderStatusArgs,
 )
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
@@ -337,7 +339,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
         try:
             # Build request payload for open orders
             request_payload = self._request_builder.build_open_orders_payload(
-                GetOpenOrdersArgs(wallet_address=self._wallet_address)
+                HyperliquidGetOpenOrdersArgs(wallet_address=self._wallet_address)
             )
 
             # Make API request

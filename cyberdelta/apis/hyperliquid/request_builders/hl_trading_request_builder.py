@@ -51,13 +51,15 @@ from cyberdelta.apis.hyperliquid.protocols.builder_protocols import TradingReque
 from cyberdelta.apis.hyperliquid.request_builders.hl_request_builder_base import (
     HyperliquidRequestBuilderBase,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
-    GetOpenOrdersArgs,
-    GetOrderHistoryArgsHL,
-    GetUserFillsArgs,
-    HyperliquidGetOrderStatusArgs,
     PlaceOrderArgs,
+)
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidGetOpenOrdersArgs,
+    HyperliquidGetOrderHistoryArgs,
+    HyperliquidGetOrderStatusArgs,
+    HyperliquidGetUserFillsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderSide, OrderType
@@ -331,7 +333,7 @@ class HyperliquidTradingRequestBuilder(
 
     @staticmethod
     def build_open_orders_payload(
-        args: GetOpenOrdersArgs,
+        args: HyperliquidGetOpenOrdersArgs,
     ) -> HyperliquidRawOpenOrdersRequestPayload:
         """Build the Pydantic model for fetching open orders.
 
@@ -339,7 +341,7 @@ class HyperliquidTradingRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated GetOpenOrdersArgs containing wallet address
+            args: Validated HyperliquidGetOpenOrdersArgs containing wallet address
 
         Returns:
             HyperliquidRawOpenOrdersRequestPayload: Validated Raw API model
@@ -358,7 +360,7 @@ class HyperliquidTradingRequestBuilder(
 
     @staticmethod
     def build_historical_orders_payload(
-        args: GetOrderHistoryArgsHL,
+        args: HyperliquidGetOrderHistoryArgs,
     ) -> HyperliquidRawHistoricalOrdersRequestPayload:
         """Build the Pydantic model for fetching historical orders.
 
@@ -366,7 +368,7 @@ class HyperliquidTradingRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated GetOrderHistoryArgsHL containing order history parameters
+            args: Validated HyperliquidGetOrderHistoryArgs containing order history parameters
 
         Returns:
             HyperliquidRawHistoricalOrdersRequestPayload: Validated Raw API model
@@ -385,7 +387,7 @@ class HyperliquidTradingRequestBuilder(
 
     @staticmethod
     def build_user_fills_request_payload(
-        args: GetUserFillsArgs,
+        args: HyperliquidGetUserFillsArgs,
     ) -> HyperliquidRawUserFillsRequestPayload:
         """Build the Pydantic model for fetching user fills (trade history).
 
@@ -393,7 +395,7 @@ class HyperliquidTradingRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated GetUserFillsArgs containing wallet address
+            args: Validated HyperliquidGetUserFillsArgs containing wallet address
 
         Returns:
             HyperliquidRawUserFillsRequestPayload: Validated Raw API model

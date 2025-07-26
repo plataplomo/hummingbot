@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackBalanceMapper
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.protocols.builder_protocols import AccountRequestBuilderProtocol
 from cyberdelta.apis.backpack.protocols.handler_protocols import AccountResponseHandlerProtocol
@@ -310,7 +310,7 @@ class BackpackBalanceService:
 
         return balances
 
-    async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
+    async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalanceResponse]:
         """Fetch raw balance data from the API.
 
         Returns:
@@ -381,7 +381,7 @@ class BackpackBalanceService:
 
     async def _transform_raw_balances(
         self,
-        raw_balances: dict[str, BackpackRawBalance],
+        raw_balances: dict[str, BackpackRawBalanceResponse],
     ) -> dict[str, SpotBalance]:
         """Transform raw balance data to internal models.
 

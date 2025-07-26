@@ -43,7 +43,7 @@ from .bp_common_raw_types import (
 )
 
 
-class BackpackRawOrder(BaseModel):
+class BackpackRawOrderResponse(BaseModel):
     """Pydantic model for a raw order object from Backpack API endpoints and WebSocket events.
 
     This model mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.

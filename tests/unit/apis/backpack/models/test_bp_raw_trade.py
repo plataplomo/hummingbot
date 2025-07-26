@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
     BackpackRawPublicTradeEvent,
@@ -402,11 +402,11 @@ def test_BackpackRawTradeEvent_corruption_garbled_unicode_symbol() -> None:
         BackpackRawPublicTradeEvent.model_validate(p)
 
 
-# --- BackpackRawFill ---
+# --- BackpackRawFillResponse ---
 
 
 def valid_fill_data() -> dict[str, Any]:
-    """Return a dictionary with valid data for BackpackRawFill."""
+    """Return a dictionary with valid data for BackpackRawFillResponse."""
     return {
         "fee": "0.001",
         "feeSymbol": "USDC",
@@ -414,7 +414,7 @@ def valid_fill_data() -> dict[str, Any]:
         "orderId": "order-123456789",
         "price": "50000.12345",
         "quantity": "0.002",
-        "side": "Bid",  # Changed from "Buy" to "Bid" - BackpackRawFill expects "Bid"/"Ask"
+        "side": "Bid",  # Changed from "Buy" to "Bid" - BackpackRawFillResponse expects "Bid"/"Ask"
         "symbol": "BTC_USDC",
         "timestamp": "2024-05-01T12:34:56.789000Z",  # Expected ISO format
         "tradeId": 987654321,
@@ -422,10 +422,10 @@ def valid_fill_data() -> dict[str, Any]:
     }
 
 
-def test_BackpackRawFill_happy_path() -> None:
+def test_BackpackRawFillResponse_happy_path() -> None:
     """Test successful validation with valid data."""
     data = valid_fill_data()
-    obj = BackpackRawFill.model_validate(data)
+    obj = BackpackRawFillResponse.model_validate(data)
 
     assert obj.fee == "0.001"
     assert obj.fee_symbol == "USDC"
@@ -440,15 +440,15 @@ def test_BackpackRawFill_happy_path() -> None:
     assert obj.client_id == "client-abc-def-999"
 
 
-def test_BackpackRawFill_optional_client_id_none() -> None:
+def test_BackpackRawFillResponse_optional_client_id_none() -> None:
     """Test successful validation when optional clientId is None."""
     data = valid_fill_data()
     del data["clientId"]
-    obj = BackpackRawFill.model_validate(data)
+    obj = BackpackRawFillResponse.model_validate(data)
     assert obj.client_id is None
 
 
-def test_BackpackRawFill_missing_required_fields() -> None:
+def test_BackpackRawFillResponse_missing_required_fields() -> None:
     """Test that missing required fields raise ValidationError."""
     required_fields = [
         "fee",
@@ -466,10 +466,10 @@ def test_BackpackRawFill_missing_required_fields() -> None:
         data = valid_fill_data().copy()
         del data[field]
         with pytest.raises(ValidationError, match=field):  # Adjusted match for Pydantic V2
-            BackpackRawFill.model_validate(data)
+            BackpackRawFillResponse.model_validate(data)
 
 
-def test_BackpackRawFill_invalid_types() -> None:
+def test_BackpackRawFillResponse_invalid_types() -> None:
     """Test that invalid types raise appropriate exceptions."""
     # Test each invalid case individually to determine exact error type
     invalid_cases = [
@@ -490,10 +490,10 @@ def test_BackpackRawFill_invalid_types() -> None:
         data = valid_fill_data().copy()
         data[field] = value
         with pytest.raises(expected_error):
-            BackpackRawFill.model_validate(data)
+            BackpackRawFillResponse.model_validate(data)
 
 
-def test_BackpackRawFill_invalid_formats_and_values() -> None:
+def test_BackpackRawFillResponse_invalid_formats_and_values() -> None:
     """Test that invalid formats and values raise ValidationError."""
     invalid_cases = [
         ("fee", ""),  # Empty string
@@ -533,7 +533,7 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
             TypeFieldError,
         )):
             try:
-                BackpackRawFill.model_validate(data)
+                BackpackRawFillResponse.model_validate(data)
             except (
                 ValidationError,
                 TypeError,
@@ -552,30 +552,30 @@ def test_BackpackRawFill_invalid_formats_and_values() -> None:
                 raise  # Re-raise the expected exception
 
 
-def test_BackpackRawFill_invalid_client_id_empty_string() -> None:
+def test_BackpackRawFillResponse_invalid_client_id_empty_string() -> None:
     """Test failure when clientId is an empty string."""
     p = valid_fill_data().copy()
     p["clientId"] = ""
     with pytest.raises(EmptyStringError) as exc_info:
-        BackpackRawFill.model_validate(p)
+        BackpackRawFillResponse.model_validate(p)
     # Check for the specific error message from the mode='after' validator
     assert "clientId cannot be an empty or whitespace-only string if provided" in str(
         exc_info.value,
     )
 
 
-def test_BackpackRawFill_extra_field_forbidden() -> None:
+def test_BackpackRawFillResponse_extra_field_forbidden() -> None:
     """Test ValidationError when extra fields are provided (extra='forbid')."""
     data = valid_fill_data()
     data["extraField"] = "should not be allowed"
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BackpackRawFill.model_validate(data)
+        BackpackRawFillResponse.model_validate(data)
 
 
-def test_BackpackRawFill_frozen() -> None:
+def test_BackpackRawFillResponse_frozen() -> None:
     """Test that the model is frozen (immutable) after creation."""
     data = valid_fill_data()
-    obj = BackpackRawFill.model_validate(data)
+    obj = BackpackRawFillResponse.model_validate(data)
     with pytest.raises(ValidationError, match="Instance is frozen"):
         obj.symbol = "SOL_USDC"
     with pytest.raises(ValidationError, match="Instance is frozen"):

@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.services.trading.bp_order_placement_service import
 from cyberdelta.apis.backpack.services.trading.bp_order_query_service import (
     BackpackOrderQueryService,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetOrderArgs,

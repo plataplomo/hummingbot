@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
 from tests.fixtures.time_fixtures import FreezerProtocol
 

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetAccountInfoParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
@@ -76,7 +76,7 @@ class TestBackpackAccountServiceAccountInfo:
 
         # Set up response handler to validate and return the data
         mock_response_handler.handle_get_account_info_response.return_value = (
-            BackpackRawAccountSummary.model_validate(mock_raw_account_data)
+            BackpackRawAccountSummaryResponse.model_validate(mock_raw_account_data)
         )
         mock_response_handler.handle_get_positions_response.return_value = []
         mock_response_handler.handle_get_balances_response.return_value = {}

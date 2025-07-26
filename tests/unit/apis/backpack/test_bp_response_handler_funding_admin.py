@@ -5,7 +5,7 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRate
+from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingRateResponse
 from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler import (
     BackpackMarketDataResponseHandler,
 )
@@ -27,7 +27,7 @@ class TestHandleGetFundingRateResponse:
 
     def test_valid(self, valid_raw_funding_rate: dict[str, Any], symbol_perp: str) -> None:
         """Test handling a valid raw funding rate response."""
-        funding_rate: BackpackRawFundingRate = (
+        funding_rate: BackpackRawFundingRateResponse = (
             BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
                 cast("ParsedJsonResponse", valid_raw_funding_rate),
                 symbol_perp,
@@ -35,7 +35,7 @@ class TestHandleGetFundingRateResponse:
                 {},
             )
         )
-        assert isinstance(funding_rate, BackpackRawFundingRate)
+        assert isinstance(funding_rate, BackpackRawFundingRateResponse)
         assert funding_rate.symbol == symbol_perp
         assert funding_rate.funding_rate == "0.000123"
         assert funding_rate.mark_price == "140.00"

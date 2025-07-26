@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralAsset
 from cyberdelta.apis.backpack.protocols.mapper_protocols import BalanceMapperProtocol
 from cyberdelta.apis.exceptions.data_transformation import (
@@ -170,9 +170,9 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
     @staticmethod
     def transform_raw_balance_to_internal(
         asset_symbol: str,
-        raw: BackpackRawBalance,
+        raw: BackpackRawBalanceResponse,
     ) -> SpotBalance:
-        """Transform a validated BackpackRawBalance object for a specific asset.
+        """Transform a validated BackpackRawBalanceResponse object for a specific asset.
 
         Converts the raw balance data into an internal SpotBalance domain model.
 
@@ -193,7 +193,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
                 raw_available=raw.available,
                 raw_locked=raw.locked,
                 raw_staked=raw.staked,
-                message="Transforming BackpackRawBalance to SpotBalance",
+                message="Transforming BackpackRawBalanceResponse to SpotBalance",
             )
 
             # Defensive parsing of numeric strings
@@ -261,7 +261,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
                 available_quantity=str(available_typed),
                 locked_quantity=str(locked_typed),
                 staked_quantity=str(staked_typed),
-                message="Successfully transformed BackpackRawBalance to SpotBalance",
+                message="Successfully transformed BackpackRawBalanceResponse to SpotBalance",
             )
 
         except Exception as e:
@@ -270,10 +270,10 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
                 asset_symbol=asset_symbol,
                 raw_balance=raw.model_dump() if raw else None,
                 error=str(e),
-                message="Failed to transform BackpackRawBalance to SpotBalance",
+                message="Failed to transform BackpackRawBalanceResponse to SpotBalance",
             )
             raise DataTransformationError(
-                source_model="BackpackRawBalance",
+                source_model="BackpackRawBalanceResponse",
                 target_model="SpotBalance",
                 reason=str(e),
                 original_error=e,

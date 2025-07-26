@@ -7,7 +7,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args_models import GetMarketDataArgs
+from cyberdelta.apis.models.service_args import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 

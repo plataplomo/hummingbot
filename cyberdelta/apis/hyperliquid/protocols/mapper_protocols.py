@@ -41,7 +41,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsTradeEvent,
 )
 from cyberdelta.apis.hyperliquid.protocols.base_protocols import MapperProtocol
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args import PlaceOrderArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.margin_account import MarginAccountSummary

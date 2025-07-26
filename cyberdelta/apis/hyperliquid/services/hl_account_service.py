@@ -57,7 +57,7 @@ from cyberdelta.apis.hyperliquid.services.account.hl_position_service import (
 from cyberdelta.apis.hyperliquid.services.account.hl_trade_history_service import (
     HyperliquidTradeHistoryService,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     TransferArgs,

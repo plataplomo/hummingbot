@@ -13,7 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawImfFunction,
     BackpackRawMmfFunction,
 )
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.enums import OrderSide
@@ -59,7 +59,7 @@ class TestBackpackAccountServicePositions:
             "cumulativeInterest": "-0.1",
         }
         mock_validated_raw_positions = [
-            BackpackRawPosition.model_validate(mock_raw_positions_data_item_dict),
+            BackpackRawPositionResponse.model_validate(mock_raw_positions_data_item_dict),
         ]
 
         # Expected values to check against actual mapper behavior
@@ -227,7 +227,7 @@ class TestBackpackAccountServicePositions:
         # Mock the HTTP client and response handler to return expected data
         mock_http_client_requester.return_value = ([mock_raw_position_data], 200, {})
         mock_response_handler.handle_get_positions_response.return_value = [
-            BackpackRawPosition.model_validate(mock_raw_position_data)
+            BackpackRawPositionResponse.model_validate(mock_raw_position_data)
         ]
 
         result = await bp_account_service.get_positions(symbol=None)
@@ -276,7 +276,7 @@ class TestBackpackAccountServicePositions:
         # Mock the HTTP client and response handler to return expected data
         mock_http_client_requester.return_value = ([mock_raw_position_data], 200, {})
         mock_response_handler.handle_get_positions_response.return_value = [
-            BackpackRawPosition.model_validate(mock_raw_position_data)
+            BackpackRawPositionResponse.model_validate(mock_raw_position_data)
         ]
 
         result = await bp_account_service.get_positions(symbol=None)
@@ -372,7 +372,7 @@ class TestBackpackAccountServicePositions:
         # Mock the HTTP client and response handler to return valid data
         mock_http_client_requester.return_value = (
             [
-                BackpackRawPosition.model_validate({
+                BackpackRawPositionResponse.model_validate({
                     "symbol": symbol,
                     "subaccountId": 0,
                     "breakEvenPrice": "100.0",
@@ -401,7 +401,7 @@ class TestBackpackAccountServicePositions:
 
         # Mock response handler to process data but mapper fails
         mock_response_handler.handle_get_positions_response.return_value = [
-            BackpackRawPosition(
+            BackpackRawPositionResponse(
                 symbol=symbol,
                 subaccountId=0,
                 breakEvenPrice="100.0",

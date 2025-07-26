@@ -1,10 +1,10 @@
 """Unit tests for Backpack Raw Order model validation and parsing.
 
-This module provides comprehensive validation testing for the BackpackRawOrder Pydantic model,
-which serves as the strict validation boundary for raw order data received from the Backpack
-exchange API. The BackpackRawOrder model is a critical component in the order management
-pipeline, ensuring that all external order data is properly validated before transformation
-into internal Order models.
+This module provides comprehensive validation testing for the BackpackRawOrderResponse Pydantic
+model, which serves as the strict validation boundary for raw order data received from the
+Backpack exchange API. The BackpackRawOrderResponse model is a critical component in the order
+management pipeline, ensuring that all external order data is properly validated before
+transformation into internal Order models.
 
 Key Testing Areas:
 - Raw API order data structure validation and type checking
@@ -21,7 +21,7 @@ Architecture Compliance:
 - Uses RULE-NO-SILENCING-V4 compliant validation without suppressions
 - Enforces RULE-RUNTIME-SAFETY-V4 for Decimal parsing and finite checks
 
-The BackpackRawOrder model ensures data integrity at the API boundary, preventing
+The BackpackRawOrderResponse model ensures data integrity at the API boundary, preventing
 malformed or malicious order data from entering the core trading system. This validation
 is essential for maintaining system stability and preventing trading errors that
 could result from corrupted or unexpected API responses.
@@ -40,15 +40,15 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models import (
-    BackpackRawOrder,
     BackpackRawOrderBook,
+    BackpackRawOrderResponse,
     BackpackRawOrderUpdate,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
-# --- BackpackRawOrder ---
+# --- BackpackRawOrderResponse ---
 def valid_order() -> dict[str, object]:
     """Return valid order for testing."""
     return {
@@ -62,126 +62,126 @@ def valid_order() -> dict[str, object]:
     }
 
 
-def test_BackpackRawOrder_happy_path() -> None:
-    """Test BackpackRawOrder happy path."""
-    obj = BackpackRawOrder.model_validate(valid_order())
+def test_BackpackRawOrderResponse_happy_path() -> None:
+    """Test BackpackRawOrderResponse happy path."""
+    obj = BackpackRawOrderResponse.model_validate(valid_order())
     assert obj.symbol == "BTC_USDC"
     assert obj.side == "buy"
     assert obj.quantity == "1.0"
 
 
-def test_BackpackRawOrder_missing_required_id() -> None:
-    """Test BackpackRawOrder missing required id."""
+def test_BackpackRawOrderResponse_missing_required_id() -> None:
+    """Test BackpackRawOrderResponse missing required id."""
     p = valid_order()
     del p["id"]
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_missing_required_symbol() -> None:
-    """Test BackpackRawOrder missing required symbol."""
+def test_BackpackRawOrderResponse_missing_required_symbol() -> None:
+    """Test BackpackRawOrderResponse missing required symbol."""
     p = valid_order()
     del p["symbol"]
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_missing_required_side() -> None:
-    """Test BackpackRawOrder missing required side."""
+def test_BackpackRawOrderResponse_missing_required_side() -> None:
+    """Test BackpackRawOrderResponse missing required side."""
     p = valid_order()
     del p["side"]
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_missing_required_orderType() -> None:
-    """Test BackpackRawOrder missing required orderType."""
+def test_BackpackRawOrderResponse_missing_required_orderType() -> None:
+    """Test BackpackRawOrderResponse missing required orderType."""
     p = valid_order()
     del p["orderType"]
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_missing_required_status() -> None:
-    """Test BackpackRawOrder missing required status."""
+def test_BackpackRawOrderResponse_missing_required_status() -> None:
+    """Test BackpackRawOrderResponse missing required status."""
     p = valid_order()
     del p["status"]
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_missing_required_quantity() -> None:
-    """Test BackpackRawOrder with missing quantity (now optional)."""
+def test_BackpackRawOrderResponse_missing_required_quantity() -> None:
+    """Test BackpackRawOrderResponse with missing quantity (now optional)."""
     p = valid_order()
     del p["quantity"]
     # quantity is now optional, so this should not raise
-    order = BackpackRawOrder.model_validate(p)
+    order = BackpackRawOrderResponse.model_validate(p)
     assert order.quantity is None
 
 
-def test_BackpackRawOrder_missing_required_createdAt() -> None:
-    """Test BackpackRawOrder missing required createdAt."""
+def test_BackpackRawOrderResponse_missing_required_createdAt() -> None:
+    """Test BackpackRawOrderResponse missing required createdAt."""
     p = valid_order()
     del p["createdAt"]
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_wrong_type_quantity() -> None:
-    """Test BackpackRawOrder wrong type quantity."""
+def test_BackpackRawOrderResponse_wrong_type_quantity() -> None:
+    """Test BackpackRawOrderResponse wrong type quantity."""
     p = valid_order()
     p["quantity"] = [1.0]
     with pytest.raises(TypeError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_wrong_type_side() -> None:
-    """Test BackpackRawOrder wrong type side."""
+def test_BackpackRawOrderResponse_wrong_type_side() -> None:
+    """Test BackpackRawOrderResponse wrong type side."""
     p = valid_order()
     p["side"] = 123
     with pytest.raises(TypeError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_invalid_decimal_quantity() -> None:
-    """Test BackpackRawOrder invalid decimal quantity."""
+def test_BackpackRawOrderResponse_invalid_decimal_quantity() -> None:
+    """Test BackpackRawOrderResponse invalid decimal quantity."""
     p = valid_order()
     p["quantity"] = "1..0"
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
     # Scientific notation is allowed (project policy)
     p = valid_order()
     p["quantity"] = "1e3"
-    obj = BackpackRawOrder.model_validate(p)
+    obj = BackpackRawOrderResponse.model_validate(p)
     assert obj.quantity == "1e3"
 
 
-def test_BackpackRawOrder_invalid_enum_side() -> None:
-    """Test BackpackRawOrder invalid enum side."""
+def test_BackpackRawOrderResponse_invalid_enum_side() -> None:
+    """Test BackpackRawOrderResponse invalid enum side."""
     p = valid_order()
     p["side"] = "Diagonal"
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_invalid_timestamp_createdAt() -> None:
-    """Test BackpackRawOrder invalid timestamp createdAt."""
+def test_BackpackRawOrderResponse_invalid_timestamp_createdAt() -> None:
+    """Test BackpackRawOrderResponse invalid timestamp createdAt."""
     p = valid_order()
     p["createdAt"] = "not-a-timestamp"
     with pytest.raises(DateTimeParsingError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_extra_field() -> None:
-    """Test BackpackRawOrder extra field."""
+def test_BackpackRawOrderResponse_extra_field() -> None:
+    """Test BackpackRawOrderResponse extra field."""
     p = valid_order()
     p["foo"] = "bar"
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_optional_fields_all_none() -> None:
-    """Test BackpackRawOrder optional fields all none."""
+def test_BackpackRawOrderResponse_optional_fields_all_none() -> None:
+    """Test BackpackRawOrderResponse optional fields all none."""
     p = valid_order()
     for f in [
         "clientId",
@@ -202,7 +202,7 @@ def test_BackpackRawOrder_optional_fields_all_none() -> None:
         "origin",
     ]:
         p[f] = None
-    obj = BackpackRawOrder.model_validate(p)
+    obj = BackpackRawOrderResponse.model_validate(p)
     for f in [
         "clientId",
         "relatedOrderId",
@@ -224,8 +224,8 @@ def test_BackpackRawOrder_optional_fields_all_none() -> None:
         assert getattr(obj, f, None) is None
 
 
-def test_BackpackRawOrder_optional_fields_omitted() -> None:
-    """Test BackpackRawOrder optional fields omitted."""
+def test_BackpackRawOrderResponse_optional_fields_omitted() -> None:
+    """Test BackpackRawOrderResponse optional fields omitted."""
     p = valid_order()
     for f in [
         "clientId",
@@ -247,7 +247,7 @@ def test_BackpackRawOrder_optional_fields_omitted() -> None:
     ]:
         if f in p:
             del p[f]
-    obj = BackpackRawOrder.model_validate(p)
+    obj = BackpackRawOrderResponse.model_validate(p)
     for f in [
         "clientId",
         "relatedOrderId",
@@ -269,32 +269,32 @@ def test_BackpackRawOrder_optional_fields_omitted() -> None:
         assert getattr(obj, f, None) is None
 
 
-def test_BackpackRawOrder_corruption_garbled_quantity() -> None:
-    """Test BackpackRawOrder corruption garbled quantity."""
+def test_BackpackRawOrderResponse_corruption_garbled_quantity() -> None:
+    """Test BackpackRawOrderResponse corruption garbled quantity."""
     p = valid_order()
     p["quantity"] = "NaN"
     with pytest.raises(ValidationError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_corruption_null_required_symbol() -> None:
-    """Test BackpackRawOrder corruption null required symbol."""
+def test_BackpackRawOrderResponse_corruption_null_required_symbol() -> None:
+    """Test BackpackRawOrderResponse corruption null required symbol."""
     p = valid_order()
     p["symbol"] = None
     with pytest.raises(TypeError):
-        BackpackRawOrder.model_validate(p)
+        BackpackRawOrderResponse.model_validate(p)
 
 
-def test_BackpackRawOrder_corruption_unicode_symbol() -> None:
-    """Test BackpackRawOrder corruption unicode symbol."""
+def test_BackpackRawOrderResponse_corruption_unicode_symbol() -> None:
+    """Test BackpackRawOrderResponse corruption unicode symbol."""
     p = valid_order()
     p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawOrder.model_validate(p)
+    obj = BackpackRawOrderResponse.model_validate(p)
     assert "BTC_USDC" in obj.symbol
 
 
-def test_BackpackRawOrder_corruption_nested_bids_in_orderbook() -> None:
-    """Test BackpackRawOrder corruption nested bids in orderbook."""
+def test_BackpackRawOrderResponse_corruption_nested_bids_in_orderbook() -> None:
+    """Test BackpackRawOrderResponse corruption nested bids in orderbook."""
     book = {
         "symbol": "BTC_USDC",
         "bids": [["50000.0", "1.0"], ["bad", "1..0"]],
@@ -305,8 +305,8 @@ def test_BackpackRawOrder_corruption_nested_bids_in_orderbook() -> None:
         BackpackRawOrderBook.model_validate(book)
 
 
-def test_BackpackRawOrder_truncated_json() -> None:
-    """Test BackpackRawOrder truncated json."""
+def test_BackpackRawOrderResponse_truncated_json() -> None:
+    """Test BackpackRawOrderResponse truncated json."""
     bad_json = '{"id": "123", "symbol": "BTC_USDC", "side": "buy"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
@@ -499,10 +499,10 @@ def test_BackpackRawOrderUpdate_corruption_cases() -> None:
         json.loads(bad_json)
 
 
-class TestBackpackRawOrder:
-    """Comprehensive test suite for BackpackRawOrder model validation.
+class TestBackpackRawOrderResponse:
+    """Comprehensive test suite for BackpackRawOrderResponse model validation.
 
-    This test class provides comprehensive validation testing for the BackpackRawOrder
+    This test class provides comprehensive validation testing for the BackpackRawOrderResponse
     model, focusing on edge cases, complex validation scenarios, and error conditions
     that may not be covered by simple parametrized tests. It ensures robust handling
     of various order data scenarios that could occur in production.
@@ -514,14 +514,14 @@ class TestBackpackRawOrder:
     - Integration scenarios with related order management components
     """
 
-    # Placeholder for further tests specific to BackpackRawOrder
+    # Placeholder for further tests specific to BackpackRawOrderResponse
     # focusing on edge cases or complex validation interactions.
 
     def test_placeholder(self) -> None:
         """Placeholder test to ensure class structure is valid.
 
         This test serves as a placeholder until more comprehensive tests
-        are implemented for complex BackpackRawOrder validation scenarios.
+        are implemented for complex BackpackRawOrderResponse validation scenarios.
         """
 
     def test_invalid_market_order_missing_side(self) -> None:
@@ -536,4 +536,4 @@ class TestBackpackRawOrder:
         data = valid_order()
         data["status"] = "BADSTATUS"
         with pytest.raises(ValidationError):
-            BackpackRawOrder.model_validate(data)
+            BackpackRawOrderResponse.model_validate(data)

@@ -20,7 +20,7 @@ import pytest
 
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
@@ -76,13 +76,13 @@ def create_raw_fill(
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
     client_id: str | None = None,
-) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing fill transformations.
+) -> BackpackRawFillResponse:
+    """Create BackpackRawFillResponse instances for testing fill transformations.
 
     Returns:
-        BackpackRawFill instance configured with test data.
+        BackpackRawFillResponse instance configured with test data.
     """
-    return BackpackRawFill(
+    return BackpackRawFillResponse(
         fee=fee,
         feeSymbol=fee_symbol,
         isMaker=is_maker,
@@ -164,7 +164,7 @@ class TestFillTransformation:
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawFill to internal Trade."""
+        """Test successful transformation of BackpackRawFillResponse to internal Trade."""
         raw_fill = create_raw_fill(
             fee="0.05",
             fee_symbol="USDC",
@@ -279,7 +279,7 @@ class TestFillTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawFill to Trade",
+                match="Failed to transform BackpackRawFillResponse to Trade",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
 

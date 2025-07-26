@@ -6,10 +6,10 @@ from typing import Any, cast
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.response_handlers.bp_account_response_handler import (
     BackpackAccountResponseHandler,
@@ -35,7 +35,7 @@ class TestHandleGetBalancesResponse:
 
     def test_valid(self, valid_raw_balances: dict[str, Any]) -> None:
         """Test handling a valid raw balances response."""
-        balances: dict[str, BackpackRawBalance] = (
+        balances: dict[str, BackpackRawBalanceResponse] = (
             BackpackAccountResponseHandler.handle_get_balances_response(
                 cast("ParsedJsonResponse", valid_raw_balances),
                 status_code=200,
@@ -47,7 +47,7 @@ class TestHandleGetBalancesResponse:
         # Check SOL balance
         assert "SOL" in balances
         sol_balance = balances["SOL"]
-        assert isinstance(sol_balance, BackpackRawBalance)
+        assert isinstance(sol_balance, BackpackRawBalanceResponse)
         assert sol_balance.available == "10.5"
         assert sol_balance.locked == "2.0"
         assert sol_balance.staked == "0"
@@ -55,7 +55,7 @@ class TestHandleGetBalancesResponse:
         # Check USDC balance
         assert "USDC" in balances
         usdc_balance = balances["USDC"]
-        assert isinstance(usdc_balance, BackpackRawBalance)
+        assert isinstance(usdc_balance, BackpackRawBalanceResponse)
         assert usdc_balance.available == "1000.0"
         assert usdc_balance.locked == "50.0"
         assert usdc_balance.staked == "0"
@@ -126,7 +126,7 @@ class TestHandleGetPositionsResponse:
 
     def test_valid(self, valid_raw_positions: list[dict[str, Any]]) -> None:
         """Test handling a valid raw positions response."""
-        positions: list[BackpackRawPosition] = (
+        positions: list[BackpackRawPositionResponse] = (
             BackpackAccountResponseHandler.handle_get_positions_response(
                 cast("ParsedJsonResponse", valid_raw_positions),
                 None,
@@ -138,7 +138,7 @@ class TestHandleGetPositionsResponse:
 
         # Check first position
         pos1 = positions[0]
-        assert isinstance(pos1, BackpackRawPosition)
+        assert isinstance(pos1, BackpackRawPositionResponse)
         assert pos1.symbol == "SOL_USDC"
         assert pos1.break_even_price == "131.00"
         assert pos1.entry_price == "130.00"
@@ -253,13 +253,13 @@ class TestHandleGetAccountInfoResponse:
 
     def test_valid(self, valid_raw_account_summary: dict[str, Any]) -> None:
         """Test handling a valid raw account summary response."""
-        summary: BackpackRawAccountSummary = (
+        summary: BackpackRawAccountSummaryResponse = (
             BackpackAccountResponseHandler.handle_get_account_info_response(
                 cast("ParsedJsonResponse", valid_raw_account_summary),
                 status_code=200,
             )
         )
-        assert isinstance(summary, BackpackRawAccountSummary)
+        assert isinstance(summary, BackpackRawAccountSummaryResponse)
         assert summary.auto_borrow_settlements is True
         assert summary.auto_lend is False
         assert summary.auto_realize_pnl is True
@@ -320,7 +320,7 @@ class TestHandleGetOpenOrdersResponse:
 
     def test_valid(self, valid_raw_open_orders: list[dict[str, Any]]) -> None:
         """Test handling a valid raw open orders response."""
-        orders: list[BackpackRawOrder] = (
+        orders: list[BackpackRawOrderResponse] = (
             BackpackTradingResponseHandler.handle_get_open_orders_response(
                 cast("ParsedJsonResponse", valid_raw_open_orders),
                 None,
@@ -332,7 +332,7 @@ class TestHandleGetOpenOrdersResponse:
 
         # Check first order
         order1 = orders[0]
-        assert isinstance(order1, BackpackRawOrder)
+        assert isinstance(order1, BackpackRawOrderResponse)
         assert order1.id == "987654321"
         assert order1.clientId == "clientOrder001"
         assert order1.symbol == "SOL_USDC"
@@ -434,7 +434,7 @@ class TestHandleGetOrderHistoryResponse:
 
     def test_valid(self, valid_raw_order_history: list[dict[str, Any]]) -> None:
         """Test handling a valid raw order history response."""
-        orders: list[BackpackRawOrder] = (
+        orders: list[BackpackRawOrderResponse] = (
             BackpackTradingResponseHandler.handle_get_order_history_response(
                 cast("ParsedJsonResponse", valid_raw_order_history),
                 None,
@@ -446,7 +446,7 @@ class TestHandleGetOrderHistoryResponse:
 
         # Check first historical order
         order1 = orders[0]
-        assert isinstance(order1, BackpackRawOrder)
+        assert isinstance(order1, BackpackRawOrderResponse)
         assert order1.id == "histOrder001"
         assert order1.status == "FILLED"
         assert order1.executedQuantity == "10.0"
@@ -644,12 +644,14 @@ class TestHandleGetOrderStatusResponse:
 
     def test_valid(self, valid_raw_order_status: dict[str, Any], order_id: str) -> None:
         """Test handling a valid raw order status response."""
-        order: BackpackRawOrder = BackpackTradingResponseHandler.handle_get_order_status_response(
-            cast("ParsedJsonResponse", valid_raw_order_status),
-            order_id,
-            status_code=200,
+        order: BackpackRawOrderResponse = (
+            BackpackTradingResponseHandler.handle_get_order_status_response(
+                cast("ParsedJsonResponse", valid_raw_order_status),
+                order_id,
+                status_code=200,
+            )
         )
-        assert isinstance(order, BackpackRawOrder)
+        assert isinstance(order, BackpackRawOrderResponse)
         assert order.id == "statusOrder123"
         assert order.clientId == "clientStatus001"
         assert order.side == "sell"

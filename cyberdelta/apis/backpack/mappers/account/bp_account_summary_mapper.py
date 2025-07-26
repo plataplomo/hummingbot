@@ -20,13 +20,13 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import AccountSummaryMapperProtocol
 from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,
@@ -51,9 +51,9 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
 
     @staticmethod
     def transform_raw_account_summary_to_internal(
-        raw_settings: BackpackRawAccountSummary,
-        spot_balances_raw: dict[str, BackpackRawBalance],
-        derivative_positions_raw: list[BackpackRawPosition],
+        raw_settings: BackpackRawAccountSummaryResponse,
+        spot_balances_raw: dict[str, BackpackRawBalanceResponse],
+        derivative_positions_raw: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
         """Transform raw Backpack account data into an internal MarginAccountSummary.
 
@@ -61,7 +61,7 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
         with calculated equity and notional values.
 
         Args:
-            raw_settings: The validated BackpackRawAccountSummary Pydantic model
+            raw_settings: The validated BackpackRawAccountSummaryResponse Pydantic model
             spot_balances_raw: A dictionary of validated raw spot balances
             derivative_positions_raw: A list of validated raw derivative positions
 
@@ -77,7 +77,7 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
                 leverage_limit=raw_settings.leverage_limit,
                 spot_balances_count=len(spot_balances_raw),
                 positions_count=len(derivative_positions_raw),
-                message="Transforming BackpackRawAccountSummary to MarginAccountSummary",
+                message="Transforming BackpackRawAccountSummaryResponse to MarginAccountSummary",
             )
 
             # Transform spot balances using the dedicated mapper
@@ -165,7 +165,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
                 position_notional=str(calculated_total_position_notional),
                 unrealized_pnl=str(calculated_total_unrealized_pnl),
                 message=(
-                    "Successfully transformed BackpackRawAccountSummary to MarginAccountSummary"
+                    "Successfully transformed BackpackRawAccountSummaryResponse to "
+                    "MarginAccountSummary"
                 ),
             )
 
@@ -176,10 +177,12 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
                 spot_balances_count=len(spot_balances_raw) if spot_balances_raw else 0,
                 positions_count=len(derivative_positions_raw) if derivative_positions_raw else 0,
                 error=str(e),
-                message="Failed to transform BackpackRawAccountSummary to MarginAccountSummary",
+                message=(
+                    "Failed to transform BackpackRawAccountSummaryResponse to MarginAccountSummary"
+                ),
             )
             raise DataTransformationError(
-                source_model="BackpackRawAccountSummary",
+                source_model="BackpackRawAccountSummaryResponse",
                 target_model="MarginAccountSummary",
                 reason=str(e),
                 original_error=e,
@@ -191,8 +194,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
     @staticmethod
     def transform_enhanced_account_data_to_margin_summary(
         raw_collateral: BackpackRawCollateralResponse,
-        raw_settings: BackpackRawAccountSummary,
-        raw_positions: list[BackpackRawPosition],
+        raw_settings: BackpackRawAccountSummaryResponse,
+        raw_positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
         """Transform enhanced collateral data into internal MarginAccountSummary.
 

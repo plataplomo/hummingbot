@@ -34,12 +34,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawRecentTradesRequestPayload,
 )
 from cyberdelta.apis.hyperliquid.protocols.builder_protocols import MarketDataRequestBuilderProtocol
-from cyberdelta.apis.models.service_args_models import (
-    GetCandleSnapshotArgs,
+from cyberdelta.apis.models.service_args import (
     GetHistoricalFundingRatesArgs,
     GetL2BookArgs,
     GetRecentTradesArgs,
 )
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -130,7 +130,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         if end_time is None:
             end_time = int(time.time() * 1000)  # Now
 
-        args = GetCandleSnapshotArgs(
+        args = HyperliquidGetCandleSnapshotArgs(
             symbol=symbol,
             timeframe=interval,  # Use 'timeframe' instead of 'interval'
             start_time_ms=start_time,  # Use 'start_time_ms' instead of 'start_time'
@@ -250,7 +250,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
     @staticmethod
     def build_candle_snapshot_payload(
-        args: GetCandleSnapshotArgs,
+        args: HyperliquidGetCandleSnapshotArgs,
     ) -> HyperliquidRawCandleSnapshotRequestPayload:
         """Build the Pydantic model for fetching candle/OHLCV data.
 
@@ -258,7 +258,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         returns Raw Pydantic models.
 
         Args:
-            args: Validated GetCandleSnapshotArgs containing candle parameters
+            args: Validated HyperliquidGetCandleSnapshotArgs containing candle parameters
 
         Returns:
             HyperliquidRawCandleSnapshotRequestPayload: Validated Raw API model

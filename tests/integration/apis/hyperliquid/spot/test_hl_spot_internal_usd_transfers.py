@@ -22,7 +22,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.models.service_args_models import TransferArgs
+from cyberdelta.apis.models.service_args import TransferArgs
 from cyberdelta.core.enums import InternalTransferStatus
 
 

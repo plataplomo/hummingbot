@@ -7,7 +7,7 @@ extracted from the monolithic trading service to improve maintainability and tes
 from decimal import Decimal
 
 from cyberdelta.apis.exceptions import InvalidEnumValueError
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderType, TimeInForce
 

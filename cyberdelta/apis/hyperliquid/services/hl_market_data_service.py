@@ -35,7 +35,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
 from cyberdelta.apis.hyperliquid.services.market_data.hl_price_ticker_service import (
     HyperliquidPriceTickerService,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,

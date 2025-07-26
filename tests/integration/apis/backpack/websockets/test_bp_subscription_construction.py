@@ -25,11 +25,11 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_payloads import (
-    BackpackWsSignatureComponents,
+    BackpackRawWsSignatureComponents,
 )
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.exceptions.websocket import UnsupportedWebSocketTopicError
-from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
@@ -150,7 +150,7 @@ class TestBackpackSubscriptionConstruction:
                 "signature": "test_signature",
             }
 
-            signature_components = BackpackWsSignatureComponents.model_validate(signature_data)
+            signature_components = BackpackRawWsSignatureComponents.model_validate(signature_data)
 
             assert signature_components.api_key == "test_api_key"
             assert signature_components.timestamp == "1640995200000"

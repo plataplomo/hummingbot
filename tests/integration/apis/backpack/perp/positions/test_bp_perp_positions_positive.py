@@ -13,9 +13,7 @@ from pydantic import SecretStr
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
-from cyberdelta.apis.models.service_args_models import (
-    PlaceOrderArgs,
-)
+from cyberdelta.apis.models.service_args import PlaceOrderArgs
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger

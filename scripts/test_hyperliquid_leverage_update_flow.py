@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 
 

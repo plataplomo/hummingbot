@@ -21,10 +21,10 @@ from typing import TYPE_CHECKING, NoReturn
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackAccountSummaryMapper
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.protocols.builder_protocols import AccountRequestBuilderProtocol
 from cyberdelta.apis.backpack.protocols.handler_protocols import AccountResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import AccountSummaryMapperProtocol
@@ -42,7 +42,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import AccountSettings, MarginAccountSummary
@@ -524,11 +524,11 @@ class BackpackAccountSummaryService:
         else:
             return internal_summary
 
-    async def _get_raw_account_summary_obj(self) -> BackpackRawAccountSummary:
+    async def _get_raw_account_summary_obj(self) -> BackpackRawAccountSummaryResponse:
         """Helper to fetch and validate the raw account summary object.
 
         Returns:
-            BackpackRawAccountSummary object
+            BackpackRawAccountSummaryResponse object
 
         Raises:
             APIError: If API request fails
@@ -637,11 +637,11 @@ class BackpackAccountSummaryService:
             )
             raise
 
-    async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalance]:
+    async def _get_raw_balances_dict(self) -> dict[str, BackpackRawBalanceResponse]:
         """Helper to fetch and validate raw account balances dictionary.
 
         Returns:
-            Dictionary mapping asset symbols to BackpackRawBalance objects
+            Dictionary mapping asset symbols to BackpackRawBalanceResponse objects
 
         Raises:
             APIError: If API request fails
@@ -695,14 +695,16 @@ class BackpackAccountSummaryService:
                 message=f"Failed to fetch balances: {e}", code=APIErrorCode.UNKNOWN.value
             ) from e
 
-    async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
+    async def _get_raw_positions_list(
+        self, symbol: str | None = None
+    ) -> list[BackpackRawPositionResponse]:
         """Helper to fetch and validate raw current open positions list.
 
         Args:
             symbol: Optional symbol filter
 
         Returns:
-            List of BackpackRawPosition objects for current open positions
+            List of BackpackRawPositionResponse objects for current open positions
 
         Raises:
             APIError: If API request fails

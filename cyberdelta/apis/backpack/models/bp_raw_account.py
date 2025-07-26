@@ -94,7 +94,7 @@ class BackpackRawAccount(BaseModel):
         return validate_enum_field(s, allowed=allowed_values, field_name=field_name)
 
 
-class BackpackRawBalance(BaseModel):
+class BackpackRawBalanceResponse(BaseModel):
     """Pydantic model for a raw asset balance from `/api/v1/capital` (Backpack REST API).
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.

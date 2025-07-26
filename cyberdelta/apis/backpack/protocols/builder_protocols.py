@@ -37,7 +37,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 )
 from cyberdelta.apis.backpack.protocols.base_protocols import RequestBuilderProtocol
 from cyberdelta.apis.base.trading_execution_domain import AccountSettings, OrderExecution
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetMaxBorrowQuantityArgs,
     GetMaxOrderQuantityArgs,
     GetMaxWithdrawalQuantityArgs,

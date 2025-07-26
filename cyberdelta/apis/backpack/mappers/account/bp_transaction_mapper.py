@@ -16,8 +16,8 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TransactionMapperProtocol
 from cyberdelta.apis.exceptions.data_transformation import (
@@ -332,7 +332,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         return origin_mapping.get(origin_str, OrderUpdateOrigin.UNKNOWN)
 
     @staticmethod
-    def _parse_required_order_fields(raw: BackpackRawOrder) -> tuple[Decimal, datetime]:
+    def _parse_required_order_fields(raw: BackpackRawOrderResponse) -> tuple[Decimal, datetime]:
         """Parse and validate required order fields.
 
         Args:
@@ -351,14 +351,14 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         if parsed_created_at is None:
             raise MissingRequiredFieldError(
                 field_names="createdAt",
-                context="BackpackRawOrder",
+                context="BackpackRawOrderResponse",
                 source_data=raw.model_dump() if raw else None,
             )
 
         return parsed_quantity, parsed_created_at
 
     @staticmethod
-    def _parse_optional_order_fields(raw: BackpackRawOrder) -> dict[str, Any]:
+    def _parse_optional_order_fields(raw: BackpackRawOrderResponse) -> dict[str, Any]:
         """Parse optional order fields.
 
         Args:
@@ -388,8 +388,8 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         }
 
     @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade | None:
-        """Transform a BackpackRawFill to an Internal Trade model.
+    def transform_raw_fill_to_internal(raw_fill: BackpackRawFillResponse) -> Trade | None:
+        """Transform a BackpackRawFillResponse to an Internal Trade model.
 
         Converts fill data from Backpack order execution into an internal Trade domain model.
 
@@ -411,7 +411,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 side=raw_fill.side,
                 price=raw_fill.price,
                 quantity=raw_fill.quantity,
-                message="Transforming BackpackRawFill to Trade",
+                message="Transforming BackpackRawFillResponse to Trade",
             )
 
             # Map side
@@ -488,7 +488,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 quantity=str(quantity_typed),
                 fee=str(fee),
                 is_maker=raw_fill.is_maker,
-                message="Successfully transformed BackpackRawFill to Trade",
+                message="Successfully transformed BackpackRawFillResponse to Trade",
             )
 
         except Exception as e:
@@ -498,10 +498,10 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 symbol=getattr(raw_fill, "symbol", None),
                 raw_fill=raw_fill.model_dump() if raw_fill else None,
                 error=str(e),
-                message="Failed to transform BackpackRawFill to Trade",
+                message="Failed to transform BackpackRawFillResponse to Trade",
             )
             raise DataTransformationError(
-                source_model="BackpackRawFill",
+                source_model="BackpackRawFillResponse",
                 target_model="Trade",
                 reason=str(e),
                 original_error=e,
@@ -511,8 +511,8 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             return trade
 
     @staticmethod
-    def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
-        """Transform a validated BackpackRawOrder object into an internal Order domain model.
+    def transform_raw_order_to_internal(raw: BackpackRawOrderResponse) -> Order:
+        """Transform a validated BackpackRawOrderResponse into an internal Order domain model.
 
         Converts order data from Backpack into an internal Order domain model with comprehensive
         field mapping and validation.
@@ -535,7 +535,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 order_type=raw.orderType,
                 status=raw.status,
                 quantity=raw.quantity,
-                message="Transforming BackpackRawOrder to Order",
+                message="Transforming BackpackRawOrderResponse to Order",
             )
 
             # Parse required fields
@@ -620,7 +620,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 status=BackpackTransactionMapper._map_status_to_internal(raw.status).value,
                 quantity_requested=str(parsed_quantity),
                 quantity_filled=str(optional_fields["quantity_filled"]),
-                message="Successfully transformed BackpackRawOrder to Order",
+                message="Successfully transformed BackpackRawOrderResponse to Order",
             )
 
         except Exception as e:
@@ -630,7 +630,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 symbol=getattr(raw, "symbol", None),
                 raw_order=raw.model_dump() if raw else None,
                 error=str(e),
-                message="Failed to transform BackpackRawOrder to Order",
+                message="Failed to transform BackpackRawOrderResponse to Order",
             )
             raise OrderTransformationError(
                 order_id=raw.id if raw else None,
@@ -712,8 +712,10 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             return None
 
     @staticmethod
-    def transform_ws_fill_event_to_internal_trade(raw_fill: BackpackRawFill) -> Trade | None:
-        """Transform a WebSocket fill event (BackpackRawFill) to an Internal Trade model.
+    def transform_ws_fill_event_to_internal_trade(
+        raw_fill: BackpackRawFillResponse,
+    ) -> Trade | None:
+        """Transform a WebSocket fill event (BackpackRawFillResponse) to an Internal Trade model.
 
         This is an alias for transform_raw_fill_to_internal for consistency with WebSocket naming.
 

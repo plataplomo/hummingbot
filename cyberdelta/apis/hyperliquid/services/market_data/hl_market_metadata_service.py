@@ -30,7 +30,7 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
     MarketDataResponseHandlerProtocol,
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import MarketMetadataMapperProtocol
-from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Market
 from cyberdelta.utils.typing import ParsedJsonResponse

@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.trading_execution_domain import (
     LiquidityRequirement,
     OrderExecution,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args import CancelOrderArgs, GetOrderArgs, PlaceOrderArgs
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
@@ -293,7 +293,7 @@ class TestBackpackTradingServiceOrderManagement:
             "origin": "API",
         }
 
-        BackpackRawOrder.model_validate(order_data)
+        BackpackRawOrderResponse.model_validate(order_data)
 
         # Mock a simple Order object result (the actual return type)
         MagicMock()
@@ -383,7 +383,7 @@ class TestBackpackTradingServiceOrderManagement:
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            BackpackRawOrder.model_validate({"invalid": "data"})
+            BackpackRawOrderResponse.model_validate({"invalid": "data"})
         except ValidationError as validation_error:
             # Mock the order placement service to raise the validation error
             with patch.object(
@@ -587,7 +587,7 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test cancel_all_orders successfully cancels orders for a given symbol."""
         symbol = "SOL_USDC"
-        # Create proper order data that can be validated as BackpackRawOrder objects
+        # Create proper order data that can be validated as BackpackRawOrderResponse objects
         mock_raw_response_list = [
             {
                 "id": "order1",
@@ -641,12 +641,12 @@ class TestBackpackTradingServiceOrderManagement:
             },
         ]
 
-        # Mock the response handler to return BackpackRawOrder objects
-        mock_raw_orders: list[BackpackRawOrder] = []
+        # Mock the response handler to return BackpackRawOrderResponse objects
+        mock_raw_orders: list[BackpackRawOrderResponse] = []
         for order_data in mock_raw_response_list:
-            # Create BackpackRawOrder with explicit field mapping to avoid mypy confusion
+            # Create BackpackRawOrderResponse with explicit field mapping to avoid mypy confusion
             # Use type assertions to help mypy understand the types
-            raw_order = BackpackRawOrder(
+            raw_order = BackpackRawOrderResponse(
                 id=str(order_data["id"]),
                 symbol=str(order_data["symbol"]),
                 side=str(order_data["side"]),
@@ -783,7 +783,7 @@ class TestBackpackTradingServiceOrderManagement:
         stop_price = Decimal("110.0")
         post_only = True
 
-        BackpackRawOrder(
+        BackpackRawOrderResponse(
             id="67890",
             clientId=None,
             relatedOrderId="order_456",

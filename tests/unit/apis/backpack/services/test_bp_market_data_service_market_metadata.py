@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarket
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarketResponse
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.models.service_args_models import GetMarketArgs, GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market import Market
 
 
@@ -162,7 +162,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         # Create a ValidationError
         try:
-            BackpackRawMarket.model_validate({"invalid": "data"})
+            BackpackRawMarketResponse.model_validate({"invalid": "data"})
         except ValidationError as validation_error:
             # Mock the market metadata service to raise the validation error
             with patch.object(
@@ -377,7 +377,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
         """
         # Create a ValidationError
         try:
-            BackpackRawMarket.model_validate({"invalid": "data"})
+            BackpackRawMarketResponse.model_validate({"invalid": "data"})
         except ValidationError as validation_error:
             # Mock the market metadata service to raise the validation error
             with patch.object(

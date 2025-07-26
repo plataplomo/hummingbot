@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.common import APIError, MessageHandler
-from cyberdelta.apis.models.service_args_models import GetMarketsArgs
+from cyberdelta.apis.models.service_args import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_context import (
     ExchangeType,
     WebSocketMessageContext,

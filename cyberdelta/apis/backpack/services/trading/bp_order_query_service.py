@@ -20,7 +20,7 @@ from http import HTTPStatus
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestBuilderProtocol
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
@@ -32,7 +32,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.apis.exceptions.trading import OrderNotFoundError
-from cyberdelta.apis.models.service_args_models import GetOrderArgs
+from cyberdelta.apis.models.service_args import GetOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
@@ -406,7 +406,7 @@ class BackpackOrderQueryService:
             status_code,
         )
 
-        raw_orders_list: list[BackpackRawOrder] = (
+        raw_orders_list: list[BackpackRawOrderResponse] = (
             self._response_handler.handle_get_open_orders_response(
                 validated_data,
                 symbol,
@@ -538,10 +538,12 @@ class BackpackOrderQueryService:
             status_code,
         )
 
-        raw_order_model: BackpackRawOrder = self._response_handler.handle_get_order_status_response(
-            validated_data,
-            identifier,
-            status_code,
+        raw_order_model: BackpackRawOrderResponse = (
+            self._response_handler.handle_get_order_status_response(
+                validated_data,
+                identifier,
+                status_code,
+            )
         )
         return self._mapper.transform_raw_order_to_internal(raw_order_model)
 

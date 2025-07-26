@@ -15,7 +15,7 @@ from decimal import Decimal
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_position import (
-    BackpackRawPosition,
+    BackpackRawPositionResponse,
     BackpackRawPositionUpdate,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import PositionMapperProtocol
@@ -89,8 +89,8 @@ class BackpackPositionMapper(PositionMapperProtocol):
         return size
 
     @staticmethod
-    def transform_raw_position_to_internal(raw: BackpackRawPosition) -> DerivativePosition:
-        """Transform a validated BackpackRawPosition object into an internal model.
+    def transform_raw_position_to_internal(raw: BackpackRawPositionResponse) -> DerivativePosition:
+        """Transform a validated BackpackRawPositionResponse object into an internal model.
 
         Args:
             raw: The validated raw position data from Backpack
@@ -106,7 +106,7 @@ class BackpackPositionMapper(PositionMapperProtocol):
                 "transforming_raw_position",
                 symbol=raw.symbol,
                 size=raw.net_quantity,
-                message="Transforming BackpackRawPosition to DerivativePosition",
+                message="Transforming BackpackRawPositionResponse to DerivativePosition",
             )
 
             # Parse and validate position size
@@ -125,7 +125,7 @@ class BackpackPositionMapper(PositionMapperProtocol):
             unrealized_pnl_dec = parse_decimal_value(raw.pnl_unrealized, allow_none=True)
             realized_pnl_dec = parse_decimal_value(raw.pnl_realized, allow_none=True)
 
-            # Use current time as timestamp since BackpackRawPosition doesn't have timestamp
+            # Use current time as timestamp since BackpackRawPositionResponse doesn't have timestamp
             timestamp = datetime.now(UTC)
 
             # Parse margin and funding fields if available
@@ -190,7 +190,9 @@ class BackpackPositionMapper(PositionMapperProtocol):
                 size=str(size_typed),
                 entry_price=str(entry_price_dec) if entry_price_dec else None,
                 mark_price=str(mark_price_dec) if mark_price_dec else None,
-                message="Successfully transformed BackpackRawPosition to DerivativePosition",
+                message=(
+                    "Successfully transformed BackpackRawPositionResponse to DerivativePosition"
+                ),
             )
 
         except Exception as e:
@@ -199,10 +201,10 @@ class BackpackPositionMapper(PositionMapperProtocol):
                 symbol=getattr(raw, "symbol", None),
                 raw_position=raw.model_dump() if raw else None,
                 error=str(e),
-                message="Failed to transform BackpackRawPosition to DerivativePosition",
+                message="Failed to transform BackpackRawPositionResponse to DerivativePosition",
             )
             raise DataTransformationError(
-                source_model="BackpackRawPosition",
+                source_model="BackpackRawPositionResponse",
                 target_model="DerivativePosition",
                 reason=str(e),
                 original_error=e,
@@ -265,7 +267,7 @@ class BackpackPositionMapper(PositionMapperProtocol):
                 timestamp = datetime.now(UTC)
 
             # Parse margin fields - BackpackRawPositionUpdate uses different field names
-            # than BackpackRawPosition (imf_function vs initial_margin_fraction)
+            # than BackpackRawPositionResponse (imf_function vs initial_margin_fraction)
             imf_base_dec = None
             imf_factor_dec = None
             mmf_base_dec = None

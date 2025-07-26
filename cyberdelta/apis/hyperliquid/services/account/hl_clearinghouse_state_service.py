@@ -32,7 +32,7 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
 from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_cache_service import (
     HyperliquidClearinghouseCacheService,
 )
-from cyberdelta.apis.models.service_args_models import GetUserStateArgs
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserStateArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -151,7 +151,7 @@ class HyperliquidClearinghouseStateService:
         try:
             # Build request for user state information
             endpoint = "/info"
-            user_state_args = GetUserStateArgs(wallet_address=self._wallet_address)
+            user_state_args = HyperliquidGetUserStateArgs(wallet_address=self._wallet_address)
             payload = self._request_builder.build_user_state_payload(user_state_args)
 
             # Execute API request

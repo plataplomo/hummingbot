@@ -51,11 +51,11 @@ from cyberdelta.apis.hyperliquid.protocols.builder_protocols import AccountReque
 from cyberdelta.apis.hyperliquid.request_builders.hl_request_builder_base import (
     HyperliquidRequestBuilderBase,
 )
-from cyberdelta.apis.models.service_args_models import (
-    GetUserStateArgs,
-    TransferL2UsdArgs,
-    UpdateLeverageArgs,
-    WithdrawL1Args,
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidGetUserStateArgs,
+    HyperliquidTransferL2UsdArgs,
+    HyperliquidUpdateLeverageArgs,
+    HyperliquidWithdrawL1Args,
 )
 from cyberdelta.config.structlog_config import get_logger
 
@@ -119,7 +119,7 @@ class HyperliquidAccountRequestBuilder(
 
     @staticmethod
     def build_user_state_payload(
-        args: GetUserStateArgs,
+        args: HyperliquidGetUserStateArgs,
     ) -> HyperliquidRawUserStateRequestPayload:
         """Build the Pydantic model for fetching user state information.
 
@@ -127,7 +127,7 @@ class HyperliquidAccountRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated GetUserStateArgs containing wallet address
+            args: Validated HyperliquidGetUserStateArgs containing wallet address
 
         Returns:
             HyperliquidRawUserStateRequestPayload: Validated Raw API model
@@ -149,7 +149,7 @@ class HyperliquidAccountRequestBuilder(
 
     def build_l2_usd_transfer_payload(
         self,
-        args: TransferL2UsdArgs,
+        args: HyperliquidTransferL2UsdArgs,
     ) -> HyperliquidApiL2UsdTransferRequest:
         """Build the Pydantic model for an L2 USD transfer request.
 
@@ -157,7 +157,7 @@ class HyperliquidAccountRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated TransferL2UsdArgs containing transfer parameters
+            args: Validated HyperliquidTransferL2UsdArgs containing transfer parameters
 
         Returns:
             HyperliquidApiL2UsdTransferRequest: Validated Raw API model
@@ -280,7 +280,7 @@ class HyperliquidAccountRequestBuilder(
 
     def build_withdrawal_payload(
         self,
-        args: WithdrawL1Args,
+        args: HyperliquidWithdrawL1Args,
     ) -> HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
         """Build the Pydantic model for a withdrawal to L1 request.
 
@@ -288,7 +288,7 @@ class HyperliquidAccountRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated WithdrawL1Args containing withdrawal parameters
+            args: Validated HyperliquidWithdrawL1Args containing withdrawal parameters
 
         Returns:
             HyperliquidApiEthWithdrawalRequest | HyperliquidApiTokenWithdrawalRequest:
@@ -330,7 +330,7 @@ class HyperliquidAccountRequestBuilder(
 
     @staticmethod
     def build_update_leverage_request(
-        args: UpdateLeverageArgs,
+        args: HyperliquidUpdateLeverageArgs,
     ) -> HyperliquidApiUpdateLeverageRequest:
         """Build the request payload for updating leverage on a specific asset.
 
@@ -338,7 +338,7 @@ class HyperliquidAccountRequestBuilder(
         returns Raw Pydantic models.
 
         Args:
-            args: Validated UpdateLeverageArgs containing leverage parameters
+            args: Validated HyperliquidUpdateLeverageArgs containing leverage parameters
 
         Returns:
             HyperliquidApiUpdateLeverageRequest: The validated request payload model.

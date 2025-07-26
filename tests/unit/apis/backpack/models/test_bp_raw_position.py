@@ -14,7 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawMmfFunction,
 )
 from cyberdelta.apis.backpack.models.bp_raw_position import (
-    BackpackRawPosition,
+    BackpackRawPositionResponse,
     BackpackRawPositionUpdate,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
@@ -44,7 +44,7 @@ This pattern is enforced for all Raw models in the CyberDeltaEngine project.
 """
 
 
-# --- BackpackRawPosition ---
+# --- BackpackRawPositionResponse ---
 
 # --- Fixtures ---
 
@@ -116,7 +116,7 @@ def valid_position_update_data() -> dict[str, Any]:
 
 def test_BackpackRawPosition_valid(valid_position_data: dict[str, Any]) -> None:
     """Test BackpackRawPosition valid."""
-    pos = BackpackRawPosition.model_validate(valid_position_data)
+    pos = BackpackRawPositionResponse.model_validate(valid_position_data)
     assert pos.symbol == "BTC_USDC"
     assert pos.user_id == 123456789
     assert pos.position_id == "pos_abc123"
@@ -141,11 +141,11 @@ def test_BackpackRawPosition_valid_int_user_id_str(
     # Note: valid_position_data fixture already includes imf/mmf data
     data = valid_position_data  # Use the injected fixture directly
     data["userId"] = "987654321"
-    pos = BackpackRawPosition.model_validate(data)
+    pos = BackpackRawPositionResponse.model_validate(data)
     assert pos.user_id == 987654321
 
 
-# --- Failure Cases: BackpackRawPosition ---
+# --- Failure Cases: BackpackRawPositionResponse ---
 
 
 @pytest.mark.parametrize(
@@ -213,27 +213,27 @@ def test_BackpackRawPosition_invalid_fields(
 
     if any(type_error_cases):
         with pytest.raises(TypeError) as type_exc_info:
-            BackpackRawPosition.model_validate(data)
+            BackpackRawPositionResponse.model_validate(data)
         # For TypeError cases, just verify we got the expected exception type
         # since field validation order may vary
         assert isinstance(type_exc_info.value, TypeError)
     elif any(empty_string_cases):
         with pytest.raises(EmptyStringError) as empty_exc_info:
-            BackpackRawPosition.model_validate(data)
+            BackpackRawPositionResponse.model_validate(data)
         # Check if the expected message part is present
         assert expected_msg_part in str(empty_exc_info.value), (
             f"Field: {field}, Value: {value!r}, Error: {empty_exc_info.value}"
         )
     elif any(type_field_error_cases):
         with pytest.raises(TypeFieldError) as type_field_exc_info:
-            BackpackRawPosition.model_validate(data)
+            BackpackRawPositionResponse.model_validate(data)
         # Check if the expected message part is present
         assert expected_msg_part in str(type_field_exc_info.value), (
             f"Field: {field}, Value: {value!r}, Error: {type_field_exc_info.value}"
         )
     else:
         with pytest.raises(ValidationError) as validation_exc_info:
-            BackpackRawPosition.model_validate(data)
+            BackpackRawPositionResponse.model_validate(data)
         # Check if the specific field name or a relevant part of the error message is present
         assert field in str(validation_exc_info.value) or expected_msg_part in str(
             validation_exc_info.value
@@ -250,7 +250,7 @@ def test_BackpackRawPosition_extra_field(
     data = valid_position_data  # Use the injected fixture directly
     data["extraField"] = "some_value"
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BackpackRawPosition.model_validate(data)
+        BackpackRawPositionResponse.model_validate(data)
 
 
 def test_BackpackRawPosition_frozen(
@@ -260,7 +260,7 @@ def test_BackpackRawPosition_frozen(
 ) -> None:
     """Test BackpackRawPosition frozen."""
     # Note: valid_position_data fixture already includes imf/mmf data
-    pos = BackpackRawPosition.model_validate(
+    pos = BackpackRawPositionResponse.model_validate(
         valid_position_data,
     )  # Use the injected fixture directly
     with pytest.raises(ValidationError, match="Instance is frozen"):
@@ -447,8 +447,8 @@ def test_BackpackRawPositionUpdate_frozen(
         pos_update.symbol = "NEW_SYMBOL"
 
 
-class TestBackpackRawPosition:
-    """Tests for the BackpackRawPosition model that might involve more complex validation.
+class TestBackpackRawPositionResponse:
+    """Tests for the BackpackRawPositionResponse model that might involve more complex validation.
 
     Tests scenarios not covered by simple field-level parametrization.
     """
@@ -457,6 +457,6 @@ class TestBackpackRawPosition:
         """Test that an order with an invalid side raises ValidationError."""
         # This test's logic will be determined if it fails after unmarking.
         # For now, just ensuring the decorator is removed and the class structure remains.
-        # If BackpackRawPosition infers side from quantity, this test might relate to
+        # If BackpackRawPositionResponse infers side from quantity, this test might relate to
         # validating that relationship or handling impossible raw states.
         # Placeholder, actual test logic might be present or added if it fails.

@@ -15,7 +15,7 @@ from .bp_common_raw_types import (
 )
 
 
-class BackpackRawAccountSummary(BaseModel):
+class BackpackRawAccountSummaryResponse(BaseModel):
     """Pydantic model for the raw account summary data from Backpack.
 
     Corresponds to the `AccountSummary` schema in Backpack's OpenAPI specification.

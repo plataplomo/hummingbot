@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import Backpack
 from cyberdelta.apis.backpack.models.bp_raw_collateral import (
     BackpackRawCollateralResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
     BackpackAccountRequestBuilder,
 )
@@ -88,9 +88,9 @@ def position_service(
 
 
 @pytest.fixture
-def mock_raw_position() -> BackpackRawPosition:
+def mock_raw_position() -> BackpackRawPositionResponse:
     """Create a mock raw position."""
-    return BackpackRawPosition.model_validate({
+    return BackpackRawPositionResponse.model_validate({
         "symbol": "BTC-PERP",
         "netQuantity": "1.5",
         "entryPrice": "50000.00",
@@ -174,7 +174,7 @@ class TestBackpackPositionService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_derivative_position: DerivativePosition,
     ) -> None:
         """Test successful position retrieval."""
@@ -233,8 +233,8 @@ class TestBackpackPositionService:
         # Arrange
         btc_position = mock_derivative_position
 
-        # Create actual BackpackRawPosition objects with correct symbols
-        btc_raw_position = BackpackRawPosition.model_validate({
+        # Create actual BackpackRawPositionResponse objects with correct symbols
+        btc_raw_position = BackpackRawPositionResponse.model_validate({
             "symbol": "BTC-PERP",
             "netQuantity": "1.5",
             "entryPrice": "50000.00",
@@ -257,7 +257,7 @@ class TestBackpackPositionService:
             "cumulativeInterest": "0.00",
         })
 
-        eth_raw_position = BackpackRawPosition.model_validate({
+        eth_raw_position = BackpackRawPositionResponse.model_validate({
             "symbol": "ETH-PERP",
             "netQuantity": "-10.0",
             "entryPrice": "3500.00",
@@ -286,7 +286,7 @@ class TestBackpackPositionService:
         ]
         mock_http_client.return_value = (raw_positions, 200, {})
 
-        # Response handler returns BackpackRawPosition objects with correct symbols
+        # Response handler returns BackpackRawPositionResponse objects with correct symbols
         mock_response_handler.handle_get_positions_response.return_value = [
             btc_raw_position,
             eth_raw_position,
@@ -360,7 +360,7 @@ class TestBackpackPositionService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
     ) -> None:
         """Test position retrieval with transformation error."""
         # Arrange
@@ -388,7 +388,7 @@ class TestBackpackPositionService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_derivative_position: DerivativePosition,
     ) -> None:
         """Test that direct positions are returned even if collateral fetch fails."""
@@ -420,7 +420,7 @@ class TestBackpackPositionService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
     ) -> None:
         """Test that positions are retrieved from direct API only."""
         # Arrange
@@ -463,7 +463,7 @@ class TestBackpackPositionService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_position: BackpackRawPosition,
+        mock_raw_position: BackpackRawPositionResponse,
         mock_derivative_position: DerivativePosition,
     ) -> None:
         """Test that duplicate positions are deduplicated by symbol."""

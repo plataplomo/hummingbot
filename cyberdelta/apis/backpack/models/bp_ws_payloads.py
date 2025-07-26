@@ -21,7 +21,7 @@ from .bp_common_raw_types import (
 )
 
 
-class BackpackWsSignatureComponents(BaseModel):
+class BackpackRawWsSignatureComponents(BaseModel):
     """Pydantic model for Backpack WebSocket subscription signature components.
 
     This model represents the components needed for authenticating private

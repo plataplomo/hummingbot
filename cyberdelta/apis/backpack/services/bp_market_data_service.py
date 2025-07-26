@@ -37,7 +37,7 @@ from cyberdelta.apis.backpack.services.market_data.bp_price_ticker_service impor
     BackpackPriceTickerService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetFundingRatesArgs,
     GetHistoricalFundingRatesArgs,
     GetMarketArgs,

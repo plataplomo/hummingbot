@@ -17,7 +17,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
     PositionIntent,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,

@@ -13,7 +13,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 
 # Removed unused imports - tests now focus on service delegation
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
-from cyberdelta.apis.models.service_args_models import GetHistoricalFundingRatesArgs
+from cyberdelta.apis.models.service_args import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models import FundingRate
 
 
@@ -42,18 +42,14 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
     ) -> None:
         """Test get_funding_rate successfully delegates to price ticker service."""
         symbol = "BTC"
-        
+
         # Mock the HTTP response structure
         mock_response_data = {"test": "data"}
         mock_http_client_requester.return_value = (mock_response_data, 200, {})
-        
+
         # Mock the response handler to return valid raw data
         # The response handler will return the validated response model
-        mock_asset_def_dict = {
-            "name": symbol,
-            "szDecimals": 5,
-            "maxLeverage": 100
-        }
+        mock_asset_def_dict = {"name": symbol, "szDecimals": 5, "maxLeverage": 100}
         mock_asset_ctx_dict = {
             "funding": "0.0001",
             "markPx": "50000.5",
@@ -61,18 +57,18 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
             "dayNtlVlm": "1000000.0",
             "openInterest": "100000.0",
             "oraclePx": "50000.0",
-            "dayBaseVlm": "2000.0"
+            "dayBaseVlm": "2000.0",
         }
-        
+
         # Create the response as it would be validated and returned by the response handler
         mock_raw_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
             {"universe": [mock_asset_def_dict]},
-            [mock_asset_ctx_dict]
+            [mock_asset_ctx_dict],
         ])
         mock_hl_response_handler.handle_info_meta_and_asset_ctxs_response.return_value = (
             mock_raw_response
         )
-        
+
         # Mock the mapper to return a FundingRate object
         expected_funding_rate = FundingRate(
             symbol=symbol,
@@ -83,7 +79,7 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
         # Note: The historical_data_mapper is used for funding rate transformation
         mock_hl_mapper.transform_raw_asset_ctx_to_funding_rate.return_value = expected_funding_rate
 
-        # Test the public interface - get_funding_rate should return a FundingRate or None 
+        # Test the public interface - get_funding_rate should return a FundingRate or None
         result = await hyperliquid_market_data_service.get_funding_rate(symbol)
 
         # Verify that the underlying components were called correctly

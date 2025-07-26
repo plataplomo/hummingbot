@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.common import APIError, APIErrorCode
@@ -129,11 +129,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     def handle_place_order_response(
         raw_response_content: RawJsonResponse,
         status_code: int,
-    ) -> BackpackRawOrder:
+    ) -> BackpackRawOrderResponse:
         """Validate the raw response for the Place Order endpoint.
 
         Returns:
-            Validated BackpackRawOrder model.
+            Validated BackpackRawOrderResponse model.
 
         Raises:
             APIError: If validation of order data fails.
@@ -145,7 +145,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             status_code,
         )
         try:
-            return BackpackRawOrder.model_validate(validated_data)
+            return BackpackRawOrderResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackTradingResponseHandler._handle_validation_error(
                 e,
@@ -193,11 +193,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         raw_response_content: RawJsonResponse,
         symbol: str | None,
         status_code: int,
-    ) -> list[BackpackRawOrder]:
+    ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Get Open Orders endpoint.
 
         Returns:
-            List of validated BackpackRawOrder models for open orders.
+            List of validated BackpackRawOrderResponse models for open orders.
 
         Raises:
             APIError: If validation of order data fails.
@@ -209,7 +209,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             status_code,
         )
 
-        validated_orders: list[BackpackRawOrder] = []
+        validated_orders: list[BackpackRawOrderResponse] = []
         for i, item in enumerate(validated_list):
             validated_item = ensure_dict_response(
                 item,
@@ -217,7 +217,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
                 status_code,
             )
             try:
-                validated_orders.append(BackpackRawOrder.model_validate(validated_item))
+                validated_orders.append(BackpackRawOrderResponse.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackTradingResponseHandler._handle_validation_error(
                     e,
@@ -231,11 +231,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         raw_response_content: RawJsonResponse,
         symbol: str | None,
         status_code: int,
-    ) -> list[BackpackRawOrder]:
+    ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Get Order History endpoint.
 
         Returns:
-            List of validated BackpackRawOrder models from order history.
+            List of validated BackpackRawOrderResponse models from order history.
 
         Raises:
             APIError: If validation of order data fails.
@@ -247,7 +247,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             status_code,
         )
 
-        validated_orders: list[BackpackRawOrder] = []
+        validated_orders: list[BackpackRawOrderResponse] = []
         for i, item in enumerate(validated_list):
             validated_item = ensure_dict_response(
                 item,
@@ -255,7 +255,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
                 status_code,
             )
             try:
-                validated_orders.append(BackpackRawOrder.model_validate(validated_item))
+                validated_orders.append(BackpackRawOrderResponse.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackTradingResponseHandler._handle_validation_error(
                     e,
@@ -309,13 +309,13 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         raw_response_content: RawJsonResponse,
         symbol: str | None,
         status_code: int,
-    ) -> list[BackpackRawFill]:
+    ) -> list[BackpackRawFillResponse]:
         """Validate the raw response for the Get Fills (/wapi/v1/history/fills) endpoint.
 
-        This endpoint returns BackpackRawFill format, different from BackpackRawPublicTrade.
+        This endpoint returns BackpackRawFillResponse format, different from BackpackRawPublicTrade.
 
         Returns:
-            List of validated BackpackRawFill models.
+            List of validated BackpackRawFillResponse models.
 
         Raises:
             APIError: If validation of fill data fails.
@@ -327,7 +327,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             status_code,
         )
 
-        validated_fills: list[BackpackRawFill] = []
+        validated_fills: list[BackpackRawFillResponse] = []
         for i, item in enumerate(validated_list):
             validated_item = ensure_dict_response(
                 item,
@@ -335,7 +335,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
                 status_code,
             )
             try:
-                validated_fills.append(BackpackRawFill.model_validate(validated_item))
+                validated_fills.append(BackpackRawFillResponse.model_validate(validated_item))
             except ValidationError as e:
                 raise BackpackTradingResponseHandler._handle_validation_error(
                     e,
@@ -349,11 +349,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         raw_response_content: RawJsonResponse,
         identifier: str,
         status_code: int,
-    ) -> BackpackRawOrder:
+    ) -> BackpackRawOrderResponse:
         """Validate the raw response for the Get Order Status endpoint.
 
         Returns:
-            Validated BackpackRawOrder model with current order status.
+            Validated BackpackRawOrderResponse model with current order status.
         """
         context = f"order status (id={identifier})"
         validated_data = ensure_dict_response(
@@ -362,7 +362,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             status_code,
         )
         try:
-            return BackpackRawOrder.model_validate(validated_data)
+            return BackpackRawOrderResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackTradingResponseHandler._handle_validation_error(
                 e,
@@ -375,14 +375,14 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         raw_response_content: RawJsonResponse,
         symbol: str | None,
         status_code: int,
-    ) -> list[BackpackRawOrder]:
+    ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Cancel All Orders endpoint.
 
         (DELETE /api/v1/orders/cancelAll).
         Expects a list of successfully cancelled orders.
 
         Returns:
-            List of validated BackpackRawOrder models for cancelled orders.
+            List of validated BackpackRawOrderResponse models for cancelled orders.
         """
         context = f"cancel all orders ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -391,7 +391,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             status_code,
         )
 
-        validated_orders: list[BackpackRawOrder] = []
+        validated_orders: list[BackpackRawOrderResponse] = []
         for i, item in enumerate(validated_list):
             # Skip non-dict items with logging, but ensure dict before validation
             try:
@@ -412,7 +412,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
                 continue  # Skip non-dict items, but don't fail the whole batch
 
             try:
-                validated_orders.append(BackpackRawOrder.model_validate(validated_item))
+                validated_orders.append(BackpackRawOrderResponse.model_validate(validated_item))
             except ValidationError as e:
                 # Log the specific item that failed validation but continue processing others
                 # to return successfully validated items if any.

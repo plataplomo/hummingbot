@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError, APIErrorCode, IErrorMapper
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetFundingRatesArgs,

@@ -21,7 +21,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsResponse,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
-from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade
 
 

@@ -14,9 +14,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_api_request_payloads import (
 from cyberdelta.apis.hyperliquid.request_builders.hl_account_request_builder import (
     HyperliquidAccountRequestBuilder,
 )
-from cyberdelta.apis.models.service_args_models import (
-    TransferL2UsdArgs,
-    WithdrawL1Args,
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidTransferL2UsdArgs,
+    HyperliquidWithdrawL1Args,
 )
 
 
@@ -44,7 +44,7 @@ class TestHyperliquidAccountRequestBuilder:
         valid_destination_address: str,
     ) -> None:
         """Test building withdraw payload."""
-        args = WithdrawL1Args(
+        args = HyperliquidWithdrawL1Args(
             asset="USDC",
             amount=Decimal("100.0"),
             destination_address=valid_destination_address,
@@ -63,7 +63,7 @@ class TestHyperliquidAccountRequestBuilder:
         valid_destination_address: str,
     ) -> None:
         """Test building USD transfer payload."""
-        args = TransferL2UsdArgs(
+        args = HyperliquidTransferL2UsdArgs(
             destination_address=valid_destination_address,
             amount=Decimal("50.0"),
         )
@@ -79,7 +79,7 @@ class TestHyperliquidAccountRequestBuilder:
         valid_destination_address: str,
     ) -> None:
         """Test building withdraw payload with large amount."""
-        args = WithdrawL1Args(
+        args = HyperliquidWithdrawL1Args(
             asset="USDC",
             destination_address=valid_destination_address,
             amount=Decimal("1000000.123456"),
@@ -98,7 +98,7 @@ class TestHyperliquidAccountRequestBuilder:
         valid_destination_address: str,
     ) -> None:
         """Test building USD transfer payload with small amount."""
-        args = TransferL2UsdArgs(
+        args = HyperliquidTransferL2UsdArgs(
             destination_address=valid_destination_address,
             amount=Decimal("0.01"),
         )

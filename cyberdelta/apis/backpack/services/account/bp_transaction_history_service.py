@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackTransactionMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
     BackpackTradingRequestBuilder,
 )
@@ -31,7 +31,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     RequestConfiguration,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
-from cyberdelta.apis.models.service_args_models import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.apis.models.service_args import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order, Trade
@@ -410,7 +410,7 @@ class BackpackTransactionHistoryService:
             APIError: If response processing fails
         """
         # Handle response through response handler
-        raw_orders_list: list[BackpackRawOrder] = (
+        raw_orders_list: list[BackpackRawOrderResponse] = (
             self._response_handler.handle_get_order_history_response(
                 raw_data,
                 args.symbol,

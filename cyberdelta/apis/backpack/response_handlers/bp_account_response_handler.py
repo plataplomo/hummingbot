@@ -18,15 +18,15 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_limits import (
     BackpackRawMaxBorrowQuantity,
     BackpackRawMaxOrderQuantity,
     BackpackRawMaxWithdrawalQuantity,
 )
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
 )
@@ -140,11 +140,11 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     def handle_get_balances_response(
         raw_response_content: RawJsonResponse,
         status_code: int,
-    ) -> dict[str, BackpackRawBalance]:
+    ) -> dict[str, BackpackRawBalanceResponse]:
         """Validate the raw response for the Get Balances endpoint.
 
         Returns:
-            Dictionary mapping asset symbols to BackpackRawBalance models.
+            Dictionary mapping asset symbols to BackpackRawBalanceResponse models.
 
         Raises:
             APIError: If validation fails or response format is invalid.
@@ -156,7 +156,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
             status_code,
         )
 
-        validated_balances: dict[str, BackpackRawBalance] = {}
+        validated_balances: dict[str, BackpackRawBalanceResponse] = {}
         # validated_data is known to be a dict here
         for asset_symbol, balance_details in validated_data.items():
             # Ensure balance_details is dict before validating
@@ -167,7 +167,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
             )
             try:
                 # Ensure asset_symbol is string for the key
-                validated_balances[str(asset_symbol)] = BackpackRawBalance.model_validate(
+                validated_balances[str(asset_symbol)] = BackpackRawBalanceResponse.model_validate(
                     validated_balance,
                 )
             except ValidationError as e:
@@ -184,20 +184,20 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         raw_response_content: RawJsonResponse,
         symbol: str | None,
         status_code: int,
-    ) -> list[BackpackRawPosition]:
+    ) -> list[BackpackRawPositionResponse]:
         """Validate the raw response for the Get Positions endpoint.
 
         Handles a single position dictionary if a symbol is provided,
         or a list of position dictionaries if no symbol is provided.
 
         Returns:
-            List of validated BackpackRawPosition models.
+            List of validated BackpackRawPositionResponse models.
 
         Raises:
             APIError: If symbol not found or validation of position data fails.
         """
         context = f"positions ({symbol or 'all'})"
-        validated_positions: list[BackpackRawPosition] = []
+        validated_positions: list[BackpackRawPositionResponse] = []
 
         validated_list = ensure_list_response(
             raw_response_content,
@@ -212,7 +212,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
                 status_code,
             )
             try:
-                position = BackpackRawPosition.model_validate(validated_item)
+                position = BackpackRawPositionResponse.model_validate(validated_item)
                 if symbol is None or position.symbol == symbol:
                     validated_positions.append(position)
             except ValidationError as e:
@@ -233,11 +233,11 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     def handle_get_account_info_response(
         raw_response_content: RawJsonResponse,
         status_code: int,
-    ) -> BackpackRawAccountSummary:
+    ) -> BackpackRawAccountSummaryResponse:
         """Validate the raw response for the Get Account Info endpoint.
 
         Returns:
-            Validated BackpackRawAccountSummary model.
+            Validated BackpackRawAccountSummaryResponse model.
 
         Raises:
             APIError: If validation of account data fails.
@@ -249,7 +249,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
             status_code,
         )
         try:
-            return BackpackRawAccountSummary.model_validate(validated_data)
+            return BackpackRawAccountSummaryResponse.model_validate(validated_data)
         except ValidationError as e:
             raise BackpackAccountResponseHandler._handle_validation_error(
                 e,

@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import AccountSettings, BackpackAccountSettingsDetails
 

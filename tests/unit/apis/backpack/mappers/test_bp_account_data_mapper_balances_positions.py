@@ -21,13 +21,13 @@ from cyberdelta.apis.backpack.mappers.account.bp_account_summary_mapper import (
 )
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawImfFunction,
     BackpackRawMmfFunction,
 )
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
@@ -58,14 +58,14 @@ class CompositeAccountMapper:
         )
 
     def transform_raw_balance_to_internal(
-        self, asset: str, raw_balance: BackpackRawBalance
+        self, asset: str, raw_balance: BackpackRawBalanceResponse
     ) -> SpotBalance:
         """Transform raw balance to internal format."""
         return self.balance_mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
     # Delegate position methods
     def transform_raw_position_to_internal(
-        self, raw_position: BackpackRawPosition
+        self, raw_position: BackpackRawPositionResponse
     ) -> DerivativePosition:
         """Transform raw position to internal format."""
         return self.position_mapper.transform_raw_position_to_internal(raw_position)
@@ -73,9 +73,9 @@ class CompositeAccountMapper:
     # Delegate account summary methods
     def transform_raw_account_summary_to_internal(
         self,
-        raw_summary: BackpackRawAccountSummary,
-        spot_balances: dict[str, BackpackRawBalance],
-        positions: list[BackpackRawPosition],
+        raw_summary: BackpackRawAccountSummaryResponse,
+        spot_balances: dict[str, BackpackRawBalanceResponse],
+        positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
         """Transform raw account summary to internal format."""
         return self.account_summary_mapper.transform_raw_account_summary_to_internal(
@@ -97,13 +97,13 @@ def create_raw_balance(
     available: str = "1000.0",
     locked: str = "50.0",
     staked: str = "50.0",
-) -> BackpackRawBalance:
-    """Create BackpackRawBalance instances for testing.
+) -> BackpackRawBalanceResponse:
+    """Create BackpackRawBalanceResponse instances for testing.
 
     Returns:
-        BackpackRawBalance: Raw balance object for testing.
+        BackpackRawBalanceResponse: Raw balance object for testing.
     """
-    return BackpackRawBalance(
+    return BackpackRawBalanceResponse(
         available=available,
         locked=locked,
         staked=staked,
@@ -128,11 +128,11 @@ def create_raw_position(
     user_id: int = 12345,
     position_id: str = "pos123",
     cumulative_interest: str = "0.0",
-) -> BackpackRawPosition:
-    """Create BackpackRawPosition instances for testing.
+) -> BackpackRawPositionResponse:
+    """Create BackpackRawPositionResponse instances for testing.
 
     Returns:
-        BackpackRawPosition: Raw position object for testing.
+        BackpackRawPositionResponse: Raw position object for testing.
     """
     # Create minimal IMF and MMF function objects with correct parameters
     imf_function = BackpackRawImfFunction(
@@ -144,7 +144,7 @@ def create_raw_position(
         factor="0.0",
     )
 
-    return BackpackRawPosition(
+    return BackpackRawPositionResponse(
         symbol=symbol,
         subaccountId=0,  # Add missing required field
         breakEvenPrice=break_even_price,
@@ -183,13 +183,13 @@ def create_raw_account_summary(
     spot_maker_fee: str = "0.001",
     spot_taker_fee: str = "0.001",
     trigger_orders: int = 50,
-) -> BackpackRawAccountSummary:
-    """Create BackpackRawAccountSummary instances for testing.
+) -> BackpackRawAccountSummaryResponse:
+    """Create BackpackRawAccountSummaryResponse instances for testing.
 
     Returns:
-        BackpackRawAccountSummary: Raw account summary object for testing.
+        BackpackRawAccountSummaryResponse: Raw account summary object for testing.
     """
-    return BackpackRawAccountSummary.model_validate(
+    return BackpackRawAccountSummaryResponse.model_validate(
         {
             "autoBorrowSettlements": auto_borrow_settlements,
             "autoLend": auto_lend,
@@ -270,7 +270,7 @@ class TestBalanceTransformation:
         self,
         mapper: CompositeAccountMapper,
     ) -> None:
-        """Test successful transformation of BackpackRawBalance to SpotBalance."""
+        """Test successful transformation of BackpackRawBalanceResponse to SpotBalance."""
         raw_balance = create_raw_balance(available="900.0", locked="100.0", staked="100.0")
 
         result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
@@ -326,7 +326,7 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "BackpackRawBalanceResponse" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
             assert "locked is required for balance_field_validation" in str(exc_info.value)
 
@@ -359,7 +359,7 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "BackpackRawBalanceResponse" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
             assert "available is required for balance_field_validation" in str(exc_info.value)
 
@@ -392,7 +392,7 @@ class TestBalanceTransformation:
                 mapper.transform_raw_balance_to_internal("USDC", raw_balance)
 
             # Verify the error details
-            assert "BackpackRawBalance" in str(exc_info.value)
+            assert "BackpackRawBalanceResponse" in str(exc_info.value)
             assert "SpotBalance" in str(exc_info.value)
             assert "staked is required for balance_field_validation" in str(exc_info.value)
 
@@ -433,7 +433,7 @@ class TestPositionTransformation:
         self,
         mapper: CompositeAccountMapper,
     ) -> None:
-        """Test successful transformation of BackpackRawPosition to DerivativePosition."""
+        """Test successful transformation of BackpackRawPositionResponse to DerivativePosition."""
         raw_position = create_raw_position(
             symbol="SOL-USDC",
             break_even_price="100.25",
@@ -534,7 +534,7 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
             # Verify the error details
-            assert "BackpackRawPosition" in str(exc_info.value)
+            assert "BackpackRawPositionResponse" in str(exc_info.value)
             assert "DerivativePosition" in str(exc_info.value)
             assert "size is required for position_validation" in str(exc_info.value)
 
@@ -555,7 +555,7 @@ class TestPositionTransformation:
                 mapper.transform_raw_position_to_internal(raw_position)
 
             # Verify the error details
-            assert "BackpackRawPosition" in str(exc_info.value)
+            assert "BackpackRawPositionResponse" in str(exc_info.value)
             assert "DerivativePosition" in str(exc_info.value)
             assert "Invalid decimal value" in str(exc_info.value)
 

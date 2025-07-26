@@ -10,7 +10,7 @@ import pytest
 
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
     WithdrawArgs,

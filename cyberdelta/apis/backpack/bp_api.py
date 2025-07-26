@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
     from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
     from cyberdelta.apis.common import MessageHandler
-    from cyberdelta.apis.models.service_args_models import (
+    from cyberdelta.apis.models.service_args import (
         CancelOrderArgs,
         GetAllOpenOrdersArgs,
         GetFundingRatesArgs,

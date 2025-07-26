@@ -19,7 +19,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.apis.models.service_args_models import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.apis.models.service_args import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 

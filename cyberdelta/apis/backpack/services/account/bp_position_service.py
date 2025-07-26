@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackPositionMapper
-from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPosition
+from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
     BackpackAccountRequestBuilder,
 )
@@ -145,7 +145,9 @@ class BackpackPositionService:
         else:
             return internal_positions
 
-    async def _get_raw_positions_list(self, symbol: str | None = None) -> list[BackpackRawPosition]:
+    async def _get_raw_positions_list(
+        self, symbol: str | None = None
+    ) -> list[BackpackRawPositionResponse]:
         """Fetch raw position data from the API.
 
         Args:
@@ -241,7 +243,7 @@ class BackpackPositionService:
 
     async def _transform_raw_positions(
         self,
-        raw_positions: list[BackpackRawPosition],
+        raw_positions: list[BackpackRawPositionResponse],
         symbol: str | None,
     ) -> list[DerivativePosition]:
         """Transform raw position data to internal models.

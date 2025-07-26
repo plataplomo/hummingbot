@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 # Project-specific imports
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
@@ -65,18 +65,18 @@ def create_raw_order(
     created_at: str | None = None,
     updated_at: str | None = None,
     avg_fill_price: str | None = None,
-) -> BackpackRawOrder:
-    """Create a BackpackRawOrder with customizable parameters.
+) -> BackpackRawOrderResponse:
+    """Create a BackpackRawOrderResponse with customizable parameters.
 
     Returns:
-        BackpackRawOrder: A raw order object with the specified parameters.
+        BackpackRawOrderResponse: A raw order object with the specified parameters.
     """
     if created_at is None:
         created_at = datetime.now(UTC).isoformat()
     if updated_at is None:
         updated_at = datetime.now(UTC).isoformat()
 
-    return BackpackRawOrder(
+    return BackpackRawOrderResponse(
         id=order_id,
         clientId=client_id,
         relatedOrderId=None,

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
@@ -31,8 +31,8 @@ class TestBackpackAccountServiceBalances:
         mock_raw_response_data_dict: ParsedJsonResponse = {
             "USDC": {"available": "1000.5", "locked": "10.0"},
         }
-        mock_validated_raw_balances_dict: dict[str, BackpackRawBalance] = {
-            "USDC": BackpackRawBalance(available="1000.5", locked="10.0", staked="0"),
+        mock_validated_raw_balances_dict: dict[str, BackpackRawBalanceResponse] = {
+            "USDC": BackpackRawBalanceResponse(available="1000.5", locked="10.0", staked="0"),
         }
 
         # Mock request builder to return a valid params object
@@ -82,9 +82,9 @@ class TestBackpackAccountServiceBalances:
             mock_headers,
         )
 
-        mock_raw_balances_payload: dict[str, BackpackRawBalance] = {
-            "USDC": BackpackRawBalance(available="1000.5", locked="10.0", staked="0"),
-            "SOL": BackpackRawBalance(available="50.2", locked="0.5", staked="0"),
+        mock_raw_balances_payload: dict[str, BackpackRawBalanceResponse] = {
+            "USDC": BackpackRawBalanceResponse(available="1000.5", locked="10.0", staked="0"),
+            "SOL": BackpackRawBalanceResponse(available="50.2", locked="0.5", staked="0"),
         }
         mock_response_handler.handle_get_balances_response.return_value = mock_raw_balances_payload
 

@@ -14,8 +14,8 @@ from typing import Any
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_market import (
-    BackpackRawTicker,
     BackpackRawTickerEvent,
+    BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TickerMapperProtocol
 from cyberdelta.apis.exceptions import TickerTransformationError
@@ -39,10 +39,10 @@ class BackpackTickerMapper(TickerMapperProtocol):
 
     @staticmethod
     def transform_raw_ticker_to_internal(
-        raw_ticker: BackpackRawTicker,
+        raw_ticker: BackpackRawTickerResponse,
         symbol_override: str | None = None,
     ) -> Ticker:
-        """Transform a BackpackRawTicker to an Internal Ticker model.
+        """Transform a BackpackRawTickerResponse to an Internal Ticker model.
 
         Args:
             raw_ticker: Validated raw ticker data from Backpack
@@ -155,7 +155,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
 
         except Exception as e:
             raise TickerTransformationError(
-                ticker_source="BackpackRawTicker",
+                ticker_source="BackpackRawTickerResponse",
                 reason=str(e),
                 symbol=symbol,
                 original_error=e,

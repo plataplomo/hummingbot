@@ -18,7 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import (
     BackpackRawCollateralResponse,
 )
@@ -86,9 +86,9 @@ def balance_service(
 
 
 @pytest.fixture
-def mock_raw_balance() -> BackpackRawBalance:
+def mock_raw_balance() -> BackpackRawBalanceResponse:
     """Create a mock raw balance."""
-    return BackpackRawBalance(
+    return BackpackRawBalanceResponse(
         available="1000.00",
         locked="100.00",
         staked="0.00",
@@ -154,7 +154,7 @@ class TestBackpackBalanceService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_spot_balance: SpotBalance,
     ) -> None:
         """Test successful balance retrieval."""
@@ -170,7 +170,7 @@ class TestBackpackBalanceService:
             (raw_collateral_response, 200, {}),
         ]
 
-        # Response handler returns dict of asset -> BackpackRawBalance
+        # Response handler returns dict of asset -> BackpackRawBalanceResponse
         validated_balances = {"USDC": mock_raw_balance}
         mock_response_handler.handle_get_balances_response.return_value = validated_balances
 
@@ -193,7 +193,7 @@ class TestBackpackBalanceService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_spot_balance: SpotBalance,
         mock_collateral_response: BackpackRawCollateralResponse,
     ) -> None:
@@ -319,7 +319,7 @@ class TestBackpackBalanceService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_balance: BackpackRawBalanceResponse,
     ) -> None:
         """Test balance retrieval with transformation error."""
         # Arrange - dict format
@@ -347,7 +347,7 @@ class TestBackpackBalanceService:
         mock_http_client: AsyncMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_spot_balance: SpotBalance,
     ) -> None:
         """Test that balance retrieval continues when collateral data validation fails."""
@@ -399,7 +399,7 @@ class TestBackpackBalanceService:
         """Test auto-lending scenario where all balances are zero."""
         # Arrange
         # Create a zero balance to trigger auto-lending detection
-        zero_balance = BackpackRawBalance(
+        zero_balance = BackpackRawBalanceResponse(
             available="0.00",
             locked="0.00",
             staked="0.00",
@@ -475,13 +475,13 @@ class TestBackpackBalanceService:
     ) -> None:
         """Test that zero balances are included in the result."""
         # Arrange
-        zero_balance = BackpackRawBalance(
+        zero_balance = BackpackRawBalanceResponse(
             available="0.00",
             locked="0.00",
             staked="0.00",
         )
 
-        non_zero_balance = BackpackRawBalance(
+        non_zero_balance = BackpackRawBalanceResponse(
             available="100.00",
             locked="0.00",
             staked="0.00",
@@ -574,7 +574,7 @@ class TestBackpackBalanceService:
         mock_request_builder: MagicMock,
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
-        mock_raw_balance: BackpackRawBalance,
+        mock_raw_balance: BackpackRawBalanceResponse,
         mock_spot_balance: SpotBalance,
     ) -> None:
         """Test balance retrieval when authenticator is None."""

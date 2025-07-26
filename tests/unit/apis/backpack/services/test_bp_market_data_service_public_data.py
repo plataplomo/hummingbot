@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawOrderBook,
-    BackpackRawTicker,
+    BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
@@ -203,7 +203,7 @@ class TestBackpackMarketDataServicePublicData:
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            BackpackRawTicker.model_validate({"invalid": "data"})
+            BackpackRawTickerResponse.model_validate({"invalid": "data"})
         except ValidationError as validation_error:
             # Mock the price ticker service to raise the validation error
             with patch.object(

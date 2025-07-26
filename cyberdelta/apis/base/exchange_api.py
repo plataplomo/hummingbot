@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
     from cyberdelta.apis.base.rate_limit_strategy_interface import RateLimitStrategy
-    from cyberdelta.apis.models.service_args_models import (
+    from cyberdelta.apis.models.service_args import (
         CancelOrderArgs,
         GetAllOpenOrdersArgs,
         GetFundingRatesArgs,

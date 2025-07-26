@@ -31,7 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     AccountSummaryMapperProtocol,
 )
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import (
     AccountSettings,

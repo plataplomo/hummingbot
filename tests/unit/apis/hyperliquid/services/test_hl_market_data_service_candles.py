@@ -10,7 +10,8 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
-from cyberdelta.apis.models.service_args_models import GetCandleSnapshotArgs, GetMarketDataArgs
+from cyberdelta.apis.models.service_args import GetMarketDataArgs
+from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.core.models.market.candle import Candle
 
 
@@ -259,7 +260,7 @@ class TestHyperliquidMarketDataServiceCandles:
         assert "Request timeout while fetching market data" in exc_info.value.message
 
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            GetCandleSnapshotArgs(
+            HyperliquidGetCandleSnapshotArgs(
                 symbol=symbol,
                 timeframe=interval,
                 start_time_ms=start_time_ms,
@@ -303,7 +304,7 @@ class TestHyperliquidMarketDataServiceCandles:
         assert isinstance(exc_info.value.__cause__, KeyError)
 
         mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-            GetCandleSnapshotArgs(
+            HyperliquidGetCandleSnapshotArgs(
                 symbol=symbol,
                 timeframe=interval,
                 start_time_ms=start_time_ms,
@@ -741,7 +742,7 @@ class TestHyperliquidMarketDataServiceCandles:
 
             # Verify request builder was called with correct parameters
             mock_hl_request_builder.build_candle_snapshot_payload.assert_called_once_with(
-                GetCandleSnapshotArgs(
+                HyperliquidGetCandleSnapshotArgs(
                     symbol=symbol,
                     timeframe=interval,
                     start_time_ms=start_time_ms,

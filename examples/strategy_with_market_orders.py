@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.models.service_args_models import PlaceOrderArgs
+from cyberdelta.apis.models.service_args import PlaceOrderArgs
 from cyberdelta.core.execution.orders import (
     InsufficientLiquidityError,
     MarketOrder,

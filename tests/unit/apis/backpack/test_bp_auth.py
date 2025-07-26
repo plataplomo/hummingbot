@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pydantic import SecretStr
 
 from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
-from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackWsSignatureComponents
+from cyberdelta.apis.backpack.models.bp_ws_payloads import BackpackRawWsSignatureComponents
 from cyberdelta.apis.base.authenticator_interface import AuthenticatedRequestComponents
 from cyberdelta.apis.exceptions.authentication import InvalidAPIKeyError, InvalidPrivateKeyError
 
@@ -313,8 +313,8 @@ class TestBackpackEd25519Authenticator:
 
         components = auth.get_ws_subscription_signature_components(subscription_type="account")
 
-        # Verify it returns BackpackWsSignatureComponents
-        assert isinstance(components, BackpackWsSignatureComponents)
+        # Verify it returns BackpackRawWsSignatureComponents
+        assert isinstance(components, BackpackRawWsSignatureComponents)
         assert components.api_key == test_ed25519_keys["public_key_b64"]
         assert components.timestamp == "1678886400000"
         assert components.window == "5000"
@@ -336,7 +336,7 @@ class TestBackpackEd25519Authenticator:
             symbol="SOL_USDC",
         )
 
-        assert isinstance(components, BackpackWsSignatureComponents)
+        assert isinstance(components, BackpackRawWsSignatureComponents)
         assert components.api_key == test_ed25519_keys["public_key_b64"]
         assert len(components.signature) > 0
 

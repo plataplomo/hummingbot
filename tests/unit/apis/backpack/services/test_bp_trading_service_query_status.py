@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrder
+from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetOpenOrdersParams,
 )
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetAllOpenOrdersArgs,
     GetOrderArgs,
 )
@@ -66,7 +66,7 @@ class TestBackpackTradingServiceQueryStatus:
         }
 
         # Validate order data structure
-        BackpackRawOrder.model_validate(order_data_1)
+        BackpackRawOrderResponse.model_validate(order_data_1)
         mock_internal_orders = [MagicMock()]
 
         # Mock the order query service since business logic delegates to it
@@ -123,7 +123,7 @@ class TestBackpackTradingServiceQueryStatus:
 
         # Create a ValidationError by trying to validate invalid data
         try:
-            BackpackRawOrder.model_validate({"invalid": "data"})
+            BackpackRawOrderResponse.model_validate({"invalid": "data"})
         except ValidationError as validation_error:
             # Mock the order query service to raise the validation error
             with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
@@ -199,7 +199,7 @@ class TestBackpackTradingServiceQueryStatus:
             "origin": "API",
         }
 
-        BackpackRawOrder.model_validate(order_data_2)
+        BackpackRawOrderResponse.model_validate(order_data_2)
         mock_internal_order = MagicMock()
 
         # Mock the order query service since business logic delegates to it
@@ -254,7 +254,7 @@ class TestBackpackTradingServiceQueryStatus:
         # Create a ValidationError by trying to validate invalid data
         validation_error = None
         try:
-            BackpackRawOrder.model_validate({"invalid": "data"})
+            BackpackRawOrderResponse.model_validate({"invalid": "data"})
         except ValidationError as e:
             validation_error = e
 
@@ -343,7 +343,7 @@ class TestBackpackTradingServiceQueryStatus:
         client_order_id = "client_order_123"
         MagicMock()
 
-        BackpackRawOrder.model_validate({
+        BackpackRawOrderResponse.model_validate({
             "id": order_id,
             "clientId": client_order_id,
             "relatedOrderId": "order_123",
@@ -433,7 +433,7 @@ class TestBackpackTradingServiceQueryStatus:
         # Create a ValidationError by trying to validate invalid data
         validation_error = None
         try:
-            BackpackRawOrder.model_validate({"invalid": "data"})
+            BackpackRawOrderResponse.model_validate({"invalid": "data"})
         except ValidationError as e:
             validation_error = e
 

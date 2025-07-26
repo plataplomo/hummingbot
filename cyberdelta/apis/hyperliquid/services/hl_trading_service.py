@@ -38,7 +38,7 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_placement_service imp
 from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import (
     HyperliquidOrderQueryService,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
     GetAllOpenOrdersArgs,
     GetOrderArgs,

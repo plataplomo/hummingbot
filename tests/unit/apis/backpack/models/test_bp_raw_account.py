@@ -9,7 +9,10 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawAccount, BackpackRawBalance
+from cyberdelta.apis.backpack.models.bp_raw_account import (
+    BackpackRawAccount,
+    BackpackRawBalanceResponse,
+)
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
@@ -153,8 +156,8 @@ def valid_balance() -> dict[str, Any]:
 
 
 def test_BackpackRawBalance_happy_path() -> None:
-    """Test BackpackRawBalance happy path."""
-    obj = BackpackRawBalance.model_validate(valid_balance())
+    """Test BackpackRawBalanceResponse happy path."""
+    obj = BackpackRawBalanceResponse.model_validate(valid_balance())
     assert obj.available == "1000.0"
     assert obj.locked == "0.0"
     assert obj.staked == "0.0"
@@ -163,11 +166,11 @@ def test_BackpackRawBalance_happy_path() -> None:
 # Schema-driven: Required fields
 @pytest.mark.parametrize("missing_field", ["available", "locked", "staked"])
 def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
-    """Test BackpackRawBalance missing required fields."""
+    """Test BackpackRawBalanceResponse missing required fields."""
     p: dict[str, Any] = valid_balance().copy()
     del p[missing_field]
     with pytest.raises(ValidationError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)
 
 
 # Schema-driven: Decimal edge cases
@@ -183,16 +186,16 @@ def test_BackpackRawBalance_missing_required_fields(missing_field: str) -> None:
     ],
 )
 def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pass: bool) -> None:
-    """Test BackpackRawBalance decimal edge cases."""
+    """Test BackpackRawBalanceResponse decimal edge cases."""
     # Scientific notation is allowed for decimal fields (project policy)
     p = valid_balance().copy()
     p[field] = value
     if should_pass:
-        obj = BackpackRawBalance.model_validate(p)
+        obj = BackpackRawBalanceResponse.model_validate(p)
         assert getattr(obj, field) == value
     else:
         with pytest.raises(ValidationError):
-            BackpackRawBalance.model_validate(p)
+            BackpackRawBalanceResponse.model_validate(p)
 
 
 # Adversarial: Empty, whitespace, overlong, unicode, emoji, XSS, SQLi
@@ -207,31 +210,31 @@ def test_BackpackRawBalance_decimal_edge_cases(field: str, value: str, should_pa
     ],
 )
 def test_BackpackRawBalance_adversarial_strings(field: str, value: object) -> None:
-    """Test BackpackRawBalance adversarial strings."""
+    """Test BackpackRawBalanceResponse adversarial strings."""
     p = valid_balance().copy()
     p[field] = value
     # Empty strings raise EmptyStringError, others raise ValidationError
     if isinstance(value, str) and not value.strip():
         with pytest.raises(EmptyStringError):
-            BackpackRawBalance.model_validate(p)
+            BackpackRawBalanceResponse.model_validate(p)
     else:
         # All other adversarial strings should raise ValidationError because
         # decimal fields must be parseable as numbers
         with pytest.raises(ValidationError):
-            BackpackRawBalance.model_validate(p)
+            BackpackRawBalanceResponse.model_validate(p)
 
 
 # Schema-driven: Extra field
 def test_BackpackRawBalance_extra_field() -> None:
-    """Test BackpackRawBalance extra field."""
+    """Test BackpackRawBalanceResponse extra field."""
     p: dict[str, Any] = valid_balance().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)
 
 
 def test_BackpackRawBalance_corruption_cases() -> None:
-    """Test BackpackRawBalance with creative corruption cases to ensure robust validation.
+    """Test BackpackRawBalanceResponse with creative corruption cases to ensure robust validation.
 
     Each case simulates a different form of data corruption or hostile input.
     """
@@ -263,7 +266,7 @@ def test_BackpackRawBalance_corruption_cases() -> None:
         p[field] = value
         # All corruption cases should raise either ValidationError or TypeError for invalid inputs
         try:
-            BackpackRawBalance.model_validate(p)
+            BackpackRawBalanceResponse.model_validate(p)
         except (ValidationError, TypeError):
             pass  # Expected - business logic correctly raises TypeError for wrong types
         else:
@@ -328,13 +331,13 @@ def test_BackpackRawAccount_corruption_garbled_unicode_email() -> None:
 
 
 def test_BackpackRawBalance_real_json_example() -> None:
-    """Validate BackpackRawBalance using a real JSON payload with edge values."""
+    """Validate BackpackRawBalanceResponse using a real JSON payload with edge values."""
     payload = {
         "available": "0.00000001",
         "locked": "99999999.99999998",
         "staked": "0.00000000",
     }
-    obj = BackpackRawBalance.model_validate(payload)
+    obj = BackpackRawBalanceResponse.model_validate(payload)
     assert obj.available == "0.00000001"
     assert obj.locked == "99999999.99999998"
     assert obj.staked == "0.00000000"
@@ -345,7 +348,7 @@ def test_BackpackRawBalance_corruption_null_available() -> None:
     p = valid_balance().copy()
     p["available"] = None
     with pytest.raises(TypeError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)
 
 
 def test_BackpackRawBalance_corruption_binary_available() -> None:
@@ -353,7 +356,7 @@ def test_BackpackRawBalance_corruption_binary_available() -> None:
     p = valid_balance().copy()
     p["available"] = b"\x00\x01"
     with pytest.raises(TypeError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)
 
 
 def test_BackpackRawBalance_corruption_nested_locked() -> None:
@@ -361,7 +364,7 @@ def test_BackpackRawBalance_corruption_nested_locked() -> None:
     p = valid_balance().copy()
     p["locked"] = {"foo": "bar"}
     with pytest.raises(TypeError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)
 
 
 def test_BackpackRawBalance_corruption_list_available() -> None:
@@ -369,7 +372,7 @@ def test_BackpackRawBalance_corruption_list_available() -> None:
     p = valid_balance().copy()
     p["available"] = ["1000.0"]
     with pytest.raises(TypeError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)
 
 
 def test_BackpackRawBalance_corruption_garbled_unicode_available() -> None:
@@ -378,4 +381,4 @@ def test_BackpackRawBalance_corruption_garbled_unicode_available() -> None:
     p["available"] = "1000.0\udce2\udc28\udc00"
     # Garbled unicode raises TypeFieldError
     with pytest.raises(TypeFieldError):
-        BackpackRawBalance.model_validate(p)
+        BackpackRawBalanceResponse.model_validate(p)

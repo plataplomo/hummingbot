@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import BackpackFundingRateMapper, BackpackMarketMapper
 from cyberdelta.apis.backpack.models.bp_raw_funding import BackpackRawFundingIntervalRate
-from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarket
+from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarketResponse
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
@@ -39,7 +39,7 @@ from cyberdelta.apis.exceptions.market_data_service import (
     NoFundingDataError,
     NullSymbolsError,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetFundingRatesArgs,
     GetMarketArgs,
     GetMarketsArgs,
@@ -176,11 +176,13 @@ class BackpackMarketMetadataService:
 
             validated_data = ensure_dict_response(raw_data, f"market ({symbol})", status_code)
 
-            raw_market_model: BackpackRawMarket = self._response_handler.handle_get_market_response(
-                validated_data,
-                symbol,
-                status_code,
-                headers,
+            raw_market_model: BackpackRawMarketResponse = (
+                self._response_handler.handle_get_market_response(
+                    validated_data,
+                    symbol,
+                    status_code,
+                    headers,
+                )
             )
             internal_market = self._market_mapper.transform_raw_market_to_internal(raw_market_model)
 
@@ -272,7 +274,7 @@ class BackpackMarketMetadataService:
 
             validated_data = ensure_list_response(raw_data, "markets", status_code)
 
-            raw_markets_list: list[BackpackRawMarket] = (
+            raw_markets_list: list[BackpackRawMarketResponse] = (
                 self._response_handler.handle_get_markets_response(
                     validated_data,
                     status_code,

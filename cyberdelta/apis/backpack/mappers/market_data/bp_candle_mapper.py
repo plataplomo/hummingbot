@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import CandleMapperProtocol
 from cyberdelta.apis.exceptions import CandleTransformationError, MissingRequiredFieldError
 from cyberdelta.config.structlog_config import get_logger
@@ -73,9 +73,9 @@ class BackpackCandleMapper(CandleMapperProtocol):
     def transform_raw_kline_to_internal(
         symbol: str,
         interval: str,
-        raw_kline: BackpackRawKline,
+        raw_kline: BackpackRawKlineResponse,
     ) -> Candle:
-        """Transform a BackpackRawKline to an Internal Candle model.
+        """Transform a BackpackRawKlineResponse to an Internal Candle model.
 
         Args:
             symbol: Symbol for the candle

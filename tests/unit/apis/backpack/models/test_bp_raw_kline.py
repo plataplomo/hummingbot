@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.exceptions.parsing import KlineTypeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
@@ -34,7 +34,7 @@ VALID_KLINE_LIST = [
 
 def test_valid_kline_list_parsing() -> None:
     """Test successful parsing of a valid kline list."""
-    kline = BackpackRawKline.model_validate(VALID_KLINE_LIST)
+    kline = BackpackRawKlineResponse.model_validate(VALID_KLINE_LIST)
 
     # Verify field values after validation and Pydantic coercion
     assert kline.start_time_ms == 1700000000000
@@ -66,11 +66,11 @@ def test_invalid_structure_input_type() -> None:
     """Test failure when input is not a list or tuple."""
     # Catch ValidationError and check message
     with pytest.raises(ValidationError) as exc_info:
-        BackpackRawKline.model_validate({"key": "value"})  # Dict input
+        BackpackRawKlineResponse.model_validate({"key": "value"})  # Dict input
     assert "Expected 12-element list/tuple" in str(exc_info.value)
 
     with pytest.raises(ValidationError) as exc_info_str:  # Use different var name
-        BackpackRawKline.model_validate("not_a_list")  # String input
+        BackpackRawKlineResponse.model_validate("not_a_list")  # String input
     assert "Expected 12-element list/tuple" in str(exc_info_str.value)
 
 
@@ -79,7 +79,7 @@ def test_invalid_structure_list_length() -> None:
     invalid_list_short = VALID_KLINE_LIST[:-1]  # Length 11
     # Catch ValueError and check substring
     with pytest.raises(ValueError) as exc_info_short:
-        BackpackRawKline.model_validate(invalid_list_short)
+        BackpackRawKlineResponse.model_validate(invalid_list_short)
     assert "Field 'kline data': Expected 12-element list/tuple, got length 11" in str(
         exc_info_short.value
     )
@@ -87,7 +87,7 @@ def test_invalid_structure_list_length() -> None:
     invalid_list_long = [*VALID_KLINE_LIST, "extra"]
     # Catch ValueError and check substring
     with pytest.raises(ValueError) as exc_info_long:
-        BackpackRawKline.model_validate(invalid_list_long)
+        BackpackRawKlineResponse.model_validate(invalid_list_long)
     assert "Field 'kline data': Expected 12-element list/tuple, got length 13" in str(
         exc_info_long.value
     )
@@ -176,7 +176,7 @@ def test_field_validation_failures(
     invalid_list[index] = invalid_value
 
     with pytest.raises(expected_exception) as exc_info:
-        BackpackRawKline.model_validate(invalid_list)
+        BackpackRawKlineResponse.model_validate(invalid_list)
 
     # Check the string representation of the caught exception for the expected message
     error_str = str(exc_info.value)

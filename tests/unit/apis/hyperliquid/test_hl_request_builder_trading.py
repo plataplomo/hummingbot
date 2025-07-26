@@ -20,10 +20,12 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 from cyberdelta.apis.hyperliquid.request_builders.hl_trading_request_builder import (
     HyperliquidTradingRequestBuilder,
 )
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     CancelOrderArgs,
-    GetOrderHistoryArgsHL,
     PlaceOrderArgs,
+)
+from cyberdelta.apis.models.service_args.hyperliquid import (
+    HyperliquidGetOrderHistoryArgs,
 )
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
@@ -89,7 +91,7 @@ class TestHyperliquidTradingRequestBuilder:
         valid_wallet_address: str,
     ) -> None:
         """Test building historical orders request payload."""
-        args = GetOrderHistoryArgsHL(
+        args = HyperliquidGetOrderHistoryArgs(
             wallet_address=valid_wallet_address,
             start_time_ms=1640995200000,  # 2022-01-01
             end_time_ms=1672531200000,  # 2023-01-01
@@ -106,7 +108,7 @@ class TestHyperliquidTradingRequestBuilder:
         valid_wallet_address: str,
     ) -> None:
         """Test building historical orders request with specific order ID."""
-        args = GetOrderHistoryArgsHL(
+        args = HyperliquidGetOrderHistoryArgs(
             wallet_address=valid_wallet_address,
             start_time_ms=1640995200000,  # 2022-01-01
             end_time_ms=1672531200000,  # 2023-01-01

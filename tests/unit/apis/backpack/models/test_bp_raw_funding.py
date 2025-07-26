@@ -12,7 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
-    BackpackRawFundingRate,
+    BackpackRawFundingRateResponse,
     BackpackRawMarkPrice,
 )
 from cyberdelta.apis.exceptions.parsing import TimestampYearRangeError
@@ -20,7 +20,7 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
-# --- BackpackRawFundingRate ---
+# --- BackpackRawFundingRateResponse ---
 def valid_funding_rate() -> dict[str, Any]:
     """Return valid funding rate for testing."""
     return {
@@ -34,7 +34,7 @@ def valid_funding_rate() -> dict[str, Any]:
 
 def test_BackpackRawFundingRate_happy_path() -> None:
     """Test BackpackRawFundingRate happy path."""
-    obj = BackpackRawFundingRate.model_validate(valid_funding_rate())
+    obj = BackpackRawFundingRateResponse.model_validate(valid_funding_rate())
     assert obj.symbol == "BTC_USDC"
     assert obj.funding_rate == "0.0001"
     assert obj.mark_price == "50000.0"
@@ -48,7 +48,7 @@ def test_BackpackRawFundingRate_missing_required_fields() -> None:
         p: dict[str, Any] = valid_funding_rate().copy()
         del p[field]
         with pytest.raises(ValidationError):
-            BackpackRawFundingRate.model_validate(p)
+            BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_wrong_type_fields() -> None:
@@ -56,11 +56,11 @@ def test_BackpackRawFundingRate_wrong_type_fields() -> None:
     p: dict[str, Any] = valid_funding_rate().copy()
     p["rate"] = [0.0001]
     with pytest.raises(TypeError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
     p = valid_funding_rate().copy()
     p["time"] = "notanint"
     with pytest.raises(DateTimeParsingError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_invalid_format_fields() -> None:
@@ -68,15 +68,15 @@ def test_BackpackRawFundingRate_invalid_format_fields() -> None:
     p: dict[str, Any] = valid_funding_rate().copy()
     p["rate"] = "1..0"
     with pytest.raises(ValidationError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
     p = valid_funding_rate().copy()
     p["symbol"] = ""
     with pytest.raises(EmptyStringError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
     # Scientific notation is allowed (project policy)
     p = valid_funding_rate().copy()
     p["rate"] = "1e-3"
-    obj = BackpackRawFundingRate.model_validate(p)
+    obj = BackpackRawFundingRateResponse.model_validate(p)
     assert obj.funding_rate == "1e-3"
 
 
@@ -85,7 +85,7 @@ def test_BackpackRawFundingRate_extra_field() -> None:
     p: dict[str, Any] = valid_funding_rate().copy()
     p["foo"] = 1
     with pytest.raises(ValidationError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_corruption_cases() -> None:
@@ -94,16 +94,16 @@ def test_BackpackRawFundingRate_corruption_cases() -> None:
     p: dict[str, Any] = valid_funding_rate().copy()
     p["markPrice"] = "notanumber"
     with pytest.raises(ValidationError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
     # Null required
     p = valid_funding_rate().copy()
     p["symbol"] = None
     with pytest.raises(TypeError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
     # Unicode/control chars
     p = valid_funding_rate().copy()
     p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawFundingRate.model_validate(p)
+    obj = BackpackRawFundingRateResponse.model_validate(p)
     assert "BTC_USDC" in obj.symbol
     # Truncated JSON
     bad_json = '{"symbol": "BTC_USDC", "rate": "0.0001"'
@@ -122,7 +122,7 @@ def test_BackpackRawFundingRate_real_json_example() -> None:
     }
     # The raw model should reject this timestamp as out of range
     with pytest.raises(TimestampYearRangeError):
-        BackpackRawFundingRate.model_validate(payload)
+        BackpackRawFundingRateResponse.model_validate(payload)
 
 
 def test_BackpackRawFundingRate_corruption_null_symbol() -> None:
@@ -130,7 +130,7 @@ def test_BackpackRawFundingRate_corruption_null_symbol() -> None:
     p = valid_funding_rate().copy()
     p["symbol"] = None
     with pytest.raises(TypeError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_corruption_binary_rate() -> None:
@@ -138,7 +138,7 @@ def test_BackpackRawFundingRate_corruption_binary_rate() -> None:
     p = valid_funding_rate().copy()
     p["rate"] = b"\x00\x01"
     with pytest.raises(TypeError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_corruption_nested_markPrice() -> None:
@@ -146,7 +146,7 @@ def test_BackpackRawFundingRate_corruption_nested_markPrice() -> None:
     p = valid_funding_rate().copy()
     p["markPrice"] = {"foo": "bar"}
     with pytest.raises(TypeError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_corruption_list_indexPrice() -> None:
@@ -154,7 +154,7 @@ def test_BackpackRawFundingRate_corruption_list_indexPrice() -> None:
     p = valid_funding_rate().copy()
     p["indexPrice"] = ["49999.0"]
     with pytest.raises(TypeError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 def test_BackpackRawFundingRate_corruption_garbled_unicode_symbol() -> None:
@@ -162,7 +162,7 @@ def test_BackpackRawFundingRate_corruption_garbled_unicode_symbol() -> None:
     p = valid_funding_rate().copy()
     p["symbol"] = "BTC_\udce2\udc28\udc00"
     with pytest.raises(TypeFieldError):
-        BackpackRawFundingRate.model_validate(p)
+        BackpackRawFundingRateResponse.model_validate(p)
 
 
 # --- BackpackRawMarkPrice ---

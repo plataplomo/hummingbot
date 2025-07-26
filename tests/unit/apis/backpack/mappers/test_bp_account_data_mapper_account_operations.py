@@ -21,7 +21,7 @@ import pytest
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.mappers.account.bp_transfer_mapper import BackpackTransferMapper
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionUpdate
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import (
     BackpackRawWithdrawalResponse,
@@ -193,13 +193,13 @@ def create_raw_fill(
     timestamp: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
     client_id: str | None = "client123",
-) -> BackpackRawFill:
-    """Create BackpackRawFill instances for testing fill data mapping.
+) -> BackpackRawFillResponse:
+    """Create BackpackRawFillResponse instances for testing fill data mapping.
 
     Returns:
-        BackpackRawFill: Test fill instance with specified parameters.
+        BackpackRawFillResponse: Test fill instance with specified parameters.
     """
-    return BackpackRawFill(
+    return BackpackRawFillResponse(
         tradeId=trade_id,
         symbol=symbol,
         side=side,
@@ -780,7 +780,7 @@ class TestWebSocketFillTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="Failed to transform BackpackRawFill to Trade",
+                match="Failed to transform BackpackRawFillResponse to Trade",
             ):
                 transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
 

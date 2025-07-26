@@ -7,11 +7,11 @@ import pytest
 import structlog.testing
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.models.bp_raw_market import (
-    BackpackRawMarket,
+    BackpackRawMarketResponse,
     BackpackRawOrderBook,
-    BackpackRawTicker,
+    BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
@@ -39,13 +39,15 @@ class TestHandleGetTickerResponse:
 
     def test_valid(self, valid_raw_ticker: dict[str, Any], symbol_spot: str) -> None:
         """Test handling a valid raw ticker response."""
-        ticker: BackpackRawTicker = BackpackMarketDataResponseHandler.handle_get_ticker_response(
-            cast("ParsedJsonResponse", valid_raw_ticker),
-            symbol_spot,
-            200,
-            {},
+        ticker: BackpackRawTickerResponse = (
+            BackpackMarketDataResponseHandler.handle_get_ticker_response(
+                cast("ParsedJsonResponse", valid_raw_ticker),
+                symbol_spot,
+                200,
+                {},
+            )
         )
-        assert isinstance(ticker, BackpackRawTicker)
+        assert isinstance(ticker, BackpackRawTickerResponse)
         assert ticker.symbol == symbol_spot
         assert ticker.first_price == "140.00"
         assert ticker.last_price == "140.50"
@@ -326,7 +328,7 @@ class TestHandleGetMarketDataResponse:
 
     def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: str) -> None:
         """Test handling a valid raw market data (klines) response."""
-        klines: list[BackpackRawKline] = (
+        klines: list[BackpackRawKlineResponse] = (
             BackpackMarketDataResponseHandler.handle_get_market_data_response(
                 cast("ParsedJsonResponse", valid_raw_market_data),
                 symbol_spot,
@@ -337,12 +339,12 @@ class TestHandleGetMarketDataResponse:
         )
         assert isinstance(klines, list)
         assert len(klines) == 2
-        assert isinstance(klines[0], BackpackRawKline)
+        assert isinstance(klines[0], BackpackRawKlineResponse)
         assert klines[0].start_time_ms == 1678886400000
         assert klines[0].open_price.quantize(10) == 138  # Decimal comparison
         assert klines[0].high_price.quantize(10) == Decimal(140)  # 139.5 quantizes to 140
 
-        assert isinstance(klines[1], BackpackRawKline)
+        assert isinstance(klines[1], BackpackRawKlineResponse)
         assert klines[1].start_time_ms == 1678886460000
         assert klines[1].close_price.quantize(10) == Decimal(140)  # 139.8 quantizes to 140
 
@@ -670,7 +672,7 @@ class TestHandleGetMarketsResponse:
         )
         assert isinstance(markets, list)
         assert len(markets) == 2
-        assert all(isinstance(market, BackpackRawMarket) for market in markets)
+        assert all(isinstance(market, BackpackRawMarketResponse) for market in markets)
         assert markets[0].symbol == "SOL_USDC"
         assert markets[0].base_symbol == "SOL"
         assert markets[0].quote_symbol == "USDC"
@@ -759,7 +761,7 @@ class TestHandleGetMarketsResponse:
             status_code=200,
         )
         assert len(markets) == 100
-        assert all(isinstance(market, BackpackRawMarket) for market in markets)
+        assert all(isinstance(market, BackpackRawMarketResponse) for market in markets)
         assert markets[0].symbol == "ASSET0_USDC"
         assert markets[99].symbol == "ASSET99_USDC"
 
@@ -787,7 +789,7 @@ class TestHandleGetMarketResponse:
             200,
             {},
         )
-        assert isinstance(market, BackpackRawMarket)
+        assert isinstance(market, BackpackRawMarketResponse)
         assert market.symbol == symbol_spot
         assert market.base_symbol == "SOL"
         assert market.quote_symbol == "USDC"
@@ -875,7 +877,7 @@ class TestHandleGetMarketResponse:
             200,
             {},
         )
-        assert isinstance(market, BackpackRawMarket)
+        assert isinstance(market, BackpackRawMarketResponse)
         assert market.symbol == symbol_spot
         assert market.filters.price.min_price == "0.001"
         assert market.filters.price.max_price == "10000.0"

@@ -18,7 +18,7 @@ from typing import Any, Protocol
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.exceptions.trading import OrderError
-from cyberdelta.apis.models.service_args_models import (
+from cyberdelta.apis.models.service_args import (
     GetOrderArgs,
     GetTradeHistoryArgs,
     PlaceOrderArgs,

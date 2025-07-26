@@ -3,31 +3,31 @@
 from decimal import Decimal
 from typing import Any, Protocol, runtime_checkable
 
-from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalance
-from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummary
+from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
+from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import (
     BackpackRawCollateralAsset,
     BackpackRawCollateralResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFill
+from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
-    BackpackRawFundingRate,
+    BackpackRawFundingRateResponse,
 )
-from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKline
+from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
-    BackpackRawMarket,
+    BackpackRawMarketResponse,
     BackpackRawOrderBook,
-    BackpackRawTicker,
     BackpackRawTickerEvent,
+    BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.models.bp_raw_order import (
-    BackpackRawOrder,
+    BackpackRawOrderResponse,
     BackpackRawOrderUpdate,
 )
 from cyberdelta.apis.backpack.models.bp_raw_position import (
-    BackpackRawPosition,
+    BackpackRawPositionResponse,
     BackpackRawPositionUpdate,
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
@@ -37,7 +37,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.backpack.protocols.base_protocols import MapperProtocol
-from cyberdelta.apis.models.service_args_models import UpdateAccountSettingsArgs
+from cyberdelta.apis.models.service_args import UpdateAccountSettingsArgs
 from cyberdelta.core.models import (
     AccountSettings,
     DerivativePosition,
@@ -75,7 +75,7 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str, raw: BackpackRawBalance
+        asset_symbol: str, raw: BackpackRawBalanceResponse
     ) -> SpotBalance:
         """Transform validated BackpackRawBalance to SpotBalance."""
         ...
@@ -98,8 +98,8 @@ class PositionMapperProtocol(MapperProtocol, Protocol):
     """
 
     @staticmethod
-    def transform_raw_position_to_internal(raw: BackpackRawPosition) -> DerivativePosition:
-        """Transform BackpackRawPosition to internal DerivativePosition."""
+    def transform_raw_position_to_internal(raw: BackpackRawPositionResponse) -> DerivativePosition:
+        """Transform BackpackRawPositionResponse to internal DerivativePosition."""
         ...
 
     @staticmethod
@@ -119,9 +119,9 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_account_summary_to_internal(
-        raw_settings: BackpackRawAccountSummary,
-        spot_balances_raw: dict[str, BackpackRawBalance],
-        derivative_positions_raw: list[BackpackRawPosition],
+        raw_settings: BackpackRawAccountSummaryResponse,
+        spot_balances_raw: dict[str, BackpackRawBalanceResponse],
+        derivative_positions_raw: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
         """Create basic margin account summary."""
         ...
@@ -129,8 +129,8 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
     @staticmethod
     def transform_enhanced_account_data_to_margin_summary(
         raw_collateral: BackpackRawCollateralResponse,
-        raw_settings: BackpackRawAccountSummary,
-        raw_positions: list[BackpackRawPosition],
+        raw_settings: BackpackRawAccountSummaryResponse,
+        raw_positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
         """Create enhanced MarginAccountSummary using collateral data."""
         ...
@@ -151,12 +151,12 @@ class TransactionMapperProtocol(MapperProtocol, Protocol):
     """
 
     @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: BackpackRawFill) -> Trade | None:
+    def transform_raw_fill_to_internal(raw_fill: BackpackRawFillResponse) -> Trade | None:
         """Transform fill data to internal Trade model."""
         ...
 
     @staticmethod
-    def transform_raw_order_to_internal(raw: BackpackRawOrder) -> Order:
+    def transform_raw_order_to_internal(raw: BackpackRawOrderResponse) -> Order:
         """Comprehensive order transformation with all fields."""
         ...
 
@@ -166,7 +166,9 @@ class TransactionMapperProtocol(MapperProtocol, Protocol):
         ...
 
     @staticmethod
-    def transform_ws_fill_event_to_internal_trade(raw_fill: BackpackRawFill) -> Trade | None:
+    def transform_ws_fill_event_to_internal_trade(
+        raw_fill: BackpackRawFillResponse,
+    ) -> Trade | None:
         """Transform WebSocket fill events to Trade."""
         ...
 
@@ -230,8 +232,8 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
         ...
 
     @staticmethod
-    def transform_raw_order_to_internal(raw_order: BackpackRawOrder) -> Order:
-        """Comprehensive order transformation from BackpackRawOrder."""
+    def transform_raw_order_to_internal(raw_order: BackpackRawOrderResponse) -> Order:
+        """Comprehensive order transformation from BackpackRawOrderResponse."""
         ...
 
     @staticmethod
@@ -260,7 +262,7 @@ class TickerMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_ticker_to_internal(
-        raw_ticker: BackpackRawTicker, symbol_override: str | None = None
+        raw_ticker: BackpackRawTickerResponse, symbol_override: str | None = None
     ) -> Ticker:
         """Transform comprehensive ticker data from REST API."""
         ...
@@ -327,9 +329,9 @@ class CandleMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_kline_to_internal(
-        symbol: str, interval: str, raw_kline: BackpackRawKline
+        symbol: str, interval: str, raw_kline: BackpackRawKlineResponse
     ) -> Candle:
-        """Transform BackpackRawKline to internal Candle model."""
+        """Transform BackpackRawKlineResponse to internal Candle model."""
         ...
 
 
@@ -341,7 +343,9 @@ class FundingRateMapperProtocol(MarketDataMapperProtocol, Protocol):
     """
 
     @staticmethod
-    def transform_raw_funding_rate_to_internal(raw_funding: BackpackRawFundingRate) -> FundingRate:
+    def transform_raw_funding_rate_to_internal(
+        raw_funding: BackpackRawFundingRateResponse,
+    ) -> FundingRate:
         """Transform comprehensive funding rate data."""
         ...
 
@@ -361,6 +365,6 @@ class MarketMapperProtocol(MarketDataMapperProtocol, Protocol):
     """
 
     @staticmethod
-    def transform_raw_market_to_internal(raw_market: BackpackRawMarket) -> Market:
+    def transform_raw_market_to_internal(raw_market: BackpackRawMarketResponse) -> Market:
         """Transform market configuration to internal Market model."""
         ...

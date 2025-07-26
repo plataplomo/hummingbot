@@ -37,7 +37,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 )
 
 
-class BackpackRawPosition(BaseModel):
+class BackpackRawPositionResponse(BaseModel):
     """Pydantic model for a raw position object from `/api/v1/position` or WebSocket events.
 
     Mirrors the Backpack OpenAPI schema exactly, enforcing strict field validation.

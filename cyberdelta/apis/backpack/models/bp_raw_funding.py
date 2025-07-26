@@ -26,7 +26,7 @@ from cyberdelta.apis.backpack.models.bp_common_raw_types import (
 )
 
 
-class BackpackRawFundingRate(BaseModel):
+class BackpackRawFundingRateResponse(BaseModel):
     """Pydantic model for a raw funding rate object from `/api/v1/funding` (Backpack REST API).
 
     This model mirrors the Backpack OpenAPI schema, using common raw types for validation.
