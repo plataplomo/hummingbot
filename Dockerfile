@@ -72,8 +72,8 @@ RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master
     sed -i 's/ZSH_THEME="robbyrussell"/ZSH_THEME="agnoster"/' ~/.zshrc
 
 RUN npm install -g @anthropic-ai/claude-code
-
 RUN npm install -g @google/gemini-cli
+RUN npm install -g @upstash/context7-mcp
 
 # Create necessary directories
 RUN mkdir -p /app/data/state_backups /app/logs /app/config
@@ -97,6 +97,15 @@ RUN usermod -s /bin/zsh trader
 
 # Switch to non-root user
 USER trader
+
+# Create a custom aliases file that will be sourced by .zshrc
+RUN mkdir -p /home/trader/.config && \
+    echo '# Claude shortcuts' > /home/trader/.config/claude_aliases.zsh && \
+    echo 'alias yolo="claude --dangerously-skip-permissions"' >> /home/trader/.config/claude_aliases.zsh && \
+    echo 'alias claude-yolo="claude --dangerously-skip-permissions"' >> /home/trader/.config/claude_aliases.zsh && \
+    echo '' >> /home/trader/.zshrc && \
+    echo '# Source custom aliases' >> /home/trader/.zshrc && \
+    echo 'source ~/.config/claude_aliases.zsh' >> /home/trader/.zshrc
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
