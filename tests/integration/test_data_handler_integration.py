@@ -18,7 +18,7 @@ from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.service import SymbolService
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.timing]
@@ -26,8 +26,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 @pytest.fixture
 def mock_symbol_mapper() -> MagicMock:
-    """Provide a MagicMock for SymbolMapper that maps symbols to themselves."""
-    mapper_mock = MagicMock(spec=SymbolMapper)
+    """Provide a MagicMock for SymbolService that maps symbols to themselves."""
+    mapper_mock = MagicMock(spec=SymbolService)
 
     def identity_symbol_map(exchange_id: str, symbol: str) -> str:
         """Return the symbol unchanged for identity mapping."""

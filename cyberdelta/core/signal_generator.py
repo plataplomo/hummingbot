@@ -24,7 +24,8 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
     FundingRate,
     Ticker,
 )
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -64,20 +65,21 @@ class SignalGenerator:
         self,
         app_settings: AppSettings,
         data_handler: DataHandler,
-        symbol_mapper: SymbolMapper,
+        symbol_mapper: SymbolService,  # Now accepts SymbolService
     ) -> None:
         """Initialize the signal generator.
 
         Args:
             app_settings: Application configuration object containing strategy parameters.
             data_handler: DataHandler for market data.
-            symbol_mapper: SymbolMapper for translating symbols.
+            symbol_mapper: Symbol service (kept as symbol_mapper for compatibility).
 
         """
         logger.debug("SIGNAL_GENERATOR_TEST_LOG: Initializing SignalGenerator instance.")
         self.app_settings = app_settings
         self.data_handler = data_handler
-        self.symbol_mapper = symbol_mapper
+        self.symbol_service = symbol_mapper  # Internal reference uses proper name
+        self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
 
         # Configuration values from AppSettings
         # Use strategy configuration from the hl_perp_bp_spot strategy
@@ -113,7 +115,8 @@ class SignalGenerator:
 
     def _initialize_data_structures(self) -> None:
         """Initialize data structures for historical data using SymbolMapper."""
-        all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
+        all_unified_symbols = self.symbol_service.get_all_symbols()
+        all_internal_symbols = [symbol.internal for symbol in all_unified_symbols]
         # Use the exchanges from AppSettings structure
         configured_exchanges: list[str] = list(self.app_settings.exchanges.keys())
 
@@ -141,26 +144,38 @@ class SignalGenerator:
             self.historical_slippage[exchange_id] = {}  # Initialize historical slippage structure
             for internal_symbol in all_internal_symbols:
                 # Check if this exchange has a mapping for the internal symbol
-                exchange_symbol = self.symbol_mapper.get_exchange_symbol(
-                    internal_symbol,
+                exchange_symbol = self.symbol_helpers.resolve_for_exchange(
+                    internal_symbol.value,
                     exchange_id,
                 )
                 if exchange_symbol:
-                    self.historical_funding_rates[exchange_id][internal_symbol] = deque(
+                    self.historical_funding_rates[exchange_id][internal_symbol.value] = deque(
                         maxlen=self.funding_sample_count,  # Use maxlen
                     )
                     self.historical_slippage[exchange_id][
-                        internal_symbol
+                        internal_symbol.value
                     ] = []  # Initialize empty list
+                    # Enhanced logging with domain context
                     logger.debug(
                         "funding_deque_initialized",
                         action="init",
                         exchange_id=exchange_id,
                         internal_symbol=internal_symbol,
-                        exchange_symbol=exchange_symbol,
+                        exchange_symbol=exchange_symbol.value,
+                        base_asset=(
+                            exchange_symbol.internal_symbol.base_asset
+                            if exchange_symbol.internal_symbol
+                            else None
+                        ),
+                        market_type=(
+                            exchange_symbol.internal_symbol.market_type.value
+                            if exchange_symbol.internal_symbol
+                            else None
+                        ),
+                        is_indexed=exchange_symbol.is_indexed,
                         message=(
                             f"  Initialized funding deque for {exchange_id} / {internal_symbol} "
-                            f"(maps to {exchange_symbol})"
+                            f"(maps to {exchange_symbol.value})"
                         ),
                     )
                 #    logger.debug(
@@ -168,7 +183,7 @@ class SignalGenerator:
 
         # Initialize basis history using all known internal symbols
         for internal_symbol in all_internal_symbols:
-            self.historical_basis[internal_symbol] = deque(
+            self.historical_basis[internal_symbol.value] = deque(
                 maxlen=self.funding_sample_count,
             )  # Use maxlen
             logger.debug(
@@ -198,7 +213,8 @@ class SignalGenerator:
         Uses SymbolMapper for translation.
         """
         now = datetime.now(UTC)
-        all_internal_symbols = self.symbol_mapper.get_all_internal_symbols()
+        all_unified_symbols = self.symbol_service.get_all_symbols()
+        all_internal_symbols = [symbol.internal for symbol in all_unified_symbols]
 
         # Determine enabled exchanges directly from config
         enabled_exchanges = self._get_enabled_exchanges()
@@ -207,7 +223,8 @@ class SignalGenerator:
         self._update_funding_rate_history(enabled_exchanges, now)
 
         # Update basis history (price difference between exchanges)
-        self._update_basis_history(all_internal_symbols, enabled_exchanges, now)
+        all_internal_symbol_values = [symbol.value for symbol in all_internal_symbols]
+        self._update_basis_history(all_internal_symbol_values, enabled_exchanges, now)
 
     def _get_enabled_exchanges(self) -> list[str]:
         """Get list of enabled exchanges from configuration."""
@@ -232,23 +249,33 @@ class SignalGenerator:
         now: datetime,
     ) -> None:
         """Update funding rate for a single exchange/symbol combination."""
-        # Get the corresponding exchange symbol using the mapper
-        exchange_symbol = self.symbol_mapper.get_exchange_symbol(
+        # Get the corresponding exchange symbol using domain helpers
+        exchange_symbol_obj = self.symbol_helpers.resolve_for_exchange(
             internal_symbol,
             exchange_id,
         )
+        exchange_symbol = exchange_symbol_obj.value if exchange_symbol_obj else None
 
         if not exchange_symbol:
+            # Get available exchanges for better error context
+            unified_symbol = self.symbol_service.store.get_by_internal(internal_symbol)
+            available_exchanges = (
+                list(unified_symbol.exchange_mappings.keys()) if unified_symbol else []
+            )
+
             # This indicates a possible inconsistency if the symbol was present during init
             logger.error(
                 "symbol_mapping_inconsistency",
                 action="update",
                 internal_symbol=internal_symbol,
                 exchange_id=exchange_id,
+                available_exchanges=available_exchanges,
                 message=(
                     f"Symbol mapping inconsistency: Cannot find exchange symbol for "
                     f"internal symbol '{internal_symbol}' on '{exchange_id}', though it was "
-                    f"expected during initialization. Skipping update."
+                    f"expected during initialization. Available on: "
+                    f"{', '.join(available_exchanges) if available_exchanges else 'none'}. "
+                    f"Skipping update."
                 ),
             )
             return
@@ -328,16 +355,16 @@ class SignalGenerator:
 
         # Check all enabled exchanges
         for exchange_id in enabled_exchanges:
-            # Get exchange symbol using mapper
-            exchange_symbol = self.symbol_mapper.get_exchange_symbol(
+            # Get exchange symbol using domain helpers
+            exchange_symbol_obj = self.symbol_helpers.resolve_for_exchange(
                 internal_symbol,
                 exchange_id,
             )
 
-            if exchange_symbol:  # Check if mapping exists
+            if exchange_symbol_obj:  # Check if mapping exists
                 ticker_data: Ticker | None = self.data_handler.get_latest_ticker(
                     exchange_id,
-                    exchange_symbol,
+                    exchange_symbol_obj.value,
                 )
 
                 # Ensure market data and price are valid
@@ -353,13 +380,15 @@ class SignalGenerator:
                             "market_data_processing_failed",
                             action="update",
                             exchange_id=exchange_id,
-                            exchange_symbol=exchange_symbol,
+                            exchange_symbol=(
+                                exchange_symbol_obj.value if exchange_symbol_obj else None
+                            ),
                             internal_symbol=internal_symbol,
                             error=str(conversion_error),
                             message=(
-                                f"Could not process market data for "
-                                f"{exchange_id}/{exchange_symbol} "
-                                f"(Internal: {internal_symbol}): {conversion_error}"
+                                f"Could not process market data for {exchange_id}/"
+                                f"{exchange_symbol_obj.value if exchange_symbol_obj else 'unknown'}"
+                                f" (Internal: {internal_symbol}): {conversion_error}"
                             ),
                         )
                         # Do not add this exchange/ticker if price is invalid
@@ -621,9 +650,12 @@ class SignalGenerator:
             # Correctly fetch tickers using exchange-specific symbols
             current_tickers: dict[str, Ticker | None] = {}
             for exchange_id in relevant_exchanges:
-                exchange_specific_symbol = self.symbol_mapper.get_exchange_symbol(
+                exchange_symbol_obj = self.symbol_helpers.resolve_for_exchange(
                     internal_symbol,
                     exchange_id,
+                )
+                exchange_specific_symbol = (
+                    exchange_symbol_obj.value if exchange_symbol_obj else None
                 )
                 if not exchange_specific_symbol:
                     logger.warning(

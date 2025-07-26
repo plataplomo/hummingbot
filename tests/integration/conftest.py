@@ -89,7 +89,8 @@ from cyberdelta.core.risk_manager import (
     PortfolioTrackerProtocol,
 )
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbol_service import UnifiedSymbolService
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
@@ -307,7 +308,7 @@ def data_handler(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     real_portfolio_tracker: PortfolioTracker,
 ) -> DataHandler:
     """Create Data Handler instance with mock APIs registered.
@@ -332,26 +333,23 @@ def data_handler(
 
 # Define symbol_mapper fixture
 @pytest.fixture
-def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
-    """Provide a SymbolMapper instance initialized with mock config.
+def symbol_mapper(mock_config: AppSettings) -> SymbolService:
+    """Provide a SymbolService instance initialized with mock config.
 
     Returns:
-        SymbolMapper: Symbol mapper instance for testing.
+        SymbolService: Symbol service instance for testing.
     """
-    # Convert AppSettings exchanges config to dict format that SymbolMapper expects
-    # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
-    config_data_for_mapper: dict[str, Any] = {
-        exchange_name: {"symbols": exchange_config.symbols}
-        for exchange_name, exchange_config in mock_config.exchanges.items()
-    }
-    return SymbolMapper(config_data_for_mapper)
+    # Create a UnifiedSymbolService which returns the underlying SymbolService
+    # In real usage, the service is initialized with the global registry
+    unified_service = UnifiedSymbolService()
+    return unified_service.service
 
 
 @pytest.fixture
 def signal_generator(
     mock_config: AppSettings,
     data_handler: DataHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
 ) -> SignalGenerator:
     """Fixture for a SignalGenerator instance with mock data handler.
 
@@ -406,17 +404,13 @@ def execution_handler(
     Returns:
         ExecutionHandler: Execution handler with registered mock API clients.
     """
-    # Convert AppSettings exchanges config to dict format that SymbolMapper expects
-    # SymbolMapper expects {exchange_name: {"symbols": {...}}} format, not {"exchanges": {...}}
-    config_data_for_mapper_eh: dict[str, Any] = {
-        exchange_name: {"symbols": exchange_config.symbols}
-        for exchange_name, exchange_config in mock_config.exchanges.items()
-    }
-    symbol_mapper_instance = SymbolMapper(config_data_for_mapper_eh)
+    # Create a mock UnifiedSymbolService for testing
+    symbol_service = UnifiedSymbolService()
+    symbol_mapper_instance = symbol_service.service
     eh = ExecutionHandler(
         app_settings=mock_config,
         portfolio_tracker=real_portfolio_tracker,
-        symbol_mapper=symbol_mapper_instance,
+        symbol_service=symbol_mapper_instance,
         circuit_breaker_system=circuit_breaker_system,
     )
     eh.register_api_client("hyperliquid", mock_hl_api)

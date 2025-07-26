@@ -9,6 +9,7 @@ import aiohttp
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler
+from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
@@ -71,6 +72,8 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.symbols.exceptions import SymbolError
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
@@ -485,9 +488,53 @@ class HyperliquidAPI(ExchangeAPI):
     async def _get_asset_index(self, symbol: str) -> int | None:
         """Fetch or retrieve from cache the asset_index for a given symbol.
 
+        Uses the new unified symbol system with fallback to legacy asset indexer.
+
         Returns:
             Integer asset index for the given symbol, or None if symbol not found.
         """
+        # Try new symbol system first
+        try:
+            symbol_service = get_symbol_integration_service()
+
+            # Get internal symbol from exchange symbol
+            internal_symbol = await symbol_service.get_internal_symbol(
+                symbol, ExchangeName.HYPERLIQUID
+            )
+
+            # Get exchange symbol with asset index
+            exchange_symbol = await symbol_service.get_exchange_symbol(
+                internal_symbol.value, ExchangeName.HYPERLIQUID
+            )
+
+            # Return asset index if available
+            if hasattr(exchange_symbol, "asset_index") and exchange_symbol.asset_index is not None:
+                return exchange_symbol.asset_index
+
+        except SymbolError as e:
+            # Symbol not found in new system, fall back to legacy
+            logger.debug(
+                "symbol_system_fallback_to_legacy",
+                symbol=symbol,
+                error=str(e),
+                reason="symbol_error",
+            )
+        except (
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+            RuntimeError,
+        ) as e:
+            # Any other error, fall back to legacy
+            logger.debug(
+                "symbol_system_fallback_to_legacy",
+                symbol=symbol,
+                error=str(e),
+                reason="unexpected_error",
+            )
+
+        # Fallback to legacy asset indexer
         return await self._asset_indexer.get_asset_index_or_none(symbol)
 
     def _update_rate_limit_from_headers(

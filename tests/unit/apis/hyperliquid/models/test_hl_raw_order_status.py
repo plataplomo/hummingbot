@@ -72,7 +72,7 @@ def test_invalid_order_structure() -> None:
         "status": "open",
         "order": {
             "order": invalid_order_data,
-            "status": "open", 
+            "status": "open",
             "statusTimestamp": 1700000000000,
         },
     }

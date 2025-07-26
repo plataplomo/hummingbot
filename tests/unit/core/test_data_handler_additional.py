@@ -21,7 +21,7 @@ from cyberdelta.core.data_handler import (
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.service import SymbolService
 
 
 @pytest.fixture
@@ -49,14 +49,14 @@ def mock_portfolio_tracker() -> Mock:
 
 
 @pytest.fixture
-def mock_symbol_mapper() -> Mock:
-    """Create mock symbol mapper for testing."""
-    return Mock(spec=SymbolMapper)
+def mock_symbol_service() -> Mock:
+    """Create mock symbol service for testing."""
+    return Mock(spec=SymbolService)
 
 
 @pytest.fixture
 def data_handler(
-    mock_app_settings: Mock, mock_portfolio_tracker: Mock, mock_symbol_mapper: Mock
+    mock_app_settings: Mock, mock_portfolio_tracker: Mock, mock_symbol_service: Mock
 ) -> DataHandler:
     """Create a DataHandler instance for testing."""
     # Create a mock event loop to avoid the RuntimeError
@@ -65,7 +65,7 @@ def data_handler(
         app_settings=mock_app_settings,
         api_clients={},  # Start with empty api_clients dict
         portfolio_tracker=mock_portfolio_tracker,
-        symbol_mapper=mock_symbol_mapper,
+        symbol_mapper=mock_symbol_service,
         loop=mock_loop,
     )
 

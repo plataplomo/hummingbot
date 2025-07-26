@@ -106,7 +106,7 @@ class ServiceLifecycle(ABC):
                 "service_lifecycle_config_validation_failed",
                 service_name=service_name,
                 error=str(e),
-                fallback_to_default=True
+                fallback_to_default=True,
             )
             self.config = ServiceConfiguration(name=service_name)
 

@@ -33,7 +33,8 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.symbol_mapper import SymbolMapper  # IMPORT IS PRESENT
+from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.utils.parsing import parse_datetime_utc
 
 
@@ -99,19 +100,22 @@ class PortfolioTracker:
         self,
         app_settings: AppSettings,
         pt_config: PortfolioTrackerConfig,
-        symbol_mapper: SymbolMapper | None = None,
+        symbol_mapper: SymbolService | None = None,  # Now accepts SymbolService
     ) -> None:
         """Initialize the portfolio tracker.
 
         Args:
             app_settings: Application configuration
             pt_config: Portfolio tracker configuration
-            symbol_mapper: Symbol mapper instance
+            symbol_mapper: Symbol service (kept as symbol_mapper for compatibility)
 
         """
         self.logger = get_logger(__name__ + "." + self.__class__.__name__)
         self.app_settings: AppSettings = app_settings
-        self.symbol_mapper: SymbolMapper | None = symbol_mapper
+        # Internal reference uses proper name
+        self.symbol_service: SymbolService | None = symbol_mapper
+        if self.symbol_service:
+            self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
         self._lock = asyncio.Lock()  # Global lock for state consistency
         # Per-exchange locks for concurrent updates
         self._exchange_locks: dict[str, asyncio.Lock] = {}
@@ -859,25 +863,46 @@ class PortfolioTracker:
         return True
 
     def _get_base_symbol(self, exchange_id: str, trade: Trade) -> str:
-        """Get the base symbol for the trade."""
-        # Ensure symbol_mapper is available
-        if not hasattr(self, "symbol_mapper") or self.symbol_mapper is None:
-            logger.error("SymbolMapper not initialized in PortfolioTracker. Cannot process trade.")
+        """Get the base symbol for the trade using domain helpers."""
+        # Ensure symbol service is available
+        if not hasattr(self, "symbol_service") or self.symbol_service is None:
+            logger.error("SymbolService not initialized in PortfolioTracker. Cannot process trade.")
             # Attempt to get it from config if possible, or raise
-            # This indicates a setup issue if self.symbol_mapper is None.
+            # This indicates a setup issue if self.symbol_service is None.
             # For now, proceed with a basic fallback for base_symbol if absolutely necessary,
             # but this should be fixed by ensuring proper initialization.
             base_symbol = trade.symbol.split("-")[0].split("/")[0]  # Basic fallback
             logger.warning(
-                "symbol_mapper_missing_fallback",
+                "symbol_service_missing_fallback",
                 base_symbol=base_symbol,
-                message="SymbolMapper missing, using basic fallback for base symbol",
+                message="SymbolService missing, using basic fallback for base symbol",
             )
         else:
-            base_symbol = (
-                self.symbol_mapper.get_internal_symbol(trade.symbol, exchange_id)
-                or trade.symbol.split("-")[0].split("/")[0]
+            # Use domain helpers to resolve from exchange symbol to internal symbol
+            internal_symbol_obj = self.symbol_helpers.resolve_from_exchange(
+                trade.symbol, exchange_id
             )
+            if internal_symbol_obj:
+                # Use the base asset from the domain object
+                base_symbol = internal_symbol_obj.base_asset
+                logger.debug(
+                    "trade_symbol_resolved",
+                    exchange_symbol=trade.symbol,
+                    exchange_id=exchange_id,
+                    internal_symbol=internal_symbol_obj.value,
+                    base_asset=base_symbol,
+                    market_type=internal_symbol_obj.market_type.value,
+                )
+            else:
+                # Fallback if symbol not found
+                base_symbol = trade.symbol.split("-")[0].split("/")[0]
+                logger.warning(
+                    "trade_symbol_resolution_failed",
+                    exchange_symbol=trade.symbol,
+                    exchange_id=exchange_id,
+                    fallback_base=base_symbol,
+                    message="Could not resolve symbol through domain helpers, using fallback",
+                )
         return base_symbol
 
     async def _update_position_from_trade(

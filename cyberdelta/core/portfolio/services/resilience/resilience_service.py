@@ -74,7 +74,7 @@ class RetryConfig:
         if "initial_delay" in info.data and v <= info.data["initial_delay"]:
             raise ResilienceConfigurationError(
                 config_type="retry_delay",
-                invalid_relationship="max_delay must be greater than initial_delay"
+                invalid_relationship="max_delay must be greater than initial_delay",
             )
         return v
 
@@ -101,7 +101,7 @@ class CircuitBreakerConfig:
         if "failure_threshold" in info.data and v >= info.data["failure_threshold"]:
             raise CircuitBreakerThresholdError(
                 threshold_type="success_threshold",
-                invalid_relationship="must be less than failure_threshold"
+                invalid_relationship="must be less than failure_threshold",
             )
         return v
 
@@ -125,7 +125,7 @@ class HealthCheckConfig:
         if "check_interval" in info.data and v >= info.data["check_interval"]:
             raise ResilienceConfigurationError(
                 config_type="health_check_timeout",
-                invalid_relationship="timeout must be less than check_interval"
+                invalid_relationship="timeout must be less than check_interval",
             )
         return v
 

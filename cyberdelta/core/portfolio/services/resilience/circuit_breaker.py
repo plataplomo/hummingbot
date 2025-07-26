@@ -69,7 +69,7 @@ class CircuitBreakerConfig:
         if "failure_threshold" in info.data and v >= info.data["failure_threshold"]:
             raise CircuitBreakerThresholdError(
                 threshold_type="success_threshold",
-                invalid_relationship="must be less than failure_threshold"
+                invalid_relationship="must be less than failure_threshold",
             )
         return v
 

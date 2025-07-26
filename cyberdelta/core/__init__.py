@@ -17,7 +17,6 @@ from .risk_manager import RiskManager
 from .signal_generator import SignalGenerator
 from .signal_queue import PrioritySignalQueue  # Correct name
 from .strategy import Strategy
-from .symbol_mapper import SymbolMapper
 
 
 __all__ = [
@@ -35,7 +34,6 @@ __all__ = [
     "ShortExchangeCircuitBreakerError",
     "SignalGenerator",
     "Strategy",
-    "SymbolMapper",
     "SymbolMappingError",
     "TradeExecution",
 ]

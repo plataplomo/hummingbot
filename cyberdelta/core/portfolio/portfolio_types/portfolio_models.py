@@ -324,13 +324,8 @@ class PortfolioUpdate(BaseModel):
             "update_type": self.update_type,
             "exchange_id": self.exchange_id,
             "trades": [t.model_dump() for t in self.trades],
-            "balances": {
-                k: v.model_dump()
-                for k, v in self.balances.items()
-            },
-            "positions": [
-                p.model_dump() for p in self.positions
-            ],
+            "balances": {k: v.model_dump() for k, v in self.balances.items()},
+            "positions": [p.model_dump() for p in self.positions],
             "orders": [o.model_dump() for o in self.orders],
             "metrics": self.metrics,
             "errors": self.errors,

@@ -156,7 +156,7 @@ class TestDataHandlerInit:
         assert handler.app_settings == mock_app_settings
         assert handler.api_clients == mock_api_clients
         assert handler.portfolio_tracker == mock_portfolio_tracker
-        assert handler.symbol_mapper == mock_symbol_mapper
+        assert handler.symbol_service == mock_symbol_mapper
         assert isinstance(handler.loop, asyncio.AbstractEventLoop)
 
         # Check that tickers were initialized for configured exchanges and symbols

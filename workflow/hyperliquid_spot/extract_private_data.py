@@ -2,9 +2,10 @@
 """Extract private endpoint data from test runs for spot trading."""
 
 import json
+import subprocess
 import yaml
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 output_dir = Path("workflow/hyperliquid_spot/private_endpoints")
 output_dir.mkdir(parents=True, exist_ok=True)
@@ -47,7 +48,6 @@ if cassettes_dir.exists():
 
 # Now run a simple test to get real spot order error
 print("\nRunning a test to capture spot order response...")
-import subprocess
 
 # Run a spot order test
 result = subprocess.run([

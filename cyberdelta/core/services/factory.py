@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
     from cyberdelta.config.models.config_models import AppSettings
     from cyberdelta.core.services.interfaces import IAlertService
-    from cyberdelta.core.symbol_mapper import SymbolMapper
+    from cyberdelta.core.symbols.service import SymbolService
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
@@ -36,7 +36,7 @@ class ServiceFactory:
     def __init__(
         self,
         api_clients: dict[str, ExchangeAPI],
-        symbol_mapper: SymbolMapper,
+        symbol_mapper: SymbolService,  # Now accepts SymbolService
         app_settings: AppSettings,
         circuit_breaker: CircuitBreakerSystem | None = None,
         alert_service: IAlertService | None = None,
@@ -46,14 +46,14 @@ class ServiceFactory:
 
         Args:
             api_clients: Dictionary of exchange API clients
-            symbol_mapper: Symbol mapping service
+            symbol_mapper: Symbol service (kept as symbol_mapper for compatibility)
             app_settings: Application settings
             circuit_breaker: Optional circuit breaker system
             alert_service: Optional alert service
             logger: Optional logger instance
         """
         self.api_clients = api_clients
-        self.symbol_mapper = symbol_mapper
+        self.symbol_mapper = symbol_mapper  # Now holds SymbolService instance
         self.app_settings = app_settings
         self.circuit_breaker = circuit_breaker
         self.alert_service = alert_service

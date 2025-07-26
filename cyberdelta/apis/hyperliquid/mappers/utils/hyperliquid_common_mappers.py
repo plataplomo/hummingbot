@@ -9,8 +9,17 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, TypeGuard, TypeVar
 
+from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
 from cyberdelta.apis.exceptions.field_validation import FieldError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums.enums import MarketType
+from cyberdelta.core.symbols import create_internal_symbol
+from cyberdelta.core.symbols.exceptions import (
+    SymbolError,
+    SymbolNotFoundError,
+    SymbolRegistryError,
+    SymbolValidationError,
+)
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
@@ -85,10 +94,7 @@ class HyperliquidCommonMappers:
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        For Hyperliquid, this typically means converting to uppercase
-        and standardizing format.
+        """Normalize symbol to internal format using the new symbol system.
 
         Args:
             symbol: The symbol to normalize
@@ -99,18 +105,38 @@ class HyperliquidCommonMappers:
         if not symbol:
             return symbol
 
-        # Convert to uppercase and strip whitespace
-        normalized = symbol.upper().strip()
+        try:
+            symbol_service = get_symbol_integration_service()
+            return symbol_service.normalize_symbol(symbol, "hyperliquid")
+        except (
+            SymbolError,
+            SymbolNotFoundError,
+            SymbolRegistryError,
+            SymbolValidationError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+        ) as e:
+            # Fallback to legacy normalization
+            logger.debug(
+                "symbol_normalization_fallback",
+                symbol=symbol,
+                error=str(e),
+                fallback_method="legacy_normalization",
+            )
+            # Convert to uppercase and strip whitespace
+            normalized = symbol.upper().strip()
 
-        # Hyperliquid specific normalization
-        # For perpetuals, remove -PERP suffix if present
-        normalized = normalized.removesuffix("-PERP")
+            # Hyperliquid specific normalization
+            # For perpetuals, remove -PERP suffix if present
+            normalized = normalized.removesuffix("-PERP")
 
-        # Handle special cases
-        if normalized == "USDC-PERP":
-            normalized = "USDC"
+            # Handle special cases
+            if normalized == "USDC-PERP":
+                normalized = "USDC"
 
-        return normalized
+            return normalized
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
@@ -257,7 +283,7 @@ class HyperliquidCommonMappers:
 
     @staticmethod
     def is_valid_symbol(symbol: str) -> bool:
-        """Check if a symbol is valid for Hyperliquid.
+        """Check if a symbol is valid for Hyperliquid using the new symbol system.
 
         Args:
             symbol: Symbol to validate
@@ -268,16 +294,36 @@ class HyperliquidCommonMappers:
         if not symbol:
             return False
 
-        # Strip and check length
-        max_symbol_length = 20
-        min_symbol_length = 1
-        symbol = symbol.strip()
-        if len(symbol) < min_symbol_length or len(symbol) > max_symbol_length:
-            return False
+        try:
+            symbol_service = get_symbol_integration_service()
+            return symbol_service.validate_symbol(symbol, "hyperliquid")
+        except (
+            SymbolError,
+            SymbolNotFoundError,
+            SymbolRegistryError,
+            SymbolValidationError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+        ) as e:
+            # Fallback to legacy validation
+            logger.debug(
+                "symbol_validation_fallback",
+                symbol=symbol,
+                error=str(e),
+                fallback_method="legacy_validation",
+            )
+            # Strip and check length
+            max_symbol_length = 20
+            min_symbol_length = 1
+            symbol = symbol.strip()
+            if len(symbol) < min_symbol_length or len(symbol) > max_symbol_length:
+                return False
 
-        # Check for valid characters (alphanumeric, dash, underscore, slash)
-        # For Hyperliquid, symbols are typically simple (BTC, ETH) or with suffix (BTC-PERP)
-        return symbol.replace("-", "").replace("_", "").replace("/", "").isalnum()
+            # Check for valid characters (alphanumeric, dash, underscore, slash)
+            # For Hyperliquid, symbols are typically simple (BTC, ETH) or with suffix (BTC-PERP)
+            return symbol.replace("-", "").replace("_", "").replace("/", "").isalnum()
 
     # Mathematical Utilities
     @staticmethod
@@ -336,7 +382,7 @@ class HyperliquidCommonMappers:
     # Additional Utilities from Backpack Pattern
     @staticmethod
     def extract_base_quote_from_symbol(symbol: str) -> tuple[str, str] | None:
-        """Extract base and quote assets from a symbol.
+        """Extract base and quote assets from a symbol using the new symbol system.
 
         Args:
             symbol: Trading pair symbol (e.g., "BTC-PERP", "ETH", "BTC/USDC")
@@ -347,7 +393,33 @@ class HyperliquidCommonMappers:
         if not symbol:
             return None
 
-        # Handle different formats
+        try:
+            symbol_service = get_symbol_integration_service()
+            base_symbol = symbol_service.get_base_symbol(symbol)
+
+            # For Hyperliquid, most symbols are perpetuals with USDC quote
+            # TODO: Enhance this when quote asset detection is available in the new system
+        except (
+            SymbolError,
+            SymbolNotFoundError,
+            SymbolRegistryError,
+            SymbolValidationError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+        ) as e:
+            # Fallback to legacy parsing
+            logger.debug(
+                "symbol_base_quote_extraction_fallback",
+                symbol=symbol,
+                error=str(e),
+                fallback_method="legacy_parsing",
+            )
+        else:
+            return (base_symbol, "USDC")
+
+        # Handle different formats (fallback logic)
         symbol = symbol.upper().strip()
 
         # Remove -PERP suffix if present
@@ -377,7 +449,7 @@ class HyperliquidCommonMappers:
 
     @staticmethod
     def create_internal_symbol(base: str, quote: str) -> str:
-        """Create internal symbol format from base and quote.
+        """Create internal symbol format from base and quote using the new symbol system.
 
         Args:
             base: Base asset (e.g., "BTC")
@@ -386,7 +458,33 @@ class HyperliquidCommonMappers:
         Returns:
             Internal format symbol (e.g., "BTC/USDC")
         """
-        return f"{base.upper()}/{quote.upper()}"
+        try:
+            # Create internal symbol using the new system
+            internal_symbol = create_internal_symbol(
+                f"{base.upper()}/{quote.upper()}",
+                market_type=MarketType.PERP,  # Default for Hyperliquid
+            )
+        except (
+            SymbolError,
+            SymbolNotFoundError,
+            SymbolRegistryError,
+            SymbolValidationError,
+            ValueError,
+            KeyError,
+            AttributeError,
+            TypeError,
+        ) as e:
+            # Fallback to legacy format
+            logger.debug(
+                "internal_symbol_creation_fallback",
+                base=base,
+                quote=quote,
+                error=str(e),
+                fallback_method="legacy_format",
+            )
+            return f"{base.upper()}/{quote.upper()}"
+        else:
+            return internal_symbol.value
 
     @staticmethod
     def safe_divide(
@@ -488,9 +586,6 @@ class HyperliquidCommonMappers:
 
         try:
             parsed_value = parse_decimal_value(value=value, allow_none=True, field_name=field_name)
-            if parsed_value is not None:
-                return parsed_value
-
         except (ValueError, TypeError, InvalidOperation, AttributeError) as e:
             logger.warning(
                 "decimal_parsing_failed",
@@ -501,16 +596,18 @@ class HyperliquidCommonMappers:
                 message=f"Failed to parse decimal value for field '{field_name}', using default",
             )
             return default
-
-        # If we get here, parsing succeeded but returned None, so use default
-        logger.debug(
-            "decimal_parsing_fallback",
-            field_name=field_name,
-            value=value,
-            default=str(default),
-            message=f"Using default value for unparseable field '{field_name}'",
-        )
-        return default
+        else:
+            if parsed_value is not None:
+                return parsed_value
+            # If we get here, parsing succeeded but returned None, so use default
+            logger.debug(
+                "decimal_parsing_fallback",
+                field_name=field_name,
+                value=value,
+                default=str(default),
+                message=f"Using default value for unparseable field '{field_name}'",
+            )
+            return default
 
     # Status and State Conversion Utilities
     @staticmethod

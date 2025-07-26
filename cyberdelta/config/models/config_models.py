@@ -11,7 +11,7 @@ leveraging utility functions from cyberdelta.utils.parsing for robust parsing an
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 from pydantic import (
     AnyUrl,
@@ -20,6 +20,7 @@ from pydantic import (
     Field,
     HttpUrl,
     ValidationInfo,
+    computed_field,
     field_validator,
     model_validator,
 )
@@ -32,6 +33,21 @@ from cyberdelta.config.models.config_types import (
 
 # Import strategy models from separate module
 from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
+
+# Import generator at top level now that circular dependency is resolved
+from cyberdelta.config.models.smart_symbol_generator import SmartSymbolGenerator
+
+# Import smart symbol models after other imports to avoid circular imports
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig
+
+# Import symbol configs from separate module to avoid circular imports
+from cyberdelta.config.models.symbol_configs import (
+    UnifiedSymbolConfig,
+)
+
+
+if TYPE_CHECKING:
+    from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.base import (
@@ -162,7 +178,10 @@ class ExchangeSpecificConfig(BaseModel):
         gt=0,
         description="For simple exchanges: total requests per minute.",
     )
-    symbols: dict[str, str]
+    symbols: dict[str, str] = Field(
+        default_factory=dict,
+        description="Legacy symbol mappings (optional, use unified_symbols instead)",
+    )
     exchange_name: ExchangeName = Field(
         ...,
         description="Canonical exchange name, must match a value from ExchangeName enum.",
@@ -987,6 +1006,19 @@ class AppSettings(BaseModel):
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings
     portfolio_tracker: PortfolioTrackerConfig
+    # CLEAN BREAK: Smart symbol configuration replaces verbose unified_symbols
+    symbols: "SmartSymbolsConfig" = Field(..., description="Smart symbol configuration")
+
+    @property
+    @computed_field
+    def unified_symbols(self) -> list[UnifiedSymbolConfig]:
+        """Generate unified symbols from smart configuration.
+
+        CLEAN BREAK: This computed property maintains compatibility with existing
+        ConfigSymbolLoader while using the new smart configuration internally.
+        """
+        generator = SmartSymbolGenerator(self.symbols)
+        return generator.generate_unified_symbols()
 
     @field_validator("exchanges", mode="before")
     @classmethod
@@ -1102,3 +1134,7 @@ class AppSettings(BaseModel):
                         ),
                     )
         return self
+
+
+# Model rebuild to resolve forward references
+AppSettings.model_rebuild()

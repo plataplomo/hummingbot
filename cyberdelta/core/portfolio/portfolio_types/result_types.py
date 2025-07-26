@@ -333,12 +333,13 @@ def first_ok_result[T](*results: PortfolioResult[T]) -> PortfolioResult[T]:
             return result
         last_error = result
     return (
-        last_error if last_error is not None 
-        else Result[T, PortfolioResultError].error(PortfolioResultError(
-            code="NO_RESULTS", 
-            message="No results provided",
-            timestamp=time.time()
-        ))
+        last_error
+        if last_error is not None
+        else Result[T, PortfolioResultError].error(
+            PortfolioResultError(
+                code="NO_RESULTS", message="No results provided", timestamp=time.time()
+            )
+        )
     )
 
 

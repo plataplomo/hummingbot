@@ -431,9 +431,9 @@ class PortfolioHealthMonitor(BasePortfolioService):
                     metadata=HealthMetricMetadata(
                         tags={
                             "total_exchanges": str(len(balances)),
-                            "total_currencies": str(sum(
-                                len(ex_balances) for ex_balances in balances.values()
-                            )),
+                            "total_currencies": str(
+                                sum(len(ex_balances) for ex_balances in balances.values())
+                            ),
                         }
                     ),
                 )

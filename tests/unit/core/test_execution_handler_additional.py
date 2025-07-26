@@ -30,7 +30,7 @@ from cyberdelta.core.models import Order
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -58,12 +58,12 @@ def mock_portfolio_tracker() -> Mock:
 
 
 @pytest.fixture
-def mock_symbol_mapper() -> Mock:
-    """Create mock symbol mapper for testing."""
-    mapper = Mock(spec=SymbolMapper)
+def mock_symbol_service() -> Mock:
+    """Create mock symbol service for testing."""
+    service = Mock(spec=SymbolService)
     # Default behavior - return the same symbol
-    mapper.get_exchange_symbol.return_value = "BTC-PERP"
-    return mapper
+    service.get_exchange_symbol.return_value = "BTC-PERP"
+    return service
 
 
 @pytest.fixture
@@ -80,14 +80,14 @@ def mock_circuit_breaker_system() -> Mock:
 def execution_handler(
     mock_app_settings: Mock,
     mock_portfolio_tracker: Mock,
-    mock_symbol_mapper: Mock,
+    mock_symbol_service: Mock,
     mock_circuit_breaker_system: Mock,
 ) -> ExecutionHandler:
     """Create an ExecutionHandler instance for testing."""
     return ExecutionHandler(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_tracker,
-        symbol_mapper=mock_symbol_mapper,
+        symbol_service=mock_symbol_service,
         circuit_breaker_system=mock_circuit_breaker_system,
     )
 
@@ -266,7 +266,7 @@ class TestExecutionHandlerInitialization:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
         mock_circuit_breaker_system: Mock,
     ) -> None:
         """Test successful initialization with all dependencies."""
@@ -274,14 +274,14 @@ class TestExecutionHandlerInitialization:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker_system,
         )
 
         # Assert
         assert handler.app_settings is mock_app_settings
         assert handler.portfolio_tracker is mock_portfolio_tracker
-        assert handler.symbol_mapper is mock_symbol_mapper
+        assert handler.symbol_service is mock_symbol_service
         assert handler.circuit_breaker_system is mock_circuit_breaker_system
         assert handler.max_slippage == Decimal("0.01")
         assert handler.max_retries == 3
@@ -293,14 +293,14 @@ class TestExecutionHandlerInitialization:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test successful initialization without circuit breaker."""
         # Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
 
@@ -370,7 +370,7 @@ class TestExecutionHandlerOpportunityExecution:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test successful execution with complete fills."""
         # Arrange
@@ -382,14 +382,14 @@ class TestExecutionHandlerOpportunityExecution:
         def symbol_mapper_side_effect(symbol: str, exchange: str) -> str:
             return f"{symbol}_{exchange}"
 
-        mock_symbol_mapper.get_exchange_symbol.side_effect = symbol_mapper_side_effect
+        mock_symbol_service.get_exchange_symbol.side_effect = symbol_mapper_side_effect
 
         # Mock get_internal_symbol for synthetic trade creation
         def internal_symbol_side_effect(symbol: str, exchange: str) -> str:
             # Return just the base symbol for internal representation
             return "BTC-PERP"
 
-        mock_symbol_mapper.get_internal_symbol.side_effect = internal_symbol_side_effect
+        mock_symbol_service.get_internal_symbol.side_effect = internal_symbol_side_effect
 
         # Mock successful order placement and fills
         long_order = Order(
@@ -500,7 +500,7 @@ class TestExecutionHandlerOpportunityExecution:
         self,
         mock_app_settings: Mock,  # Use shared fixture
         mock_portfolio_tracker: Mock,  # Use shared fixture
-        mock_symbol_mapper: Mock,  # Use shared fixture
+        mock_symbol_service: Mock,  # Use shared fixture
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
     ) -> None:
@@ -509,7 +509,7 @@ class TestExecutionHandlerOpportunityExecution:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
         handler.register_api_client("hyperliquid", mock_exchange_api)
@@ -545,7 +545,7 @@ class TestExecutionHandlerOpportunityExecution:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test execution failure when symbol mapping fails."""
         # Arrange
@@ -553,7 +553,7 @@ class TestExecutionHandlerOpportunityExecution:
         execution_handler.register_api_client("backpack", mock_exchange_api)
 
         # Mock symbol mapping failure by returning None
-        mock_symbol_mapper.get_exchange_symbol.return_value = None
+        mock_symbol_service.get_exchange_symbol.return_value = None
 
         # Act
         result = await execution_handler.execute_opportunity(sample_sized_opportunity)
@@ -609,7 +609,7 @@ class TestExecutionHandlerActiveExecutions:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test getting active executions during execution."""
         # Arrange
@@ -617,8 +617,8 @@ class TestExecutionHandlerActiveExecutions:
         execution_handler.register_api_client("backpack", mock_exchange_api)
 
         # Setup symbol mapper to avoid errors
-        mock_symbol_mapper.get_exchange_symbol.return_value = "BTC-PERP"
-        mock_symbol_mapper.get_internal_symbol.return_value = "BTC-PERP"
+        mock_symbol_service.get_exchange_symbol.return_value = "BTC-PERP"
+        mock_symbol_service.get_internal_symbol.return_value = "BTC-PERP"
 
         # Make the place_order method hang so execution stays active
         async def hanging_place_order(*args: object, **kwargs: object) -> object:
@@ -681,14 +681,14 @@ class TestExecutionHandlerCircuitBreakerReset:
         self,
         mock_app_settings: Mock,  # Use shared fixture
         mock_portfolio_tracker: Mock,  # Use shared fixture
-        mock_symbol_mapper: Mock,  # Use shared fixture
+        mock_symbol_service: Mock,  # Use shared fixture
     ) -> None:
         """Test circuit breaker integration when system doesn't exist."""
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
 

@@ -36,7 +36,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -91,7 +91,7 @@ def pt_config() -> PortfolioTrackerConfig:
 @pytest.fixture
 def mock_symbol_mapper() -> Mock:
     """Mock symbol mapper with standard mappings."""
-    mapper = Mock(spec=SymbolMapper)
+    mapper = Mock(spec=SymbolService)
     mapper.get_exchange_symbol.return_value = "BTC-PERP"
     mapper.get_internal_symbol.return_value = "BTC"
     mapper.get_all_internal_symbols.return_value = ["BTC", "ETH", "SOL"]

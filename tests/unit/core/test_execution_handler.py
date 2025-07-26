@@ -56,9 +56,9 @@ def _get_can_execute_mock(execution_handler: ExecutionHandler) -> Mock:
     return can_execute
 
 
-def _get_symbol_mapper_mock(execution_handler: ExecutionHandler) -> Mock:
-    """Helper to get the symbol mapper's get_exchange_symbol mock with proper typing."""
-    get_exchange_symbol = execution_handler.symbol_mapper.get_exchange_symbol
+def _get_symbol_service_mock(execution_handler: ExecutionHandler) -> Mock:
+    """Helper to get the symbol service's get_exchange_symbol mock with proper typing."""
+    get_exchange_symbol = execution_handler.symbol_service.get_exchange_symbol
     assert isinstance(get_exchange_symbol, Mock)
     return get_exchange_symbol
 
@@ -120,7 +120,7 @@ def _create_mock_order(
 # Import shared fixtures from conftest.py - they will be automatically available
 # The following fixtures are imported:
 # - mock_portfolio_tracker
-# - mock_symbol_mapper
+# - mock_symbol_service
 # We override mock_app_settings to add execution-specific settings
 
 
@@ -167,14 +167,14 @@ def mock_circuit_breaker() -> Mock:
 def execution_handler(
     mock_app_settings: Mock,
     mock_portfolio_tracker: Mock,
-    mock_symbol_mapper: Mock,
+    mock_symbol_service: Mock,
     mock_circuit_breaker: Mock,
 ) -> ExecutionHandler:
     """Create ExecutionHandler instance with mocked dependencies."""
     return ExecutionHandler(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_tracker,
-        symbol_mapper=mock_symbol_mapper,
+        symbol_service=mock_symbol_service,
         circuit_breaker_system=mock_circuit_breaker,
     )
 
@@ -231,7 +231,7 @@ class TestExecutionHandlerInitialization:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
         mock_circuit_breaker: Mock,
     ) -> None:
         """Test successful initialization with all dependencies provided."""
@@ -239,14 +239,14 @@ class TestExecutionHandlerInitialization:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker,
         )
 
         # Assert
         assert handler.app_settings == mock_app_settings
         assert handler.portfolio_tracker == mock_portfolio_tracker
-        assert handler.symbol_mapper == mock_symbol_mapper
+        assert handler.symbol_service == mock_symbol_service
         assert handler.circuit_breaker_system == mock_circuit_breaker
         assert handler.max_slippage == Decimal("0.01")
         assert handler.max_retries == 3
@@ -259,14 +259,14 @@ class TestExecutionHandlerInitialization:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test successful initialization without circuit breaker (optional dependency)."""
         # Arrange & Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
 
@@ -274,14 +274,14 @@ class TestExecutionHandlerInitialization:
         assert handler.circuit_breaker_system is None
         assert handler.app_settings == mock_app_settings
         assert handler.portfolio_tracker == mock_portfolio_tracker
-        assert handler.symbol_mapper == mock_symbol_mapper
+        assert handler.symbol_service == mock_symbol_service
 
     # EDGE CASES
     def test_init_edge_minimal_retry_config(
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test initialization with minimal retry configuration."""
         # Arrange - Use minimal valid values instead of zero
@@ -292,7 +292,7 @@ class TestExecutionHandlerInitialization:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
         )
 
         # Assert
@@ -303,7 +303,7 @@ class TestExecutionHandlerInitialization:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test initialization with high configuration values."""
         # Arrange - Use high but valid values (slippage must be < 100%)
@@ -315,7 +315,7 @@ class TestExecutionHandlerInitialization:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
         )
 
         # Assert
@@ -327,7 +327,7 @@ class TestExecutionHandlerInitialization:
     def test_init_failure_none_app_settings(
         self,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test initialization fails with None app_settings."""
         # Arrange
@@ -338,13 +338,13 @@ class TestExecutionHandlerInitialization:
             ExecutionHandler(
                 app_settings=none_settings,
                 portfolio_tracker=mock_portfolio_tracker,
-                symbol_mapper=mock_symbol_mapper,
+                symbol_service=mock_symbol_service,
             )
 
     def test_init_failure_none_portfolio_tracker(
         self,
         mock_app_settings: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test initialization with None portfolio_tracker (should succeed but may fail later)."""
         # Arrange & Act
@@ -353,29 +353,29 @@ class TestExecutionHandlerInitialization:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=none_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
         )
 
         # Assert - initialization succeeds but portfolio_tracker is None
         assert handler.portfolio_tracker is None
 
-    def test_init_failure_none_symbol_mapper(
+    def test_init_failure_none_symbol_service(
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
     ) -> None:
-        """Test initialization with None symbol_mapper (should succeed but may fail later)."""
+        """Test initialization with None symbol_service (should succeed but may fail later)."""
         # Arrange & Act
-        # Testing with None symbol_mapper
-        none_mapper: Any = None
+        # Testing with None symbol_service
+        none_service: Any = None
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=none_mapper,
+            symbol_service=none_service,
         )
 
-        # Assert - initialization succeeds but symbol_mapper is None
-        assert handler.symbol_mapper is None
+        # Assert - initialization succeeds but symbol_service is None
+        assert handler.symbol_service is None
 
 
 class TestRegisterApiClient:
@@ -816,7 +816,7 @@ class TestExecuteOpportunity:
 
         with (
             patch.object(
-                execution_handler.symbol_mapper, "get_exchange_symbol", Mock(return_value=None)
+                execution_handler.symbol_service, "get_exchange_symbol", Mock(return_value=None)
             ),
             patch.object(
                 execution_handler.services.input_validator,
@@ -905,7 +905,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Mock successful order placement through the order service
         mock_order = Order(
@@ -945,7 +945,7 @@ class TestCircuitBreakerIntegration:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
         """Test execution succeeds when circuit breaker system is None."""
@@ -953,7 +953,7 @@ class TestCircuitBreakerIntegration:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
 
@@ -964,7 +964,7 @@ class TestCircuitBreakerIntegration:
         handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        mock_symbol_mapper.get_exchange_symbol.return_value = "BTC-PERP"
+        mock_symbol_service.get_exchange_symbol.return_value = "BTC-PERP"
 
         # Mock successful order placement
         mock_order = Order(
@@ -1012,7 +1012,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Mock successful order placement
         mock_order = Order(
@@ -1066,7 +1066,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # No need to mock order placement as circuit breaker should prevent it
 
@@ -1097,7 +1097,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Mock successful order for long exchange (first order should succeed)
         mock_order = Order(
@@ -1158,7 +1158,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -1394,7 +1394,7 @@ class TestExecutionHandlerIntegration:
         mock_exchange_api.place_order.return_value = mock_order
 
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Act
         with patch.object(
@@ -1426,7 +1426,7 @@ class TestExecutionHandlerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Trigger failure through public API by making order placement fail
         # Use APIError which is caught by the business logic
@@ -1494,7 +1494,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         with (
             patch.object(execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()),
             patch.object(
-                _get_symbol_mapper_mock(execution_handler),
+                _get_symbol_service_mock(execution_handler),
                 "get_internal_symbol",
                 return_value="BTC",
             ),
@@ -1543,7 +1543,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         with patch.object(
             execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()
@@ -1595,7 +1595,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opp)
@@ -1683,12 +1683,12 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         with (
             patch.object(execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()),
             patch.object(
-                _get_symbol_mapper_mock(execution_handler),
+                _get_symbol_service_mock(execution_handler),
                 "get_internal_symbol",
                 return_value="BTC",
             ),
@@ -1731,7 +1731,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -1801,12 +1801,12 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         with (
             patch.object(execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()),
             patch.object(
-                _get_symbol_mapper_mock(execution_handler),
+                _get_symbol_service_mock(execution_handler),
                 "get_internal_symbol",
                 return_value="BTC",
             ),
@@ -1884,7 +1884,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01  # Speed up test
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Create successful orders
         mock_long_order = Mock(spec=Order)
@@ -1941,7 +1941,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01  # Speed up test
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Create successful orders
         mock_long_order = Mock(spec=Order)
@@ -2000,7 +2000,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         # Business logic uses configuration from app_settings at initialization time
         # Current behavior shows max_retries=4 in logs
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Always fail with retryable error
         api_error = APIError("Rate limited", APIErrorCode.RATE_LIMITED.value)
@@ -2026,7 +2026,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         """Test execution with no API client registered through execute_opportunity."""
         # Arrange - don't register any API clients
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -2053,7 +2053,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         api_error = APIError("Invalid API key", APIErrorCode.AUTHENTICATION_FAILED.value)
         mock_exchange_api.place_order = AsyncMock(side_effect=api_error)
@@ -2083,7 +2083,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         # Business logic uses configuration from app_settings at initialization time
         # Current behavior shows max_retries=4 in logs
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         api_error = APIError("Rate limited", APIErrorCode.RATE_LIMITED.value)
         mock_exchange_api.place_order = AsyncMock(side_effect=api_error)
@@ -2111,7 +2111,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         mock_exchange_api.place_order = AsyncMock(side_effect=ValueError("Unexpected error"))
 
@@ -2142,7 +2142,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Create mock filled orders
         mock_long_order = _create_mock_order(
@@ -2194,7 +2194,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01  # Speed up test
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Create mock filled orders for success
         mock_long_order = _create_mock_order(
@@ -2245,7 +2245,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         """Test execution fails when no API client is registered."""
         # Arrange - no API clients registered
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -2298,7 +2298,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Create successful orders for after retry
         mock_long_order = _create_mock_order(
@@ -2356,7 +2356,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Setup: place_order fails with authentication error
         auth_error = APIError("Invalid API key", APIErrorCode.AUTHENTICATION_FAILED.value)
@@ -2412,7 +2412,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Setup: place_order throws unexpected error
         mock_exchange_api.place_order = AsyncMock(side_effect=ValueError("Unexpected error"))
@@ -2793,7 +2793,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_mapper_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
 
         # Create filled orders
         mock_long_order = _create_mock_order(
@@ -3557,14 +3557,14 @@ class TestMiscellaneousMethods:
         self,
         mock_app_settings: Mock,
         mock_portfolio_tracker: Mock,
-        mock_symbol_mapper: Mock,
+        mock_symbol_service: Mock,
     ) -> None:
         """Test reset circuit breaker when system is None."""
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
 

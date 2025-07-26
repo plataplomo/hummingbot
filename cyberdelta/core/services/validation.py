@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
 from cyberdelta.core.services.interfaces import (
@@ -18,13 +18,15 @@ from cyberdelta.core.services.interfaces import (
     ValidationConfig,
     ValidationResult,
 )
+from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+from cyberdelta.core.symbols.models import ExchangeSymbol
 from cyberdelta.enums import OrderType
 
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
     from cyberdelta.core.risk_manager import SizedOpportunity
-    from cyberdelta.core.symbol_mapper import SymbolMapper
+    from cyberdelta.core.symbols.service import SymbolService
 
 
 class ExecutionInputValidator(BaseService, IInputValidator):
@@ -33,7 +35,7 @@ class ExecutionInputValidator(BaseService, IInputValidator):
     def __init__(
         self,
         api_clients: dict[str, ExchangeAPI],
-        symbol_mapper: SymbolMapper,
+        symbol_mapper: SymbolService,  # Still use symbol_mapper name for compatibility
         config: ValidationConfig | None = None,
         logger: TraceLevelLogger | None = None,
     ) -> None:
@@ -41,13 +43,14 @@ class ExecutionInputValidator(BaseService, IInputValidator):
 
         Args:
             api_clients: Dictionary of exchange API clients
-            symbol_mapper: Symbol mapping service
+            symbol_mapper: Symbol service (kept as symbol_mapper for compatibility)
             config: Validation configuration
             logger: Optional logger instance
         """
         super().__init__(logger)
         self.api_clients = api_clients
-        self.symbol_mapper = symbol_mapper
+        self.symbol_service = symbol_mapper  # Internal reference uses proper name
+        self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
         self.config = config or ValidationConfig()
         self.logger = logger or get_logger(__name__)
 
@@ -105,32 +108,54 @@ class ExecutionInputValidator(BaseService, IInputValidator):
             errors.append(f"Unknown short exchange: {opportunity.opportunity.short_exchange}")
 
     def _validate_symbol_mapping(self, opportunity: SizedOpportunity, errors: list[str]) -> None:
-        """Validate symbol mapping for both exchanges."""
+        """Validate symbol mapping for both exchanges using domain helpers."""
         if not opportunity.opportunity.symbol:
             errors.append("Missing symbol")
             return
 
-        # Check long exchange symbol mapping
+        # Check long exchange symbol mapping with domain helpers
         if opportunity.opportunity.long_exchange in self.api_clients:
-            long_symbol = self.symbol_mapper.get_exchange_symbol(
+            long_symbol = self.symbol_helpers.resolve_for_exchange(
                 opportunity.opportunity.symbol, opportunity.opportunity.long_exchange
             )
             if not long_symbol:
-                errors.append(
-                    f"Symbol {opportunity.opportunity.symbol} not found for long exchange "
-                    f"{opportunity.opportunity.long_exchange}"
+                # Get available exchanges for better error message
+                unified_symbol = self.symbol_service.store.get_by_internal(
+                    opportunity.opportunity.symbol
+                )
+                symbol_exchanges = (
+                    list(unified_symbol.exchange_mappings.keys()) if unified_symbol else []
                 )
 
-        # Check short exchange symbol mapping
+                error_msg = (
+                    f"Symbol {opportunity.opportunity.symbol} not found for "
+                    f"long exchange {opportunity.opportunity.long_exchange}"
+                )
+                if symbol_exchanges:
+                    error_msg += f". Available on: {', '.join(symbol_exchanges)}"
+                errors.append(error_msg)
+
+        # Check short exchange symbol mapping with domain helpers
         if opportunity.opportunity.short_exchange in self.api_clients:
-            short_symbol = self.symbol_mapper.get_exchange_symbol(
+            short_symbol = self.symbol_helpers.resolve_for_exchange(
                 opportunity.opportunity.symbol, opportunity.opportunity.short_exchange
             )
             if not short_symbol:
-                errors.append(
-                    f"Symbol {opportunity.opportunity.symbol} not found for short exchange "
-                    f"{opportunity.opportunity.short_exchange}"
+                # Get available exchanges for better error message
+                unified_symbol = self.symbol_service.store.get_by_internal(
+                    opportunity.opportunity.symbol
                 )
+                symbol_exchanges = (
+                    list(unified_symbol.exchange_mappings.keys()) if unified_symbol else []
+                )
+
+                error_msg = (
+                    f"Symbol {opportunity.opportunity.symbol} not found for "
+                    f"short exchange {opportunity.opportunity.short_exchange}"
+                )
+                if symbol_exchanges:
+                    error_msg += f". Available on: {', '.join(symbol_exchanges)}"
+                errors.append(error_msg)
 
     def _validate_position_sizes(
         self, opportunity: SizedOpportunity, errors: list[str], warnings: list[str]
@@ -186,12 +211,22 @@ class ExecutionInputValidator(BaseService, IInputValidator):
     def _log_validation_results(
         self, opportunity: SizedOpportunity, errors: list[str], warnings: list[str]
     ) -> None:
-        """Log validation results appropriately."""
-        log_data = {
+        """Log validation results with domain context."""
+        log_data: dict[str, Any] = {
             "symbol": opportunity.opportunity.symbol,
             "long_exchange": opportunity.opportunity.long_exchange,
             "short_exchange": opportunity.opportunity.short_exchange,
         }
+
+        # Add domain context if available
+        if opportunity.opportunity.symbol:
+            unified_symbol = self.symbol_service.store.get_by_internal(
+                opportunity.opportunity.symbol
+            )
+            if unified_symbol:
+                log_data["base_asset"] = unified_symbol.internal.base_asset
+                log_data["market_type"] = unified_symbol.internal.market_type.value
+                log_data["available_exchanges"] = list(unified_symbol.exchange_mappings.keys())
 
         if errors:
             self.logger.warning(
@@ -245,17 +280,26 @@ class ExecutionInputValidator(BaseService, IInputValidator):
             errors.append(f"Unknown exchange: {request.exchange_id}")
 
     def _validate_order_symbol(self, request: OrderRequest, errors: list[str]) -> None:
-        """Validate order symbol and mapping."""
+        """Validate order symbol and mapping using domain helpers."""
         if not request.symbol:
             errors.append("Missing symbol")
             return
 
-        # Check symbol mapping
-        exchange_symbol = self.symbol_mapper.get_exchange_symbol(
+        # Check symbol mapping with domain helpers
+        exchange_symbol: ExchangeSymbol | None = self.symbol_helpers.resolve_for_exchange(
             request.symbol, request.exchange_id
         )
         if not exchange_symbol:
-            errors.append(f"Symbol {request.symbol} not found for exchange {request.exchange_id}")
+            # Get available exchanges and symbol type for better error message
+            unified_symbol = self.symbol_service.store.get_by_internal(request.symbol)
+            symbol_exchanges = (
+                list(unified_symbol.exchange_mappings.keys()) if unified_symbol else []
+            )
+
+            error_msg = f"Symbol {request.symbol} not found for exchange {request.exchange_id}"
+            if symbol_exchanges:
+                error_msg += f". Available on: {', '.join(symbol_exchanges)}"
+            errors.append(error_msg)
 
     def _validate_order_quantity(self, request: OrderRequest, errors: list[str]) -> None:
         """Validate order quantity."""

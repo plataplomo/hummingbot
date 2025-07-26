@@ -21,6 +21,10 @@ from cyberdelta.core.services.config_validation import (
 )
 from cyberdelta.core.services.factory import ServiceFactory
 from cyberdelta.core.services.interfaces import ExecutionResult, OrderRequest
+from cyberdelta.core.symbols.helpers import get_domain_helpers
+from cyberdelta.core.symbols.logging_helpers import create_operation_logger
+from cyberdelta.core.symbols.models import ExchangeSymbol
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.validation.circuit_breaker import CircuitBreakerTrippedError
 
@@ -31,7 +35,7 @@ if TYPE_CHECKING:
     from cyberdelta.core.portfolio_tracker import PortfolioTracker
     from cyberdelta.core.risk_manager import SizedOpportunity
     from cyberdelta.core.services.interfaces import IAlertService
-    from cyberdelta.core.symbol_mapper import SymbolMapper
+    from cyberdelta.core.symbols.service import SymbolService
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
@@ -80,22 +84,39 @@ class MissingClientError(APIError):
 
 
 class SymbolMappingError(APIError):
-    """Symbol mapping failed error."""
+    """Symbol mapping failed error with domain context."""
 
-    def __init__(self, symbol: str, leg: str, exchange: str) -> None:
-        """Initialize SymbolMappingError.
+    def __init__(
+        self,
+        symbol: str,
+        leg: str,
+        exchange: str,
+        available_exchanges: list[str] | None = None,
+        symbol_type: str | None = None,
+    ) -> None:
+        """Initialize SymbolMappingError with rich domain context.
 
         Args:
             symbol: The symbol that could not be mapped
             leg: The leg type (long/short)
             exchange: The exchange where mapping failed
+            available_exchanges: List of exchanges where symbol is available
+            symbol_type: Type of symbol (PERP, SPOT, etc.)
         """
         self.symbol = symbol
         self.leg = leg
         self.exchange = exchange
-        super().__init__(
-            f"Symbol mapping failed for {symbol} on {exchange} ({leg} leg)", "SYMBOL_MAPPING_ERROR"
-        )
+        self.available_exchanges = available_exchanges or []
+        self.symbol_type = symbol_type
+
+        # Build detailed error message
+        error_msg = f"Symbol mapping failed for {symbol} on {exchange} ({leg} leg)"
+        if available_exchanges:
+            error_msg += f". Symbol is available on: {', '.join(available_exchanges)}"
+        if symbol_type:
+            error_msg += f". Symbol type: {symbol_type}"
+
+        super().__init__(error_msg, "SYMBOL_MAPPING_ERROR")
 
 
 class AverageFillPriceError(APIError):
@@ -125,7 +146,7 @@ class ExecutionHandler:
         self,
         app_settings: AppSettings,
         portfolio_tracker: PortfolioTracker,
-        symbol_mapper: SymbolMapper,
+        symbol_service: SymbolService | None = None,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
         alert_service: IAlertService | None = None,
         logger: TraceLevelLogger | None = None,
@@ -135,7 +156,7 @@ class ExecutionHandler:
         Args:
             app_settings: Application configuration settings
             portfolio_tracker: Portfolio tracker for position updates
-            symbol_mapper: SymbolMapper for translating symbols
+            symbol_service: SymbolService for symbol operations (optional, creates default if None)
             circuit_breaker_system: The main circuit breaker system (optional)
             alert_service: Optional alert service for notifications
             logger: Optional logger instance
@@ -158,10 +179,14 @@ class ExecutionHandler:
 
         self.app_settings = app_settings
         self.portfolio_tracker = portfolio_tracker
-        self.symbol_mapper = symbol_mapper
         self.circuit_breaker_system = circuit_breaker_system
         self.alert_service = alert_service
         self.logger = logger or get_logger(__name__)
+
+        # Initialize symbol service and domain helpers
+        self.symbol_service = symbol_service or SymbolService()
+        self.symbol_helpers = get_domain_helpers(self.symbol_service)
+        self.symbol_logger = create_operation_logger("execution_handler")
 
         # API clients registry
         self.api_clients: dict[str, ExchangeAPI] = {}
@@ -177,7 +202,7 @@ class ExecutionHandler:
         # Create service factory and container
         self.service_factory = ServiceFactory(
             api_clients=self.api_clients,
-            symbol_mapper=self.symbol_mapper,
+            symbol_mapper=self.symbol_service,  # ServiceFactory still expects symbol_mapper
             app_settings=self.app_settings,
             circuit_breaker=self.circuit_breaker_system,
             alert_service=self.alert_service,
@@ -336,12 +361,25 @@ class ExecutionHandler:
                     {"exchange_id": missing_exchange, "execution_id": execution.id},
                 )
 
-            # Get exchange-specific symbols
-            long_symbol = self.symbol_mapper.get_exchange_symbol(
+            # Get exchange-specific symbols using domain helpers
+            long_symbol = self.symbol_helpers.resolve_for_exchange(
                 opportunity.opportunity.symbol, opportunity.opportunity.long_exchange
             )
-            short_symbol = self.symbol_mapper.get_exchange_symbol(
+            short_symbol = self.symbol_helpers.resolve_for_exchange(
                 opportunity.opportunity.symbol, opportunity.opportunity.short_exchange
+            )
+
+            # Log symbol resolution with domain context
+            self.symbol_logger.log_symbol_resolution(
+                operation="arbitrage_symbol_resolution",
+                symbol_input=opportunity.opportunity.symbol,
+                exchange=f"{opportunity.opportunity.long_exchange}/{opportunity.opportunity.short_exchange}",
+                result=long_symbol or None,
+                error=(
+                    None
+                    if (long_symbol and short_symbol)
+                    else ValueError("Symbol resolution failed")
+                ),
             )
 
             if not long_symbol or not short_symbol:
@@ -351,6 +389,29 @@ class ExecutionHandler:
                     if not long_symbol
                     else opportunity.opportunity.short_exchange
                 )
+
+                # Get available exchanges for better error context
+                available_exchanges = []
+                try:
+                    unified_symbol = self.symbol_service.store.get_by_internal(
+                        opportunity.opportunity.symbol
+                    )
+                    if unified_symbol:
+                        available_exchanges = list(unified_symbol.exchange_mappings.keys())
+                except (KeyError, AttributeError, ValueError) as e:
+                    self.logger.debug(
+                        "Failed to get available exchanges for symbol",
+                        symbol=opportunity.opportunity.symbol,
+                        error=str(e),
+                    )
+
+                # Get symbol type if available
+                symbol_type = None
+                if long_symbol or short_symbol:
+                    existing_symbol = long_symbol or short_symbol
+                    if existing_symbol and existing_symbol.internal_symbol:
+                        symbol_type = existing_symbol.internal_symbol.market_type.value
+
                 return await self.services.error_handler.handle_validation_error(
                     f"Symbol mapping failed for {missing_leg} leg",
                     {
@@ -358,6 +419,8 @@ class ExecutionHandler:
                         "exchange": missing_exchange,
                         "leg": missing_leg,
                         "execution_id": execution.id,
+                        "available_exchanges": available_exchanges,
+                        "symbol_type": symbol_type,
                     },
                 )
 
@@ -394,14 +457,21 @@ class ExecutionHandler:
         opportunity: SizedOpportunity,
         long_client: ExchangeAPI,
         short_client: ExchangeAPI,
-        long_symbol: str,
-        short_symbol: str,
+        long_symbol: ExchangeSymbol,
+        short_symbol: ExchangeSymbol,
     ) -> None:
-        """Execute the complete order placement logic."""
+        """Execute the complete order placement logic with domain objects."""
+        # Log with rich domain context
         self.logger.info(
             "Placing orders for execution",
             execution_id=execution.id,
             symbol=opportunity.opportunity.symbol,
+            long_exchange=long_symbol.exchange_id.value,
+            short_exchange=short_symbol.exchange_id.value,
+            long_symbol=long_symbol.value,
+            short_symbol=short_symbol.value,
+            long_indexed=long_symbol.is_indexed,
+            short_indexed=short_symbol.is_indexed,
         )
 
         # Update execution status
@@ -441,7 +511,7 @@ class ExecutionHandler:
 
         # Process the filled long order
         await self._handle_filled_order(
-            execution, long_order, opportunity.opportunity.long_exchange, True
+            execution, long_order, opportunity.opportunity.long_exchange, True, long_symbol
         )
 
         # Place short order with compensation handling
@@ -509,14 +579,14 @@ class ExecutionHandler:
         self,
         execution: TradeExecution,
         opportunity: SizedOpportunity,
-        long_symbol: str,
+        long_symbol: ExchangeSymbol,
         base_asset_quantity_long: Decimal,
         default_tif: TimeInForce,
     ) -> ExecutionResult | None:
-        """Place the long order using the order management service."""
+        """Place the long order using the order management service with domain objects."""
         order_request = OrderRequest(
             exchange_id=opportunity.opportunity.long_exchange,
-            symbol=long_symbol,
+            symbol=long_symbol.value,  # Use the string value for API
             side=OrderSide.BUY,
             quantity=base_asset_quantity_long,
             order_type=OrderType.MARKET,
@@ -525,12 +595,26 @@ class ExecutionHandler:
             post_only=False,
         )
 
+        # Log with rich domain context
         self.logger.info(
             "Placing long order",
             execution_id=execution.id,
             exchange_id=opportunity.opportunity.long_exchange,
-            symbol=long_symbol,
+            symbol=long_symbol.value,
+            internal_symbol=(
+                long_symbol.internal_symbol.value if long_symbol.internal_symbol else None
+            ),
+            base_asset=(
+                long_symbol.internal_symbol.base_asset if long_symbol.internal_symbol else None
+            ),
+            market_type=(
+                long_symbol.internal_symbol.market_type.value
+                if long_symbol.internal_symbol
+                else None
+            ),
             quantity=str(base_asset_quantity_long),
+            asset_index=long_symbol.asset_index,
+            symbol_id=long_symbol.symbol_id,
         )
 
         result = await self.services.order_service.place_order_with_retry(order_request)
@@ -552,14 +636,14 @@ class ExecutionHandler:
         self,
         execution: TradeExecution,
         opportunity: SizedOpportunity,
-        short_symbol: str,
+        short_symbol: ExchangeSymbol,
         base_asset_quantity_short: Decimal,
         default_tif: TimeInForce,
     ) -> None:
-        """Place short order and handle compensation if needed."""
+        """Place short order and handle compensation if needed with domain objects."""
         order_request = OrderRequest(
             exchange_id=opportunity.opportunity.short_exchange,
-            symbol=short_symbol,
+            symbol=short_symbol.value,  # Use the string value for API
             side=OrderSide.SELL,
             quantity=base_asset_quantity_short,
             order_type=OrderType.MARKET,
@@ -568,12 +652,26 @@ class ExecutionHandler:
             post_only=False,
         )
 
+        # Log with rich domain context
         self.logger.info(
             "Placing short order",
             execution_id=execution.id,
             exchange_id=opportunity.opportunity.short_exchange,
-            symbol=short_symbol,
+            symbol=short_symbol.value,
+            internal_symbol=(
+                short_symbol.internal_symbol.value if short_symbol.internal_symbol else None
+            ),
+            base_asset=(
+                short_symbol.internal_symbol.base_asset if short_symbol.internal_symbol else None
+            ),
+            market_type=(
+                short_symbol.internal_symbol.market_type.value
+                if short_symbol.internal_symbol
+                else None
+            ),
             quantity=str(base_asset_quantity_short),
+            asset_index=short_symbol.asset_index,
+            symbol_id=short_symbol.symbol_id,
         )
 
         result = await self.services.order_service.place_order_with_retry(order_request)
@@ -586,7 +684,7 @@ class ExecutionHandler:
             execution.short_fill_quantity = getattr(short_order, "quantity_filled", None)
 
             await self._handle_filled_order(
-                execution, short_order, opportunity.opportunity.short_exchange, False
+                execution, short_order, opportunity.opportunity.short_exchange, False, short_symbol
             )
 
             # Both orders successful - mark as completed
@@ -642,8 +740,9 @@ class ExecutionHandler:
         order: object,  # Order object
         exchange_id: str,
         is_long_leg: bool,
+        exchange_symbol: ExchangeSymbol | None = None,
     ) -> None:
-        """Handle a filled order by updating portfolio tracker."""
+        """Handle a filled order by updating portfolio tracker with domain context."""
         try:
             # Create a Trade object for portfolio tracking
             # This is a simplified version - in reality would need proper Trade construction
@@ -663,14 +762,38 @@ class ExecutionHandler:
             # Process trade with portfolio tracker
             await self.portfolio_tracker.process_trade(exchange_id, trade)
 
-            self.logger.info(
-                "Trade processed by portfolio tracker",
-                execution_id=execution.id,
-                exchange_id=exchange_id,
-                is_long_leg=is_long_leg,
-                quantity=str(trade.quantity),
-                price=str(trade.price),
-            )
+            # Log with rich domain context
+            log_context: dict[str, Any] = {
+                "execution_id": execution.id,
+                "exchange_id": exchange_id,
+                "is_long_leg": is_long_leg,
+                "quantity": str(trade.quantity),
+                "price": str(trade.price),
+            }
+
+            if exchange_symbol:
+                log_context.update({
+                    "exchange_symbol": exchange_symbol.value,
+                    "internal_symbol": (
+                        exchange_symbol.internal_symbol.value
+                        if exchange_symbol.internal_symbol
+                        else None
+                    ),
+                    "base_asset": (
+                        exchange_symbol.internal_symbol.base_asset
+                        if exchange_symbol.internal_symbol
+                        else None
+                    ),
+                    "market_type": (
+                        exchange_symbol.internal_symbol.market_type.value
+                        if exchange_symbol.internal_symbol
+                        else None
+                    ),
+                    "asset_index": exchange_symbol.asset_index,
+                    "symbol_id": exchange_symbol.symbol_id,
+                })
+
+            self.logger.info("Trade processed by portfolio tracker", **log_context)
 
         except (ValueError, AttributeError, TypeError) as e:
             # Handle construction errors from Trade object or attribute access

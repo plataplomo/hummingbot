@@ -6,12 +6,21 @@ across different exchanges, promoting code reuse and consistent validation.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from typing import Any
 
 from cyberdelta.apis.base.validation_policies import TimestampPolicy
+from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.exceptions import (
+    SymbolError,
+    SymbolNotFoundError,
+    SymbolRegistryError,
+    SymbolValidationError,
+)
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Type alias for validation input - covers all possible invalid input types
@@ -261,12 +270,14 @@ class WebSocketPayloadValidators:
         cls,
         symbol: ValidationInput,
         context: str = "symbol",
+        exchange_id: str | None = None,
     ) -> str:
-        """Validate trading symbol format.
+        """Validate trading symbol format using the new symbol system.
 
         Args:
             symbol: The symbol to validate.
             context: Context string for error messages.
+            exchange_id: Optional exchange identifier for enhanced validation.
 
         Returns:
             The validated symbol string.
@@ -278,6 +289,106 @@ class WebSocketPayloadValidators:
         if not isinstance(symbol, str):
             raise InvalidFieldTypeError(context, type(symbol), "str")
 
+        # Try new symbol system if exchange is specified
+        if exchange_id:
+            try:
+                symbol_service = get_symbol_integration_service()
+                if symbol_service.validate_symbol(symbol, exchange_id):
+                    return symbol
+            except (
+                SymbolError,
+                SymbolNotFoundError,
+                SymbolRegistryError,
+                SymbolValidationError,
+                ValueError,
+                KeyError,
+                AttributeError,
+                TypeError,
+            ) as e:
+                # Fall back to legacy validation
+                logger.debug(
+                    "websocket_symbol_validation_fallback",
+                    symbol=symbol,
+                    exchange_id=exchange_id,
+                    error=str(e),
+                    context=context,
+                )
+
+        # Legacy pattern-based validation
+        if not cls.SYMBOL_PATTERN.match(symbol):
+            raise InvalidFormatError(context, symbol, cls.SYMBOL_PATTERN.pattern)
+
+        return symbol
+
+    @classmethod
+    def validate_websocket_symbol(
+        cls,
+        symbol: ValidationInput,
+        context: str = "symbol",
+        exchange_id: str | None = None,
+    ) -> str:
+        """Validate WebSocket symbol with integer support using the new symbol system.
+
+        Args:
+            symbol: The symbol to validate (can be string or integer).
+            context: Context string for error messages.
+            exchange_id: Optional exchange identifier for enhanced validation.
+
+        Returns:
+            The validated symbol string.
+
+        Raises:
+            ValueError: If symbol format is invalid.
+
+        """
+        # Use new symbol system for WebSocket validation if exchange is specified
+        if exchange_id:
+            try:
+                symbol_service = get_symbol_integration_service()
+
+                exchange_name = ExchangeName(exchange_id.lower())
+                # Convert symbol to string or int
+                if isinstance(symbol, (str, int)):
+                    symbol_value = symbol
+                elif isinstance(symbol, (float, bool)):
+                    symbol_value = str(symbol)
+                elif symbol is None:
+                    symbol_value = ""
+                else:
+                    symbol_value = str(symbol)
+
+                return asyncio.run(
+                    symbol_service.validate_websocket_symbol(symbol_value, context, exchange_name)
+                )
+
+            except (
+                SymbolError,
+                SymbolNotFoundError,
+                SymbolRegistryError,
+                SymbolValidationError,
+                ValueError,
+                KeyError,
+                AttributeError,
+                TypeError,
+                RuntimeError,
+            ) as e:
+                # Fall back to legacy validation
+                logger.debug(
+                    "websocket_symbol_validation_async_fallback",
+                    symbol=symbol,
+                    exchange_id=exchange_id,
+                    error=str(e),
+                    context=context,
+                )
+
+        # Legacy validation with integer support
+        if isinstance(symbol, int):
+            # Convert integer to string for validation
+            symbol = str(symbol)
+        elif not isinstance(symbol, str):
+            raise InvalidFieldTypeError(context, type(symbol), "string or integer")
+
+        # Apply pattern validation
         if not cls.SYMBOL_PATTERN.match(symbol):
             raise InvalidFormatError(context, symbol, cls.SYMBOL_PATTERN.pattern)
 

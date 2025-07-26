@@ -30,7 +30,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
 from cyberdelta.core.risk_manager import SizedOpportunity
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.test_utils.testable_classes import TestableExecutionHandler
@@ -208,9 +208,9 @@ class TestExecutionHandler:
         return tracker
 
     @pytest.fixture
-    def mock_symbol_mapper(self) -> MagicMock:
-        """Return mock symbol mapper for testing."""
-        mapper = MagicMock(spec=SymbolMapper)
+    def mock_symbol_service(self) -> MagicMock:
+        """Return mock symbol service for testing."""
+        service = MagicMock(spec=SymbolService)
 
         def get_exchange_symbol_side_effect(internal_symbol: str, ex_id: str) -> str | None:
             """Get exchange symbol side effect for testing.
@@ -239,10 +239,10 @@ class TestExecutionHandler:
             }
             return mapping.get((ex_sym, ex_id))
 
-        mapper.get_exchange_symbol.side_effect = get_exchange_symbol_side_effect
-        mapper.get_internal_symbol.side_effect = get_internal_symbol_side_effect
-        mapper.get_all_internal_symbols = MagicMock(return_value=["BTC", "ETH"])
-        return mapper
+        service.get_exchange_symbol.side_effect = get_exchange_symbol_side_effect
+        service.get_internal_symbol.side_effect = get_internal_symbol_side_effect
+        service.get_all_internal_symbols = MagicMock(return_value=["BTC", "ETH"])
+        return service
 
     @pytest.fixture
     def mock_circuit_breaker_system(self) -> MagicMock:
@@ -282,7 +282,7 @@ class TestExecutionHandler:
         self,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
-        mock_symbol_mapper: MagicMock,
+        mock_symbol_service: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
@@ -295,7 +295,7 @@ class TestExecutionHandler:
         handler = ExecutionHandler(
             app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker_system,
         )
         handler.register_api_client(mock_hl_api.exchange_name, mock_hl_api)
@@ -307,7 +307,7 @@ class TestExecutionHandler:
         self,
         mock_config: MagicMock,
         mock_portfolio_tracker: MagicMock,
-        mock_symbol_mapper: MagicMock,
+        mock_symbol_service: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
@@ -320,7 +320,7 @@ class TestExecutionHandler:
         handler = TestableExecutionHandler(
             app_settings=mock_config,
             portfolio_tracker=mock_portfolio_tracker,
-            symbol_mapper=mock_symbol_mapper,
+            symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker_system,
         )
         handler.register_api_client(mock_hl_api.exchange_name, mock_hl_api)
@@ -376,7 +376,7 @@ class TestExecutionHandler:
         self,
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
-        mock_symbol_mapper: MagicMock,
+        mock_symbol_service: MagicMock,
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
     ) -> None:
@@ -390,7 +390,7 @@ class TestExecutionHandler:
             """
             return "BTC-PERP" if ex_id == "hyperliquid" else None
 
-        mock_symbol_mapper.get_exchange_symbol.side_effect = get_symbol_side_effect
+        mock_symbol_service.get_exchange_symbol.side_effect = get_symbol_side_effect
         execution = await execution_handler.execute_opportunity(sized_opportunity)
         assert execution is not None
         assert execution.status == ExecutionStatus.FAILED
@@ -558,7 +558,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_portfolio_tracker: MagicMock,
         sized_opportunity: SizedOpportunity,
-        mock_symbol_mapper: MagicMock,
+        mock_symbol_service: MagicMock,
         mock_config: MagicMock,
     ) -> None:
         """Test successful compensation placement."""
@@ -610,7 +610,7 @@ class TestExecutionHandler:
         execution.long_order_id = "Original-Long-ID"
         execution.short_order_id = "Original-Short-ID"
 
-        mock_symbol_mapper.get_exchange_symbol.return_value = "BTC-PERP"
+        mock_symbol_service.get_exchange_symbol.return_value = "BTC-PERP"
 
         original_filled_order = Order(
             client_order_id="Original-Long-ID",
@@ -664,7 +664,7 @@ class TestExecutionHandler:
         self,
         testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
-        mock_symbol_mapper: MagicMock,
+        mock_symbol_service: MagicMock,
         sized_opportunity: SizedOpportunity,
         mock_portfolio_tracker: MagicMock,
     ) -> None:
@@ -1089,7 +1089,7 @@ class TestExecutionHandler:
         mock_bp_api: AsyncMock,
         mock_portfolio_tracker: MagicMock,
         mock_circuit_breaker_system: MagicMock,
-        mock_symbol_mapper: MagicMock,
+        mock_symbol_service: MagicMock,
         mock_config: MagicMock,
     ) -> None:
         """Test execution flow when one leg fails and compensation is triggered."""

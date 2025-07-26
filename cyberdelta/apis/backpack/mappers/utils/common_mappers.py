@@ -9,8 +9,20 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TypeGuard, TypeVar
 
+from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
 from cyberdelta.apis.exceptions.field_validation import FieldError
+from cyberdelta.apis.exceptions.service import ServiceParameterError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.exceptions import (
+    SymbolError,
+    SymbolNotFoundError,
+    SymbolRegistryError,
+    SymbolValidationError,
+)
+from cyberdelta.exceptions.field_validation import (
+    FieldError as CoreFieldError,
+    TypeFieldError,
+)
 
 
 logger = get_logger(__name__)
@@ -69,10 +81,7 @@ class BackpackCommonMappers:
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format for Backpack API.
-
-        Backpack uses underscore-separated symbols (e.g., BTC_USDC)
-        while some internal formats use slash-separated (e.g., BTC/USDC).
+        """Normalize symbol format for Backpack API using the new symbol system.
 
         Args:
             symbol: The symbol to normalize
@@ -82,8 +91,31 @@ class BackpackCommonMappers:
         """
         if not symbol:
             return symbol
-        # Convert to uppercase and replace common separators
-        return symbol.upper().replace("/", "_").replace("-", "_")
+
+        try:
+            symbol_service = get_symbol_integration_service()
+            return symbol_service.normalize_symbol(symbol, "backpack")
+        except (
+            SymbolError,
+            SymbolNotFoundError,
+            SymbolRegistryError,
+            SymbolValidationError,
+            ServiceParameterError,
+            CoreFieldError,
+            TypeFieldError,
+            ValueError,
+            KeyError,
+        ) as e:
+            logger.debug(
+                "symbol_normalization_fallback",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+                message="Failed to normalize symbol using service, using fallback",
+            )
+            # Fallback to legacy normalization
+            # Convert to uppercase and replace common separators
+            return symbol.upper().replace("/", "_").replace("-", "_")
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
@@ -251,7 +283,7 @@ class BackpackCommonMappers:
 
     @staticmethod
     def is_valid_symbol(symbol: str) -> bool:
-        """Check if symbol format is valid for Backpack.
+        """Check if symbol format is valid for Backpack using the new symbol system.
 
         Args:
             symbol: The symbol to validate
@@ -261,23 +293,46 @@ class BackpackCommonMappers:
         """
         if not symbol:
             return False
-        # Backpack symbols should contain underscore and be uppercase
-        parts = symbol.split("_")
 
-        # Accept both spot (BASE_QUOTE) and perp (BASE_QUOTE_PERP) formats
-        is_spot = (
-            len(parts) == BackpackCommonMappers.EXPECTED_SYMBOL_PARTS
-            and all(part.isalnum() and part.isupper() for part in parts)
-            and len(parts[0]) > 0
-            and len(parts[1]) > 0
-        )
+        try:
+            symbol_service = get_symbol_integration_service()
+            return symbol_service.validate_symbol(symbol, "backpack")
+        except (
+            SymbolError,
+            SymbolNotFoundError,
+            SymbolRegistryError,
+            SymbolValidationError,
+            ServiceParameterError,
+            CoreFieldError,
+            TypeFieldError,
+            ValueError,
+            KeyError,
+        ) as e:
+            logger.debug(
+                "symbol_validation_fallback",
+                symbol=symbol,
+                error=str(e),
+                error_type=type(e).__name__,
+                message="Failed to validate symbol using service, using fallback",
+            )
+            # Fallback to legacy validation
+            # Backpack symbols should contain underscore and be uppercase
+            parts = symbol.split("_")
 
-        is_perp = (
-            len(parts) == BackpackCommonMappers.EXPECTED_PERP_SYMBOL_PARTS
-            and all(part.isalnum() and part.isupper() for part in parts)
-            and len(parts[0]) > 0
-            and len(parts[1]) > 0
-            and parts[2] == "PERP"
-        )
+            # Accept both spot (BASE_QUOTE) and perp (BASE_QUOTE_PERP) formats
+            is_spot = (
+                len(parts) == BackpackCommonMappers.EXPECTED_SYMBOL_PARTS
+                and all(part.isalnum() and part.isupper() for part in parts)
+                and len(parts[0]) > 0
+                and len(parts[1]) > 0
+            )
 
-        return is_spot or is_perp
+            is_perp = (
+                len(parts) == BackpackCommonMappers.EXPECTED_PERP_SYMBOL_PARTS
+                and all(part.isalnum() and part.isupper() for part in parts)
+                and len(parts[0]) > 0
+                and len(parts[1]) > 0
+                and parts[2] == "PERP"
+            )
+
+            return is_spot or is_perp

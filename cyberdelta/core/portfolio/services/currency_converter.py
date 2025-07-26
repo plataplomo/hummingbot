@@ -47,8 +47,7 @@ class FXRate:
         """Validate currency codes are uppercase and non-empty."""
         if not v or not v.strip():
             raise CurrencyConverterError(
-                operation_type="currency_validation",
-                requirement="currency code cannot be empty"
+                operation_type="currency_validation", requirement="currency code cannot be empty"
             )
         return v.upper().strip()
 
@@ -60,7 +59,7 @@ class FXRate:
         if v not in valid_sources:
             raise CurrencyConverterError(
                 operation_type="source_validation",
-                requirement=f"source must be one of: {', '.join(valid_sources)}"
+                requirement=f"source must be one of: {', '.join(valid_sources)}",
             )
         return v
 
@@ -78,7 +77,7 @@ class FXRate:
         ):
             raise CurrencyConverterError(
                 operation_type="price_validation",
-                requirement="ask price must be greater than bid price"
+                requirement="ask price must be greater than bid price",
             )
         return v
 
@@ -230,9 +229,7 @@ class CurrencyConverter:
         if fallback_rate:
             return fallback_rate
 
-        raise ExchangeRateUnavailableError(
-            from_currency=from_currency, to_currency=to_currency
-        )
+        raise ExchangeRateUnavailableError(from_currency=from_currency, to_currency=to_currency)
 
     async def convert(
         self, amount: Decimal, from_currency: str, to_currency: str, use_cache: bool = True

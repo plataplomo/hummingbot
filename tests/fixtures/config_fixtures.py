@@ -43,6 +43,7 @@ from cyberdelta.config.models.funding_strategy_models import (
     StrategyConfigHLPerpBPSpot,
     StrategyParamsHLPerpBPSpot,
 )
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets, SecretsConfig
 from cyberdelta.enums.environment import EnvironmentType
@@ -257,6 +258,15 @@ def mock_config() -> AppSettings:
             initial_positions=[],
             validation=PortfolioValidationSettings(validation_timeout=5.0),
             state=PortfolioStateSettings(update_timeout=10.0),
+        ),
+        symbols=SmartSymbolsConfig(
+            list=["BTC", "ETH"],
+            patterns=SymbolPatterns(
+                hyperliquid={"perp": "{symbol}"},
+                backpack={"perp": "{symbol}_PERP"},
+            ),
+            defaults={"market_type": "PERP"},
+            overrides={},
         ),
     )
 

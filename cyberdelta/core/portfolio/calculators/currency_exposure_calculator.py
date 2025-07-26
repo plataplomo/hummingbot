@@ -411,7 +411,7 @@ class CurrencyExposureCalculator:
         position_size = position.size
         side = position.side
         exchange = position.exchange
-        
+
         # Calculate position value from size and mark_price
         mark_price = position.mark_price or Decimal(0)
         position_value = abs(position_size) * mark_price

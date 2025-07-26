@@ -16,7 +16,7 @@ from cyberdelta.core.portfolio.services.symbol.symbol_metadata import SymbolMeta
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.symbol_mapper import SymbolMapper
+    from cyberdelta.core.symbols.service import SymbolService as SymbolMapper
 
 logger = get_logger(__name__)
 

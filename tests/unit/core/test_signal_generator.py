@@ -19,7 +19,8 @@ from cyberdelta.core.models import (
     Ticker,
 )
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbol_service import UnifiedSymbolService
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -249,25 +250,22 @@ class TestSignalGenerator:
         return handler
 
     @pytest.fixture
-    def symbol_mapper(self, test_app_settings: AppSettings) -> SymbolMapper:
-        """Fixture for a SymbolMapper using the test AppSettings.
+    def symbol_mapper(self, test_app_settings: AppSettings) -> SymbolService:
+        """Fixture for a SymbolService using the test AppSettings.
 
         Returns:
-            SymbolMapper: Configured symbol mapper for testing.
+            SymbolService: Configured symbol service for testing.
         """
-        exchanges_map_for_mapper: dict[str, Any] = {}
-        for ex_id, exchange_config in test_app_settings.exchanges.items():
-            if exchange_config.enabled:
-                # SymbolMapper expects the exchange config to have a "symbols" key
-                exchanges_map_for_mapper[ex_id] = {"symbols": exchange_config.symbols}
-        return SymbolMapper(exchanges_map_for_mapper)
+        # Create a UnifiedSymbolService which returns the underlying SymbolService
+        unified_service = UnifiedSymbolService()
+        return unified_service.service
 
     @pytest.fixture
     def signal_generator(
         self,
         test_app_settings: AppSettings,
         data_handler: MagicMock,
-        symbol_mapper: SymbolMapper,
+        symbol_mapper: SymbolService,
     ) -> SignalGenerator:
         """Create a SignalGenerator instance for testing.
 
@@ -539,13 +537,10 @@ class TestSignalGenerator:
         # Define side effect with type hints, adding mark_price and timestamp
         def mock_low_funding(exchange: str, symbol: str) -> FundingRate | None:
             """Return mock low funding for testing."""
-            hl_sym = (
-                signal_generator.symbol_mapper.get_exchange_symbol("BTC", "hyperliquid")
-                or "BTC-PERP"
-            )
-            bp_sym = (
-                signal_generator.symbol_mapper.get_exchange_symbol("BTC", "backpack") or "BTC_USDC"
-            )
+            hl_sym_obj = signal_generator.symbol_service.get_exchange_symbol("BTC", "hyperliquid")
+            hl_sym = hl_sym_obj.value if hl_sym_obj else "BTC-PERP"
+            bp_sym_obj = signal_generator.symbol_service.get_exchange_symbol("BTC", "backpack")
+            bp_sym = bp_sym_obj.value if bp_sym_obj else "BTC_USDC"
             rates = {
                 "hyperliquid": {
                     hl_sym: FundingRate(
@@ -594,7 +589,7 @@ class TestSignalGenerator:
         signal_generator: SignalGenerator,
         config: MagicMock,
         data_handler: MagicMock,
-        symbol_mapper: SymbolMapper,
+        symbol_mapper: SymbolService,
     ) -> None:
         """Test scenario with only one exchange configured."""
 

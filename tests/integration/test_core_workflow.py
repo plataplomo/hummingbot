@@ -47,7 +47,8 @@ from cyberdelta.core.risk_manager import (
     RiskManager,
 )
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbol_service import UnifiedSymbolService
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.exceptions import (
     ExchangeNotSupportedError,
@@ -401,7 +402,7 @@ def data_handler(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     mocker: MockerFixture,
 ) -> DataHandler:
     """Return a DataHandler instance with mock APIs registered for testing."""
@@ -424,18 +425,18 @@ def data_handler(
 
 
 @pytest.fixture
-def symbol_mapper(mock_config: AppSettings) -> SymbolMapper:
-    """Return a SymbolMapper instance initialized with the mock config."""
-    # For AppSettings, provide empty dict for exchanges config since SymbolMapper expects dict
-    config_data_for_mapper: dict[str, Any] = {}
-    return SymbolMapper(config_data_for_mapper)
+def symbol_mapper(mock_config: AppSettings) -> SymbolService:
+    """Return a SymbolService instance initialized with the mock config."""
+    # Create a UnifiedSymbolService which returns the underlying SymbolService
+    unified_service = UnifiedSymbolService()
+    return unified_service.service
 
 
 @pytest.fixture
 def signal_generator(
     mock_config: AppSettings,
     data_handler: DataHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
 ) -> SignalGenerator:
     """Signal Generator instance.
 
@@ -460,7 +461,7 @@ def risk_manager(mock_config: AppSettings, portfolio_tracker: PortfolioTracker) 
 def execution_handler(
     mock_config: AppSettings,
     portfolio_tracker: PortfolioTracker,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
 ) -> ExecutionHandler:
@@ -484,7 +485,7 @@ async def test_happy_path_full_cycle(
     signal_generator: SignalGenerator,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
@@ -684,7 +685,8 @@ async def test_happy_path_full_cycle(
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             # We need to map ex_specific_sym back to internal_sym for sg_funding_data
             try:
-                internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym_obj = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym = internal_sym_obj.value if internal_sym_obj else ex_specific_sym
             except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
                     "test_funding_prep_mapping_failed",
@@ -898,7 +900,7 @@ async def test_api_error_during_placement(
     portfolio_tracker: PortfolioTracker,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
 ) -> None:
     """Tests that an APIError during order placement is handled."""
     # ... (Setup similar to happy path)
@@ -1169,7 +1171,7 @@ async def test_partial_fill(
     portfolio_tracker: PortfolioTracker,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
@@ -1298,7 +1300,8 @@ async def test_partial_fill(
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             # We need to map ex_specific_sym back to internal_sym for sg_funding_data
             try:
-                internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym_obj = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym = internal_sym_obj.value if internal_sym_obj else ex_specific_sym
             except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
                     "test_funding_prep_mapping_failed_1",
@@ -1781,7 +1784,7 @@ def _setup_hl_compensation_mock_behaviors(
 
 def _prepare_funding_data(
     data_handler: DataHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
 ) -> dict[str, dict[str, FundingRate | None]]:
     """Prepare funding data structure for signal generation.
 
@@ -1792,7 +1795,8 @@ def _prepare_funding_data(
     for ex_id_key, sym_data_map in data_handler.funding_rates.items():
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             try:
-                internal_sym = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym_obj = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym = internal_sym_obj.value if internal_sym_obj else ex_specific_sym
             except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
                     "test_funding_prep_mapping_failed_2",
@@ -1889,7 +1893,7 @@ async def test_execution_failure_compensation(
     portfolio_tracker: PortfolioTracker,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
@@ -2150,7 +2154,7 @@ async def test_failed_execution(
     signal_generator: SignalGenerator,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
-    symbol_mapper: SymbolMapper,
+    symbol_mapper: SymbolService,
     caplog: LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:

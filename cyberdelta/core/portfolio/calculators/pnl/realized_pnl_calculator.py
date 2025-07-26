@@ -56,15 +56,11 @@ class RealizedPnLInput:
         """Validate trade has required fields."""
         if v.quantity <= 0:
             raise InvalidCalculationInputError(
-                parameter="quantity",
-                value=v.quantity,
-                expected="positive value"
+                parameter="quantity", value=v.quantity, expected="positive value"
             )
         if v.price <= 0:
             raise InvalidCalculationInputError(
-                parameter="price",
-                value=v.price,
-                expected="positive value"
+                parameter="price", value=v.price, expected="positive value"
             )
         return v
 
@@ -80,7 +76,7 @@ class RealizedPnLInput:
                 raise InvalidCalculationInputError(
                     parameter="trade",
                     value=f"{position.symbol} != {v.symbol}",
-                    expected="matching symbols"
+                    expected="matching symbols",
                 )
         return v
 
@@ -139,17 +135,14 @@ class RealizedPnLCalculator(TypedCalculator[RealizedPnLInput, RealizedPnLResult]
 
             return CalculationResult[RealizedPnLResult].success_result(
                 result=result,
-                metadata=TypedCalculatorMetadata(
-                    calculator=self.calculator_name
-                ),
+                metadata=TypedCalculatorMetadata(calculator=self.calculator_name),
             )
 
         except (ValueError, TypeError, ArithmeticError) as e:
             return CalculationResult[RealizedPnLResult].failure_result(
                 errors=[f"Realized P&L calculation failed: {e}"],
                 metadata=TypedCalculatorMetadata(
-                    calculator=self.calculator_name,
-                    error_type=type(e).__name__
+                    calculator=self.calculator_name, error_type=type(e).__name__
                 ),
             )
 

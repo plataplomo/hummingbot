@@ -78,5 +78,8 @@
       "WebFetch(domain:docs.backpack.exchange)"
     ]
   },
-  "enableAllProjectMcpServers": false
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "context7"
+  ]
 }

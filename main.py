@@ -34,7 +34,9 @@ from cyberdelta.core.services import PriceDataService
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbol_service import initialize_symbol_service
+from cyberdelta.core.symbols.config_loader import load_symbols_from_config
+from cyberdelta.core.symbols.exceptions import SymbolRegistryError
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.strategies.factory import StrategyCreationError, StrategyFactory
 from cyberdelta.utils.async_state_manager import AsyncStateManager
@@ -218,17 +220,35 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         state_manager = AsyncStateManager(config)
         app_state["state_manager"] = state_manager
 
-        # SymbolMapper is required by PortfolioTracker and ExecutionHandler
-        exchanges_conf = config.exchanges
-        # Pass typed config directly - no conversion needed!
-        symbol_mapper = SymbolMapper(exchanges_conf)
-        app_state["symbol_mapper"] = symbol_mapper
+        # Initialize the new unified symbol registry from configuration
+        def _raise_no_symbols_error() -> None:
+            """Raise error when no symbols are loaded."""
+            logger.error("No symbols loaded from configuration")
+            raise SymbolRegistryError("initialization", "No symbols found in configuration")
 
-        # PortfolioTracker expects Config, PortfolioTrackerConfig, and SymbolMapper
+        logger.info("Initializing unified symbol registry...")
+        try:
+            loaded_count = load_symbols_from_config()
+            if loaded_count == 0:
+                _raise_no_symbols_error()
+            logger.info("Loaded symbols into registry", loaded_count=loaded_count)
+        except Exception as e:
+            logger.exception("Failed to load symbols from configuration")
+            raise SymbolRegistryError("initialization", f"Symbol loading failed: {e}") from e
+
+        # Initialize the unified symbol service
+        unified_symbol_service = initialize_symbol_service()
+        app_state["symbol_service"] = unified_symbol_service
+
+        # Get the underlying SymbolService for components that need it
+        symbol_service = unified_symbol_service.service
+        app_state["symbol_mapper"] = symbol_service
+
+        # PortfolioTracker now accepts SymbolService directly
         portfolio_tracker: PortfolioTracker = PortfolioTracker(
             config,
             config.portfolio_tracker,
-            symbol_mapper=symbol_mapper,
+            symbol_mapper=symbol_service,
         )
         app_state["portfolio_tracker"] = portfolio_tracker
 
@@ -256,7 +276,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         execution_handler = ExecutionHandler(
             config,
             portfolio_tracker,
-            symbol_mapper,
+            symbol_service,
             circuit_breaker,
         )
         app_state["execution_handler"] = execution_handler
@@ -289,7 +309,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
             app_settings=config,
             api_clients={},
             portfolio_tracker=portfolio_tracker,
-            symbol_mapper=symbol_mapper,
+            symbol_mapper=symbol_service,
         )
         app_state["data_handler"] = data_handler
 

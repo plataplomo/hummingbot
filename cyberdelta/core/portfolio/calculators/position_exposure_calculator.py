@@ -92,9 +92,7 @@ class PositionExposure:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
-                parameter="decimal_value",
-                value=value,
-                expected="finite decimal"
+                parameter="decimal_value", value=value, expected="finite decimal"
             )
         return value
 
@@ -108,13 +106,13 @@ class PositionExposure:
                 raise InvalidCalculationInputError(
                     parameter="side_consistency",
                     value=f"LONG with net_exposure={net}",
-                    expected="LONG position with positive net exposure"
+                    expected="LONG position with positive net exposure",
                 )
             if v == "SHORT" and net > 0:
                 raise InvalidCalculationInputError(
                     parameter="side_consistency",
                     value=f"SHORT with net_exposure={net}",
-                    expected="SHORT position with negative net exposure"
+                    expected="SHORT position with negative net exposure",
                 )
         return v
 
@@ -125,9 +123,7 @@ class PositionExposure:
         if v is not None:
             if not v.strip():
                 raise InvalidCalculationInputError(
-                    parameter="currency_code",
-                    value=v,
-                    expected="non-empty string"
+                    parameter="currency_code", value=v, expected="non-empty string"
                 )
             return v.upper().strip()
         return v
@@ -186,7 +182,7 @@ class PortfolioImpactMetrics:
             raise InvalidCalculationInputError(
                 parameter="percentage_value",
                 value=value,
-                expected="finite and reasonable percentage"
+                expected="finite and reasonable percentage",
             )
         return value
 

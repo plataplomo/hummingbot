@@ -28,6 +28,7 @@ from cyberdelta.config.models.funding_strategy_models import (
     StrategyConfigHLPerpBPSpot,
     StrategyParamsHLPerpBPSpot,
 )
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 from cyberdelta.core.risk.exceptions.sizing_exceptions import SizingError
 from cyberdelta.core.risk.sizing.interfaces.sizing_interfaces import BaseSizerInterface
 from cyberdelta.core.risk.sizing.models.sizing_result import (
@@ -50,6 +51,13 @@ def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
             state_backup_directory="data/test_state_backups",
             state_save_interval=300,
             state_backup_count=5,
+        ),
+        symbols=SmartSymbolsConfig(
+            list=["BTC", "ETH"],
+            patterns=SymbolPatterns(
+                hyperliquid={"perp": "{symbol}-PERP"},
+                backpack={"perp": "{symbol}_PERP"},
+            ),
         ),
         exchanges={
             "hyperliquid": ExchangeSpecificConfig.model_validate({

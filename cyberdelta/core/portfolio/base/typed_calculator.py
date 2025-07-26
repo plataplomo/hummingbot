@@ -135,10 +135,7 @@ class CalculatorMetrics:
         """Validate rates are between 0 and 1."""
         value: float = v if isinstance(v, (int, float)) else float(v)
         if not 0 <= value <= 1:
-            raise InvalidRateRangeError(
-                rate=value,
-                rate_type="Cache hit rate"
-            )
+            raise InvalidRateRangeError(rate=value, rate_type="Cache hit rate")
         return value
 
 

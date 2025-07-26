@@ -1,0 +1,141 @@
+general:
+  log_level: DEBUG
+  log_file: logs/cyberdelta.log
+  module_log_levels:
+    cyberdelta.engine: DEBUG
+    cyberdelta.exchange: DEBUG
+    cyberdelta.strategy: DEBUG
+    cyberdelta.risk: DEBUG
+    cyberdelta.execution: DEBUG
+    cyberdelta.safety_systems: DEBUG
+    cyberdelta.apis.connectivity: DEBUG
+    cyberdelta.security: DEBUG
+    WebSocketManager: DEBUG
+  safe_mode: true
+  state_file: data/state.json
+  state_backup_directory: data/state_backups
+  state_save_interval: 60
+  state_backup_count: 5
+exchanges:
+  hyperliquid:
+    exchange_name: hyperliquid
+    enabled: true
+    api_base_url_mainnet: https://api.hyperliquid.xyz
+    ws_url_mainnet: wss://api.hyperliquid.xyz/ws
+    api_base_url_testnet: https://api.hyperliquid-testnet.xyz
+    ws_url_testnet: wss://api.hyperliquid-testnet.xyz/ws
+    environment_type: mainnet
+    ip_weight_limit_per_minute: 1140
+    info_request_type_ip_weights:
+      l2Book: 2
+      allMids: 2
+      meta: 2
+      metaAndAssetCtxs: 2
+      clearinghouseState: 10
+      openOrders: 1
+      userFills: 1
+      fundingHistory: 2
+      historicalOrders: 5
+      orderStatus: 1
+      userRole: 60
+      recentTrades: 2
+    default_info_weight: 20
+    exchange_action_base_ip_weight: 1
+    address_action_safety_net:
+      rate_per_minute: 300
+    websocket_send_rate_per_minute: 1800
+    symbols:
+      BTC: BTC
+      ETH: ETH
+      SOL: SOL
+      SUI: SUI
+      HYPE: HYPE
+      FARTCOIN: FARTCOIN
+      XRP: XRP
+      VIRTUAL: VIRTUAL
+      ADA: ADA
+    request_timeout_seconds: 20
+    ws_ping_interval_seconds: 25
+    chain_id: 1337
+  backpack:
+    exchange_name: backpack
+    enabled: true
+    api_base_url_mainnet: https://api.backpack.exchange
+    ws_url_mainnet: wss://ws.backpack.exchange
+    environment_type: mainnet
+    rate_limit_per_minute: 120
+    symbols:
+      BTC: BTC_PERP
+      ETH: ETH_PERP
+      SOL: SOL_PERP
+      SUI: SUI_PERP
+      HYPE: HYPE_PERP
+      FARTCOIN: FARTCOIN_PERP
+      XRP: XRP_PERP
+      VIRTUAL: VIRTUAL_PERP
+      ADA: ADA_PERP
+    request_timeout_seconds: 15.0
+strategies:
+  hl_perp_bp_spot:
+    enabled: true
+    long_exchange: backpack
+    short_exchange: hyperliquid
+    symbol_long: HYPE
+    symbol_short: HYPE
+    params:
+      funding_threshold: 0.0001
+      max_price_spread_pct: 0.002
+      min_profit_usd: 0.1
+      min_funding_differential: 0.0001
+      check_interval: 10
+      risk_aversion: 1.0
+      rebalance_threshold: 0.05
+      perp_exchange: hyperliquid
+      spot_exchange: backpack
+risk:
+  global:
+    max_position_usd: 200.0
+    max_total_exposure_usd: 1000.0
+  use_simple_sizing_path: true
+  simple_sizing_method: fixed_fraction
+  simple_fixed_fraction: '0.01'
+  simple_fixed_usd_size: '10.0'
+  sizing:
+    max_position_size: 200.0
+execution:
+  max_slippage_pct: 0.001
+  max_retries: 3
+  retry_delay_base_sec: 1.0
+  settlement_delay: 2.0
+  compensation:
+    use_limit_orders: true
+    limit_price_offset_pct: 0.05
+safety_systems:
+  circuit_breakers:
+    enabled: true
+    global_consecutive_failures: 5
+    global_reset_timeout_sec: 300
+    exchange_consecutive_failures: 3
+    exchange_reset_timeout_sec: 180
+  position_reconciliation:
+    enabled: true
+    check_interval_sec: 600
+    max_discrepancy_pct: 0.01
+  balance_monitoring:
+    enabled: true
+    check_interval_sec: 300
+    min_balance_thresholds_usd:
+      hyperliquid: 100.0
+      backpack: 100.0
+monitoring:
+  notifications_enabled: true
+  alert_methods:
+  - log
+portfolio_tracker:
+  data_freshness_seconds: 60
+  initial_balances: {}
+  initial_positions: []
+  validation:
+    validation_timeout: 4.0
+  state:
+    update_timeout: 5.0

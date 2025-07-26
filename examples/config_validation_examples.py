@@ -28,6 +28,7 @@ from cyberdelta.config.models.funding_strategy_models import (
     StrategyConfigHLPerpBPSpot,
     StrategyParamsHLPerpBPSpot,
 )
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 from cyberdelta.core.services.config_validation import (
     ConfigValidationError,
     ExecutionConfigValidator,
@@ -40,6 +41,19 @@ from cyberdelta.enums.exchange_names import ExchangeName
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+
+def get_default_symbols_config() -> SmartSymbolsConfig:
+    """Get default symbols configuration for examples."""
+    return SmartSymbolsConfig(
+        list=["BTC", "ETH"],
+        patterns=SymbolPatterns(
+            hyperliquid={"perp": "{symbol}"},
+            backpack={"perp": "{symbol}_PERP"},
+        ),
+        defaults={"market_type": "PERP"},
+        overrides={},
+    )
 
 
 def example_1_valid_configuration() -> None:
@@ -130,6 +144,7 @@ def example_1_valid_configuration() -> None:
             initial_balances={},
             initial_positions=[],
         ),
+        symbols=get_default_symbols_config(),
     )
 
     try:
@@ -226,6 +241,7 @@ def example_2_critical_errors() -> None:
             initial_balances={},
             initial_positions=[],
         ),
+        symbols=get_default_symbols_config(),
     )
 
     try:
@@ -333,6 +349,7 @@ def example_3_warnings_only() -> None:
             initial_balances={},
             initial_positions=[],
         ),
+        symbols=get_default_symbols_config(),
     )
 
     try:
@@ -442,6 +459,7 @@ def example_4_testnet_configuration() -> None:
             initial_balances={},
             initial_positions=[],
         ),
+        symbols=get_default_symbols_config(),
     )
 
     try:

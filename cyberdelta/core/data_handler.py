@@ -20,7 +20,8 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.symbol_mapper import SymbolMapper
+from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
 
@@ -64,7 +65,7 @@ class DataHandler:
         app_settings: AppSettings,
         api_clients: dict[str, ExchangeAPI],
         portfolio_tracker: PortfolioTracker,
-        symbol_mapper: SymbolMapper,
+        symbol_mapper: SymbolService,  # Now accepts SymbolService
         loop: asyncio.AbstractEventLoop | None = None,
         clock: Callable[[Any], dt_real] | None = None,  # Add clock parameter
     ) -> None:
@@ -74,7 +75,7 @@ class DataHandler:
             app_settings: Application configuration object.
             api_clients: Dictionary of ExchangeAPI instances.
             portfolio_tracker: PortfolioTracker instance.
-            symbol_mapper: SymbolMapper instance.
+            symbol_mapper: Symbol service (kept as symbol_mapper for compatibility).
             loop: Event loop for async operations.
             clock: Callable for getting current datetime.
 
@@ -82,7 +83,8 @@ class DataHandler:
         self.app_settings = app_settings
         self.api_clients = api_clients
         self.portfolio_tracker = portfolio_tracker
-        self.symbol_mapper = symbol_mapper
+        self.symbol_service = symbol_mapper  # Internal reference uses proper name
+        self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
         self.loop = loop or asyncio.get_event_loop()
         self.datetime_alias = (
             dt_real  # Keep for now if other parts use it, but _is_data_stale will use self.clock
