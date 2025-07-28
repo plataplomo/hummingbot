@@ -54,22 +54,38 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely with default fallback."""
+        """Parse decimal values safely with default fallback.
+        
+        Returns:
+            Decimal: Parsed decimal value or default if parsing fails.
+        """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format."""
+        """Normalize symbol to internal format.
+        
+        Returns:
+            str: Normalized symbol (e.g., 'BTC-USD' -> 'BTCUSD').
+        """
         return HyperliquidCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format."""
+        """Denormalize symbol to exchange format.
+        
+        Returns:
+            str: Denormalized symbol for exchange (e.g., 'BTCUSD' -> 'BTC-USD').
+        """
         return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime."""
+        """Convert millisecond timestamp to datetime.
+        
+        Returns:
+            datetime | None: UTC datetime object or None if timestamp is None.
+        """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from PriceTickerMapperProtocol
@@ -143,6 +159,7 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             Ticker: Internal domain model with populated fields and HL details
 
         Raises:
+            TransformationError: If data validation fails
             TickerTransformationError: If transformation fails
         """
         try:

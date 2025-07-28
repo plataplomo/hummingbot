@@ -44,7 +44,11 @@ class TestTransformer:
     def transform(
         self, validated: MessageModel, context: WebSocketContextProtocol | None = None
     ) -> DomainModel:
-        """Transform test message to domain model."""
+        """Transform test message to domain model.
+        
+        Returns:
+            DomainModel: Transformed domain model with processed values.
+        """
         return DomainModel(
             message_id=validated.id,
             processed_value=validated.value * 2,
@@ -58,7 +62,11 @@ class FailingTransformer:
     def transform(
         self, validated: MessageModel, context: WebSocketContextProtocol | None = None
     ) -> DomainModel:
-        """Always raise an exception."""
+        """Always raise an exception.
+            
+        Raises:
+            ValueError: Always raises with "Transformation failed".
+        """
         raise ValueError("Transformation failed")
 
 
@@ -114,12 +122,20 @@ class TestPydanticWebSocketProcessor:
 
     @pytest.fixture
     def error_handler(self) -> AsyncMock:
-        """Create mock error handler."""
+        """Create mock error handler.
+        
+        Returns:
+            AsyncMock: Mocked BaseErrorHandler for testing.
+        """
         return AsyncMock(spec=BaseErrorHandler)
 
     @pytest.fixture
     def transformer(self) -> TestTransformer:
-        """Create test transformer."""
+        """Create test transformer.
+        
+        Returns:
+            TestTransformer: Test transformer instance.
+        """
         return TestTransformer()
 
     @pytest.fixture
@@ -128,7 +144,11 @@ class TestPydanticWebSocketProcessor:
         error_handler: AsyncMock,
         transformer: TestTransformer,
     ) -> PydanticWebSocketProcessor[MessageModel, DomainModel]:
-        """Create processor for testing."""
+        """Create processor for testing.
+        
+        Returns:
+            PydanticWebSocketProcessor: Configured processor with test dependencies.
+        """
         return PydanticWebSocketProcessor(
             raw_model=MessageModel,
             transformer=transformer,

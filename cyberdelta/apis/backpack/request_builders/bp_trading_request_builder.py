@@ -65,9 +65,6 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             *args: Positional arguments
             **kwargs: Keyword arguments including 'operation' to specify the request type
 
-        Returns:
-            Request payload dictionary
-
         Raises:
             NotImplementedError: If operation is not supported or parameters are insufficient
         """
@@ -115,6 +112,9 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
         Returns:
             Tuple of (order_type_str, order_side_str, time_in_force_str)
+
+        Raises:
+            InvalidEnumValueError: If order_type or time_in_force is invalid
         """
         # Map order type enum to API string (Backpack API format)
         order_type_mapping = {
@@ -210,7 +210,11 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
     def _add_price_fields(
         request_dict: dict[str, Any], order_type_str: str, price: Decimal | None
     ) -> None:
-        """Add price fields for limit orders."""
+        """Add price fields for limit orders.
+        
+        Raises:
+            MissingRequiredParameterError: If price is None for limit orders.
+        """
         if order_type_str == "Limit":
             if price is None:
                 raise MissingRequiredParameterError(
@@ -321,6 +325,10 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
         Returns:
             BackpackRawOrderExecuteRequest: Validated request payload
+
+        Raises:
+            MissingRequiredParameterError: If required parameters are missing for 
+                specific order types
         """
         logger.debug(
             "building_place_order_payload",

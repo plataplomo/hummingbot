@@ -700,7 +700,14 @@ class OrderDataScreener(BaseScreener):
         return errors, warnings
 
     def _validate_order_value(self, order: Order) -> tuple[list[str], list[str]]:
-        """Validate order value calculations."""
+        """Validate order value calculations.
+        
+        Args:
+            order: Order object to validate
+            
+        Returns:
+            Tuple of (validation errors, warnings) for order value
+        """
         errors: list[str] = []
         warnings: list[str] = []
 
@@ -728,7 +735,14 @@ class OrderDataScreener(BaseScreener):
         return errors, warnings
 
     def _validate_order_quantities(self, order: Order) -> list[str]:
-        """Validate order quantity relationships."""
+        """Validate order quantity relationships.
+        
+        Args:
+            order: Order object to validate
+            
+        Returns:
+            List of validation errors for quantity relationships
+        """
         errors: list[str] = []
 
         try:
@@ -749,7 +763,14 @@ class OrderDataScreener(BaseScreener):
         return errors
 
     def _validate_order_type_price_relationship(self, order: Order) -> tuple[list[str], list[str]]:
-        """Validate order type and price relationship."""
+        """Validate order type and price relationship.
+        
+        Args:
+            order: Order object to validate
+            
+        Returns:
+            Tuple of (validation errors, warnings) for order type/price relationship
+        """
         errors: list[str] = []
         warnings: list[str] = []
 
@@ -764,7 +785,14 @@ class OrderDataScreener(BaseScreener):
         return errors, warnings
 
     def _validate_order_timestamps(self, order: Order) -> list[str]:
-        """Validate order timestamp consistency."""
+        """Validate order timestamp consistency.
+        
+        Args:
+            order: Order object to validate
+            
+        Returns:
+            List of validation errors for timestamp consistency
+        """
         errors: list[str] = []
 
         created_at = order.created_at

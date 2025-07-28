@@ -81,7 +81,11 @@ class CheckPipeline:
     async def _execute_checkers(
         self, checkers_to_run: list[PipelineChecker], opportunity: ArbitrageOpportunity
     ) -> tuple[list[CheckResult], dict[str, int]]:
-        """Execute checkers and return results with counts."""
+        """Execute checkers and return results with counts.
+        
+        Returns:
+            Tuple of (list of check results, dictionary of result counts).
+        """
         results: list[CheckResult] = []
         counts = {"passed": 0, "failed": 0, "skipped": 0, "error": 0}
 
@@ -126,7 +130,11 @@ class CheckPipeline:
     def _create_check_context(
         self, checker: PipelineChecker, opportunity: ArbitrageOpportunity
     ) -> CheckContext:
-        """Create check context for a checker."""
+        """Create check context for a checker.
+        
+        Returns:
+            CheckContext instance for the given checker and opportunity.
+        """
         return CheckContext(
             check_name=checker.name,
             config={"pipeline": True},
@@ -147,7 +155,11 @@ class CheckPipeline:
     def _process_gather_result(
         self, gather_result: CheckResult | BaseException, checker: PipelineChecker
     ) -> CheckResult:
-        """Process a result from asyncio.gather."""
+        """Process a result from asyncio.gather.
+        
+        Returns:
+            CheckResult, either the original result or an error result if an exception occurred.
+        """
         if isinstance(gather_result, BaseException):
             return CheckResult.error(
                 message=(f"Checker {checker.name} failed with exception: {gather_result!s}"),
@@ -162,7 +174,11 @@ class CheckPipeline:
         results: list[CheckResult],
         counts: dict[str, int],
     ) -> CheckResult:
-        """Build the final pipeline result."""
+        """Build the final pipeline result.
+        
+        Returns:
+            CheckResult representing the overall pipeline execution result.
+        """
         pipeline_details = {
             "total_checks": len(results),
             "passed": counts["passed"],
@@ -284,11 +300,19 @@ class CheckPipeline:
         return len(self.checkers)
 
     def __str__(self) -> str:
-        """String representation of the pipeline."""
+        """String representation of the pipeline.
+        
+        Returns:
+            String representation showing the number of checkers.
+        """
         return f"CheckPipeline({len(self.checkers)} checkers)"
 
     def __repr__(self) -> str:
-        """Detailed representation of the pipeline."""
+        """Detailed representation of the pipeline.
+        
+        Returns:
+            Detailed string representation including checker names.
+        """
         checker_names = [checker.name for checker in self.checkers]
         return f"CheckPipeline(checkers={checker_names})"
 

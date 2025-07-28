@@ -443,6 +443,7 @@ async def test_model_transformation_with_real_data(
         Dict with raw data and transformed model
 
     Raises:
+        ValueError: If stream_type is not supported
         RuntimeError: If transformation test fails
     """
     try:

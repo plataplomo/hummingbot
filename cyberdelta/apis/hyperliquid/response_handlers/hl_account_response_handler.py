@@ -81,6 +81,9 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Processed response object
+            
+        Raises:
+            APIError: If the context is unknown or response validation fails.
         """
         # Route to appropriate handler based on context
         if context == "user_state":
@@ -117,9 +120,6 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             HyperliquidRawUserStateResponse: Validated user state response
-
-        Raises:
-            APIError: If validation fails
         """
         context = f"info (user state for {user_address})"
         try:
@@ -151,7 +151,8 @@ class HyperliquidAccountResponseHandler(
             HyperliquidRawVaultDetailsResponse: Validated vault details
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None.
+            APIError: If validation fails or response is empty.
         """
         context = "info_vault_details"
         if status_code is None:
@@ -190,7 +191,7 @@ class HyperliquidAccountResponseHandler(
             HyperliquidRawOpenOrdersResponse: Validated open orders response
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None.
         """
         context = "info_open_orders"
         if status_code is None:
@@ -221,7 +222,7 @@ class HyperliquidAccountResponseHandler(
             HyperliquidRawUserFillsResponse: Validated user fills response
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None.
         """
         context = "info_user_fills"
         if status_code is None:
@@ -252,9 +253,6 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             list[HyperliquidRawHistoricalOrderResponse]: Validated list of historical orders
-
-        Raises:
-            APIError: If validation fails
         """
         context = f"historicalOrders (for {wallet_address})"
         try:
@@ -279,6 +277,9 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Validated Pydantic model containing user state data
+            
+        Raises:
+            APIError: If validation of the user state response fails.
         """
         context = "get_user_state"
         try:
@@ -328,6 +329,9 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Validated Pydantic model containing order data
+            
+        Raises:
+            APIError: If validation of the open orders response fails.
         """
         context = "get_open_orders"
         try:
@@ -361,6 +365,9 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Validated Pydantic model containing fill data
+            
+        Raises:
+            APIError: If validation of the user fills response fails.
         """
         context = "get_user_fills"
         try:

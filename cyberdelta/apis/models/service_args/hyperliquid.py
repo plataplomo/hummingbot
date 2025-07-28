@@ -31,7 +31,14 @@ class HyperliquidGetOrderHistoryArgs(BaseModel):
 
     @model_validator(mode="after")
     def check_time_range(self) -> "HyperliquidGetOrderHistoryArgs":
-        """Validate time range logic."""
+        """Validate time range logic.
+        
+        Returns:
+            Self for method chaining.
+            
+        Raises:
+            TimeRangeError: If start_time_ms is greater than or equal to end_time_ms.
+        """
         if self.start_time_ms >= self.end_time_ms:
             raise TimeRangeError(
                 start_field="start_time_ms",
@@ -108,7 +115,14 @@ class HyperliquidGetCandleSnapshotArgs(BaseModel):
 
     @model_validator(mode="after")
     def check_time_range(self) -> "HyperliquidGetCandleSnapshotArgs":
-        """Validate time range logic."""
+        """Validate time range logic.
+        
+        Returns:
+            Self for method chaining.
+            
+        Raises:
+            TimeRangeError: If start_time_ms is greater than or equal to end_time_ms.
+        """
         if self.start_time_ms >= self.end_time_ms:
             raise TimeRangeError(
                 start_field="start_time_ms",

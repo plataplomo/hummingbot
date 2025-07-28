@@ -147,7 +147,15 @@ class CachingConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def validate_caching_consistency(self) -> CachingConfiguration:
-        """Validate caching configuration consistency."""
+        """Validate caching configuration consistency.
+        
+        Returns:
+            Self if all validation checks pass
+            
+        Raises:
+            CachingPolicyError: If caching policy and duration are inconsistent
+        
+        """
         # Development caching should be short duration
         if (
             self.policy == CachingPolicy.DEVELOPMENT
@@ -179,11 +187,21 @@ class CachingConfiguration(BaseModel):
         return self
 
     def is_enabled(self) -> bool:
-        """Check if caching is enabled."""
+        """Check if caching is enabled.
+        
+        Returns:
+            True if caching policy is not DISABLED, False otherwise
+        
+        """
         return self.policy != CachingPolicy.DISABLED
 
     def get_effective_duration(self) -> float:
-        """Get effective cache duration based on policy."""
+        """Get effective cache duration based on policy.
+        
+        Returns:
+            Effective cache duration in seconds, adjusted based on caching policy
+        
+        """
         if self.policy == CachingPolicy.DISABLED:
             return 0.0
         if self.policy == CachingPolicy.DEVELOPMENT:
@@ -230,11 +248,21 @@ class RegistrationConfiguration(BaseModel):
     )
 
     def should_auto_register(self) -> bool:
-        """Check if automatic registration is enabled."""
+        """Check if automatic registration is enabled.
+        
+        Returns:
+            True if automatic registration is enabled, False for manual mode
+        
+        """
         return self.mode != RegistrationMode.MANUAL
 
     def should_register_defaults(self) -> bool:
-        """Check if default components should be registered."""
+        """Check if default components should be registered.
+        
+        Returns:
+            True if default components should be registered based on the mode
+        
+        """
         return self.mode in {
             RegistrationMode.DEFAULT_COMPONENTS,
             RegistrationMode.ALL_AVAILABLE,
@@ -273,7 +301,15 @@ class SystemConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def validate_configuration_consistency(self) -> SystemConfiguration:
-        """Ensure configuration settings are internally consistent."""
+        """Ensure configuration settings are internally consistent.
+        
+        Returns:
+            Self if all configuration settings are consistent
+            
+        Raises:
+            PerformanceProfileError: If performance profile conflicts with other settings
+        
+        """
         # Ultra-fast profile should not have strict validation
         if (
             self.performance_profile == PerformanceProfile.ULTRA_FAST
@@ -443,7 +479,12 @@ class WebSocketConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def validate_websocket_consistency(self) -> WebSocketConfiguration:
-        """Validate WebSocket configuration consistency."""
+        """Validate WebSocket configuration consistency.
+        
+        Returns:
+            Self if all WebSocket configuration settings are consistent
+        
+        """
         # High-performance systems should have memory optimization
         if (
             self.system_config.performance_profile == PerformanceProfile.ULTRA_FAST
@@ -571,7 +612,12 @@ class RequestConfiguration(BaseModel):
 
     @model_validator(mode="after")
     def validate_request_consistency(self) -> RequestConfiguration:
-        """Validate request configuration consistency."""
+        """Validate request configuration consistency.
+        
+        Returns:
+            Self if all request configuration settings are consistent
+        
+        """
         # High weight requests should generally be signed
         if (
             self.request_weight > HIGH_WEIGHT_THRESHOLD
@@ -717,7 +763,15 @@ class SecurityPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_security_consistency(self) -> SecurityPolicy:
-        """Ensure security settings provide adequate protection."""
+        """Ensure security settings provide adequate protection.
+        
+        Returns:
+            Self if all security settings are consistent and adequate
+            
+        Raises:
+            ThreatModelError: If threat model requirements are not met by other settings
+        
+        """
         # Paranoid threat model requires comprehensive monitoring and auditing
         if self.threat_model == SecurityThreatModel.PARANOID:
             detailed_levels = {MonitoringLevel.DETAILED, MonitoringLevel.COMPREHENSIVE}
@@ -776,7 +830,12 @@ class SecurityPolicy(BaseModel):
         return self
 
     def get_legacy_flags(self) -> dict[str, bool]:
-        """Convert to legacy boolean flags for backward compatibility."""
+        """Convert to legacy boolean flags for backward compatibility.
+        
+        Returns:
+            Dictionary mapping legacy flag names to boolean values
+        
+        """
         return {
             "enable_monitoring": self.monitoring_level.is_enabled,
             "enable_audit": self.audit_level.is_enabled,

@@ -110,6 +110,13 @@ class HyperliquidRawFundingHistoryResponse(RootModel[list[HyperliquidRawFundingH
         - Type checking that input is a list
         - Validating each item is a dictionary or flattening nested lists
         - Providing detailed error messages for malformed items
+
+        Returns:
+            A validated list of dictionaries representing funding history items.
+
+        Raises:
+            StructureTypeError: If the input is not a list, or if any item
+                is not a dictionary or nested list containing dictionaries.
         """
         if not is_list_any(v):
             raise StructureTypeError(

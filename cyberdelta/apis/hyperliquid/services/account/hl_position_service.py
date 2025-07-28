@@ -260,8 +260,8 @@ class HyperliquidPositionService:
             current_method: Name of the method where error occurred
 
         Raises:
-            ValueError: If input validation error
-            APIError: If service logic error
+            APIError: Always raised to wrap the service logic error (or re-raises the 
+                original exception for input validation errors)
         """
         # Distinguish input validation from internal errors per ERROR_HANDLING.md
         error_msg = str(e_service_logic)

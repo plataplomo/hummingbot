@@ -20,7 +20,11 @@ def create_test_opportunity(
     basis_volatility: Decimal | None = None,
     frozen_time: FreezerProtocol | None = None,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity with required fields."""
+    """Create a test arbitrage opportunity with required fields.
+    
+    Returns:
+        ArbitrageOpportunity: A configured arbitrage opportunity for testing.
+    """
     # Use frozen time (datetime.now(UTC) is controlled by the freezer)
     timestamp = datetime.now(UTC)
     return ArbitrageOpportunity(
@@ -48,7 +52,11 @@ def setup_kelly_risk_manager(
     max_allocation: Decimal = Decimal("0.1"),
     min_volatility: Decimal = Decimal("0.01"),
 ) -> RiskManager:
-    """Setup a RiskManager with Kelly sizing properly configured."""
+    """Setup a RiskManager with Kelly sizing properly configured.
+    
+    Returns:
+        RiskManager: A configured risk manager instance with Kelly sizing enabled.
+    """
     # Configure for Kelly sizing
     mock_config.risk.use_simple_sizing_path = False
 

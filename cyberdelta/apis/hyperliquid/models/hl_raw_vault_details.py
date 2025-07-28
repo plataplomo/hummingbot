@@ -117,7 +117,7 @@ class HyperliquidRawVaultDetailsResponse(BaseModel):
             Validated list of dictionary objects ready for model parsing
 
         Raises:
-            ValueError: If structure is not a list or contains non-dict items
+            ListFieldError: If structure is not a list or contains non-dict items
 
         """
         field_name = info.field_name or "list_field"

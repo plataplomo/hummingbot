@@ -42,7 +42,17 @@ class ServiceConfiguration(BaseModel):
     @field_validator("name", mode="before")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """Validate service name is non-empty."""
+        """Validate service name is non-empty.
+
+        Args:
+            v: The service name to validate
+
+        Returns:
+            str: The validated and trimmed service name
+
+        Raises:
+            EmptyServiceNameError: If the service name is empty or whitespace only
+        """
         if not v or not v.strip():
             raise EmptyServiceNameError
         return v.strip()
@@ -55,7 +65,17 @@ class ServiceConfiguration(BaseModel):
     )
     @classmethod
     def validate_timeouts(cls, v: float) -> float:
-        """Validate timeout values are reasonable."""
+        """Validate timeout values are reasonable.
+
+        Args:
+            v: The timeout value to validate
+
+        Returns:
+            float: The validated timeout value
+
+        Raises:
+            InvalidServiceTimeoutError: If timeout is not between 0 and MAX_TIMEOUT_SECONDS
+        """
         value: float = float(v)
         if not (0 < value <= MAX_TIMEOUT_SECONDS):  # Between 0 and 1 hour
             raise InvalidServiceTimeoutError(timeout=value, max_timeout=MAX_TIMEOUT_SECONDS)
@@ -163,7 +183,11 @@ class BasePortfolioService(ABC):
             return False
 
     async def _health_check_internal(self) -> bool:
-        """Internal health check logic. Override in subclasses."""
+        """Internal health check logic. Override in subclasses.
+
+        Returns:
+            bool: True if service is healthy, False otherwise
+        """
         return self._running
 
     @property
@@ -172,6 +196,10 @@ class BasePortfolioService(ABC):
         return self._running
 
     def _ensure_running(self) -> None:
-        """Raise an error if the service is not running."""
+        """Raise an error if the service is not running.
+
+        Raises:
+            RuntimeError: If the service is not currently running
+        """
         if not self._running:
             raise RuntimeError

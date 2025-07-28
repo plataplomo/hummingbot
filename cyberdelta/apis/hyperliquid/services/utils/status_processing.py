@@ -73,9 +73,6 @@ def check_error_response(
         raw_exchange_response: Raw response from Hyperliquid
         http_status: HTTP status code
         error_mapper: Error mapper for converting Hyperliquid errors
-
-    Raises:
-        APIError: If response contains an error
     """
     if (raw_exchange_response.status == "err" and raw_exchange_response.response) and (
         isinstance(raw_exchange_response.response, str)

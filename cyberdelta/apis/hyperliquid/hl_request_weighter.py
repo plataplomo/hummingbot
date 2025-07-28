@@ -28,6 +28,10 @@ def _is_list_of_any(value: object) -> TypeGuard[list[Any]]:
 
     This helps pyright understand that after this check,
     the value is definitely a list with proper type information.
+
+    Returns:
+        True if value is a list, False otherwise. When True, the type
+        system knows value is list[Any].
     """
     return isinstance(value, list)
 
@@ -46,6 +50,10 @@ class HyperliquidRequestWeighter:
             hl_exchange_config: The Hyperliquid exchange configuration containing
                               IP weight mappings and other rate limit parameters.
 
+        Raises:
+            HyperliquidRateLimitConfigError: If required Hyperliquid-specific configuration
+                fields are missing (info_request_type_ip_weights, default_info_weight,
+                or exchange_action_base_ip_weight).
         """
         self.hl_exchange_config = hl_exchange_config
 

@@ -242,11 +242,19 @@ class TypedBaseSizer(ABC):
         return self._round_to_precision(constrained_size, self.position_precision)
 
     def _round_to_precision(self, value: Decimal, precision: int) -> Decimal:
-        """Round value to specified decimal precision."""
+        """Round value to specified decimal precision.
+        
+        Returns:
+            Decimal: Rounded value with specified precision.
+        """
         return value.quantize(Decimal(f"0.{'0' * precision}"))
 
     def _to_decimal(self, value: str | float | Decimal) -> Decimal:
-        """Convert value to Decimal with validation."""
+        """Convert value to Decimal with validation.
+        
+        Returns:
+            Decimal: Converted decimal value.
+        """
         if isinstance(value, Decimal):
             return value
         if isinstance(value, str):
@@ -260,6 +268,9 @@ class TypedBaseSizer(ABC):
         Args:
             min_size: Minimum position size
             max_size: Maximum position size
+            
+        Raises:
+            SizingError: If min_size is not less than max_size.
         """
         if min_size >= max_size:
             raise SizingError(SizingError.MIN_SIZE_MUST_BE_LESS_THAN_MAX_SIZE)
@@ -271,9 +282,17 @@ class TypedBaseSizer(ABC):
         )
 
     def __str__(self) -> str:
-        """String representation of the sizer."""
+        """String representation of the sizer.
+        
+        Returns:
+            str: String representation with class name and sizer name.
+        """
         return f"{self.__class__.__name__}(name={self.name})"
 
     def __repr__(self) -> str:
-        """Detailed representation of the sizer."""
+        """Detailed representation of the sizer.
+        
+        Returns:
+            str: Detailed representation with class name, sizer name, and sizing method.
+        """
         return f"{self.__class__.__name__}(name={self.name}, method={self.sizing_method})"

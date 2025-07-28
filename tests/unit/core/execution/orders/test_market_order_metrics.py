@@ -22,7 +22,11 @@ class TestMarketOrderExecutionMetric:
 
     @pytest.fixture
     def filled_buy_metric(self) -> MarketOrderExecutionMetric:
-        """Create a filled buy order metric for testing."""
+        """Create a filled buy order metric for testing.
+        
+        Returns:
+            MarketOrderExecutionMetric: A filled buy order metric for testing.
+        """
         return MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol="BTC-PERP",
@@ -238,7 +242,11 @@ class TestMarketOrderMetrics:
 
     @pytest.fixture
     def metrics_tracker(self) -> MarketOrderMetrics:
-        """Create a MarketOrderMetrics instance for testing."""
+        """Create a MarketOrderMetrics instance for testing.
+        
+        Returns:
+            MarketOrderMetrics: A market order metrics tracker for testing.
+        """
         return MarketOrderMetrics(max_history=100)
 
     def test_metrics_tracker_initializes_with_empty_state(

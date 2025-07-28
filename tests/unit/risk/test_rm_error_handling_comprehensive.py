@@ -20,7 +20,11 @@ def create_test_opportunity(
     net_funding_differential: Decimal = Decimal("0.01"),
     frozen_time: FreezerProtocol | None = None,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity: An arbitrage opportunity instance for testing.
+    """
     # Use frozen time (datetime.now(UTC) is controlled by the freezer)
     timestamp = datetime.now(UTC)
     return ArbitrageOpportunity(

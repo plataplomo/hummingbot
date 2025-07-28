@@ -155,7 +155,7 @@ class HyperliquidAPI(ExchangeAPI):
             market_data_service: Optional market data service instance for dependency injection
 
         Raises:
-            ValueError: If chain_id is required but missing from exchange_config.
+            RequiredParameterError: If chain_id is required but missing from exchange_config.
         """
         # URL Selection Logic based on environment
         if exchange_config.environment_type.is_production:
@@ -398,8 +398,17 @@ class HyperliquidAPI(ExchangeAPI):
     ) -> dict[str, Any]:
         """Use the HyperliquidEip712Authenticator to prepare request components.
 
+        Args:
+            method: HTTP method for the request
+            path: API path for the request
+            params: Optional query parameters
+            data: Optional request body data
+
         Returns:
             Dictionary containing authentication headers for the request.
+
+        Raises:
+            APIError: If authentication fails or authenticator is not initialized
         """
         if not self._hl_authenticator:
             logger.error(
@@ -522,8 +531,14 @@ class HyperliquidAPI(ExchangeAPI):
     ) -> None:
         """Update rate limit information based on response headers.
 
-        Hyperliquid does not typically provide rate limit info in standard headers.
-        This is a placeholder implementation.
+        Args:
+            headers: Response headers from the API
+            method: HTTP method used for the request
+            path: API path used for the request
+
+        Note:
+            Hyperliquid does not typically provide rate limit info in standard headers.
+            This is a placeholder implementation.
         """
         logger.debug(
             "hyperliquid_rate_limit_update_noop",
@@ -546,11 +561,6 @@ class HyperliquidAPI(ExchangeAPI):
 
         Returns:
             HyperliquidRawWsSubscribeRequest model
-
-        Raises:
-            ValueError: If topic format is invalid or required info is missing
-            APIError: If topic is not supported by the exchange
-
         """
         # Delegate to the WebSocket router for payload construction
         return self._hl_ws_router.construct_subscription_payload(topic, self._wallet_address)
@@ -558,26 +568,49 @@ class HyperliquidAPI(ExchangeAPI):
     async def _handle_websocket_message(self, message: dict[str, Any]) -> None:
         """Handle raw WebSocket message from WebSocketManager, then route it.
 
-        This method is called by the WebSocketManager.
+        Args:
+            message: Raw WebSocket message dictionary
+
+        Note:
+            This method is called by the WebSocketManager.
         """
         # Following the pattern from BackpackAPI, directly route to _route_ws_message.
         # Add any pre-processing here if Hyperliquid requires it for common message envelopes.
         await self._route_ws_message(message)
 
     async def _route_ws_message(self, message: dict[str, Any]) -> None:
-        """Delegate WebSocket message routing to the WebSocket router."""
+        """Delegate WebSocket message routing to the WebSocket router.
+
+        Args:
+            message: WebSocket message dictionary to route
+        """
         await self._hl_ws_router.route_message(message, self._ws_handlers)
 
     async def connect_websocket(self) -> None:
-        """Establish the WebSocket connection using the base class logic."""
+        """Establish the WebSocket connection using the base class logic.
+
+        Note:
+            This method delegates to the parent class's WebSocket connection logic.
+        """
         await super().connect_websocket()
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Get account balances."""
+        """Get account balances.
+
+        Returns:
+            Dictionary mapping asset names to SpotBalance objects
+        """
         return await self.account_service.get_balances()
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Get derivative positions."""
+        """Get derivative positions.
+
+        Args:
+            symbol: Optional symbol to filter positions for
+
+        Returns:
+            List of DerivativePosition objects
+        """
         return await self.account_service.get_positions(symbol=symbol)
 
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
@@ -585,6 +618,9 @@ class HyperliquidAPI(ExchangeAPI):
 
         Args:
             args: Account settings to update
+
+        Returns:
+            Updated AccountSettings object
 
         Note:
             Hyperliquid uses a fundamentally different approach than Backpack:
@@ -597,47 +633,126 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.account_service.update_account_settings(args=args)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Get all open orders."""
+        """Get all open orders.
+
+        Args:
+            symbol: Optional symbol to filter orders for
+
+        Returns:
+            List of open Order objects
+        """
         return await self.trading_service.get_open_orders(symbol=symbol)
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Get ticker information for a specific symbol."""
+        """Get ticker information for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get ticker for
+
+        Returns:
+            Ticker object if found, None otherwise
+        """
         return await self.market_data_service.get_ticker(symbol=symbol)
 
     async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook | None:
-        """Get order book for a specific symbol."""
+        """Get order book for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get order book for
+            depth: Optional depth limit for order book levels
+
+        Returns:
+            OrderBook object if found, None otherwise
+        """
         return await self.market_data_service.get_order_book(symbol=symbol)
 
     async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
-        """Get recent trades for a specific symbol."""
+        """Get recent trades for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get trades for
+            limit: Maximum number of trades to return (default 50)
+
+        Returns:
+            List of recent Trade objects
+        """
         return await self.market_data_service.get_recent_trades(symbol=symbol)
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Get funding rates for specified symbols or all symbols."""
+        """Get funding rates for specified symbols or all symbols.
+
+        Args:
+            args: Parameters for filtering funding rates
+
+        Returns:
+            List of FundingRate objects
+        """
         return await self.market_data_service.get_funding_rates(args=args)
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """Get historical market data (candlesticks) for a specific symbol."""
+        """Get historical market data (candlesticks) for a specific symbol.
+
+        Args:
+            args: Parameters for historical market data including symbol and timeframe
+
+        Returns:
+            List of Candle objects
+        """
         return await self.market_data_service.get_market_data(args=args)
 
     async def get_market(self, args: GetMarketArgs) -> Market:
-        """Get market metadata for a specific symbol."""
+        """Get market metadata for a specific symbol.
+
+        Args:
+            args: Parameters including the symbol to get market data for
+
+        Returns:
+            Market object with metadata
+        """
         return await self.market_data_service.get_market(args=args)
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
-        """Get market metadata for all available markets."""
+        """Get market metadata for all available markets.
+
+        Args:
+            args: Parameters for filtering markets
+
+        Returns:
+            List of Market objects
+        """
         return await self.market_data_service.get_markets(args=args)
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """Place a new order."""
+        """Place a new order.
+
+        Args:
+            args: Order placement parameters
+
+        Returns:
+            Placed Order object
+        """
         return await self.trading_service.place_order(args)
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
-        """Cancel an existing order."""
+        """Cancel an existing order.
+
+        Args:
+            args: Order cancellation parameters
+
+        Returns:
+            CancelOrderResult indicating success/failure
+        """
         return await self.trading_service.cancel_order(args=args)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancel all orders for a given symbol, or all if symbol is None."""
+        """Cancel all orders for a given symbol, or all if symbol is None.
+
+        Args:
+            symbol: Optional symbol to cancel orders for, or None for all orders
+
+        Returns:
+            List of CancelOrderResult objects
+        """
         return await self.trading_service.cancel_all_orders(symbol=symbol)
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
@@ -657,10 +772,6 @@ class HyperliquidAPI(ExchangeAPI):
 
         Returns:
             List of successfully placed Order objects
-
-        Raises:
-            APIError: If validation fails, batch size exceeded, or API request fails
-            ValueError: If orders list is empty or contains invalid parameters
 
         Example:
             ```python
@@ -694,10 +805,6 @@ class HyperliquidAPI(ExchangeAPI):
         Returns:
             List of CancelOrderResult objects indicating success/failure for each order
 
-        Raises:
-            APIError: If validation fails, batch size exceeded, or API request fails
-            ValueError: If cancel_args list is empty
-
         Example:
             ```python
             cancellations = [
@@ -715,19 +822,44 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.trading_service.cancel_batch_orders(cancel_args)
 
     async def get_account_summary(self) -> MarginAccountSummary:
-        """Get account summary information."""
+        """Get account summary information.
+
+        Returns:
+            MarginAccountSummary with account details
+        """
         return await self.account_service.get_account_summary()
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
-        """Fetch the status of a specific order."""
+        """Fetch the status of a specific order.
+
+        Args:
+            args: Parameters including order ID to fetch
+
+        Returns:
+            Order object if found, None otherwise
+        """
         return await self.trading_service.get_order(args=args)
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """Fetch a single order by its ID."""
+        """Fetch a single order by its ID.
+
+        Args:
+            args: Parameters including order ID to fetch
+
+        Returns:
+            Order object if found, None otherwise
+        """
         return await self.trading_service.get_order(args=args)
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """Get historical orders."""
+        """Get historical orders.
+
+        Args:
+            args: Parameters for filtering order history
+
+        Returns:
+            List of historical Order objects
+        """
         return await self.account_service.get_order_history(args=args)
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
@@ -736,6 +868,8 @@ class HyperliquidAPI(ExchangeAPI):
         Args:
             args: Parameters for filtering trade history including symbol and limit.
 
+        Returns:
+            List of Trade objects from history
         """
         return await self.account_service.get_trade_history(args=args)
 
@@ -743,7 +877,17 @@ class HyperliquidAPI(ExchangeAPI):
         self,
         args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
-        """Get historical funding rates for a specific symbol."""
+        """Get historical funding rates for a specific symbol.
+
+        Args:
+            args: Parameters including symbol and start_time for funding rates
+
+        Returns:
+            List of historical FundingRate objects
+
+        Raises:
+            RequiredParameterError: If start_time is not provided
+        """
         # Hyperliquid requires start_time
         if args.start_time is None:
             raise RequiredParameterError(
@@ -754,17 +898,35 @@ class HyperliquidAPI(ExchangeAPI):
         return await self.market_data_service.get_historical_funding_rates(args=args)
 
     async def transfer(self, args: TransferArgs) -> Transfer:
-        """Transfer funds between account types."""
+        """Transfer funds between account types.
+
+        Args:
+            args: Transfer parameters including amount and account types
+
+        Returns:
+            Transfer object with transaction details
+        """
         return await self.account_service.transfer(args)
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """Withdraw funds to an external address."""
+        """Withdraw funds to an external address.
+
+        Args:
+            args: Withdrawal parameters including amount and destination
+
+        Returns:
+            Withdrawal object with transaction details
+        """
         return await self.account_service.withdraw(args)
 
     async def subscribe_to_order_book(self, symbol: str) -> None:
         """Prepare subscription to order book updates for a symbol.
 
-        Actual subscription with a handler is done via self.subscribe().
+        Args:
+            symbol: The trading symbol to subscribe to
+
+        Note:
+            Actual subscription with a handler is done via self.subscribe().
         """
         # Hyperliquid topic format: "l2Book:SYMBOL"
         topic = f"l2Book:{symbol}"
@@ -784,9 +946,13 @@ class HyperliquidAPI(ExchangeAPI):
     async def subscribe_to_ticker(self, symbol: str) -> None:
         """Prepare subscription to ticker updates for a symbol.
 
-        Hyperliquid does not have a direct per-symbol ticker stream like 'ticker.SYMBOL'.
-        It uses 'allMids' for all symbols or relies on order book/trades for ticker-like data.
-        This method will log a warning. Consider subscribing to 'allMids' or 'l2Book' instead.
+        Args:
+            symbol: The trading symbol to subscribe to
+
+        Note:
+            Hyperliquid does not have a direct per-symbol ticker stream like 'ticker.SYMBOL'.
+            It uses 'allMids' for all symbols or relies on order book/trades for ticker-like data.
+            This method will log a warning. Consider subscribing to 'allMids' or 'l2Book' instead.
         """
         # Hyperliquid uses "allMids" for a combined stream.
         # Individual ticker streams like "ticker:SYMBOL" are not standard for HL.
@@ -807,7 +973,11 @@ class HyperliquidAPI(ExchangeAPI):
     async def subscribe_to_trades(self, symbol: str) -> None:
         """Prepare subscription to public trade updates for a symbol.
 
-        Actual subscription with a handler is done via self.subscribe().
+        Args:
+            symbol: The trading symbol to subscribe to
+
+        Note:
+            Actual subscription with a handler is done via self.subscribe().
         """
         # Hyperliquid topic format: "trades:SYMBOL"
         topic = f"trades:{symbol}"
@@ -826,8 +996,9 @@ class HyperliquidAPI(ExchangeAPI):
     async def subscribe_to_account_updates(self) -> None:
         """Prepare subscription to private account updates (fills, orders, positions).
 
-        Actual subscription with a handler is done via self.subscribe().
-        Hyperliquid uses a single 'userEvents' stream for this.
+        Note:
+            Actual subscription with a handler is done via self.subscribe().
+            Hyperliquid uses a single 'userEvents' stream for this.
         """
         # Hyperliquid topic format for all user data: "userEvents"
         # This requires wallet_address to be known by _construct_subscription_payload
@@ -845,12 +1016,21 @@ class HyperliquidAPI(ExchangeAPI):
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""
+        """Register a handler for a WebSocket topic and send subscription via WebSocketManager.
+
+        Args:
+            topic: The WebSocket topic to subscribe to
+            handler: Message handler function for processing messages
+        """
         # Removed redundant subscription log - base class already logs
         await super().subscribe(topic, handler)
 
     async def _on_ws_connected(self) -> None:
-        """Handle WebSocket connection, typically to resubscribe to topics."""
+        """Handle WebSocket connection, typically to resubscribe to topics.
+
+        Note:
+            This method is called automatically when WebSocket connection is established.
+        """
         logger.info(
             "hyperliquid_websocket_connected",
             exchange=self.exchange_name,
@@ -863,7 +1043,11 @@ class HyperliquidAPI(ExchangeAPI):
         await super()._on_ws_connected()
 
     async def _resubscribe(self) -> None:
-        """Resubscribe to all registered topics upon WebSocket (re)connection."""
+        """Resubscribe to all registered topics upon WebSocket (re)connection.
+
+        Note:
+            This method delegates to the base ExchangeAPI implementation.
+        """
         logger.info(
             "hyperliquid_websocket_resubscribing",
             exchange=self.exchange_name,
@@ -880,5 +1064,7 @@ class HyperliquidAPI(ExchangeAPI):
         Args:
             args: Parameters for filtering open orders including optional symbol.
 
+        Returns:
+            List of open Order objects
         """
         return await self.trading_service.get_all_open_orders(args=args)

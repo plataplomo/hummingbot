@@ -52,7 +52,11 @@ class CompositeAccountMapper:
     def transform_balance_data_to_spot_balance(
         self, asset: str, total_balance: str, available_balance: str
     ) -> SpotBalance:
-        """Transform balance data to spot balance."""
+        """Transform balance data to spot balance.
+        
+        Returns:
+            SpotBalance instance created from the provided balance data.
+        """
         return self.balance_mapper.transform_balance_data_to_spot_balance(
             asset, total_balance, available_balance
         )
@@ -60,14 +64,22 @@ class CompositeAccountMapper:
     def transform_raw_balance_to_internal(
         self, asset: str, raw_balance: BackpackRawBalanceResponse
     ) -> SpotBalance:
-        """Transform raw balance to internal format."""
+        """Transform raw balance to internal format.
+        
+        Returns:
+            SpotBalance instance transformed from raw Backpack balance data.
+        """
         return self.balance_mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
     # Delegate position methods
     def transform_raw_position_to_internal(
         self, raw_position: BackpackRawPositionResponse
     ) -> DerivativePosition:
-        """Transform raw position to internal format."""
+        """Transform raw position to internal format.
+        
+        Returns:
+            DerivativePosition instance transformed from raw Backpack position data.
+        """
         return self.position_mapper.transform_raw_position_to_internal(raw_position)
 
     # Delegate account summary methods
@@ -77,7 +89,11 @@ class CompositeAccountMapper:
         spot_balances: dict[str, BackpackRawBalanceResponse],
         positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
-        """Transform raw account summary to internal format."""
+        """Transform raw account summary to internal format.
+        
+        Returns:
+            MarginAccountSummary instance with aggregated account data.
+        """
         return self.account_summary_mapper.transform_raw_account_summary_to_internal(
             raw_summary, spot_balances, positions
         )

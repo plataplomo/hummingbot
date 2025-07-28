@@ -37,9 +37,6 @@ class ConfigManager:
             config_path: Optional path to the configuration file.
                          If not provided, default locations will be checked.
 
-        Raises:
-            ConfigurationError: If configuration loading or validation fails.
-
         """
         self.settings: AppSettings | None = None
         self.config_path = Path(config_path) if config_path else self._get_default_config_path()
@@ -51,8 +48,10 @@ class ConfigManager:
         """Load configuration from file and validate against AppSettings model.
 
         Raises:
-            ConfigurationError: If file is not found, YAML parsing fails,
-                               or Pydantic validation fails.
+            ConfigFileNotFoundError: If the configuration file is not found.
+            ConfigFileInvalidError: If the configuration file has invalid content.
+            ConfigFileReadError: If there's an error reading the configuration file.
+            ConfigValidationError: If Pydantic validation fails.
 
         """
         # Check if config file exists
@@ -154,12 +153,7 @@ class ConfigManager:
         return default_paths[0]  # Return first default as fallback
 
     def reload(self) -> None:
-        """Reload configuration from file.
-
-        Raises:
-            ConfigurationError: If reload fails.
-
-        """
+        """Reload configuration from file."""
         self.settings = None
         self.loaded = False
         self.load()

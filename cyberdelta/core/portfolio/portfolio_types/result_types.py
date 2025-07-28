@@ -56,7 +56,14 @@ class Result[T, E](BaseModel):
     _is_success: bool = False
 
     def model_post_init(self, __context: object, /) -> None:
-        """Validate that exactly one of value or error is set."""
+        """Validate that exactly one of value or error is set.
+
+        Raises:
+            ResultSuccessWithoutValueError: If result is success but has no value.
+            ResultErrorWithoutErrorError: If result is error but has no error.
+            ResultSuccessWithErrorError: If result is success but also has error.
+            ResultErrorWithValueError: If result is error but also has value.
+        """
         if self._is_success and self._value is None:
             raise ResultSuccessWithoutValueError
         if not self._is_success and self._error is None:
@@ -68,26 +75,50 @@ class Result[T, E](BaseModel):
 
     @classmethod
     def ok(cls, value: T) -> Result[T, E]:
-        """Create a successful result."""
+        """Create a successful result.
+
+        Returns:
+            Result[T, E]: A successful Result instance containing the provided value.
+        """
         return cls(_value=value, _is_success=True)
 
     @classmethod
     def error(cls, error: E) -> Result[T, E]:
-        """Create an error result."""
+        """Create an error result.
+
+        Returns:
+            Result[T, E]: An error Result instance containing the provided error.
+        """
         return cls(_error=error, _is_success=False)
 
     @property
     def is_ok(self) -> bool:
-        """Check if the result is successful."""
+        """Check if the result is successful.
+
+        Returns:
+            bool: True if the result represents a successful operation, False otherwise.
+        """
         return self._is_success
 
     @property
     def is_error(self) -> bool:
-        """Check if the result is an error."""
+        """Check if the result is an error.
+
+        Returns:
+            bool: True if the result represents an error, False if successful.
+        """
         return not self._is_success
 
     def unwrap(self) -> T:
-        """Get the value, raising an exception if this is an error result."""
+        """Get the value, raising an exception if this is an error result.
+
+        Returns:
+            T: The success value contained in this Result.
+
+        Raises:
+            ResultUnwrapOnErrorError: If this is an error result.
+            ResultUnwrapNoneValueError: If the value is None unexpectedly.
+        """
         if not self._is_success:
             raise ResultUnwrapOnErrorError(self._error)
         if self._value is None:
@@ -95,11 +126,23 @@ class Result[T, E](BaseModel):
         return self._value
 
     def unwrap_or(self, default: T) -> T:
-        """Get the value or return default if this is an error result."""
+        """Get the value or return default if this is an error result.
+
+        Returns:
+            T: The success value if this is a successful result, otherwise the default value.
+        """
         return self._value if self._is_success and self._value is not None else default
 
     def unwrap_error(self) -> E:
-        """Get the error, raising an exception if this is a success result."""
+        """Get the error, raising an exception if this is a success result.
+
+        Returns:
+            E: The error value contained in this Result.
+
+        Raises:
+            ResultUnwrapErrorOnSuccessError: If this is a success result.
+            ResultUnwrapNoneErrorError: If the error is None unexpectedly.
+        """
         if self._is_success:
             raise ResultUnwrapErrorOnSuccessError(self._value)
         if self._error is None:
@@ -107,7 +150,15 @@ class Result[T, E](BaseModel):
         return self._error
 
     def map(self, func: Callable[[T], U]) -> Result[U, E]:
-        """Transform the value if this is a success result."""
+        """Transform the value if this is a success result.
+
+        Returns:
+            Result[U, E]: New Result with transformed value if successful, or original error.
+
+        Raises:
+            ResultMapNoneValueError: If value is None unexpectedly.
+            ResultMapNoneErrorError: If error is None unexpectedly.
+        """
         if self._is_success:
             if self._value is None:
                 raise ResultMapNoneValueError
@@ -117,7 +168,15 @@ class Result[T, E](BaseModel):
         return Result[U, E].error(self._error)
 
     def map_error(self, func: Callable[[E], F]) -> Result[T, F]:
-        """Transform the error if this is an error result."""
+        """Transform the error if this is an error result.
+
+        Returns:
+            Result[T, F]: New Result with transformed error if failed, or original value.
+
+        Raises:
+            ResultMapErrorNoneValueError: If error transformation fails unexpectedly.
+            ResultMapErrorNoneErrorError: If error is None unexpectedly.
+        """
         if not self._is_success:
             if self._error is None:
                 raise ResultMapErrorNoneErrorError
@@ -127,7 +186,15 @@ class Result[T, E](BaseModel):
         return Result[T, F].ok(self._value)
 
     def and_then(self, func: Callable[[T], Result[U, E]]) -> Result[U, E]:
-        """Chain operations that return Results (flatMap/bind)."""
+        """Chain operations that return Results (flatMap/bind).
+
+        Returns:
+            Result[U, E]: Result of applying func to value if successful, or original error.
+
+        Raises:
+            ResultAndThenNoneValueError: If value is None unexpectedly.
+            ResultAndThenNoneErrorError: If error is None unexpectedly.
+        """
         if self._is_success:
             if self._value is None:
                 raise ResultAndThenNoneValueError
@@ -137,7 +204,15 @@ class Result[T, E](BaseModel):
         return Result[U, E].error(self._error)
 
     def or_else(self, func: Callable[[E], Result[T, F]]) -> Result[T, F]:
-        """Provide alternative on error."""
+        """Provide alternative on error.
+
+        Returns:
+            Result[T, F]: Result of applying func to error if failed, or original value.
+
+        Raises:
+            ResultOrElseNoneErrorError: If error is None unexpectedly.
+            ResultOrElseNoneValueError: If value is None unexpectedly.
+        """
         if not self._is_success:
             if self._error is None:
                 raise ResultOrElseNoneErrorError
@@ -186,7 +261,10 @@ class OperationMetrics(BaseModel):
     was_cached: bool = False
 
     def model_post_init(self, __context: object, /) -> None:
-        """Calculate duration."""
+        """Calculate duration.
+
+        Modifies the duration_ms field in place based on start and end times.
+        """
         self.duration_ms = (self.end_time - self.start_time) * 1000
 
 
@@ -201,26 +279,46 @@ class AsyncOperationResult[T](BaseModel):
 
     @property
     def is_ok(self) -> bool:
-        """Check if the operation was successful."""
+        """Check if the operation was successful.
+
+        Returns:
+            bool: True if the underlying result is successful, False otherwise.
+        """
         return self.result.is_ok
 
     @property
     def is_error(self) -> bool:
-        """Check if the operation failed."""
+        """Check if the operation failed.
+
+        Returns:
+            bool: True if the underlying result is an error, False if successful.
+        """
         return self.result.is_error
 
     def unwrap(self) -> T:
-        """Get the value, raising an exception if this is an error result."""
+        """Get the value, raising an exception if this is an error result.
+
+        Returns:
+            T: The success value from the underlying result.
+        """
         return self.result.unwrap()
 
     def unwrap_or(self, default: T) -> T:
-        """Get the value or return default if this is an error result."""
+        """Get the value or return default if this is an error result.
+
+        Returns:
+            T: The success value from the underlying result, or the default value if error.
+        """
         return self.result.unwrap_or(default)
 
 
 # Helper functions for creating common portfolio results
 def ok_result[T](value: T) -> PortfolioResult[T]:
-    """Create a successful portfolio result."""
+    """Create a successful portfolio result.
+
+    Returns:
+        PortfolioResult[T]: A successful portfolio result containing the provided value.
+    """
     return Result[T, PortfolioResultError].ok(value)
 
 
@@ -232,7 +330,11 @@ def error_result(
     context: ExceptionContext | None = None,
     is_retryable: bool = False,
 ) -> PortfolioResult[object]:
-    """Create an error portfolio result."""
+    """Create an error portfolio result.
+
+    Returns:
+        PortfolioResult[object]: A portfolio result containing error information.
+    """
     error = PortfolioResultError(
         code=code,
         message=message,
@@ -250,7 +352,11 @@ def validation_error_result(
     actual_value: str,
     message: str | None = None,
 ) -> PortfolioResult[object]:
-    """Create a validation error result."""
+    """Create a validation error result.
+
+    Returns:
+        PortfolioResult[object]: A portfolio result containing validation error details.
+    """
     details = ValidationErrorData(
         field_name=field_name,
         constraint=constraint,
@@ -270,7 +376,11 @@ def network_error_result(
     retry_count: int = 0,
     message: str | None = None,
 ) -> PortfolioResult[object]:
-    """Create a network error result."""
+    """Create a network error result.
+
+    Returns:
+        PortfolioResult[object]: A portfolio result containing network error details.
+    """
     details = NetworkErrorData(
         status_code=status_code,
         endpoint=endpoint,
@@ -290,7 +400,11 @@ def business_logic_error_result(
     context: dict[str, str] | None = None,
     message: str | None = None,
 ) -> PortfolioResult[object]:
-    """Create a business logic error result."""
+    """Create a business logic error result.
+
+    Returns:
+        PortfolioResult[object]: A portfolio result containing business logic error details.
+    """
     details = BusinessLogicErrorData(
         rule_name=rule_name,
         context=context or {},
@@ -305,7 +419,11 @@ def business_logic_error_result(
 
 # Result combinators for working with multiple results
 def combine_results(*results: PortfolioResult[object]) -> PortfolioResult[list[object]]:
-    """Combine multiple results into one. Fails if any result fails."""
+    """Combine multiple results into one. Fails if any result fails.
+
+    Returns:
+        PortfolioResult[list[object]]: Result containing all success values, or first error.
+    """
     values: list[object] = []
     for result in results:
         if result.is_error:
@@ -315,7 +433,11 @@ def combine_results(*results: PortfolioResult[object]) -> PortfolioResult[list[o
 
 
 def collect_results[T](results: list[PortfolioResult[T]]) -> PortfolioResult[list[T]]:
-    """Collect a list of results into a single result."""
+    """Collect a list of results into a single result.
+
+    Returns:
+        PortfolioResult[list[T]]: Result containing all success values, or first error.
+    """
     values: list[T] = []
     for result in results:
         if result.is_error:
@@ -326,7 +448,11 @@ def collect_results[T](results: list[PortfolioResult[T]]) -> PortfolioResult[lis
 
 
 def first_ok_result[T](*results: PortfolioResult[T]) -> PortfolioResult[T]:
-    """Return the first successful result, or the last error if all fail."""
+    """Return the first successful result, or the last error if all fail.
+
+    Returns:
+        PortfolioResult[T]: The first successful result, or the last error if all results failed.
+    """
     last_error: PortfolioResult[T] | None = None
     for result in results:
         if result.is_ok:
@@ -351,7 +477,11 @@ async def wrap_async_operation[T](
     retry_count: int = 0,
     was_cached: bool = False,
 ) -> AsyncOperationResult[T]:
-    """Wrap an async operation with result tracking and metrics."""
+    """Wrap an async operation with result tracking and metrics.
+
+    Returns:
+        AsyncOperationResult[T]: The operation result with metrics and timing information.
+    """
     start_time = time.time()
 
     try:

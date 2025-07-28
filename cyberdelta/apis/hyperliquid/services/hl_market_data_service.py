@@ -148,29 +148,68 @@ class HyperliquidMarketDataService:
     # Price Ticker Operations
 
     async def get_ticker(self, symbol: str) -> Ticker | None:
-        """Retrieve the latest ticker information for a specific symbol."""
+        """Retrieve the latest ticker information for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get ticker data for
+
+        Returns:
+            Ticker object with current price and market info, or None if not found
+        """
         return await self._price_ticker_service.get_ticker(symbol)
 
     async def get_funding_rate(self, symbol: str) -> FundingRate | None:
-        """Retrieve the current funding rate for a specific perpetual contract symbol."""
+        """Retrieve the current funding rate for a specific perpetual contract symbol.
+
+        Args:
+            symbol: The perpetual contract symbol to get funding rate for
+
+        Returns:
+            FundingRate object with current funding rate info, or None if not found
+        """
         return await self._price_ticker_service.get_funding_rate(symbol)
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
-        """Retrieve current funding rates for specified symbols or all."""
+        """Retrieve current funding rates for specified symbols or all.
+
+        Args:
+            args: Parameters specifying which symbols to get funding rates for
+
+        Returns:
+            List of FundingRate objects for the requested symbols
+        """
         return await self._historical_data_service.get_funding_rates(args)
 
     async def get_all_mids(self) -> MidPrices:
-        """Fetch all mid prices efficiently for market order pricing."""
+        """Fetch all mid prices efficiently for market order pricing.
+
+        Returns:
+            MidPrices object containing mid price data for all available symbols
+        """
         return await self._price_ticker_service.get_all_mids()
 
     # Order Book Operations
 
     async def get_order_book(self, symbol: str) -> OrderBook | None:
-        """Retrieve the order book for a specific symbol."""
+        """Retrieve the order book for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get order book for
+
+        Returns:
+            OrderBook object with current bids and asks, or None if not found
+        """
         return await self._order_book_service.get_order_book(symbol)
 
     async def get_recent_trades(self, symbol: str) -> list[Trade]:
-        """Retrieve recent public trades for a specific symbol."""
+        """Retrieve recent public trades for a specific symbol.
+
+        Args:
+            symbol: The trading symbol to get recent trades for
+
+        Returns:
+            List of Trade objects representing recent executed trades
+        """
         return await self._order_book_service.get_recent_trades(symbol)
 
     # Historical Data Operations
@@ -178,19 +217,47 @@ class HyperliquidMarketDataService:
     async def get_historical_funding_rates(
         self, args: GetHistoricalFundingRatesArgs
     ) -> list[FundingRate]:
-        """Retrieve historical funding rates for a specific symbol and time range."""
+        """Retrieve historical funding rates for a specific symbol and time range.
+
+        Args:
+            args: Parameters specifying symbol and time range for historical funding rates
+
+        Returns:
+            List of FundingRate objects for the specified time period and symbol
+        """
         return await self._historical_data_service.get_historical_funding_rates(args)
 
     async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
-        """Retrieve historical kline/candlestick data for a symbol and timeframe."""
+        """Retrieve historical kline/candlestick data for a symbol and timeframe.
+
+        Args:
+            args: Parameters specifying symbol, timeframe, and time range for candle data
+
+        Returns:
+            List of Candle objects representing OHLCV data for the specified period
+        """
         return await self._historical_data_service.get_market_data(args)
 
     # Market Metadata Operations
 
     async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
-        """Retrieve market metadata for all available markets."""
+        """Retrieve market metadata for all available markets.
+
+        Args:
+            args: Parameters for filtering or configuring market data retrieval
+
+        Returns:
+            List of Market objects containing metadata for all available trading markets
+        """
         return await self._market_metadata_service.get_markets(args)
 
     async def get_market(self, args: GetMarketArgs) -> Market:
-        """Retrieve market metadata for a specific symbol."""
+        """Retrieve market metadata for a specific symbol.
+
+        Args:
+            args: Parameters specifying the symbol to get market metadata for
+
+        Returns:
+            Market object containing metadata and trading rules for the specified symbol
+        """
         return await self._market_metadata_service.get_market(args)

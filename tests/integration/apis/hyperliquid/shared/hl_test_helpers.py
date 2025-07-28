@@ -493,7 +493,18 @@ class HyperliquidTestHelpers:
     async def _validate_account_for_trading(
         api: HyperliquidAPI, symbol: str
     ) -> MarginAccountSummary:
-        """Validate that account has sufficient equity for trading."""
+        """Validate that account has sufficient equity for trading.
+
+        Args:
+            api: HyperliquidAPI instance
+            symbol: Trading symbol to validate for
+
+        Returns:
+            MarginAccountSummary: Account summary with equity information
+
+        Raises:
+            RuntimeError: If account has no equity available for trading
+        """
         account_summary = await api.get_account_summary()
         # get_account_summary() always returns a MarginAccountSummary or raises an exception
         # Remove the None check as it's not possible
@@ -506,7 +517,15 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     def _calculate_initial_quantity(constraints: dict[str, Decimal], price: Decimal) -> Decimal:
-        """Calculate initial quantity based on minimum requirements."""
+        """Calculate initial quantity based on minimum requirements.
+        
+        Args:
+            constraints: Market constraints dictionary containing min_quantity and step_size
+            price: Order price for notional value calculation
+            
+        Returns:
+            Decimal: Initial quantity rounded to valid step size
+        """
         min_quantity = constraints["min_quantity"]
         step_size = constraints["step_size"]
 
@@ -525,7 +544,19 @@ class HyperliquidTestHelpers:
     def _refine_quantity_for_notional(
         initial_quantity: Decimal, constraints: dict[str, Decimal], price: Decimal
     ) -> Decimal:
-        """Refine quantity to ensure it meets minimum notional requirements."""
+        """Refine quantity to ensure it meets minimum notional requirements.
+
+        Args:
+            initial_quantity: Initial calculated quantity
+            constraints: Market constraints dictionary
+            price: Order price
+
+        Returns:
+            Decimal: Refined quantity that meets notional requirements
+
+        Raises:
+            RuntimeError: If quantity cannot meet both minimum notional and quantity requirements
+        """
         MIN_NOTIONAL_USD = Decimal("10.00")
         min_quantity = constraints["min_quantity"]
         step_size = constraints["step_size"]
@@ -562,7 +593,16 @@ class HyperliquidTestHelpers:
     def _validate_affordability(
         quantity: Decimal, price: Decimal, account_summary: MarginAccountSummary
     ) -> None:
-        """Validate that the account can afford the calculated order size."""
+        """Validate that the account can afford the calculated order size.
+
+        Args:
+            quantity: Order quantity to validate
+            price: Order price
+            account_summary: Account summary with equity information
+
+        Raises:
+            RuntimeError: If required notional value exceeds affordable amount
+        """
         notional_value = quantity * price
         max_affordable_notional = account_summary.total_equity * Decimal("0.2")
 
@@ -576,7 +616,16 @@ class HyperliquidTestHelpers:
     def _perform_final_validations(
         quantity: Decimal, constraints: dict[str, Decimal], price: Decimal
     ) -> None:
-        """Perform final validations on the calculated quantity."""
+        """Perform final validations on the calculated quantity.
+
+        Args:
+            quantity: Final calculated quantity
+            constraints: Market constraints dictionary
+            price: Order price
+
+        Raises:
+            RuntimeError: If quantity fails validation checks
+        """
         MIN_NOTIONAL_USD = Decimal("10.00")
         min_quantity = constraints["min_quantity"]
         step_size = constraints["step_size"]
@@ -761,8 +810,15 @@ class HyperliquidTestHelpers:
     ) -> bool:
         """Check if orders are cancelled.
 
+        Args:
+            api: HyperliquidAPI instance
+            symbol: Optional symbol to check specific orders
+
         Returns:
             True if all orders (or symbol-specific orders) are cancelled
+
+        Raises:
+            RuntimeError: If failed to verify order cancellation
         """
         try:
             open_orders = await api.get_open_orders()

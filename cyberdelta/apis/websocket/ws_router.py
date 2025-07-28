@@ -196,10 +196,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         Returns:
             The validated message.
-
-        Raises:
-            ValueError: If message structure is invalid.
-
         """
         # Basic structure validation
         validated = self.payload_validator.validate_dict_payload(message, "WebSocket message")
@@ -373,6 +369,8 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             message: The WebSocket message to route.
             handlers: Dictionary mapping routing keys to handler functions.
 
+        Raises:
+            ValueError: If envelope validator is not set
         """
         if self.envelope_validator is None:
             msg = "Envelope validator is required"
@@ -408,6 +406,9 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         This method consolidates the envelope validation pattern used by both
         Backpack and Hyperliquid, eliminating code duplication.
+
+        Raises:
+            EnvelopeValidatorNotSetError: If envelope validator is not set
         """
         # Step 1: Validate envelope structure first - eliminates type safety issues
         try:

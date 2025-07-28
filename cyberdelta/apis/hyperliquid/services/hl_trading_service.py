@@ -102,6 +102,9 @@ class HyperliquidTradingService:
             order_mapper: Optional order mapper implementing OrderMapperProtocol
             order_response_mapper: Optional order response mapper for order placement responses
             error_mapper: Optional error mapper for handling error responses
+            
+        Raises:
+            ServiceParameterError: If required parameters are missing or invalid.
         """
         # Validate required dependencies for authenticated services
         if authenticator is None:
@@ -195,39 +198,71 @@ class HyperliquidTradingService:
     # Order Placement Operations
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
-        """Place a single order on the exchange."""
+        """Place a single order on the exchange.
+        
+        Returns:
+            Order: The placed order object.
+        """
         return await self._order_placement_service.place_order(args)
 
     # Order Cancellation Operations
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
-        """Cancel a single order by ID."""
+        """Cancel a single order by ID.
+        
+        Returns:
+            CancelOrderResult: Result of the cancellation operation.
+        """
         return await self._order_cancellation_service.cancel_order(args)
 
     async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
-        """Cancel all open orders, optionally filtered by symbol."""
+        """Cancel all open orders, optionally filtered by symbol.
+        
+        Returns:
+            list[CancelOrderResult]: Results of all cancellation operations.
+        """
         return await self._order_cancellation_service.cancel_all_orders(symbol)
 
     # Order Query Operations
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
-        """Retrieve a specific order by ID."""
+        """Retrieve a specific order by ID.
+        
+        Returns:
+            Order | None: The order if found, None otherwise.
+        """
         return await self._order_query_service.get_order(args)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Retrieve all open orders, optionally filtered by symbol."""
+        """Retrieve all open orders, optionally filtered by symbol.
+        
+        Returns:
+            list[Order]: List of open orders.
+        """
         return await self._order_query_service.get_open_orders(symbol)
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
-        """Retrieve all open orders, optionally filtered by symbol (args version)."""
+        """Retrieve all open orders, optionally filtered by symbol (args version).
+        
+        Returns:
+            list[Order]: List of open orders.
+        """
         return await self._order_query_service.get_open_orders(args.symbol)
 
     # Batch Operations
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
-        """Place multiple orders in a single batch request."""
+        """Place multiple orders in a single batch request.
+        
+        Returns:
+            list[Order]: List of placed orders.
+        """
         return await self._batch_order_service.place_batch_orders(orders)
 
     async def cancel_batch_orders(self, args: list[CancelOrderArgs]) -> list[CancelOrderResult]:
-        """Cancel multiple orders in a single batch request."""
+        """Cancel multiple orders in a single batch request.
+        
+        Returns:
+            list[CancelOrderResult]: Results of all cancellation operations.
+        """
         return await self._batch_order_service.cancel_batch_orders(args)

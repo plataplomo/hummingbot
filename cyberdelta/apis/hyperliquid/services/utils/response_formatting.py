@@ -24,6 +24,9 @@ def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
 
     This helps pyright understand that after this check,
     the value is definitely a dict with string keys.
+    
+    Returns:
+        bool: True if value is a dict, False otherwise.
     """
     return isinstance(value, dict)
 
@@ -97,7 +100,7 @@ def format_batch_cancel_results(
         List of formatted cancel order results
 
     Raises:
-        ValueError: If array lengths don't match
+        InvalidBatchResponseError: If array lengths don't match
     """
     if len(batch_statuses) != len(symbols):
         raise InvalidBatchResponseError(
@@ -337,6 +340,9 @@ def _parse_validated_decimal(value: object) -> Decimal | None:
 
     Returns:
         Parsed decimal value
+        
+    Raises:
+        TypeError: If value is not a decimal-compatible type (internal error).
     """
     # Double-check type for mypy (should already be validated by caller)
     if not isinstance(value, (Decimal, str, float)):
@@ -351,6 +357,9 @@ def _raise_invalid_decimal_type_error(value: object, field_name: str) -> None:
     Args:
         value: The invalid value
         field_name: Name of the field for error context
+        
+    Raises:
+        TypeError: Always raises with field-specific error message.
     """
     msg = f"Invalid type for decimal field '{field_name}': {type(value)}"
     raise TypeError(msg)

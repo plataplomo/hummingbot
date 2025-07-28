@@ -31,17 +31,29 @@ class TestHyperliquidAssetIndexResolver:
 
     @pytest.fixture
     def mock_requester(self) -> AsyncMock:
-        """Mock for the requester callable."""
+        """Mock for the requester callable.
+        
+        Returns:
+            AsyncMock: Async mock for HTTP requester function.
+        """
         return AsyncMock()
 
     @pytest.fixture
     def mock_response_handler(self) -> MagicMock:
-        """Mock for HyperliquidMarketDataResponseHandler."""
+        """Mock for HyperliquidMarketDataResponseHandler.
+        
+        Returns:
+            MagicMock: Mocked market data response handler.
+        """
         return MagicMock(spec=HyperliquidMarketDataResponseHandler)
 
     @pytest.fixture
     def mock_request_builder(self) -> MagicMock:
-        """Mock for HyperliquidMarketDataRequestBuilder."""
+        """Mock for HyperliquidMarketDataRequestBuilder.
+        
+        Returns:
+            MagicMock: Mocked request builder with configured build_info_request_payload method.
+        """
         mock_builder = MagicMock(spec=HyperliquidMarketDataRequestBuilder)
         # Setup the build_info_request_payload method
         mock_payload = MagicMock()
@@ -51,7 +63,12 @@ class TestHyperliquidAssetIndexResolver:
 
     @pytest.fixture
     def mock_meta_response(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
-        """Mock HyperliquidRawMetaAndAssetCtxsResponse with BTC and ETH."""
+        """Mock HyperliquidRawMetaAndAssetCtxsResponse with BTC and ETH.
+        
+        Returns:
+            HyperliquidRawMetaAndAssetCtxsResponse: Mocked response with BTC at index 0 
+                and ETH at index 1.
+        """
         mock_response = MagicMock(spec=HyperliquidRawMetaAndAssetCtxsResponse)
 
         # Mock the meta.universe structure
@@ -74,7 +91,11 @@ class TestHyperliquidAssetIndexResolver:
         mock_response_handler: MagicMock,
         mock_request_builder: MagicMock,
     ) -> HyperliquidAssetIndexResolver:
-        """Create HyperliquidAssetIndexResolver instance with mocked dependencies."""
+        """Create HyperliquidAssetIndexResolver instance with mocked dependencies.
+        
+        Returns:
+            HyperliquidAssetIndexResolver: Asset indexer instance with all dependencies mocked.
+        """
         return HyperliquidAssetIndexResolver(
             requester=mock_requester,
             response_handler=mock_response_handler,

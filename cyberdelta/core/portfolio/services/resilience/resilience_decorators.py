@@ -52,6 +52,16 @@ def with_resilience[**P, T](
     - @with_resilience  # Uses function name as service name
     - @with_resilience("service_name")  # Custom service name
     - @with_resilience("service_name", use_retry=False)  # With options
+
+    Args:
+        func_or_service: Either the function to decorate or service name string
+        use_circuit_breaker: Whether to enable circuit breaker protection
+        use_retry: Whether to enable retry logic
+        use_fallback: Whether to enable fallback execution
+
+    Returns:
+        Either a decorated function returning ResilienceResult, or a decorator
+        function depending on the calling pattern.
     """
 
     def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[ResilienceResult[T]]]:
@@ -179,6 +189,15 @@ def resilient_method(
 
     This is useful for methods that should be resilient but need to return
     the actual value rather than a ResilienceResult.
+    
+    Args:
+        service_name: Optional service name (defaults to function name)
+        use_circuit_breaker: Whether to enable circuit breaker protection
+        use_retry: Whether to enable retry logic
+        use_fallback: Whether to enable fallback execution
+        
+    Returns:
+        A decorator function that wraps methods with resilience capabilities.
     """
 
     def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
@@ -231,7 +250,11 @@ class ResilienceContext:
         self.metrics: ResilienceMetrics | None = None
 
     async def __aenter__(self) -> Self:
-        """Enter resilience context."""
+        """Enter resilience context.
+        
+        Returns:
+            Self for use in async context manager.
+        """
         self.start_time = time.time()
         logger.debug("resilience_context_entered", service_name=self.service_name)
         return self
@@ -239,7 +262,16 @@ class ResilienceContext:
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
     ) -> bool:
-        """Exit resilience context and record metrics."""
+        """Exit resilience context and record metrics.
+        
+        Args:
+            exc_type: Exception type if an exception occurred
+            exc_val: Exception value if an exception occurred  
+            exc_tb: Exception traceback if an exception occurred
+            
+        Returns:
+            False to indicate exceptions should not be suppressed.
+        """
         duration_ms = (time.time() - self.start_time) * 1000
 
         if exc_type is None:

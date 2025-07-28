@@ -26,12 +26,20 @@ logger = get_logger(__name__)
 
 
 def _is_api_clients_dict(value: object) -> TypeGuard[dict[str, ExchangeAPI]]:
-    """Senior-level TypeGuard for API clients dictionary validation."""
+    """Senior-level TypeGuard for API clients dictionary validation.
+    
+    Returns:
+        TypeGuard[dict[str, ExchangeAPI]]: True if value is a dict, allowing type narrowing.
+    """
     return isinstance(value, dict)
 
 
 def _is_discrepancy_list(value: object) -> TypeGuard[list[Any]]:
-    """TypeGuard to verify value is a list for type narrowing."""
+    """TypeGuard to verify value is a list for type narrowing.
+    
+    Returns:
+        TypeGuard[list[Any]]: True if value is a list, allowing type narrowing.
+    """
     return isinstance(value, list)
 
 
@@ -327,7 +335,12 @@ class PositionReconciliationSystem:
             )
 
     def _get_discrepancy_details(self, results: dict[str, Any]) -> list[DiscrepancyDetail] | None:
-        """Extract and validate discrepancy details from results."""
+        """Extract and validate discrepancy details from results.
+        
+        Returns:
+            list[DiscrepancyDetail] | None: List of validated discrepancy details if available,
+                empty list if no discrepancies, None if discrepancies have invalid format.
+        """
         # Check if 'discrepancies' key exists and get its value
         if "discrepancies" not in results:
             return []
@@ -390,7 +403,12 @@ class PositionReconciliationSystem:
         discrepancy_detail: DiscrepancyDetail,
         symbol: str,
     ) -> Decimal | None:
-        """Parse exchange value from discrepancy detail."""
+        """Parse exchange value from discrepancy detail.
+        
+        Returns:
+            Decimal | None: The parsed exchange value as Decimal if successful,
+                None if exchange_value is missing or cannot be parsed.
+        """
         exchange_value_str = discrepancy_detail.exchange_value
         if exchange_value_str is None:
             logger.warning(
@@ -469,7 +487,12 @@ class PositionReconciliationSystem:
         api_position: DerivativePosition | None,
         local_position: DerivativePosition | None,
     ) -> datetime:
-        """Get appropriate timestamp for correction."""
+        """Get appropriate timestamp for correction.
+        
+        Returns:
+            datetime: The API position timestamp if available, otherwise local position
+                timestamp if available, otherwise current UTC time.
+        """
         if api_position:
             return api_position.timestamp
         if local_position:
@@ -520,7 +543,12 @@ class PositionReconciliationSystem:
         exchange_value: Decimal,
         api_position: DerivativePosition,
     ) -> DerivativePosition:
-        """Create position from full API data."""
+        """Create position from full API data.
+        
+        Returns:
+            DerivativePosition: A new position object with data from API position,
+                using the exchange_value as size and determining side from its sign.
+        """
         return DerivativePosition(
             exchange=exchange,
             symbol=symbol,
@@ -549,7 +577,12 @@ class PositionReconciliationSystem:
         exchange_value: Decimal,
         timestamp: datetime,
     ) -> DerivativePosition:
-        """Create minimal position when API data is not available."""
+        """Create minimal position when API data is not available.
+        
+        Returns:
+            DerivativePosition: A minimal position object with only essential fields
+                populated, side determined from exchange_value sign.
+        """
         logger.warning(
             "cannot_create_position_missing_api_data",
             exchange=exchange,
@@ -680,7 +713,12 @@ class PositionReconciliationSystem:
         discrepancy_detail: DiscrepancyDetail,
         results_timestamp_dt: datetime,
     ) -> bool:
-        """Check if historical record matches the current discrepancy being corrected."""
+        """Check if historical record matches the current discrepancy being corrected.
+        
+        Returns:
+            bool: True if all fields match (exchange, symbol, timestamp, type, detail)
+                and record is not already marked as corrected.
+        """
         return (
             historical_record.exchange_id == exchange
             and historical_record.detail.symbol == symbol
@@ -715,7 +753,15 @@ class PositionReconciliationSystem:
         return self.latest_results
 
     def get_reconciliation_report(self) -> dict[str, Any]:
-        """Generate a summary report of position reconciliation."""
+        """Generate a summary report of position reconciliation.
+        
+        Returns:
+            dict[str, Any]: A report containing:
+                - period: time range of the report
+                - summary: overall statistics
+                - exchange_breakdown: per-exchange statistics
+                - recent_discrepancies: list of recent discrepancy details
+        """
         now = datetime.now(UTC)
         # Get historical records for the last 24 hours (1 day)
         recent_historical_records: list[HistoricalDiscrepancyRecord] = self.get_discrepancy_history(
@@ -793,7 +839,17 @@ class PositionReconciliationSystem:
         }
 
     async def run_reconciliation(self, force_run: bool = False) -> dict[str, Any]:
-        """Run the reconciliation process if the interval has passed or forced."""
+        """Run the reconciliation process if the interval has passed or forced.
+        
+        Returns:
+            dict[str, Any]: Reconciliation results containing:
+                - success: bool indicating overall success
+                - timestamp: when reconciliation was run
+                - discrepancies: list of found discrepancies
+                - symbols_checked: total number of symbols checked
+                - has_discrepancies: bool indicating if any discrepancies found
+                - exchange_results: per-exchange detailed results
+        """
         now = datetime.now(UTC)
         # Check if interval has passed
         time_since_last_run = (now - self._last_reconciliation_run).total_seconds()
@@ -899,7 +955,12 @@ class PositionReconciliationSystem:
         return overall_results
 
     async def _reconcile_exchange(self, exchange: str) -> dict[str, Any]:
-        """Reconcile positions for a single exchange."""
+        """Reconcile positions for a single exchange.
+        
+        Returns:
+            dict[str, Any]: Reconciliation results containing success status, timestamp,
+                discrepancies list, and error information if any issues occurred.
+        """
         now = datetime.now(UTC)
         self.logger.debug(
             "position_reconciliation_start",
@@ -989,7 +1050,13 @@ class PositionReconciliationSystem:
         api_positions: dict[str, Any],
         local_positions: dict[str, Any],
     ) -> dict[str, Any]:
-        """Reconcile positions for a given exchange."""
+        """Reconcile positions for a given exchange.
+        
+        Returns:
+            dict[str, Any]: Comprehensive reconciliation results including success status,
+                timestamp, list of discrepancies found, symbols checked count, and
+                has_discrepancies flag.
+        """
         now = datetime.now(UTC)
         self.logger.debug(
             "prs_reconcile_positions_starting",
@@ -1057,7 +1124,13 @@ class PositionReconciliationSystem:
         return overall_results
 
     def _initialize_reconciliation_results(self, now: datetime) -> dict[str, Any]:
-        """Initialize the reconciliation results structure."""
+        """Initialize the reconciliation results structure.
+        
+        Returns:
+            dict[str, Any]: Base reconciliation results dictionary with default values
+                for success, timestamp, discrepancies, symbols_checked, has_discrepancies,
+                and exchange_results.
+        """
         return {
             "success": True,
             "timestamp": now,
@@ -1074,7 +1147,12 @@ class PositionReconciliationSystem:
         api_positions: dict[str, Any],
         local_positions: dict[str, Any],
     ) -> list[Awaitable[list[HistoricalDiscrepancyRecord]]]:
-        """Create reconciliation tasks for all symbols."""
+        """Create reconciliation tasks for all symbols.
+        
+        Returns:
+            list[Awaitable[list[HistoricalDiscrepancyRecord]]]: List of async tasks,
+                each returning historical discrepancy records for a symbol.
+        """
         reconciliation_tasks: list[Awaitable[list[HistoricalDiscrepancyRecord]]] = []
 
         for symbol_key in all_symbols:
@@ -1111,7 +1189,13 @@ class PositionReconciliationSystem:
         api_pos_raw: object,
         local_pos_raw: object,
     ) -> tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]:
-        """Parse API and local positions for a symbol."""
+        """Parse API and local positions for a symbol.
+        
+        Returns:
+            tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]: 
+                Tuple containing parsed API position (or error dict) and parsed local
+                position (or error dict, or None if no local position exists).
+        """
         # Ensure local_pos_raw is DerivativePosition | None for _parse_local_position
         parsed_local_pos_input: DerivativePosition | None = None
         if isinstance(local_pos_raw, DerivativePosition):
@@ -1245,7 +1329,12 @@ class PositionReconciliationSystem:
         symbol_results_list: list[list[HistoricalDiscrepancyRecord] | BaseException],
         overall_results: dict[str, Any],
     ) -> list[HistoricalDiscrepancyRecord]:
-        """Process the results from symbol reconciliation tasks."""
+        """Process the results from symbol reconciliation tasks.
+        
+        Returns:
+            list[HistoricalDiscrepancyRecord]: Aggregated list of all discrepancy records
+                from successful reconciliation tasks, with exceptions logged and handled.
+        """
         aggregated_discrepancies: list[HistoricalDiscrepancyRecord] = []
 
         for res_item in symbol_results_list:
@@ -1382,7 +1471,12 @@ class PositionReconciliationSystem:
         exchange_id: str,
         api_positions: dict[str, Any],
     ) -> dict[str, DerivativePosition]:
-        """Build a map of API positions for corrections."""
+        """Build a map of API positions for corrections.
+        
+        Returns:
+            dict[str, DerivativePosition]: Map of symbol to DerivativePosition for
+                valid API positions that can be used for position corrections.
+        """
         api_positions_map_for_correction: dict[str, DerivativePosition] = {}
 
         for sym, pos_data in api_positions.items():
@@ -1456,7 +1550,12 @@ class PositionReconciliationSystem:
         parsed_api_pos: ParsedPosition | ErrorDict,
         parsed_local_pos: ParsedPosition | ErrorDict | None,
     ) -> list[HistoricalDiscrepancyRecord]:
-        """Handle parsing errors for API and local positions."""
+        """Handle parsing errors for API and local positions.
+        
+        Returns:
+            list[HistoricalDiscrepancyRecord]: List containing a single error record
+                if parsing errors were found, empty list if no parsing errors occurred.
+        """
         # Check if parsed_api_pos is an ErrorDict
         if "error" in parsed_api_pos:
             error_dict_api = cast("ErrorDict", parsed_api_pos)
@@ -1492,7 +1591,12 @@ class PositionReconciliationSystem:
         api_pos_data: ParsedPosition,
         local_pos_data: ParsedPosition | None,
     ) -> list[HistoricalDiscrepancyRecord]:
-        """Handle discrepancies related to position existence."""
+        """Handle discrepancies related to position existence.
+        
+        Returns:
+            list[HistoricalDiscrepancyRecord]: List of discrepancy records for cases where
+                positions exist in one system but not the other, or are flat in one system.
+        """
         discrepancy_records: list[HistoricalDiscrepancyRecord] = []
 
         # Case 1: Position exists on API but not locally
@@ -1536,7 +1640,12 @@ class PositionReconciliationSystem:
         api_pos_data: ParsedPosition,
         local_pos_data: ParsedPosition,
     ) -> list[HistoricalDiscrepancyRecord]:
-        """Compare attributes of two non-flat positions."""
+        """Compare attributes of two non-flat positions.
+        
+        Returns:
+            list[HistoricalDiscrepancyRecord]: List of discrepancy records for differences
+                in size, entry price, or mark price between API and local positions.
+        """
         discrepancy_records: list[HistoricalDiscrepancyRecord] = []
 
         # Size comparison
@@ -1581,7 +1690,11 @@ class PositionReconciliationSystem:
         api_pos_data: ParsedPosition,
         local_pos_data: ParsedPosition,
     ) -> bool:
-        """Determine if entry prices should be compared."""
+        """Determine if entry prices should be compared.
+        
+        Returns:
+            bool: True if positions have same side, non-zero size, and matching sizes.
+        """
         return (
             api_pos_data["side"] == local_pos_data["side"]
             and api_pos_data["size"] != Decimal(0)
@@ -1593,7 +1706,11 @@ class PositionReconciliationSystem:
         api_pos_data: ParsedPosition,
         local_pos_data: ParsedPosition,
     ) -> bool:
-        """Determine if mark prices should be compared."""
+        """Determine if mark prices should be compared.
+        
+        Returns:
+            bool: True if mark prices differ and position size is non-zero.
+        """
         return api_pos_data.get("mark_price") != local_pos_data.get("mark_price") and api_pos_data[
             "size"
         ] != Decimal(0)
@@ -1603,7 +1720,16 @@ class PositionReconciliationSystem:
         api_positions: dict[str, Any],
         local_positions: dict[str, Any],
     ) -> dict[str, Any]:
-        """Compare positions between API and local state."""
+        """Compare positions between API and local state.
+        
+        Returns:
+            dict[str, Any]: Comparison results containing:
+                - success: bool (always True for successful comparison)
+                - timestamp: when comparison was performed
+                - positions_compared: number of positions analyzed
+                - discrepancies: list of all found discrepancies
+                - has_discrepancies: bool indicating if any discrepancies found
+        """
         now = datetime.now(UTC)
         exchange_id_placeholder = "UNKNOWN_EXCHANGE_IN_COMPARE"
 
@@ -1646,7 +1772,12 @@ class PositionReconciliationSystem:
         local_positions: dict[str, Any],
         exchange_id_placeholder: str,
     ) -> list[Awaitable[list[HistoricalDiscrepancyRecord]]]:
-        """Create reconciliation tasks for all symbols."""
+        """Create reconciliation tasks for all symbols.
+        
+        Returns:
+            list[Awaitable[list[HistoricalDiscrepancyRecord]]]: List of async tasks for
+                reconciling each symbol's positions.
+        """
         reconciliation_tasks: list[Awaitable[list[HistoricalDiscrepancyRecord]]] = []
 
         for symbol_key in all_symbols:
@@ -1672,7 +1803,12 @@ class PositionReconciliationSystem:
     def _validate_local_position(
         self, local_pos_raw: object, symbol_key: str
     ) -> DerivativePosition | None:
-        """Validate and return local position if valid."""
+        """Validate and return local position if valid.
+        
+        Returns:
+            DerivativePosition | None: The position if it's a valid DerivativePosition instance,
+                None if invalid type or None.
+        """
         if isinstance(local_pos_raw, DerivativePosition):
             return local_pos_raw
         if local_pos_raw is not None:
@@ -1689,7 +1825,12 @@ class PositionReconciliationSystem:
         return None
 
     def _parse_comparison_api_position(self, api_pos_raw: object) -> ParsedPosition:
-        """Parse API position data into ParsedPosition format."""
+        """Parse API position data into ParsedPosition format.
+        
+        Returns:
+            ParsedPosition: Dictionary with position attributes. If api_pos_raw is None,
+                returns a zero position with default values.
+        """
         api_pos = cast("DerivativePosition | None", api_pos_raw)
         if api_pos:
             return cast(
@@ -1719,7 +1860,12 @@ class PositionReconciliationSystem:
     def _parse_comparison_local_position(
         self, parsed_local_pos_input: DerivativePosition | None
     ) -> ParsedPosition | None:
-        """Parse local position data into ParsedPosition format."""
+        """Parse local position data into ParsedPosition format.
+        
+        Returns:
+            ParsedPosition | None: Dictionary with position attributes if input is valid,
+                None if input is None.
+        """
         if parsed_local_pos_input:
             return cast(
                 "ParsedPosition",
@@ -1740,7 +1886,12 @@ class PositionReconciliationSystem:
         exchange_id_placeholder: str,
         overall_results: dict[str, Any],
     ) -> list[HistoricalDiscrepancyRecord]:
-        """Process reconciliation task results and handle errors."""
+        """Process reconciliation task results and handle errors.
+        
+        Returns:
+            list[HistoricalDiscrepancyRecord]: Aggregated list of all discrepancy records
+                from successful tasks. Tasks that raised exceptions are logged but excluded.
+        """
         results_gather = await asyncio.gather(*reconciliation_tasks, return_exceptions=True)
         aggregated_discrepancies: list[HistoricalDiscrepancyRecord] = []
 

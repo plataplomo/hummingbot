@@ -77,5 +77,9 @@ class BaseCalculator[R_co]:
         }
 
     def __repr__(self) -> str:
-        """String representation of the calculator."""
+        """String representation of the calculator.
+
+        Returns:
+            String representation showing class name and calculator name
+        """
         return f"{self.__class__.__name__}(name='{self.name}')"

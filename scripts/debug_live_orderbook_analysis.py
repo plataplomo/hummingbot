@@ -54,7 +54,15 @@ class LiveExchangeProof:
         self.empty_orderbooks_created = 0
 
     def analyze_message(self, raw_data: dict[str, Any]) -> str:
-        """Analyze real message and classify type."""
+        """Analyze real message and classify type.
+
+        Args:
+            raw_data: Raw message data from the exchange.
+
+        Returns:
+            str: Message type classification - one of 'SNAPSHOT',
+                'INCREMENTAL_WITH_DATA', 'INCREMENTAL_EMPTY', or 'UNKNOWN'.
+        """
         bids = raw_data.get("bids")
         asks = raw_data.get("asks")
         first_id = raw_data.get("U")
@@ -75,7 +83,15 @@ class LiveExchangeProof:
         return "UNKNOWN"
 
     async def capture_live_message(self, context: WebSocketContextProtocol) -> None:
-        """Capture and analyze each live message from Backpack."""
+        """Capture and analyze each live message from Backpack.
+
+        Args:
+            context: WebSocket context containing the validated message envelope.
+
+        Raises:
+            KeyboardInterrupt: When user interrupts the capture process.
+            CancelledError: When the async operation is cancelled.
+        """
         try:
             if not (
                 hasattr(context, "validated_envelope")
@@ -205,7 +221,11 @@ class LiveExchangeProof:
         logger.info(separator)
 
     def save_live_evidence(self) -> str:
-        """Save live evidence to file with timestamp."""
+        """Save live evidence to file with timestamp.
+
+        Returns:
+            str: Filename of the saved evidence file.
+        """
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"live_backpack_evidence_{timestamp}.json"
 
@@ -260,7 +280,17 @@ class LiveExchangeProof:
 
 
 async def run_live_proof(duration: int = 60) -> int:
-    """Run live proof against real Backpack exchange."""
+    """Run live proof against real Backpack exchange.
+
+    Args:
+        duration: Analysis duration in seconds.
+
+    Returns:
+        int: Exit code - 0 for success, 1 for failure.
+
+    Raises:
+        ValueError: If secrets configuration is not loaded.
+    """
     logger.info("🔍 LIVE BACKPACK WEBSOCKET PROOF")
     logger.info("🚨 CONNECTING TO REAL EXCHANGE...")
     logger.info("Analysis Duration", duration_seconds=duration)

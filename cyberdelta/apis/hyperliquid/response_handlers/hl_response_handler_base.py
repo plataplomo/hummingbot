@@ -30,7 +30,11 @@ class HyperliquidResponseHandlerBase:
         status_code: int | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> APIError:
-        """Helper to create a standardized APIError from a ValidationError."""
+        """Helper to create a standardized APIError from a ValidationError.
+
+        Returns:
+            APIError with INVALID_RESPONSE code and structured logging of validation failure.
+        """
         log_message = (
             "[HyperliquidResponseHandler] Pydantic validation failed for %s: %s. "
             "Status: %s. Headers: %s. Raw data: %r"

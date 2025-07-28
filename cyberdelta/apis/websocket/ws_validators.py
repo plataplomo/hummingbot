@@ -157,7 +157,8 @@ class WebSocketPayloadValidators:
             The validated dictionary payload.
 
         Raises:
-            ValueError: If validation fails.
+            InvalidPayloadTypeError: If payload is not a dictionary.
+            PayloadSizeError: If dictionary size constraints are violated.
 
         """
         if not isinstance(payload, dict):
@@ -193,7 +194,9 @@ class WebSocketPayloadValidators:
             The validated list payload.
 
         Raises:
-            ValueError: If validation fails.
+            InvalidPayloadTypeError: If payload is not a list.
+            PayloadSizeError: If list size constraints are violated.
+            InvalidItemTypeError: If any item has an invalid type when item_type is specified.
 
         """
         if not isinstance(payload, list):
@@ -232,7 +235,7 @@ class WebSocketPayloadValidators:
             The validated payload.
 
         Raises:
-            ValueError: If any required fields are missing.
+            MissingRequiredFieldsError: If any required fields are missing.
 
         """
         missing_fields = [field for field in required_fields if field not in payload]
@@ -257,7 +260,7 @@ class WebSocketPayloadValidators:
             The validated payload.
 
         Raises:
-            ValueError: If any unexpected fields are present.
+            UnexpectedFieldsError: If any unexpected fields are present.
 
         """
         unexpected_fields = [field for field in payload if field not in allowed_fields]
@@ -283,7 +286,8 @@ class WebSocketPayloadValidators:
             The validated symbol string.
 
         Raises:
-            ValueError: If symbol format is invalid.
+            InvalidFieldTypeError: If symbol is not a string.
+            InvalidFormatError: If symbol format is invalid.
 
         """
         if not isinstance(symbol, str):
@@ -338,7 +342,8 @@ class WebSocketPayloadValidators:
             The validated symbol string.
 
         Raises:
-            ValueError: If symbol format is invalid.
+            InvalidFieldTypeError: If symbol is not a string or integer.
+            InvalidFormatError: If symbol format doesn't match expected pattern.
 
         """
         # Use new symbol system for WebSocket validation if exchange is specified
@@ -410,7 +415,8 @@ class WebSocketPayloadValidators:
             The validated topic string.
 
         Raises:
-            ValueError: If topic format is invalid.
+            InvalidFieldTypeError: If topic is not a string.
+            InvalidFormatError: If topic format is invalid.
 
         """
         if not isinstance(topic, str):
@@ -437,7 +443,8 @@ class WebSocketPayloadValidators:
             The validated ID string.
 
         Raises:
-            ValueError: If ID format is invalid.
+            InvalidFieldTypeError: If ID is not a string.
+            InvalidFormatError: If ID format is invalid.
 
         """
         if not isinstance(id_value, str):
@@ -467,7 +474,9 @@ class WebSocketPayloadValidators:
             The validated string.
 
         Raises:
-            ValueError: If validation fails.
+            InvalidFieldTypeError: If value is not a string.
+            InvalidNumericValueError: If string cannot be converted to a number.
+            NumericRangeError: If numeric value is outside the allowed range.
 
         """
         if not isinstance(value, str):
@@ -503,7 +512,8 @@ class WebSocketPayloadValidators:
             The validated timestamp.
 
         Raises:
-            ValueError: If timestamp is invalid.
+            InvalidTimestampError: If timestamp is negative, too old, or in the future
+                (when RESTRICT_TO_PAST policy is used).
 
         """
         # Type is guaranteed by function signature annotation

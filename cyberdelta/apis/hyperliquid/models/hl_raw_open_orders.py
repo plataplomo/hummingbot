@@ -220,7 +220,14 @@ class HyperliquidRawOpenOrdersResponse(RootModel[list[HyperliquidRawSimpleOpenOr
     @field_validator("root", mode="before")
     @classmethod
     def validate_open_orders_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
-        """Ensure the root input is a list of dictionaries for open orders."""
+        """Ensure the root input is a list of dictionaries for open orders.
+
+        Returns:
+            A validated list of dictionaries, each representing an open order.
+
+        Raises:
+            StructureTypeError: If the input is not a list or contains non-dictionary items.
+        """
         field_name = info.field_name or "open_orders_list"
 
         if not isinstance(v, list):

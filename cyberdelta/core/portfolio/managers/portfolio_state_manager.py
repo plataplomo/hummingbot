@@ -30,6 +30,7 @@ from cyberdelta.core.portfolio.portfolio_types.state_types import (
     StateValidationResult,
 )
 from cyberdelta.core.portfolio.protocols import Initializable, Shutdownable
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -39,7 +40,6 @@ if TYPE_CHECKING:
         StateContainerProtocol,
     )
     from cyberdelta.core.portfolio.protocols.validation import ValidationServiceProtocol
-    from cyberdelta.enums.exchange_names import ExchangeName
 
 logger = get_logger(__name__)
 
@@ -101,7 +101,11 @@ class PortfolioStateManager:
         )
 
     async def initialize(self) -> None:
-        """Initialize the portfolio state manager."""
+        """Initialize the portfolio state manager.
+        
+        Raises:
+            StateManagerInitializationFailedError: If initialization fails.
+        """
         if self._is_initialized:
             return
 
@@ -163,6 +167,9 @@ class PortfolioStateManager:
 
         Returns:
             True if update was successful
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -226,6 +233,9 @@ class PortfolioStateManager:
 
         Returns:
             True if update was successful
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -292,6 +302,9 @@ class PortfolioStateManager:
 
         Returns:
             True if update was successful
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -356,6 +369,9 @@ class PortfolioStateManager:
 
         Returns:
             True if trade was processed successfully
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -448,6 +464,10 @@ class PortfolioStateManager:
 
         Returns:
             Dictionary of balances
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
+            StateOperationFailedError: If operation fails.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -465,7 +485,11 @@ class PortfolioStateManager:
             exchange: Exchange name
 
         Returns:
-            List of positions
+            Dictionary of positions
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
+            StateOperationFailedError: If operation fails.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -483,7 +507,11 @@ class PortfolioStateManager:
             exchange: Exchange name
 
         Returns:
-            List of orders
+            Dictionary of orders
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
+            StateOperationFailedError: If operation fails.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -500,6 +528,10 @@ class PortfolioStateManager:
 
         Returns:
             Complete portfolio state with typed data
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
+            StateOperationFailedError: If operation fails.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -533,6 +565,9 @@ class PortfolioStateManager:
 
         Returns:
             Validation result
+            
+        Raises:
+            StateManagerNotInitializedError: If manager is not initialized.
         """
         if not self._is_initialized:
             raise StateManagerNotInitializedError
@@ -601,7 +636,11 @@ class PortfolioStateManager:
         return self._is_initialized
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            Human-readable string representation of the state manager.
+        """
         return (
             f"PortfolioStateManager("
             f"version={self._state_version}, "

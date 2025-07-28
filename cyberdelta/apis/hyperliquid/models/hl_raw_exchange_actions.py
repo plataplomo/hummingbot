@@ -85,7 +85,15 @@ class HyperliquidRawOrderItemSpec(BaseModel):
 
     @model_validator(mode="after")
     def validate_market_identifier(self) -> HyperliquidRawOrderItemSpec:
-        """Ensure exactly one market identifier is provided."""
+        """Ensure exactly one market identifier is provided.
+
+        Returns:
+            The validated instance with exactly one market identifier set.
+
+        Raises:
+            ConflictingMarketIdentifiersError: If both asset index and coin are provided.
+            MissingMarketIdentifierError: If neither asset index nor coin is provided.
+        """
         has_asset_index = self.a is not None
         has_coin = self.coin is not None
 

@@ -44,12 +44,20 @@ logger = get_logger(__name__)
 
 
 def is_str_any_dict(obj: object) -> TypeGuard[dict[str, Any]]:
-    """TypeGuard to ensure dict has str keys."""
+    """TypeGuard to ensure dict has str keys.
+
+    Returns:
+        TypeGuard[dict[str, Any]]: True if object is a dictionary.
+    """
     return isinstance(obj, dict)
 
 
 def is_any_list(obj: object) -> TypeGuard[list[Any]]:
-    """TypeGuard to ensure object is a list."""
+    """TypeGuard to ensure object is a list.
+
+    Returns:
+        TypeGuard[list[Any]]: True if object is a list.
+    """
     return isinstance(obj, list)
 
 
@@ -57,14 +65,22 @@ class TestBackpackWebSocketIntegration:
     """Test real WebSocket message processing through the entire pipeline."""
 
     def _get_test_symbol(self, markets: list[Any]) -> str:
-        """Get a test symbol, preferring SOL_USDC."""
+        """Get a test symbol, preferring SOL_USDC.
+
+        Returns:
+            str: The symbol of the preferred or first available market.
+        """
         test_symbol: str = next(
             (m.symbol for m in markets if m.base_symbol == "SOL"), markets[0].symbol
         )
         return self._convert_symbol_format(test_symbol)
 
     def _extract_context_data(self, context: WebSocketContextProtocol) -> dict[str, Any]:
-        """Extract data from context for testing."""
+        """Extract data from context for testing.
+
+        Returns:
+            dict[str, Any]: Extracted context data for validation.
+        """
         context_data: dict[str, Any] = {}
         if (
             hasattr(context, "validated_envelope")
@@ -76,7 +92,11 @@ class TestBackpackWebSocketIntegration:
         return context_data
 
     def _get_depth_test_symbol(self, markets: list[Any]) -> str:
-        """Get a test symbol for depth testing, preferring SOL/USDC spot."""
+        """Get a test symbol for depth testing, preferring SOL/USDC spot.
+
+        Returns:
+            str: The symbol for depth testing, preferring SOL/USDC.
+        """
         test_symbol: str = next(
             (
                 m.symbol
@@ -106,7 +126,11 @@ class TestBackpackWebSocketIntegration:
     def _create_universal_handler(
         self, received_messages: dict[str, list[Any]], pipeline_stats: dict[str, Any]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create a universal handler for multiple message types."""
+        """Create a universal handler for multiple message types.
+
+        Returns:
+            Callable: Async handler function for processing multiple message types.
+        """
 
         async def universal_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -242,7 +266,11 @@ class TestBackpackWebSocketIntegration:
         received_order_books: list[OrderBook],
         pipeline_errors: list[str],
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create a depth test handler for collecting order book data."""
+        """Create a depth test handler for collecting order book data.
+
+        Returns:
+            Callable: Async handler function for order book data collection.
+        """
 
         async def depth_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the processed depth/order book from the pipeline."""
@@ -394,7 +422,11 @@ class TestBackpackWebSocketIntegration:
         computed_field_checks: list[bool],
         pipeline_errors: list[str],
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create a trades test handler for collecting trade data."""
+        """Create a trades test handler for collecting trade data.
+
+        Returns:
+            Callable: Async handler function for trade data collection.
+        """
 
         async def trades_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the processed trade from the pipeline."""
@@ -770,7 +802,11 @@ class TestBackpackWebSocketIntegration:
     def _calculate_performance_stats(
         self, message_latencies: list[float], processing_times: list[float], message_count: int
     ) -> tuple[tuple[float, float, float], tuple[float, float, float], float]:
-        """Calculate performance statistics."""
+        """Calculate performance statistics.
+
+        Returns:
+            tuple: Latency stats, processing time stats, and message rate.
+        """
         if message_latencies:
             avg_latency = sum(message_latencies) / len(message_latencies)
             min_latency = min(message_latencies)

@@ -47,7 +47,14 @@ class ExposureMetrics:
     )
     @classmethod
     def validate_finite_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Ensure all decimal values are finite."""
+        """Ensure all decimal values are finite.
+        
+        Returns:
+            Validated finite Decimal value.
+            
+        Raises:
+            InvalidCalculationInputError: If decimal value is not finite.
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -60,7 +67,14 @@ class ExposureMetrics:
     def validate_currency_exposures(
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
-        """Validate currency exposure values."""
+        """Validate currency exposure values.
+        
+        Returns:
+            Dictionary with currency codes as keys and validated finite Decimal exposures.
+            
+        Raises:
+            InvalidCalculationInputError: If currency code is empty or exposure is not finite.
+        """
         validated: dict[str, Decimal] = {}
         for currency, exposure in v.items():
             if not currency:
@@ -112,7 +126,14 @@ class AggregateExposureMetrics:
     @field_validator("total_gross_exposure", "total_net_exposure", mode="before")
     @classmethod
     def validate_exposure_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Ensure exposure values are finite."""
+        """Ensure exposure values are finite.
+        
+        Returns:
+            Validated finite Decimal value.
+            
+        Raises:
+            InvalidCalculationInputError: If exposure value is not finite.
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -125,7 +146,14 @@ class AggregateExposureMetrics:
     def validate_currency_exposures_dict(
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
-        """Validate currency exposure dictionary."""
+        """Validate currency exposure dictionary.
+        
+        Returns:
+            Dictionary with uppercase currency codes and validated finite exposures.
+            
+        Raises:
+            InvalidCalculationInputError: If currency code is empty or exposure is not finite.
+        """
         validated: dict[str, Decimal] = {}
         for currency, exposure in v.items():
             if not currency:
@@ -147,7 +175,14 @@ class AggregateExposureMetrics:
     @field_validator("current_price", mode="before")
     @classmethod
     def validate_current_price(cls, v: Decimal | str | float) -> Decimal:
-        """Validate current price is positive and finite."""
+        """Validate current price is positive and finite.
+        
+        Returns:
+            Validated positive finite Decimal price.
+            
+        Raises:
+            InvalidCalculationInputError: If price is not finite or not positive.
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -162,7 +197,14 @@ class AggregateExposureMetrics:
     @field_validator("volatility", mode="before")
     @classmethod
     def validate_volatility(cls, v: Decimal | str | float | None) -> Decimal | None:
-        """Validate volatility if provided."""
+        """Validate volatility if provided.
+        
+        Returns:
+            Validated non-negative finite Decimal volatility or None if input is None.
+            
+        Raises:
+            InvalidCalculationInputError: If volatility is not finite, negative, or exceeds maximum.
+        """
         if v is not None:
             value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
             if not value.is_finite():
@@ -185,7 +227,14 @@ class AggregateExposureMetrics:
     @field_validator("correlation_data", mode="before")
     @classmethod
     def validate_correlation_data(cls, v: dict[str, float] | None) -> dict[str, float] | None:
-        """Validate correlation data if provided."""
+        """Validate correlation data if provided.
+        
+        Returns:
+            Validated correlation dictionary with values between -1 and 1, or None if input is None.
+            
+        Raises:
+            InvalidCalculationInputError: If any correlation value is not between -1 and 1.
+        """
         if v is not None:
             for key, corr in v.items():
                 # Type validation is handled by dict[str, float] annotation
@@ -330,7 +379,11 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     def _calculate_margin_requirement(
         self, position: DerivativePosition, current_price: Decimal
     ) -> Decimal:
-        """Calculate margin requirement for the position."""
+        """Calculate margin requirement for the position.
+        
+        Returns:
+            Required margin amount based on notional value and margin rate.
+        """
         # Simplified calculation - in reality this would be more complex
         notional_value = abs(position.size) * current_price
         margin_rate = Decimal("0.1")  # 10% margin requirement
@@ -339,7 +392,11 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     def _calculate_liquidation_price(
         self, position: DerivativePosition, current_price: Decimal, margin_requirement: Decimal
     ) -> Decimal | None:
-        """Calculate liquidation price for the position."""
+        """Calculate liquidation price for the position.
+        
+        Returns:
+            Estimated liquidation price for the position, or None if position size is zero.
+        """
         if position.size == 0:
             return None
 
@@ -352,7 +409,11 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     def _calculate_var(
         self, notional_value: Decimal, volatility: Decimal, confidence_level: Decimal
     ) -> Decimal:
-        """Calculate Value at Risk."""
+        """Calculate Value at Risk.
+        
+        Returns:
+            Value at Risk amount based on notional value, volatility, and confidence level.
+        """
         # Simplified VaR calculation
         # In reality, this would use proper statistical methods
 
@@ -364,7 +425,11 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     def _calculate_stress_loss(
         self, position: DerivativePosition, current_price: Decimal, stress_move: Decimal
     ) -> Decimal:
-        """Calculate loss in stress scenario."""
+        """Calculate loss in stress scenario.
+        
+        Returns:
+            Estimated loss amount under specified stress market movement.
+        """
         if position.size > 0:  # Long position
             stress_price = current_price * (1 - stress_move)
             return (current_price - stress_price) * position.size
@@ -375,7 +440,11 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     def _calculate_currency_exposures(
         self, position: DerivativePosition, current_price: Decimal
     ) -> dict[str, Decimal]:
-        """Calculate currency exposures from the position."""
+        """Calculate currency exposures from the position.
+        
+        Returns:
+            Dictionary mapping currency codes to exposure amounts.
+        """
         # Simplified - extract base and quote currencies from symbol
         if "/" in position.symbol:
             base, quote = position.symbol.split("/", 1)
@@ -393,7 +462,11 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
     async def calculate_portfolio_exposure(
         self, positions: list[DerivativePosition]
     ) -> AggregateExposureMetrics:
-        """Calculate aggregate exposure for a portfolio of positions."""
+        """Calculate aggregate exposure for a portfolio of positions.
+        
+        Returns:
+            Aggregate exposure metrics including total gross/net exposure and currency breakdowns.
+        """
         total_gross_exposure = Decimal(0)
         total_net_exposure = Decimal(0)
         currency_exposures: dict[str, Decimal] = {}

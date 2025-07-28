@@ -24,7 +24,17 @@ class TimePatchMigrator(ast.NodeTransformer):
         self.imports_to_remove: set[str] = set()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:  # noqa: N802
-        """Visit function definitions to check for patches and fixtures."""
+        """Visit function definitions to check for patches and fixtures.
+
+        This method identifies datetime and time.time patches in function decorators
+        and converts them to use pytest fixtures instead.
+
+        Args:
+            node: The function definition AST node to visit.
+
+        Returns:
+            The modified function definition node with patches replaced by fixtures.
+        """
         # Check for existing fixtures
         for arg in node.args.args:
             if arg.arg == "frozen_time":
@@ -57,7 +67,14 @@ class TimePatchMigrator(ast.NodeTransformer):
         return node
 
     def _is_datetime_patch(self, decorator: ast.AST) -> bool:
-        """Check if decorator is a datetime patch."""
+        """Check if decorator is a datetime patch.
+
+        Args:
+            decorator: The decorator AST node to check.
+
+        Returns:
+            True if the decorator is a patch for datetime module, False otherwise.
+        """
         if (isinstance(decorator, ast.Call)) and (
             (isinstance(decorator.func, ast.Name) and decorator.func.id == "patch")
             and (decorator.args and isinstance(decorator.args[0], ast.Constant))
@@ -68,7 +85,14 @@ class TimePatchMigrator(ast.NodeTransformer):
         return False
 
     def _is_time_patch(self, decorator: ast.AST) -> bool:
-        """Check if decorator is a time.time patch."""
+        """Check if decorator is a time.time patch.
+
+        Args:
+            decorator: The decorator AST node to check.
+
+        Returns:
+            True if the decorator is a patch for time.time function, False otherwise.
+        """
         if (isinstance(decorator, ast.Call)) and (
             (isinstance(decorator.func, ast.Name) and decorator.func.id == "patch")
             and (decorator.args and isinstance(decorator.args[0], ast.Constant))
@@ -79,7 +103,16 @@ class TimePatchMigrator(ast.NodeTransformer):
 
 
 def _check_migration_needed(content: str, file_path: Path) -> tuple[bool, str] | None:
-    """Check if file needs migration. Returns None if migration should proceed."""
+    """Check if file needs migration.
+
+    Args:
+        content: The file content to check.
+        file_path: Path to the file being checked.
+
+    Returns:
+        A tuple of (success, message) if migration is not needed, or None if
+        migration should proceed. Success is True if no error occurred.
+    """
     # Quick check if file needs migration
     if not re.search(r"@patch.*datetime|@patch.*time\.time", content):
         return True, f"⚠ {file_path} - no datetime/time patches found"
@@ -94,7 +127,15 @@ def _check_migration_needed(content: str, file_path: Path) -> tuple[bool, str] |
 
 
 def _process_ast_migration(content: str, file_path: Path) -> tuple[TimePatchMigrator, str]:
-    """Process AST transformation for migration."""
+    """Process AST transformation for migration.
+
+    Args:
+        content: The file content to transform.
+        file_path: Path to the file being processed.
+
+    Returns:
+        A tuple containing the migrator instance and the transformed content string.
+    """
     # Parse the AST
     tree = ast.parse(content, filename=str(file_path))
 
@@ -109,7 +150,15 @@ def _process_ast_migration(content: str, file_path: Path) -> tuple[TimePatchMigr
 
 
 def _add_imports_and_cleanup(migrator: TimePatchMigrator, new_content: str) -> str:
-    """Add necessary imports and clean up unused ones."""
+    """Add necessary imports and clean up unused ones.
+
+    Args:
+        migrator: The migrator instance containing import information.
+        new_content: The transformed content to update.
+
+    Returns:
+        The content with imports added and unused imports removed.
+    """
     lines = new_content.split("\n")
     import_index = -1
 
@@ -142,7 +191,16 @@ def _add_imports_and_cleanup(migrator: TimePatchMigrator, new_content: str) -> s
 
 
 def migrate_file(file_path: Path, dry_run: bool = False) -> tuple[bool, str]:
-    """Migrate a single file from unittest.mock to pytest-freezer."""
+    """Migrate a single file from unittest.mock to pytest-freezer.
+
+    Args:
+        file_path: Path to the file to migrate.
+        dry_run: If True, show what would be changed without modifying files.
+
+    Returns:
+        A tuple of (success, message) where success indicates if the migration
+        succeeded and message describes the result.
+    """
     try:
         content = file_path.read_text()
 
@@ -171,7 +229,15 @@ def migrate_file(file_path: Path, dry_run: bool = False) -> tuple[bool, str]:
 
 
 def find_migration_candidates(directory: Path) -> list[Path]:
-    """Find test files that are candidates for migration."""
+    """Find test files that are candidates for migration.
+
+    Args:
+        directory: The directory to search for test files.
+
+    Returns:
+        A list of Path objects for test files that contain datetime patches
+        and could be migrated.
+    """
     candidates: list[Path] = []
 
     for test_file in directory.rglob("test_*.py"):
@@ -187,7 +253,14 @@ def find_migration_candidates(directory: Path) -> list[Path]:
 
 
 def create_migration_example(file_path: Path) -> str:
-    """Create an example of how to manually migrate complex patterns."""
+    """Create an example of how to manually migrate complex patterns.
+
+    Args:
+        file_path: Path to the file for which to create the example.
+
+    Returns:
+        A formatted string containing migration examples and guidance.
+    """
     return f"""
 Manual Migration Guide for {file_path}
 =====================================
@@ -236,7 +309,11 @@ For complex patterns that can't be automatically migrated:
 
 
 def main() -> int:
-    """Main script execution."""
+    """Main script execution.
+
+    Returns:
+        Exit code: 0 for success, 1 if errors occurred.
+    """
     parser = argparse.ArgumentParser(
         description="Migrate unittest.mock datetime patches to pytest-freezer fixtures",
     )

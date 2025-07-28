@@ -54,7 +54,14 @@ class HyperliquidFundingDetails(BaseModel):
         raw_value: str | float | Decimal | None,
         info: object,
     ) -> Decimal | None:
-        """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
+        """Parse and validate decimal fields to ensure they are valid finite Decimal objects.
+        
+        Returns:
+            Decimal | None: Validated finite decimal value, or None if input was None.
+            
+        Raises:
+            DecimalFiniteError: If the decimal value is not finite (infinite, NaN).
+        """
         value = parse_decimal_value(raw_value)
         if value is not None and not value.is_finite():
             field_name = getattr(info, "field_name", "funding_details")
@@ -114,7 +121,11 @@ class FundingRate(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol(cls, value: object) -> str:
-        """Validate that symbol is a non-empty string."""
+        """Validate that symbol is a non-empty string.
+        
+        Returns:
+            str: Validated non-empty symbol string with max length of 64 characters.
+        """
         return validate_str_field(value, field_name="symbol", max_length=64, allow_empty=False)
 
     @field_validator("funding_rate", "predicted_rate", "mark_price", "index_price", mode="before")
@@ -124,7 +135,14 @@ class FundingRate(BaseModel):
         raw_value: str | float | Decimal | None,
         info: object,
     ) -> Decimal | None:
-        """Parse and validate decimal fields to ensure they are valid finite Decimal objects."""
+        """Parse and validate decimal fields to ensure they are valid finite Decimal objects.
+        
+        Returns:
+            Decimal | None: Validated finite decimal value, or None if input was None.
+            
+        Raises:
+            DecimalFiniteError: If the decimal value is not finite (infinite, NaN).
+        """
         value = parse_decimal_value(raw_value)
         if value is not None and not value.is_finite():
             field_name = getattr(info, "field_name", "funding_field")
@@ -143,7 +161,14 @@ class FundingRate(BaseModel):
         raw_value: datetime | float | str | None,
         info: object,
     ) -> datetime:
-        """Parse and validate timestamp to ensure it is a UTC-aware datetime object."""
+        """Parse and validate timestamp to ensure it is a UTC-aware datetime object.
+        
+        Returns:
+            datetime: UTC-aware datetime object representing the funding rate timestamp.
+            
+        Raises:
+            RequiredFieldNoneError: If timestamp is None or cannot be parsed.
+        """
         value = parse_datetime_utc(raw_value, field_name="timestamp")
         if value is None:
             raise RequiredFieldNoneError(
@@ -159,5 +184,9 @@ class FundingRate(BaseModel):
         raw_value: datetime | float | str | None,
         info: object,
     ) -> datetime | None:
-        """Parse and validate next_funding_time to ensure it is a UTC-aware datetime object."""
+        """Parse and validate next_funding_time to ensure it is a UTC-aware datetime object.
+        
+        Returns:
+            datetime | None: UTC-aware datetime for next funding time, or None if not provided.
+        """
         return parse_datetime_utc(raw_value, field_name="next_funding_time")

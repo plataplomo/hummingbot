@@ -152,7 +152,15 @@ class PositionSizer:
         opportunities: list[ArbitrageOpportunity],
         available_capital: Decimal,
     ) -> list[SizingResult]:
-        """Size opportunities with equal capital allocation."""
+        """Size opportunities with equal capital allocation.
+        
+        Args:
+            opportunities: List of arbitrage opportunities to size.
+            available_capital: Total available capital to allocate.
+            
+        Returns:
+            List of SizingResult objects with equal capital allocation.
+        """
         capital_per_opportunity = available_capital / len(opportunities)
 
         # Create sizing tasks
@@ -192,7 +200,15 @@ class PositionSizer:
         opportunities: list[ArbitrageOpportunity],
         available_capital: Decimal,
     ) -> list[SizingResult]:
-        """Size opportunities using Kelly-based allocation."""
+        """Size opportunities using Kelly-based allocation.
+        
+        Args:
+            opportunities: List of arbitrage opportunities to size.
+            available_capital: Total available capital to allocate.
+            
+        Returns:
+            List of SizingResult objects with Kelly-based capital allocation.
+        """
         # First pass: calculate Kelly fractions for all opportunities
         kelly_fractions: list[Decimal] = []
         total_kelly = Decimal(0)
@@ -239,7 +255,15 @@ class PositionSizer:
         opportunities: list[ArbitrageOpportunity],
         available_capital: Decimal,
     ) -> list[SizingResult]:
-        """Size opportunities using risk-weighted allocation."""
+        """Size opportunities using risk-weighted allocation.
+        
+        Args:
+            opportunities: List of arbitrage opportunities to size.
+            available_capital: Total available capital to allocate.
+            
+        Returns:
+            List of SizingResult objects with risk-weighted capital allocation.
+        """
         # Calculate risk scores for all opportunities
         risk_scores: list[Decimal] = []
         total_risk_score = Decimal(0)
@@ -271,7 +295,14 @@ class PositionSizer:
         return results
 
     def _calculate_risk_score(self, opportunity: ArbitrageOpportunity) -> Decimal:
-        """Calculate risk score for an opportunity."""
+        """Calculate risk score for an opportunity.
+        
+        Args:
+            opportunity: The arbitrage opportunity to calculate risk score for.
+            
+        Returns:
+            Risk score as a Decimal (higher value indicates higher risk).
+        """
         risk_score = Decimal("1.0")  # Base risk score
 
         # Adjust based on spread (higher spread = lower risk)
@@ -317,7 +348,11 @@ class PositionSizer:
         )
 
     def _get_sizing_config(self) -> dict[str, Any]:
-        """Get sizing configuration as dictionary."""
+        """Get sizing configuration as dictionary.
+        
+        Returns:
+            Dictionary containing sizing configuration parameters.
+        """
         return {
             "sizing_method": self.sizing_settings.method,
             "kelly_multiplier": float(self.sizing_settings.kelly_multiplier),
@@ -331,7 +366,11 @@ class PositionSizer:
         }
 
     def _update_performance_metrics(self, result: SizingResult) -> None:
-        """Update performance metrics."""
+        """Update performance metrics.
+        
+        Args:
+            result: The sizing result to update metrics from.
+        """
         self.sizing_count += 1
 
         if result.execution_time_ms:
@@ -348,16 +387,28 @@ class PositionSizer:
             ) / self.sizing_count
 
     def set_sizer(self, sizer: OrchestratorSizer) -> None:
-        """Set the active sizer strategy."""
+        """Set the active sizer strategy.
+        
+        Args:
+            sizer: The sizer strategy to use.
+        """
         self.sizer = sizer
         self.logger.info("Set sizer strategy", sizer_name=sizer.name)
 
     def get_sizer(self) -> OrchestratorSizer:
-        """Get the current sizer strategy."""
+        """Get the current sizer strategy.
+        
+        Returns:
+            The current sizer strategy instance.
+        """
         return self.sizer
 
     def get_performance_stats(self) -> dict[str, Any]:
-        """Get performance statistics."""
+        """Get performance statistics.
+        
+        Returns:
+            Dictionary containing performance statistics.
+        """
         avg_sizing_time = self.total_sizing_time / self.sizing_count if self.sizing_count > 0 else 0
 
         return {
@@ -389,7 +440,14 @@ class PositionSizer:
         )
 
     def get_available_capital(self, total_capital: Decimal) -> Decimal:
-        """Get available capital after reservations."""
+        """Get available capital after reservations.
+        
+        Args:
+            total_capital: Total capital amount.
+            
+        Returns:
+            Available capital after subtracting reserved capital.
+        """
         return max(Decimal(0), total_capital - self.reserved_capital)
 
     def reset_performance_metrics(self) -> None:
@@ -413,11 +471,19 @@ class PositionSizer:
         )
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            String representation of the PositionSizer.
+        """
         return f"PositionSizer(sizer={self.sizer.name}, method={self.sizer.sizing_method})"
 
     def __repr__(self) -> str:
-        """Detailed representation."""
+        """Detailed representation.
+        
+        Returns:
+            Detailed string representation of the PositionSizer.
+        """
         return (
             f"PositionSizer(sizer={self.sizer.name}, method={self.sizer.sizing_method}, "
             f"app_settings={self.app_settings})"

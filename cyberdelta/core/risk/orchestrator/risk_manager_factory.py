@@ -131,6 +131,9 @@ class RiskManagerFactory:
 
         Returns:
             RiskManagerOrchestrator configured with preset
+
+        Raises:
+            RiskConfigError: If preset name is invalid
         """
         if preset_name not in {"conservative", "moderate", "aggressive"}:
             raise RiskConfigError(

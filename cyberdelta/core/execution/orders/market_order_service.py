@@ -66,9 +66,8 @@ class MarketOrderService:
             Decimal: Calculated aggressive price for IoC limit order
 
         Raises:
-            MarketOrderError: If market data is unavailable
             InsufficientLiquidityError: If insufficient liquidity
-            PriceDeviationError: If price deviation exceeds limits
+            MarketOrderError.no_order_book_error: If order book is unavailable
         """
         # 1. Get order book for accurate pricing
         order_book = await self._exchange.get_order_book(symbol)
@@ -182,7 +181,7 @@ class MarketOrderService:
 
         Raises:
             PriceDeviationError: If price deviation exceeds limits
-            MarketOrderError: If price is invalid
+            MarketOrderError.invalid_price_error: If price is invalid
         """
         # Maximum deviation from reference price
         max_deviation = self._config.max_price_deviation_pct
@@ -364,7 +363,9 @@ class MarketOrderService:
         """Validate market order configuration.
 
         Raises:
-            ValueError: If configuration is invalid
+            MarketOrderParameterError.config_disabled_error: If market orders are disabled
+            MarketOrderParameterError.config_slippage_error: If slippage config is invalid
+            MarketOrderParameterError.config_deviation_error: If price deviation config is invalid
         """
         if not self._config.enabled:
             raise MarketOrderParameterError.config_disabled_error()

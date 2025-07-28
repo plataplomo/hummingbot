@@ -83,7 +83,7 @@ class HyperliquidRawReferrerData(BaseModel):
             list[object]: The validated list for further Pydantic processing
 
         Raises:
-            ValueError: If the input is not a list structure
+            ListFieldError: If the input is not a list structure
 
         """
         if not isinstance(v, list):
@@ -137,7 +137,7 @@ class HyperliquidRawReferralResponse(BaseModel):
             list[object]: The validated list for further processing
 
         Raises:
-            ValueError: If the input is not a list structure
+            ListFieldError: If the input is not a list structure
 
         Note:
             Item validation could be added if the reward history structure becomes known.

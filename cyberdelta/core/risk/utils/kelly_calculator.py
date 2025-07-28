@@ -46,7 +46,11 @@ class KellyInput:
     transaction_costs: Decimal = Decimal("0.001")  # 0.1%
 
     def validate(self) -> None:
-        """Validate input parameters."""
+        """Validate input parameters.
+        
+        Raises:
+            KellyCalculationError: If any input parameter is invalid
+        """
         if self.expected_return < 0:
             raise KellyCalculationError(
                 KellyCalculationError.INVALID_EXPECTED_RETURN,
@@ -114,7 +118,11 @@ class KellyResult:
     warnings: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to dictionary."""
+        """Convert result to dictionary.
+        
+        Returns:
+            Dictionary representation of Kelly calculation result
+        """
         return {
             "kelly_fraction": float(self.kelly_fraction),
             "adjusted_kelly": float(self.adjusted_kelly),
@@ -247,7 +255,14 @@ class KellyCalculator:
         return result
 
     def _calculate_continuous_kelly(self, kelly_input: KellyInput) -> Decimal:
-        """Calculate Kelly fraction using continuous formula."""
+        """Calculate Kelly fraction using continuous formula.
+        
+        Args:
+            kelly_input: Input parameters for Kelly calculation
+            
+        Returns:
+            Kelly fraction calculated using continuous formula
+        """
         # Kelly formula: f = (μ - r) / σ²
         excess_return = kelly_input.expected_return - (kelly_input.risk_free_rate / 365)
 
@@ -257,7 +272,17 @@ class KellyCalculator:
         return excess_return / (kelly_input.volatility * kelly_input.volatility)
 
     def _calculate_binary_kelly(self, kelly_input: KellyInput) -> Decimal:
-        """Calculate Kelly fraction using binary outcome formula."""
+        """Calculate Kelly fraction using binary outcome formula.
+        
+        Args:
+            kelly_input: Input parameters for Kelly calculation
+            
+        Returns:
+            Kelly fraction calculated using binary outcome formula
+            
+        Raises:
+            KellyCalculationError: If required binary parameters are missing
+        """
         # Kelly formula: f = (bp - q) / b
         # where b = win_amount/loss_amount, p = win_probability, q = 1-p
 
@@ -276,7 +301,17 @@ class KellyCalculator:
         return max(Decimal(0), kelly_fraction)
 
     def _calculate_multi_outcome_kelly(self, kelly_input: KellyInput) -> Decimal:
-        """Calculate Kelly fraction for multiple outcomes."""
+        """Calculate Kelly fraction for multiple outcomes.
+        
+        Args:
+            kelly_input: Input parameters with multiple outcome probabilities
+            
+        Returns:
+            Kelly fraction calculated for multiple outcomes
+            
+        Raises:
+            KellyCalculationError: If outcomes are not provided
+        """
         if kelly_input.outcomes is None:
             raise KellyCalculationError(
                 KellyCalculationError.MULTI_OUTCOME_KELLY_CALCULATION_REQUIREMENTS
@@ -298,7 +333,15 @@ class KellyCalculator:
     def _calculate_adjustments(
         self, kelly_input: KellyInput, sharpe_ratio: Decimal
     ) -> dict[str, Any]:
-        """Calculate all adjustments to Kelly fraction."""
+        """Calculate all adjustments to Kelly fraction.
+        
+        Args:
+            kelly_input: Input parameters for Kelly calculation
+            sharpe_ratio: Calculated Sharpe ratio
+            
+        Returns:
+            Dictionary containing adjustment factors and details
+        """
         adjustments: dict[str, Any] = {
             "sharpe_adjustment": Decimal("1.0"),
             "drawdown_adjustment": Decimal("1.0"),
@@ -351,7 +394,14 @@ class KellyCalculator:
         return adjustments
 
     def _apply_bounds(self, kelly_fraction: Decimal) -> Decimal:
-        """Apply bounds to Kelly fraction."""
+        """Apply bounds to Kelly fraction.
+        
+        Args:
+            kelly_fraction: Unbounded Kelly fraction
+            
+        Returns:
+            Bounded Kelly fraction within configured limits
+        """
         bounded = kelly_fraction
         if isinstance(self.min_kelly_fraction, Decimal):
             bounded = max(bounded, self.min_kelly_fraction)
@@ -362,21 +412,45 @@ class KellyCalculator:
     def _calculate_expected_growth_rate(
         self, fraction: Decimal, expected_return: Decimal, volatility: Decimal
     ) -> Decimal:
-        """Calculate expected growth rate using Kelly fraction."""
+        """Calculate expected growth rate using Kelly fraction.
+        
+        Args:
+            fraction: Kelly fraction to use
+            expected_return: Expected return rate
+            volatility: Return volatility
+            
+        Returns:
+            Expected growth rate based on Kelly fraction
+        """
         # Growth rate = f * μ - (f² * σ²) / 2
         return fraction * expected_return - (fraction * fraction * volatility * volatility) / 2
 
     def _calculate_max_drawdown_probability(
         self, fraction: Decimal, volatility: Decimal
     ) -> Decimal:
-        """Calculate probability of maximum drawdown."""
+        """Calculate probability of maximum drawdown.
+        
+        Args:
+            fraction: Kelly fraction being used
+            volatility: Return volatility
+            
+        Returns:
+            Estimated probability of experiencing maximum drawdown
+        """
         # Simplified calculation based on fraction and volatility
         # Higher fraction and volatility = higher drawdown probability
         drawdown_prob = fraction * volatility * 2
         return min(Decimal("1.0"), drawdown_prob)
 
     def _calculate_time_to_double(self, growth_rate: Decimal) -> Decimal | None:
-        """Calculate time to double capital."""
+        """Calculate time to double capital.
+        
+        Args:
+            growth_rate: Expected growth rate
+            
+        Returns:
+            Time periods to double capital, or None if growth rate is non-positive
+        """
         if growth_rate <= 0:
             return None
 
@@ -408,7 +482,14 @@ class KellyCalculator:
         return self.calculate_kelly(kelly_input)
 
     def _extract_expected_return(self, opportunity: ArbitrageOpportunity) -> Decimal:
-        """Extract expected return from opportunity."""
+        """Extract expected return from opportunity.
+        
+        Args:
+            opportunity: Arbitrage opportunity to extract return from
+            
+        Returns:
+            Expected return as Decimal, defaults to 0.1% if not found
+        """
         # Try spread percentage first
         spread_percentage = getattr(opportunity, "spread_percentage", None)
         if spread_percentage:
@@ -447,7 +528,14 @@ class KellyCalculator:
         return Decimal("0.001")  # 0.1%
 
     def _extract_volatility(self, opportunity: ArbitrageOpportunity) -> Decimal:
-        """Extract volatility from opportunity."""
+        """Extract volatility from opportunity.
+        
+        Args:
+            opportunity: Arbitrage opportunity to extract volatility from
+            
+        Returns:
+            Volatility as Decimal, defaults to 1% if not found
+        """
         # Try direct volatility
         volatility = getattr(opportunity, "volatility", None)
         if volatility:
@@ -470,7 +558,15 @@ class KellyCalculator:
         return Decimal("0.01")  # 1%
 
     def set_kelly_bounds(self, min_fraction: Decimal, max_fraction: Decimal) -> None:
-        """Set Kelly fraction bounds."""
+        """Set Kelly fraction bounds.
+        
+        Args:
+            min_fraction: Minimum allowed Kelly fraction
+            max_fraction: Maximum allowed Kelly fraction
+            
+        Raises:
+            KellyCalculationError: If min_fraction >= max_fraction
+        """
         if min_fraction >= max_fraction:
             raise KellyCalculationError(
                 KellyCalculationError.MIN_FRACTION_MUST_BE_LESS_THAN_MAX_FRACTION
@@ -485,7 +581,14 @@ class KellyCalculator:
         )
 
     def set_default_multiplier(self, multiplier: Decimal) -> None:
-        """Set default Kelly multiplier."""
+        """Set default Kelly multiplier.
+        
+        Args:
+            multiplier: Kelly multiplier between 0 and 1
+            
+        Raises:
+            KellyCalculationError: If multiplier is not between 0 and 1
+        """
         if multiplier <= 0 or multiplier > 1:
             raise KellyCalculationError(KellyCalculationError.MULTIPLIER_MUST_BE_BETWEEN_0_AND_1)
 
@@ -493,7 +596,15 @@ class KellyCalculator:
         self.logger.info("Set Kelly multiplier", multiplier=float(multiplier))
 
     def enable_adjustment(self, adjustment_type: str, enabled: bool) -> None:
-        """Enable or disable an adjustment type."""
+        """Enable or disable an adjustment type.
+        
+        Args:
+            adjustment_type: Type of adjustment ('sharpe', 'drawdown', 'transaction_cost')
+            enabled: Whether to enable the adjustment
+            
+        Raises:
+            KellyCalculationError: If adjustment_type is unknown
+        """
         if adjustment_type == "sharpe":
             self.enable_sharpe_adjustment = enabled
         elif adjustment_type == "drawdown":
@@ -513,7 +624,11 @@ class KellyCalculator:
         )
 
     def get_calculator_stats(self) -> dict[str, Any]:
-        """Get calculator statistics."""
+        """Get calculator statistics.
+        
+        Returns:
+            Dictionary containing calculator configuration and settings
+        """
         return {
             "default_multiplier": float(self.default_multiplier),
             "max_kelly_fraction": float(self.max_kelly_fraction),

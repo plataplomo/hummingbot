@@ -107,7 +107,15 @@ class ExchangeAgnosticMarketOrderExecutor:
         )
 
     def _get_exchange_specific_config(self, exchange_name: str) -> MarketOrderConfig:
-        """Get exchange-specific market order configuration."""
+        """Get exchange-specific market order configuration.
+        
+        Args:
+            exchange_name: Name of the exchange to get configuration for.
+            
+        Returns:
+            MarketOrderConfig: Configuration tailored for the specific exchange,
+                with customized slippage settings and symbol-specific parameters.
+        """
         # You can customize settings per exchange
         if exchange_name == "hyperliquid":
             return MarketOrderConfig(
@@ -152,7 +160,8 @@ class ExchangeAgnosticMarketOrderExecutor:
 
         Raises:
             ValueError: If exchange not found
-            MarketOrderError: If execution fails
+            InsufficientLiquidityError: If there is insufficient liquidity
+            PriceDeviationError: If price deviation exceeds acceptable limits
         """
         if exchange_name not in self.market_orders:
             raise ValueError(f"Exchange {exchange_name} not initialized")
@@ -241,7 +250,15 @@ class ExchangeAgnosticMarketOrderExecutor:
         return buy_order, sell_order  # type: ignore[return-value]
 
     def get_exchange_stats(self, exchange_name: str) -> dict[str, Any]:
-        """Get market order statistics for a specific exchange."""
+        """Get market order statistics for a specific exchange.
+        
+        Args:
+            exchange_name: Name of the exchange to get statistics for.
+            
+        Returns:
+            dict[str, Any]: Dictionary containing overall statistics and
+                per-symbol statistics for the exchange.
+        """
         stats: dict[str, Any] = {"overall": self.metrics.get_overall_stats(), "symbols": {}}
 
         # Get per-symbol stats

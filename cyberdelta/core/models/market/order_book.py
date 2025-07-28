@@ -82,10 +82,6 @@ class OrderBook(BaseModel):
 
         Returns:
             The validated symbol string.
-
-        Raises:
-            ValueError: If validation fails (e.g., empty, too long).
-
         """
         return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
 
@@ -104,8 +100,7 @@ class OrderBook(BaseModel):
             The validated, timezone-aware (UTC) datetime object.
 
         Raises:
-            ValueError: If the input is None or cannot be parsed into a valid datetime.
-
+            RequiredFieldNoneError: If the input is None after parsing.
         """
         dt = parse_datetime_utc(v, field_name="timestamp")
         if dt is None:
@@ -142,14 +137,8 @@ class OrderBook(BaseModel):
             A list of validated (Decimal price, Decimal quantity) tuples.
 
         Raises:
-            TypeError: If the input `v` is not a list, or if items within `v` are not lists/tuples,
-                       or if price/quantity elements have
-                        fundamentally incompatible types (e.g., None, dict).
-            ValueError: If items within `v` do not have length 2,
-                        or if price/quantity strings/numbers
-                        cannot be parsed to Decimal,
-                        or if parsed values are non-finite or quantity is negative.
-
+            ListFieldError: If the input `v` is not a list or if items within `v` are not
+                lists/tuples.
         """
         field_name = info.field_name or "unknown_field"
         if not isinstance(v, list):
@@ -179,7 +168,19 @@ class OrderBook(BaseModel):
         field_name: str,
         index: int,
     ) -> tuple[Decimal, Decimal]:
-        """Validate and parse a single order book level."""
+        """Validate and parse a single order book level.
+        
+        Args:
+            level_raw: Raw level data (should be list/tuple with 2 elements)
+            field_name: Name of the field being validated
+            index: Index of the level in the list
+            
+        Returns:
+            Validated tuple of (price, quantity) as Decimals
+            
+        Raises:
+            TypeFieldError: If level structure or data types are invalid
+        """
         # 1. Validate Structure (Runtime check)
         cls._validate_level_structure(level_raw, field_name, index)
 
@@ -205,12 +206,29 @@ class OrderBook(BaseModel):
 
     @classmethod
     def _is_valid_level_sequence(cls, level_raw: object) -> TypeGuard[Sequence[object]]:
-        """Type guard to check if level_raw is a valid sequence."""
+        """Type guard to check if level_raw is a valid sequence.
+        
+        Args:
+            level_raw: Object to check
+            
+        Returns:
+            True if level_raw is a list or tuple, False otherwise
+        """
         return isinstance(level_raw, list | tuple)
 
     @classmethod
     def _validate_level_structure(cls, level_raw: object, field_name: str, index: int) -> None:
-        """Validate the structure of a single level."""
+        """Validate the structure of a single level.
+        
+        Args:
+            level_raw: Raw level data to validate
+            field_name: Name of the field being validated
+            index: Index of the level in the list
+            
+        Raises:
+            ListFieldError: If level is not a list/tuple or has incorrect length
+            RangeFieldError: If level length is not exactly 2
+        """
         if not cls._is_valid_level_sequence(level_raw):
             # Get type name without type-checking issues
             type_name = type(level_raw).__name__ if level_raw is not None else "None"
@@ -232,7 +250,22 @@ class OrderBook(BaseModel):
 
     @classmethod
     def _parse_and_validate_price(cls, price_raw: object, field_name: str, index: int) -> Decimal:
-        """Parse and validate price value."""
+        """Parse and validate price value.
+        
+        Args:
+            price_raw: Raw price value to parse and validate
+            field_name: Name of the field being validated
+            index: Index of the level in the list
+            
+        Returns:
+            Validated price as a finite Decimal
+            
+        Raises:
+            TypeFieldError: If price type is not supported
+            DecimalFieldError: If price cannot be parsed to Decimal
+            RequiredFieldNoneError: If parsed price is None
+            DecimalFiniteError: If price is not finite
+        """
         # 2. Validate and Parse Price (Runtime check + parse attempt)
         if not isinstance(price_raw, Decimal | str | int | float):
             # Get type name without type-checking issues
@@ -276,7 +309,23 @@ class OrderBook(BaseModel):
         field_name: str,
         index: int,
     ) -> Decimal:
-        """Parse and validate quantity value."""
+        """Parse and validate quantity value.
+        
+        Args:
+            quantity_raw: Raw quantity value to parse and validate
+            field_name: Name of the field being validated
+            index: Index of the level in the list
+            
+        Returns:
+            Validated quantity as a finite, non-negative Decimal
+            
+        Raises:
+            TypeFieldError: If quantity type is not supported
+            DecimalFieldError: If quantity cannot be parsed to Decimal
+            RequiredFieldNoneError: If parsed quantity is None
+            DecimalFiniteError: If quantity is not finite
+            RangeFieldError: If quantity is negative
+        """
         # 3. Validate and Parse Quantity (Runtime check + parse attempt)
         if not isinstance(quantity_raw, Decimal | str | int | float):
             # Get type name without type-checking issues

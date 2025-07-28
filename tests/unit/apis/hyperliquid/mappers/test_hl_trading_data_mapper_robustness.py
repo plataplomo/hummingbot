@@ -46,7 +46,11 @@ logger = get_logger(__name__)
 
 @pytest.fixture
 def trading_data_mapper() -> HyperliquidOrderMapper:
-    """Provide an instance of HyperliquidOrderMapper."""
+    """Provide an instance of HyperliquidOrderMapper.
+    
+    Returns:
+        HyperliquidOrderMapper: Instance of the order mapper for testing.
+    """
     return HyperliquidOrderMapper()
 
 
@@ -62,7 +66,11 @@ def create_raw_order(
     asset: str = "ETH-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
-    """Create a HyperliquidRawOrder with customizable parameters."""
+    """Create a HyperliquidRawOrder with customizable parameters.
+    
+    Returns:
+        HyperliquidRawOrder: A raw order instance with the specified parameters.
+    """
     if order_type is None:
         order_type = {"limit": {"tif": "Gtc"}}
 
@@ -94,7 +102,12 @@ def create_raw_historical_order(
     coin: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
-    """Create a HyperliquidRawHistoricalOrder with customizable parameters."""
+    """Create a HyperliquidRawHistoricalOrder with customizable parameters.
+    
+    Returns:
+        HyperliquidRawHistoricalOrder: A raw historical order instance with the specified
+            parameters.
+    """
     return HyperliquidRawHistoricalOrder(
         oid=oid,
         cloid=cloid,

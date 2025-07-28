@@ -51,7 +51,18 @@ class UnifiedSymbolConfig(BaseModel):
     @field_validator("exchange_mappings", mode="before")
     @classmethod
     def validate_exchange_mappings(cls, v: dict[str, Any]) -> dict[str, ExchangeSymbolConfig]:
-        """Validate and convert exchange mappings."""
+        """Validate and convert exchange mappings.
+        
+        Ensures exchange mappings are properly structured for cross-exchange
+        symbol resolution. This is critical for maintaining consistent symbol
+        references across different exchange APIs in the arbitrage system.
+        
+        Returns:
+            dict[str, ExchangeSymbolConfig]: Validated and converted exchange mappings
+            
+        Raises:
+            TypeError: If mapping value is neither dict nor ExchangeSymbolConfig
+        """
         # Pydantic already validates v is dict[str, Any], so isinstance check not needed
 
         validated_mappings: dict[str, ExchangeSymbolConfig] = {}

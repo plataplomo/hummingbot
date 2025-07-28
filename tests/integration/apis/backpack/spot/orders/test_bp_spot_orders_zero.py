@@ -1651,6 +1651,16 @@ class TestBackpackOrdersZeroBalance:
         """Test order operations under network timeout conditions.
 
         Simulates timeout scenarios to ensure graceful handling.
+
+        Args:
+            bp_api_for_zero_balance_test: BackpackAPI instance for zero balance testing
+            custom_vcr_config: VCR configuration for network simulation
+
+        Raises:
+            KeyError: If key lookup fails during testing
+            TypeError: If type mismatch occurs during API calls
+            ValueError: If invalid values are encountered
+            APIError: If API errors occur during order operations
         """
         symbol = "SOL_USDC"
         test_price = await get_dynamic_test_price(

@@ -88,6 +88,9 @@ class PydanticJSONSerializer:
 
         Returns:
             JSON bytes with full type safety
+
+        Raises:
+            TypedStatePersistenceError: If serialization fails
         """
         try:
             # Pydantic handles all serialization automatically
@@ -105,6 +108,9 @@ class PydanticJSONSerializer:
 
         Returns:
             StateWrapper[T] with preserved type information
+
+        Raises:
+            TypedStatePersistenceError: If deserialization fails
         """
         try:
             json_str = data.decode("utf-8")
@@ -129,7 +135,11 @@ class PydanticJSONSerializer:
             raise TypedStatePersistenceError("deserialize", state_id, e) from e
 
     def get_extension(self) -> str:
-        """Get file extension."""
+        """Get file extension.
+
+        Returns:
+            File extension string for JSON files
+        """
         return ".json"
 
 
@@ -226,7 +236,11 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
         )
 
     async def health_check(self) -> bool:
-        """Check health of persistence service."""
+        """Check health of persistence service.
+
+        Returns:
+            True if service is healthy and operational, False otherwise
+        """
         return (
             self.is_initialized
             and self.is_running
@@ -249,6 +263,9 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
 
         Returns:
             Path to saved file
+
+        Raises:
+            TypedStatePersistenceError: If state saving fails
         """
         async with self._lock:
             try:
@@ -312,6 +329,9 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
 
         Returns:
             StateWrapper[T] with preserved type information
+
+        Raises:
+            TypedStatePersistenceError: If state loading fails
         """
         try:
             async with self._lock:
@@ -357,7 +377,15 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
             raise TypedStatePersistenceError("load", state_id, e) from e
 
     def _raise_file_not_found_error(self, state_id: str, file_path: Path) -> None:
-        """Raise TypedStatePersistenceError for file not found."""
+        """Raise TypedStatePersistenceError for file not found.
+
+        Args:
+            state_id: State identifier for error context
+            file_path: Path that was not found
+
+        Raises:
+            TypedStatePersistenceError: Always raises with file not found details
+        """
         raise TypedStatePersistenceError(
             "load", state_id, FileNotFoundError(f"State file not found: {file_path}")
         )
@@ -400,11 +428,19 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
             logger.warning("backup_cleanup_failed")
 
     def get_stats(self) -> PersistenceStats:
-        """Get persistence statistics."""
+        """Get persistence statistics.
+
+        Returns:
+            PersistenceStats containing operation metrics
+        """
         return self.stats
 
     async def validate_state(self) -> ValidationResult:
-        """Validate persistence service state."""
+        """Validate persistence service state.
+
+        Returns:
+            ValidationResult containing validation status and any issues
+        """
         result = ValidationResult(valid=True)
 
         # Validate configuration
@@ -434,7 +470,11 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
     def to_state_dict(
         self,
     ) -> dict[str, str | int | float | bool | dict[str, str | int | float | bool]]:
-        """Convert to state dictionary for persistence."""
+        """Convert to state dictionary for persistence.
+
+        Returns:
+            Dictionary containing service state data for persistence
+        """
         return {
             "state_id": self.state_id,
             "created_at": self.created_at.isoformat(),
@@ -451,7 +491,17 @@ class StatePersistenceService[T: BaseModel](BaseStateModel):
         cls,
         data: dict[str, str | int | float | bool | dict[str, str | int | float | bool]],
     ) -> StatePersistenceService[T]:
-        """Create service from state dictionary."""
+        """Create service from state dictionary.
+
+        Args:
+            data: State dictionary containing service configuration and data
+
+        Returns:
+            StatePersistenceService instance created from state data
+
+        Raises:
+            TypeError: If config data is not a valid dictionary
+        """
         config_data = data["config"]
         if isinstance(config_data, dict):
             config = PersistenceConfig.model_validate(config_data)

@@ -59,12 +59,20 @@ from cyberdelta.utils.typing import is_dict_str_any, is_sequence_of_any
 
 
 def has_exact_length(lst: list[object], length: int) -> bool:
-    """Check if a list has exactly the specified length."""
+    """Check if a list has exactly the specified length.
+    
+    Returns:
+        True if the list has exactly the specified length, False otherwise.
+    """
     return len(lst) == length
 
 
 def all_are_sequences(items: list[object]) -> bool:
-    """Check if all items in a list are themselves sequences (lists or tuples)."""
+    """Check if all items in a list are themselves sequences (lists or tuples).
+    
+    Returns:
+        True if all items are sequences, False otherwise.
+    """
     return all(is_sequence_of_any(sub) for sub in items)
 
 
@@ -152,6 +160,12 @@ class HyperliquidRawL2Book(BaseModel):
         This handles the preprocessing logic that was previously in the
         HyperliquidResponsePreprocessingMapper.preprocess_l2_book_response method.
         Specifically handles None responses by returning an empty order book structure.
+        
+        Returns:
+            Preprocessed order book data as a dictionary.
+            
+        Raises:
+            StructureTypeError: If the input is not a dictionary when expected.
         """
         # Handle None response (no order book data available)
         if values is None:
@@ -191,7 +205,8 @@ class HyperliquidRawL2Book(BaseModel):
             list[list[object]]: The validated raw structure for 'levels'.
 
         Raises:
-            ValueError: If the input is not a valid structure for order book levels.
+            StructureTypeError: If the input is not a valid structure for order book levels.
+            SequenceLengthError: If the levels list doesn't have exactly 2 elements.
 
         """
         field_name = info.field_name or "levels"

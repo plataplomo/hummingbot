@@ -190,7 +190,11 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
     def _check_funding_rate_bounds(
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
-        """Check if funding rates are within reasonable bounds."""
+        """Check if funding rates are within reasonable bounds.
+        
+        Returns:
+            CheckResult: Success if rates within bounds, failure otherwise.
+        """
         for exchange_name, metrics in [("long", long_metrics), ("short", short_metrics)]:
             current_rate = self._get_current_funding_rate(metrics)
             if current_rate is None:
@@ -228,7 +232,11 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
     def _check_funding_rate_spread(
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
-        """Check if funding rate spread is within acceptable limits."""
+        """Check if funding rate spread is within acceptable limits.
+        
+        Returns:
+            CheckResult: Success if spread within limits, failure otherwise.
+        """
         long_rate = self._get_current_funding_rate(long_metrics)
         short_rate = self._get_current_funding_rate(short_metrics)
 
@@ -262,7 +270,11 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
     def _check_funding_rate_stability(
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
-        """Check funding rate stability over time."""
+        """Check funding rate stability over time.
+        
+        Returns:
+            CheckResult: Success if rates are stable, warning if volatile.
+        """
         for exchange_name, metrics in [("long", long_metrics), ("short", short_metrics)]:
             # Get historical rates if available
             historical_rates = metrics.get("historical_rates", [])
@@ -317,7 +329,11 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
     def _check_confidence_scores(
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
-        """Check confidence scores for funding rate data."""
+        """Check confidence scores for funding rate data.
+        
+        Returns:
+            CheckResult: Success if confidence high, warning otherwise.
+        """
         for exchange_name, metrics in [("long", long_metrics), ("short", short_metrics)]:
             confidence = metrics.get("confidence", 0)
 
@@ -350,7 +366,11 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         return CheckResult.success("Funding rate confidence check passed")
 
     def _get_current_funding_rate(self, metrics: dict[str, Any]) -> Decimal | None:
-        """Extract current funding rate from metrics."""
+        """Extract current funding rate from metrics.
+        
+        Returns:
+            Decimal | None: Current funding rate or None if not available.
+        """
         current_rate = metrics.get("current_rate")
         if current_rate is None:
             return None
@@ -361,7 +381,11 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
             return None
 
     def _count_consecutive_moves(self, rates: list[float]) -> int:
-        """Count consecutive moves in the same direction."""
+        """Count consecutive moves in the same direction.
+        
+        Returns:
+            int: Number of consecutive moves in same direction.
+        """
         if len(rates) < MIN_RATES_FOR_CONSECUTIVE_ANALYSIS:
             return 0
 
@@ -396,6 +420,9 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         Args:
             min_rate: Minimum allowed funding rate
             max_rate: Maximum allowed funding rate
+            
+        Raises:
+            FundingRateError: If min_rate >= max_rate.
         """
         if min_rate >= max_rate:
             msg = "min_rate must be less than max_rate"
@@ -440,13 +467,21 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         self.logger.info("Primary source requirement", require=require)
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+        
+        Returns:
+            CheckResult: Skip result with appropriate message.
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+        
+        Returns:
+            CheckResult: Error result with exception details.
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

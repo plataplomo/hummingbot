@@ -45,7 +45,14 @@ class EthereumAddressNormalizer:
     )
     @classmethod
     def normalize_address_fields(cls, v: str | object) -> str | object:
-        """Normalize Ethereum address fields to lowercase."""
+        """Normalize Ethereum address fields to lowercase.
+        
+        Args:
+            v: Input value that may be an Ethereum address string
+            
+        Returns:
+            Normalized lowercase address if input is a string, otherwise returns input unchanged
+        """
         if isinstance(v, str):
             return normalize_ethereum_address(v)
         return v
@@ -66,6 +73,13 @@ class SigningPayloadSerializer:
         1. Respects the by_alias setting from model_dump
         2. Excludes None/null values
         3. Maintains field ordering required by signing
+        
+        Args:
+            serializer: Pydantic serializer function
+            info: Serialization context information
+            
+        Returns:
+            Cleaned dictionary ready for signing, with None values removed
         """
         # Get the default serialization with the same settings as model_dump
         # The info object contains serialization context including by_alias setting
@@ -75,11 +89,25 @@ class SigningPayloadSerializer:
         return self._clean_for_signing(data)
 
     def _clean_for_signing(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Recursively clean data for signing."""
+        """Recursively clean data for signing.
+        
+        Args:
+            data: Dictionary data to clean
+            
+        Returns:
+            Cleaned dictionary with None values and empty structures removed
+        """
         return self._clean_dict_recursive(data)
 
     def _clean_dict_recursive(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Helper method to recursively clean dictionary data."""
+        """Helper method to recursively clean dictionary data.
+        
+        Args:
+            data: Dictionary to clean recursively
+            
+        Returns:
+            New dictionary with None values and empty nested structures removed
+        """
         cleaned: dict[str, Any] = {}
 
         for key, value in data.items():
@@ -93,7 +121,14 @@ class SigningPayloadSerializer:
         return cleaned
 
     def _clean_value(self, value: object) -> object:
-        """Clean a single value for signing."""
+        """Clean a single value for signing.
+        
+        Args:
+            value: Value to clean (can be dict, list, or primitive type)
+            
+        Returns:
+            Cleaned value with None/empty structures removed, or None if value should be excluded
+        """
         if is_dict_str_any(value):
             # value is now properly typed as dict[str, Any] due to TypeGuard
             cleaned_dict = self._clean_dict_recursive(value)
@@ -104,7 +139,14 @@ class SigningPayloadSerializer:
         return value
 
     def _clean_list(self, lst: list[Any]) -> list[Any] | None:
-        """Clean a list for signing."""
+        """Clean a list for signing.
+        
+        Args:
+            lst: List to clean
+            
+        Returns:
+            Cleaned list with None values and empty dicts removed, or None if list becomes empty
+        """
         cleaned_list: list[Any] = []
         for item in lst:
             if is_dict_str_any(item):
@@ -126,6 +168,12 @@ class OrderTypeCleanerMixin:
         """Clean order type structure by removing null limit/market fields.
 
         Transforms: {"limit": {...}, "market": null} -> {"limit": {...}}
+        
+        Args:
+            v: Order type structure to clean
+            
+        Returns:
+            Cleaned order type with null limit/market fields removed
         """
         if is_dict_str_any(v) and "limit" in v and "market" in v:
             # v is now properly typed as dict[str, Any] due to TypeGuard
@@ -152,5 +200,11 @@ class GenericSigningPayload(BaseModel, SigningPayloadSerializer):
 
         This handles the conversion of arbitrary dict structures
         into a Pydantic model that can be properly serialized.
+        
+        Args:
+            data: Dictionary data to convert to model
+            
+        Returns:
+            New GenericSigningPayload instance containing the input data
         """
         return cls(**data)

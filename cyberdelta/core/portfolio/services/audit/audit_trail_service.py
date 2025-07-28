@@ -22,22 +22,38 @@ from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioSe
 
 # Type-preserving factory functions
 def _str_any_dict_factory() -> dict[str, Any]:
-    """Factory function that preserves dict[str, Any] type information."""
+    """Factory function that preserves dict[str, Any] type information.
+    
+    Returns:
+        An empty dictionary with string keys and Any values.
+    """
     return {}
 
 
 def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
+    """Factory function that preserves list[str] type information.
+    
+    Returns:
+        An empty list of strings.
+    """
     return []
 
 
 def _str_float_dict_factory() -> dict[str, float]:
-    """Factory function that preserves dict[str, float] type information."""
+    """Factory function that preserves dict[str, float] type information.
+    
+    Returns:
+        An empty dictionary with string keys and float values.
+    """
     return {}
 
 
 def _audit_entry_list_factory() -> list[AuditEntry]:
-    """Factory function that preserves list[AuditEntry] type information."""
+    """Factory function that preserves list[AuditEntry] type information.
+    
+    Returns:
+        An empty list of AuditEntry objects.
+    """
     return []
 
 
@@ -108,7 +124,11 @@ class AuditEntry:
     metadata: OperationMetadata | None = Field(default=None, description="Entry metadata")
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert audit entry to dictionary."""
+        """Convert audit entry to dictionary.
+        
+        Returns:
+            A dictionary representation of the audit entry.
+        """
         return {
             "id": self.id,
             "timestamp": self.timestamp,
@@ -131,7 +151,11 @@ class AuditEntry:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AuditEntry:
-        """Create audit entry from dictionary."""
+        """Create audit entry from dictionary.
+        
+        Returns:
+            An AuditEntry instance created from the dictionary data.
+        """
         return cls(
             id=data.get("id", str(uuid4())),
             timestamp=data.get("timestamp", time.time()),
@@ -175,7 +199,14 @@ class AuditFilter:
     @field_validator("end_time", mode="before")
     @classmethod
     def validate_time_range(cls, v: float | None, info: ValidationInfo) -> float | None:
-        """Validate end_time is after start_time."""
+        """Validate end_time is after start_time.
+        
+        Returns:
+            The validated end_time value.
+            
+        Raises:
+            AuditTrailValidationError: If end_time is not after start_time.
+        """
         if (
             v is not None
             and "start_time" in info.data
@@ -201,7 +232,14 @@ class AuditQuery:
     @field_validator("sort_order", mode="before")
     @classmethod
     def validate_sort_order(cls, v: str) -> str:
-        """Validate sort order."""
+        """Validate sort order.
+        
+        Returns:
+            The validated sort order value.
+            
+        Raises:
+            AuditTrailValidationError: If sort order is not 'asc' or 'desc'.
+        """
         if v not in {"asc", "desc"}:
             raise AuditTrailValidationError(field_type="Sort order", valid_values=["asc", "desc"])
         return v
@@ -209,7 +247,14 @@ class AuditQuery:
     @field_validator("sort_by", mode="before")
     @classmethod
     def validate_sort_by(cls, v: str) -> str:
-        """Validate sort field."""
+        """Validate sort field.
+        
+        Returns:
+            The validated sort field value.
+            
+        Raises:
+            AuditTrailValidationError: If sort field is not a valid field name.
+        """
         valid_fields = {"timestamp", "id", "action", "level", "component", "exchange_id", "symbol"}
         if v not in valid_fields:
             raise AuditTrailValidationError(
@@ -341,7 +386,18 @@ class PortfolioAuditTrailService(BasePortfolioService):
         tags: list[str] | None = None,
         metadata: OperationMetadata | None = None,
     ) -> str:
-        """Record an audit entry."""
+        """Record an audit entry.
+        
+        Returns:
+            The unique ID of the created audit entry.
+            
+        Raises:
+            ValueError: If the entry data is invalid or processing fails.
+            TypeError: If provided parameters have incorrect types.
+            KeyError: If required data fields are missing.
+            AttributeError: If required attributes are not available.
+            ArithmeticError: If numerical operations fail during entry processing.
+        """
         try:
             # Create audit entry
             entry = AuditEntry(
@@ -404,7 +460,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
             return entry.id
 
     async def get_audit_entries(self, query: AuditQuery | None = None) -> AuditReport:
-        """Get audit entries based on query."""
+        """Get audit entries based on query.
+        
+        Returns:
+            An audit report containing the filtered entries and statistics.
+        """
         query = query or AuditQuery()
         filter_criteria = query.filter
 
@@ -431,7 +491,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
     def _apply_all_filters(
         self, entries: list[AuditEntry], filter_criteria: AuditFilter
     ) -> list[AuditEntry]:
-        """Apply all filter criteria to entries."""
+        """Apply all filter criteria to entries.
+        
+        Returns:
+            The filtered list of audit entries.
+        """
         entries = self._apply_time_filters(entries, filter_criteria)
         entries = self._apply_categorical_filters(entries, filter_criteria)
         return self._apply_text_search(entries, filter_criteria)
@@ -439,7 +503,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
     def _apply_time_filters(
         self, entries: list[AuditEntry], filter_criteria: AuditFilter
     ) -> list[AuditEntry]:
-        """Apply time-based filters."""
+        """Apply time-based filters.
+        
+        Returns:
+            The time-filtered list of audit entries.
+        """
         if filter_criteria.start_time is not None:
             entries = [entry for entry in entries if entry.timestamp >= filter_criteria.start_time]
 
@@ -451,7 +519,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
     def _apply_categorical_filters(
         self, entries: list[AuditEntry], filter_criteria: AuditFilter
     ) -> list[AuditEntry]:
-        """Apply categorical filters (actions, levels, components, etc.)."""
+        """Apply categorical filters (actions, levels, components, etc.).
+        
+        Returns:
+            The categorically filtered list of audit entries.
+        """
         # Apply action filters
         if filter_criteria.actions:
             entries = [entry for entry in entries if entry.action in filter_criteria.actions]
@@ -501,7 +573,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
     def _apply_text_search(
         self, entries: list[AuditEntry], filter_criteria: AuditFilter
     ) -> list[AuditEntry]:
-        """Apply text search filter."""
+        """Apply text search filter.
+        
+        Returns:
+            The text-filtered list of audit entries.
+        """
         if filter_criteria.text_search:
             search_text = filter_criteria.text_search.lower()
             entries = [
@@ -517,7 +593,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
         return entries
 
     def _sort_entries(self, entries: list[AuditEntry], query: AuditQuery) -> list[AuditEntry]:
-        """Sort entries based on query parameters."""
+        """Sort entries based on query parameters.
+        
+        Returns:
+            The sorted list of audit entries.
+        """
         reverse = query.sort_order == "desc"
         if query.sort_by == "timestamp":
             entries.sort(key=lambda x: x.timestamp, reverse=reverse)
@@ -533,7 +613,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
     def _paginate_entries(
         self, entries: list[AuditEntry], filter_criteria: AuditFilter
     ) -> list[AuditEntry]:
-        """Apply pagination to entries."""
+        """Apply pagination to entries.
+        
+        Returns:
+            The paginated list of audit entries.
+        """
         if filter_criteria.offset:
             entries = entries[filter_criteria.offset :]
         if filter_criteria.limit:
@@ -544,7 +628,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
     def _build_audit_report(
         self, entries: list[AuditEntry], total_filtered: int, query: AuditQuery
     ) -> AuditReport:
-        """Build the final audit report."""
+        """Build the final audit report.
+        
+        Returns:
+            An AuditReport containing the processed entries and statistics.
+        """
         # Calculate statistics
         statistics = self._calculate_statistics(entries)
 
@@ -567,17 +655,29 @@ class PortfolioAuditTrailService(BasePortfolioService):
         )
 
     async def get_audit_entry_by_id(self, entry_id: str) -> AuditEntry | None:
-        """Get specific audit entry by ID."""
+        """Get specific audit entry by ID.
+        
+        Returns:
+            The audit entry if found, None otherwise.
+        """
         return self.entries_by_id.get(entry_id)
 
     async def get_audit_entries_by_correlation(self, correlation_id: str) -> list[AuditEntry]:
-        """Get all audit entries for a correlation ID."""
+        """Get all audit entries for a correlation ID.
+        
+        Returns:
+            A list of audit entries sharing the correlation ID.
+        """
         return self.entries_by_correlation.get(correlation_id, [])
 
     async def get_audit_trail_for_component(
         self, component: str, limit: int | None = None
     ) -> list[AuditEntry]:
-        """Get audit trail for a specific component."""
+        """Get audit trail for a specific component.
+        
+        Returns:
+            A list of audit entries for the specified component.
+        """
         entries = self.entries_by_component.get(component, [])
 
         # Sort by timestamp (newest first)
@@ -589,7 +689,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
         return entries
 
     async def get_audit_statistics(self) -> dict[str, Any]:
-        """Get audit trail statistics."""
+        """Get audit trail statistics.
+        
+        Returns:
+            A dictionary containing comprehensive audit trail statistics.
+        """
         time.time()
 
         # Calculate time-based statistics
@@ -636,7 +740,14 @@ class PortfolioAuditTrailService(BasePortfolioService):
     async def export_audit_trail(
         self, output_format: str = "json", query: AuditQuery | None = None
     ) -> str:
-        """Export audit trail in specified format."""
+        """Export audit trail in specified format.
+        
+        Returns:
+            The exported audit trail data as a string in the specified format.
+            
+        Raises:
+            ValueError: If the output format is not supported.
+        """
         report = await self.get_audit_entries(query)
 
         if output_format.lower() == "json":
@@ -660,7 +771,14 @@ class PortfolioAuditTrailService(BasePortfolioService):
     async def import_audit_trail(
         self, data: str, data_format: str = "json", merge: bool = True
     ) -> dict[str, Any]:
-        """Import audit trail from data."""
+        """Import audit trail from data.
+        
+        Returns:
+            A dictionary containing import statistics and results.
+            
+        Raises:
+            ValueError: If the data format is not supported or data is invalid.
+        """
         if data_format.lower() == "json":
             imported_data = json.loads(data)
             entries_data = imported_data.get("entries", [])
@@ -699,7 +817,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
         raise ValueError
 
     async def clear_audit_trail(self, confirm: bool = False) -> bool:
-        """Clear all audit trail entries."""
+        """Clear all audit trail entries.
+        
+        Returns:
+            True if the audit trail was cleared, False if confirmation was not provided.
+        """
         if not confirm:
             return False
 
@@ -751,7 +873,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
         )
 
     def _calculate_statistics(self, entries: list[AuditEntry]) -> dict[str, Any]:
-        """Calculate statistics for a list of entries."""
+        """Calculate statistics for a list of entries.
+        
+        Returns:
+            A dictionary containing statistical information about the entries.
+        """
         if not entries:
             return {}
 
@@ -785,7 +911,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
         }
 
     async def _cleanup_old_entries(self) -> int:
-        """Clean up old entries based on retention policy."""
+        """Clean up old entries based on retention policy.
+        
+        Returns:
+            The number of entries that were removed.
+        """
         current_time = time.time()
         retention_cutoff = current_time - (self.retention_days * 24 * DEFAULT_CLEANUP_INTERVAL)
 
@@ -821,7 +951,11 @@ class PortfolioAuditTrailService(BasePortfolioService):
         return len(entries_to_remove)
 
     def _export_as_csv(self, report: AuditReport) -> str:
-        """Export audit report as CSV."""
+        """Export audit report as CSV.
+        
+        Returns:
+            The audit report data formatted as a CSV string.
+        """
         output = io.StringIO()
         writer = csv.writer(output)
 

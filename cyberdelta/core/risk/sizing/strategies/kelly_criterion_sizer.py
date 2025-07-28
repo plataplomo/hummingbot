@@ -212,7 +212,11 @@ class KellyCriterionSizer(TypedBaseSizer):
     def _get_volatility_from_attribute(
         self, obj: ArbitrageOpportunity, attr_name: str
     ) -> Decimal | None:
-        """Extract volatility from object attribute."""
+        """Extract volatility from object attribute.
+        
+        Returns:
+            Decimal | None: The extracted volatility value or None if not found.
+        """
         value = getattr(obj, attr_name, None)
         if value:
             return self._parse_volatility_value(value)
@@ -221,7 +225,11 @@ class KellyCriterionSizer(TypedBaseSizer):
     def _parse_volatility_value(
         self, value: str | float | Decimal | list[Any] | dict[str, Any] | None
     ) -> Decimal | None:
-        """Parse and validate volatility value."""
+        """Parse and validate volatility value.
+        
+        Returns:
+            Decimal | None: Parsed and bounded volatility value or None.
+        """
         if not value:
             return None
         try:
@@ -233,7 +241,11 @@ class KellyCriterionSizer(TypedBaseSizer):
             return self._min_volatility
 
     def _estimate_volatility_from_spread(self, opportunity: ArbitrageOpportunity) -> Decimal | None:
-        """Estimate volatility from spread percentage."""
+        """Estimate volatility from spread percentage.
+        
+        Returns:
+            Decimal | None: Estimated volatility based on spread or None.
+        """
         spread_percentage = getattr(opportunity, "spread_percentage", None)
         if not spread_percentage:
             return None
@@ -289,6 +301,9 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Returns:
             Kelly fraction
+            
+        Raises:
+            KellyCalculationError: If volatility is invalid (zero or negative).
         """
         if volatility <= 0:
             raise KellyCalculationError(
@@ -357,6 +372,9 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Returns:
             Kelly fraction
+            
+        Raises:
+            KellyCalculationError: If win probability is out of valid range (0-1).
         """
         if win_probability <= 0 or win_probability >= 1:
             raise KellyCalculationError(
@@ -388,6 +406,9 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Args:
             multiplier: Kelly multiplier (0-1)
+            
+        Raises:
+            KellyCalculationError: If multiplier is out of valid range (0-1).
         """
         if multiplier <= 0 or multiplier > 1:
             raise KellyCalculationError(KellyCalculationError.KELLY_MULTIPLIER_OUT_OF_RANGE)
@@ -401,6 +422,9 @@ class KellyCriterionSizer(TypedBaseSizer):
         Args:
             min_allocation: Minimum Kelly allocation
             max_allocation: Maximum Kelly allocation
+            
+        Raises:
+            KellyCalculationError: If min_allocation >= max_allocation.
         """
         if min_allocation >= max_allocation:
             raise KellyCalculationError(KellyCalculationError.KELLY_ALLOCATION_BOUNDS_INVALID)
@@ -419,6 +443,9 @@ class KellyCriterionSizer(TypedBaseSizer):
         Args:
             min_volatility: Minimum volatility
             max_volatility: Maximum volatility
+            
+        Raises:
+            VolatilityCalculationError: If min_volatility >= max_volatility.
         """
         if min_volatility >= max_volatility:
             raise VolatilityCalculationError(
@@ -438,6 +465,9 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Args:
             rate: Annual risk-free rate
+            
+        Raises:
+            KellyCalculationError: If rate is negative.
         """
         if rate < 0:
             raise KellyCalculationError(KellyCalculationError.NEGATIVE_RISK_FREE_RATE)

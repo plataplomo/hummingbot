@@ -32,7 +32,12 @@ from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
 def _create_typed_dict() -> dict[str, Any]:
-    """Create a properly typed empty dict for dataclass field defaults."""
+    """Create a properly typed empty dict for dataclass field defaults.
+    
+    Returns:
+        Empty dictionary with proper type annotation for dataclass defaults
+    
+    """
     return {}
 
 
@@ -81,7 +86,12 @@ class FundingData:
 
 
 def _create_source_data_dict() -> dict[SourceType, FundingData]:
-    """Create a properly typed empty dict for source data field defaults."""
+    """Create a properly typed empty dict for source data field defaults.
+    
+    Returns:
+        Empty dictionary mapping SourceType to FundingData for dataclass defaults
+    
+    """
     return {}
 
 
@@ -330,6 +340,9 @@ class ArbitrageOpportunity(BaseModel):
 
         Returns:
             Parsed datetime in UTC
+            
+        Raises:
+            NullTimestampError: If timestamp cannot be parsed or is None
 
         """
         dt = parse_datetime_utc(v)
@@ -340,7 +353,12 @@ class ArbitrageOpportunity(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def set_expiration(cls, values: dict[str, Any]) -> dict[str, Any]:
-        """Set expiration_timestamp to 1 hour after timestamp (UTC)."""
+        """Set expiration_timestamp to 1 hour after timestamp (UTC).
+        
+        Returns:
+            Updated values dictionary with expiration_timestamp set
+        
+        """
         if "timestamp" in values and values["timestamp"] is not None:
             timestamp = values["timestamp"]
             if hasattr(timestamp, "tzinfo") and hasattr(timestamp, "timestamp"):
@@ -365,7 +383,17 @@ class ArbitrageOpportunity(BaseModel):
 
     @model_validator(mode="after")
     def check_arbitrage_logic(self) -> Self:
-        """Ensure all required financial fields are positive where appropriate."""
+        """Ensure all required financial fields are positive where appropriate.
+        
+        Returns:
+            Self if all validation checks pass
+            
+        Raises:
+            NegativeLongPriceError: If long_price is not positive
+            NegativeShortPriceError: If short_price is not positive  
+            NegativeSizeError: If optimal_size is set but not positive
+        
+        """
         if self.long_price <= 0:
             raise NegativeLongPriceError(float(self.long_price))
         if self.short_price <= 0:
@@ -382,6 +410,10 @@ class ArbitrageOpportunity(BaseModel):
         This ensures that aliased fields have initial values derived from their
         primary sources when not explicitly set. The aliased fields can still be
         set independently after model creation.
+        
+        Returns:
+            Self with aliased fields synchronized from their primary sources
+        
         """
         # Initialize volatility from basis_volatility if not set
         if self.volatility is None and self.basis_volatility is not None:
@@ -399,21 +431,36 @@ class ArbitrageOpportunity(BaseModel):
 
     @field_serializer("basis_volatility")
     def serialize_basis_volatility(self, value: float | None) -> float | None:
-        """Ensure basis_volatility reflects the current volatility value if set."""
+        """Ensure basis_volatility reflects the current volatility value if set.
+        
+        Returns:
+            Current volatility value if available, otherwise the original value
+        
+        """
         if value is None and self.volatility is not None:
             return float(self.volatility)
         return value
 
     @field_serializer("expected_profit")
     def serialize_expected_profit(self, value: Decimal | None) -> Decimal | None:
-        """Ensure expected_profit reflects the current expected_profit_usd value if set."""
+        """Ensure expected_profit reflects the current expected_profit_usd value if set.
+        
+        Returns:
+            Current expected_profit_usd value if available, otherwise the original value
+        
+        """
         if value is None and self.expected_profit_usd is not None:
             return self.expected_profit_usd
         return value
 
     @field_serializer("optimal_size")
     def serialize_optimal_size(self, value: Decimal | None) -> Decimal | None:
-        """Ensure optimal_size reflects the current estimated_size_usd value if set."""
+        """Ensure optimal_size reflects the current estimated_size_usd value if set.
+        
+        Returns:
+            Current estimated_size_usd value if available, otherwise the original value
+        
+        """
         if value is None and self.estimated_size_usd is not None:
             return self.estimated_size_usd
         return value

@@ -65,24 +65,41 @@ class TestHyperliquidAllStreamModelConversions:
     """Test comprehensive stream-to-model conversions for all WebSocket data types."""
 
     def _is_trade(self, obj: object) -> TypeGuard[Trade]:
-        """Type guard for Trade objects."""
+        """Type guard for Trade objects.
+        
+        Returns:
+            TypeGuard[Trade]: True if obj is a Trade instance.
+        """
         return isinstance(obj, Trade)
 
     def _is_hyperliquid_order_or_fill(
         self, obj: object
     ) -> TypeGuard[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]:
-        """Type guard for Hyperliquid order/fill objects."""
+        """Type guard for Hyperliquid order/fill objects.
+        
+        Returns:
+            True if obj is an order or fill update.
+        """
         return isinstance(obj, (HyperliquidRawWsOrderUpdate, HyperliquidRawWsFillEvent))
 
     def _extract_trades(self, items: SupportsIteration) -> list[Trade]:
-        """Extract Trade objects from iterable with proper typing."""
+        """Extract Trade objects from iterable with proper typing.
+        
+        Returns:
+            list[Trade]: List of Trade objects filtered from the input iterable.
+        """
         result: list[Trade] = [item for item in items if self._is_trade(item)]
         return result
 
     def _extract_orders_and_fills(
         self, items: SupportsIteration
     ) -> list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]:
-        """Extract order/fill objects from iterable with proper typing."""
+        """Extract order/fill objects from iterable with proper typing.
+        
+        Returns:
+            list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]: List of 
+                order/fill objects.
+        """
         result: list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent] = [
             item for item in items if self._is_hyperliquid_order_or_fill(item)
         ]
@@ -95,11 +112,19 @@ class TestHyperliquidAllStreamModelConversions:
             pytest.fail("WebSocket connection failed - cannot test stream conversion")
 
     async def _get_hl_test_symbol(self, api: HyperliquidAPI) -> str:
-        """Get the most active test symbol (typically BTC) from Hyperliquid markets."""
+        """Get the most active test symbol (typically BTC) from Hyperliquid markets.
+        
+        Returns:
+            str: The most active trading symbol.
+        """
         return await get_most_active_symbol(api)
 
     async def _create_l2book_handler(self, received_orderbooks: list[OrderBook]) -> MessageHandler:
-        """Create handler for l2Book stream messages."""
+        """Create handler for l2Book stream messages.
+        
+        Returns:
+            MessageHandler: Handler function for l2Book stream messages.
+        """
 
         async def l2book_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -210,7 +235,11 @@ class TestHyperliquidAllStreamModelConversions:
         )
 
     async def _create_hl_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
-        """Create handler for Hyperliquid trades stream messages."""
+        """Create handler for Hyperliquid trades stream messages.
+        
+        Returns:
+            MessageHandler: Handler function for trades stream messages.
+        """
 
         async def trades_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -288,7 +317,11 @@ class TestHyperliquidAllStreamModelConversions:
         received_trades: list[Trade],
         key: str,
     ) -> bool:
-        """Process a list of potential Hyperliquid trade objects."""
+        """Process a list of potential Hyperliquid trade objects.
+        
+        Returns:
+            bool: True if any trades were found and processed.
+        """
         trades_found = False
         for trade in potential_trades:
             received_trades.append(trade)
@@ -496,7 +529,11 @@ class TestHyperliquidAllStreamModelConversions:
         )
 
     async def _create_user_events_handler(self, received_orders: list[Any]) -> MessageHandler:
-        """Create handler for user events stream messages."""
+        """Create handler for user events stream messages.
+        
+        Returns:
+            MessageHandler: Handler function for user events stream messages.
+        """
 
         async def user_events_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -567,7 +604,11 @@ class TestHyperliquidAllStreamModelConversions:
         received_orders: list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent],
         key: str,
     ) -> bool:
-        """Process a list of potential order objects."""
+        """Process a list of potential order objects.
+        
+        Returns:
+            bool: True if any orders were found and processed.
+        """
         orders_found = False
         for order in potential_orders:
             if hasattr(order, "symbol"):
@@ -665,7 +706,14 @@ class TestHyperliquidAllStreamModelConversions:
     def _get_order_symbol(
         self, order: HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent
     ) -> str:
-        """Extract symbol from order model."""
+        """Extract symbol from order model.
+        
+        Returns:
+            str: The symbol/coin from the order model.
+            
+        Raises:
+            AssertionError: If order model is missing coin/symbol attribute.
+        """
         # For HyperliquidRawWsFillEvent, coin is directly accessible
         if isinstance(order, HyperliquidRawWsFillEvent) and hasattr(order, "coin"):
             coin = order.coin
@@ -827,7 +875,11 @@ class TestHyperliquidAllStreamModelConversions:
     async def _setup_hl_stream_integration(
         self, hl_api_for_test_env: HyperliquidAPI
     ) -> tuple[str, dict[str, list[Any]]]:
-        """Set up WebSocket connection and get test symbol for HL stream integration."""
+        """Set up WebSocket connection and get test symbol for HL stream integration.
+        
+        Returns:
+            tuple[str, dict[str, list[Any]]]: Test symbol and stream results dictionary.
+        """
         await hl_api_for_test_env.connect_websocket()
 
         if not hl_api_for_test_env.is_connected:
@@ -849,7 +901,11 @@ class TestHyperliquidAllStreamModelConversions:
     async def _create_hl_integration_handler(
         self, stream_type: str, stream_results: dict[str, list[Any]]
     ) -> MessageHandler:
-        """Create handler for specific Hyperliquid stream type."""
+        """Create handler for specific Hyperliquid stream type.
+        
+        Returns:
+            MessageHandler: Handler function for the specified stream type.
+        """
         await asyncio.sleep(0)  # Satisfy RUF029
 
         async def handler(context: WebSocketContextProtocol) -> None:
@@ -1047,7 +1103,11 @@ class TestHyperliquidAllStreamModelConversions:
     async def _create_hl_consistency_handler(
         self, stream_type: str, model_data: dict[str, dict[str, Any]]
     ) -> MessageHandler:
-        """Create handler that tracks Hyperliquid model data for consistency."""
+        """Create handler that tracks Hyperliquid model data for consistency.
+        
+        Returns:
+            MessageHandler: Handler function that tracks model data for consistency checks.
+        """
 
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)

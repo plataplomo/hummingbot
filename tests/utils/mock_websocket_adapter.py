@@ -45,7 +45,11 @@ class MockWebSocketConnectionAdapter:
         self._total_messages = 0
 
     async def connect(self) -> bool:
-        """Simulate connection establishment."""
+        """Simulate connection establishment.
+        
+        Returns:
+            True if connection successful, False otherwise.
+        """
         self._operation_count += 1
         self._total_connections += 1
 
@@ -84,7 +88,11 @@ class MockWebSocketConnectionAdapter:
         self.logger.info("mock_connection_closed", connection_id=self.connection_id)
 
     async def is_healthy(self) -> bool:
-        """Simulate health check."""
+        """Simulate health check.
+        
+        Returns:
+            True if connection is healthy, False otherwise.
+        """
         # Random failures based on probability
         if secrets.SystemRandom().random() < self._fail_probability:
             self.logger.debug(
@@ -97,7 +105,11 @@ class MockWebSocketConnectionAdapter:
         return self._connected
 
     async def send_message(self, message: dict[str, Any]) -> bool:
-        """Simulate message sending."""
+        """Simulate message sending.
+        
+        Returns:
+            True if message sent successfully, False otherwise.
+        """
         if not self._connected:
             self.logger.warning(
                 "message_send_not_connected",
@@ -165,7 +177,11 @@ class MockWebSocketConnectionAdapter:
         )
 
     def get_stats(self) -> dict[str, Any]:
-        """Get mock adapter statistics."""
+        """Get mock adapter statistics.
+        
+        Returns:
+            Dictionary containing adapter statistics and state.
+        """
         return {
             "connection_id": self.connection_id,
             "connected": self._connected,
@@ -231,7 +247,11 @@ class FlakeyMockAdapter(MockWebSocketConnectionAdapter):
         )
 
     async def is_healthy(self) -> bool:
-        """Simulate intermittent health check failures."""
+        """Simulate intermittent health check failures.
+        
+        Returns:
+            True if connection is healthy, False if health check fails.
+        """
         # Higher failure rate for health checks to simulate flaky network
         if secrets.SystemRandom().random() < (self._fail_probability * 2):
             return False

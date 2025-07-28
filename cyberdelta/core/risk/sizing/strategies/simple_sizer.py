@@ -74,6 +74,9 @@ class SimpleSizer(TypedBaseSizer):
 
         Returns:
             Base position size in USD
+            
+        Raises:
+            SizingError: If unknown sizing method is specified.
         """
         if self.sizing_method_type == "fixed_usd":
             base_size = await self._calculate_fixed_usd_size(opportunity, context)
@@ -269,6 +272,9 @@ class SimpleSizer(TypedBaseSizer):
 
         Args:
             method: Sizing method to use
+            
+        Raises:
+            SizingError: If method is not 'fixed_usd' or 'fixed_fraction'.
         """
         if method not in {"fixed_usd", "fixed_fraction"}:
             raise SizingError(SizingError.METHOD_MUST_BE_VALID)
@@ -281,6 +287,9 @@ class SimpleSizer(TypedBaseSizer):
 
         Args:
             amount: Fixed USD amount for sizing
+            
+        Raises:
+            SizingError: If amount is not positive.
         """
         if amount <= 0:
             raise SizingError(SizingError.FIXED_USD_AMOUNT_MUST_BE_POSITIVE)
@@ -293,6 +302,9 @@ class SimpleSizer(TypedBaseSizer):
 
         Args:
             fraction: Fixed fraction of capital (0-1)
+            
+        Raises:
+            SizingError: If fraction is not between 0 and 1 (exclusive of 0, inclusive of 1).
         """
         if fraction <= 0 or fraction > 1:
             raise SizingError(SizingError.FIXED_FRACTION_OUT_OF_RANGE)

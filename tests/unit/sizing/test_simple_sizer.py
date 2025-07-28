@@ -25,7 +25,11 @@ def create_test_opportunity(
     long_funding_rate: float = 0.0001,
     short_funding_rate: float = -0.0001,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity: A configured arbitrage opportunity for testing.
+    """
     net_funding_differential = Decimal(str(long_funding_rate)) - Decimal(str(short_funding_rate))
 
     return ArbitrageOpportunity(
@@ -44,7 +48,11 @@ def create_test_opportunity(
 def create_test_context(
     available_capital: float = 100000.0, sizing_method: str = "simple"
 ) -> SizingContext:
-    """Create a test sizing context."""
+    """Create a test sizing context.
+    
+    Returns:
+        SizingContext: A configured sizing context for testing.
+    """
     return SizingContext(
         sizing_method=sizing_method, available_capital=Decimal(str(available_capital))
     )

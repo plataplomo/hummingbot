@@ -206,70 +206,168 @@ ErrorUnion = Annotated[
 
 # Type guards for discriminated unions
 def is_spot_order(order_data: OrderUnion) -> bool:
-    """Type guard for spot orders."""
+    """Type guard for spot orders.
+
+    Args:
+        order_data: Order data to check
+
+    Returns:
+        True if the order is a spot order, False otherwise
+    """
     return order_data.order_type == "spot"
 
 
 def is_derivative_order(order_data: OrderUnion) -> bool:
-    """Type guard for derivative orders."""
+    """Type guard for derivative orders.
+
+    Args:
+        order_data: Order data to check
+
+    Returns:
+        True if the order is a derivative order, False otherwise
+    """
     return order_data.order_type == "derivative"
 
 
 def is_option_order(order_data: OrderUnion) -> bool:
-    """Type guard for option orders."""
+    """Type guard for option orders.
+
+    Args:
+        order_data: Order data to check
+
+    Returns:
+        True if the order is an option order, False otherwise
+    """
     return order_data.order_type == "option"
 
 
 def is_spot_position(position_data: PositionUnion) -> bool:
-    """Type guard for spot positions."""
+    """Type guard for spot positions.
+
+    Args:
+        position_data: Position data to check
+
+    Returns:
+        True if the position is a spot position, False otherwise
+    """
     return position_data.position_type == "spot"
 
 
 def is_derivative_position(position_data: PositionUnion) -> bool:
-    """Type guard for derivative positions."""
+    """Type guard for derivative positions.
+
+    Args:
+        position_data: Position data to check
+
+    Returns:
+        True if the position is a derivative position, False otherwise
+    """
     return position_data.position_type == "derivative"
 
 
 def is_option_position(position_data: PositionUnion) -> bool:
-    """Type guard for option positions."""
+    """Type guard for option positions.
+
+    Args:
+        position_data: Position data to check
+
+    Returns:
+        True if the position is an option position, False otherwise
+    """
     return position_data.position_type == "option"
 
 
 def is_spot_trade(trade_data: TradeUnion) -> bool:
-    """Type guard for spot trades."""
+    """Type guard for spot trades.
+
+    Args:
+        trade_data: Trade data to check
+
+    Returns:
+        True if the trade is a spot trade, False otherwise
+    """
     return trade_data.trade_type == "spot"
 
 
 def is_derivative_trade(trade_data: TradeUnion) -> bool:
-    """Type guard for derivative trades."""
+    """Type guard for derivative trades.
+
+    Args:
+        trade_data: Trade data to check
+
+    Returns:
+        True if the trade is a derivative trade, False otherwise
+    """
     return trade_data.trade_type == "derivative"
 
 
 def is_option_trade(trade_data: TradeUnion) -> bool:
-    """Type guard for option trades."""
+    """Type guard for option trades.
+
+    Args:
+        trade_data: Trade data to check
+
+    Returns:
+        True if the trade is an option trade, False otherwise
+    """
     return trade_data.trade_type == "option"
 
 
 def is_hyperliquid_exchange(exchange_data: ExchangeUnion) -> bool:
-    """Type guard for Hyperliquid exchange."""
+    """Type guard for Hyperliquid exchange.
+
+    Args:
+        exchange_data: Exchange data to check
+
+    Returns:
+        True if the exchange is Hyperliquid, False otherwise
+    """
     return exchange_data.exchange_type == "hyperliquid"
 
 
 def is_backpack_exchange(exchange_data: ExchangeUnion) -> bool:
-    """Type guard for Backpack exchange."""
+    """Type guard for Backpack exchange.
+
+    Args:
+        exchange_data: Exchange data to check
+
+    Returns:
+        True if the exchange is Backpack, False otherwise
+    """
     return exchange_data.exchange_type == "backpack"
 
 
 def is_validation_error(error_data: ErrorUnion) -> bool:
-    """Type guard for validation errors."""
+    """Type guard for validation errors.
+
+    Args:
+        error_data: Error data to check
+
+    Returns:
+        True if the error is a validation error, False otherwise
+    """
     return error_data.error_type == "validation"
 
 
 def is_network_error(error_data: ErrorUnion) -> bool:
-    """Type guard for network errors."""
+    """Type guard for network errors.
+
+    Args:
+        error_data: Error data to check
+
+    Returns:
+        True if the error is a network error, False otherwise
+    """
     return error_data.error_type == "network"
 
 
 def is_business_logic_error(error_data: ErrorUnion) -> bool:
-    """Type guard for business logic errors."""
+    """Type guard for business logic errors.
+
+    Args:
+        error_data: Error data to check
+
+    Returns:
+        True if the error is a business logic error, False otherwise
+    """
     return error_data.error_type == "business_logic"

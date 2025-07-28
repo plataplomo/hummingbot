@@ -53,9 +53,6 @@ class BackpackQuoteRequestBuilder:
             *args: Positional arguments
             **kwargs: Keyword arguments including 'operation' to specify the request type
 
-        Returns:
-            Request payload dictionary
-
         Raises:
             NotImplementedError: If operation is not supported or parameters are insufficient
         """

@@ -68,7 +68,11 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     @computed_field
     def topic(self) -> str | None:
-        """Extract topic with proper typing based on exchange."""
+        """Extract topic with proper typing based on exchange.
+        
+        Returns:
+            str | None: Topic/stream name from message envelope, or None if not available.
+        """
         if self.exchange_type == ExchangeType.BACKPACK:
             return getattr(self.validated_envelope, "stream", None)
         # HYPERLIQUID
@@ -76,13 +80,20 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     @computed_field
     def is_private_message(self) -> bool:
-        """Determine if message is private based on routing key."""
+        """Determine if message is private based on routing key.
+        
+        Returns:
+            bool: True if message contains private data (account, user, balance, orders, fills).
+        """
         private_patterns = {"account", "user", "balance", "orders", "fills"}
         return any(pattern in self.routing_key.lower() for pattern in private_patterns)
 
     @computed_field
     def message_size_bytes(self) -> int:
         """Calculate message size for monitoring.
+        
+        Returns:
+            int: Message size in bytes after JSON serialization, or 0 if serialization fails.
 
         TODO: This computed field performs expensive JSON serialization and encoding
         on every access. Consider caching this value or using a simpler approximation
@@ -106,7 +117,12 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     @computed_field
     def processing_priority(self) -> int:
-        """Compute processing priority (1=highest, 5=lowest)."""
+        """Compute processing priority (1=highest, 5=lowest).
+        
+        Returns:
+            int: Priority level - 1 for trades/user events, 2 for order books, 
+                3 for tickers/stats, 4 for everything else.
+        """
         # High priority for trades and user events
         if "trades" in self.routing_key or "userEvents" in self.routing_key:
             return 1
@@ -121,7 +137,11 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     @computed_field
     def processing_duration_ms(self) -> float:
-        """Calculate processing duration in milliseconds."""
+        """Calculate processing duration in milliseconds.
+        
+        Returns:
+            float: Time elapsed since processing started, in milliseconds.
+        """
         return (time.perf_counter() - self.processing_start_time) * 1000
 
     @property
@@ -136,25 +156,28 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     def get_transformer_params(self) -> dict[str, str]:
         """Get parameters needed by transformers for this exchange.
-
-        Base implementation returns empty dict. Exchange-specific contexts
-        should override this method to provide appropriate parameters.
+        
+        Returns:
+            dict[str, str]: Empty dict in base implementation. Exchange-specific contexts
+                should override this method to provide appropriate parameters.
         """
         return {}
 
     def get_symbol_param(self) -> dict[str, str] | None:
         """Get symbol parameter if applicable to this exchange.
-
-        Base implementation returns None. Exchange-specific contexts
-        should override this method if they support symbol parameters.
+        
+        Returns:
+            dict[str, str] | None: None in base implementation. Exchange-specific contexts
+                should override this method if they support symbol parameters.
         """
         return None
 
     def get_coin_param(self) -> dict[str, str] | None:
         """Get coin parameter if applicable to this exchange.
-
-        Base implementation returns None. Exchange-specific contexts
-        should override this method if they support coin parameters.
+        
+        Returns:
+            dict[str, str] | None: None in base implementation. Exchange-specific contexts
+                should override this method if they support coin parameters.
         """
         return None
 

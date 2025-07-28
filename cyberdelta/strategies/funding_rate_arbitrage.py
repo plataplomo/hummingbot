@@ -80,6 +80,9 @@ class FundingRateArbitrageStrategy(Strategy):
             risk_manager: Risk manager for position sizing and risk controls
             params: Dictionary of strategy parameters
 
+        Raises:
+            RequiredFieldError: If name or symbol is not provided.
+            TypeFieldError: If data_handler or portfolio_tracker is None.
         """
         # Validate required parameters
         if data_handler is None:
@@ -193,7 +196,11 @@ class FundingRateArbitrageStrategy(Strategy):
         symbol: str,
         max_retries: int = 3,
     ) -> FundingRate | None:
-        """Get funding rate with exponential backoff retry."""
+        """Get funding rate with exponential backoff retry.
+        
+        Returns:
+            FundingRate object if successful, None if all retries failed.
+        """
         for attempt in range(max_retries):
             try:
                 rate = self.data_handler.get_latest_funding_rate(exchange_id, symbol)
@@ -254,7 +261,11 @@ class FundingRateArbitrageStrategy(Strategy):
             )
 
     def _should_fetch_hyperliquid_funding(self, current_rate: FundingRate | None) -> bool:
-        """Check if Hyperliquid funding rates need to be fetched."""
+        """Check if Hyperliquid funding rates need to be fetched.
+        
+        Returns:
+            True if funding rates should be fetched, False otherwise.
+        """
         if not current_rate:
             return True
 
@@ -327,7 +338,11 @@ class FundingRateArbitrageStrategy(Strategy):
         funding_rate: FundingRate,
         max_history: int,
     ) -> ArbitrageOpportunity | None:
-        """Process the arbitrage opportunity with valid funding rate."""
+        """Process the arbitrage opportunity with valid funding rate.
+        
+        Returns:
+            ArbitrageOpportunity if profitable opportunity found, None otherwise.
+        """
         # Get current time
         now = datetime.now(UTC)
 
@@ -412,7 +427,12 @@ class FundingRateArbitrageStrategy(Strategy):
         return await self._process_arbitrage_opportunity(funding_rate, max_history)
 
     def _get_and_validate_prices(self) -> tuple[Decimal, Decimal, Ticker, Ticker] | None:
-        """Get and validate prices for perp and spot markets."""
+        """Get and validate prices for perp and spot markets.
+        
+        Returns:
+            Tuple of (perp_price, spot_price, perp_ticker, spot_ticker) if successful,
+            None if any required data is missing.
+        """
         # Get prices for basis calculation
         perp_ticker = self.data_handler.get_latest_ticker(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
@@ -476,7 +496,11 @@ class FundingRateArbitrageStrategy(Strategy):
             self.historical_basis[self.symbol] = self.historical_basis[self.symbol][-max_history:]
 
     def _is_valid_funding_rate(self, nfd: Decimal | None) -> bool:
-        """Validate funding rate and check if it meets threshold."""
+        """Validate funding rate and check if it meets threshold.
+        
+        Returns:
+            True if funding rate is valid and meets minimum threshold, False otherwise.
+        """
         if nfd is None:
             logger.warning(
                 "funding_rate_value_none",
@@ -505,7 +529,11 @@ class FundingRateArbitrageStrategy(Strategy):
         return True
 
     def _calculate_profit_and_costs(self, nfd: Decimal) -> tuple[Decimal, float] | None:
-        """Calculate expected profit and utility score."""
+        """Calculate expected profit and utility score.
+        
+        Returns:
+            Tuple of (expected_profit, utility_score) if profitable, None otherwise.
+        """
         # Estimate position size (will be refined by risk manager)
         position_size = Decimal("1000.0")
 
@@ -560,7 +588,11 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker: Ticker,
         perp_side: str,
     ) -> tuple[Decimal, Decimal] | None:
-        """Get entry prices for long and short positions."""
+        """Get entry prices for long and short positions.
+        
+        Returns:
+            Tuple of (long_price, short_price) if prices available, None otherwise.
+        """
         # Ensure prices are not None before using them
         entry_perp_price = perp_ticker.price
         entry_spot_price = spot_ticker.price
@@ -600,7 +632,11 @@ class FundingRateArbitrageStrategy(Strategy):
         long_price: Decimal,
         short_price: Decimal,
     ) -> ArbitrageOpportunity:
-        """Create the arbitrage opportunity object."""
+        """Create the arbitrage opportunity object.
+        
+        Returns:
+            ArbitrageOpportunity object with all calculated parameters.
+        """
         opportunity = ArbitrageOpportunity(
             symbol=self.symbol,
             long_exchange=self.perp_exchange if perp_side == "LONG" else self.spot_exchange,
@@ -798,7 +834,11 @@ class FundingRateArbitrageStrategy(Strategy):
         return signals
 
     async def evaluate_entry_opportunity(self) -> list[TradeSignal] | None:
-        """Core logic to check for opportunities and generate trading signals."""
+        """Core logic to check for opportunities and generate trading signals.
+        
+        Returns:
+            List of TradeSignal objects if opportunities found, None otherwise.
+        """
         self.last_opportunity_check = datetime.now(UTC)
         signals: list[TradeSignal] = []
 
@@ -914,7 +954,11 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_ticker_live: Ticker | None,
         spot_ticker_live: Ticker | None,
     ) -> bool:
-        """Determine if rebalancing is needed based on current positions and market prices."""
+        """Determine if rebalancing is needed based on current positions and market prices.
+        
+        Returns:
+            True if positions need rebalancing, False otherwise.
+        """
         # The portfolio_tracker is guaranteed non-None by __init__.
         # The check for has_active_positions was problematic, subsequent logic
         # handles position existence.
@@ -1025,7 +1069,11 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_ticker_entry: Ticker | None = None,  # ADDED param
         spot_ticker_entry: Ticker | None = None,  # ADDED param
     ) -> list[TradeSignal]:
-        """Generate entry signals for a given opportunity."""
+        """Generate entry signals for a given opportunity.
+        
+        Returns:
+            List of TradeSignal objects for entering positions.
+        """
         signals: list[TradeSignal] = []
         default_size = Decimal(0)  # Default for quantity if price is zero
 
@@ -1175,7 +1223,11 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_ticker_live: Ticker | None,
         spot_ticker_live: Ticker | None,
     ) -> list[TradeSignal]:
-        """Generate rebalancing signals based on current positions and target delta."""
+        """Generate rebalancing signals based on current positions and target delta.
+        
+        Returns:
+            List of TradeSignal objects for rebalancing positions.
+        """
         signals: list[TradeSignal] = []
         if not self.portfolio_tracker:
             logger.error(
@@ -1237,7 +1289,12 @@ class FundingRateArbitrageStrategy(Strategy):
     def _get_and_validate_positions(
         self,
     ) -> tuple[DerivativePosition, DerivativePosition, str] | None:
-        """Get and validate perp and spot positions."""
+        """Get and validate perp and spot positions.
+        
+        Returns:
+            Tuple of (perp_position, spot_position, spot_symbol) if valid positions exist,
+            None otherwise.
+        """
         perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if not spot_symbol:
@@ -1276,7 +1333,11 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_ticker_live: Ticker | None,
         spot_ticker_live: Ticker | None,
     ) -> tuple[Decimal, Decimal] | None:
-        """Get and validate live prices for rebalancing."""
+        """Get and validate live prices for rebalancing.
+        
+        Returns:
+            Tuple of (perp_price, spot_price) if both prices available, None otherwise.
+        """
         if perp_ticker_live is None or spot_ticker_live is None:
             logger.warning(
                 "live_ticker_unavailable_rebalance_ticker_none",
@@ -1317,7 +1378,11 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_price: Decimal,
         spot_price: Decimal,
     ) -> Decimal:
-        """Calculate net exposure across perp and spot positions."""
+        """Calculate net exposure across perp and spot positions.
+        
+        Returns:
+            Net exposure value in base currency units.
+        """
         # Simplified rebalancing: aim for market-neutral by value
         # Positive size = long, negative size = short
         perp_value = perp_position.size * perp_price
@@ -1332,7 +1397,11 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_price: Decimal,
         spot_price: Decimal,
     ) -> bool:
-        """Determine if rebalancing is needed based on net exposure."""
+        """Determine if rebalancing is needed based on net exposure.
+        
+        Returns:
+            True if net exposure exceeds rebalance threshold, False otherwise.
+        """
         # If net exposure is significant, rebalance
         # Example: rebalance if exposure is > 1% of the smaller leg's absolute value
         perp_value = perp_position.size * perp_price
@@ -1384,7 +1453,11 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_price: Decimal,
         spot_symbol: str,
     ) -> TradeSignal | None:
-        """Create a rebalance signal based on net exposure."""
+        """Create a rebalance signal based on net exposure.
+        
+        Returns:
+            TradeSignal for rebalancing if needed, None if exposure is within tolerance.
+        """
         if abs(net_exposure) < Decimal("0.01"):  # Effectively zero, no rebalance needed
             return None
 

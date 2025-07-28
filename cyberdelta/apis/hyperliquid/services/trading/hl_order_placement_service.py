@@ -120,9 +120,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
         Returns:
             Order object with order details and status
 
-        Raises:
-            APIError: If order placement fails
-            ValueError: If order parameters are invalid
+        Note:
+            This method delegates to _place_orders_core which handles all exceptions.
+            See _place_orders_core for possible exceptions that may be raised.
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "place_order"
@@ -193,6 +193,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
+
+        Raises:
+            APIError: If the response is not a dictionary or if validation fails
         """
         request_config = RequestConfiguration(
             auth_mode=RequestAuthMode.SIGNED,
@@ -228,6 +231,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (orders with asset indices, time-in-force mapping)
+
+        Raises:
+            SymbolNotFoundError: If any symbol cannot be found or has no asset index
         """
         orders_with_indices: list[tuple[PlaceOrderArgs, int]] = []
         tif_mapping: dict[str, str | None] = {}
@@ -285,6 +291,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Returns:
             List of processed Order objects
+
+        Raises:
+            APIError: If response data is empty or invalid
         """
         # Check for exchange-level errors
         check_error_response(raw_exchange_response, http_status, self._error_mapper)
@@ -321,6 +330,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Returns:
             List containing single processed Order object
+
+        Raises:
+            APIError: If no status data is present in the response
         """
         action_description = f"place order {order_args.symbol}"
 
@@ -359,6 +371,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Returns:
             List of processed Order objects
+
+        Raises:
+            APIError: If no status data in response or response count mismatch
         """
         # Extract the actual status list from the nested response structure
         response_data = raw_exchange_response.response_data
@@ -409,7 +424,10 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
             current_method: Name of calling method for error context
 
         Raises:
-            ValueError: If validation fails
+            ServiceParameterError: If any order fails validation
+
+        Note:
+            The underlying validate_batch_orders may raise ValueError for batch validation.
         """
         # Use utility function for batch validation
         validate_batch_orders(orders, current_method)
@@ -514,7 +532,11 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
             raise api_error from error
 
     def _raise_order_book_service_missing_error(self) -> NoReturn:
-        """Raise APIError when order book service is missing."""
+        """Raise APIError when order book service is missing.
+
+        Raises:
+            APIError: Always raises with appropriate error message
+        """
         raise APIError(
             message="Order book service is required for market orders",
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -525,6 +547,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Args:
             symbol: Trading symbol that failed to fetch
+
+        Raises:
+            APIError: Always raises with appropriate error message
         """
         raise APIError(
             message=f"Failed to get order book for {symbol}",
@@ -536,6 +561,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Args:
             symbol: Trading symbol with no ask levels
+
+        Raises:
+            APIError: Always raises with appropriate error message
         """
         raise APIError(
             message=f"No ask levels available for market buy of {symbol}",
@@ -547,6 +575,9 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
 
         Args:
             symbol: Trading symbol with no bid levels
+
+        Raises:
+            APIError: Always raises with appropriate error message
         """
         raise APIError(
             message=f"No bid levels available for market sell of {symbol}",

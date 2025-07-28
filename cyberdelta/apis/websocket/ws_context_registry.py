@@ -100,7 +100,8 @@ class WebSocketContextRegistry:
             A context instance
 
         Raises:
-            ValueError: If exchange type is not registered
+            MissingRequiredParameterError: If exchange type is not registered,
+                context type is missing, or envelope validator is missing.
         """
         # Ensure exchange type is registered
         if not self.is_registered(exchange_type):

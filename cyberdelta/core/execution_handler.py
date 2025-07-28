@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from cyberdelta.core.portfolio_tracker import PortfolioTracker
     from cyberdelta.core.risk_manager import SizedOpportunity
     from cyberdelta.core.services.interfaces import IAlertService
-    from cyberdelta.core.symbols.service import SymbolService
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
 
@@ -163,6 +162,7 @@ class ExecutionHandler:
 
         Raises:
             ConfigValidationError: If configuration validation fails
+            ValueError: If service container validation fails during initialization
         """
         # Validate configuration before proceeding
         try:
@@ -318,7 +318,15 @@ class ExecutionHandler:
     async def _handle_validation_failure(
         self, opportunity: SizedOpportunity, validation_result: object
     ) -> TradeExecution:
-        """Handle validation failure by creating a failed execution."""
+        """Handle validation failure by creating a failed execution.
+
+        Args:
+            opportunity: The sized opportunity that failed validation
+            validation_result: The validation result containing errors
+
+        Returns:
+            TradeExecution: A failed execution with validation error details
+        """
         execution = TradeExecution(opportunity=opportunity)
         execution.status = ExecutionStatus.FAILED
         errors = getattr(validation_result, "errors", [])
@@ -344,7 +352,16 @@ class ExecutionHandler:
     async def _setup_execution_prerequisites(
         self, execution: TradeExecution, opportunity: SizedOpportunity
     ) -> ExecutionResult:
-        """Setup and validate API clients and symbols for execution."""
+        """Setup and validate API clients and symbols for execution.
+
+        Args:
+            execution: The trade execution being processed
+            opportunity: The sized opportunity to execute
+
+        Returns:
+            ExecutionResult: Success result with tuple of (long_client, short_client, long_symbol,
+                short_symbol) or failure result with error details
+        """
         try:
             # Get API clients
             long_client = self.api_clients.get(opportunity.opportunity.long_exchange)
@@ -439,7 +456,15 @@ class ExecutionHandler:
     async def _handle_prerequisites_failure(
         self, execution: TradeExecution, error_result: ExecutionResult
     ) -> TradeExecution:
-        """Handle prerequisites setup failure."""
+        """Handle prerequisites setup failure.
+
+        Args:
+            execution: The trade execution to mark as failed
+            error_result: The error result from prerequisites setup
+
+        Returns:
+            TradeExecution: The updated execution marked as failed with error details
+        """
         execution.status = ExecutionStatus.FAILED
         execution.error_message = str(error_result.error)
         execution.end_time = datetime.now(UTC)
@@ -522,7 +547,16 @@ class ExecutionHandler:
     def _calculate_base_asset_quantities(
         self, execution: TradeExecution, opportunity: SizedOpportunity
     ) -> tuple[Decimal, Decimal] | None:
-        """Calculate base asset quantities for both legs."""
+        """Calculate base asset quantities for both legs.
+
+        Args:
+            execution: The trade execution for error reporting
+            opportunity: The sized opportunity containing prices and sizes
+
+        Returns:
+            tuple[Decimal, Decimal] | None: A tuple of (long_quantity, short_quantity) if
+                successful, or None if calculation fails (error details set in execution)
+        """
         try:
             # Calculate long quantity
             if not opportunity.opportunity.long_price or opportunity.opportunity.long_price <= 0:
@@ -571,7 +605,11 @@ class ExecutionHandler:
             return base_asset_quantity_long, base_asset_quantity_short
 
     def _get_default_time_in_force(self) -> TimeInForce:
-        """Get default time in force configuration."""
+        """Get default time in force configuration.
+
+        Returns:
+            TimeInForce: The default time in force setting (currently IOC)
+        """
         # TODO: Make this configurable in AppSettings
         return TimeInForce.IOC
 
@@ -583,7 +621,11 @@ class ExecutionHandler:
         base_asset_quantity_long: Decimal,
         default_tif: TimeInForce,
     ) -> ExecutionResult | None:
-        """Place the long order using the order management service with domain objects."""
+        """Place the long order using the order management service with domain objects.
+        
+        Returns:
+            ExecutionResult containing order details on success, or error information on failure
+        """
         order_request = OrderRequest(
             exchange_id=opportunity.opportunity.long_exchange,
             symbol=long_symbol.value,  # Use the string value for API
@@ -805,7 +847,15 @@ class ExecutionHandler:
             )
 
     async def _finalize_execution(self, execution: TradeExecution) -> TradeExecution:
-        """Finalize execution and add to history."""
+        """Finalize execution and add to history.
+
+        Args:
+            execution: The trade execution to finalize
+
+        Returns:
+            TradeExecution: The finalized execution with end time, PnL calculations,
+                and updated state
+        """
         # Ensure end_time is set
         if execution.end_time is None:
             execution.end_time = datetime.now(UTC)
@@ -842,17 +892,31 @@ class ExecutionHandler:
     # Additional methods for compatibility with original ExecutionHandler
 
     def get_active_executions(self) -> list[TradeExecution]:
-        """Get all active executions."""
+        """Get all active executions.
+
+        Returns:
+            list[TradeExecution]: List of currently active trade executions
+        """
         return self.services.state_manager.get_active_executions()
 
     async def get_execution_history(self) -> list[TradeExecution]:
-        """Get execution history."""
+        """Get execution history.
+
+        Returns:
+            list[TradeExecution]: List of historical trade executions,
+                or empty list if history not available
+        """
         if hasattr(self.services.state_manager, "get_execution_history"):
             return await self.services.state_manager.get_execution_history()
         return []
 
     async def get_execution_stats(self) -> dict[str, Any]:
-        """Get execution statistics."""
+        """Get execution statistics.
+
+        Returns:
+            dict[str, Any]: Dictionary containing execution statistics such as
+                active_executions count and service version
+        """
         if hasattr(self.services.state_manager, "get_stats"):
             return await self.services.state_manager.get_stats()
 
@@ -861,7 +925,12 @@ class ExecutionHandler:
         return {"active_executions": len(active_executions), "service_version": "full_v1.0"}
 
     async def cleanup_old_data(self) -> dict[str, Any]:
-        """Clean up old execution data."""
+        """Clean up old execution data.
+
+        Returns:
+            dict[str, Any]: Dictionary containing cleanup results with keys like
+                'removed_executions', 'removed_compensations', or 'error' if cleanup fails
+        """
         results: dict[str, Any] = {}
 
         try:

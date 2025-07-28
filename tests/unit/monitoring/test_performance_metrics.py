@@ -27,25 +27,41 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def positive_returns() -> Series[float]:
-    """Create sample positive returns series for testing."""
+    """Create sample positive returns series for testing.
+
+    Returns:
+        Series[float]: Pandas series with positive return values for testing.
+    """
     return pd.Series([0.01, 0.02, 0.015, 0.025, 0.01], dtype=float)
 
 
 @pytest.fixture
 def mixed_returns() -> Series[float]:
-    """Create sample mixed returns series for testing."""
+    """Create sample mixed returns series for testing.
+
+    Returns:
+        Series[float]: Pandas series with mixed positive and negative returns.
+    """
     return pd.Series([0.02, -0.01, 0.015, -0.005, 0.01, -0.02, 0.03], dtype=float)
 
 
 @pytest.fixture
 def zero_returns() -> Series[float]:
-    """Create sample zero returns series for testing."""
+    """Create sample zero returns series for testing.
+
+    Returns:
+        Series[float]: Pandas series with all zero return values.
+    """
     return pd.Series([0.0, 0.0, 0.0, 0.0, 0.0], dtype=float)
 
 
 @pytest.fixture
 def sample_trades() -> pd.DataFrame:
-    """Create sample trades dataframe for testing."""
+    """Create sample trades dataframe for testing.
+
+    Returns:
+        pd.DataFrame: DataFrame with sample trade data including PnL and timestamps.
+    """
     return pd.DataFrame({
         "pnl": [100.0, -50.0, 200.0, -25.0, 150.0, -75.0],
         "symbol": ["BTC", "ETH", "BTC", "ETH", "BTC", "ETH"],
@@ -55,7 +71,11 @@ def sample_trades() -> pd.DataFrame:
 
 @pytest.fixture
 def all_winning_trades() -> pd.DataFrame:
-    """Create sample trades with all winners for testing."""
+    """Create sample trades with all winners for testing.
+
+    Returns:
+        pd.DataFrame: DataFrame with profitable trades only.
+    """
     return pd.DataFrame({
         "pnl": [100.0, 50.0, 200.0, 25.0, 150.0],
         "symbol": ["BTC", "ETH", "BTC", "ETH", "BTC"],
@@ -64,7 +84,11 @@ def all_winning_trades() -> pd.DataFrame:
 
 @pytest.fixture
 def all_losing_trades() -> pd.DataFrame:
-    """Create sample trades with all losers for testing."""
+    """Create sample trades with all losers for testing.
+
+    Returns:
+        pd.DataFrame: DataFrame with losing trades only.
+    """
     return pd.DataFrame({
         "pnl": [-100.0, -50.0, -200.0, -25.0, -150.0],
         "symbol": ["BTC", "ETH", "BTC", "ETH", "BTC"],

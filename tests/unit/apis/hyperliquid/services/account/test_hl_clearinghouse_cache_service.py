@@ -44,31 +44,51 @@ THREAD_SAFETY_SCENARIOS = [
 # Fixtures
 @pytest.fixture
 def cache_service() -> HyperliquidClearinghouseCacheService:
-    """Provide a default cache service instance for tests."""
+    """Provide a default cache service instance for tests.
+    
+    Returns:
+        HyperliquidClearinghouseCacheService: Cache service with default configuration.
+    """
     return HyperliquidClearinghouseCacheService()
 
 
 @pytest.fixture
 def mock_clearinghouse_state() -> MagicMock:
-    """Provide a mock clearinghouse state for tests."""
+    """Provide a mock clearinghouse state for tests.
+    
+    Returns:
+        MagicMock: Mock clearinghouse state object for testing.
+    """
     return MagicMock(spec=HyperliquidRawClearinghouseState)
 
 
 @pytest.fixture
 def test_user_address() -> ChecksumAddress:
-    """Provide a test user address."""
+    """Provide a test user address.
+    
+    Returns:
+        ChecksumAddress: A valid Ethereum address for testing.
+    """
     return ChecksumAddress(HexAddress(HexStr("0x1234567890123456789012345678901234567890")))
 
 
 @pytest.fixture
 def test_user_address_2() -> ChecksumAddress:
-    """Provide a second test user address."""
+    """Provide a second test user address.
+    
+    Returns:
+        ChecksumAddress: A second valid Ethereum address for testing.
+    """
     return ChecksumAddress(HexAddress(HexStr("0x0987654321098765432109876543210987654321")))
 
 
 @pytest.fixture
 def multiple_user_addresses() -> list[ChecksumAddress]:
-    """Provide multiple test user addresses."""
+    """Provide multiple test user addresses.
+    
+    Returns:
+        list[ChecksumAddress]: List of valid Ethereum addresses for testing.
+    """
     return [
         ChecksumAddress(HexAddress(HexStr("0x1234567890123456789012345678901234567890"))),
         ChecksumAddress(HexAddress(HexStr("0x0987654321098765432109876543210987654321"))),

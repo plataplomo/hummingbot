@@ -11,7 +11,11 @@ from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 
 @pytest.fixture
 def hyperliquid_error_mapper() -> HyperliquidErrorMapper:
-    """Create a HyperliquidErrorMapper instance for tests."""
+    """Create a HyperliquidErrorMapper instance for tests.
+    
+    Returns:
+        HyperliquidErrorMapper: An error mapper instance for testing.
+    """
     return HyperliquidErrorMapper()
 
 

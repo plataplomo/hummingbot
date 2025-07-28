@@ -96,6 +96,8 @@ class BackpackOrderBookService:
             APIError: If order book retrieval fails or processing fails
             EmptySymbolError: If symbol is empty or whitespace
             InvalidLimitError: If limit is <= 0
+            TypeError: If input parameter validation fails with type error
+            ValueError: If input parameter validation fails with value error
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()

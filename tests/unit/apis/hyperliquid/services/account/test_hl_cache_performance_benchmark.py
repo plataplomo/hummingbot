@@ -59,7 +59,11 @@ EVICTION_TEST_SCENARIOS = [
 # Fixtures
 @pytest.fixture
 def mock_clearinghouse_state() -> HyperliquidRawClearinghouseState:
-    """Create a mock clearinghouse state for testing."""
+    """Create a mock clearinghouse state for testing.
+    
+    Returns:
+        HyperliquidRawClearinghouseState: Mock clearinghouse state with test data.
+    """
     return HyperliquidRawClearinghouseState(
         assetPositions=[
             HyperliquidRawAssetPosition(
@@ -102,7 +106,11 @@ def mock_clearinghouse_state() -> HyperliquidRawClearinghouseState:
 
 @pytest.fixture
 def cache_service() -> HyperliquidClearinghouseCacheService:
-    """Create a cache service with 5-second TTL."""
+    """Create a cache service with 5-second TTL.
+    
+    Returns:
+        HyperliquidClearinghouseCacheService: Cache service instance for testing.
+    """
     return HyperliquidClearinghouseCacheService(
         cache_duration=5.0,
         caching_policy=CachingPolicy.ENABLED,
@@ -112,19 +120,31 @@ def cache_service() -> HyperliquidClearinghouseCacheService:
 
 @pytest.fixture
 def test_user_address() -> ChecksumAddress:
-    """Provide a test user address."""
+    """Provide a test user address.
+    
+    Returns:
+        ChecksumAddress: Test user address for testing.
+    """
     return ChecksumAddress(HexAddress(HexStr("0x1234567890123456789012345678901234567890")))
 
 
 @pytest.fixture
 def multiple_users() -> list[ChecksumAddress]:
-    """Provide multiple test user addresses."""
+    """Provide multiple test user addresses.
+    
+    Returns:
+        list[ChecksumAddress]: List of test user addresses for testing.
+    """
     return [ChecksumAddress(HexAddress(HexStr(f"0x{i:040x}"))) for i in range(10)]
 
 
 @pytest.fixture
 def mock_http_requester(frozen_time: FreezerProtocol) -> AsyncMock:
-    """Create a mock HTTP requester for realistic trading scenarios."""
+    """Create a mock HTTP requester for realistic trading scenarios.
+    
+    Returns:
+        AsyncMock: Mock HTTP requester with realistic response delays.
+    """
     mock_requester = AsyncMock()
     mock_requester.return_value = (
         {
@@ -391,7 +411,11 @@ class TestConcurrentPerformance:
     """Test cache performance under concurrent access."""
 
     async def _access_cache(self, user_address: ChecksumAddress, count: int) -> int:
-        """Helper to access cache for a user."""
+        """Helper to access cache for a user.
+        
+        Returns:
+            int: Number of cache hits during access attempts.
+        """
         hits = 0
         # Limit iterations for performance while maintaining test validity
         limited_count = min(count, 10)
@@ -404,7 +428,11 @@ class TestConcurrentPerformance:
     async def _run_concurrent_tasks(
         self, users: list[ChecksumAddress], accesses_per_user: int
     ) -> list[int]:
-        """Run concurrent cache access tasks."""
+        """Run concurrent cache access tasks.
+        
+        Returns:
+            list[int]: List of cache hit counts from each user's access tasks.
+        """
         tasks: list[asyncio.Task[int]] = []
         for user in users:
             task = asyncio.create_task(self._access_cache(user, accesses_per_user))

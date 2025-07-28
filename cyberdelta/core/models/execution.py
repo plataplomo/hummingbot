@@ -75,14 +75,22 @@ class TradeExecution(BaseModel):
 
     @computed_field
     def duration_seconds(self) -> float | None:
-        """Calculate execution duration in seconds."""
+        """Calculate execution duration in seconds.
+        
+        Returns:
+            float | None: Duration in seconds if both start and end time are set, None otherwise.
+        """
         if self.start_time and self.end_time:
             return (self.end_time - self.start_time).total_seconds()
         return None
 
     @computed_field
     def is_completed(self) -> bool:
-        """Check if execution is in a completed state."""
+        """Check if execution is in a completed state.
+        
+        Returns:
+            bool: True if status is COMPLETED, FAILED, or REJECTED.
+        """
         return self.status in {
             ExecutionStatus.COMPLETED,
             ExecutionStatus.FAILED,
@@ -91,11 +99,20 @@ class TradeExecution(BaseModel):
 
     @computed_field
     def has_fills(self) -> bool:
-        """Check if execution has any fills."""
+        """Check if execution has any fills.
+        
+        Returns:
+            bool: True if either long or short fill quantity is non-zero.
+        """
         return bool(self.long_fill_quantity or self.short_fill_quantity)
 
     def model_dump_execution_summary(self) -> dict[str, Any]:
-        """Export execution summary for logging/monitoring."""
+        """Export execution summary for logging/monitoring.
+        
+        Returns:
+            dict[str, Any]: Summary dict containing id, status, symbol, exchanges, duration,
+                pnl, error, and fill status.
+        """
         return {
             "id": self.id,
             "status": self.status.name,
@@ -113,7 +130,12 @@ class TradeExecution(BaseModel):
         }
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for backwards compatibility."""
+        """Convert to dictionary for backwards compatibility.
+        
+        Returns:
+            dict[str, Any]: Full dictionary representation including opportunity details
+                and execution state.
+        """
         return {
             "id": self.id,
             "opportunity": {

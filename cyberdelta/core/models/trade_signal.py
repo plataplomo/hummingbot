@@ -101,7 +101,8 @@ class TradeSignal(BaseModel):
             Validated string value or None if not provided
 
         Raises:
-            ValueError: If field name is None or string validation fails
+            FieldNameMissingError: If field name is None in validation info
+            RequiredFieldError: If symbol field is None (symbol is required)
         """
         field_name = info.field_name
         if field_name is None:
@@ -132,8 +133,9 @@ class TradeSignal(BaseModel):
             Validated string or list of strings
 
         Raises:
-            TypeError: If v is not a string or list of strings
-            ValueError: If validation fails
+            TypeFieldError: If v is not a string or list of strings
+            RequiredFieldError: If list is empty
+            ListFieldError: If list item is not a string
         """
         field_name = "exchange"
         # DEFENSIVE CHECK: Pydantic "before" mode receives raw input, type annotation is target type
@@ -186,7 +188,8 @@ class TradeSignal(BaseModel):
             Parsed and validated Decimal value
 
         Raises:
-            ValueError: If field name is missing, value is invalid, or not finite
+            FieldNameMissingError: If field name is None in validation info
+            DecimalFiniteError: If parsed decimal is not finite (inf/nan)
         """
         field_name = info.field_name
         if field_name is None:
@@ -214,7 +217,8 @@ class TradeSignal(BaseModel):
             Parsed Decimal value or None
 
         Raises:
-            ValueError: If field name is missing or value is not finite
+            FieldNameMissingError: If field name is None in validation info
+            DecimalFiniteError: If parsed decimal is not finite (inf/nan)
         """
         field_name = info.field_name
         if field_name is None:
@@ -249,7 +253,8 @@ class TradeSignal(BaseModel):
             Float value or None
 
         Raises:
-            ValueError: If field name is missing or value cannot be converted to float
+            FieldNameMissingError: If field name is None in validation info
+            DecimalFieldError: If value cannot be converted to float
         """
         field_name = info.field_name
         if field_name is None:
@@ -283,7 +288,7 @@ class TradeSignal(BaseModel):
             UTC datetime or None
 
         Raises:
-            ValueError: If field name is missing or datetime parsing fails
+            FieldNameMissingError: If field name is None in validation info
         """
         field_name = info.field_name
         if field_name is None:

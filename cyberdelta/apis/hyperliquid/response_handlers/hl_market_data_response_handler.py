@@ -80,6 +80,10 @@ class HyperliquidMarketDataResponseHandler(
 
         Returns:
             Processed response object
+            
+        Raises:
+            APIError: If unknown context or validation fails
+        
         """
         # Route to appropriate handler based on context
         if context == "all_mids":
@@ -249,7 +253,8 @@ class HyperliquidMarketDataResponseHandler(
             HyperliquidRawMetaAndAssetCtxsResponse: Validated metadata and asset contexts
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+        
         """
         context = "info_meta_and_asset_ctxs"
         if status_code is None:
@@ -280,7 +285,8 @@ class HyperliquidMarketDataResponseHandler(
             HyperliquidRawAssetCtx: Validated asset context with funding rate
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+        
         """
         context = "info_funding_rate"
         if status_code is None:
@@ -313,7 +319,8 @@ class HyperliquidMarketDataResponseHandler(
             HyperliquidRawOrderBookResponse: Validated order book data
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+        
         """
         context = f"info_l2_book ({symbol})"
         if status_code is None:
@@ -344,9 +351,7 @@ class HyperliquidMarketDataResponseHandler(
 
         Returns:
             list[HyperliquidRawPublicTrade]: Validated recent trades
-
-        Raises:
-            APIError: If validation fails
+        
         """
         context = f"recent trades ({coin})"
         try:
@@ -378,9 +383,7 @@ class HyperliquidMarketDataResponseHandler(
 
         Returns:
             HyperliquidRawCandleSnapshot: Validated candle data
-
-        Raises:
-            APIError: If validation fails
+        
         """
         context = f"candle snapshot ({symbol}, {interval})"
         try:
@@ -406,7 +409,8 @@ class HyperliquidMarketDataResponseHandler(
             HyperliquidRawFundingHistoryResponse: Validated funding history
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+        
         """
         context = "historical_funding_rates"
         if status_code is None:
@@ -438,7 +442,8 @@ class HyperliquidMarketDataResponseHandler(
             HyperliquidRawAllMids: Validated mid prices data
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+        
         """
         context = "all_mids"
         if status_code is None:

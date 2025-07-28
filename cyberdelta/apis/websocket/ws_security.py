@@ -234,9 +234,6 @@ class SecurityValidator:
 
         Returns:
             The validated message (unchanged if validation passes).
-
-        Raises:
-            SecurityValidationError: If any security validation fails.
         """
         # Size validation
         if self.config.enable_size_validation:
@@ -327,9 +324,6 @@ class SecurityValidator:
 
         Args:
             obj: Object to validate.
-
-        Raises:
-            SecurityValidationError: If structure limits are exceeded.
         """
         self._validate_structure_recursive(obj)
 
@@ -401,9 +395,6 @@ class SecurityValidator:
 
         Args:
             obj: Object to validate.
-
-        Raises:
-            SecurityValidationError: If malicious content is detected.
         """
         if not self.config.blocked_patterns:
             return
@@ -530,6 +521,9 @@ class SecurityValidator:
 
         Returns:
             Size in bytes
+            
+        Raises:
+            TypeError: If obj type is not supported for size calculation
         """
         if isinstance(obj, (str, int, float, bool, type(None))):
             return sys.getsizeof(obj)

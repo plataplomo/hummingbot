@@ -227,7 +227,11 @@ class SignalGenerator:
         self._update_basis_history(all_internal_symbol_values, enabled_exchanges, now)
 
     def _get_enabled_exchanges(self) -> list[str]:
-        """Get list of enabled exchanges from configuration."""
+        """Get list of enabled exchanges from configuration.
+
+        Returns:
+            List of exchange IDs that are enabled in the configuration
+        """
         configured_exchanges: list[str] = list(self.app_settings.exchanges.keys())
         return [
             ex_id for ex_id in configured_exchanges if self.app_settings.exchanges[ex_id].enabled
@@ -349,7 +353,15 @@ class SignalGenerator:
         internal_symbol: str,
         enabled_exchanges: list[str],
     ) -> tuple[list[str], dict[str, Ticker]]:
-        """Get valid tickers for a symbol across exchanges."""
+        """Get valid tickers for a symbol across exchanges.
+
+        Args:
+            internal_symbol: Internal symbol to get tickers for
+            enabled_exchanges: List of enabled exchanges to check
+
+        Returns:
+            Tuple of (valid exchanges list, exchange tickers dict)
+        """
         valid_exchanges_for_symbol: list[str] = []
         exchange_tickers: dict[str, Ticker] = {}
 
@@ -429,7 +441,15 @@ class SignalGenerator:
                 )
 
     def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
-        """Calculate the volatility (std dev) of the historical funding rates."""
+        """Calculate the volatility (std dev) of the historical funding rates.
+
+        Args:
+            exchange: Exchange identifier
+            internal_symbol: Internal symbol identifier
+
+        Returns:
+            Standard deviation of funding rates as Decimal
+        """
         if exchange not in self.historical_funding_rates:
             logger.debug(
                 "no_funding_data",
@@ -498,7 +518,14 @@ class SignalGenerator:
                 return Decimal("0.0001")  # Default on calculation error
 
     def calculate_basis_volatility(self, symbol: str) -> Decimal:
-        """Calculate the volatility (std dev) of the historical price basis."""
+        """Calculate the volatility (std dev) of the historical price basis.
+
+        Args:
+            symbol: Symbol to calculate basis volatility for
+
+        Returns:
+            Standard deviation of price basis as Decimal
+        """
         if symbol not in self.historical_basis:
             logger.debug(
                 "no_historical_basis_data",
@@ -813,7 +840,18 @@ class SignalGenerator:
         exchanges_with_data: dict[str, FundingRate],
         tickers: dict[str, Ticker | None],
     ) -> ArbitrageOpportunity | None:
-        """Check for arbitrage opportunity between a specific pair of exchanges."""
+        """Check for arbitrage opportunity between a specific pair of exchanges.
+
+        Args:
+            symbol: Trading symbol
+            exchange_a: First exchange
+            exchange_b: Second exchange
+            exchanges_with_data: Funding rate data for exchanges
+            tickers: Ticker data for exchanges
+
+        Returns:
+            ArbitrageOpportunity if found, None otherwise
+        """
         funding_a = exchanges_with_data[exchange_a]
         funding_b = exchanges_with_data[exchange_b]
 
@@ -902,7 +940,17 @@ class SignalGenerator:
         exchange_b: str,
         tickers: dict[str, Ticker | None],
     ) -> tuple[Ticker, Ticker] | None:
-        """Validate ticker data for both exchanges."""
+        """Validate ticker data for both exchanges.
+
+        Args:
+            symbol: Trading symbol
+            exchange_a: First exchange
+            exchange_b: Second exchange
+            tickers: Dictionary of ticker data by exchange
+
+        Returns:
+            Tuple of validated ticker data if valid, None otherwise
+        """
         ticker_a = tickers.get(exchange_a)
         ticker_b = tickers.get(exchange_b)
 
@@ -961,7 +1009,20 @@ class SignalGenerator:
         ticker_a: Ticker,
         ticker_b: Ticker,
     ) -> Decimal | None:
-        """Calculate expected profit after slippage."""
+        """Calculate expected profit after slippage.
+
+        Args:
+            symbol: Trading symbol
+            exchange_a: First exchange
+            exchange_b: Second exchange
+            rate_a: Funding rate for exchange A
+            rate_b: Funding rate for exchange B
+            ticker_a: Ticker data for exchange A
+            ticker_b: Ticker data for exchange B
+
+        Returns:
+            Expected profit as Decimal, None if below threshold
+        """
         # Calculate price-weighted funding payments for profit estimation
         # We know prices are not None due to validation in _validate_ticker_data
         price_a = ticker_a.price
@@ -1010,7 +1071,22 @@ class SignalGenerator:
         ticker_b: Ticker,
         expected_profit: Decimal,
     ) -> ArbitrageOpportunity:
-        """Create arbitrage opportunity based on funding differential direction."""
+        """Create arbitrage opportunity based on funding differential direction.
+
+        Args:
+            symbol: Trading symbol
+            exchange_a: First exchange
+            exchange_b: Second exchange
+            funding_differential: Difference in funding rates
+            rate_a: Funding rate for exchange A
+            rate_b: Funding rate for exchange B
+            ticker_a: Ticker data for exchange A
+            ticker_b: Ticker data for exchange B
+            expected_profit: Expected profit amount
+
+        Returns:
+            ArbitrageOpportunity instance
+        """
         if funding_differential > Decimal(0):  # rate_b > rate_a: Long B, Short A
             return self._create_long_b_short_a_opportunity(
                 symbol,
@@ -1045,7 +1121,24 @@ class SignalGenerator:
         ticker_b: Ticker,
         expected_profit: Decimal,
     ) -> ArbitrageOpportunity:
-        """Create opportunity where we long B and short A."""
+        """Create opportunity where we long B and short A.
+
+        Args:
+            symbol: Trading symbol
+            exchange_a: Exchange A (short position)
+            exchange_b: Exchange B (long position)
+            rate_a: Funding rate for exchange A
+            rate_b: Funding rate for exchange B
+            ticker_a: Ticker data for exchange A
+            ticker_b: Ticker data for exchange B
+            expected_profit: Expected profit amount
+
+        Returns:
+            ArbitrageOpportunity with long B, short A configuration
+
+        Raises:
+            PriceDataError: If required price data is missing
+        """
         actual_long_rate = rate_b
         actual_short_rate = rate_a
 
@@ -1107,7 +1200,24 @@ class SignalGenerator:
         ticker_b: Ticker,
         expected_profit: Decimal,
     ) -> ArbitrageOpportunity:
-        """Create opportunity where we long A and short B."""
+        """Create opportunity where we long A and short B.
+
+        Args:
+            symbol: Trading symbol
+            exchange_a: Exchange A (long position)
+            exchange_b: Exchange B (short position)
+            rate_a: Funding rate for exchange A
+            rate_b: Funding rate for exchange B
+            ticker_a: Ticker data for exchange A
+            ticker_b: Ticker data for exchange B
+            expected_profit: Expected profit amount
+
+        Returns:
+            ArbitrageOpportunity with long A, short B configuration
+
+        Raises:
+            PriceDataError: If required price data is missing
+        """
         actual_long_rate = rate_a
         actual_short_rate = rate_b
 

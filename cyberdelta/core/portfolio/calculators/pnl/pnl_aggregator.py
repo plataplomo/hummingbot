@@ -393,7 +393,11 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         positions: list[DerivativePosition],
         unrealized_result: PortfolioUnrealizedPnLResult,
     ) -> dict[str, ExchangeBreakdown]:
-        """Group positions by exchange with typed return."""
+        """Group positions by exchange with typed return.
+        
+        Returns:
+            Dictionary mapping exchange names to their breakdown metrics
+        """
         by_exchange: dict[str, ExchangeBreakdown] = {}
 
         for position in positions:
@@ -421,7 +425,11 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
     def _find_position_result(
         self, position: DerivativePosition, unrealized_result: PortfolioUnrealizedPnLResult
     ) -> UnrealizedPnLResult | None:
-        """Find the unrealized result for a position."""
+        """Find the unrealized result for a position.
+        
+        Returns:
+            The matching unrealized P&L result, or None if not found
+        """
         return next(
             (
                 result
@@ -438,7 +446,11 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
     def _group_by_symbol_typed(
         self, unrealized_result: PortfolioUnrealizedPnLResult
     ) -> dict[str, UnrealizedPnLResult]:
-        """Group results by symbol with typed return."""
+        """Group results by symbol with typed return.
+        
+        Returns:
+            Dictionary mapping symbols to their unrealized P&L results
+        """
         by_symbol: dict[str, UnrealizedPnLResult] = {}
 
         for result in unrealized_result.position_results:
@@ -448,7 +460,11 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         return by_symbol
 
     def _extract_symbol_from_result(self, result: UnrealizedPnLResult) -> str:
-        """Extract symbol from result metadata."""
+        """Extract symbol from result metadata.
+        
+        Returns:
+            The extracted symbol name, or 'unknown' if not found
+        """
         if result.metadata and result.metadata.notes and "symbol=" in result.metadata.notes:
             # Extract symbol from notes field like "symbol=BTC"
             for part in result.metadata.notes.split():
@@ -459,7 +475,11 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
     def _separate_long_short_typed(
         self, unrealized_result: PortfolioUnrealizedPnLResult
     ) -> tuple[list[UnrealizedPnLResult], list[UnrealizedPnLResult]]:
-        """Separate positions into long and short with typed return."""
+        """Separate positions into long and short with typed return.
+        
+        Returns:
+            Tuple of (long_positions, short_positions) lists
+        """
         long_positions: list[UnrealizedPnLResult] = []
         short_positions: list[UnrealizedPnLResult] = []
 
@@ -545,7 +565,11 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         return max_drawdown
 
     def _get_current_timestamp(self) -> float:
-        """Get current timestamp for metadata."""
+        """Get current timestamp for metadata.
+        
+        Returns:
+            Current Unix timestamp as float
+        """
         return time.time()
 
     def validate_inputs(
@@ -559,6 +583,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
             **kwargs: Additional parameters
 
         Raises:
+            InvalidPositionsTypeError: If positions is empty
             ValueError: If inputs are invalid
         """
         if not positions:

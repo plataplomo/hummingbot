@@ -40,7 +40,11 @@ class SnapshotMetadata(BaseModel):
     def validate_tags(
         cls, v: dict[str, str | int | float | bool]
     ) -> dict[str, str | int | float | bool]:
-        """Validate tags contain only allowed types."""
+        """Validate tags contain only allowed types.
+        
+        Returns:
+            dict[str, str | int | float | bool]: The validated tags dictionary.
+        """
         # All values are already validated by type hints
         return v
 
@@ -400,7 +404,11 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
         )
 
     def _convert_value(self, value: str | float | bool | object) -> str | int | float | bool:
-        """Convert value to allowed types for strict typing."""
+        """Convert value to allowed types for strict typing.
+        
+        Returns:
+            str | int | float | bool: Converted value or 'None' string.
+        """
         if isinstance(value, (str, int, float, bool)):
             return value
         return str(value)
@@ -557,24 +565,44 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
         )
 
     def __len__(self) -> int:
-        """Get the number of state fields."""
+        """Get the number of state fields.
+        
+        Returns:
+            int: Number of state fields in the snapshot.
+        """
         return len(self.get_state_fields())
 
     def __contains__(self, field_name: str) -> bool:
-        """Check if a field exists in the snapshot state."""
+        """Check if a field exists in the snapshot state.
+        
+        Returns:
+            bool: True if field exists, False otherwise.
+        """
         return self.has_state_field(field_name)
 
     def __getitem__(self, field_name: str) -> str | int | float | bool | None:
-        """Get a state field value by name."""
+        """Get a state field value by name.
+        
+        Returns:
+            str | int | float | bool | None: Field value or None if not found.
+        """
         return self.get_state_value(field_name)
 
     def __iter__(self) -> Generator[tuple[str, str | int | float | bool | None]]:
-        """Iterate over state field names."""
+        """Iterate over state field names.
+        
+        Yields:
+            tuple[str, str | int | float | bool | None]: Field name and value pairs.
+        """
         for field in self.get_state_fields():
             yield field, self.get_state_value(field)
 
     def __eq__(self, other: object) -> bool:
-        """Check equality with another snapshot."""
+        """Check equality with another snapshot.
+        
+        Returns:
+            bool: True if snapshots are equal, False otherwise.
+        """
         if not isinstance(other, StateSnapshot):
             return False
 
@@ -585,11 +613,19 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
         )
 
     def __hash__(self) -> int:
-        """Get hash of the snapshot."""
+        """Get hash of the snapshot.
+        
+        Returns:
+            int: Hash value based on snapshot ID, target state ID, and checksum.
+        """
         return hash((self.snapshot_id, self.target_state_id, self.checksum))
 
     def __repr__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            str: String representation of the StateSnapshot object.
+        """
         return (
             f"StateSnapshot(snapshot_id='{self.snapshot_id}', "
             f"target_state_id='{self.target_state_id}', "

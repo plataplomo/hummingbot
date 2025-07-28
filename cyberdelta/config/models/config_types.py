@@ -19,7 +19,18 @@ def _parse_yaml_input_to_required_decimal(
     v: str | float | Decimal,
     info: ValidationInfo,
 ) -> Decimal:
-    """Pydantic 'before' validator to parse input to a required, finite Decimal."""
+    """Pydantic 'before' validator to parse input to a required, finite Decimal.
+
+    Args:
+        v: The value to parse (string, float, or Decimal)
+        info: Pydantic validation information
+
+    Returns:
+        A finite Decimal value parsed from the input.
+
+    Raises:
+        ValueError: If the value cannot be parsed to a Decimal or is not finite.
+    """
     field_name = info.field_name or "decimal_field"
     # allow_none=False because this is for fields that are expected to be Decimal.
     # Optionality of the field itself is handled by Pydantic's Optional[ConfigDecimal] typing.
@@ -32,7 +43,15 @@ def _parse_yaml_input_to_required_decimal(
 
 
 def _validate_string_for_literal_check(v: str | float | bool, info: ValidationInfo) -> str:
-    """Pydantic 'before' validator to ensure v is a string before Literal check."""
+    """Pydantic 'before' validator to ensure v is a string before Literal check.
+
+    Args:
+        v: The value to validate (string, float, or bool)
+        info: Pydantic validation information
+
+    Returns:
+        A validated non-empty string value.
+    """
     return validate_str_field(
         v,
         field_name=info.field_name or "literal_str_field",
@@ -41,7 +60,15 @@ def _validate_string_for_literal_check(v: str | float | bool, info: ValidationIn
 
 
 def _validate_non_empty_string(v: str | float | bool, info: ValidationInfo) -> str:
-    """Pydantic 'before' validator for non-empty string fields."""
+    """Pydantic 'before' validator for non-empty string fields.
+
+    Args:
+        v: The value to validate (string, float, or bool)
+        info: Pydantic validation information
+
+    Returns:
+        A validated non-empty string value.
+    """
     return validate_str_field(v, field_name=info.field_name or "string_field", allow_empty=False)
 
 

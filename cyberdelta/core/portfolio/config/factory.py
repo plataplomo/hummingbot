@@ -318,9 +318,6 @@ class PortfolioConfigFactory:
 
         Returns:
             Validated portfolio configuration
-
-        Raises:
-            ValidationError: If configuration is invalid
         """
         validate_startup_configuration(config)
         return config
@@ -378,20 +375,36 @@ class PortfolioConfigFactory:
 
 # Convenience functions for common configurations
 def create_dev_config() -> PortfolioConfiguration:
-    """Create development configuration."""
+    """Create development configuration.
+
+    Returns:
+        Development portfolio configuration.
+    """
     return PortfolioConfigFactory.create_development()
 
 
 def create_prod_config() -> PortfolioConfiguration:
-    """Create production configuration."""
+    """Create production configuration.
+
+    Returns:
+        Production portfolio configuration.
+    """
     return PortfolioConfigFactory.create_production()
 
 
 def create_test_config() -> PortfolioConfiguration:
-    """Create test configuration."""
+    """Create test configuration.
+
+    Returns:
+        Test portfolio configuration.
+    """
     return PortfolioConfigFactory.create_test()
 
 
 def create_config_from_env() -> PortfolioConfiguration:
-    """Create configuration from environment variables."""
+    """Create configuration from environment variables.
+
+    Returns:
+        Portfolio configuration from environment.
+    """
     return PortfolioConfigFactory.create_from_environment()

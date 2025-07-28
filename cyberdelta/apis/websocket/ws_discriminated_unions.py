@@ -154,10 +154,8 @@ def validate_envelope_ultra_fast(raw_data: dict[str, Any]) -> WebSocketEnvelopeU
     Returns:
         Validated envelope using discriminated union
 
-    Raises:
-        ValueError: If validation fails or format is unknown
-
-    Performance Notes:
+    Notes:
+        Performance optimization:
         - Uses pre-compiled TypeAdapter for maximum speed
         - Discriminated unions avoid checking multiple models
         - Optimized model configurations for high-frequency validation
@@ -171,14 +169,28 @@ def validate_envelope_ultra_fast(raw_data: dict[str, Any]) -> WebSocketEnvelopeU
 
 # Convenience functions for specific envelope types
 def validate_backpack_fast(raw_data: dict[str, Any]) -> DiscriminatedBackpackEnvelope:
-    """Fast validation specifically for Backpack messages."""
+    """Fast validation specifically for Backpack messages.
+
+    Args:
+        raw_data: Raw Backpack WebSocket message dictionary
+
+    Returns:
+        Validated Backpack envelope with discriminator
+    """
     data = raw_data.copy()
     data["envelope_type"] = "backpack"
     return DiscriminatedBackpackEnvelope.model_validate(data)
 
 
 def validate_hyperliquid_fast(raw_data: dict[str, Any]) -> DiscriminatedHyperliquidEnvelope:
-    """Fast validation specifically for Hyperliquid messages."""
+    """Fast validation specifically for Hyperliquid messages.
+
+    Args:
+        raw_data: Raw Hyperliquid WebSocket message dictionary
+
+    Returns:
+        Validated Hyperliquid envelope with discriminator
+    """
     data = raw_data.copy()
     data["envelope_type"] = "hyperliquid"
     return DiscriminatedHyperliquidEnvelope.model_validate(data)
@@ -187,7 +199,14 @@ def validate_hyperliquid_fast(raw_data: dict[str, Any]) -> DiscriminatedHyperliq
 def validate_hyperliquid_user_event_fast(
     raw_data: dict[str, Any],
 ) -> DiscriminatedHyperliquidUserEvent:
-    """Fast validation specifically for Hyperliquid user events."""
+    """Fast validation specifically for Hyperliquid user events.
+
+    Args:
+        raw_data: Raw Hyperliquid user event message dictionary
+
+    Returns:
+        Validated Hyperliquid user event envelope with discriminator
+    """
     data = raw_data.copy()
     data["envelope_type"] = "hyperliquid_user_event"
     return DiscriminatedHyperliquidUserEvent.model_validate(data)

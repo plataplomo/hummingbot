@@ -494,5 +494,9 @@ class FundingRateValidator:
         )
 
     def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:
-        """Protocol-compatible method for RiskManager; delegates to calculate_metrics."""
+        """Protocol-compatible method for RiskManager; delegates to calculate_metrics.
+
+        Returns:
+            Dictionary containing calculated metrics for the symbol
+        """
         return self.calculate_metrics(exchange, symbol)

@@ -33,7 +33,11 @@ def create_trade(
     fee_asset: str = "USDC",
     is_maker: bool = False,
 ) -> Trade:
-    """Helper function to create a Trade with valid defaults."""
+    """Helper function to create a Trade with valid defaults.
+    
+    Returns:
+        Trade: A trade instance with the specified parameters.
+    """
     return Trade(
         id=trade_id,
         symbol=symbol,
@@ -52,7 +56,11 @@ def create_trade(
 
 @pytest.fixture
 def base_order() -> Order:
-    """Create a base order for testing."""
+    """Create a base order for testing.
+    
+    Returns:
+        Order: A base order instance for testing.
+    """
     return Order(
         exchange="hyperliquid",
         symbol="BTC-PERP",

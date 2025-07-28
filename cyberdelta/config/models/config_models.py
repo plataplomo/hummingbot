@@ -64,7 +64,11 @@ from cyberdelta.utils.parsing import (
 
 # Typed factory functions to avoid Unknown type inference
 def _initial_positions_factory() -> list[dict[str, Any]]:
-    """Factory function for initial_positions list."""
+    """Factory function for initial_positions list.
+
+    Returns:
+        Empty list for initial positions configuration
+    """
     return []
 
 
@@ -112,7 +116,18 @@ class GeneralSettings(BaseModel):
         v: dict[str, str] | list[str] | str | float | bool | None,
         info: ValidationInfo,
     ) -> dict[str, str] | None:
-        """Validate module_log_levels dictionary structure and values."""
+        """Validate module_log_levels dictionary structure and values.
+
+        Args:
+            v: The value to validate (dict, list, str, float, bool, or None)
+            info: Validation context containing field information
+
+        Returns:
+            Validated dictionary of module names to log levels, or None
+
+        Raises:
+            TypeError: If value is not a dict or None
+        """
         if v is None:
             return None
 
@@ -299,6 +314,18 @@ class ExchangeSpecificConfig(BaseModel):
         v: dict[str, str] | list[str] | str | float | bool,
         info: ValidationInfo,
     ) -> dict[str, str]:
+        """Validate symbols dictionary structure and values.
+
+        Args:
+            v: The value to validate (dict, list, str, float, or bool)
+            info: Validation context containing field information
+
+        Returns:
+            Validated dictionary of symbol mappings
+
+        Raises:
+            TypeError: If value is not a dict
+        """
         if not isinstance(v, dict):
             field_name = info.field_name or "symbols"
             msg = f"{field_name}: Expected dict, got {type(v).__name__}"
@@ -322,7 +349,14 @@ class ExchangeSpecificConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_exchange_specific_rate_limit_configs(self) -> Self:
-        """Validate that appropriate rate limit fields are present for each exchange type."""
+        """Validate that appropriate rate limit fields are present for each exchange type.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            RequiredParameterError: If required rate limit fields are missing
+        """
         if self.exchange_name == ExchangeName.HYPERLIQUID:
             # Hyperliquid requires its specific rate limit configuration
             required_fields = [
@@ -354,7 +388,14 @@ class ExchangeSpecificConfig(BaseModel):
 
     @model_validator(mode="after")
     def check_testnet_urls_when_needed(self) -> Self:
-        """Validate that testnet URLs are provided when environment is testnet."""
+        """Validate that testnet URLs are provided when environment is testnet.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            TestnetConfigurationError: If testnet URLs are missing when required
+        """
         if self.environment_type == EnvironmentType.TESTNET:
             if self.api_base_url_testnet is None:
                 raise TestnetConfigurationError(
@@ -370,7 +411,14 @@ class ExchangeSpecificConfig(BaseModel):
 
     @property
     def active_api_base_url(self) -> HttpUrl:
-        """Return the active API base URL based on environment setting."""
+        """Return the active API base URL based on environment setting.
+
+        Returns:
+            Active API base URL for the configured environment
+
+        Raises:
+            TestnetConfigurationError: If testnet URL is required but not configured
+        """
         if self.environment_type == EnvironmentType.MAINNET:
             return self.api_base_url_mainnet
         if self.api_base_url_testnet is None:
@@ -382,7 +430,14 @@ class ExchangeSpecificConfig(BaseModel):
 
     @property
     def active_ws_url(self) -> AnyUrl:
-        """Return the active WebSocket URL based on environment setting."""
+        """Return the active WebSocket URL based on environment setting.
+
+        Returns:
+            Active WebSocket URL for the configured environment
+
+        Raises:
+            TestnetConfigurationError: If testnet URL is required but not configured
+        """
         if self.environment_type == EnvironmentType.MAINNET:
             return self.ws_url_mainnet
         if self.ws_url_testnet is None:
@@ -439,7 +494,14 @@ class CheckerThresholds(BaseModel):
 
     @model_validator(mode="after")
     def validate_threshold_relationships(self) -> Self:
-        """Validate logical relationships between thresholds."""
+        """Validate logical relationships between thresholds.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            ValueError: If threshold relationships are invalid
+        """
         if self.min_profitability >= self.max_price_spread:
             msg = "min_profitability must be less than max_price_spread"
             raise ValueError(msg)
@@ -560,7 +622,14 @@ class SizingSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_allocation_ranges(self) -> Self:
-        """Validate allocation ranges are logical."""
+        """Validate allocation ranges are logical.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            ValueError: If allocation ranges are invalid
+        """
         if self.kelly_min_allocation >= self.kelly_max_allocation:
             msg = "kelly_min_allocation must be less than kelly_max_allocation"
             raise ValueError(msg)
@@ -620,7 +689,14 @@ class EnhancedRiskSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_cross_settings(self) -> Self:
-        """Validate relationships between different settings and GlobalRiskSettings."""
+        """Validate relationships between different settings and GlobalRiskSettings.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            ValueError: If cross-setting relationships are invalid
+        """
         # Ensure system-level concurrency is higher than component level
         if self.max_concurrent_checks < self.checkers.max_concurrent_checks:
             msg = "System max_concurrent_checks must be >= checkers.max_concurrent_checks"
@@ -702,7 +778,18 @@ class BalanceMonitoringSettings(BaseModel):
         v: dict[str, str | int | float | Decimal] | list[str] | str | float | bool,
         info: ValidationInfo,
     ) -> dict[str, str | int | float | Decimal]:
-        """Validate dictionary structure and keys before ConfigDecimal processes values."""
+        """Validate dictionary structure and keys before ConfigDecimal processes values.
+
+        Args:
+            v: The value to validate (dict, list, str, float, bool, or Decimal)
+            info: Validation context containing field information
+
+        Returns:
+            Validated dictionary with string keys and numeric values
+
+        Raises:
+            TypeError: If value is not a dict
+        """
         if not isinstance(v, dict):
             field_name = info.field_name or "min_balance_thresholds_usd"
             msg = f"{field_name}: Expected dict, got {type(v).__name__}"
@@ -726,7 +813,18 @@ class BalanceMonitoringSettings(BaseModel):
         v: dict[str, Decimal],
         info: ValidationInfo,
     ) -> dict[str, Decimal]:
-        """Validate that all Decimal values are positive after ConfigDecimal parsing."""
+        """Validate that all Decimal values are positive after ConfigDecimal parsing.
+
+        Args:
+            v: Dictionary with validated Decimal values
+            info: Validation context containing field information
+
+        Returns:
+            Validated dictionary with positive Decimal values
+
+        Raises:
+            RangeFieldError: If any Decimal value is not positive
+        """
         for key, value in v.items():
             if value <= Decimal(0):
                 raise RangeFieldError(
@@ -969,7 +1067,14 @@ class PortfolioTrackerConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_cross_settings(self) -> Self:
-        """Validate cross-field relationships in portfolio configuration."""
+        """Validate cross-field relationships in portfolio configuration.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            ValueError: If cross-field relationships are invalid
+        """
         # Ensure cache cleanup interval is larger than default TTL
         if self.cache.cleanup_interval < self.cache.default_ttl:
             msg = "Cache cleanup interval must be >= default TTL"
@@ -1027,6 +1132,18 @@ class AppSettings(BaseModel):
         v: dict[str, dict[str, str | int | float | bool]] | list[str] | str | float | bool,
         info: ValidationInfo,
     ) -> dict[str, dict[str, str | int | float | bool]]:
+        """Validate exchanges dictionary structure and values.
+
+        Args:
+            v: The value to validate (dict, list, str, float, or bool)
+            info: Validation context containing field information
+
+        Returns:
+            Validated dictionary of exchange configurations
+
+        Raises:
+            TypeError: If value is not a dict
+        """
         if not isinstance(v, dict):
             field_name = info.field_name or "exchanges"
             msg = f"{field_name}: Expected dict, got {type(v).__name__}"
@@ -1047,7 +1164,14 @@ class AppSettings(BaseModel):
 
     @model_validator(mode="after")
     def _validate_cross_references(self) -> Self:
-        """Validate cross-references between configuration sections."""
+        """Validate cross-references between configuration sections.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            ConfigurationError: If cross-references are invalid
+        """
         # Ensure strategy exchanges exist in exchanges config
         strategy = self.strategies.hl_perp_bp_spot
         if strategy.long_exchange not in self.exchanges:
@@ -1088,7 +1212,14 @@ class AppSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_exchange_config_keys_match_names(self) -> Self:
-        """Validate that exchange configuration keys match their exchange_name field values."""
+        """Validate that exchange configuration keys match their exchange_name field values.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            ConfigurationError: If configuration keys don't match exchange names
+        """
         if self.exchanges:  # Check if exchanges dict is not None and not empty
             for key, exchange_cfg_instance in self.exchanges.items():
                 # Compare the string key with the string value of the ExchangeName enum member
@@ -1111,7 +1242,15 @@ class AppSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_hyperliquid_chain_id_settings(self) -> Self:
-        """Validate that chain_id is specified for enabled Hyperliquid exchange."""
+        """Validate that chain_id is specified for enabled Hyperliquid exchange.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            RequiredParameterError: If chain_id is missing for enabled Hyperliquid
+            RangeFieldError: If chain_id value is invalid
+        """
         if self.exchanges:
             hyperliquid_config = self.exchanges.get("hyperliquid")
             if hyperliquid_config and hyperliquid_config.enabled:

@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field
 
 
 def utc_now() -> datetime:
-    """Get current UTC datetime."""
+    """Get current UTC datetime.
+
+    Returns:
+        Current datetime in UTC timezone
+    """
     return datetime.now(UTC)
 
 

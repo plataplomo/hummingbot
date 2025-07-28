@@ -47,9 +47,6 @@ class HyperliquidTransferMapper:
 
         Returns:
             Internal Transfer model with Hyperliquid-specific details
-
-        Raises:
-            DataTransformationError: If response structure is invalid
         """
         logger.debug(
             "hyperliquid_transfer_mapper_transform_start",
@@ -125,7 +122,11 @@ class HyperliquidTransferMapper:
 
     @staticmethod
     def _get_current_timestamp() -> datetime:
-        """Get current timestamp for transfers that don't return timestamps."""
+        """Get current timestamp for transfers that don't return timestamps.
+        
+        Returns:
+            datetime: Current UTC datetime.
+        """
         return datetime.now(UTC)
 
     @staticmethod

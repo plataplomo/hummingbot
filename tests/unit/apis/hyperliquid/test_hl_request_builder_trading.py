@@ -35,17 +35,29 @@ class TestHyperliquidTradingRequestBuilder:
 
     @pytest.fixture
     def builder(self) -> HyperliquidTradingRequestBuilder:
-        """Create a HyperliquidTradingRequestBuilder instance."""
+        """Create a HyperliquidTradingRequestBuilder instance.
+        
+        Returns:
+            HyperliquidTradingRequestBuilder: Builder instance for testing.
+        """
         return HyperliquidTradingRequestBuilder()
 
     @pytest.fixture
     def valid_wallet_address(self) -> str:
-        """Provide a valid wallet address."""
+        """Provide a valid wallet address.
+        
+        Returns:
+            str: Valid wallet address for testing.
+        """
         return "0x1234567890abcdef1234567890abcdef12345678"
 
     @pytest.fixture
     def symbol(self) -> str:
-        """Provide a test symbol."""
+        """Provide a test symbol.
+        
+        Returns:
+            str: Test trading symbol.
+        """
         return "BTC-PERP"
 
     def test_build_place_order_payload_limit_buy(

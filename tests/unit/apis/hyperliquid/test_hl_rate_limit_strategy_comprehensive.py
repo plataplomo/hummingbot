@@ -24,14 +24,22 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.fixture
     def mock_address_action_config(self) -> AddressActionSafetyNetConfig:
-        """Create mock address action safety net configuration."""
+        """Create mock address action safety net configuration.
+        
+        Returns:
+            AddressActionSafetyNetConfig instance with test rate limit.
+        """
         return AddressActionSafetyNetConfig(rate_per_minute=60)
 
     @pytest.fixture
     def valid_exchange_config(
         self, mock_address_action_config: AddressActionSafetyNetConfig
     ) -> ExchangeSpecificConfig:
-        """Create valid exchange configuration for testing."""
+        """Create valid exchange configuration for testing.
+        
+        Returns:
+            Mock ExchangeSpecificConfig with test rate limits.
+        """
         config = MagicMock(spec=ExchangeSpecificConfig)
         config.ip_weight_limit_per_minute = 1200
         config.address_action_safety_net = mock_address_action_config
@@ -39,7 +47,11 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.fixture
     def request_context_factory(self) -> Callable[..., RateLimitRequestContext]:
-        """Factory to create RateLimitRequestContext instances."""
+        """Factory to create RateLimitRequestContext instances.
+        
+        Returns:
+            Factory function that creates RateLimitRequestContext with customizable parameters.
+        """
 
         def _create(**kwargs: dict[str, Any]) -> RateLimitRequestContext:
             defaults: dict[str, Any] = {
@@ -59,7 +71,11 @@ class TestHyperliquidRateLimitStrategy:
     def strategy_factory(
         self, valid_exchange_config: ExchangeSpecificConfig
     ) -> Callable[..., HyperliquidRateLimitStrategy]:
-        """Factory to create strategy instances with optional config overrides."""
+        """Factory to create strategy instances with optional config overrides.
+        
+        Returns:
+            Factory function that creates HyperliquidRateLimitStrategy instances.
+        """
 
         def _create(
             config_overrides: dict[str, Any] | None = None,

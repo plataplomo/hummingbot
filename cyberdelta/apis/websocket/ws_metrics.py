@@ -406,7 +406,15 @@ class WebSocketMetricsCollector:
         return "\n".join(lines)
 
     def _percentile(self, sorted_values: list[float | int], percentile: float) -> float:
-        """Calculate percentile from sorted values."""
+        """Calculate percentile from sorted values.
+
+        Args:
+            sorted_values: List of values already sorted in ascending order
+            percentile: Percentile to calculate (0.0 to 1.0)
+
+        Returns:
+            The calculated percentile value, or 0 if the list is empty.
+        """
         if not sorted_values:
             return 0
         index = int((len(sorted_values) - 1) * percentile)

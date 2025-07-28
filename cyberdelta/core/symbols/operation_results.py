@@ -12,12 +12,20 @@ from cyberdelta.core.symbols.models import InternalSymbol
 
 
 def _create_empty_success_list() -> list[tuple[str, InternalSymbol]]:
-    """Factory function for successful transforms list."""
+    """Factory function for successful transforms list.
+    
+    Returns:
+        Empty list for successful transforms
+    """
     return []
 
 
 def _create_empty_failure_list() -> list[tuple[str, str]]:
-    """Factory function for failed transforms list."""
+    """Factory function for failed transforms list.
+    
+    Returns:
+        Empty list for failed transforms
+    """
     return []
 
 
@@ -41,25 +49,41 @@ class SymbolBatchTransformResult(BaseModel):
     @property
     @computed_field
     def success_count(self) -> int:
-        """Number of successful transformations."""
+        """Number of successful transformations.
+        
+        Returns:
+            Count of successful transformations
+        """
         return len(self.successful_transforms)
 
     @property
     @computed_field
     def failure_count(self) -> int:
-        """Number of failed transformations."""
+        """Number of failed transformations.
+        
+        Returns:
+            Count of failed transformations
+        """
         return len(self.failed_transforms)
 
     @property
     @computed_field
     def total_count(self) -> int:
-        """Total number of transformation attempts."""
+        """Total number of transformation attempts.
+        
+        Returns:
+            Total count of all transformation attempts
+        """
         return self.success_count + self.failure_count
 
     @property
     @computed_field
     def success_rate(self) -> float:
-        """Success rate as percentage (0-100)."""
+        """Success rate as percentage (0-100).
+        
+        Returns:
+            Percentage of successful transformations
+        """
         if self.total_count == 0:
             return 0.0
         return (self.success_count / self.total_count) * 100.0
@@ -67,13 +91,21 @@ class SymbolBatchTransformResult(BaseModel):
     @property
     @computed_field
     def has_failures(self) -> bool:
-        """Whether any transformations failed."""
+        """Whether any transformations failed.
+        
+        Returns:
+            True if there are any failed transformations
+        """
         return self.failure_count > 0
 
     @property
     @computed_field
     def all_successful(self) -> bool:
-        """Whether all transformations succeeded."""
+        """Whether all transformations succeeded.
+        
+        Returns:
+            True if all transformations were successful
+        """
         return self.failure_count == 0 and self.success_count > 0
 
 
@@ -98,7 +130,11 @@ class SymbolArbitrageCompatibility(BaseModel):
     @property
     @computed_field
     def available_exchanges(self) -> list[str]:
-        """List of exchanges where the symbol is available."""
+        """List of exchanges where the symbol is available.
+        
+        Returns:
+            List of exchange names where symbol is available
+        """
         return [
             exchange_name
             for exchange_name, info in self.exchange_availability.items()
@@ -108,7 +144,11 @@ class SymbolArbitrageCompatibility(BaseModel):
     @property
     @computed_field
     def unavailable_exchanges(self) -> list[str]:
-        """List of exchanges where the symbol is not available."""
+        """List of exchanges where the symbol is not available.
+        
+        Returns:
+            List of exchange names where symbol is not available
+        """
         return [
             exchange_name
             for exchange_name, info in self.exchange_availability.items()
@@ -118,7 +158,11 @@ class SymbolArbitrageCompatibility(BaseModel):
     @property
     @computed_field
     def exchange_symbols(self) -> dict[str, str]:
-        """Mapping of exchange names to their symbol representations."""
+        """Mapping of exchange names to their symbol representations.
+        
+        Returns:
+            Dictionary mapping exchange names to symbol strings
+        """
         return {
             exchange_name: info.get("symbol", "")
             for exchange_name, info in self.exchange_availability.items()
@@ -126,6 +170,10 @@ class SymbolArbitrageCompatibility(BaseModel):
         }
 
     def get_exchange_error(self, exchange_name: str) -> str | None:
-        """Get error message for a specific exchange, if any."""
+        """Get error message for a specific exchange, if any.
+        
+        Returns:
+            Error message string or None if no error
+        """
         exchange_info = self.exchange_availability.get(exchange_name, {})
         return exchange_info.get("error") if not exchange_info.get("available", False) else None

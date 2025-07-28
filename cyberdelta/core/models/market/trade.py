@@ -71,7 +71,15 @@ class Trade(BaseModel):
     @field_validator("id", "order_id", mode="before")
     @classmethod
     def validate_id_fields(cls, v: str, info: object) -> str:
-        """Validate trade and order ID fields with appropriate length limits."""
+        """Validate trade and order ID fields with appropriate length limits.
+        
+        Args:
+            v: ID field value to validate
+            info: Pydantic field validation context
+            
+        Returns:
+            Validated ID string
+        """
         field_name = getattr(info, "field_name", "id")
         # max_length=128 is a generous default; revisit if stricter limits are found in
         # exchange specs
@@ -80,7 +88,15 @@ class Trade(BaseModel):
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
     def validate_symbol_exchange(cls, v: str, info: object) -> str:
-        """Validate symbol and exchange fields with shorter length limits."""
+        """Validate symbol and exchange fields with shorter length limits.
+        
+        Args:
+            v: Symbol or exchange field value to validate
+            info: Pydantic field validation context
+            
+        Returns:
+            Validated string value
+        """
         field_name = getattr(info, "field_name", None)
         return validate_str_field(v, field_name=str(field_name), max_length=64)
 
@@ -104,7 +120,7 @@ class Trade(BaseModel):
             Validated UTC datetime object
 
         Raises:
-            ValueError: If timestamp cannot be parsed or is None
+            RequiredFieldNoneError: If timestamp cannot be parsed or is None
 
         """
         dt = parse_datetime_utc(raw_value, field_name="executed_at")
@@ -135,7 +151,7 @@ class Trade(BaseModel):
             Validated finite Decimal object
 
         Raises:
-            ValueError: If value cannot be parsed to finite Decimal
+            DecimalFiniteError: If value cannot be parsed to finite Decimal
 
         """
         field_name = getattr(info, "field_name", None)
@@ -164,9 +180,6 @@ class Trade(BaseModel):
         Returns:
             Validated string or None if not provided
 
-        Raises:
-            ValueError: If string is invalid or exceeds length limits
-
         """
         field_name = getattr(info, "field_name", None)
         if v is None:
@@ -184,7 +197,7 @@ class Trade(BaseModel):
             Self for method chaining
 
         Raises:
-            ValueError: If fee is non-zero but fee_asset is not provided
+            TradeLogicError: If fee is non-zero but fee_asset is not provided
 
         """
         if self.fee != Decimal(0) and not self.fee_asset:
@@ -198,11 +211,19 @@ class Trade(BaseModel):
 
     @computed_field
     def cost(self) -> Decimal:
-        """Total cost (price * quantity) for this trade."""
+        """Total cost (price * quantity) for this trade.
+        
+        Returns:
+            Total cost as Decimal
+        """
         return self.price * self.quantity
 
     def to_dict(self) -> dict[str, Any]:
-        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization."""
+        """Subject to deprecation: Prefer model_dump(mode='json') for future serialization.
+        
+        Returns:
+            Dictionary representation with serialized values
+        """
         data = self.model_dump()
         for key, value in data.items():
             if isinstance(value, Decimal):
@@ -249,9 +270,6 @@ class HyperliquidTradeDetails(BaseModel):
         Returns:
             Validated trade hash string
 
-        Raises:
-            ValueError: If trade hash is invalid, empty, or exceeds length limits
-
         """
         return validate_str_field(v, field_name="trade_hash", max_length=128)
 
@@ -269,9 +287,6 @@ class HyperliquidTradeDetails(BaseModel):
 
         Returns:
             Validated direction string or None if not provided
-
-        Raises:
-            ValueError: If direction string is invalid or exceeds length limits
 
         """
         if v is None:
@@ -300,7 +315,7 @@ class HyperliquidTradeDetails(BaseModel):
             Validated finite Decimal or None if not provided
 
         Raises:
-            ValueError: If value cannot be parsed to finite Decimal
+            DecimalFiniteError: If value cannot be parsed to finite Decimal
 
         """
         if v is None:
@@ -344,9 +359,6 @@ class BackpackTradeDetails(BaseModel):
 
         Returns:
             Validated system order type string or None if not provided
-
-        Raises:
-            ValueError: If system order type is invalid or exceeds length limits
 
         """
         if v is None:

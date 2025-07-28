@@ -37,8 +37,9 @@ def check_account_subscription_available(api: HyperliquidAPI) -> bool:
 
     Args:
         api: HyperliquidAPI instance
+
     Returns:
-        True if account subscription methods are available, False otherwise
+        bool: True if account subscription methods are available, False otherwise.
     """
     try:
         # Test if the public account subscription method exists
@@ -106,7 +107,17 @@ class TestHyperliquidWebSocketUserEvents:
     async def _setup_account_subscription_test(
         self, hl_api: HyperliquidAPI
     ) -> tuple[bool, list[dict[str, Any]], asyncio.Event]:
-        """Setup account subscription test environment."""
+        """Setup account subscription test environment.
+
+        Args:
+            hl_api: HyperliquidAPI instance for testing.
+
+        Returns:
+            tuple[bool, list[dict[str, Any]], asyncio.Event]: A tuple containing:
+                - bool: Whether account subscription is available
+                - list: Container for received events
+                - asyncio.Event: Event to signal when events are received
+        """
         subscription_available = check_account_subscription_available(hl_api)
         received_events: list[dict[str, Any]] = []
         event_received = asyncio.Event()
@@ -115,7 +126,15 @@ class TestHyperliquidWebSocketUserEvents:
     def _create_user_events_handler(
         self, received_events: list[dict[str, Any]], event_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create user events handler with validation."""
+        """Create user events handler with validation.
+
+        Args:
+            received_events: List to store received events.
+            event_received: Event to signal when events are received.
+
+        Returns:
+            Callable: Async handler function for WebSocket user events.
+        """
 
         async def user_events_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
@@ -272,7 +291,17 @@ class TestHyperliquidWebSocketCandles:
     async def _setup_candle_test(
         self, hl_api: HyperliquidAPI
     ) -> tuple[str, list[str], dict[str, list[dict[str, Any]]]]:
-        """Setup candle test environment."""
+        """Setup candle test environment.
+
+        Args:
+            hl_api: HyperliquidAPI instance for testing.
+
+        Returns:
+            tuple[str, list[str], dict[str, list[dict[str, Any]]]]: A tuple containing:
+                - str: Selected interval for testing
+                - list[str]: List of liquid trading symbols
+                - dict: Container for received candle data by symbol
+        """
         liquid_symbols = await get_liquid_trading_symbols(hl_api, min_count=2)
 
         # Prefer BTC as it's more likely to have active trading and candle data
@@ -290,7 +319,15 @@ class TestHyperliquidWebSocketCandles:
     def _create_candle_handler(
         self, interval: str, received_candles: dict[str, list[dict[str, Any]]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create candle handler for specific interval."""
+        """Create candle handler for specific interval.
+
+        Args:
+            interval: Time interval for candle data.
+            received_candles: Dictionary to store received candle data.
+
+        Returns:
+            Callable: Async handler function for WebSocket candle data.
+        """
 
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
@@ -539,7 +576,16 @@ class TestHyperliquidWebSocketComplexScenarios:
     async def _setup_multi_channel_test(
         self, hl_api: HyperliquidAPI
     ) -> tuple[list[str], dict[str, dict[str, list[Any]]]]:
-        """Setup multi-channel test environment."""
+        """Setup multi-channel test environment.
+
+        Args:
+            hl_api: HyperliquidAPI instance for testing.
+
+        Returns:
+            tuple[list[str], dict[str, dict[str, list[Any]]]]: A tuple containing:
+                - list[str]: List of liquid trading symbols
+                - dict: Container for received messages by channel and symbol
+        """
         liquid_symbols = await get_liquid_trading_symbols(hl_api, min_count=3)
         received_messages: dict[str, dict[str, list[Any]]] = {"l2Book": {}, "trades": {}}
         return liquid_symbols, received_messages
@@ -547,7 +593,16 @@ class TestHyperliquidWebSocketComplexScenarios:
     def _create_multi_handler(
         self, channel: str, symbol: str, received_messages: dict[str, dict[str, list[Any]]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create handler for specific channel and symbol."""
+        """Create handler for specific channel and symbol.
+
+        Args:
+            channel: WebSocket channel name.
+            symbol: Trading symbol.
+            received_messages: Dictionary to store received messages.
+
+        Returns:
+            Callable: Async handler function for WebSocket messages.
+        """
 
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029

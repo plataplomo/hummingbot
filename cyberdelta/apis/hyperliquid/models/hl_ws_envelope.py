@@ -46,12 +46,20 @@ from cyberdelta.config.structlog_config import get_logger
 
 
 def _is_string_dict(obj: object) -> TypeGuard[dict[str, Any]]:
-    """Type guard to check if object is a string-keyed dictionary."""
+    """Type guard to check if object is a string-keyed dictionary.
+    
+    Returns:
+        bool: True if obj is a dictionary with string keys, False otherwise.
+    """
     return isinstance(obj, dict)
 
 
 def _is_any_list(obj: object) -> TypeGuard[list[Any]]:
-    """Type guard to check if object is a list."""
+    """Type guard to check if object is a list.
+    
+    Returns:
+        bool: True if obj is a list, False otherwise.
+    """
     return isinstance(obj, list)
 
 
@@ -70,7 +78,11 @@ MIN_VALIDATION_LOG_TIME_SECONDS = 0.001  # Log validation times over 1ms
 
 
 def _raise_payload_size_error(size: int, data_type: str) -> None:
-    """Raise error for payload size violations."""
+    """Raise error for payload size violations.
+    
+    Raises:
+        ValueError: Always raised with details about the payload size violation.
+    """
     msg = f"Payload {data_type} too large: {size} items"
     raise ValueError(msg)
 
@@ -170,6 +182,12 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         """Normalize channel field from standard input formats.
 
         This validator normalizes string input before main validation.
+        
+        Returns:
+            str: The normalized channel name.
+            
+        Raises:
+            ValueError: If the channel format is invalid (not a string).
         """
         # Handle string inputs with normalization
         if isinstance(v, str):
@@ -243,6 +261,9 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         """Wrap validator for data preprocessing with performance tracking.
 
         This validator provides monitoring and performance tracking during data validation.
+        
+        Returns:
+            dict[str, Any] | list[Any]: The validated data after processing.
         """
         start_time = time.perf_counter()
 
@@ -281,7 +302,12 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
 
     @classmethod
     def _validate_payload_size(cls, v: dict[str, Any] | list[Any]) -> None:
-        """Validate payload size constraints."""
+        """Validate payload size constraints.
+        
+        Raises:
+            ValueError: If the payload exceeds size limits (dict > 1000 items
+                or list > 10000 items).
+        """
         if isinstance(v, dict) and len(v) > MAX_DICT_SIZE:
             msg = f"Payload dict too large: {len(v)} items"
             raise ValueError(msg)
@@ -290,7 +316,11 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
             raise ValueError(msg)
 
     def _validate_data_type(self, expected_types: type | tuple[type, ...]) -> None:
-        """Validate data type matches expectations."""
+        """Validate data type matches expectations.
+        
+        Raises:
+            TypeError: If the data type doesn't match the expected type(s) for the channel.
+        """
         # Single type check
         if expected_types is dict and not isinstance(self.data, dict):
             msg = f"Channel '{self.channel}' expects dict data, got {type(self.data).__name__}"
@@ -314,7 +344,12 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
                 raise TypeError(msg)
 
     def _validate_channel_specific_fields(self) -> None:
-        """Validate channel-specific required fields."""
+        """Validate channel-specific required fields.
+        
+        Raises:
+            ValueError: If required fields are missing for specific channels
+                (e.g., 'coin' for l2Book/trades).
+        """
         channel = self.channel
 
         if channel == "l2Book" and _is_string_dict(self.data) and "coin" not in self.data:
@@ -331,6 +366,9 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
 
         This model validator performs cross-field validation to ensure
         channel type is consistent with data structure.
+        
+        Returns:
+            HyperliquidRawWebSocketEnvelope: The validated envelope instance.
         """
         # Define expected data structures per channel type
         data_expectations: dict[str, type | tuple[type, ...]] = {
@@ -355,7 +393,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         """Extract coin from data with type safety, handling both dict and list data.
 
         Returns:
-            Coin string if found in data, None otherwise.
+            str | None: Coin string if found in data, None otherwise.
         """
         # Handle dict data (most common case)
         if _is_string_dict(self.data):
@@ -375,7 +413,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         """Get routing key for message routing.
 
         Returns:
-            String routing key based on the channel name.
+            str: String routing key based on the channel name.
         """
         # For most Hyperliquid channels, the channel name is the routing key
         if self.channel in {"l2Book", "trades", "allMids", "notification", "webData2"}:
@@ -392,7 +430,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         """Get payload data for processing.
 
         Returns:
-            The payload data from the envelope.
+            dict[str, Any] | list[Any]: The payload data from the envelope.
         """
         return self.data
 
@@ -400,7 +438,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         """Get human-readable envelope type name.
 
         Returns:
-            String identifying the envelope type.
+            str: String identifying the envelope type.
         """
         return "HyperliquidRawWebSocketEnvelope"
 
@@ -421,7 +459,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
             mode: Schema generation mode
 
         Returns:
-            JSON schema dictionary with Hyperliquid-specific extensions
+            dict[str, Any]: JSON schema dictionary with Hyperliquid-specific extensions
         """
         schema = super().model_json_schema(
             by_alias=by_alias,
@@ -469,7 +507,14 @@ class HyperliquidUserEventEnvelope(HyperliquidRawWebSocketEnvelope):
     @field_validator("channel")
     @classmethod
     def validate_user_event_channel(cls, v: str) -> str:
-        """Ensure channel is 'userEvents'."""
+        """Ensure channel is 'userEvents'.
+        
+        Returns:
+            str: The validated channel value.
+            
+        Raises:
+            ValueError: If channel is not 'userEvents'.
+        """
         if v != "userEvents":
             msg = f"HyperliquidUserEventEnvelope requires channel='userEvents', got '{v}'"
             raise ValueError(msg)
@@ -490,7 +535,11 @@ class HyperliquidUserEventEnvelope(HyperliquidRawWebSocketEnvelope):
             v: The data dictionary to validate.
 
         Returns:
-            The validated data dictionary.
+            dict[str, Any]: The validated data dictionary.
+            
+        Raises:
+            TypeError: If data is not a dictionary.
+            ValueError: If data is empty or event types have invalid formats.
 
         Note:
             We don't enforce required fields as the structure may vary
@@ -519,7 +568,7 @@ class HyperliquidUserEventEnvelope(HyperliquidRawWebSocketEnvelope):
         """Get human-readable envelope type name.
 
         Returns:
-            String identifying the envelope type.
+            str: String identifying the envelope type.
         """
         return "HyperliquidUserEventEnvelope"
 
@@ -556,7 +605,16 @@ class HyperliquidSubscriptionResponse(BaseModel):
     @field_validator("data")
     @classmethod
     def validate_subscription_data(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate subscription response data structure."""
+        """Validate subscription response data structure.
+        
+        Returns:
+            dict[str, Any]: The validated subscription data.
+            
+        Raises:
+            ValueError: If required fields ('method', 'subscription') are missing
+                or 'type' field is missing in subscription details.
+            TypeError: If subscription details is not a dictionary.
+        """
         # Check for required fields in subscription response
         if "method" not in v:
             msg = "Subscription response must contain 'method' field"
@@ -581,7 +639,11 @@ class HyperliquidSubscriptionResponse(BaseModel):
 
     @computed_field
     def subscription_type(self) -> str | None:
-        """Extract the subscription type (channel) from the response."""
+        """Extract the subscription type (channel) from the response.
+        
+        Returns:
+            str | None: The subscription type if present, None otherwise.
+        """
         if _is_string_dict(self.data):
             subscription_data = self.data.get("subscription")
             if _is_string_dict(subscription_data):
@@ -591,7 +653,11 @@ class HyperliquidSubscriptionResponse(BaseModel):
 
     @computed_field
     def subscription_coin(self) -> str | None:
-        """Extract the coin/symbol from the subscription if present."""
+        """Extract the coin/symbol from the subscription if present.
+        
+        Returns:
+            str | None: The coin/symbol if present, None otherwise.
+        """
         if _is_string_dict(self.data):
             subscription_data = self.data.get("subscription")
             if _is_string_dict(subscription_data):
@@ -604,6 +670,9 @@ class HyperliquidSubscriptionResponse(BaseModel):
         """Check if the subscription was successful.
 
         For Hyperliquid, presence of subscription details indicates success.
+        
+        Returns:
+            bool: True if subscription was successful, False otherwise.
         """
         if _is_string_dict(self.data):
             subscription = self.data.get("subscription")
@@ -624,7 +693,7 @@ def detect_hyperliquid_envelope_type(message: dict[str, Any]) -> str:
         message: Raw WebSocket message dictionary.
 
     Returns:
-        One of: "standard", "userEvents", "subscriptionResponse", "unknown"
+        str: One of: "standard", "userEvents", "subscriptionResponse", "unknown"
     """
     # Message is already typed as dict[str, Any]
 
@@ -651,12 +720,12 @@ def validate_hyperliquid_envelope(message: dict[str, Any]) -> HyperliquidWebSock
         message: Raw WebSocket message dictionary.
 
     Returns:
-        Validated envelope model instance (either HyperliquidRawWebSocketEnvelope
-        or HyperliquidUserEventEnvelope).
+        HyperliquidWebSocketMessage: Validated envelope model instance (either
+            HyperliquidRawWebSocketEnvelope or HyperliquidUserEventEnvelope).
 
     Raises:
-        ValidationError: If the message doesn't match expected envelope format.
-        ValueError: If the message structure is fundamentally invalid.
+        ValueError: If the message structure is fundamentally invalid (missing required fields,
+            wrong type, or validation errors).
 
     Examples:
         >>> # Valid L2 book message

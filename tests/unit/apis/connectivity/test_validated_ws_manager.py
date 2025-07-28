@@ -68,7 +68,11 @@ class TestWebSocketPreValidatorPublic:
 
     @pytest.fixture
     def validator(self) -> WebSocketPreValidator:
-        """Create a pre-validator with default config."""
+        """Create a pre-validator with default config.
+        
+        Returns:
+            WebSocketPreValidator instance with default configuration.
+        """
         config = WebSocketMessageConfig()
         return WebSocketPreValidator(config)
 
@@ -135,7 +139,11 @@ class TestValidatedWebSocketManagerPublic:
 
     @pytest.fixture
     def ws_config(self) -> WebSocketManagerConfig:
-        """Create WebSocket manager config."""
+        """Create WebSocket manager config.
+        
+        Returns:
+            WebSocketManagerConfig with test WebSocket URL and timeouts.
+        """
         return WebSocketManagerConfig(
             ws_url=AnyUrl("wss://test.example.com/ws"),
             ping_interval=30.0,
@@ -146,7 +154,11 @@ class TestValidatedWebSocketManagerPublic:
 
     @pytest.fixture
     def message_handler(self) -> AsyncMock:
-        """Create mock message handler."""
+        """Create mock message handler.
+        
+        Returns:
+            AsyncMock configured as a message handler.
+        """
         return AsyncMock()
 
     @pytest.fixture
@@ -155,7 +167,11 @@ class TestValidatedWebSocketManagerPublic:
         ws_config: WebSocketManagerConfig,
         message_handler: AsyncMock,
     ) -> ValidatedWebSocketManager:
-        """Create ValidatedWebSocketManager instance."""
+        """Create ValidatedWebSocketManager instance.
+        
+        Returns:
+            ValidatedWebSocketManager configured for testing.
+        """
         return ValidatedWebSocketManager(
             exchange_name="test_exchange",
             message_handler=message_handler,

@@ -161,7 +161,11 @@ def hyperliquid_account_service(
 
 @pytest.fixture
 def mock_trade() -> Trade:
-    """Create a mock trade for testing."""
+    """Create a mock trade for testing.
+    
+    Returns:
+        Trade instance with sample data for testing
+    """
     return Trade(
         id="trade_12345",
         symbol="BTC-USD",

@@ -28,7 +28,11 @@ class ServiceError(PortfolioError):
     """Base exception for service errors."""
 
     def _get_default_error_code(self) -> str:
-        """Get default error code for service exceptions."""
+        """Get default error code for service exceptions.
+
+        Returns:
+            Default error code string based on class name
+        """
         return f"SERVICE_{self.__class__.__name__.upper()}"
 
 

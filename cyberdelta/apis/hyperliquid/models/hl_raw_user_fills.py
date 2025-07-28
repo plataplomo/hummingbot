@@ -98,7 +98,15 @@ class HyperliquidRawUserFillsResponse(RootModel[list[HyperliquidRawUserFill]]):
     @field_validator("root", mode="before")
     @classmethod
     def validate_user_fills_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
-        """Ensure the root input is a list of dictionaries for user fills."""
+        """Ensure the root input is a list of dictionaries for user fills.
+
+        Returns:
+            A validated list of dictionaries representing user fill objects.
+
+        Raises:
+            ListFieldError: If the input is not a list or if any item in the list
+                is not a dictionary.
+        """
         field_name = info.field_name or "user_fills_list"
         if not isinstance(v, list):
             raise ListFieldError(field_name=field_name, actual_type=type(v).__name__)

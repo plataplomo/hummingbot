@@ -94,7 +94,11 @@ class TestWebSocketMetricsCollector:
 
     @pytest.fixture
     def collector(self) -> WebSocketMetricsCollector:
-        """Create a test metrics collector."""
+        """Create a test metrics collector.
+        
+        Returns:
+            WebSocketMetricsCollector instance configured for testing
+        """
         return WebSocketMetricsCollector("test_exchange", window_size=300)
 
     def test_collector_initialization(self, collector: WebSocketMetricsCollector) -> None:

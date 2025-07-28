@@ -73,9 +73,6 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
             *args: Positional arguments
             **kwargs: Keyword arguments including 'operation' to specify the request type
 
-        Returns:
-            Request payload dictionary
-
         Raises:
             NotImplementedError: If operation is not supported or parameters are insufficient
         """
@@ -215,6 +212,9 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
 
         Returns:
             BackpackRawInternalTransferRequest: Validated request payload
+
+        Raises:
+            InvalidParameterTypeError: If wallet types are invalid
         """
         # Validate wallet types
         valid_wallets = {"SPOT", "MARGIN", "FUTURES"}
@@ -265,7 +265,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
             BackpackRawAccountConvertDustRequest: Validated request payload
 
         Raises:
-            ValueError: If asset_symbol is not supported for dust conversion
+            InvalidParameterTypeError: If asset_symbol is not supported for dust conversion
         """
         logger.debug(
             "building_convert_dust_payload",
@@ -303,7 +303,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
             BackpackRawBorrowLendExecuteRequest: Validated request payload
 
         Raises:
-            ValueError: If parameters are invalid or asset is not supported
+            InvalidParameterTypeError: If parameters are invalid or asset is not supported
         """
         logger.debug(
             "building_borrow_lend_payload",

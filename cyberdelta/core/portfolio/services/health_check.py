@@ -30,7 +30,11 @@ T = TypeVar("T", bound=object)
 
 # Type-preserving factory functions
 def _health_status_dict_factory() -> dict[str, HealthStatus]:
-    """Factory function that preserves dict[str, HealthStatus] type information."""
+    """Factory function that preserves dict[str, HealthStatus] type information.
+    
+    Returns:
+        Empty dictionary typed as dict[str, HealthStatus]
+    """
     return {}
 
 
@@ -62,7 +66,17 @@ class HealthCheckDetails(BaseModel):
     @field_validator("uptime_seconds", "last_check_duration_ms", "memory_usage_mb", mode="before")
     @classmethod
     def validate_metrics(cls, v: float | str) -> float:
-        """Validate metric values are finite and reasonable."""
+        """Validate metric values are finite and reasonable.
+        
+        Args:
+            v: Metric value to validate
+            
+        Returns:
+            Validated float value
+            
+        Raises:
+            HealthCheckValidationError: If value is negative or exceeds reasonable limits
+        """
         value: float = float(v)
         if not (0 <= value < REASONABLE_METRIC_MAX):  # Must be non-negative and reasonable
             raise HealthCheckValidationError(
@@ -83,7 +97,17 @@ class HealthCheckDetails(BaseModel):
     )
     @classmethod
     def validate_counts(cls, v: str | float) -> int:
-        """Validate count values are non-negative."""
+        """Validate count values are non-negative.
+        
+        Args:
+            v: Count value to validate
+            
+        Returns:
+            Validated integer count
+            
+        Raises:
+            HealthCheckValidationError: If count is negative
+        """
         value: int = int(v)
         if value < 0:
             raise HealthCheckValidationError(
@@ -114,7 +138,11 @@ class HealthCheckResult:
         return self.status == HealthStatus.DEGRADED
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
+        """Convert to dictionary representation.
+        
+        Returns:
+            Dictionary with all health check result fields
+        """
         return {
             "status": self.status.value,
             "service_name": self.service_name,
@@ -183,7 +211,11 @@ class HealthCheckService:
             logger.info("health_check_monitoring_stopped")
 
     async def check_all(self) -> dict[str, HealthCheckResult]:
-        """Check health of all registered services."""
+        """Check health of all registered services.
+        
+        Returns:
+            Dictionary mapping service names to their health check results
+        """
         results: dict[str, HealthCheckResult] = {}
 
         # Check all services concurrently
@@ -216,7 +248,11 @@ class HealthCheckService:
         return results
 
     async def get_aggregate_status(self) -> HealthCheckResult:
-        """Get aggregated health status of all services."""
+        """Get aggregated health status of all services.
+        
+        Returns:
+            Aggregate health check result combining all service statuses
+        """
         if not self._latest_results:
             return HealthCheckResult(
                 status=HealthStatus.UNKNOWN,
@@ -262,7 +298,15 @@ class HealthCheckService:
     async def _check_service(
         self, service_name: str, service: HealthCheckable
     ) -> HealthCheckResult:
-        """Check health of a single service."""
+        """Check health of a single service.
+        
+        Args:
+            service_name: Name of the service to check
+            service: The service instance to check
+            
+        Returns:
+            Health check result for the service
+        """
         try:
             return await asyncio.wait_for(
                 service.check_health(),
@@ -318,7 +362,11 @@ class BaseHealthCheckMixin:
         self._health_dependencies[name] = dependency
 
     async def check_health(self) -> HealthCheckResult:
-        """Check service health including dependencies."""
+        """Check service health including dependencies.
+        
+        Returns:
+            Health check result with service and dependency statuses
+        """
         # Check self health
         self_healthy, self_message = await self._check_self_health()
 
@@ -369,6 +417,9 @@ class BaseHealthCheckMixin:
         """Check internal health of the service.
 
         Override this method to implement custom health checks.
+        
+        Returns:
+            Tuple of (is_healthy, optional_message)
         """
         # Default implementation checks if service is running
         try:
@@ -389,6 +440,9 @@ class BaseHealthCheckMixin:
         """Get additional health details.
 
         Override this method to provide custom health details.
+        
+        Returns:
+            Health check details with metrics and uptime
         """
         details = HealthCheckDetails()
 
@@ -418,7 +472,14 @@ class BaseHealthCheckMixin:
             self._extract_object_metrics_to_details(metrics, details)
 
     def _safely_get_metrics(self, get_metrics_attr: Callable[[], object]) -> object | None:
-        """Safely call get_metrics method."""
+        """Safely call get_metrics method.
+        
+        Args:
+            get_metrics_attr: Callable to get metrics
+            
+        Returns:
+            Metrics object or None if error occurs
+        """
         try:
             return get_metrics_attr()
         except (RuntimeError, ValueError, TypeError, OSError, AttributeError):
@@ -449,7 +510,14 @@ class BaseHealthCheckMixin:
         details.warning_count = self._safe_int_convert(warning_count_val)
 
     def _safe_int_convert(self, value: object) -> int:
-        """Safely convert value to int with fallback."""
+        """Safely convert value to int with fallback.
+        
+        Args:
+            value: Value to convert to integer
+            
+        Returns:
+            Integer value or 0 if conversion fails
+        """
         convertible_types = (int, float, str)
         if isinstance(value, convertible_types):
             try:
@@ -470,10 +538,21 @@ class BaseHealthCheckMixin:
 
 
 def create_health_check_decorator() -> Callable[[type[T]], type[T]]:
-    """Create a decorator that adds health check capability to a class."""
+    """Create a decorator that adds health check capability to a class.
+    
+    Returns:
+        Decorator function that adds BaseHealthCheckMixin to a class
+    """
 
     def health_check_decorator(cls: type[T]) -> type[T]:
-        """Add health check capability to a class."""
+        """Add health check capability to a class.
+        
+        Args:
+            cls: Class to enhance with health check capability
+            
+        Returns:
+            New class with health check functionality
+        """
         # Create a new type dynamically
         bases = (BaseHealthCheckMixin, cls)
         namespace: dict[str, Any] = {}

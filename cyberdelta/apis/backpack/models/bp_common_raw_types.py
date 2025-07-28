@@ -107,14 +107,15 @@ BP_TRANSFER_STATUSES = {"pending", "completed", "failed", "cancelled"}
 def _validate_raw_string_to_finite_decimal(v: object, info: ValidationInfo) -> Decimal:
     """Input `v` is raw string.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Converted Decimal if valid.
 
     Raises:
-        ValueError: If input is not a string or cannot be converted to finite Decimal.
-
-    Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string
     """
     field_name = info.field_name or "raw_string_to_finite_decimal_field"
     if not isinstance(v, str):
@@ -132,14 +133,15 @@ def _validate_raw_string_to_finite_decimal(v: object, info: ValidationInfo) -> D
 def _validate_raw_string_to_non_negative_finite_decimal(v: object, info: ValidationInfo) -> Decimal:
     """Input `v` is raw string.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Non-negative converted Decimal if valid.
 
     Raises:
-        ValueError: If input is not a string, cannot be converted to Decimal, or is negative.
-
-    Raises:
-        ValueError: If validation fails.
+        RangeFieldError: If converted decimal is negative
     """
     field_name = info.field_name or "raw_string_to_non_negative_finite_decimal_field"
     decimal_value = _validate_raw_string_to_finite_decimal(v, info)
@@ -156,11 +158,16 @@ def _validate_raw_string_to_non_negative_finite_decimal(v: object, info: Validat
 def _validate_raw_parsable_finite_decimal_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Original string if it can be parsed to finite Decimal.
 
     Raises:
-        ValueError: If input is not a string or cannot be parsed to finite Decimal.
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
     """
     actual_field_name = info.field_name if info.field_name is not None else "UnknownField"
     if not isinstance(v, str):
@@ -192,14 +199,15 @@ def _validate_raw_parsable_non_negative_finite_decimal_string(
 ) -> str:
     """Input `v` is raw string. Validates it can be parsed to non-negative finite Decimal.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Original string if it can be parsed to non-negative finite Decimal.
 
     Raises:
-        ValueError: If input is not a string, cannot be parsed to Decimal, or is negative.
-
-    Raises:
-        ValueError: If validation fails.
+        RangeFieldError: If decimal value is negative
     """
     field_name = info.field_name or "raw_parsable_non_negative_finite_decimal_string_field"
     # Reuse _validate_raw_parsable_finite_decimal_string for initial parsing and validation
@@ -223,14 +231,17 @@ def _validate_raw_non_negative_int(v: object, info: ValidationInfo) -> int:
     Input can be an int or a string parsable to int.
     Floats are rejected to match specific test expectations for fields like userId.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Non-negative integer value.
 
     Raises:
-        ValueError: If input cannot be converted to non-negative integer.
-
-    Raises:
-        ValueError: If validation fails.
+        DecimalFieldError: If string value cannot be parsed to integer
+        TypeFieldError: If input is not int/string or if float is provided
+        RangeFieldError: If integer value is negative
     """
     field_name = info.field_name or "raw_non_negative_int_field"
     val_int: int
@@ -276,14 +287,15 @@ def _validate_raw_strict_bool(v: object, info: ValidationInfo) -> bool:
 
     Rejects other types to align with test expectations for strictness.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Boolean value.
 
     Raises:
-        ValueError: If value is not a boolean, 1, or 0.
-
-    Raises:
-        ValueError: If validation fails.
+        BooleanFieldError: If value is not a boolean, 1, or 0
     """
     field_name = info.field_name or "raw_strict_bool_field"
     if isinstance(v, bool):
@@ -306,11 +318,13 @@ def _validate_raw_strict_bool(v: object, info: ValidationInfo) -> bool:
 def _validate_raw_non_empty_string_max_len(v: object, info: ValidationInfo, max_length: int) -> str:
     """Validate a non-empty string with a specific max_length.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        max_length: Maximum allowed string length
+
     Returns:
         Validated non-empty string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or f"raw_non_empty_string_max{max_length}_field"
     return validate_str_field(v, field_name=field_name, max_length=max_length, allow_empty=False)
@@ -319,11 +333,12 @@ def _validate_raw_non_empty_string_max_len(v: object, info: ValidationInfo, max_
 def _validate_raw_bp_error_code(v: object, info: ValidationInfo) -> str:
     """Validate Backpack error code string against BackpackAPIErrorCode enum values.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Validated error code string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_error_code"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
@@ -334,11 +349,12 @@ def _validate_raw_bp_error_code(v: object, info: ValidationInfo) -> str:
 def _validate_raw_bp_order_side(v: object, info: ValidationInfo) -> str:
     """Validate Backpack order side string: non-empty, max_length=3, and in known set.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Validated order side string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_order_side"
     s = validate_str_field(v, field_name=field_name, max_length=3, allow_empty=False)
@@ -348,14 +364,15 @@ def _validate_raw_bp_order_side(v: object, info: ValidationInfo) -> str:
 def _validate_raw_iso_timestamp_string(v: object, info: ValidationInfo) -> str:
     """Validate a string is a valid ISO 8601 timestamp.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         Original string if valid ISO 8601 timestamp.
 
     Raises:
-        ValueError: If the string is not a valid ISO 8601 timestamp.
-
-    Raises:
-        ValueError: If validation fails.
+        TimestampFieldError: If the string is not a valid ISO 8601 timestamp
     """
     field_name = info.field_name or "raw_iso_timestamp_string_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
@@ -392,12 +409,15 @@ def _validate_funding_rate_year_range(dt_object: datetime, field_name: str, valu
 def _validate_funding_rate_numeric_timestamp(v: float, field_name: str) -> int | float:
     """Validate numeric timestamp for funding rate with stricter year range.
 
+    Args:
+        v: Numeric timestamp value to validate
+        field_name: Name of the field being validated
+
     Returns:
         Validated numeric timestamp.
 
     Raises:
         DateTimeParsingError: If timestamp parsing fails.
-        TimestampYearRangeError: If year is outside valid range.
     """
     dt_object = parse_datetime_utc(v, field_name=field_name)
     if dt_object is None:
@@ -413,12 +433,16 @@ def _validate_funding_rate_numeric_string_timestamp(
 ) -> int | float:
     """Validate numeric string timestamp for funding rate.
 
+    Args:
+        s_val: String value being validated
+        numeric_value: Parsed numeric value from string
+        field_name: Name of the field being validated
+
     Returns:
         Validated numeric timestamp.
 
     Raises:
         DateTimeParsingError: If timestamp parsing fails.
-        TimestampYearRangeError: If year is outside valid range.
     """
     dt_object = parse_datetime_utc(numeric_value, field_name=field_name)
     if dt_object is None:
@@ -430,12 +454,15 @@ def _validate_funding_rate_numeric_string_timestamp(
 def _validate_funding_rate_iso_string_timestamp(s_val: str, field_name: str) -> str:
     """Validate ISO string timestamp for funding rate.
 
+    Args:
+        s_val: ISO format string to validate
+        field_name: Name of the field being validated
+
     Returns:
         Validated ISO string timestamp.
 
     Raises:
         DateTimeParsingError: If timestamp parsing fails.
-        TimestampYearRangeError: If year is outside valid range.
     """
     dt_object = parse_datetime_utc(s_val, field_name=field_name)
     if dt_object is None:
@@ -445,7 +472,20 @@ def _validate_funding_rate_iso_string_timestamp(s_val: str, field_name: str) -> 
 
 
 def _handle_funding_rate_numeric_timestamp(v: float, field_name: str) -> int | float:
-    """Handle validation of numeric timestamp for funding rate."""
+    """Handle validation of numeric timestamp for funding rate.
+
+    Args:
+        v: Numeric timestamp value to validate
+        field_name: Name of the field being validated
+
+    Returns:
+        Validated numeric timestamp
+
+    Raises:
+        DateTimeParsingError: If timestamp parsing fails
+        TimestampYearRangeError: If year is outside valid range
+        TimestampFormatError: If value format is invalid
+    """
     try:
         return _validate_funding_rate_numeric_timestamp(v, field_name)
     except (DateTimeParsingError, TimestampYearRangeError):
@@ -460,7 +500,20 @@ def _handle_funding_rate_numeric_timestamp(v: float, field_name: str) -> int | f
 
 
 def _handle_funding_rate_string_timestamp(v: str, field_name: str) -> int | float | str:
-    """Handle validation of string timestamp for funding rate."""
+    """Handle validation of string timestamp for funding rate.
+
+    Args:
+        v: String timestamp value to validate
+        field_name: Name of the field being validated
+
+    Returns:
+        Validated timestamp (numeric or string)
+
+    Raises:
+        DateTimeParsingError: If timestamp parsing fails
+        TimestampYearRangeError: If year is outside valid range
+        TimestampFormatError: If value format is invalid
+    """
     s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
     is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
 
@@ -497,14 +550,16 @@ def _handle_funding_rate_string_timestamp(v: str, field_name: str) -> int | floa
 def _validate_raw_funding_rate_timestamp(v: object, info: ValidationInfo) -> int | float | str:
     """Validate timestamp for FundingRate: int, float, or ISO string. Year 1970-2070.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         int | float | str: Validated timestamp value in original format.
 
     Raises:
-        ValueError: If value is invalid, None, or year is outside valid range.
-
-    Raises:
-        ValueError: If validation fails.
+        NonNullableFieldError: If value is None
+        TimestampFormatError: If value format is invalid
     """
     field_name = info.field_name or "raw_funding_rate_timestamp"
     if v is None:
@@ -544,12 +599,15 @@ def _validate_year_range(dt_object: datetime, field_name: str, value: object) ->
 def _validate_numeric_timestamp(v: float, field_name: str) -> int | float:
     """Validate numeric timestamp and return if valid.
 
+    Args:
+        v: Numeric timestamp value to validate
+        field_name: Name of the field being validated
+
     Returns:
         int | float: Validated numeric timestamp value.
 
     Raises:
         DateTimeParsingError: If timestamp parsing fails.
-        TimestampYearRangeError: If year is outside valid range.
     """
     dt_object = parse_datetime_utc(v, field_name=field_name)
     if dt_object is None:
@@ -560,6 +618,9 @@ def _validate_numeric_timestamp(v: float, field_name: str) -> int | float:
 
 def _try_parse_as_numeric(s_val: str) -> tuple[bool, int | float | None]:
     """Try to parse string as numeric value.
+
+    Args:
+        s_val: String value to attempt parsing
 
     Returns:
         tuple[bool, int | float | None]: Boolean indicating if parsing succeeded and the
@@ -581,12 +642,16 @@ def _validate_numeric_string_timestamp(
 ) -> int | float:
     """Validate string that represents a numeric timestamp.
 
+    Args:
+        s_val: String value being validated
+        numeric_value: Parsed numeric value from string
+        field_name: Name of the field being validated
+
     Returns:
         int | float: Validated numeric timestamp value.
 
     Raises:
         DateTimeParsingError: If timestamp parsing fails.
-        TimestampYearRangeError: If year is outside valid range.
     """
     dt_object = parse_datetime_utc(numeric_value, field_name=field_name)
     if dt_object is None:
@@ -598,12 +663,15 @@ def _validate_numeric_string_timestamp(
 def _validate_iso_string_timestamp(s_val: str, field_name: str) -> str:
     """Validate ISO string timestamp.
 
+    Args:
+        s_val: ISO format string to validate
+        field_name: Name of the field being validated
+
     Returns:
         str: Validated ISO string timestamp.
 
     Raises:
         DateTimeParsingError: If timestamp parsing fails.
-        TimestampYearRangeError: If year is outside valid range.
     """
     dt_object = parse_datetime_utc(s_val, field_name=field_name)
     if dt_object is None:
@@ -614,6 +682,11 @@ def _validate_iso_string_timestamp(s_val: str, field_name: str) -> str:
 
 def _handle_validation_error(e: ValueError, field_name: str, s_val: str) -> None:
     """Handle validation errors with special case for event_time field.
+
+    Args:
+        e: ValueError that occurred during validation
+        field_name: Name of the field being validated
+        s_val: String value that failed validation
 
     Raises:
         TimestampFieldError: For event_time field.
@@ -634,7 +707,18 @@ def _handle_validation_error(e: ValueError, field_name: str, s_val: str) -> None
 
 
 def _handle_flexible_numeric_timestamp(v: float, field_name: str) -> int | float:
-    """Handle validation of numeric timestamp for flexible timestamp."""
+    """Handle validation of numeric timestamp for flexible timestamp.
+
+    Args:
+        v: Numeric timestamp value to validate
+        field_name: Name of the field being validated
+
+    Returns:
+        Validated numeric timestamp
+
+    Raises:
+        TimestampFormatError: If value format is invalid
+    """
     try:
         return _validate_numeric_timestamp(v, field_name)
     except ValueError as e:
@@ -647,7 +731,21 @@ def _handle_flexible_numeric_timestamp(v: float, field_name: str) -> int | float
 
 
 def _handle_flexible_iso_string_timestamp(s_val: str, field_name: str) -> str:
-    """Handle validation of ISO string timestamp for flexible timestamp."""
+    """Handle validation of ISO string timestamp for flexible timestamp.
+
+    Args:
+        s_val: ISO format string to validate
+        field_name: Name of the field being validated
+
+    Returns:
+        Validated ISO string timestamp
+
+    Raises:
+        DateTimeParsingError: If timestamp parsing fails
+        TimestampYearRangeError: If year is outside valid range
+        TimestampFieldError: For event_time field validation errors
+        TimestampFormatError: If value format is invalid
+    """
     try:
         return _validate_iso_string_timestamp(s_val, field_name)
     except (DateTimeParsingError, TimestampYearRangeError):
@@ -677,7 +775,18 @@ def _handle_flexible_iso_string_timestamp(s_val: str, field_name: str) -> str:
 
 
 def _handle_flexible_string_timestamp(v: str, field_name: str) -> int | float | str:
-    """Handle validation of string timestamp for flexible timestamp."""
+    """Handle validation of string timestamp for flexible timestamp.
+
+    Args:
+        v: String timestamp value to validate
+        field_name: Name of the field being validated
+
+    Returns:
+        Validated timestamp (numeric or string)
+
+    Raises:
+        ValueError: If validation fails
+    """
     s_val = validate_str_field(v, field_name=field_name, allow_empty=False)
     is_numeric_string, numeric_value = _try_parse_as_numeric(s_val)
 
@@ -695,11 +804,16 @@ def _handle_flexible_string_timestamp(v: str, field_name: str) -> int | float | 
 def _validate_raw_flexible_timestamp(v: object, info: ValidationInfo) -> int | float | str:
     """Validate timestamp that can be int, float, or ISO string. CANNOT be None. Year 1970-2300.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         int | float | str: Validated timestamp value in original format.
 
     Raises:
-        ValueError: If validation fails.
+        NonNullableFieldError: If value is None
+        TimestampFormatError: If value format is invalid
     """
     field_name = info.field_name or "raw_flexible_timestamp"
     if v is None:
@@ -726,8 +840,18 @@ def _validate_optional_non_empty_string_max_len(
 ) -> str | None:
     """Validate an optional non-empty string with a specific max_length.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        max_length: Maximum allowed string length
+
     Returns:
         str | None: Validated string or None if input was None.
+
+    Raises:
+        TypeFieldError: If input is not a string (and field is not clientId)
+        ClientIdFormatError: If clientId field has invalid format
+        EmptyStringError: If string is empty or whitespace-only
     """
     if v is None:
         return None
@@ -768,6 +892,10 @@ def _validate_optional_raw_parsable_finite_decimal_string(
 ) -> str | None:
     """Input `v` is raw string or None. Validates it can be parsed to finite Decimal if not None.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str | None: Validated decimal string or None if input was None.
     """
@@ -783,6 +911,10 @@ def _validate_optional_raw_flexible_timestamp(
 ) -> int | float | str | None:
     """Validate timestamp that can be int, float, or ISO string, or None.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         int | float | str | None: Validated timestamp value in original format or None.
     """
@@ -795,11 +927,12 @@ def _validate_optional_raw_flexible_timestamp(
 def _validate_raw_bp_extended_order_side(v: object, info: ValidationInfo) -> str:
     """Validate Backpack extended order side string.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated order side string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_extended_order_side"
     # Assuming max_length of 4 for "sell" or "Bid"/"Ask"
@@ -813,11 +946,12 @@ def _validate_raw_bp_extended_order_side(v: object, info: ValidationInfo) -> str
 def _validate_raw_bp_order_type(v: object, info: ValidationInfo) -> str:
     """Validate Backpack order type string.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated order type string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_order_type"
     # Max length for "TRAILING_STOP" is 13
@@ -828,11 +962,12 @@ def _validate_raw_bp_order_type(v: object, info: ValidationInfo) -> str:
 def _validate_raw_bp_order_status(v: object, info: ValidationInfo) -> str:
     """Validate Backpack order status string.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated order status string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_order_status"
     # Max length for "PARTIALLY_FILLED" is 18
@@ -845,6 +980,9 @@ def _validate_optional_raw_strict_bool(v: object, info: ValidationInfo) -> bool 
 
     Returns:
         bool | None: Validated boolean value or None if input was None.
+
+    Raises:
+        TypeFieldError: If value is not a boolean and not None.
     """
     if v is None:
         return None
@@ -868,7 +1006,8 @@ def _validate_raw_non_empty_string_for_margin_factor(v: object, info: Validation
         str: Validated non-empty string.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If value is not a string.
+        EmptyStringError: If string is empty.
     """
     field_name = info.field_name or "margin_factor_field"
     if not isinstance(v, str):
@@ -893,11 +1032,13 @@ def _validate_raw_non_empty_string_for_margin_factor(v: object, info: Validation
 def _validate_raw_string_max_len(v: object, info: ValidationInfo, max_length: int) -> str:
     """Validate string with maximum length constraint.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        max_length: Maximum allowed string length
+
     Returns:
         str: Validated string within maximum length.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or f"raw_string_max{max_length}_field"
     # Not checking for non-empty here, just type and length.
@@ -980,11 +1121,17 @@ def _validate_raw_symbol_string_max_len(v: object, info: ValidationInfo, max_len
     Backpack WebSocket can send symbol as integer in some cases, so we convert it to string
     and validate using the unified symbol system.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        max_length: Maximum allowed string length
+
     Returns:
         Validated non-empty string.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string/integer
+        EmptyStringError: If string is empty
     """
     field_name = info.field_name or f"raw_symbol_string_max{max_length}_field"
 
@@ -1053,11 +1200,17 @@ def _validate_raw_id_string_max_len(v: object, info: ValidationInfo, max_length:
 
     Backpack WebSocket can send ID fields as integers in some cases, so we convert them to strings.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        max_length: Maximum allowed string length
+
     Returns:
         Validated non-empty string.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string/integer
+        EmptyStringError: If string is empty
     """
     field_name = info.field_name or f"raw_id_string_max{max_length}_field"
 
@@ -1186,8 +1339,17 @@ def _validate_raw_depth_price_string(v: object, info: ValidationInfo) -> str:
     - 'Price must be finite' (for non-finite)
     - 'Invalid price value' (for unparseable like 'abc')
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated price string.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        EmptyStringError: If string is empty
+        DecimalFieldError: If string cannot be parsed to finite Decimal
     """
     if not isinstance(v, str):
         # Error for this case should be just 'Expected string'
@@ -1234,8 +1396,18 @@ def _validate_raw_depth_quantity_string(v: object, info: ValidationInfo) -> str:
     - 'Quantity must be finite'
     - 'Quantity cannot be negative'
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated quantity string.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        EmptyStringError: If string is empty
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+        RangeFieldError: If quantity is negative
     """
     if not isinstance(v, str):
         raise TypeFieldError(
@@ -1282,8 +1454,17 @@ type RawBpDepthQuantityString = Annotated[str, BeforeValidator(_validate_raw_dep
 def _validate_kline_int_field(v: object, info: ValidationInfo, field_alias: str) -> int:
     """Validate an integer field for Kline data, matching specific test error types/messages.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        field_alias: Field alias for error messages
+
     Returns:
         int: Validated integer value.
+
+    Raises:
+        TypeFieldError: If input is not an integer
+        RangeFieldError: If value is negative
     """
     field_name_for_msg = info.field_name or "kline_int_field"
 
@@ -1346,8 +1527,18 @@ type RawBpKlineIntStringField = Annotated[
 def _validate_kline_decimal_str_field(v: object, info: ValidationInfo, field_alias: str) -> str:
     """Validate a decimal-string field for Kline, matching specific test error types/messages.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        field_alias: Field alias for error messages
+
     Returns:
         str: Validated decimal string.
+
+    Raises:
+        KlineTypeError: If input is not a string
+        KlineValueError: If string is empty, not finite, or cannot be converted to Decimal
+        ValueError: Re-raised from validate_str_field
     """
     if not isinstance(v, str):
         type_name = type(v).__name__
@@ -1400,8 +1591,19 @@ def _validate_kline_string_field(
 
     Uses the `field_alias` for more specific error messages.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+        field_alias: Field alias for error messages
+        max_length: Maximum allowed string length
+        validation_context: Optional validation context
+
     Returns:
         str: Validated string field.
+
+    Raises:
+        KlineTypeError: If input is not a string
+        KlineValueError: If string is empty
     """
     # Ensure the input is a string first, as per test expectations for TypeError
     if not isinstance(v, str):
@@ -1455,11 +1657,12 @@ type RawBpKlineNonEmptyStringMax64 = Annotated[
 def _validate_raw_bp_transfer_status(v: object, info: ValidationInfo) -> str:
     """Validate Backpack transfer status string.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated transfer status string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_transfer_status"
     # Max length for "completed" is 9, "cancelled" is 9. Use a safe max like 16.
@@ -1474,11 +1677,15 @@ type RawBpTransferStatusString = Annotated[str, BeforeValidator(_validate_raw_bp
 def _validate_raw_parsable_positive_finite_decimal_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to positive finite Decimal.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated positive decimal string.
 
     Raises:
-        ValueError: If validation fails.
+        RangeFieldError: If value is not positive (> 0)
     """
     field_name = info.field_name or "raw_parsable_positive_finite_decimal_string_field"
     # Reuse _validate_raw_parsable_finite_decimal_string for initial parsing and validation
@@ -1509,11 +1716,12 @@ BP_WITHDRAWAL_CONFIRMED_PENDING_STATUSES = {"confirmed", "pending"}
 def _validate_raw_bp_withdrawal_confirmed_pending_status(v: object, info: ValidationInfo) -> str:
     """Validate Backpack withdrawal status string for confirmed/pending.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated withdrawal status string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "bp_withdrawal_confirmed_pending_status"
     # Max length for "confirmed" is 9. Use a safe max like 16.
@@ -1535,11 +1743,12 @@ type RawBpWithdrawalConfirmedPendingStatusString = Annotated[
 def _validate_raw_non_empty_string(v: object, info: ValidationInfo) -> str:
     """Validate a non-empty string without a specific max_length.
 
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
     Returns:
         str: Validated non-empty string.
-
-    Raises:
-        ValueError: If validation fails.
     """
     field_name = info.field_name or "raw_non_empty_string_field"
     return validate_str_field(v, field_name=field_name, max_length=None, allow_empty=False)
@@ -1550,7 +1759,18 @@ type RawBpNonEmptyString = Annotated[str, BeforeValidator(_validate_raw_non_empt
 
 
 def _validate_optional_non_empty_string(v: object, info: ValidationInfo) -> str | None:
-    """Validate an optional non-empty string without a specific max_length."""
+    """Validate an optional non-empty string without a specific max_length.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        str | None: Validated non-empty string or None if input was None.
+
+    Raises:
+        EmptyStringError: If string is empty or only whitespace
+    """
     if v is None:
         return None
     field_name = info.field_name or "optional_raw_non_empty_string_field"
@@ -1571,7 +1791,19 @@ type RawBpOptionalNonEmptyString = Annotated[
 
 
 def _validate_raw_string_to_datetime(v: object, info: ValidationInfo) -> datetime:
-    """Input `v` is raw string. Returns converted datetime if valid ISO8601-like."""
+    """Input `v` is raw string. Returns converted datetime if valid ISO8601-like.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        datetime: Converted datetime object in UTC.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        DateTimeParsingError: If string cannot be parsed as datetime
+    """
     field_name = info.field_name or "raw_string_to_datetime_field"
     if not isinstance(v, str):
         raise TypeFieldError(
@@ -1617,7 +1849,15 @@ BP_ACCOUNT_STATUSES = {"active", "suspended", "pending"}
 
 
 def _validate_raw_bp_account_status(v: object, info: ValidationInfo) -> str:
-    """Validate Backpack account status string."""
+    """Validate Backpack account status string.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        str: Validated account status string.
+    """
     field_name = info.field_name or "bp_account_status"
     # Max length for "suspended" is 9. Use a safe max like 16 or 32 as per original model.
     s = validate_str_field(v, field_name=field_name, max_length=32, allow_empty=False)
@@ -1632,7 +1872,20 @@ type RawBpAccountStatusString = Annotated[str, BeforeValidator(_validate_raw_bp_
 
 
 def _validate_raw_imf_base_decimal_string(v: object, info: ValidationInfo) -> str:
-    """Validate IMF 'base' field. Error messages use 'base'."""
+    """Validate IMF 'base' field. Error messages use 'base'.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        str: Validated decimal string.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        EmptyStringError: If string is empty
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+    """
     actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
         raise TypeFieldError(
@@ -1670,7 +1923,20 @@ type RawBpImfBaseDecimalString = Annotated[
 
 
 def _validate_raw_imf_factor_decimal_string(v: object, info: ValidationInfo) -> str:
-    """Validate IMF 'factor' field. Error messages use 'factor'."""
+    """Validate IMF 'factor' field. Error messages use 'factor'.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        str: Validated decimal string.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        EmptyStringError: If string is empty
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+    """
     actual_field_name = info.field_name or "factor"  # Should be 'factor'
     if not isinstance(v, str):
         raise TypeFieldError(
@@ -1708,7 +1974,20 @@ type RawBpImfFactorDecimalString = Annotated[
 
 
 def _validate_raw_mmf_base_decimal_string(v: object, info: ValidationInfo) -> str:
-    """Validate MMF 'base' field. Error messages use 'base'."""
+    """Validate MMF 'base' field. Error messages use 'base'.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        str: Validated decimal string.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        EmptyStringError: If string is empty
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+    """
     actual_field_name = info.field_name or "base"  # Should be 'base'
     if not isinstance(v, str):
         raise TypeFieldError(
@@ -1746,7 +2025,20 @@ type RawBpMmfBaseDecimalString = Annotated[
 
 
 def _validate_raw_mmf_factor_decimal_string(v: object, info: ValidationInfo) -> str:
-    """Validate MMF 'factor' field. Error messages use 'factor'."""
+    """Validate MMF 'factor' field. Error messages use 'factor'.
+
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        str: Validated decimal string.
+
+    Raises:
+        TypeFieldError: If input is not a string
+        EmptyStringError: If string is empty
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+    """
     actual_field_name = info.field_name or "factor"  # Should be 'factor'
     if not isinstance(v, str):
         raise TypeFieldError(
@@ -1789,10 +2081,17 @@ type RawBpMmfFactorDecimalString = Annotated[
 def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to non-negative finite Decimal.
 
-    Returns original string. Specific error for non-finite.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+        RangeFieldError: If value is negative
     """
     field_name = info.field_name or "quantity"  # Default to quantity
     if not isinstance(v, str):
@@ -1834,10 +2133,17 @@ type RawBpLiquidationQuantityString = Annotated[
 def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to positive finite Decimal.
 
-    Returns original string. Specific error for non-finite and negative.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+        RangeFieldError: If value is not positive
     """
     field_name = info.field_name or "price"
     if not isinstance(v, str):
@@ -1878,10 +2184,17 @@ type RawBpLiquidationPriceString = Annotated[
 def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to non-negative finite Decimal.
 
-    Returns original string. Specific error for negative value.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+        RangeFieldError: If value is negative
     """
     field_name = info.field_name or "amount"
     if not isinstance(v, str):
@@ -1923,10 +2236,17 @@ type RawBpWithdrawalAmountString = Annotated[
 def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to non-negative finite Decimal.
 
-    Returns original string. Specific error for negative value.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
+        RangeFieldError: If value is negative
     """
     field_name = info.field_name or "amount"
     if not isinstance(v, str):
@@ -1968,7 +2288,17 @@ type RawBpDepositAmountString = Annotated[str, BeforeValidator(_validate_raw_dep
 def _validate_raw_fill_fee_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal for 'fee'.
 
-    Returns original string.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
+
+    Raises:
+        NonNullableFieldError: If value is None
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
     """
     actual_field_name = info.field_name if info.field_name is not None else "fee"  # Fallback
     if v is None:
@@ -1998,7 +2328,17 @@ type RawBpFillFeeString = Annotated[str, BeforeValidator(_validate_raw_fill_fee_
 def _validate_raw_fill_price_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal for 'price'.
 
-    Returns original string.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
+
+    Raises:
+        NonNullableFieldError: If value is None
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
     """
     actual_field_name = info.field_name if info.field_name is not None else "price"  # Fallback
     if v is None:
@@ -2028,7 +2368,17 @@ type RawBpFillPriceString = Annotated[str, BeforeValidator(_validate_raw_fill_pr
 def _validate_raw_fill_quantity_string(v: object, info: ValidationInfo) -> str:
     """Input `v` is raw string. Validates it can be parsed to finite Decimal for 'quantity'.
 
-    Returns original string.
+    Args:
+        v: Raw input value to validate
+        info: Pydantic validation information
+
+    Returns:
+        Original string if valid.
+
+    Raises:
+        NonNullableFieldError: If value is None
+        TypeFieldError: If input is not a string
+        DecimalFieldError: If string cannot be parsed to finite Decimal
     """
     actual_field_name = info.field_name if info.field_name is not None else "quantity"  # Fallback
     if v is None:

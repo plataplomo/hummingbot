@@ -206,7 +206,11 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
         self,
         limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
-        """Test acquire when IP ban has already expired."""
+        """Test acquire when IP ban has already expired.
+        
+        Raises:
+            AssertionError: If IP ban is not cleared after expiration.
+        """
         # Set ban in the past - trigger ban then wait for it to expire
         await limiter.trigger_ip_ban(0.001)  # Very short ban
         await asyncio.sleep(0.01)  # Wait for it to expire

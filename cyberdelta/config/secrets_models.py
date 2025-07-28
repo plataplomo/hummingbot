@@ -92,7 +92,15 @@ class TelegramSecrets(BaseModel):
     @field_validator("chat_id", mode="before")
     @classmethod
     def validate_chat_id(cls, v: object, info: ValidationInfo) -> str:
-        """Validate chat_id is a non-empty string."""
+        """Validate chat_id is a non-empty string.
+        
+        Args:
+            v: Value to validate.
+            info: Pydantic validation context.
+            
+        Returns:
+            str: Validated chat ID string.
+        """
         return validate_str_field(
             v,
             field_name=info.field_name or "chat_id",
@@ -144,7 +152,15 @@ class SecretsConfig(BaseModel):
         v: dict[str, AnyExchangeSecrets],
         info: ValidationInfo,
     ) -> dict[str, AnyExchangeSecrets]:
-        """Validate exchange dictionary keys are valid strings."""
+        """Validate exchange dictionary keys are valid strings.
+        
+        Args:
+            v: Dictionary of exchange names to secrets.
+            info: Pydantic validation context.
+            
+        Returns:
+            dict[str, AnyExchangeSecrets]: Validated exchanges dictionary.
+        """
         validated_exchanges: dict[str, AnyExchangeSecrets] = {}
 
         for exchange_name, exchange_secrets in v.items():
@@ -167,6 +183,13 @@ class SecretsConfig(BaseModel):
         Ensures that each exchange uses the correct auth_type and has valid credentials.
         Basic presence checks are performed here; deeper cryptographic validation is
         performed in the respective API component factories.
+        
+        Returns:
+            Self: The validated instance.
+            
+        Raises:
+            InvalidAuthTypeError: If exchange has wrong authentication type.
+            EmptySecretError: If required secrets are empty.
         """
         for exchange_name, secrets_config_item in self.exchanges.items():
             if exchange_name == "hyperliquid":

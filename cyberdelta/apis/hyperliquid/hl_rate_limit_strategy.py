@@ -43,6 +43,9 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             hl_exchange_config: Hyperliquid-specific exchange configuration
                                containing rate limit parameters.
 
+        Raises:
+            HyperliquidRateLimitConfigError: If required configuration fields are missing
+            RequiredParameterError: If required parameters are None after validation
         """
         # Validate we have required Hyperliquid configuration
         missing_fields: list[str] = []
@@ -110,10 +113,6 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
 
         Args:
             request_context: RateLimitRequestContext containing request details
-
-        Raises:
-            APIError: If rate limit acquisition fails or times out.
-
         """
         endpoint = request_context.endpoint
         action_payload = request_context.action_payload

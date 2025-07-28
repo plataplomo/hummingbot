@@ -114,7 +114,6 @@ class BackpackPositionService:
 
         Raises:
             APIError: If API request fails or data transformation fails
-            ValueError: If symbol is empty string
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_positions"
@@ -254,6 +253,9 @@ class BackpackPositionService:
 
         Returns:
             List of DerivativePosition objects
+
+        Raises:
+            TransformationError: If transformation fails for all positions
         """
         internal_positions: list[DerivativePosition] = []
         transform_errors: list[str] = []
@@ -292,7 +294,7 @@ class BackpackPositionService:
             method_name: Name of calling method for error context
 
         Raises:
-            ValueError: If symbol is empty string
+            EmptyStringParameterError: If symbol is empty string
         """
         if symbol is not None and not symbol:
             raise EmptyStringParameterError(
@@ -349,6 +351,9 @@ class BackpackPositionService:
 
         Returns:
             Empty list or raises APIError
+
+        Raises:
+            APIError: If error processing fails or for certain error types
         """
         if isinstance(error, ValueError):
             return self._handle_position_value_error(error, current_method, symbol)

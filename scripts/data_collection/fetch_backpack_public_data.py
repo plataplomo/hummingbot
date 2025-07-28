@@ -36,6 +36,9 @@ class BackpackDataCollector:
         Args:
             output_dir: Directory where collected JSON data files will be saved
             session: aiohttp session for making public API requests
+
+        Raises:
+            ValueError: If Backpack exchange configuration is not found or disabled.
         """
         self.output_dir = output_dir
         self.session = session
@@ -78,7 +81,11 @@ class BackpackDataCollector:
         url: str,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
-        """Fetch JSON data from a URL with error handling."""
+        """Fetch JSON data from a URL with error handling.
+
+        Returns:
+            Dictionary containing the JSON response data if successful, None if request failed.
+        """
         try:
             logger.info("fetching_json: Fetching JSON data", url=url, params=params)
             async with self.session.get(url, params=params) as response:
@@ -98,7 +105,11 @@ class BackpackDataCollector:
             return None
 
     async def _fetch_text(self, url: str, params: dict[str, Any] | None = None) -> str | None:
-        """Fetch text data from a URL with error handling."""
+        """Fetch text data from a URL with error handling.
+
+        Returns:
+            String containing the text response if successful, None if request failed.
+        """
         try:
             logger.info("fetching_text: Fetching text data", url=url, params=params)
             async with self.session.get(url, params=params) as response:
@@ -322,7 +333,11 @@ class BackpackDataCollector:
             self._save_json(data, filename)
 
     def get_default_symbols(self) -> list[str]:
-        """Get default symbols from configuration or fallback."""
+        """Get default symbols from configuration or fallback.
+
+        Returns:
+            List of default trading pair symbols from configuration or fallback values.
+        """
         # Use configured symbols, fallback to common ones
         return (
             list(self.configured_symbols.values())
@@ -331,7 +346,11 @@ class BackpackDataCollector:
         )
 
     def get_perp_symbols(self) -> list[str]:
-        """Get perpetual futures symbols for funding rate data."""
+        """Get perpetual futures symbols for funding rate data.
+
+        Returns:
+            List of perpetual futures trading symbols with _PERP suffix.
+        """
         # Correct perpetual futures symbols on Backpack (with _PERP suffix)
         return [
             "SOL_USDC_PERP",
@@ -342,7 +361,11 @@ class BackpackDataCollector:
         ]
 
     def get_borrow_lend_symbols(self) -> list[str]:
-        """Get common borrow/lend market symbols."""
+        """Get common borrow/lend market symbols.
+
+        Returns:
+            List of common borrow/lend market trading pair symbols.
+        """
         # These should be actual market symbols, not just assets
         return ["SOL_USDC", "BTC_USDC", "ETH_USDC", "USDC_USD"]
 

@@ -167,7 +167,11 @@ class LogCapture:
         self.logs: list[str] = []
 
     def __enter__(self) -> "LogCapture":
-        """Enter context and start capturing logs."""
+        """Enter context and start capturing logs.
+
+        Returns:
+            Self for use in context manager.
+        """
         # Create memory handler with reference to our logs list
         self.handler = CapturingMemoryHandler(capacity=1000, logs_list=self.logs)
         self.handler.setLevel(self.level)

@@ -83,9 +83,6 @@ class HyperliquidAssetIndexResolver:
         Returns:
             The integer asset index for the symbol
 
-        Raises:
-            APIError: If the symbol is invalid, API request fails, or symbol not found
-
         """
         self._validate_symbol(symbol)
 
@@ -155,7 +152,11 @@ class HyperliquidAssetIndexResolver:
         return MAINNET_SPOT_SYMBOL_MAPPINGS.get(symbol)
 
     def _validate_symbol(self, symbol: str) -> None:
-        """Validate the input symbol."""
+        """Validate the input symbol.
+
+        Raises:
+            APIError: If the symbol is empty or invalid.
+        """
         if not symbol:
             self.logger.error(
                 "invalid_symbol_for_asset_index",
@@ -171,7 +172,11 @@ class HyperliquidAssetIndexResolver:
             )
 
     def _get_cached_index(self, symbol: str) -> int | None:
-        """Get asset index from cache if available."""
+        """Get asset index from cache if available.
+
+        Returns:
+            The cached asset index if found, None otherwise.
+        """
         if symbol in self._asset_to_index_cache:
             self.logger.debug(
                 "asset_index_found_in_cache",
@@ -203,7 +208,14 @@ class HyperliquidAssetIndexResolver:
         self._populate_cache(validated_response)
 
     async def _make_api_request(self, symbol: str) -> tuple[ParsedJsonResponse | None, int]:
-        """Make the API request to fetch metadata."""
+        """Make the API request to fetch metadata.
+
+        Returns:
+            Tuple of (raw_response_content, status_code) from the API.
+
+        Raises:
+            APIError: If the API request fails or encounters an error.
+        """
         request_payload_model = self._request_builder.build_info_request_payload()
         request_payload_data_dict = request_payload_model.model_dump(
             by_alias=True,
@@ -258,7 +270,14 @@ class HyperliquidAssetIndexResolver:
         status_code: int,
         symbol: str,
     ) -> HyperliquidRawMetaAndAssetCtxsResponse:
-        """Process and validate the API response."""
+        """Process and validate the API response.
+
+        Returns:
+            Validated HyperliquidRawMetaAndAssetCtxsResponse object.
+
+        Raises:
+            APIError: If response is None, validation fails, or parsing errors occur.
+        """
         if raw_response_content is None:
             self.logger.error(
                 "received_none_response_meta_and_asset_ctxs",
@@ -335,7 +354,14 @@ class HyperliquidAssetIndexResolver:
         )
 
     def _get_index_or_raise(self, symbol: str) -> int:
-        """Get the index from cache or raise an error if not found."""
+        """Get the index from cache or raise an error if not found.
+
+        Returns:
+            The asset index for the symbol.
+
+        Raises:
+            APIError: If the symbol is not found in the cache.
+        """
         if symbol in self._asset_to_index_cache:
             return self._asset_to_index_cache[symbol]
         self.logger.error(

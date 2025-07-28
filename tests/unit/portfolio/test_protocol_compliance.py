@@ -37,7 +37,7 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    pass
 
 
 class ProtocolComplianceTester:
@@ -45,7 +45,11 @@ class ProtocolComplianceTester:
 
     @staticmethod
     def verify_protocol(instance: object, protocol: type) -> None:
-        """Verify that an instance implements all required protocol methods."""
+        """Verify that an instance implements all required protocol methods.
+        
+        Raises:
+            AssertionError: If instance doesn't implement required protocol methods.
+        """
         # Get all abstract methods from the protocol
         protocol_methods = {
             name: getattr(protocol, name)

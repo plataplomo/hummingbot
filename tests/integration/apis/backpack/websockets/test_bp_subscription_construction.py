@@ -178,7 +178,11 @@ class TestBackpackSubscriptionConstruction:
             )
 
     def _create_auth_test_handler(self, topic: str) -> MessageHandler:
-        """Create a test handler for authenticated topics."""
+        """Create a test handler for authenticated topics.
+        
+        Returns:
+            Async message handler function for processing authenticated WebSocket messages.
+        """
 
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -203,7 +207,11 @@ class TestBackpackSubscriptionConstruction:
         return handler
 
     def _is_auth_error(self, error: Exception) -> bool:
-        """Check if an error is related to authentication."""
+        """Check if an error is related to authentication.
+        
+        Returns:
+            True if the error message contains authentication-related keywords, False otherwise.
+        """
         error_msg = str(error).lower()
         auth_words = ["auth", "api_key", "signature", "unauthorized"]
         return any(auth_word in error_msg for auth_word in auth_words)

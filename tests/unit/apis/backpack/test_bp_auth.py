@@ -46,6 +46,9 @@ def test_ed25519_keys() -> dict[str, str]:
     Creates a fresh ED25519 private/public key pair for each test to ensure
     isolation and security. Returns base64-encoded keys suitable for use
     with the BackpackEd25519Authenticator.
+    
+    Returns:
+        dict[str, str]: Dictionary containing base64-encoded private and public keys.
     """
     # Generate a test private key
     private_key = Ed25519PrivateKey.generate()

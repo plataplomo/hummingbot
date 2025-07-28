@@ -117,7 +117,11 @@ class SymbolIntegrationMetrics:
         return (self.cache_hits / total_cache_requests) * 100.0
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert metrics to dictionary."""
+        """Convert metrics to dictionary.
+
+        Returns:
+            Dictionary containing all metric values including calculated hit rate
+        """
         return {
             "api_requests": self.api_requests,
             "cache_hits": self.cache_hits,
@@ -180,10 +184,6 @@ class SymbolIntegrationService:
 
         Returns:
             InternalSymbol instance
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
-            SymbolValidationError: If symbol validation fails
         """
         start_time = time.perf_counter()
 
@@ -208,13 +208,27 @@ class SymbolIntegrationService:
                 self.metrics.record_api_request(processing_time)
 
     def _normalize_exchange_id(self, exchange_id: str | ExchangeName) -> ExchangeName:
-        """Normalize exchange ID to ExchangeName enum."""
+        """Normalize exchange ID to ExchangeName enum.
+
+        Args:
+            exchange_id: Exchange identifier as string or enum
+
+        Returns:
+            Normalized ExchangeName enum value
+        """
         if not isinstance(exchange_id, ExchangeName):
             return ExchangeName(exchange_id.lower())
         return exchange_id
 
     def _check_cache_for_internal_symbol(self, cache_key: str) -> InternalSymbol | None:
-        """Check cache for internal symbol and record metrics."""
+        """Check cache for internal symbol and record metrics.
+
+        Args:
+            cache_key: Cache key to look up
+
+        Returns:
+            Cached InternalSymbol if found and valid, None otherwise
+        """
         cached_result = self._get_from_cache(cache_key)
         if cached_result and isinstance(cached_result, InternalSymbol):
             if self.metrics:
@@ -232,7 +246,20 @@ class SymbolIntegrationService:
         cache_key: str,
         **kwargs: Unpack[TransformationKwargs],
     ) -> InternalSymbol:
-        """Get internal symbol from registry or use fallback transformer."""
+        """Get internal symbol from registry or use fallback transformer.
+
+        Attempts to get the internal symbol from the service registry first.
+        If that fails and fallback is enabled, uses the transformer directly.
+
+        Args:
+            exchange_symbol: Exchange-specific symbol
+            exchange_id: Exchange identifier
+            cache_key: Cache key for storing the result
+            **kwargs: Additional transformation parameters
+
+        Returns:
+            InternalSymbol instance from registry or transformer
+        """
         try:
             result = self.service.get_internal_symbol(exchange_symbol, exchange_id.value)
         except SymbolNotFoundError:
@@ -248,7 +275,18 @@ class SymbolIntegrationService:
         cache_key: str,
         **kwargs: Unpack[TransformationKwargs],
     ) -> InternalSymbol:
-        """Try transformer as fallback when registry lookup fails."""
+        """Try transformer as fallback when registry lookup fails.
+        
+        This method provides a fallback mechanism for symbol transformation when the
+        primary registry lookup fails. It's critical for handling newly listed symbols
+        or symbols not yet registered in the system.
+        
+        Returns:
+            InternalSymbol: The transformed internal symbol representation
+        
+        Raises:
+            SymbolNotFoundError: If fallback is disabled or transformation fails
+        """
         if not self.enable_fallback:
             raise SymbolNotFoundError(exchange_symbol, f"exchange {exchange_id.value}")
 
@@ -284,10 +322,6 @@ class SymbolIntegrationService:
 
         Returns:
             ExchangeSymbol instance
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
-            SymbolValidationError: If symbol validation fails
         """
         start_time = time.perf_counter()
 
@@ -312,7 +346,15 @@ class SymbolIntegrationService:
                 self.metrics.record_api_request(processing_time)
 
     def _check_cache_for_exchange_symbol(self, cache_key: str) -> ExchangeSymbol | None:
-        """Check cache for exchange symbol and record metrics."""
+        """Check cache for exchange symbol and record metrics.
+        
+        This method optimizes symbol lookup performance by checking the cache first
+        before making expensive registry or transformation calls. It also tracks
+        cache performance metrics for monitoring and optimization.
+        
+        Returns:
+            ExchangeSymbol | None: Cached exchange symbol if found and valid, None otherwise
+        """
         cached_result = self._get_from_cache(cache_key)
         if cached_result and isinstance(cached_result, ExchangeSymbol):
             if self.metrics:
@@ -330,7 +372,15 @@ class SymbolIntegrationService:
         cache_key: str,
         market_type: MarketType | None,
     ) -> ExchangeSymbol:
-        """Get exchange symbol from registry or use fallback transformer."""
+        """Get exchange symbol from registry or use fallback transformer.
+        
+        This method implements a two-tier lookup strategy for exchange symbols:
+        first attempting registry lookup for registered symbols, then falling back
+        to dynamic transformation for unregistered symbols.
+        
+        Returns:
+            ExchangeSymbol: The exchange-specific symbol representation
+        """
         try:
             result = self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
         except SymbolNotFoundError:
@@ -348,7 +398,18 @@ class SymbolIntegrationService:
         cache_key: str,
         market_type: MarketType | None,
     ) -> ExchangeSymbol:
-        """Try transformer as fallback when registry lookup fails."""
+        """Try transformer as fallback when registry lookup fails.
+        
+        This method handles the reverse transformation from internal symbols to
+        exchange-specific symbols when the registry doesn't have a mapping. This
+        is essential for supporting dynamic symbol creation in trading operations.
+        
+        Returns:
+            ExchangeSymbol: The exchange-specific symbol representation
+        
+        Raises:
+            SymbolNotFoundError: If fallback is disabled or transformation fails
+        """
         if not self.enable_fallback:
             raise SymbolNotFoundError(internal_symbol, f"exchange {exchange_id.value}")
 
@@ -457,7 +518,14 @@ class SymbolIntegrationService:
             return True
 
     def _raise_invalid_websocket_symbol(self, value: str | int) -> NoReturn:
-        """Raise SymbolValidationError for invalid WebSocket symbol."""
+        """Raise SymbolValidationError for invalid WebSocket symbol.
+        
+        This helper method centralizes the error raising logic for invalid WebSocket
+        symbols to ensure consistent error messages across the integration layer.
+        
+        Raises:
+            SymbolValidationError: Always raised with the invalid symbol value
+        """
         raise SymbolValidationError(str(value), "Invalid WebSocket symbol")
 
     async def validate_websocket_symbol(
@@ -630,7 +698,16 @@ class SymbolIntegrationService:
                 self.metrics.record_api_request(processing_time)
 
     def _get_from_cache(self, key: str) -> InternalSymbol | ExchangeSymbol | None:
-        """Get value from cache with TTL check."""
+        """Get value from cache with TTL check.
+        
+        This method implements a time-based cache expiration strategy to balance
+        performance with data freshness. Expired entries are automatically cleaned
+        up to prevent memory leaks and stale data issues.
+        
+        Returns:
+            InternalSymbol | ExchangeSymbol | None: Cached symbol if valid, 
+                None if expired or not found
+        """
         if key not in self._symbol_cache:
             return None
 
@@ -657,7 +734,15 @@ class SymbolIntegrationService:
         self._cache_timestamps[key] = datetime.now(UTC)
 
     def _count_active_cache_entries(self) -> int:
-        """Count non-expired cache entries."""
+        """Count non-expired cache entries.
+        
+        This method provides cache health metrics by counting entries that are
+        still within their TTL window. Used for monitoring cache efficiency and
+        memory usage patterns in production.
+        
+        Returns:
+            int: Number of active (non-expired) cache entries
+        """
         now = datetime.now(UTC)
         active_count = 0
 
@@ -669,7 +754,15 @@ class SymbolIntegrationService:
         return active_count
 
     def _parse_base_symbol_fallback(self, symbol: str) -> str:
-        """Parse base symbol using fallback logic."""
+        """Parse base symbol using fallback logic.
+        
+        This method extracts the base asset from complex trading pair symbols using
+        common separator patterns. Critical for identifying the underlying asset in
+        cross-exchange arbitrage operations.
+        
+        Returns:
+            str: The parsed base symbol in uppercase (e.g., 'BTC' from 'BTC-USD')
+        """
         if not symbol:
             return symbol
 
@@ -683,7 +776,15 @@ class SymbolIntegrationService:
         return symbol.strip().upper()
 
     def _apply_fallback_normalization(self, symbol: str, exchange_id: str) -> str:
-        """Apply exchange-specific normalization rules."""
+        """Apply exchange-specific normalization rules.
+        
+        This method handles the critical task of adapting symbol formats to match
+        each exchange's specific requirements. Essential for ensuring orders are
+        accepted by the target exchange's API.
+        
+        Returns:
+            str: The normalized symbol matching the exchange's format requirements
+        """
         exchange_lower = exchange_id.lower()
 
         if exchange_lower == "hyperliquid":
@@ -694,7 +795,15 @@ class SymbolIntegrationService:
         return symbol
 
     def _generate_fallback_metadata(self, symbol: str) -> dict[str, Any]:
-        """Generate fallback metadata for unknown symbols."""
+        """Generate fallback metadata for unknown symbols.
+        
+        This method creates synthetic metadata for symbols not in the registry,
+        enabling the system to handle newly listed assets gracefully. It infers
+        symbol properties based on naming conventions.
+        
+        Returns:
+            dict[str, Any]: Generated metadata with symbol type, base asset, and exchange info
+        """
         base_symbol = self._parse_base_symbol_fallback(symbol)
         is_derivative = "PERP" in symbol.upper() or "-PERP" in symbol.upper()
         is_spot = any(sep in symbol for sep in ["/", "_", "-"]) and not is_derivative
@@ -727,7 +836,15 @@ class _SymbolIntegrationServiceSingleton:
         enable_metrics: bool = True,
         cache_timeout_seconds: float = 5.0,
     ) -> SymbolIntegrationService:
-        """Get or create the service instance."""
+        """Get or create the service instance.
+        
+        This method implements the singleton pattern to ensure a single instance
+        of the symbol integration service is used across the entire application,
+        maintaining cache consistency and reducing memory overhead.
+        
+        Returns:
+            SymbolIntegrationService: The singleton service instance
+        """
         if self._instance is None:
             self._instance = SymbolIntegrationService(
                 enable_fallback=enable_fallback,
@@ -773,7 +890,15 @@ async def api_get_internal_symbol(
     exchange_id: str | ExchangeName,
     **kwargs: Unpack[TransformationKwargs],
 ) -> InternalSymbol:
-    """Convenience function for getting internal symbol in API layer."""
+    """Convenience function for getting internal symbol in API layer.
+    
+    This function simplifies symbol transformation for API consumers by providing
+    a direct interface to convert exchange-specific symbols to the internal
+    unified format used throughout the trading engine.
+    
+    Returns:
+        InternalSymbol: The unified internal symbol representation
+    """
     service = get_symbol_integration_service()
     return await service.get_internal_symbol(exchange_symbol, exchange_id, **kwargs)
 
@@ -783,19 +908,43 @@ async def api_get_exchange_symbol(
     exchange_id: str | ExchangeName,
     market_type: MarketType | None = None,
 ) -> ExchangeSymbol:
-    """Convenience function for getting exchange symbol in API layer."""
+    """Convenience function for getting exchange symbol in API layer.
+    
+    This function provides the reverse transformation from internal symbols to
+    exchange-specific formats, ensuring orders are placed with the correct
+    symbol format for each exchange's API requirements.
+    
+    Returns:
+        ExchangeSymbol: The exchange-specific symbol representation
+    """
     service = get_symbol_integration_service()
     return await service.get_exchange_symbol(internal_symbol, exchange_id, market_type)
 
 
 def api_normalize_symbol(symbol: str, exchange_id: str) -> str:
-    """Convenience function for normalizing symbol in API layer."""
+    """Convenience function for normalizing symbol in API layer.
+    
+    This function applies exchange-specific formatting rules to ensure symbols
+    match the expected format for each exchange, preventing order rejection
+    due to symbol format mismatches.
+    
+    Returns:
+        str: The normalized symbol in the exchange's expected format
+    """
     service = get_symbol_integration_service()
     return service.normalize_symbol(symbol, exchange_id)
 
 
 def api_get_base_symbol(symbol: str) -> str:
-    """Convenience function for getting base symbol in API layer."""
+    """Convenience function for getting base symbol in API layer.
+    
+    This function extracts the base asset from trading pair symbols, essential
+    for portfolio tracking and position aggregation across different trading
+    pairs involving the same base asset.
+    
+    Returns:
+        str: The base asset symbol (e.g., 'BTC' from 'BTC/USD')
+    """
     service = get_symbol_integration_service()
     return service.get_base_symbol(symbol)
 
@@ -805,6 +954,14 @@ async def api_validate_websocket_symbol(
     field_name: str,
     exchange_id: str | ExchangeName,
 ) -> str:
-    """Convenience function for validating WebSocket symbol in API layer."""
+    """Convenience function for validating WebSocket symbol in API layer.
+    
+    This function ensures WebSocket subscription symbols are valid and properly
+    formatted before establishing connections, preventing connection failures
+    and invalid subscriptions that could disrupt real-time data feeds.
+    
+    Returns:
+        str: The validated and normalized WebSocket symbol
+    """
     service = get_symbol_integration_service()
     return await service.validate_websocket_symbol(value, field_name, exchange_id)

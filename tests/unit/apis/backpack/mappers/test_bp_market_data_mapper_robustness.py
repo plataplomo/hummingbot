@@ -34,25 +34,41 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 
 @pytest.fixture
 def ticker_mapper() -> BackpackTickerMapper:
-    """Fixture providing a BackpackTickerMapper instance."""
+    """Fixture providing a BackpackTickerMapper instance.
+
+    Returns:
+        BackpackTickerMapper: A mapper instance for testing ticker transformations.
+    """
     return BackpackTickerMapper()
 
 
 @pytest.fixture
 def order_book_mapper() -> BackpackOrderBookMapper:
-    """Fixture providing a BackpackOrderBookMapper instance."""
+    """Fixture providing a BackpackOrderBookMapper instance.
+
+    Returns:
+        BackpackOrderBookMapper: A mapper instance for testing order book transformations.
+    """
     return BackpackOrderBookMapper()
 
 
 @pytest.fixture
 def trade_mapper() -> BackpackTradeMapper:
-    """Fixture providing a BackpackTradeMapper instance."""
+    """Fixture providing a BackpackTradeMapper instance.
+
+    Returns:
+        BackpackTradeMapper: A mapper instance for testing trade transformations.
+    """
     return BackpackTradeMapper()
 
 
 @pytest.fixture
 def test_timestamp() -> str:
-    """Fixture providing a consistent test timestamp string."""
+    """Fixture providing a consistent test timestamp string.
+
+    Returns:
+        str: ISO 8601 formatted timestamp string for consistent testing.
+    """
     return "2024-01-15T10:30:00Z"
 
 
@@ -68,7 +84,23 @@ def create_raw_ticker(
     quote_volume: str = "100500.0",
     trades: str = "500",
 ) -> BackpackRawTickerResponse:
-    """Create BackpackRawTickerResponse instances for robustness testing."""
+    """Create BackpackRawTickerResponse instances for robustness testing.
+
+    Args:
+        symbol: Trading symbol for the ticker.
+        first_price: Opening price for the period.
+        last_price: Current/last traded price.
+        high: Highest price in the period.
+        low: Lowest price in the period.
+        price_change: Absolute price change.
+        price_change_percent: Percentage price change.
+        volume: Trading volume.
+        quote_volume: Quote currency volume.
+        trades: Number of trades.
+
+    Returns:
+        BackpackRawTickerResponse: Configured ticker response for testing.
+    """
     return BackpackRawTickerResponse(
         symbol=symbol,
         firstPrice=first_price,
@@ -88,7 +120,16 @@ def create_raw_order_book(
     asks: list[tuple[str, str]] | None = None,
     timestamp: str = "2024-01-15T10:30:00Z",
 ) -> BackpackRawOrderBook:
-    """Create BackpackRawOrderBook instances for robustness testing."""
+    """Create BackpackRawOrderBook instances for robustness testing.
+
+    Args:
+        bids: List of bid price-quantity tuples, defaults to sample data.
+        asks: List of ask price-quantity tuples, defaults to sample data.
+        timestamp: Order book timestamp.
+
+    Returns:
+        BackpackRawOrderBook: Configured order book for testing.
+    """
     if bids is None:
         bids = [("100.25", "10.0"), ("100.00", "5.0")]
     if asks is None:
@@ -110,7 +151,19 @@ def create_raw_trade(
     time: str = "2024-01-15T10:30:00Z",
     order_id: str = "order123",
 ) -> BackpackRawPublicTrade:
-    """Create BackpackRawPublicTrade instances for robustness testing."""
+    """Create BackpackRawPublicTrade instances for robustness testing.
+
+    Args:
+        trade_id: Unique trade identifier.
+        symbol: Trading symbol.
+        price: Trade execution price.
+        qty: Trade quantity.
+        time: Trade execution time.
+        order_id: Associated order identifier.
+
+    Returns:
+        BackpackRawPublicTrade: Configured trade for testing.
+    """
     return BackpackRawPublicTrade(
         id=trade_id,
         symbol=symbol,

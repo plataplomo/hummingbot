@@ -31,7 +31,11 @@ class CacheEntry:
     last_accessed: float = Field(default_factory=time.time)
 
     def is_expired(self, ttl: float) -> bool:
-        """Check if cache entry has expired based on TTL."""
+        """Check if cache entry has expired based on TTL.
+
+        Returns:
+            bool: True if the cache entry has expired
+        """
         return time.time() - self.timestamp > ttl
 
     def touch(self) -> None:
@@ -184,7 +188,11 @@ class SymbolNormalizationService(BasePortfolioService):
             self._last_cleanup_time = current_time
 
     async def _start_internal(self) -> None:
-        """Start the symbol service."""
+        """Start the symbol service.
+
+        Raises:
+            RuntimeError: If strict mode is enabled but no symbol mapper is provided
+        """
         logger.info("symbol_normalization_service_starting")
 
         # Validate symbol mapper if in strict mode
@@ -210,9 +218,6 @@ class SymbolNormalizationService(BasePortfolioService):
 
         Returns:
             Base symbol (e.g., 'BTC', 'ETH')
-
-        Raises:
-            ValueError: If symbol cannot be parsed and strict mode is enabled
         """
         self._ensure_running()
         self._periodic_cache_maintenance()
@@ -245,6 +250,13 @@ class SymbolNormalizationService(BasePortfolioService):
 
         Returns:
             Normalized symbol for the exchange
+
+        Raises:
+            ValueError: If normalization fails and strict mode is enabled
+            TypeError: If symbol or exchange_id are not strings
+            KeyError: If exchange mapping is not found
+            AttributeError: If symbol mapper is missing required attributes
+            ArithmeticError: If numeric operations in normalization fail
         """
         self._ensure_running()
 
@@ -349,7 +361,11 @@ class SymbolNormalizationService(BasePortfolioService):
         return metadata
 
     def _get_cached_symbol(self, symbol: str) -> str | None:
-        """Get symbol from cache if available and not expired."""
+        """Get symbol from cache if available and not expired.
+
+        Returns:
+            str | None: Cached symbol if found and not expired, None otherwise
+        """
         if symbol in self._symbol_cache:
             cache_entry = self._symbol_cache[symbol]
             if not cache_entry.is_expired(self.cache_config.default_ttl):
@@ -363,7 +379,11 @@ class SymbolNormalizationService(BasePortfolioService):
         return None
 
     def _resolve_base_symbol(self, symbol: str) -> str | None:
-        """Resolve base symbol using mapper or fallback methods."""
+        """Resolve base symbol using mapper or fallback methods.
+
+        Returns:
+            str | None: Resolved base symbol, or None if resolution failed
+        """
         base_symbol = None
 
         # Try symbol mapper first if available
@@ -377,7 +397,14 @@ class SymbolNormalizationService(BasePortfolioService):
         return base_symbol
 
     def _try_symbol_mapper(self, symbol: str) -> str | None:
-        """Try to get base symbol using the symbol mapper."""
+        """Try to get base symbol using the symbol mapper.
+
+        Returns:
+            str | None: Base symbol if successful, None otherwise
+
+        Raises:
+            ValueError: If mapper fails and strict mode is enabled
+        """
         try:
             base_symbol = self._get_base_symbol_from_mapper(symbol)
             if base_symbol:
@@ -399,7 +426,11 @@ class SymbolNormalizationService(BasePortfolioService):
             return base_symbol
 
     def _try_fallback_parsing(self, symbol: str) -> str | None:
-        """Try to parse base symbol using fallback logic."""
+        """Try to parse base symbol using fallback logic.
+
+        Returns:
+            str | None: Base symbol if parsing successful, None otherwise
+        """
         base_symbol = self._parse_base_symbol_fallback(symbol)
         if base_symbol:
             logger.debug(
@@ -410,7 +441,14 @@ class SymbolNormalizationService(BasePortfolioService):
         return base_symbol
 
     def _handle_symbol_resolution_failure(self, symbol: str, base_symbol: str | None) -> str:
-        """Handle case where symbol resolution failed."""
+        """Handle case where symbol resolution failed.
+
+        Returns:
+            str: Base symbol or original symbol as fallback
+
+        Raises:
+            ValueError: If strict mode is enabled and resolution failed
+        """
         if not base_symbol:
             if self.strict_mode:
                 raise ValueError

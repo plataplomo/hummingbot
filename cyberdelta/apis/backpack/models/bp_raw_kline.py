@@ -88,8 +88,8 @@ class BackpackRawKlineResponse(BaseModel):
             Dictionary mapping field names to values from the input list/tuple.
 
         Raises:
-            ValueError: If data doesn't have exactly 12 elements.
-            RuntimeError: If model definition has incorrect number of fields.
+            SequenceLengthError: If data doesn't have exactly 12 elements.
+            ModelDefinitionError: If model definition has incorrect number of fields.
         """
         if len(data) != BACKPACK_KLINE_FIELDS_COUNT:
             # Match test message for test_invalid_structure_list_length

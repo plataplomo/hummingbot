@@ -511,7 +511,15 @@ class PortfolioTracker:
         exchange_id: str,
         balances_data: dict[str, SpotBalance],
     ) -> dict[str, SpotBalance]:
-        """Process raw balances data and filter valid balances."""
+        """Process raw balances data and filter valid balances.
+
+        Args:
+            exchange_id: Exchange identifier
+            balances_data: Raw balances data to process
+
+        Returns:
+            Dictionary of processed and filtered balances
+        """
         updated_balances: dict[str, SpotBalance] = {}
 
         # If balances_data is empty dict
@@ -625,7 +633,12 @@ class PortfolioTracker:
         asset: str,
         balance_info: dict[str, Any] | SpotBalance,
     ) -> SpotBalance | None:
-        """Parse balance information into a SpotBalance object."""
+        """Parse balance information into a SpotBalance object.
+
+        Returns:
+            SpotBalance | None: A validated SpotBalance object, or None if parsing fails or
+                validation errors occur.
+        """
         if isinstance(balance_info, SpotBalance):
             if balance_info.exchange != exchange_id:
                 logger.error(
@@ -690,7 +703,12 @@ class PortfolioTracker:
         asset: str,
         exchange_id: str,
     ) -> Decimal | None:
-        """Safely convert a value to Decimal, logging errors."""
+        """Safely convert a value to Decimal, logging errors.
+
+        Returns:
+            Decimal | None: The converted Decimal value, or None if conversion fails or
+                input is None.
+        """
         if value is None:
             return None
         try:
@@ -848,7 +866,12 @@ class PortfolioTracker:
         )
 
     def _validate_trade(self, exchange_id: str, trade: Trade) -> bool:
-        """Validate trade data before processing."""
+        """Validate trade data before processing.
+
+        Returns:
+            bool: True if trade data is valid, False if trade should be ignored due to
+                missing or invalid data.
+        """
         if not trade or not trade.symbol or not trade.quantity or trade.quantity <= Decimal(0):
             logger.warning(
                 "ignoring_invalid_trade",
@@ -863,7 +886,11 @@ class PortfolioTracker:
         return True
 
     def _get_base_symbol(self, exchange_id: str, trade: Trade) -> str:
-        """Get the base symbol for the trade using domain helpers."""
+        """Get the base symbol for the trade using domain helpers.
+        
+        Returns:
+            Base asset symbol extracted from the trade symbol
+        """
         # Ensure symbol service is available
         if not hasattr(self, "symbol_service") or self.symbol_service is None:
             logger.error("SymbolService not initialized in PortfolioTracker. Cannot process trade.")
@@ -1075,7 +1102,11 @@ class PortfolioTracker:
         qty_affected: Decimal,
         current_entry_price: Decimal,
     ) -> Decimal:
-        """Calculate realized PnL for the trade."""
+        """Calculate realized PnL for the trade.
+
+        Returns:
+            Decimal: The calculated realized PnL amount for this trade.
+        """
         realized_pnl_for_this_trade = Decimal(0)
 
         if current_entry_price != Decimal(0):  # Avoid PNL calc if entry was 0
@@ -1185,7 +1216,12 @@ class PortfolioTracker:
         return self.positions[exchange_id].get(symbol)  # Direct access to inner dict
 
     def get_positions_by_symbol(self, exchange_id: str, symbol: str) -> list[DerivativePosition]:
-        """Retrieve all positions for a specific symbol on a given exchange."""
+        """Retrieve all positions for a specific symbol on a given exchange.
+
+        Returns:
+            list[DerivativePosition]: List of derivative positions for the specified symbol
+                and exchange.
+        """
         if exchange_id not in self.positions:
             return []
         exchange_positions = self.positions[exchange_id]  # Direct access to inner dict
@@ -1213,7 +1249,11 @@ class PortfolioTracker:
         return all_positions_list
 
     def get_positions_by_exchange(self, exchange_id: str) -> list[DerivativePosition]:
-        """Get all positions for a specific exchange."""
+        """Get all positions for a specific exchange.
+
+        Returns:
+            list[DerivativePosition]: List of all derivative positions for the specified exchange.
+        """
         if exchange_id not in self.positions:
             logger.warning(
                 "get_positions_unknown_exchange",
@@ -1415,7 +1455,11 @@ class PortfolioTracker:
         return exchange_exposure if exchange_exposure.is_finite() else Decimal("0.0")
 
     async def get_total_exposure_usd(self, valuation_asset: str = "USDC") -> Decimal:
-        """Calculate the total market exposure across all exchanges."""
+        """Calculate the total market exposure across all exchanges.
+
+        Returns:
+            Decimal: The total USD market exposure value across all exchanges and positions.
+        """
         logger.debug(
             "calculating_total_exposure_all_exchanges",
             valuation_asset=valuation_asset,
@@ -1502,7 +1546,11 @@ class PortfolioTracker:
         base_currency: str,
         total_realized_pnl: Decimal,
     ) -> Decimal:
-        """Process realized PNL for a single position."""
+        """Process realized PNL for a single position.
+
+        Returns:
+            Decimal: The updated realized PnL amount after processing this position.
+        """
         # Add position's own realized PNL if it's valid
         # Re-adding None check for safety, along with finiteness
         if position.realized_pnl is not None and position.realized_pnl.is_finite():
@@ -1564,7 +1612,12 @@ class PortfolioTracker:
         base_currency: str,
         price_service: PriceDataService | None = None,
     ) -> Decimal | None:
-        """Calculate unrealized PNL for a single position."""
+        """Calculate unrealized PNL for a single position.
+
+        Returns:
+            Decimal | None: The calculated unrealized PnL in base currency, or None if
+                calculation is not possible.
+        """
         # DEFENSIVE CHECK: Check entry_price is not None *before* size check
         # because a non-zero size *requires* a non-None entry_price (model validation)
         if position.size == Decimal(0) or position.entry_price is None:
@@ -1620,7 +1673,12 @@ class PortfolioTracker:
         base_currency: str,
         price_service: PriceDataService | None = None,
     ) -> tuple[Decimal | None, Decimal | None]:
-        """Get mark price and entry price converted to base currency."""
+        """Get mark price and entry price converted to base currency.
+
+        Returns:
+            tuple[Decimal | None, Decimal | None]: A tuple of (mark_price_in_base,
+                entry_price_in_base) or None values if conversion fails.
+        """
         # 1. Get Mark Price in the requested Base Currency
         if price_service:
             mark_price_in_base = await price_service.get_price_in_base_currency(
@@ -1665,7 +1723,11 @@ class PortfolioTracker:
         return mark_price_in_base, entry_price_in_base
 
     def _extract_quote_currency(self, symbol: str) -> str | None:
-        """Extract quote currency from symbol."""
+        """Extract quote currency from symbol.
+
+        Returns:
+            str | None: The quote currency if symbol contains a separator, otherwise None.
+        """
         if "-" in symbol:
             return symbol.rsplit("-", maxsplit=1)[-1]
         if "_" in symbol:
@@ -1681,7 +1743,11 @@ class PortfolioTracker:
         symbol: str,
         price_service: PriceDataService | None = None,
     ) -> Decimal | None:
-        """Convert entry price from quote currency to base currency."""
+        """Convert entry price from quote currency to base currency.
+
+        Returns:
+            Decimal | None: The converted entry price in base currency, or None if conversion fails.
+        """
         if quote_currency == base_currency:
             return entry_price_in_quote
 
@@ -1712,7 +1778,11 @@ class PortfolioTracker:
         mark_price_in_base: Decimal | None,
         entry_price_in_base: Decimal | None,
     ) -> bool:
-        """Check if unrealized PNL can be calculated."""
+        """Check if unrealized PNL can be calculated.
+
+        Returns:
+            bool: True if both prices are valid and finite, False otherwise.
+        """
         return (
             mark_price_in_base is not None
             and entry_price_in_base is not None
@@ -1727,7 +1797,11 @@ class PortfolioTracker:
         entry_price_in_base: Decimal,
         exchange_id: str,
     ) -> Decimal | None:
-        """Compute the unrealized PNL for a position."""
+        """Compute the unrealized PNL for a position.
+
+        Returns:
+            Decimal | None: The computed unrealized PNL, or None if calculation fails.
+        """
         try:
             # Unrealized PNL = Size * (Mark Price in Base - Entry Price in Base)
             unrealized_pnl = position.size * (mark_price_in_base - entry_price_in_base)
@@ -1790,7 +1864,11 @@ class PortfolioTracker:
     # --- Order Access Methods ---
 
     def get_open_orders(self, exchange_id: str, symbol: str | None = None) -> list[Order]:
-        """Get all open orders for a given exchange and optionally a symbol."""
+        """Get all open orders for a given exchange and optionally a symbol.
+
+        Returns:
+            list[Order]: List of open orders matching the criteria.
+        """
         if exchange_id not in self.orders:
             return []
 
@@ -1807,7 +1885,11 @@ class PortfolioTracker:
         return open_orders_collected
 
     def get_order_history(self, exchange_id: str, symbol: str | None = None) -> list[Order]:
-        """Get all orders (open and closed) for a given exchange and optionally a symbol."""
+        """Get all orders (open and closed) for a given exchange and optionally a symbol.
+
+        Returns:
+            list[Order]: List of all orders matching the criteria.
+        """
         exchange_orders = self.orders.get(exchange_id, {})
         all_orders: list[Order] = [
             order for order in exchange_orders.values() if symbol is None or order.symbol == symbol
@@ -1843,6 +1925,9 @@ class PortfolioTracker:
         """Serialize the portfolio state to a dictionary suitable for JSON.
 
         Note: Returns dict containing Pydantic models. Serialization handled by encoder.
+
+        Returns:
+            dict[str, Any]: Dictionary representation of the portfolio state.
         """
         # Convert defaultdicts to dict for serialization if necessary,
         # though Pydantic's default_encoders might handle it.
@@ -1868,7 +1953,11 @@ class PortfolioTracker:
         app_settings: AppSettings,
         pt_config: PortfolioTrackerConfig,
     ) -> PortfolioTracker:
-        """Deserialize the portfolio state from a dictionary."""
+        """Deserialize the portfolio state from a dictionary.
+
+        Returns:
+            PortfolioTracker: New portfolio tracker instance with restored state.
+        """
         tracker = cls(app_settings, pt_config)
 
         # Load each data section
@@ -2127,7 +2216,11 @@ class PortfolioTracker:
             # Potentially trigger unsubscription logic
 
     def get_watchlist(self) -> set[str]:
-        """Get the current set of watched symbols."""
+        """Get the current set of watched symbols.
+
+        Returns:
+            set[str]: Copy of the current watchlist symbols.
+        """
         return self.watchlist.copy()
 
     def update_active_symbols(self) -> None:
@@ -2148,13 +2241,21 @@ class PortfolioTracker:
         self.active_symbols = active
 
     def get_active_symbols(self) -> set[str]:
-        """Get the current set of symbols with active positions or orders."""
+        """Get the current set of symbols with active positions or orders.
+
+        Returns:
+            set[str]: Copy of symbols with active positions or open orders.
+        """
         # Ensure it's up-to-date before returning
         self.update_active_symbols()
         return self.active_symbols.copy()
 
     def get_relevant_symbols(self) -> set[str]:
-        """Get all symbols relevant to the portfolio (active + watchlist)."""
+        """Get all symbols relevant to the portfolio (active + watchlist).
+
+        Returns:
+            set[str]: Union of active symbols and watchlist symbols.
+        """
         self.update_active_symbols()  # Ensure active symbols are current
         return self.active_symbols.union(self.watchlist)
 
@@ -2217,7 +2318,11 @@ class PortfolioTracker:
         self,
         orders_data: list[Order] | dict[str, Any],
     ) -> list[Order | dict[str, Any]]:
-        """Prepare order items for processing."""
+        """Prepare order items for processing.
+
+        Returns:
+            list[Order | dict[str, Any]]: List of order items ready for processing.
+        """
         items_to_process: list[Order | dict[str, Any]] = []
 
         if isinstance(orders_data, dict):
@@ -2244,7 +2349,11 @@ class PortfolioTracker:
         current_orders: dict[str, Order],
         exchange_id: str,
     ) -> bool:
-        """Process an order from dictionary data. Returns True if successful."""
+        """Process an order from dictionary data. Returns True if successful.
+
+        Returns:
+            bool: True if order was successfully processed, False otherwise.
+        """
         try:
             order = Order.model_validate(order_dict_data)
             self._normalize_order_fields(order, exchange_id)
@@ -2271,7 +2380,11 @@ class PortfolioTracker:
         current_orders: dict[str, Order],
         exchange_id: str,
     ) -> bool:
-        """Process an order object. Returns True if successful."""
+        """Process an order object. Returns True if successful.
+
+        Returns:
+            bool: True if order was successfully processed, False otherwise.
+        """
         self._normalize_order_fields(order_obj, exchange_id)
         self._normalize_order_status(order_obj)
         current_orders[order_obj.client_order_id] = order_obj
@@ -2577,7 +2690,11 @@ class PortfolioTracker:
         return cleanup_stats
 
     def _cleanup_stale_tickers(self, cutoff_time: datetime) -> int:
-        """Clean up old tickers and enforce cache size limits."""
+        """Clean up old tickers and enforce cache size limits.
+
+        Returns:
+            int: Number of ticker entries removed from the cache.
+        """
         removed_count = 0
 
         # Remove old tickers
@@ -2604,7 +2721,11 @@ class PortfolioTracker:
         return removed_count
 
     def _cleanup_stale_balances(self, cutoff_time: datetime) -> int:
-        """Clean up stale balance data."""
+        """Clean up stale balance data.
+
+        Returns:
+            int: Number of balance entries removed from the cache.
+        """
         removed_count = 0
 
         for exchange_balances in self.balances.values():
@@ -2621,7 +2742,11 @@ class PortfolioTracker:
         return removed_count
 
     def _cleanup_stale_positions(self, cutoff_time: datetime) -> int:
-        """Clean up stale position data."""
+        """Clean up stale position data.
+
+        Returns:
+            int: Number of position entries removed from the cache.
+        """
         removed_count = 0
 
         for exchange_positions in self.positions.values():
@@ -2638,7 +2763,11 @@ class PortfolioTracker:
         return removed_count
 
     def _cleanup_stale_orders(self, cutoff_time: datetime) -> int:
-        """Clean up very old completed orders."""
+        """Clean up very old completed orders.
+
+        Returns:
+            int: Number of order entries removed from the cache.
+        """
         removed_count = 0
 
         for exchange_orders in self.orders.values():

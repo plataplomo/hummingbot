@@ -20,7 +20,11 @@ logger = get_logger(__name__)
 
 
 async def fetch_backpack_time() -> None:
-    """Fetch the Backpack time endpoint and save as JSON."""
+    """Fetch the Backpack time endpoint and save as JSON.
+
+    Raises:
+        ValueError: If Backpack exchange configuration is not found.
+    """
     output_dir = Path("tests/fixtures/raw_api_data/backpack")
     output_dir.mkdir(parents=True, exist_ok=True)
 

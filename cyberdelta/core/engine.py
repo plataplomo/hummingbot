@@ -225,7 +225,11 @@ class Engine:
         await self._process_strategies_for_symbol(data)
 
     def _validate_engine_state(self) -> bool:
-        """Validate that the engine is in a state to process market data."""
+        """Validate that the engine is in a state to process market data.
+        
+        Returns:
+            bool: True if engine is running and has a signal handler configured.
+        """
         if not self.is_running:
             logger.warning("Engine is not running, ignoring market data.")
             return False
@@ -237,7 +241,14 @@ class Engine:
         return True
 
     def _should_process_symbol(self, symbol: str) -> bool:
-        """Check if the symbol should be processed."""
+        """Check if the symbol should be processed.
+        
+        Args:
+            symbol: Trading symbol to check.
+            
+        Returns:
+            bool: True if symbol has active strategies.
+        """
         if symbol not in self.active_symbols:
             logger.debug(
                 "no_active_strategy_for_symbol",
@@ -285,7 +296,14 @@ class Engine:
         self,
         result: TradeSignal | list[TradeSignal],
     ) -> list[TradeSignal]:
-        """Normalize strategy result to a list of signals."""
+        """Normalize strategy result to a list of signals.
+        
+        Args:
+            result: Single signal or list of signals from strategy.
+            
+        Returns:
+            list[TradeSignal]: List of signals (wraps single signal in list if needed).
+        """
         if isinstance(result, list):
             return result
         return [result]
@@ -320,7 +338,7 @@ class Engine:
         """Start the trading engine. Calls on_start() for all enabled strategies.
 
         Raises:
-            RuntimeError: If signal handler is not configured before starting.
+            EngineConfigurationError: If signal handler is not configured before starting.
         """
         if self.is_running:
             logger.warning("Engine is already running.")

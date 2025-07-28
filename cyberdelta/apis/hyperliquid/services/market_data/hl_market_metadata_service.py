@@ -173,7 +173,6 @@ class HyperliquidMarketMetadataService:
 
         Raises:
             APIError: If symbol is not found or API request fails
-            SymbolNotFoundError: If the requested symbol is not available
         """
         symbol = args.symbol
         frame = inspect.currentframe()

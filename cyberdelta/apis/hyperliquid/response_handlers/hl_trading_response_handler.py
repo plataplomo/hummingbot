@@ -94,7 +94,10 @@ class HyperliquidTradingResponseHandler(
             HyperliquidRawExchangeResponse: Validated exchange response model
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+
+        Note:
+            The _handle_validation_error method may raise APIError if validation fails.
         """
         context = "exchange_response"
         try:
@@ -127,7 +130,10 @@ class HyperliquidTradingResponseHandler(
             HyperliquidRawOpenOrdersResponse: Validated open orders response
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+
+        Note:
+            The _handle_validation_error method may raise APIError if validation fails.
         """
         context = "info_open_orders"
         try:
@@ -158,7 +164,10 @@ class HyperliquidTradingResponseHandler(
             HyperliquidRawUserFillsResponse: Validated user fills response
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+
+        Note:
+            The _handle_validation_error method may raise APIError if validation fails.
         """
         context = "info_user_fills"
         try:
@@ -191,7 +200,11 @@ class HyperliquidTradingResponseHandler(
             HyperliquidRawOrderStatusResponse: Validated order status
 
         Raises:
-            APIError: If validation fails
+            APIError: If order not found (unknownOid status)
+            MissingRequiredParameterError: If status_code is None
+
+        Note:
+            The _handle_validation_error method may raise APIError if validation fails.
         """
         context = "info_order_status"
         try:
@@ -231,7 +244,10 @@ class HyperliquidTradingResponseHandler(
             HyperliquidRawHistoricalOrdersResponse: Validated historical orders
 
         Raises:
-            APIError: If validation fails
+            MissingRequiredParameterError: If status_code is None
+
+        Note:
+            The _handle_validation_error method may raise APIError if validation fails.
         """
         context = "historical_orders"
         try:
@@ -264,6 +280,9 @@ class HyperliquidTradingResponseHandler(
 
         Returns:
             Validated Pydantic model containing order placement result
+
+        Raises:
+            APIError: If response validation fails
         """
         context = "place_order"
         try:
@@ -295,6 +314,9 @@ class HyperliquidTradingResponseHandler(
 
         Returns:
             Validated Pydantic model containing order cancellation result
+
+        Raises:
+            APIError: If response validation fails
         """
         context = "cancel_order"
         try:
@@ -326,6 +348,9 @@ class HyperliquidTradingResponseHandler(
 
         Returns:
             Validated Pydantic model containing cancel all orders result
+
+        Raises:
+            APIError: If response validation fails
         """
         context = "cancel_all_orders"
         try:

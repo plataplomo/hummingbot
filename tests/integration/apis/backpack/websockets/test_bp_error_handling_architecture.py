@@ -194,7 +194,14 @@ class TestBackpackErrorHandlingArchitecture:
     async def _setup_error_propagation_test(
         self, bp_api_for_test_env: BackpackAPI
     ) -> tuple[str, list[tuple[str, Exception]]]:
-        """Set up WebSocket connection and get test data for error propagation test."""
+        """Set up WebSocket connection and get test data for error propagation test.
+
+        Args:
+            bp_api_for_test_env: BackpackAPI instance for testing
+
+        Returns:
+            tuple[str, list[tuple[str, Exception]]]: Test symbol and list of error scenarios
+        """
         # Rule #10: Add proper network error handling
         try:
             await bp_api_for_test_env.connect_websocket()
@@ -225,7 +232,16 @@ class TestBackpackErrorHandlingArchitecture:
     async def _create_error_tracking_handler(
         self, error_name: str, error_to_raise: Exception, handler_errors: list[Exception]
     ) -> MessageHandler:
-        """Create a handler that tracks and raises errors."""
+        """Create a handler that tracks and raises errors.
+
+        Args:
+            error_name: Name of the error for logging
+            error_to_raise: Exception to raise in the handler
+            handler_errors: List to track handler errors
+
+        Returns:
+            MessageHandler: Handler function that raises the specified error
+        """
 
         async def error_tracking_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)

@@ -26,7 +26,11 @@ from cyberdelta.core.symbols.service import SymbolService
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing."""
+    """Create mock app settings for testing.
+
+    Returns:
+        Mock: A mock AppSettings instance configured for testing.
+    """
     settings = Mock(spec=AppSettings)
 
     # Create mock exchange configs
@@ -44,13 +48,21 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker for testing."""
+    """Create mock portfolio tracker for testing.
+
+    Returns:
+        Mock: A mock PortfolioTracker instance for testing.
+    """
     return Mock(spec=PortfolioTracker)
 
 
 @pytest.fixture
 def mock_symbol_service() -> Mock:
-    """Create mock symbol service for testing."""
+    """Create mock symbol service for testing.
+
+    Returns:
+        Mock: A mock SymbolService instance for testing.
+    """
     return Mock(spec=SymbolService)
 
 
@@ -58,7 +70,11 @@ def mock_symbol_service() -> Mock:
 def data_handler(
     mock_app_settings: Mock, mock_portfolio_tracker: Mock, mock_symbol_service: Mock
 ) -> DataHandler:
-    """Create a DataHandler instance for testing."""
+    """Create a DataHandler instance for testing.
+
+    Returns:
+        DataHandler: A configured DataHandler instance for testing.
+    """
     # Create a mock event loop to avoid the RuntimeError
     mock_loop = Mock(spec=asyncio.AbstractEventLoop)
     return DataHandler(
@@ -72,7 +88,11 @@ def data_handler(
 
 @pytest.fixture
 def mock_api_client() -> Mock:
-    """Create a mock API client for testing."""
+    """Create a mock API client for testing.
+
+    Returns:
+        Mock: A mock ExchangeAPI instance for testing.
+    """
     client = Mock(spec=ExchangeAPI)
     client.connect = AsyncMock()
     client.disconnect = AsyncMock()
@@ -82,7 +102,11 @@ def mock_api_client() -> Mock:
 
 @pytest.fixture
 def sample_ticker() -> Ticker:
-    """Create a sample Ticker for testing."""
+    """Create a sample Ticker for testing.
+
+    Returns:
+        Ticker: A sample BTC-PERP ticker for testing.
+    """
     return Ticker(
         symbol="BTC-PERP",
         exchange="test_exchange",
@@ -95,7 +119,11 @@ def sample_ticker() -> Ticker:
 
 @pytest.fixture
 def sample_order_book() -> OrderBook:
-    """Create a sample OrderBook for testing."""
+    """Create a sample OrderBook for testing.
+
+    Returns:
+        OrderBook: A sample BTC-PERP order book for testing.
+    """
     return OrderBook(
         symbol="BTC-PERP",
         bids=[
@@ -112,7 +140,11 @@ def sample_order_book() -> OrderBook:
 
 @pytest.fixture
 def sample_funding_rate() -> FundingRate:
-    """Create a sample FundingRate for testing."""
+    """Create a sample FundingRate for testing.
+
+    Returns:
+        FundingRate: A sample BTC-PERP funding rate for testing.
+    """
     return FundingRate(
         symbol="BTC-PERP",
         funding_rate=Decimal("0.0001"),
@@ -123,7 +155,11 @@ def sample_funding_rate() -> FundingRate:
 
 @pytest.fixture
 def sample_candle() -> Candle:
-    """Create a sample Candle for testing."""
+    """Create a sample Candle for testing.
+
+    Returns:
+        Candle: A sample BTC-PERP candle for testing.
+    """
     return Candle(
         symbol="BTC-PERP",
         interval="1m",

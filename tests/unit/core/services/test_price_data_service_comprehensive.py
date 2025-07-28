@@ -21,13 +21,21 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock application settings."""
+    """Create mock application settings.
+    
+    Returns:
+        Mock: Mocked AppSettings instance.
+    """
     return Mock(spec=AppSettings)
 
 
 @pytest.fixture
 def mock_exchange_api() -> Mock:
-    """Create mock exchange API client."""
+    """Create mock exchange API client.
+    
+    Returns:
+        Mock: Mocked ExchangeAPI client with get_ticker method.
+    """
     client = Mock(spec=ExchangeAPI)
     client.get_ticker = AsyncMock(return_value=None)
     return client
@@ -35,7 +43,11 @@ def mock_exchange_api() -> Mock:
 
 @pytest.fixture
 def mock_api_clients() -> dict[str, AsyncMock]:
-    """Create mock API clients dictionary."""
+    """Create mock API clients dictionary.
+    
+    Returns:
+        dict[str, AsyncMock]: Dictionary of mocked API clients for hyperliquid and backpack.
+    """
     hl_client = AsyncMock()
     hl_client.get_ticker = AsyncMock(return_value=None)
 
@@ -53,7 +65,11 @@ def price_service(
     mock_app_settings: Mock,
     mock_api_clients: dict[str, AsyncMock],
 ) -> PriceDataService:
-    """Create PriceDataService instance for testing."""
+    """Create PriceDataService instance for testing.
+    
+    Returns:
+        PriceDataService: Configured price data service with 30-second cache expiry.
+    """
     return PriceDataService(
         app_settings=mock_app_settings,
         api_clients=mock_api_clients,  # type: ignore[arg-type]
@@ -63,7 +79,11 @@ def price_service(
 
 @pytest.fixture
 def sample_ticker() -> Ticker:
-    """Create sample ticker for testing."""
+    """Create sample ticker for testing.
+    
+    Returns:
+        Ticker: Sample BTC-PERP ticker with bid/ask spread.
+    """
     return Ticker(
         symbol="BTC-PERP",
         exchange="test_exchange",
@@ -75,7 +95,11 @@ def sample_ticker() -> Ticker:
 
 @pytest.fixture
 def sample_ticker_with_mid_price() -> Ticker:
-    """Create sample ticker with mid price for testing."""
+    """Create sample ticker with mid price for testing.
+    
+    Returns:
+        Ticker: Sample ETH-PERP ticker with bid/ask/mid price.
+    """
     return Ticker(
         symbol="ETH-PERP",
         exchange="test_exchange",

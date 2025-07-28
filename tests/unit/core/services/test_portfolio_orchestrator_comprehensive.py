@@ -31,20 +31,32 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 
 def _as_mock(obj: object) -> Mock:
-    """Helper function to assert an object is a Mock and return it typed."""
+    """Helper function to assert an object is a Mock and return it typed.
+
+    Returns:
+        Mock: The input object cast as a Mock after type assertion.
+    """
     assert isinstance(obj, Mock)
     return obj
 
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock application settings."""
+    """Create mock application settings.
+
+    Returns:
+        Mock: A mock AppSettings instance for testing.
+    """
     return Mock(spec=AppSettings)
 
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker."""
+    """Create mock portfolio tracker.
+
+    Returns:
+        Mock: A mock PortfolioTracker instance with async methods configured.
+    """
     tracker = Mock(spec=PortfolioTracker)
     tracker.update_balances = AsyncMock()
     tracker.update_positions = AsyncMock()
@@ -56,7 +68,11 @@ def mock_portfolio_tracker() -> Mock:
 
 @pytest.fixture
 def mock_exchange_api() -> Mock:
-    """Create mock exchange API client."""
+    """Create mock exchange API client.
+
+    Returns:
+        Mock: A mock ExchangeAPI instance with async methods configured.
+    """
     client = Mock(spec=ExchangeAPI)
     client.get_balances = AsyncMock(return_value={})
     client.get_positions = AsyncMock(return_value=[])
@@ -68,7 +84,11 @@ def mock_exchange_api() -> Mock:
 
 @pytest.fixture
 def mock_api_clients(mock_exchange_api: Mock) -> dict[str, ExchangeAPI]:
-    """Create mock API clients dictionary."""
+    """Create mock API clients dictionary.
+
+    Returns:
+        dict[str, ExchangeAPI]: Dictionary mapping exchange names to mock API clients.
+    """
     return {
         "hyperliquid": mock_exchange_api,
         "backpack": Mock(spec=ExchangeAPI),
@@ -81,7 +101,11 @@ def orchestrator(
     mock_portfolio_tracker: Mock,
     mock_api_clients: dict[str, ExchangeAPI],
 ) -> PortfolioOrchestrator:
-    """Create PortfolioOrchestrator instance for testing."""
+    """Create PortfolioOrchestrator instance for testing.
+
+    Returns:
+        PortfolioOrchestrator: A configured PortfolioOrchestrator instance for testing.
+    """
     return PortfolioOrchestrator(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_tracker,
@@ -91,7 +115,11 @@ def orchestrator(
 
 @pytest.fixture
 def sample_spot_balance() -> SpotBalance:
-    """Create sample spot balance for testing."""
+    """Create sample spot balance for testing.
+
+    Returns:
+        SpotBalance: A sample USDC spot balance for testing.
+    """
     return SpotBalance(
         exchange="hyperliquid",
         asset="USDC",
@@ -103,7 +131,11 @@ def sample_spot_balance() -> SpotBalance:
 
 @pytest.fixture
 def sample_derivative_position() -> DerivativePosition:
-    """Create sample derivative position for testing."""
+    """Create sample derivative position for testing.
+
+    Returns:
+        DerivativePosition: A sample BTC-PERP long position for testing.
+    """
     return DerivativePosition(
         exchange="hyperliquid",
         symbol="BTC-PERP",
@@ -116,7 +148,11 @@ def sample_derivative_position() -> DerivativePosition:
 
 @pytest.fixture
 def sample_order() -> Order:
-    """Create sample order for testing."""
+    """Create sample order for testing.
+
+    Returns:
+        Order: A sample BTC-PERP limit buy order for testing.
+    """
     return Order(
         exchange="hyperliquid",
         client_order_id="test_order_123",
@@ -137,7 +173,11 @@ def sample_order() -> Order:
 
 @pytest.fixture
 def sample_margin_account_summary() -> MarginAccountSummary:
-    """Create sample margin account summary for testing."""
+    """Create sample margin account summary for testing.
+
+    Returns:
+        MarginAccountSummary: A sample margin account summary for testing.
+    """
     return MarginAccountSummary(
         exchange="hyperliquid",
         timestamp=datetime.now(UTC),
@@ -152,7 +192,11 @@ def sample_margin_account_summary() -> MarginAccountSummary:
 
 @pytest.fixture
 def sample_ticker() -> Ticker:
-    """Create sample ticker for testing."""
+    """Create sample ticker for testing.
+
+    Returns:
+        Ticker: A sample BTC-PERP ticker for testing.
+    """
     return Ticker(
         symbol="BTC-PERP",
         exchange="test_exchange",

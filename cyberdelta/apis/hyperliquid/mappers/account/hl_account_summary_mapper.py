@@ -59,22 +59,51 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely with default fallback."""
+        """Parse decimal values safely with default fallback.
+
+        Args:
+            value: Value to parse as Decimal
+            default: Default value if parsing fails
+
+        Returns:
+            Decimal: Parsed decimal value or default
+        """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format."""
+        """Normalize symbol to internal format.
+
+        Args:
+            symbol: Exchange-specific symbol to normalize
+
+        Returns:
+            str: Normalized symbol for internal use
+        """
         return HyperliquidCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format."""
+        """Denormalize symbol to exchange format.
+
+        Args:
+            symbol: Internal symbol to denormalize
+
+        Returns:
+            str: Exchange-specific symbol format
+        """
         return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime."""
+        """Convert millisecond timestamp to datetime.
+
+        Args:
+            timestamp_ms: Timestamp in milliseconds
+
+        Returns:
+            datetime | None: Converted datetime or None if input is None
+        """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific method from AccountSummaryMapperProtocol

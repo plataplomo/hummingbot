@@ -16,6 +16,7 @@ from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.portfolio.calculators.performance_calculator import PerformanceInput
 from cyberdelta.core.portfolio.exceptions import StateValidationError
 from cyberdelta.core.portfolio.exceptions.service import (
     AnalyticsRequiredFieldError,
@@ -33,12 +34,20 @@ REASONABLE_VALUE_MAX = 1e15  # Maximum reasonable financial value
 
 # Typed model factories for Pydantic
 def _report_section_list_factory() -> list[ReportSection]:
-    """Factory function that preserves list[ReportSection] type information."""
+    """Factory function that preserves list[ReportSection] type information.
+    
+    Returns:
+        Empty list with proper ReportSection type annotation.
+    """
     return []
 
 
 def _decimal_dict_factory() -> dict[str, Decimal]:
-    """Factory function that preserves dict[str, Decimal] type information."""
+    """Factory function that preserves dict[str, Decimal] type information.
+    
+    Returns:
+        Empty dictionary with proper Decimal value type annotation.
+    """
     return {}
 
 
@@ -46,7 +55,6 @@ if TYPE_CHECKING:
     from cyberdelta.core.portfolio.calculators.exposure_calculator import ExposureCalculator
     from cyberdelta.core.portfolio.calculators.performance_calculator import (
         PerformanceCalculator,
-        PerformanceInput,
     )
     from cyberdelta.core.portfolio.calculators.pnl.realized_pnl_calculator import (
         RealizedPnLCalculator,
@@ -63,32 +71,56 @@ logger = get_logger(__name__)
 
 # Type-preserving factory functions
 def _chart_data_factory() -> list[dict[str, float | str]]:
-    """Factory function that preserves chart data type information."""
+    """Factory function that preserves chart data type information.
+    
+    Returns:
+        Empty list with proper chart data type annotation.
+    """
     return []
 
 
 def _table_data_factory() -> list[list[str | float | int]]:
-    """Factory function that preserves table data type information."""
+    """Factory function that preserves table data type information.
+    
+    Returns:
+        Empty list with proper table data type annotation.
+    """
     return []
 
 
 def _position_data_factory() -> list[PositionData]:
-    """Factory function that preserves list[PositionData] type information."""
+    """Factory function that preserves list[PositionData] type information.
+    
+    Returns:
+        Empty list with proper PositionData type annotation.
+    """
     return []
 
 
 def _chart_data_list_factory() -> list[ChartData]:
-    """Factory function that preserves list[ChartData] type information."""
+    """Factory function that preserves list[ChartData] type information.
+    
+    Returns:
+        Empty list with proper ChartData type annotation.
+    """
     return []
 
 
 def _table_data_list_factory() -> list[TableData]:
-    """Factory function that preserves list[TableData] type information."""
+    """Factory function that preserves list[TableData] type information.
+    
+    Returns:
+        Empty list with proper TableData type annotation.
+    """
     return []
 
 
 def _analytics_alert_factory() -> list[AnalyticsAlert]:
-    """Factory function that preserves list[AnalyticsAlert] type information."""
+    """Factory function that preserves list[AnalyticsAlert] type information.
+    
+    Returns:
+        Empty list with proper AnalyticsAlert type annotation.
+    """
     return []
 
 
@@ -148,7 +180,17 @@ class ReportFilters:
     @field_validator("start_date", "end_date", mode="before")
     @classmethod
     def validate_dates(cls, v: str | None) -> str | None:
-        """Validate date format if provided."""
+        """Validate date format if provided.
+        
+        Args:
+            v: Date string to validate
+            
+        Returns:
+            Validated and stripped date string, or None if input was None/empty.
+            
+        Raises:
+            StateValidationError: If date string is too short (less than 8 characters).
+        """
         if v is not None and v.strip():
             # Basic validation - could be enhanced with actual date parsing
             if len(v.strip()) < MAX_DECIMAL_PLACES:
@@ -175,7 +217,14 @@ class ReportMetadata:
     @field_validator("tags", mode="before")
     @classmethod
     def validate_tags(cls, v: list[str] | None) -> list[str]:
-        """Validate tags are non-empty strings."""
+        """Validate tags are non-empty strings.
+        
+        Args:
+            v: List of tag strings to validate
+            
+        Returns:
+            List of non-empty, stripped tag strings.
+        """
         if v is None:
             return []
         # v is already validated as list[str] by Pydantic
@@ -194,7 +243,17 @@ class PortfolioSummaryData:
     @field_validator("total_value", "positions_value", "cash_balance", mode="before")
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Validate decimal values are finite."""
+        """Validate decimal values are finite.
+        
+        Args:
+            v: Value to convert and validate as Decimal
+            
+        Returns:
+            Validated finite Decimal value.
+            
+        Raises:
+            AnalyticsValueError: If value is not finite.
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise AnalyticsValueError(
@@ -216,7 +275,17 @@ class PositionData:
     @field_validator("size", "market_value", "unrealized_pnl", mode="before")
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Validate decimal values are finite."""
+        """Validate decimal values are finite.
+        
+        Args:
+            v: Value to convert and validate as Decimal
+            
+        Returns:
+            Validated finite Decimal value.
+            
+        Raises:
+            AnalyticsValueError: If value is not finite.
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise AnalyticsValueError(
@@ -241,7 +310,17 @@ class PerformanceMetricsData:
     )
     @classmethod
     def validate_metrics(cls, v: float | str) -> float:
-        """Validate metrics are finite."""
+        """Validate metrics are finite.
+        
+        Args:
+            v: Metric value to validate
+            
+        Returns:
+            Validated finite float value within reasonable bounds.
+            
+        Raises:
+            AnalyticsValueError: If value is not finite or outside reasonable range.
+        """
         value: float = v if isinstance(v, (int, float)) else float(v)
         # Check for reasonable finite values
         if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
@@ -264,7 +343,17 @@ class RiskMetricsData:
     @field_validator("var_95", "var_99", "expected_shortfall", "leverage_ratio", mode="before")
     @classmethod
     def validate_risk_metrics(cls, v: float | str | Decimal) -> float:
-        """Validate risk metrics are finite and positive."""
+        """Validate risk metrics are finite and positive.
+        
+        Args:
+            v: Risk metric value to validate
+            
+        Returns:
+            Validated non-negative finite float value.
+            
+        Raises:
+            AnalyticsValueError: If value is negative, infinite, or unreasonable.
+        """
         value: float = float(v)
         if not (0 <= value < REASONABLE_VALUE_MAX):  # Must be positive and reasonable
             raise AnalyticsValueError(
@@ -295,7 +384,17 @@ class AttributionData:
     def validate_attribution_dicts(
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
-        """Validate attribution dictionaries have finite decimal values."""
+        """Validate attribution dictionaries have finite decimal values.
+        
+        Args:
+            v: Dictionary with string keys and numeric values to validate
+            
+        Returns:
+            Dictionary with string keys and validated finite Decimal values.
+            
+        Raises:
+            AnalyticsValueError: If any value is not finite.
+        """
         result: dict[str, Decimal] = {}
         for key, value in v.items():
             val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
@@ -323,7 +422,17 @@ class ChartData:
     @field_validator("chart_type", mode="before")
     @classmethod
     def validate_chart_type(cls, v: str) -> str:
-        """Validate chart type is one of allowed values."""
+        """Validate chart type is one of allowed values.
+        
+        Args:
+            v: Chart type string to validate
+            
+        Returns:
+            Validated lowercase chart type string.
+            
+        Raises:
+            AnalyticsTypeError: If chart type is not in valid types list.
+        """
         valid_types = {"line", "bar", "pie", "scatter", "area", "heatmap"}
         if v.lower() not in valid_types:
             raise AnalyticsTypeError(field_type="Chart type", valid_types=list(valid_types))
@@ -343,7 +452,17 @@ class TableData:
     @field_validator("headers", mode="before")
     @classmethod
     def validate_headers(cls, v: list[str]) -> list[str]:
-        """Validate headers are non-empty strings."""
+        """Validate headers are non-empty strings.
+        
+        Args:
+            v: List of header strings to validate
+            
+        Returns:
+            List of non-empty, stripped header strings.
+            
+        Raises:
+            AnalyticsRequiredFieldError: If headers list is empty.
+        """
         if not v:
             raise AnalyticsRequiredFieldError(
                 field_name="Headers", requirement="must be a non-empty list"
@@ -367,7 +486,17 @@ class RawDataCollection:
     @field_validator("balances", mode="after")
     @classmethod
     def validate_balances(cls, v: dict[str, Decimal | str | float | int]) -> dict[str, Decimal]:
-        """Validate balance values are finite decimals."""
+        """Validate balance values are finite decimals.
+        
+        Args:
+            v: Dictionary with string keys and numeric balance values
+            
+        Returns:
+            Dictionary with string keys and validated finite Decimal values.
+            
+        Raises:
+            AnalyticsValueError: If any balance value is not finite.
+        """
         result: dict[str, Decimal] = {}
         for key, value in v.items():
             val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
@@ -403,7 +532,17 @@ class ReportConfiguration:
     @field_validator("time_period", mode="before")
     @classmethod
     def validate_time_period(cls, v: str) -> str:
-        """Validate time period is one of allowed values."""
+        """Validate time period is one of allowed values.
+        
+        Args:
+            v: Time period string to validate
+            
+        Returns:
+            Validated time period string.
+            
+        Raises:
+            AnalyticsTypeError: If time period is not in valid periods list.
+        """
         valid_periods = {"daily", "weekly", "monthly", "quarterly", "yearly"}
         if v not in valid_periods:
             raise AnalyticsTypeError(field_type="Time period", valid_types=list(valid_periods))
@@ -425,7 +564,17 @@ class ReportSection:
     @field_validator("content_type", mode="before")
     @classmethod
     def validate_content_type(cls, v: str) -> str:
-        """Validate content type is one of allowed values."""
+        """Validate content type is one of allowed values.
+        
+        Args:
+            v: Content type string to validate
+            
+        Returns:
+            Validated content type string.
+            
+        Raises:
+            AnalyticsTypeError: If content type is not in valid types list.
+        """
         valid_types = {"table", "chart", "text", "metrics"}
         if v not in valid_types:
             raise AnalyticsTypeError(field_type="Content type", valid_types=list(valid_types))
@@ -508,7 +657,17 @@ class AnalyticsAlert:
     @field_validator("alert_type", mode="before")
     @classmethod
     def validate_alert_type(cls, v: str) -> str:
-        """Validate alert type is non-empty."""
+        """Validate alert type is non-empty.
+        
+        Args:
+            v: Alert type string to validate
+            
+        Returns:
+            Validated non-empty, stripped alert type string.
+            
+        Raises:
+            AnalyticsRequiredFieldError: If alert type is empty or whitespace only.
+        """
         if not v or not v.strip():
             raise AnalyticsRequiredFieldError(field_name="Alert type")
         return v.strip()
@@ -527,7 +686,17 @@ class AnalyticsStatistics:
     @field_validator("mean", "median", "min_value", "max_value", mode="before")
     @classmethod
     def validate_statistics(cls, v: float | str | Decimal) -> float:
-        """Validate statistics are finite."""
+        """Validate statistics are finite.
+        
+        Args:
+            v: Statistical value to validate
+            
+        Returns:
+            Validated finite float value within reasonable bounds.
+            
+        Raises:
+            AnalyticsValueError: If value is not finite or outside reasonable range.
+        """
         value: float = float(v)
         if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
             raise AnalyticsValueError(
@@ -551,7 +720,14 @@ class AnalyticsResults:
     def validate_result_data(
         cls, v: dict[str, str | int | float | bool]
     ) -> dict[str, str | int | float | bool]:
-        """Validate result data contains only basic types."""
+        """Validate result data contains only basic types.
+        
+        Args:
+            v: Result data dictionary to validate
+            
+        Returns:
+            Validated result data dictionary with basic types.
+        """
         # Type is already constrained by annotation
         return v
 
@@ -606,7 +782,17 @@ class DashboardMetrics:
     @field_validator("total_pnl", "unrealized_pnl", mode="before")
     @classmethod
     def validate_pnl_metrics(cls, v: float | str | Decimal) -> float:
-        """Validate P&L metrics are finite."""
+        """Validate P&L metrics are finite.
+        
+        Args:
+            v: P&L metric value to validate
+            
+        Returns:
+            Validated finite float value within reasonable bounds.
+            
+        Raises:
+            AnalyticsValueError: If value is not finite or outside reasonable range.
+        """
         value: float = float(v)
         if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
             raise AnalyticsValueError(
@@ -820,7 +1006,25 @@ class PortfolioAnalyticsService(BasePortfolioService):
         base_currency: str = "USD",
         custom_config: dict[str, object] | None = None,
     ) -> PortfolioReport:
-        """Generate a portfolio report."""
+        """Generate a portfolio report.
+        
+        Args:
+            report_type: Type of report to generate
+            output_format: Output format for the report (default: JSON)
+            time_period: Time period for the report (default: "daily")
+            base_currency: Base currency for calculations (default: "USD")
+            custom_config: Optional custom configuration parameters
+            
+        Returns:
+            Generated portfolio report with all sections and metrics.
+            
+        Raises:
+            ValueError: If configuration parameters are invalid.
+            TypeError: If parameter types are incorrect.
+            KeyError: If required data is missing.
+            AttributeError: If required attributes are missing.
+            ArithmeticError: If calculations fail.
+        """
         start_time = time.time()
         report_id = f"{report_type.value}_{int(start_time)}"
 
@@ -926,7 +1130,23 @@ class PortfolioAnalyticsService(BasePortfolioService):
         base_currency: str = "USD",
         parameters: dict[str, object] | None = None,
     ) -> AnalyticsResult:
-        """Calculate specific analytics."""
+        """Calculate specific analytics.
+        
+        Args:
+            analytics_type: Type of analytics to calculate
+            base_currency: Base currency for calculations (default: "USD")
+            parameters: Optional calculation parameters
+            
+        Returns:
+            Analytics result with calculated metrics and statistics.
+            
+        Raises:
+            ValueError: If parameters or calculation inputs are invalid.
+            TypeError: If parameter types are incorrect.
+            KeyError: If required data is missing.
+            AttributeError: If required attributes are missing.
+            ArithmeticError: If calculations fail.
+        """
         start_time = time.time()
 
         # Check cache
@@ -962,7 +1182,14 @@ class PortfolioAnalyticsService(BasePortfolioService):
             return result
 
     def _get_cached_result(self, cache_key: str) -> AnalyticsResult | None:
-        """Get cached result if available and valid."""
+        """Get cached result if available and valid.
+        
+        Args:
+            cache_key: Cache key for the analytics result
+            
+        Returns:
+            Cached analytics result if available and not expired, None otherwise.
+        """
         if cache_key in self.analytics_cache:
             cached_result = self.analytics_cache[cache_key]
             if time.time() - cached_result.calculated_at < float(self.analytics_cache_ttl):
@@ -1023,7 +1250,14 @@ class PortfolioAnalyticsService(BasePortfolioService):
         )
 
     async def get_dashboard_data(self, dashboard_id: str = "main") -> DashboardData:
-        """Get dashboard data."""
+        """Get dashboard data.
+        
+        Args:
+            dashboard_id: Identifier for the dashboard (default: "main")
+            
+        Returns:
+            Dashboard data with current metrics, charts, and summaries.
+        """
         if dashboard_id not in self.dashboard_data:
             await self._initialize_dashboard(dashboard_id)
 
@@ -1068,7 +1302,15 @@ class PortfolioAnalyticsService(BasePortfolioService):
     async def get_report_history(
         self, report_type: ReportType | None = None, limit: int | None = None
     ) -> list[PortfolioReport]:
-        """Get report history."""
+        """Get report history.
+        
+        Args:
+            report_type: Optional filter by report type
+            limit: Optional limit on number of reports returned
+            
+        Returns:
+            List of historical reports, sorted by generation time (newest first).
+        """
         reports = list(self.generated_reports.values())
 
         # Filter by type
@@ -1085,7 +1327,12 @@ class PortfolioAnalyticsService(BasePortfolioService):
         return reports
 
     async def get_analytics_statistics(self) -> dict[str, object]:
-        """Get analytics service statistics."""
+        """Get analytics service statistics.
+        
+        Returns:
+            Dictionary containing service statistics including report counts,
+            cache metrics, and performance data.
+        """
         return {
             **self.analytics_statistics,
             "reports_in_memory": len(self.generated_reports),

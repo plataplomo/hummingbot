@@ -73,6 +73,10 @@ class HyperliquidRawOrderType(BaseModel):
         - {"limit": {...}} when it's a limit order
         - {"market": {}} when it's a market order
         - {"trigger": {...}} when it's a trigger order
+
+        Returns:
+            A dictionary containing only the non-null order type field and its value,
+            properly formatted for Hyperliquid API signing requirements.
         """
         data = serializer(self)
 

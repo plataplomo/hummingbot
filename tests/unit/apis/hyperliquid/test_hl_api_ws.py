@@ -37,7 +37,15 @@ class TestHyperliquidAPIWebSocketPublicInterface:
         active_hl_config: ExchangeSpecificConfig,
         active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
-        """Create HyperliquidAPI instance with all dependencies mocked."""
+        """Create HyperliquidAPI instance with all dependencies mocked.
+        
+        Args:
+            active_hl_config: Exchange configuration from conftest
+            active_hl_secrets: Authentication secrets from conftest
+            
+        Returns:
+            HyperliquidAPI instance configured with mocked dependencies
+        """
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidErrorMapper"),
@@ -174,7 +182,15 @@ class TestHyperliquidAPIWebSocketErrorHandling:
         active_hl_config: ExchangeSpecificConfig,
         active_hl_secrets: PrivateKeyAuthSecrets,
     ) -> HyperliquidAPI:
-        """Create HyperliquidAPI instance with mocked dependencies."""
+        """Create HyperliquidAPI instance with mocked dependencies.
+        
+        Args:
+            active_hl_config: Exchange configuration from conftest
+            active_hl_secrets: Authentication secrets from conftest
+            
+        Returns:
+            HyperliquidAPI instance configured with mocked dependencies
+        """
         with (
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidEip712Authenticator"),
             patch("cyberdelta.apis.hyperliquid.hl_api.HyperliquidErrorMapper"),

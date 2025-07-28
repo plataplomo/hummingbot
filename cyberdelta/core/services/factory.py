@@ -67,6 +67,9 @@ class ServiceFactory:
 
         Returns:
             Configured ExecutionErrorHandler instance
+
+        Raises:
+            TypeError: If cached service has incorrect type.
         """
         if "error_handler" not in self._services:
             self._services["error_handler"] = ExecutionErrorHandler(
@@ -83,6 +86,9 @@ class ServiceFactory:
 
         Returns:
             Configured OrderManagementService instance
+
+        Raises:
+            TypeError: If cached service has incorrect type.
         """
         if "order_service" not in self._services:
             # Create configuration from app settings
@@ -114,6 +120,9 @@ class ServiceFactory:
 
         Returns:
             Configured ThreadSafeExecutionStateManager instance
+
+        Raises:
+            TypeError: If cached service has incorrect type.
         """
         if "state_manager" not in self._services:
             # Create configuration from app settings
@@ -135,6 +144,9 @@ class ServiceFactory:
 
         Returns:
             Configured ExecutionInputValidator instance
+
+        Raises:
+            TypeError: If cached service has incorrect type.
         """
         if "input_validator" not in self._services:
             # Create configuration from app settings
@@ -160,6 +172,9 @@ class ServiceFactory:
 
         Returns:
             Configured CompensationService instance
+
+        Raises:
+            TypeError: If cached service has incorrect type.
         """
         if "compensation_service" not in self._services:
             # Create configuration from app settings
@@ -219,7 +234,15 @@ class ServiceFactory:
         )
 
     async def start_services(self) -> None:
-        """Start all async services."""
+        """Start all async services.
+
+        Raises:
+            ValueError: If service configuration is invalid.
+            TypeError: If service type is unexpected.
+            KeyError: If required service attribute is missing.
+            AttributeError: If service method is not available.
+            ArithmeticError: If numeric calculation fails during service startup.
+        """
         services_to_start: list[Any] = [
             self.create_state_manager(),
             self.create_compensation_service(),
@@ -262,9 +285,6 @@ class ServiceFactory:
 
         Returns:
             Service instance if found
-
-        Raises:
-            KeyError: If service not found
         """
         return self._services[service_name]
 

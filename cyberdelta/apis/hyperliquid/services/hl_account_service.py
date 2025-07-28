@@ -230,23 +230,49 @@ class HyperliquidAccountService:
     # Balance Operations
 
     async def get_balances(self) -> dict[str, SpotBalance]:
-        """Retrieve all account balances."""
+        """Retrieve all account balances.
+        
+        Returns:
+            Dictionary mapping asset symbols to their balance information
+        
+        """
         return await self._balance_service.get_balances()
 
     # Position Operations
 
     async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
-        """Retrieve derivative positions, optionally filtered by symbol."""
+        """Retrieve derivative positions, optionally filtered by symbol.
+        
+        Args:
+            symbol: Optional symbol to filter positions by
+            
+        Returns:
+            List of derivative positions, filtered by symbol if provided
+        
+        """
         return await self._position_service.get_positions(symbol)
 
     # Account Summary Operations
 
     async def get_account_summary(self) -> MarginAccountSummary:
-        """Retrieve general account information summary."""
+        """Retrieve general account information summary.
+        
+        Returns:
+            Account summary containing margin, equity, and other account metrics
+        
+        """
         return await self._account_summary_service.get_account_summary()
 
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
-        """Update account settings such as leverage limits."""
+        """Update account settings such as leverage limits.
+        
+        Args:
+            args: Settings update arguments
+            
+        Raises:
+            NotImplementedOperationError: This operation is not implemented
+        
+        """
         raise NotImplementedOperationError(
             operation="update_account_settings",
             service="HyperliquidAccountService",
@@ -256,13 +282,29 @@ class HyperliquidAccountService:
     # Order History Operations
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
-        """Retrieve historical order data."""
+        """Retrieve historical order data.
+        
+        Args:
+            args: Arguments specifying date range and filtering options
+            
+        Returns:
+            List of historical order records
+        
+        """
         return await self._order_history_service.get_order_history(args)
 
     # Trade History Operations
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
-        """Retrieve user trade history (fills)."""
+        """Retrieve user trade history (fills).
+        
+        Args:
+            args: Arguments specifying date range and filtering options
+            
+        Returns:
+            List of trade history records (fills)
+        
+        """
         return await self._trade_history_service.get_trade_history(args)
 
     # Operations Not Implemented
@@ -278,10 +320,7 @@ class HyperliquidAccountService:
 
         Returns:
             Transfer: Internal transfer model with Hyperliquid-specific details
-
-        Raises:
-            APIError: If transfer request fails or validation errors occur
-            ValueError: If account types or asset are invalid for Hyperliquid
+        
         """
         logger.info(
             "hyperliquid_internal_transfer_start",
@@ -340,7 +379,8 @@ class HyperliquidAccountService:
             to_account: Destination account type
 
         Raises:
-            ValueError: If account types are invalid for Hyperliquid
+            InvalidEnumValueError: If account types are invalid for Hyperliquid
+        
         """
         valid_accounts = {"spot", "perp"}
 
@@ -376,9 +416,7 @@ class HyperliquidAccountService:
 
         Returns:
             Tuple of (raw response from Hyperliquid API, HTTP status code)
-
-        Raises:
-            APIError: If request execution fails
+        
         """
         try:
             # Build internal transfer payload using static method
@@ -429,9 +467,7 @@ class HyperliquidAccountService:
 
         Returns:
             Validated HyperliquidRawUsdTransferResponse model
-
-        Raises:
-            APIError: If response validation fails
+        
         """
         try:
             # For transfer responses, the raw_response should be the direct API response
@@ -462,7 +498,15 @@ class HyperliquidAccountService:
             raise
 
     def _raise_none_response_error(self, status_code: int) -> NoReturn:
-        """Raise ResponseParsingError for None response data."""
+        """Raise ResponseParsingError for None response data.
+        
+        Args:
+            status_code: HTTP status code from the response
+            
+        Raises:
+            ResponseParsingError: Always raised to indicate None response data
+        
+        """
         raise ResponseParsingError(
             url="/exchange",
             status_code=status_code,
@@ -470,7 +514,15 @@ class HyperliquidAccountService:
         )
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
-        """Initiate a withdrawal - NOT IMPLEMENTED."""
+        """Initiate a withdrawal - NOT IMPLEMENTED.
+        
+        Args:
+            args: Withdrawal arguments
+            
+        Raises:
+            NotImplementedOperationError: This operation is not implemented
+        
+        """
         raise NotImplementedOperationError(
             operation="withdraw",
             service="HyperliquidAccountService",

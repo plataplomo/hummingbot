@@ -126,7 +126,6 @@ class BackpackTransferService:
 
         Raises:
             APIError: If transfer request fails or validation fails
-            InvalidAccountTypeError: If account types are invalid
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "transfer"
@@ -193,8 +192,6 @@ class BackpackTransferService:
 
         Raises:
             APIError: If withdrawal request fails or validation fails
-            NetworkRequiredError: If network is not specified
-            UnsupportedNetworkError: If network is not supported
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "withdraw"
@@ -308,9 +305,6 @@ class BackpackTransferService:
 
         Returns:
             Tuple of validated response data and status code
-
-        Raises:
-            APIError: If API request fails
         """
         endpoint_path = "/api/v1/capital/transfer"
 
@@ -366,7 +360,6 @@ class BackpackTransferService:
             Tuple of validated response data and status code
 
         Raises:
-            APIError: If API request fails
             NetworkRequiredError: If network is None (defensive check)
         """
         endpoint_path = "/api/v1/capital/withdrawals"
@@ -486,9 +479,6 @@ class BackpackTransferService:
 
         Returns:
             Transformed Withdrawal object
-
-        Raises:
-            APIError: If response processing fails
         """
         # Handle response through response handler
         raw_withdrawal_model: BackpackRawWithdrawalResponse = (

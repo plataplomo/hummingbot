@@ -55,7 +55,16 @@ class LiveHyperliquidProof:
         self.full_orderbooks_created = 0
 
     def analyze_hyperliquid_message(self, raw_data: dict[str, Any]) -> str:
-        """Analyze real Hyperliquid message and classify type."""
+        """Analyze real Hyperliquid message and classify type.
+
+        Returns:
+            String classification of the message type:
+            - "FULL_SNAPSHOT": Contains both bid and ask levels
+            - "PARTIAL_UPDATE": Contains either bid or ask levels
+            - "EMPTY_UPDATE": Has coin and time but no levels
+            - "METADATA_ONLY": Has coin and time but no levels data
+            - "UNKNOWN": Message doesn't match expected patterns
+        """
         # Hyperliquid L2 book structure analysis
         coin = raw_data.get("coin")
         levels = raw_data.get("levels")
@@ -85,7 +94,12 @@ class LiveHyperliquidProof:
         return "UNKNOWN"
 
     async def capture_live_hyperliquid_message(self, context: WebSocketContextProtocol) -> None:
-        """Capture and analyze each live message from Hyperliquid."""
+        """Capture and analyze each live message from Hyperliquid.
+
+        Raises:
+            KeyboardInterrupt: Re-raised to allow graceful shutdown.
+            CancelledError: Re-raised to allow task cancellation.
+        """
         try:
             if not (
                 hasattr(context, "validated_envelope")
@@ -234,7 +248,11 @@ class LiveHyperliquidProof:
         logger.info(separator)
 
     def save_hyperliquid_evidence(self) -> str:
-        """Save Hyperliquid evidence to file with timestamp."""
+        """Save Hyperliquid evidence to file with timestamp.
+
+        Returns:
+            Filename of the saved evidence JSON file.
+        """
         timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         filename = f"live_hyperliquid_evidence_{timestamp}.json"
 
@@ -308,7 +326,14 @@ class LiveHyperliquidProof:
 
 
 async def run_hyperliquid_live_proof(duration: int = 60) -> int:
-    """Run live proof against real Hyperliquid exchange."""
+    """Run live proof against real Hyperliquid exchange.
+
+    Returns:
+        Exit code: 0 for success, 1 for failure.
+
+    Raises:
+        ValueError: If secrets configuration is not loaded or exchange config is missing.
+    """
     logger.info("🔍 LIVE HYPERLIQUID WEBSOCKET PROOF")
     logger.info("🚨 CONNECTING TO REAL EXCHANGE...")
     logger.info("Analysis Duration", duration_seconds=duration)

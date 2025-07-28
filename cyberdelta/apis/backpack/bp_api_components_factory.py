@@ -197,6 +197,9 @@ class BackpackAPIComponentsFactory:
         Returns:
             Configured ED25519 authenticator instance or None if credentials are missing or invalid
 
+        Raises:
+            ValueError: If authentication credentials are invalid or cannot be processed
+
         """
         # Check if we have the correct secrets type for Backpack
         if not isinstance(self.exchange_secrets, ApiKeyAuthSecrets):

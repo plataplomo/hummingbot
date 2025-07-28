@@ -89,33 +89,57 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely with default fallback."""
+        """Parse decimal values safely with default fallback.
+
+        Returns:
+            Decimal: The parsed decimal value or default if parsing fails.
+        """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format."""
+        """Normalize symbol to internal format.
+
+        Returns:
+            str: The normalized symbol.
+        """
         return HyperliquidCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format."""
+        """Denormalize symbol to exchange format.
+
+        Returns:
+            str: The denormalized symbol.
+        """
         return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime."""
+        """Convert millisecond timestamp to datetime.
+
+        Returns:
+            datetime | None: The converted datetime or None if timestamp is None.
+        """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     @staticmethod
     def _raise_timestamp_validation_error() -> None:
-        """Raise timestamp validation error."""
+        """Raise timestamp validation error.
+
+        Raises:
+            RuntimeError: Always raised for timestamp validation errors.
+        """
         msg = "Internal error: timestamp is None after validation"
         raise RuntimeError(msg)
 
     @staticmethod
     def _raise_runtime_validation_error(field_name: str) -> NoReturn:
-        """Raise runtime validation error for a field."""
+        """Raise runtime validation error for a field.
+
+        Raises:
+            RuntimeError: Always raised for field validation errors.
+        """
         msg = f"Internal error: {field_name} is None after validation"
         raise RuntimeError(msg)
 
@@ -249,7 +273,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
+            TransformationError: If transformation fails during parsing.
+            OrderTransformationError: If transformation fails
 
         """
         try:
@@ -293,7 +318,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
+            TransformationError: If transformation fails during parsing.
+            OrderTransformationError: If transformation fails
         """
         try:
             # Parse basic components from flat structure
@@ -397,7 +423,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
+            TransformationError: If transformation fails during parsing.
+            OrderTransformationError: If transformation fails
 
         """
         try:
@@ -448,9 +475,6 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         Returns:
             Order: Internal domain model with populated fields
 
-        Raises:
-            TransformationError: If transformation fails
-
         """
         return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(raw_order, trigger)
 
@@ -459,7 +483,11 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> OrderComponents:
-        """Parse all components needed for Order creation."""
+        """Parse all components needed for Order creation.
+
+        Returns:
+            OrderComponents: Parsed order components ready for Order creation.
+        """
         # Map enums
         side, order_type, status, time_in_force = HyperliquidOrderMapper._parse_order_enums(
             raw_order,
@@ -504,7 +532,11 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None,
     ) -> tuple[OrderSide, OrderType, OrderStatus, TimeInForce]:
-        """Parse order enums from raw order data."""
+        """Parse order enums from raw order data.
+
+        Returns:
+            tuple[OrderSide, OrderType, OrderStatus, TimeInForce]: Tuple containing parsed enums.
+        """
         side = HyperliquidTradingEnumMapper.map_side_to_internal(raw_order.side)
         order_type = HyperliquidTradingEnumMapper.map_type_to_internal(
             raw_order.order_type,
@@ -518,7 +550,16 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     def _parse_order_quantities_and_price(
         raw_order: HyperliquidRawOrder,
     ) -> tuple[Decimal, Decimal, Decimal | None]:
-        """Parse quantities and price from raw order data."""
+        """Parse quantities and price from raw order data.
+
+        Returns:
+            tuple[Decimal, Decimal, Decimal | None]: Tuple containing quantity requested,
+                quantity filled, and price.
+
+        Raises:
+            TransformationError: If parsing fails.
+            OrderTransformationError: If transformation fails.
+        """
         try:
             # Parse quantities
             quantity_requested = parse_decimal_value(
@@ -577,7 +618,15 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     def _parse_order_timestamps(
         raw_order: HyperliquidRawOrder,
     ) -> tuple[datetime, datetime]:
-        """Parse order timestamps."""
+        """Parse order timestamps.
+
+        Returns:
+            tuple[datetime, datetime]: Tuple containing created_at and updated_at timestamps.
+
+        Raises:
+            TransformationError: If timestamp parsing fails.
+            OrderTransformationError: If transformation fails.
+        """
         try:
             created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
             HyperliquidOrderMapper._ensure_timestamp_not_none(
@@ -628,7 +677,11 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     def _parse_trigger_info(
         trigger: HyperliquidRawTriggerInfo | None,
     ) -> tuple[Decimal | None, TriggerType | None]:
-        """Parse trigger/stop logic."""
+        """Parse trigger/stop logic.
+
+        Returns:
+            tuple[Decimal | None, TriggerType | None]: Tuple containing stop price and trigger type.
+        """
         stop_price = None
         trigger_by = None
 
@@ -651,7 +704,12 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         quantity_filled: Decimal,
         price: Decimal | None,
     ) -> tuple[Decimal | None, Decimal]:
-        """Calculate average_fill_price based on business rules."""
+        """Calculate average_fill_price based on business rules.
+
+        Returns:
+            tuple[Decimal | None, Decimal]: Tuple containing average fill price and
+                updated quantity filled.
+        """
         average_fill_price = None
 
         if quantity_filled > 0:
@@ -680,7 +738,11 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raw_order: HyperliquidRawOrder,
         components: OrderComponents,
     ) -> Order:
-        """Create Order object from parsed components."""
+        """Create Order object from parsed components.
+
+        Returns:
+            Order: The created Order object.
+        """
         # SECURITY FIX: Use secure_transform instead of direct instantiation
         order_data: dict[str, Any] = {
             "exchange_order_id": str(raw_order.oid),
@@ -732,7 +794,11 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raw_historical_order: HyperliquidRawHistoricalOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> OrderComponents:
-        """Parse all components needed for historical Order creation."""
+        """Parse all components needed for historical Order creation.
+
+        Returns:
+            OrderComponents: Parsed order components ready for Order creation.
+        """
         # Map enums
         side = HyperliquidTradingEnumMapper.map_side_to_internal(raw_historical_order.side)
 
@@ -805,7 +871,12 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     def _parse_historical_quantities_and_price(
         raw_historical_order: HyperliquidRawHistoricalOrder,
     ) -> tuple[Decimal, Decimal, Decimal | None]:
-        """Parse quantities and price for historical orders."""
+        """Parse quantities and price for historical orders.
+
+        Returns:
+            tuple[Decimal, Decimal, Decimal | None]: Tuple containing quantity requested,
+                quantity filled, and price.
+        """
         # Parse quantities - use orig_sz for quantity_requested (sz is remaining quantity)
         quantity_requested = parse_decimal_value(
             raw_historical_order.orig_sz,
@@ -849,7 +920,14 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     def _parse_historical_timestamps(
         raw_historical_order: HyperliquidRawHistoricalOrder,
     ) -> tuple[datetime, datetime]:
-        """Parse timestamps for historical orders."""
+        """Parse timestamps for historical orders.
+
+        Returns:
+            tuple[datetime, datetime]: Tuple containing created_at and updated_at timestamps.
+
+        Raises:
+            MissingRequiredFieldError: If timestamp parsing fails.
+        """
         created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
         if created_at is None:
             raise MissingRequiredFieldError(
@@ -875,7 +953,12 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         quantity_filled: Decimal,
         price: Decimal | None,
     ) -> tuple[Decimal | None, Decimal]:
-        """Calculate average_fill_price for historical orders."""
+        """Calculate average_fill_price for historical orders.
+
+        Returns:
+            tuple[Decimal | None, Decimal]: Tuple containing average fill price and
+                updated quantity filled.
+        """
         average_fill_price = None
 
         if quantity_filled > 0:
@@ -904,7 +987,11 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raw_historical_order: HyperliquidRawHistoricalOrder,
         components: OrderComponents,
     ) -> Order:
-        """Create Order object from parsed historical order components."""
+        """Create Order object from parsed historical order components.
+
+        Returns:
+            Order: The created Order object.
+        """
         # Get client order ID
         cloid = getattr(raw_historical_order, "cloid", None)
 

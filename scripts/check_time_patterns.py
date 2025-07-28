@@ -20,7 +20,16 @@ ALLOWED_FILES = {
 
 
 def _check_datetime_patches(file_path: Path, content: str, lines: list[str]) -> list[str]:
-    """Check for datetime patches in file content."""
+    """Check for datetime patches in file content.
+
+    Args:
+        file_path: Path to the file being checked.
+        content: Full file content as string.
+        lines: File content split into lines.
+
+    Returns:
+        list[str]: List of issue descriptions for any datetime patches found.
+    """
     issues: list[str] = []
     datetime_patch_patterns = [
         r'@patch\s*\(\s*["\'].*datetime["\']',
@@ -41,7 +50,16 @@ def _check_datetime_patches(file_path: Path, content: str, lines: list[str]) -> 
 
 
 def _check_time_patches(file_path: Path, content: str, lines: list[str]) -> list[str]:
-    """Check for time.time patches in file content."""
+    """Check for time.time patches in file content.
+
+    Args:
+        file_path: Path to the file being checked.
+        content: Full file content as string.
+        lines: File content split into lines.
+
+    Returns:
+        list[str]: List of issue descriptions for any time.time patches found.
+    """
     issues: list[str] = []
     time_patch_patterns = [
         r'@patch\s*\(\s*["\']time\.time["\']',
@@ -60,7 +78,15 @@ def _check_time_patches(file_path: Path, content: str, lines: list[str]) -> list
 
 
 def check_file(file_path: Path) -> tuple[bool, list[str]]:
-    """Check a file for unittest.mock datetime patches."""
+    """Check a file for unittest.mock datetime patches.
+
+    Args:
+        file_path: Path to the Python test file to check.
+
+    Returns:
+        tuple[bool, list[str]]: A tuple containing success status (True if no
+            issues found) and a list of issue descriptions.
+    """
     # Skip allowed files
     if str(file_path) in ALLOWED_FILES:
         return True, []
@@ -81,7 +107,11 @@ def check_file(file_path: Path) -> tuple[bool, list[str]]:
 
 
 def main() -> int:
-    """Main pre-commit hook execution."""
+    """Main pre-commit hook execution.
+
+    Returns:
+        int: Exit code - 0 for success, 1 if datetime/time patch issues found.
+    """
     # Get files from command line (pre-commit passes them)
     files = sys.argv[1:] if len(sys.argv) > 1 else []
 

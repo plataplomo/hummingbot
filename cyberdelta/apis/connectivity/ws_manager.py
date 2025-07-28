@@ -127,7 +127,11 @@ class WebSocketManager:
         )
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create an aiohttp ClientSession."""
+        """Get or create an aiohttp ClientSession.
+        
+        Returns:
+            The aiohttp ClientSession instance, either existing or newly created.
+        """
         if self._session is None or self._session.closed:
             self._logger.info(
                 "creating_new_aiohttp_session",
@@ -145,7 +149,12 @@ class WebSocketManager:
         return self._session
 
     def _is_circuit_breaker_open(self) -> bool:
-        """Check if circuit breaker is open and should prevent reconnection attempts."""
+        """Check if circuit breaker is open and should prevent reconnection attempts.
+        
+        Returns:
+            True if circuit breaker is open and reconnection should be prevented,
+            False otherwise.
+        """
         if not self._circuit_open:
             return False
 
@@ -208,7 +217,9 @@ class WebSocketManager:
 
         Returns:
             The asyncio.Task for the connection attempt, or None if already connecting.
-
+            
+        Raises:
+            RuntimeError: If no running event loop is available or other runtime errors occur.
         """
         self._should_reconnect = True
         if self._connection_task and not self._connection_task.done():
@@ -284,7 +295,11 @@ class WebSocketManager:
             await self._connection_retry_loop()
 
     async def _should_proceed_with_connection(self) -> bool:
-        """Check if connection should proceed after acquiring lock."""
+        """Check if connection should proceed after acquiring lock.
+        
+        Returns:
+            True if connection should proceed, False otherwise.
+        """
         # Remove verbose lock acquisition logging
         if not self._should_reconnect:
             self._logger.info(
@@ -618,7 +633,12 @@ class WebSocketManager:
         await self._listen_loop()
 
     async def _listen_loop(self) -> None:
-        """Main listening loop for WebSocket messages."""
+        """Main listening loop for WebSocket messages.
+        
+        Raises:
+            CancelledError: When the task is cancelled during operation.
+            WebSocketConnectionClosedError: When the WebSocket connection is lost or closed.
+        """
         self._logger.info(
             "listener_main_loop_entered",
             action="listen_loop",
@@ -659,7 +679,15 @@ class WebSocketManager:
         original_connection: ClientWebSocketResponse | None,
         iteration: int,
     ) -> bool:
-        """Check if listening should continue."""
+        """Check if listening should continue.
+        
+        Args:
+            original_connection: The original WebSocket connection when listening started.
+            iteration: The current iteration count of the listening loop.
+            
+        Returns:
+            True if listening should continue, False if it should stop.
+        """
         current_task_listen_loop = asyncio.current_task()
         task_name_listen_loop = (
             current_task_listen_loop.get_name() if current_task_listen_loop else "UnknownTask"
@@ -696,7 +724,16 @@ class WebSocketManager:
         return True
 
     async def _handle_websocket_message(self, msg: aiohttp.WSMessage, iteration: int) -> None:
-        """Handle a single WebSocket message based on its type."""
+        """Handle a single WebSocket message based on its type.
+        
+        Args:
+            msg: The WebSocket message to handle.
+            iteration: The current iteration count of the listening loop.
+            
+        Raises:
+            WebSocketConnectionClosedError: When an error message is received or
+                the connection is in a closed/closing state.
+        """
         current_task = asyncio.current_task()
         task_name = current_task.get_name() if current_task else "UnknownTask"
 
@@ -892,7 +929,16 @@ class WebSocketManager:
     async def _schedule_reconnection_if_needed(
         self, final_cancellation_state: CancellationState
     ) -> None:
-        """Schedule reconnection if needed and conditions are met."""
+        """Schedule reconnection if needed and conditions are met.
+        
+        Args:
+            final_cancellation_state: The final cancellation state to determine if
+                reconnection is allowed.
+                
+        Raises:
+            RuntimeError: If there's no running event loop when trying to schedule
+                reconnection (except for the specific case of test cleanup).
+        """
         if (self._should_reconnect and final_cancellation_state.allows_reconnection) and (
             self._connection_task is None or self._connection_task.done()
         ):
@@ -1324,7 +1370,14 @@ class WebSocketManager:
         return True
 
     async def _close_active_websocket(self, ws_conn: ClientWebSocketResponse) -> bool:
-        """Close an active WebSocket connection."""
+        """Close an active WebSocket connection.
+        
+        Args:
+            ws_conn: The WebSocket connection to close.
+            
+        Returns:
+            True if the connection was closed successfully, False if an error occurred.
+        """
         self._logger.debug(
             "closing_websocket_connection_object",
             action="close_active_websocket",

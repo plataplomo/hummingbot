@@ -70,7 +70,6 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
-    from cyberdelta.core.models import Order
 
 
 class UserAddressRequiredError(ValueError):
@@ -379,7 +378,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
     def _handle_market_data_routing(
         self, envelope: HyperliquidWebSocketMessage, channel: str
     ) -> str:
-        """Handle routing for market data channels (l2Book, trades)."""
+        """Handle routing for market data channels (l2Book, trades).
+
+        Returns:
+            The routing key combining channel and coin (e.g., 'l2Book:SOL')
+        """
         coin = self._extract_coin_from_envelope(envelope)
         if coin:
             # Return full routing key: "l2Book:SOL", "trades:BTC", etc.
@@ -394,7 +397,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return channel
 
     def _handle_candle_routing(self, envelope: HyperliquidWebSocketMessage) -> str | None:
-        """Handle routing for candle channel messages."""
+        """Handle routing for candle channel messages.
+
+        Returns:
+            The candle topic routing key or None if routing fails
+        """
         subscribed_topics = self._candle_subscriptions.get("candle", set())
 
         self.logger.debug(
@@ -434,7 +441,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return None
 
     def _extract_candle_interval(self, envelope: HyperliquidWebSocketMessage) -> str | None:
-        """Extract interval from candle envelope data."""
+        """Extract interval from candle envelope data.
+
+        Returns:
+            The interval string (e.g., '1m', '1h') or None if not found
+        """
         if isinstance(envelope.data, dict):
             # Candle data structure: {"t": 123, "T": 456, "s": "BTC", "i": "1m", ...}
             interval = envelope.data.get("i")
@@ -450,7 +461,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
     def _match_candle_topic_by_interval(
         self, subscribed_topics: set[str], interval: str
     ) -> str | None:
-        """Match candle topic by interval from subscribed topics."""
+        """Match candle topic by interval from subscribed topics.
+
+        Returns:
+            The matching topic or None if no unique match found
+        """
         matching_topics = [topic for topic in subscribed_topics if topic.endswith(f":{interval}")]
         if len(matching_topics) == 1:
             return matching_topics[0]
@@ -569,7 +584,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         message: dict[str, Any],
         handlers: dict[str, MessageHandler],
     ) -> None:
-        """Override to handle processor lookup with channel extraction."""
+        """Override to handle processor lookup with channel extraction.
+
+        Raises:
+            EnvelopeValidatorNotSetError: If envelope validator is not configured
+        """
         # Step 1: Validate envelope structure first - eliminates type safety issues
         try:
             if self.envelope_validator is None:
@@ -769,19 +788,34 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         )
 
     def _handle_l2book_topic(self, topic: str) -> HyperliquidRawWsSubscribeRequest:
-        """Handle l2Book topic subscription."""
+        """Handle l2Book topic subscription.
+
+        Returns:
+            The subscription request for l2Book data
+        """
         coin = topic[7:]  # Remove "l2Book:" prefix
         return self.construct_l2book_subscription_payload(coin)
 
     def _handle_trades_topic(self, topic: str) -> HyperliquidRawWsSubscribeRequest:
-        """Handle trades topic subscription."""
+        """Handle trades topic subscription.
+
+        Returns:
+            The subscription request for trades data
+        """
         coin = topic[7:]  # Remove "trades:" prefix
         return self.construct_trades_subscription_payload(coin)
 
     def _handle_user_events_topic(
         self, topic: str, wallet_address: str | None
     ) -> HyperliquidRawWsSubscribeRequest:
-        """Handle userEvents topic subscription."""
+        """Handle userEvents topic subscription.
+
+        Returns:
+            The subscription request for user events data
+
+        Raises:
+            UserAddressRequiredError: If user address is required but not provided
+        """
         if topic == "userEvents":
             # Format: userEvents (use provided wallet_address)
             if not wallet_address:
@@ -797,7 +831,14 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return self.construct_user_events_subscription_payload(user_address)
 
     def _handle_candle_topic(self, topic: str) -> HyperliquidRawWsSubscribeRequest:
-        """Handle candle topic subscription."""
+        """Handle candle topic subscription.
+
+        Returns:
+            The subscription request for candle data
+
+        Raises:
+            InvalidCandleTopicFormatError: If topic format is invalid
+        """
         parts = topic.split(":")
         if len(parts) != CANDLE_TOPIC_PARTS_COUNT:
             raise InvalidCandleTopicFormatError(topic)
@@ -823,7 +864,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             HyperliquidRawWsSubscribeRequest model
 
         Raises:
-            ValueError: If topic format is invalid or required info is missing
+            UnsupportedTopicFormatError: If topic format is not supported
 
         """
         # Parse topic format and delegate to appropriate method

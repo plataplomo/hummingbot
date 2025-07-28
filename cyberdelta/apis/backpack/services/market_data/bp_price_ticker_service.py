@@ -98,6 +98,8 @@ class BackpackPriceTickerService:
         Raises:
             APIError: If ticker retrieval fails or processing fails
             EmptySymbolError: If symbol is empty or whitespace
+            TypeError: If symbol is not a string
+            ValueError: If validation fails
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -263,11 +265,9 @@ class BackpackPriceTickerService:
         Note: This method is not yet implemented for Backpack as the API
         does not provide a single endpoint for all tickers.
 
-        Returns:
-            dict[str, Ticker]: Dictionary mapping symbols to tickers
-
         Raises:
-            NotImplementedServiceError: Always, as this method is not yet implemented
+            APIError: If future implementation encounters API errors
+            UnreachableCodeError: If code path validation fails
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()

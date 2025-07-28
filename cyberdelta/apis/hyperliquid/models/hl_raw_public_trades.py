@@ -118,7 +118,15 @@ class HyperliquidRawRecentTradesResponse(RootModel[list[HyperliquidRawPublicTrad
     @field_validator("root", mode="before")
     @classmethod
     def validate_trades_list(cls, v: object, info: ValidationInfo) -> list[dict[str, object]]:
-        """Ensure the root input is a list of dictionaries for public trades."""
+        """Ensure the root input is a list of dictionaries for public trades.
+
+        Returns:
+            A validated list of dictionaries representing public trade objects.
+
+        Raises:
+            ListFieldError: If the input is not a list or if any item in the list
+                is not a dictionary.
+        """
         field_name = info.field_name or "public_trades_list"
 
         if not isinstance(v, list):

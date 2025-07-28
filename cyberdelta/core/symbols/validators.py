@@ -141,7 +141,19 @@ class SymbolValidator:
 
     @classmethod
     def _validate_hyperliquid(cls, value: str, symbol_type: SymbolType) -> None:
-        """Hyperliquid-specific validation rules."""
+        """Hyperliquid-specific validation rules.
+        
+        Validates Hyperliquid exchange symbols including:
+        - Asset index format (@N for spot assets)
+        - Hyphen count restrictions for non-index symbols
+        
+        Args:
+            value: Symbol value to validate
+            symbol_type: Type of symbol being validated
+            
+        Raises:
+            SymbolValidationError: If symbol violates Hyperliquid-specific rules
+        """
         if symbol_type == SymbolType.EXCHANGE:
             # Allow @N format for spot assets
             if value.startswith("@"):
@@ -164,7 +176,11 @@ class SymbolValidator:
 
     @classmethod
     def _validate_backpack(cls, value: str, symbol_type: SymbolType) -> None:
-        """Backpack-specific validation rules."""
+        """Backpack-specific validation rules.
+        
+        Raises:
+            SymbolValidationError: If validation fails
+        """
         if symbol_type == SymbolType.EXCHANGE:
             # Check for proper underscore usage
             if "_" in value:
@@ -278,9 +294,6 @@ class SymbolValidator:
 
         Returns:
             Validated symbol string
-
-        Raises:
-            SymbolValidationError: If validation fails
         """
         return cls.validate_symbol(
             value,
@@ -342,7 +355,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_basic_internal_fields(symbol: InternalSymbol) -> list[str]:
-        """Validate basic internal symbol fields."""
+        """Validate basic internal symbol fields.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if not symbol.value:
@@ -355,7 +372,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_internal_business_logic(symbol: InternalSymbol) -> list[str]:
-        """Validate internal symbol business logic."""
+        """Validate internal symbol business logic.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if symbol.market_type == MarketType.SPOT and symbol.quote_asset is None:
@@ -368,7 +389,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_internal_computed_fields(symbol: InternalSymbol) -> list[str]:
-        """Validate internal symbol computed fields."""
+        """Validate internal symbol computed fields.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         try:
@@ -389,7 +414,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_internal_format_consistency(symbol: InternalSymbol) -> list[str]:
-        """Validate internal symbol format consistency."""
+        """Validate internal symbol format consistency.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if symbol.quote_asset:
@@ -434,7 +463,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_exchange_basic_fields(symbol: ExchangeSymbol) -> list[str]:
-        """Validate basic exchange symbol fields."""
+        """Validate basic exchange symbol fields.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if not symbol.value:
@@ -444,7 +477,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_exchange_specific_fields(symbol: ExchangeSymbol) -> list[str]:
-        """Validate exchange-specific fields."""
+        """Validate exchange-specific fields.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         # Asset index validation (Hyperliquid specific)
@@ -467,7 +504,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_exchange_format(symbol: ExchangeSymbol) -> list[str]:
-        """Validate exchange-specific format rules."""
+        """Validate exchange-specific format rules.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if symbol.exchange_id == ExchangeName.HYPERLIQUID:
@@ -487,7 +528,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_exchange_computed_fields(symbol: ExchangeSymbol) -> list[str]:
-        """Validate exchange symbol computed fields."""
+        """Validate exchange symbol computed fields.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         try:
@@ -539,7 +584,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_unified_exchange_mappings(symbol: UnifiedSymbol) -> list[str]:
-        """Validate unified symbol exchange mappings."""
+        """Validate unified symbol exchange mappings.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if not symbol.exchange_mappings:
@@ -565,7 +614,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_unified_trading_specs(symbol: UnifiedSymbol) -> list[str]:
-        """Validate unified symbol trading specifications."""
+        """Validate unified symbol trading specifications.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if symbol.tick_size is not None and symbol.tick_size <= 0:
@@ -585,7 +638,11 @@ class DomainObjectValidator:
 
     @staticmethod
     def _validate_unified_timestamps(symbol: UnifiedSymbol) -> list[str]:
-        """Validate unified symbol timestamps."""
+        """Validate unified symbol timestamps.
+        
+        Returns:
+            List of validation error messages
+        """
         errors: list[str] = []
 
         if symbol.updated_at and symbol.created_at and symbol.updated_at < symbol.created_at:

@@ -32,7 +32,14 @@ class HyperliquidRawSubAccountsResponse(RootModel[list[RawLaxEthereumAddressStrH
     @field_validator("root", mode="before")
     @classmethod
     def validate_address_list_structure(cls, v: object, info: ValidationInfo) -> list[object]:
-        """Ensure the root input is a list. Pydantic handles address validation."""
+        """Ensure the root input is a list. Pydantic handles address validation.
+
+        Returns:
+            The validated list for further Pydantic processing.
+
+        Raises:
+            TypeFieldError: If the input is not a list.
+        """
         field_name = info.field_name or "subaccounts_list"
         if not isinstance(v, list):
             raise TypeFieldError(

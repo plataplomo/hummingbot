@@ -155,11 +155,19 @@ class BaseChecker(ABC):
         self.logger.info("Updated configuration", checker_name=self.name)
 
     def __str__(self) -> str:
-        """String representation of the checker."""
+        """String representation of the checker.
+
+        Returns:
+            String representation showing class name, name and enabled status
+        """
         return f"{self.__class__.__name__}(name={self.name}, enabled={self._enabled})"
 
     def __repr__(self) -> str:
-        """Detailed representation of the checker."""
+        """Detailed representation of the checker.
+
+        Returns:
+            Detailed string representation with name, enabled status and config
+        """
         return (
             f"{self.__class__.__name__}(name={self.name}, "
             f"enabled={self._enabled}, config={self.config})"

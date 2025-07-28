@@ -23,7 +23,11 @@ from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 def _is_nested_list_with_elements(value: object) -> TypeGuard[list[list[Any]]]:
-    """Senior-level TypeGuard for nested list structures in order book data."""
+    """Senior-level TypeGuard for nested list structures in order book data.
+    
+    Returns:
+        True if value is a non-empty list containing lists, False otherwise.
+    """
     if not isinstance(value, list) or not value:
         return False
     # Check if first element is a list - sufficient for type narrowing
@@ -31,7 +35,11 @@ def _is_nested_list_with_elements(value: object) -> TypeGuard[list[list[Any]]]:
 
 
 def _has_minimum_list_elements(value: list[Any], min_count: int) -> TypeGuard[list[Any]]:
-    """Senior-level TypeGuard for ensuring minimum list element count."""
+    """Senior-level TypeGuard for ensuring minimum list element count.
+    
+    Returns:
+        True if list has at least min_count elements, False otherwise.
+    """
     return len(value) >= min_count
 
 
@@ -702,7 +710,11 @@ def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[
 def _determine_expected_exception(
     field: str, value: str | float | bool | list[Any] | None
 ) -> type[Exception]:
-    """Determine expected exception type based on field and value."""
+    """Determine expected exception type based on field and value.
+    
+    Returns:
+        Exception class that should be raised for the given field/value combination.
+    """
     # The field validator raises TypeFieldError for these specific cases
     if (field == "u" and value is None) or (field == "asks" and value == [["1", 2]]):
         return TypeFieldError
@@ -727,7 +739,11 @@ def _determine_expected_exception(
 
 
 def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | None) -> bool:
-    """Check if this is an empty string validation case."""
+    """Check if this is an empty string validation case.
+    
+    Returns:
+        True if the field/value combination represents an empty string case.
+    """
     if field == "U" and not value:
         return True
     if field == "e" and not value:

@@ -131,8 +131,6 @@ class BackpackHistoricalDataService:
 
         Raises:
             APIError: If trade retrieval fails or processing fails
-            EmptySymbolError: If symbol is empty or whitespace
-            InvalidLimitError: If limit is <= 0
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
@@ -208,7 +206,6 @@ class BackpackHistoricalDataService:
 
         Raises:
             APIError: If market data retrieval fails or processing fails
-            UnsupportedIntervalError: If timeframe is not supported
         """
         # Service Input Parameter Validation is now handled by GetMarketDataArgs Pydantic model
         frame = inspect.currentframe()
@@ -543,6 +540,9 @@ class BackpackHistoricalDataService:
             symbol: Trading symbol
             status_code: HTTP status code
             raw_response_content: Raw response content
+
+        Raises:
+            APIError: Always raises APIError (re-raises or converts exceptions)
         """
         if isinstance(exception, APIError):
             raise exception

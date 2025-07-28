@@ -146,6 +146,11 @@ class HyperliquidTradingRequestBuilder(
 
         Returns:
             HyperliquidRawOrderItemSpec: Validated Raw order specification
+
+        Raises:
+            MissingRequiredParameterError: If required price is missing for market orders or 
+                stop_price for stop orders
+            InvalidEnumValueError: If order_type is not a supported OrderType value
         """
         logger.debug(
             "building_order_item_spec",
@@ -430,7 +435,8 @@ class HyperliquidTradingRequestBuilder(
             HyperliquidApiPlaceOrderRequest: Validated Raw API model with multiple orders
 
         Raises:
-            ValueError: If any order has invalid parameters or batch is empty
+            MissingRequiredParameterError: If orders_with_indices is empty
+            DecimalRangeError: If batch size exceeds the maximum allowed limit
         """
         if not orders_with_indices:
             raise MissingRequiredParameterError(
@@ -512,7 +518,8 @@ class HyperliquidTradingRequestBuilder(
             HyperliquidApiCancelOrderRequest: Validated Raw API model with multiple cancels
 
         Raises:
-            ValueError: If cancel list is empty or exceeds batch limits
+            MissingRequiredParameterError: If cancel_requests is empty
+            DecimalRangeError: If batch size exceeds the maximum allowed limit
         """
         if not cancel_requests:
             raise MissingRequiredParameterError(
@@ -571,6 +578,9 @@ class HyperliquidTradingRequestBuilder(
 
         Returns:
             Validated Pydantic model containing order placement payload
+
+        Raises:
+            MissingRequiredParameterError: If price is None for market orders
         """
         logger.debug(
             "building_place_order_payload_protocol",
@@ -637,6 +647,9 @@ class HyperliquidTradingRequestBuilder(
 
         Returns:
             Validated Pydantic model containing order cancellation payload
+
+        Raises:
+            InvalidEnumValueError: If order_id cannot be converted to a valid integer
         """
         logger.debug(
             "building_cancel_order_payload_protocol",

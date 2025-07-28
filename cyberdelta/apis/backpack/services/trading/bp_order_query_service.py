@@ -93,9 +93,7 @@ class BackpackOrderQueryService:
             Order: The order object with current status and details
 
         Raises:
-            APIError: If the request fails or order processing fails
             OrderNotFoundError: If the order doesn't exist
-            ValueError: If order parameters are invalid
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -184,6 +182,8 @@ class BackpackOrderQueryService:
 
         Raises:
             APIError: If the request fails or order processing fails
+            MissingRequiredFieldError: If symbol parameter is invalid
+            TypeError: If symbol parameter has wrong type
             ValueError: If symbol parameter is invalid
         """
         # Service Input Parameter Validation
@@ -296,6 +296,7 @@ class BackpackOrderQueryService:
 
         Raises:
             APIError: If the request fails or response is invalid
+            MissingRequiredFieldError: If required parameters are missing
         """
         if not self._authenticator:
             raise APIError(
@@ -518,9 +519,6 @@ class BackpackOrderQueryService:
 
         Returns:
             Order | None: The order object if found, None if not found
-
-        Raises:
-            APIError: If response processing fails
         """
         if status_code == HTTPStatus.NOT_FOUND.value:  # Order not found
             logger.info(
@@ -562,9 +560,6 @@ class BackpackOrderQueryService:
 
         Returns:
             Order | None: None if order not found, otherwise re-raises
-
-        Raises:
-            APIError: If not an order not found error
         """
         # Allow ORDER_NOT_FOUND from handler to propagate if it maps it
         if e.code == APIErrorCode.ORDER_NOT_FOUND.value:
@@ -596,13 +591,11 @@ class BackpackOrderQueryService:
             symbol: Trading symbol
             status_code: HTTP status code
             raw_response_content: Raw response content
-
-        Returns:
-            Order | None: None or raises APIError
-
-        Raises:
-            ValueError: If validation error
-            APIError: If service logic error
+        
+        Notes:
+            This method always raises an exception. It re-raises ValueError 
+            for input validation errors and wraps other service logic errors 
+            as APIError.
         """
         # Check if this is from our own input parameter validation
         error_msg = str(e_service_logic)

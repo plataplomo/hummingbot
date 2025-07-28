@@ -22,7 +22,11 @@ class ConfigurationMigrator:
         key: str,
         default: T,
     ) -> T:
-        """Get value from config, returning default if key is missing or None."""
+        """Get value from config, returning default if key is missing or None.
+
+        Returns:
+            Value from config if present and not None, otherwise the default value
+        """
         value = config.get(key)
         return default if value is None else value
 

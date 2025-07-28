@@ -357,6 +357,9 @@ class MockExchangeAPI(ExchangeAPI):
 
         Args:
             behavior: One of "keep_open", "fill_immediately", or "partial_fill"
+
+        Raises:
+            ValueError: If behavior is not one of the valid options
         """
         if behavior not in ["keep_open", "fill_immediately", "partial_fill"]:
             raise ValueError(f"Invalid open orders behavior: {behavior}")
@@ -668,7 +671,17 @@ class MockExchangeAPI(ExchangeAPI):
         # This could parse common message types if not routed by _route_ws_message
 
     async def get_ticker(self, symbol: str) -> Ticker:
-        """Return mock ticker data or raise KeyError if not found."""
+        """Return mock ticker data or raise KeyError if not found.
+
+        Args:
+            symbol: Trading symbol to get ticker for
+
+        Returns:
+            Ticker: Mock ticker data for the symbol
+
+        Raises:
+            KeyError: If mock ticker not found for symbol
+        """
         self._check_error("get_ticker")
         await self._simulate_latency()
         ticker = self._mock_tickers.get(symbol)
@@ -745,7 +758,14 @@ class MockExchangeAPI(ExchangeAPI):
     # --- Order Management ---
 
     def _validate_order_params(self, args: PlaceOrderArgs) -> None:
-        """Validate order parameters."""
+        """Validate order parameters.
+
+        Args:
+            args: Order placement arguments to validate
+
+        Raises:
+            APIError: If order parameters are invalid
+        """
         if args.order_type == OrderType.LIMIT and args.price is None:
             raise APIError(
                 "Price must be specified for LIMIT orders",
@@ -755,7 +775,15 @@ class MockExchangeAPI(ExchangeAPI):
             logger.warning("Price is ignored for MARKET orders")
 
     def _check_balance_for_order(self, args: PlaceOrderArgs, order_id: str) -> None:
-        """Check if sufficient balance exists for the order."""
+        """Check if sufficient balance exists for the order.
+
+        Args:
+            args: Order placement arguments
+            order_id: Order identifier
+
+        Raises:
+            APIError: If insufficient balance for the order
+        """
         now = datetime.now(UTC)
         base_asset, quote_asset = self._split_symbol(args.symbol)
 

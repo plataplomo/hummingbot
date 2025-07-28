@@ -38,6 +38,9 @@ def backpack_error_mapper() -> BackpackErrorMapper:
 
     Provides a fresh BackpackErrorMapper instance for each test to ensure
     isolation and consistent behavior across all error mapping tests.
+    
+    Returns:
+        BackpackErrorMapper: An error mapper instance for testing.
     """
     return BackpackErrorMapper()
 

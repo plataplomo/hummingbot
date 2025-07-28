@@ -36,7 +36,18 @@ class SymbolPatterns(BaseModel):
     @field_validator("hyperliquid", "backpack")
     @classmethod
     def validate_patterns(cls, v: dict[str, str]) -> dict[str, str]:
-        """Validate exchange patterns contain required market types."""
+        """Validate exchange patterns contain required market types.
+        
+        Ensures each exchange has patterns for perpetual futures ('perp') and that
+        patterns contain proper placeholders for symbol substitution during
+        cross-exchange symbol mapping.
+        
+        Returns:
+            dict[str, str]: Validated pattern dictionary
+            
+        Raises:
+            ValueError: If required market types are missing or patterns are invalid
+        """
         if "perp" not in v:
             msg = "Exchange patterns must include 'perp' market type"
             raise ValueError(msg)
@@ -75,7 +86,18 @@ class SmartSymbolsConfig(BaseModel):
     @field_validator("list")
     @classmethod
     def validate_symbol_list(cls, v: builtins.list[str]) -> builtins.list[str]:
-        """Validate symbol list with basic validation."""
+        """Validate symbol list with basic validation.
+        
+        Ensures all symbols meet the trading system requirements: alphanumeric,
+        proper length, and normalized to uppercase for consistent processing
+        across exchanges.
+        
+        Returns:
+            builtins.list[str]: Validated and normalized symbol list
+            
+        Raises:
+            ValueError: If any symbol is invalid (empty, non-alphanumeric, wrong length)
+        """
         validated: builtins.list[str] = []
         for symbol in v:
             # Basic symbol validation - alphanumeric, 2-10 chars
@@ -105,7 +127,18 @@ class SmartSymbolsConfig(BaseModel):
     @field_validator("defaults")
     @classmethod
     def validate_defaults(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Validate defaults dictionary contains valid values."""
+        """Validate defaults dictionary contains valid values.
+        
+        Ensures default market types are valid for the trading system. This is
+        critical for proper symbol categorization and routing to the correct
+        exchange endpoints.
+        
+        Returns:
+            dict[str, Any]: Validated defaults dictionary
+            
+        Raises:
+            ValueError: If market_type is specified but not in the valid set
+        """
         if "market_type" in v:
             # Basic validation - allow common market types
             market_type_str = v["market_type"]
@@ -122,7 +155,18 @@ class SmartSymbolsConfig(BaseModel):
     @field_validator("overrides")
     @classmethod
     def validate_overrides(cls, v: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
-        """Validate overrides structure and values."""
+        """Validate overrides structure and values.
+        
+        Ensures custom symbol overrides are properly structured for specific
+        exchange requirements. This allows handling edge cases where pattern-based
+        generation doesn't match exchange-specific symbol formats.
+        
+        Returns:
+            dict[str, dict[str, str]]: Validated overrides dictionary
+            
+        Raises:
+            ValueError: If override symbols are empty or exchanges are invalid
+        """
         for symbol, overrides in v.items():
             # Pydantic already validates symbol and overrides types
             if not symbol.strip():

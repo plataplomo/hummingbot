@@ -161,7 +161,11 @@ class TestCrossExchangeValidator:
 
     @pytest.fixture
     def setup_registry(self) -> object:  # SymbolRegistry was removed
-        """Set up registry with test symbols."""
+        """Set up registry with test symbols.
+        
+        Returns:
+            object: Registry placeholder (SymbolRegistry was removed).
+        """
         registry = None  # Placeholder since SymbolRegistry was removed
 
         # Register BTC (available on both exchanges)

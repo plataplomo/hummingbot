@@ -46,13 +46,21 @@ logger = get_logger(__name__)
 
 @pytest.fixture
 def trading_data_mapper() -> BackpackOrderMapper:
-    """Provide an instance of BackpackOrderMapper."""
+    """Provide an instance of BackpackOrderMapper.
+    
+    Returns:
+        BackpackOrderMapper: Instance of the order mapper for testing.
+    """
     return BackpackOrderMapper()
 
 
 @pytest.fixture
 def base_timestamp() -> str:
-    """Provide a consistent timestamp string for tests."""
+    """Provide a consistent timestamp string for tests.
+    
+    Returns:
+        str: ISO format timestamp string for test consistency.
+    """
     return datetime.now(UTC).isoformat()
 
 
@@ -71,7 +79,11 @@ def create_raw_order(
     updated_at: str | None = None,
     avg_fill_price: str | None = None,
 ) -> BackpackRawOrderResponse:
-    """Create a BackpackRawOrderResponse with customizable parameters."""
+    """Create a BackpackRawOrderResponse with customizable parameters.
+    
+    Returns:
+        BackpackRawOrderResponse: A raw order response instance with the specified parameters.
+    """
     if created_at is None:
         created_at = datetime.now(UTC).isoformat()
     if updated_at is None:

@@ -58,22 +58,38 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely with default fallback."""
+        """Parse decimal values safely with default fallback.
+
+        Returns:
+            Decimal: Parsed decimal value or default if parsing fails
+        """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format."""
+        """Normalize symbol to internal format.
+
+        Returns:
+            str: Normalized symbol in internal format
+        """
         return HyperliquidCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format."""
+        """Denormalize symbol to exchange format.
+
+        Returns:
+            str: Denormalized symbol in exchange format
+        """
         return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime."""
+        """Convert millisecond timestamp to datetime.
+
+        Returns:
+            datetime | None: Converted datetime object or None if timestamp is None
+        """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from OrderBookMapperProtocol
@@ -99,7 +115,10 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             raw_trade: Raw trade data from API
 
         Returns:
-            Trade domain model
+            Trade: Trade domain model
+
+        Raises:
+            TradeTransformationError: If transformation fails
         """
         # Delegate to existing method with typed model
         result = HyperliquidOrderBookMapper.transform_raw_public_trade_to_internal(raw_trade)
@@ -161,6 +180,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
 
         Raises:
             OrderBookTransformationError: If transformation fails
+            TransformationError: If secure transformation fails
         """
         try:
             logger.debug(
@@ -246,10 +266,11 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             depth: Optional depth limit
 
         Returns:
-            List of (price, size) tuples
+            list[tuple[Decimal, Decimal]]: List of (price, size) tuples
 
         Raises:
             OrderBookTransformationError: If parsing fails
+            TransformationError: If decimal value parsing fails
         """
         try:
             levels: list[tuple[Decimal, Decimal]] = []
@@ -289,10 +310,11 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             raw_trade: Validated raw public trade data from Hyperliquid
 
         Returns:
-            Trade: Internal domain model with HL details populated, or None if invalid
+            Trade | None: Internal domain model with HL details populated, or None if invalid
 
         Raises:
             TradeTransformationError: If transformation fails
+            TransformationError: If secure transformation fails
         """
         try:
             logger.debug(

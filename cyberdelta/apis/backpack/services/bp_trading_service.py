@@ -146,6 +146,12 @@ class BackpackTradingService:
         """Place a new order.
 
         Delegates to the order placement service component.
+
+        Args:
+            args: Order placement parameters
+
+        Returns:
+            Order object with placement details
         """
         return await self._order_placement_service.place_order(args)
 
@@ -155,6 +161,12 @@ class BackpackTradingService:
         """Cancel a single order.
 
         Delegates to the order cancellation service component.
+
+        Args:
+            args: Order cancellation parameters
+
+        Returns:
+            CancelOrderResult with cancellation details
         """
         return await self._order_cancellation_service.cancel_order(args)
 
@@ -162,6 +174,12 @@ class BackpackTradingService:
         """Cancel all open orders.
 
         Delegates to the batch order service component.
+
+        Args:
+            symbol: Optional symbol to filter cancellations
+
+        Returns:
+            List of CancelOrderResult objects
         """
         return await self._batch_order_service.cancel_all_orders(symbol)
 
@@ -170,6 +188,12 @@ class BackpackTradingService:
 
         Note: Backpack doesn't support batch cancellation directly.
         This implementation cancels orders one by one.
+
+        Args:
+            order_ids: List of order IDs to cancel
+
+        Returns:
+            List of CancelOrderResult objects
         """
         results: list[CancelOrderResult] = []
         for order_id in order_ids:
@@ -184,6 +208,12 @@ class BackpackTradingService:
         """Get all open orders.
 
         Delegates to the order query service component.
+
+        Args:
+            symbol: Optional symbol to filter orders
+
+        Returns:
+            List of open Order objects
         """
         return await self._order_query_service.get_open_orders(symbol)
 
@@ -191,6 +221,12 @@ class BackpackTradingService:
         """Get a specific order by ID.
 
         Delegates to the order query service component.
+
+        Args:
+            args: Order query parameters
+
+        Returns:
+            Order object with current details
         """
         return await self._order_query_service.get_order(args)
 
@@ -205,9 +241,6 @@ class BackpackTradingService:
 
         Returns:
             Order | None: The order with current status, or None if not found
-
-        Raises:
-            APIError: If the API request fails (but not for order not found)
         """
         try:
             return await self._order_query_service.get_order(args)
@@ -227,9 +260,6 @@ class BackpackTradingService:
 
         Returns:
             list[Order]: List of open orders, filtered by symbol if specified
-
-        Raises:
-            APIError: If order retrieval fails
         """
         return await self._order_query_service.get_open_orders(args.symbol)
 
@@ -240,6 +270,12 @@ class BackpackTradingService:
 
         Note: Backpack doesn't support batch order placement directly.
         This implementation places orders one by one.
+
+        Args:
+            orders: List of order placement parameters
+
+        Returns:
+            List of placed Order objects
         """
         results: list[Order] = []
         for order_args in orders:

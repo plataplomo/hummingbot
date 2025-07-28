@@ -42,31 +42,51 @@ from cyberdelta.core.models.market.mid_prices import MidPrices
 
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
-    """Create a mock HTTP requester."""
+    """Create a mock HTTP requester.
+    
+    Returns:
+        AsyncMock: A mock instance of the HTTP requester.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> Mock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidMarketDataRequestBuilder.
+    """
     return MagicMock(spec=HyperliquidMarketDataRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> Mock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidResponseHandler.
+    """
     return MagicMock(spec=HyperliquidResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> Mock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidPriceTickerMapper.
+    """
     return MagicMock(spec=HyperliquidPriceTickerMapper)
 
 
 @pytest.fixture
 def mock_historical_data_mapper() -> Mock:
-    """Create a mock historical data mapper."""
+    """Create a mock historical data mapper.
+    
+    Returns:
+        Mock: A mock instance of historical data mapper.
+    """
     return MagicMock()
 
 
@@ -78,7 +98,11 @@ def price_ticker_service(
     mock_mapper: Mock,
     mock_historical_data_mapper: Mock,
 ) -> HyperliquidPriceTickerService:
-    """Create a price ticker service instance with mocks."""
+    """Create a price ticker service instance with mocks.
+    
+    Returns:
+        HyperliquidPriceTickerService: Service instance configured with mock dependencies.
+    """
     return HyperliquidPriceTickerService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -91,7 +115,11 @@ def price_ticker_service(
 
 @pytest.fixture
 def mock_asset_ctx() -> HyperliquidRawAssetCtx:
-    """Create a mock asset context."""
+    """Create a mock asset context.
+    
+    Returns:
+        HyperliquidRawAssetCtx: A mock asset context with test data.
+    """
     return HyperliquidRawAssetCtx(
         funding="0.0001",
         markPx="3500.00",
@@ -110,7 +138,11 @@ def mock_asset_ctx() -> HyperliquidRawAssetCtx:
 
 @pytest.fixture
 def mock_asset_definition() -> HyperliquidRawAssetDefinition:
-    """Create a mock asset definition."""
+    """Create a mock asset definition.
+    
+    Returns:
+        HyperliquidRawAssetDefinition: A mock asset definition for ETH.
+    """
     return HyperliquidRawAssetDefinition(
         name="ETH",
         szDecimals=4,
@@ -126,7 +158,11 @@ def mock_meta_and_asset_ctxs_response(
     mock_asset_ctx: HyperliquidRawAssetCtx,
     mock_asset_definition: HyperliquidRawAssetDefinition,
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
-    """Create a mock meta and asset contexts response."""
+    """Create a mock meta and asset contexts response.
+    
+    Returns:
+        HyperliquidRawMetaAndAssetCtxsResponse: A mock response containing meta and asset contexts.
+    """
     # HyperliquidRawMetaAndAssetCtxsResponse expects a list format [meta, assetCtxs]
     # as that's what the API actually returns
     meta_dict = {
@@ -140,7 +176,11 @@ def mock_meta_and_asset_ctxs_response(
 
 @pytest.fixture
 def mock_ticker() -> Ticker:
-    """Create a mock ticker."""
+    """Create a mock ticker.
+    
+    Returns:
+        Ticker: A mock ticker for ETH with test data.
+    """
     return Ticker(
         symbol="ETH",
         exchange="hyperliquid",
@@ -154,7 +194,11 @@ def mock_ticker() -> Ticker:
 
 @pytest.fixture
 def mock_funding_rate() -> FundingRate:
-    """Create a mock funding rate."""
+    """Create a mock funding rate.
+    
+    Returns:
+        FundingRate: A mock funding rate for ETH.
+    """
     return FundingRate(
         symbol="ETH",
         timestamp=datetime.now(UTC),
@@ -166,7 +210,11 @@ def mock_funding_rate() -> FundingRate:
 
 @pytest.fixture
 def mock_all_mids() -> HyperliquidRawAllMids:
-    """Create a mock all mids response."""
+    """Create a mock all mids response.
+    
+    Returns:
+        HyperliquidRawAllMids: A mock response with mid prices for multiple assets.
+    """
     return HyperliquidRawAllMids({
         "ETH": "3500.00",
         "BTC": "65000.00",
@@ -176,7 +224,11 @@ def mock_all_mids() -> HyperliquidRawAllMids:
 
 @pytest.fixture
 def mock_mid_prices() -> MidPrices:
-    """Create a mock mid prices object."""
+    """Create a mock mid prices object.
+    
+    Returns:
+        MidPrices: A mock mid prices object with prices for multiple assets.
+    """
     return MidPrices(
         prices={
             "ETH": Decimal("3500.00"),

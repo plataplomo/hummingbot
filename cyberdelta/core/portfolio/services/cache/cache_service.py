@@ -41,7 +41,11 @@ class CacheEntry[V]:
         self.expires_at = self.created_at + ttl if ttl else None
 
     def is_expired(self) -> bool:
-        """Check if entry has expired."""
+        """Check if entry has expired.
+        
+        Returns:
+            True if the entry has expired, False otherwise
+        """
         if self.expires_at is None:
             return False
         return time.time() > self.expires_at
@@ -374,6 +378,9 @@ class MemoryCacheService[K, V]:
 
         Args:
             new_max_size: New maximum cache size
+            
+        Raises:
+            CacheSizeMustBePositiveError: If new_max_size is not positive
         """
         if new_max_size <= 0:
             raise CacheSizeMustBePositiveError(new_max_size)
@@ -394,6 +401,10 @@ class MemoryCacheService[K, V]:
             )
 
     def _ensure_running(self) -> None:
-        """Raise an error if the service is not running."""
+        """Raise an error if the service is not running.
+        
+        Raises:
+            ServiceNotRunningError: If the cache service is not running
+        """
         if not self._running:
             raise ServiceNotRunningError(service_name="MemoryCacheService")

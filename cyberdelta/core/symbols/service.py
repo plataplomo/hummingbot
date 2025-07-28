@@ -232,7 +232,8 @@ class SymbolService:
     ) -> SymbolBatchTransformResult:
         """Transform multiple symbols in batch for better performance.
 
-        Returns type-safe result with success/failure statistics.
+        Returns:
+            SymbolBatchTransformResult with success/failure statistics
         """
         logger.info(
             "batch_symbol_transformation_started",
@@ -264,7 +265,11 @@ class SymbolService:
     def validate_arbitrage_compatibility(
         self, internal_symbol: str, exchange_names: list[str]
     ) -> SymbolArbitrageCompatibility:
-        """Validate if symbol supports arbitrage across multiple exchanges."""
+        """Validate if symbol supports arbitrage across multiple exchanges.
+        
+        Returns:
+            SymbolArbitrageCompatibility with exchange availability and warnings
+        """
         logger.info(
             "arbitrage_compatibility_validation_started",
             internal_symbol=internal_symbol,
@@ -335,7 +340,11 @@ class SymbolService:
         )
 
     def get_all_symbols(self) -> list[UnifiedSymbol]:
-        """Get all registered symbols."""
+        """Get all registered symbols.
+        
+        Returns:
+            List of all registered UnifiedSymbol instances
+        """
         return self.store.get_all()
 
     def clear(self) -> None:
@@ -343,7 +352,11 @@ class SymbolService:
         self.store.clear()
 
     def get_supported_exchanges(self) -> list[str]:
-        """Get list of supported exchanges."""
+        """Get list of supported exchanges.
+        
+        Returns:
+            List of supported exchange names
+        """
         return list(SYMBOL_TRANSFORMERS.keys())
 
     def _parse_internal_symbol(self, internal_symbol: str) -> InternalSymbol:
@@ -354,9 +367,6 @@ class SymbolService:
 
         Returns:
             InternalSymbol: Parsed domain object
-
-        Raises:
-            ValueError: If symbol format is invalid
         """
         if "_" in internal_symbol:
             parts = internal_symbol.split("_", 1)

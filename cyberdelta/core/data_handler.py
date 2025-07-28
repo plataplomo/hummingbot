@@ -425,7 +425,14 @@ class DataHandler:
             )
 
     def _create_message_handlers(self, exchange_id: str) -> dict[str, Any]:
-        """Create message handlers for different data types."""
+        """Create message handlers for different data types.
+
+        Args:
+            exchange_id: Exchange identifier.
+
+        Returns:
+            dict[str, Any]: Dictionary mapping data types to handler functions.
+        """
 
         async def ticker_handler(
             data_payload: dict[str, Any],
@@ -465,7 +472,17 @@ class DataHandler:
         symbols: list[str],
         handlers: dict[str, Any],
     ) -> list[Coroutine[Any, Any, None]]:
-        """Create subscription tasks for all symbols and data types."""
+        """Create subscription tasks for all symbols and data types.
+
+        Args:
+            exchange_id: Exchange identifier.
+            client: Exchange API client.
+            symbols: List of symbols to subscribe to.
+            handlers: Dictionary of message handlers.
+
+        Returns:
+            list[Coroutine[Any, Any, None]]: List of subscription coroutines.
+        """
         subscribe_tasks: list[Coroutine[Any, Any, None]] = []
 
         # Subscribe to ticker/price data for each symbol
@@ -497,7 +514,17 @@ class DataHandler:
         symbol: str,
         handlers: dict[str, Any],
     ) -> list[Coroutine[Any, Any, None]]:
-        """Create subscription tasks for a specific symbol."""
+        """Create subscription tasks for a specific symbol.
+
+        Args:
+            exchange_id: Exchange identifier.
+            client: Exchange API client.
+            symbol: Trading symbol.
+            handlers: Dictionary of message handlers.
+
+        Returns:
+            list[Coroutine[Any, Any, None]]: List of subscription coroutines for the symbol.
+        """
         tasks: list[Coroutine[Any, Any, None]] = []
 
         if exchange_id == "hyperliquid":
@@ -529,7 +556,16 @@ class DataHandler:
         client: ExchangeAPI,
         handlers: dict[str, Any],
     ) -> Coroutine[Any, Any, None] | None:
-        """Create user events subscription task."""
+        """Create user events subscription task.
+
+        Args:
+            exchange_id: Exchange identifier.
+            client: Exchange API client.
+            handlers: Dictionary of message handlers.
+
+        Returns:
+            Coroutine[Any, Any, None] | None: User events subscription coroutine or None.
+        """
         if exchange_id == "hyperliquid":
             return client.subscribe("userEvents", handlers["user_events"])
         if exchange_id == "backpack":
@@ -542,7 +578,16 @@ class DataHandler:
         client: ExchangeAPI,
         handlers: dict[str, Any],
     ) -> Coroutine[Any, Any, None] | None:
-        """Create funding rate subscription task."""
+        """Create funding rate subscription task.
+
+        Args:
+            exchange_id: Exchange identifier.
+            client: Exchange API client.
+            handlers: Dictionary of message handlers.
+
+        Returns:
+            Coroutine[Any, Any, None] | None: Funding subscription coroutine or None.
+        """
         # Note: Hyperliquid doesn't provide funding rates via WebSocket
         # Funding rates must be fetched via REST API (get_funding_rates)
         # Backpack funding is already subscribed per-symbol in _create_symbol_subscription_tasks
@@ -975,7 +1020,15 @@ class DataHandler:
     # --- Public Data Access Methods ---
 
     def get_latest_ticker(self, exchange_id: str, symbol: str) -> Ticker | None:
-        """Get the latest ticker data for a specific symbol on an exchange."""
+        """Get the latest ticker data for a specific symbol on an exchange.
+
+        Args:
+            exchange_id: Exchange identifier.
+            symbol: Trading symbol.
+
+        Returns:
+            Ticker | None: Latest ticker data or None if stale/not found.
+        """
         if self._is_data_stale(exchange_id, symbol, "ticker"):
             logger.warning(
                 "ticker_data_stale",
@@ -990,7 +1043,15 @@ class DataHandler:
         return self.tickers.get(exchange_id, {}).get(symbol)
 
     def get_latest_order_book(self, exchange_id: str, symbol: str) -> OrderBook | None:
-        """Get the latest order book for a symbol, checking for staleness."""
+        """Get the latest order book for a symbol, checking for staleness.
+
+        Args:
+            exchange_id: Exchange identifier.
+            symbol: Trading symbol.
+
+        Returns:
+            OrderBook | None: Latest order book or None if stale/not found.
+        """
         exchange_order_books = self.order_books.get(exchange_id)
         if not exchange_order_books:
             return None
@@ -1015,6 +1076,13 @@ class DataHandler:
 
         For Hyperliquid, this will trigger an on-demand fetch if data is stale or missing.
         Returns the funding rate even if stale, with a staleness warning logged.
+
+        Args:
+            exchange_id: Exchange identifier.
+            symbol: Trading symbol.
+
+        Returns:
+            FundingRate | None: Latest funding rate or None if not found.
         """
         # Check if we have the symbol mapping
         if exchange_id not in self.funding_rates:
@@ -1109,7 +1177,14 @@ class DataHandler:
         return funding_rate_obj
 
     def get_all_tickers(self, exchange_id: str) -> dict[str, Ticker]:
-        """Get all available tickers (as Candles) for a given exchange."""
+        """Get all available tickers (as Candles) for a given exchange.
+
+        Args:
+            exchange_id: Exchange identifier.
+
+        Returns:
+            dict[str, Ticker]: Dictionary mapping symbols to their latest ticker data.
+        """
         # Consider adding staleness checks for each symbol
         return self.tickers.get(exchange_id, {})
 
@@ -1467,7 +1542,15 @@ class DataHandler:
         exchange_id: str,
         client: ExchangeAPI,
     ) -> Awaitable[Any] | None:
-        """Get the close task for a client if it has a close method."""
+        """Get the close task for a client if it has a close method.
+
+        Args:
+            exchange_id: Exchange identifier.
+            client: Exchange API client.
+
+        Returns:
+            Awaitable[Any] | None: Close task if client has close method, None otherwise.
+        """
         if hasattr(client, "close_websocket"):
             logger.debug(
                 "websocket_connection_closing",
@@ -1505,7 +1588,16 @@ class DataHandler:
     # --- Staleness Check ---
 
     def _is_data_stale(self, exchange_id: str, symbol: str, data_type: str) -> bool:
-        """Check if data for a given exchange, symbol, and type is stale."""
+        """Check if data for a given exchange, symbol, and type is stale.
+
+        Args:
+            exchange_id: Exchange identifier.
+            symbol: Trading symbol.
+            data_type: Type of data (e.g., 'ticker', 'order_book', 'funding').
+
+        Returns:
+            bool: True if data is stale, False otherwise.
+        """
         # Construct the specific key for staleness_thresholds
         # e.g., "mock_hl_ticker", "mock_bp_funding"
         staleness_key = f"{exchange_id}_{data_type.lower()}"

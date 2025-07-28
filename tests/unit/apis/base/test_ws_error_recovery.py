@@ -39,7 +39,11 @@ class MockConnection:
         self.is_connected = False
 
     async def connect(self) -> bool:
-        """Mock connect method."""
+        """Mock connect method.
+
+        Returns:
+            bool: True if connection succeeds, False if still failing.
+        """
         self.connect_attempts += 1
         if self.connect_attempts <= self.fail_connects:
             return False
@@ -51,14 +55,25 @@ class MockConnection:
         self.is_connected = False
 
     async def is_healthy(self) -> bool:
-        """Mock health check method."""
+        """Mock health check method.
+
+        Returns:
+            bool: True if connection is healthy, False if unhealthy.
+        """
         self.health_check_attempts += 1
         if self.health_check_attempts <= self.fail_health_checks:
             return False
         return self.is_connected
 
     async def send_message(self, message: dict[str, Any]) -> bool:
-        """Mock send message method."""
+        """Mock send message method.
+
+        Args:
+            message: Dictionary message to send.
+
+        Returns:
+            bool: True if message sent successfully, False if connection down.
+        """
         if not self.is_connected:
             return False
         self.sent_messages.append(message)
@@ -131,7 +146,11 @@ class TestMessageBuffer:
 
     @pytest.fixture
     def message_buffer(self) -> MessageBuffer:
-        """Create message buffer for testing."""
+        """Create message buffer for testing.
+
+        Returns:
+            MessageBuffer: A configured message buffer with size limit of 10.
+        """
         config = MessageReplayConfig(enabled=True, buffer_size=10)
         return MessageBuffer(config)
 
@@ -232,7 +251,11 @@ class TestStateManager:
 
     @pytest.fixture
     def state_manager(self) -> StateManager:
-        """Create state manager for testing."""
+        """Create state manager for testing.
+
+        Returns:
+            StateManager: A new state manager instance for connection state snapshots.
+        """
         return StateManager()
 
     def test_create_snapshot(self, state_manager: StateManager) -> None:
@@ -294,7 +317,11 @@ class TestWebSocketErrorRecovery:
 
     @pytest.fixture
     def recovery_config(self) -> ErrorRecoveryConfig:
-        """Create recovery configuration for testing."""
+        """Create recovery configuration for testing.
+
+        Returns:
+            ErrorRecoveryConfig: Recovery config with fast timing for test performance.
+        """
         return ErrorRecoveryConfig(
             strategy=RecoveryStrategy.EXPONENTIAL_BACKOFF,
             backoff=BackoffConfig(
@@ -311,7 +338,14 @@ class TestWebSocketErrorRecovery:
 
     @pytest.fixture
     def error_recovery(self, recovery_config: ErrorRecoveryConfig) -> WebSocketErrorRecovery:
-        """Create error recovery system for testing."""
+        """Create error recovery system for testing.
+
+        Args:
+            recovery_config: Configuration for the recovery system.
+
+        Returns:
+            WebSocketErrorRecovery: Configured recovery system for test connection.
+        """
         return WebSocketErrorRecovery("test_conn", recovery_config)
 
     def test_error_recovery_initialization(self, error_recovery: WebSocketErrorRecovery) -> None:

@@ -24,7 +24,18 @@ OUTPUT_DIR = Path("/workspaces/CyberDeltaEngine/tests/fixtures/raw_api_data/hl/h
 
 
 def fetch_historical_orders(wallet_address: str) -> dict[str, Any]:
-    """Fetch historical orders for a wallet address."""
+    """Fetch historical orders for a wallet address.
+
+    Args:
+        wallet_address: Ethereum wallet address to fetch orders for.
+
+    Returns:
+        dict[str, Any]: Dictionary containing wallet address, fetch timestamp,
+            API metadata, and the list of historical orders.
+
+    Raises:
+        RequestException: If the API request fails or returns an error status.
+    """
     payload = {"type": "historicalOrders", "user": wallet_address}
 
     # Fetching historical orders for wallet

@@ -47,37 +47,61 @@ HyperliquidResponseHandler = HyperliquidTradingResponseHandler
 
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
-    """Create a mock HTTP requester."""
+    """Create a mock HTTP requester.
+    
+    Returns:
+        AsyncMock: A mock instance of the HTTP requester.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> Mock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidTradingRequestBuilder.
+    """
     return MagicMock(spec=HyperliquidTradingRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> Mock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidTradingResponseHandler.
+    """
     return MagicMock(spec=HyperliquidTradingResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> Mock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidOrderMapper.
+    """
     return MagicMock(spec=HyperliquidOrderMapper)
 
 
 @pytest.fixture
 def mock_error_mapper() -> Mock:
-    """Create a mock error mapper."""
+    """Create a mock error mapper.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidErrorMapper.
+    """
     return Mock(spec=HyperliquidErrorMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> Mock:
-    """Create a mock authenticator."""
+    """Create a mock authenticator.
+    
+    Returns:
+        Mock: A mock instance of IAuthenticator.
+    """
     return Mock(spec=IAuthenticator)
 
 
@@ -90,7 +114,11 @@ def order_query_service(
     mock_error_mapper: Mock,
     mock_authenticator: Mock,
 ) -> HyperliquidOrderQueryService:
-    """Create an order query service instance with mocks."""
+    """Create an order query service instance with mocks.
+    
+    Returns:
+        HyperliquidOrderQueryService: Service instance configured with mock dependencies.
+    """
     return HyperliquidOrderQueryService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -106,7 +134,11 @@ def order_query_service(
 
 @pytest.fixture
 def mock_open_order() -> Order:
-    """Create a mock open order."""
+    """Create a mock open order.
+    
+    Returns:
+        Order: A mock open order for BTC-USD.
+    """
     return Order(
         exchange_order_id="12345",
         client_order_id="client_123",
@@ -129,7 +161,11 @@ def mock_open_order() -> Order:
 
 @pytest.fixture
 def mock_filled_order() -> Order:
-    """Create a mock filled order."""
+    """Create a mock filled order.
+    
+    Returns:
+        Order: A mock filled order for ETH-USD.
+    """
     return Order(
         exchange_order_id="67890",
         client_order_id="client_456",
@@ -153,7 +189,11 @@ def mock_filled_order() -> Order:
 
 @pytest.fixture
 def mock_trade() -> Trade:
-    """Create a mock trade."""
+    """Create a mock trade.
+    
+    Returns:
+        Trade: A mock trade for BTC-USD.
+    """
     return Trade(
         id="trade_123",
         order_id="12345",

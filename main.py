@@ -167,7 +167,11 @@ async def shutdown(app_state: dict[str, Any]) -> None:
 
 
 def _parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments."""
+    """Parse command line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed command line arguments.
+    """
     parser = argparse.ArgumentParser(description="CyberDeltaEngine - Funding Rate Arbitrage Bot")
     parser.add_argument(
         "--config",
@@ -184,7 +188,11 @@ def _parse_arguments() -> argparse.Namespace:
 
 
 def _load_configuration(args: argparse.Namespace) -> AppSettings:
-    """Load application configuration."""
+    """Load application configuration.
+
+    Returns:
+        AppSettings: Loaded application settings.
+    """
     # Set config path if provided
     if args.config:
         os.environ["CYBERDELTA_CONFIG_PATH"] = args.config
@@ -207,7 +215,14 @@ def _load_configuration(args: argparse.Namespace) -> AppSettings:
 
 
 def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
-    """Initialize all core application components."""
+    """Initialize all core application components.
+
+    Returns:
+        dict[str, Any]: Dictionary containing initialized components.
+
+    Raises:
+        SymbolRegistryError: If symbol loading fails or no symbols are found.
+    """
     app_state: dict[str, Any] = {}
 
     try:
@@ -222,7 +237,11 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
 
         # Initialize the new unified symbol registry from configuration
         def _raise_no_symbols_error() -> None:
-            """Raise error when no symbols are loaded."""
+            """Raise error when no symbols are loaded.
+
+            Raises:
+                SymbolRegistryError: Always raised to indicate no symbols were loaded.
+            """
             logger.error("No symbols loaded from configuration")
             raise SymbolRegistryError("initialization", "No symbols found in configuration")
 
@@ -339,7 +358,11 @@ async def _initialize_api_clients(
     config: AppSettings,
     app_state: dict[str, Any],
 ) -> dict[str, ExchangeAPI]:
-    """Initialize and connect API clients."""
+    """Initialize and connect API clients.
+
+    Returns:
+        dict[str, ExchangeAPI]: Dictionary mapping exchange names to API clients.
+    """
     api_clients: dict[str, ExchangeAPI] = {}
     client: ExchangeAPI
 
@@ -409,7 +432,19 @@ async def _initialize_api_clients(
 
 
 def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> list[Strategy]:
-    """Initialize trading strategies using the factory pattern."""
+    """Initialize trading strategies using the factory pattern.
+
+    Returns:
+        list[Strategy]: List of initialized trading strategies.
+
+    Raises:
+        StrategyCreationError: If strategy initialization fails.
+        ArithmeticError: If numeric calculations fail during initialization.
+        AttributeError: If required attributes are missing.
+        KeyError: If required configuration keys are missing.
+        TypeError: If configuration types are invalid.
+        ValueError: If configuration values are invalid.
+    """
     strategies: list[Strategy] = []
 
     try:
@@ -522,7 +557,11 @@ def _wire_components(app_state: dict[str, Any]) -> None:
 
 
 async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]]:
-    """Start background component tasks."""
+    """Start background component tasks.
+
+    Returns:
+        list[asyncio.Task[Any]]: List of started background tasks.
+    """
     main_tasks: list[asyncio.Task[Any]] = []
 
     logger.info("Loading initial state...")

@@ -29,7 +29,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
     """Tests for the HyperliquidAccountService order and trade history functionality."""
 
     def create_account_service(self) -> HyperliquidAccountService:
-        """Create a minimal account service for testing."""
+        """Create a minimal account service for testing.
+        
+        Returns:
+            HyperliquidAccountService: An account service instance for testing.
+        """
         mock_requester = AsyncMock()
         mock_builder = MagicMock()
         mock_handler = MagicMock()

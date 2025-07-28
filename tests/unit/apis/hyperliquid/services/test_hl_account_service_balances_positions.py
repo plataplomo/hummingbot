@@ -30,7 +30,17 @@ class TestHyperliquidAccountServiceBalancesPositions:
         mock_handler: MagicMock | None = None,
         mock_authenticator: MagicMock | None = None,
     ) -> HyperliquidAccountService:
-        """Create a minimal account service for testing."""
+        """Create a minimal account service for testing.
+        
+        Args:
+            mock_requester: Optional mock HTTP requester
+            mock_builder: Optional mock request builder
+            mock_handler: Optional mock response handler
+            mock_authenticator: Optional mock authenticator
+            
+        Returns:
+            HyperliquidAccountService instance configured with provided or default mocks
+        """
         if mock_requester is None:
             mock_requester = AsyncMock()
         if mock_builder is None:

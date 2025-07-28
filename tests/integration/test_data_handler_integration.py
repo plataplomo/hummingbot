@@ -26,7 +26,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 @pytest.fixture
 def mock_symbol_mapper() -> MagicMock:
-    """Provide a MagicMock for SymbolService that maps symbols to themselves."""
+    """Provide a MagicMock for SymbolService that maps symbols to themselves.
+    
+    Returns:
+        MagicMock: A mock symbol service for testing.
+    """
     mapper_mock = MagicMock(spec=SymbolService)
 
     def identity_symbol_map(exchange_id: str, symbol: str) -> str:
@@ -49,7 +53,11 @@ class TestDataHandlerIntegration:
         mock_exchange_api: AsyncMock,
         mock_symbol_mapper: MagicMock,
     ) -> DataHandler:
-        """Create a DataHandler instance with mocked dependencies."""
+        """Create a DataHandler instance with mocked dependencies.
+        
+        Returns:
+            DataHandler: A data handler instance with mocked dependencies for testing.
+        """
         # Create mock portfolio tracker
         mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
 

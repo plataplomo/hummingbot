@@ -20,19 +20,31 @@ class TestHyperliquidResponseHandlerRegistry:
 
     @pytest.fixture
     def registry(self) -> HyperliquidResponseHandlerRegistry:
-        """Create a fresh registry instance for testing."""
+        """Create a fresh registry instance for testing.
+        
+        Returns:
+            HyperliquidResponseHandlerRegistry: Fresh registry instance for testing.
+        """
         return HyperliquidResponseHandlerRegistry()
 
     @pytest.fixture
     def mock_handler(self) -> MagicMock:
-        """Create a mock response handler that implements IResponseHandler protocol."""
+        """Create a mock response handler that implements IResponseHandler protocol.
+        
+        Returns:
+            MagicMock: Mock response handler for testing.
+        """
         mock = MagicMock(spec=IResponseHandler)
         mock.handle_response.return_value = {"processed": "response"}
         return mock
 
     @pytest.fixture
     def sample_response_data(self) -> tuple[ParsedJsonResponse, int, dict[str, str], str]:
-        """Create sample response data for testing."""
+        """Create sample response data for testing.
+        
+        Returns:
+            tuple[ParsedJsonResponse, int, dict[str, str], str]: Sample response data for testing.
+        """
         response: ParsedJsonResponse = {"data": "test"}
         status_code = 200
         headers = {"Content-Type": "application/json"}

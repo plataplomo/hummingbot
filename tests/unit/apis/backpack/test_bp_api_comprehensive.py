@@ -63,7 +63,11 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.fixture
     def valid_secrets(self) -> ApiKeyAuthSecrets:
-        """Mock valid ApiKeyAuthSecrets configuration."""
+        """Mock valid ApiKeyAuthSecrets configuration.
+        
+        Returns:
+            ApiKeyAuthSecrets instance with valid test credentials
+        """
         return ApiKeyAuthSecrets(
             api_key=SecretStr("61D/XTRs1Es8SgdZN4xO438vv1ls0aWhJSs//JDNxLk="),
             api_secret=SecretStr("7s6pf6Xs8VJDMTNmcseiLge61XCSZeQ6GW8PP6odR1c="),
@@ -71,7 +75,11 @@ class TestBackpackAPIPublicBehavior:
 
     @pytest.fixture
     def invalid_secrets(self) -> ApiKeyAuthSecrets:
-        """Mock invalid/missing secrets configuration."""
+        """Mock invalid/missing secrets configuration.
+        
+        Returns:
+            ApiKeyAuthSecrets instance with empty credentials
+        """
         return ApiKeyAuthSecrets(api_key=SecretStr(""), api_secret=SecretStr(""))
 
     def test_init_with_valid_configuration(

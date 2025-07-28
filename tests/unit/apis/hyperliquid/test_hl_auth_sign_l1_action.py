@@ -46,7 +46,11 @@ class TestHyperliquidSignL1Action:
 
     @pytest.fixture
     def test_network_environment(self) -> NetworkEnvironment:
-        """Fixture for a test network environment."""
+        """Fixture for a test network environment.
+        
+        Returns:
+            NetworkEnvironment: Test network environment configuration.
+        """
         return NetworkEnvironment(
             chain_id=ChainId.TESTNET,
             api_endpoint=HttpUrl("https://api.hyperliquid-testnet.xyz"),
@@ -57,7 +61,11 @@ class TestHyperliquidSignL1Action:
     def authenticator(
         self, test_network_environment: NetworkEnvironment
     ) -> HyperliquidEip712Authenticator:
-        """Create an authenticator instance with a valid private key."""
+        """Create an authenticator instance with a valid private key.
+        
+        Returns:
+            HyperliquidEip712Authenticator: Configured authenticator for testing.
+        """
         return HyperliquidEip712Authenticator(
             wallet_private_key_secret=SecretStr(VALID_PRIVATE_KEY),
             chain_id=CHAIN_ID,
@@ -66,7 +74,11 @@ class TestHyperliquidSignL1Action:
 
     @pytest.fixture
     def sample_order_action(self) -> dict[str, Any]:
-        """Sample order action payload."""
+        """Sample order action payload.
+        
+        Returns:
+            dict[str, Any]: Sample order action payload for testing.
+        """
         return {
             "type": "order",
             "orders": [

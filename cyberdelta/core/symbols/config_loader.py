@@ -41,9 +41,6 @@ class ConfigSymbolLoader:
 
         Returns:
             Number of symbols successfully loaded
-
-        Raises:
-            SymbolValidationError: If symbol validation fails
         """
         app_settings = get_app_settings()
         unified_symbols = app_settings.unified_symbols

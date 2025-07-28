@@ -174,7 +174,12 @@ class ExchangeAPI(ABC):
         self,
         loop: asyncio.AbstractEventLoop | None,
     ) -> asyncio.AbstractEventLoop:
-        """Setup the event loop for the exchange API."""
+        """Setup the event loop for the exchange API.
+        
+        Returns:
+            asyncio.AbstractEventLoop: The event loop to use (provided loop, existing loop,
+                or new loop).
+        """
         if loop:
             return loop
 
@@ -200,7 +205,11 @@ class ExchangeAPI(ABC):
         rate_limit_strategy: RateLimitStrategy | None,
         exchange_config: ExchangeSpecificConfig | None,
     ) -> RateLimitStrategy | None:
-        """Setup rate limiting strategy."""
+        """Setup rate limiting strategy.
+        
+        Returns:
+            RateLimitStrategy | None: The rate limiting strategy to use, or None if not configured.
+        """
         if rate_limit_strategy is not None:
             return rate_limit_strategy
 
@@ -221,7 +230,14 @@ class ExchangeAPI(ABC):
         self,
         exchange_config: ExchangeSpecificConfig,
     ) -> RateLimitStrategy:
-        """Create a default rate limiting strategy."""
+        """Create a default rate limiting strategy.
+        
+        Returns:
+            RateLimitStrategy: A new SimpleTokenBucketStrategy instance.
+            
+        Raises:
+            RequiredParameterError: If rate_limit_per_minute is None in the exchange config.
+        """
         # DEFENSIVE CHECK: exchange_config.rate_limit_per_minute is confirmed not None by caller.
         if exchange_config.rate_limit_per_minute is None:
             raise RequiredParameterError(
@@ -249,7 +265,15 @@ class ExchangeAPI(ABC):
         return strategy
 
     def _setup_http_client(self, http_client: HttpClient | None) -> tuple[str, HttpClient]:
-        """Setup HTTP client and return endpoint and client."""
+        """Setup HTTP client and return endpoint and client.
+        
+        Returns:
+            tuple[str, HttpClient]: A tuple containing the REST endpoint URL and the HTTP
+                client instance.
+            
+        Raises:
+            RequiredParameterError: If required configuration parameters are missing.
+        """
         if http_client is not None:
             # Extract endpoint from config model
             rest_endpoint = str(self._config.api_base_url_mainnet)
@@ -280,7 +304,11 @@ class ExchangeAPI(ABC):
         return rest_endpoint, new_http_client
 
     def _build_http_config_data(self) -> dict[str, Any]:
-        """Build HTTP client configuration data from config model."""
+        """Build HTTP client configuration data from config model.
+        
+        Returns:
+            dict[str, Any]: Configuration dictionary for HTTP client initialization.
+        """
         # Determine the active endpoint based on environment
         if self._config.environment_type.is_production:
             rest_endpoint = str(self._config.api_base_url_mainnet)
@@ -309,7 +337,13 @@ class ExchangeAPI(ABC):
         ws_manager: WebSocketManager | None,
         exchange_config: ExchangeSpecificConfig | None,
     ) -> tuple[str | None, WebSocketManager | None]:
-        """Setup WebSocket manager and return endpoint and manager."""
+        """Setup WebSocket manager and return endpoint and manager.
+        
+        Returns:
+            tuple[str | None, WebSocketManager | None]: A tuple containing the WebSocket
+                endpoint URL (or None if not configured) and the WebSocket manager instance
+                (or None).
+        """
         if ws_manager is not None:
             ws_endpoint = self._validate_ws_endpoint()
             return ws_endpoint, ws_manager
@@ -324,7 +358,11 @@ class ExchangeAPI(ABC):
         return ws_endpoint, ws_manager_instance
 
     def _validate_ws_endpoint(self) -> str | None:
-        """Validate and return WebSocket endpoint."""
+        """Validate and return WebSocket endpoint.
+        
+        Returns:
+            str | None: The WebSocket endpoint URL if configured, None otherwise.
+        """
         # Determine WebSocket URL based on environment
         if self._config.environment_type.is_production:
             ws_endpoint = str(self._config.ws_url_mainnet) if self._config.ws_url_mainnet else None
@@ -352,7 +390,11 @@ class ExchangeAPI(ABC):
         ws_endpoint: str,
         exchange_config: ExchangeSpecificConfig | None,
     ) -> WebSocketManager:
-        """Create WebSocket manager instance."""
+        """Create WebSocket manager instance.
+        
+        Returns:
+            WebSocketManager: A new WebSocket manager instance configured for the exchange.
+        """
         ws_config_data = self._build_ws_config_data(ws_endpoint)
         websocket_manager_config = WebSocketManagerConfig.model_validate(ws_config_data)
 
@@ -368,7 +410,11 @@ class ExchangeAPI(ABC):
         )
 
     def _build_ws_config_data(self, ws_endpoint: str) -> dict[str, Any]:
-        """Build WebSocket configuration data from config model."""
+        """Build WebSocket configuration data from config model.
+        
+        Returns:
+            dict[str, Any]: Configuration dictionary for WebSocket manager initialization.
+        """
         ws_config_data: dict[str, Any] = {"ws_url": ws_endpoint}
 
         # Map optional fields from config model
@@ -387,7 +433,12 @@ class ExchangeAPI(ABC):
         self,
         exchange_config: ExchangeSpecificConfig | None,
     ) -> TokenBucketRateLimiterRuntime | None:
-        """Create WebSocket rate limiter if needed."""
+        """Create WebSocket rate limiter if needed.
+        
+        Returns:
+            TokenBucketRateLimiterRuntime | None: A rate limiter instance for WebSocket messages
+                if configured, None otherwise.
+        """
         if (
             self.exchange_name == "hyperliquid"
             and exchange_config
@@ -414,7 +465,11 @@ class ExchangeAPI(ABC):
 
     @property
     def is_connected(self) -> bool:
-        """Returns whether the WebSocket connection is active via WebSocketManager."""
+        """Returns whether the WebSocket connection is active via WebSocketManager.
+        
+        Returns:
+            bool: True if WebSocket is connected, False otherwise.
+        """
         return self._ws_manager.is_connected if self._ws_manager else False
 
     async def _request(
@@ -495,7 +550,14 @@ class ExchangeAPI(ABC):
         data: BaseModel | dict[str, Any] | None,
         request_config: RequestConfiguration,
     ) -> dict[str, Any] | None:
-        """Prepare data for HttpClient - handle Pydantic model serialization."""
+        """Prepare data for HttpClient - handle Pydantic model serialization.
+        
+        Returns:
+            dict[str, Any] | None: Serialized data ready for HTTP request, or None if no data.
+            
+        Raises:
+            InvalidParameterTypeError: If data is not a BaseModel, dict, or None.
+        """
         if isinstance(data, BaseModel):
             return self._serialization_strategy.serialize_model(data, request_config)
         if isinstance(data, dict) or data is None:
@@ -536,7 +598,12 @@ class ExchangeAPI(ABC):
         headers: dict[str, Any] | None,
         request_config: RequestConfiguration,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
-        """Execute the HTTP request and return response data."""
+        """Execute the HTTP request and return response data.
+        
+        Returns:
+            tuple[ParsedJsonResponse | None, int, Mapping[str, str]]: A tuple containing
+                the parsed response content, HTTP status code, and response headers.
+        """
         (
             response_content,
             status_code,
@@ -559,7 +626,11 @@ class ExchangeAPI(ABC):
         e_http_failed: HttpRequestFailedError,
         request_url: str,
     ) -> APIError:
-        """Handle HTTP request failed errors."""
+        """Handle HTTP request failed errors.
+        
+        Returns:
+            APIError: A mapped APIError instance with exchange-specific error details.
+        """
         logger.warning(
             "exchange_api_http_request_failed",
             exchange_name=self.exchange_name,
@@ -592,7 +663,11 @@ class ExchangeAPI(ABC):
         )
 
     def _handle_client_error(self, e_client: Exception, method: str, request_url: str) -> APIError:
-        """Handle client errors (timeout, connection issues)."""
+        """Handle client errors (timeout, connection issues).
+        
+        Returns:
+            APIError: A mapped APIError instance for service unavailable conditions.
+        """
         logger.error(
             "exchange_api_client_error",
             exchange_name=self.exchange_name,
@@ -619,7 +694,11 @@ class ExchangeAPI(ABC):
         method: str,
         request_url: str,
     ) -> APIError:
-        """Handle unexpected errors."""
+        """Handle unexpected errors.
+        
+        Returns:
+            APIError: A mapped APIError instance for internal server error conditions.
+        """
         logger.error(
             "exchange_api_unhandled_exception",
             exchange_name=self.exchange_name,
@@ -670,7 +749,11 @@ class ExchangeAPI(ABC):
         request_path: str | None = None,
         original_exception: Exception | None = None,
     ) -> APIError:
-        """Maps an HTTP error response to an APIError using the configured error_mapper."""
+        """Maps an HTTP error response to an APIError using the configured error_mapper.
+        
+        Returns:
+            APIError: A mapped APIError instance with exchange-specific error details.
+        """
         # Ensure error_mapper is available
         if not self.error_mapper:
             # This should not happen if __init__ forces error_mapper
@@ -756,7 +839,12 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
-        """Register a handler for a specific WebSocket topic/channel and send subscription."""
+        """Register a handler for a specific WebSocket topic/channel and send subscription.
+        
+        Raises:
+            ValueError: If the subscription payload cannot be constructed for the topic.
+            APIError: If there's an error sending the subscription request.
+        """
         self._ws_handlers[topic] = handler
         if self._ws_manager and self.is_connected:
             try:
@@ -1196,7 +1284,11 @@ class ExchangeAPI(ABC):
 
     # --- WebSocket Connection Management Methods ---
     async def connect_websocket(self) -> None:
-        """Establishes a WebSocket connection with the exchange."""
+        """Establishes a WebSocket connection with the exchange.
+        
+        Raises:
+            APIError: If WebSocket is not configured or connection fails.
+        """
         if not self._ws_manager:
             logger.error(
                 "websocket_manager_not_initialized_for_connect",

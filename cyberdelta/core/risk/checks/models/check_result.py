@@ -47,7 +47,15 @@ class CheckResult:
     def success(
         cls, message: str | None = None, details: dict[str, Any] | None = None
     ) -> "CheckResult":
-        """Create a successful check result."""
+        """Create a successful check result.
+
+        Args:
+            message: Optional success message
+            details: Optional additional details dictionary
+
+        Returns:
+            CheckResult: A CheckResult instance with PASSED status
+        """
         return cls(
             status=CheckStatus.PASSED,
             message=message,
@@ -56,7 +64,15 @@ class CheckResult:
 
     @classmethod
     def failure(cls, message: str, details: dict[str, Any] | None = None) -> "CheckResult":
-        """Create a failed check result."""
+        """Create a failed check result.
+
+        Args:
+            message: Failure message describing what went wrong
+            details: Optional additional details dictionary
+
+        Returns:
+            CheckResult: A CheckResult instance with FAILED status
+        """
         return cls(
             status=CheckStatus.FAILED,
             message=message,
@@ -65,7 +81,15 @@ class CheckResult:
 
     @classmethod
     def skip(cls, message: str, details: dict[str, Any] | None = None) -> "CheckResult":
-        """Create a skipped check result."""
+        """Create a skipped check result.
+
+        Args:
+            message: Message explaining why the check was skipped
+            details: Optional additional details dictionary
+
+        Returns:
+            CheckResult: A CheckResult instance with SKIPPED status
+        """
         return cls(
             status=CheckStatus.SKIPPED,
             message=message,
@@ -74,7 +98,15 @@ class CheckResult:
 
     @classmethod
     def error(cls, message: str, details: dict[str, Any] | None = None) -> "CheckResult":
-        """Create an error check result."""
+        """Create an error check result.
+
+        Args:
+            message: Error message describing what went wrong
+            details: Optional additional details dictionary
+
+        Returns:
+            CheckResult: A CheckResult instance with ERROR status
+        """
         return cls(
             status=CheckStatus.ERROR,
             message=message,
@@ -93,7 +125,15 @@ class CheckContext:
     def get_config_value(
         self, key: str, default: bool | float | str | None = None
     ) -> bool | int | float | str | None:
-        """Get a configuration value."""
+        """Get a configuration value.
+
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if key not found or config is None
+
+        Returns:
+            bool | int | float | str | None: The configuration value or default
+        """
         if self.config is None:
             return default
         result = self.config.get(key, default)
@@ -102,7 +142,15 @@ class CheckContext:
     def get_metadata_value(
         self, key: str, default: bool | float | str | None = None
     ) -> bool | int | float | str | None:
-        """Get a metadata value."""
+        """Get a metadata value.
+
+        Args:
+            key: Metadata key to retrieve
+            default: Default value if key not found or metadata is None
+
+        Returns:
+            bool | int | float | str | None: The metadata value or default
+        """
         if self.metadata is None:
             return default
         result = self.metadata.get(key, default)

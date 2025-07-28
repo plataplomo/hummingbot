@@ -51,8 +51,8 @@ def parse_datetime_utc(
         A timezone-aware UTC datetime object, or None if value is None and allowed.
 
     Raises:
-        ValueError: If the value cannot be parsed as a datetime. The error message will include
-            the field name if provided.
+        TimestampFormatError: If the value cannot be parsed as a datetime. The error message 
+            will include the field name if provided.
 
     """
     prefix = f"{field_name}: " if field_name else ""
@@ -96,7 +96,7 @@ def _parse_numeric_timestamp(value: float, prefix: str) -> datetime:
         Parsed datetime object in UTC
 
     Raises:
-        ValueError: If timestamp value is invalid
+        TimestampFormatError: If timestamp value is invalid
     """
     try:
         timestamp_s = _determine_timestamp_scale(value)
@@ -170,7 +170,7 @@ def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: Value
         Parsed datetime object in UTC
 
     Raises:
-        ValueError: If parsing as numeric timestamp also fails
+        DateTimeParsingError: If parsing as numeric timestamp also fails
     """
     try:
         float_val = float(value)
@@ -223,8 +223,8 @@ def parse_decimal_value(
         A Decimal object, or None if value is None and allowed.
 
     Raises:
-        ValueError: If the value cannot be parsed as a Decimal. The error message will include
-            the field name if provided.
+        DecimalFieldError: If the value cannot be parsed as a Decimal. The error message will 
+            include the field name if provided.
 
     """
     if value is None:
@@ -266,7 +266,8 @@ def validate_str_field(
         The validated string value.
 
     Raises:
-        ValueError: If validation fails.
+        TypeFieldError: If value is not a string, exceeds max_length, or has invalid UTF-8.
+        EmptyStringError: If value is empty/whitespace and allow_empty is False.
 
     """
     if not isinstance(value, str):
@@ -312,7 +313,7 @@ def validate_enum_field(
         The validated string value.
 
     Raises:
-        ValueError: If validation fails.
+        EnumFieldError: If value is not in the allowed set.
 
     """
     s = validate_str_field(value, field_name=field_name, max_length=max_length, allow_empty=False)
@@ -381,7 +382,9 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
         The validated string value.
 
     Raises:
-        ValueError: If validation fails.
+        DecimalFieldError: If the string cannot be parsed as a finite Decimal.
+        ValueError: Re-raised from validate_str_field or parse_decimal_value if field_name
+            is not already in the error message.
 
     """
     # First, validate it's a proper string (non-empty, UTF-8, etc. as per validate_str_field)

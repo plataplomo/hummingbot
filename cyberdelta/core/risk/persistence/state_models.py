@@ -10,17 +10,29 @@ from cyberdelta.core.risk.orchestrator.risk_manager_orchestrator import Processi
 
 
 def _create_str_any_dict() -> dict[str, Any]:
-    """Create typed dict for dataclass fields."""
+    """Create typed dict for dataclass fields.
+    
+    Returns:
+        Empty dictionary with string keys and any values for dataclass default factory.
+    """
     return {}
 
 
 def _create_str_int_dict() -> dict[str, int]:
-    """Create typed string to int dict for dataclass fields."""
+    """Create typed string to int dict for dataclass fields.
+    
+    Returns:
+        Empty dictionary with string keys and integer values for dataclass default factory.
+    """
     return {}
 
 
 def _create_str_str_dict() -> dict[str, str]:
-    """Create typed string to string dict for dataclass fields."""
+    """Create typed string to string dict for dataclass fields.
+    
+    Returns:
+        Empty dictionary with string keys and string values for dataclass default factory.
+    """
     return {}
 
 
@@ -47,7 +59,11 @@ class CheckResult:
     metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the check result.
+        """
         return {
             "checker_name": self.checker_name,
             "status": self.status.value,
@@ -59,7 +75,11 @@ class CheckResult:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CheckResult":
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Returns:
+            CheckResult instance created from dictionary data.
+        """
         return cls(
             checker_name=data["checker_name"],
             status=CheckStatus(data["status"]),
@@ -86,7 +106,11 @@ class SizingResult:
     metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the sizing result.
+        """
         return {
             "strategy_name": self.strategy_name,
             "recommended_size": str(self.recommended_size),
@@ -102,7 +126,11 @@ class SizingResult:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SizingResult":
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Returns:
+            SizingResult instance created from dictionary data.
+        """
         return cls(
             strategy_name=data["strategy_name"],
             recommended_size=Decimal(data["recommended_size"]),
@@ -130,7 +158,11 @@ class ConstraintResult:
     metadata: dict[str, Any] = field(default_factory=_create_str_any_dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the constraint result.
+        """
         return {
             "validator_name": self.validator_name,
             "is_valid": self.is_valid,
@@ -143,7 +175,11 @@ class ConstraintResult:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ConstraintResult":
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Returns:
+            ConstraintResult instance created from dictionary data.
+        """
         return cls(
             validator_name=data["validator_name"],
             is_valid=data["is_valid"],
@@ -174,7 +210,11 @@ class PerformanceMetrics:
     timestamp: datetime
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the performance metrics.
+        """
         return {
             "total_opportunities_processed": self.total_opportunities_processed,
             "successful_processing": self.successful_processing,
@@ -193,7 +233,11 @@ class PerformanceMetrics:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PerformanceMetrics":
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Returns:
+            PerformanceMetrics instance created from dictionary data.
+        """
         return cls(
             total_opportunities_processed=data["total_opportunities_processed"],
             successful_processing=data["successful_processing"],
@@ -241,7 +285,11 @@ class RiskManagerState:
     circuit_breaker_states: dict[str, str] = field(default_factory=_create_str_str_dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the risk manager state.
+        """
         return {
             "session_id": self.session_id,
             "configuration_hash": self.configuration_hash,
@@ -261,7 +309,11 @@ class RiskManagerState:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RiskManagerState":
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Returns:
+            RiskManagerState instance created from dictionary data.
+        """
         return cls(
             session_id=data["session_id"],
             configuration_hash=data["configuration_hash"],
@@ -298,7 +350,11 @@ class StateSnapshot:
     execution_metrics: dict[str, float]
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Convert to dictionary for serialization.
+        
+        Returns:
+            Dictionary representation of the state snapshot.
+        """
         return {
             "timestamp": self.timestamp.isoformat(),
             "opportunity_id": self.opportunity_id,
@@ -314,7 +370,11 @@ class StateSnapshot:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "StateSnapshot":
-        """Create from dictionary."""
+        """Create from dictionary.
+        
+        Returns:
+            StateSnapshot instance created from dictionary data.
+        """
         return cls(
             timestamp=datetime.fromisoformat(data["timestamp"]),
             opportunity_id=data["opportunity_id"],

@@ -46,12 +46,20 @@ logger = get_logger(__name__)
 
 
 def is_str_any_dict(obj: object) -> TypeGuard[dict[str, Any]]:
-    """TypeGuard to ensure dict has str keys."""
+    """TypeGuard to ensure dict has str keys.
+
+    Returns:
+        TypeGuard[dict[str, Any]]: True if object is a dictionary.
+    """
     return isinstance(obj, dict)
 
 
 def is_any_list(obj: object) -> TypeGuard[list[Any]]:
-    """TypeGuard to ensure object is a list."""
+    """TypeGuard to ensure object is a list.
+
+    Returns:
+        TypeGuard[list[Any]]: True if object is a list.
+    """
     return isinstance(obj, list)
 
 
@@ -85,7 +93,14 @@ class TestHyperliquidMessageSerializationIntegration:
         retry=retry_if_exception_type((ConnectionError, OSError)),
     )
     async def _get_test_symbol(self, api: HyperliquidAPI) -> str:
-        """Get the most active test symbol (typically BTC) with network retry only."""
+        """Get the most active test symbol (typically BTC) with network retry only.
+
+        Returns:
+            str: The symbol of the most active trading pair.
+            
+        Raises:
+            ConnectionError: If network connectivity issues occur.
+        """
         try:
             return await get_most_active_symbol(api)
         except ConnectionError:
@@ -96,7 +111,11 @@ class TestHyperliquidMessageSerializationIntegration:
             pytest.fail(f"Failed to get most active symbol from exchange API: {e}")
 
     def _validate_l2book_json_serialization(self, domain_data: dict[str, Any]) -> dict[str, Any]:
-        """Validate JSON serialization and return parsed data."""
+        """Validate JSON serialization and return parsed data.
+
+        Returns:
+            dict[str, Any]: The parsed JSON data after round-trip serialization.
+        """
         # Test JSON serialization - must succeed
         try:
             json_str = json.dumps(domain_data)
@@ -206,7 +225,11 @@ class TestHyperliquidMessageSerializationIntegration:
     def _create_l2book_message_handler(
         self, received_messages: list[dict[str, Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create message handler for L2Book serialization testing."""
+        """Create message handler for L2Book serialization testing.
+        
+        Returns:
+            Callable: Async message handler function for L2Book processing.
+        """
 
         async def message_handler(context: WebSocketContextProtocol) -> None:
             """Handle live L2Book messages with strict validation."""
@@ -308,7 +331,11 @@ class TestHyperliquidMessageSerializationIntegration:
         )
 
     def _validate_allmids_json_round_trip(self, domain_data: dict[str, Any]) -> dict[str, Any]:
-        """Validate JSON serialization round-trip for allMids data."""
+        """Validate JSON serialization round-trip for allMids data.
+
+        Returns:
+            dict[str, Any]: The parsed JSON data after round-trip serialization.
+        """
         # JSON serialization must succeed
         try:
             json_str = json.dumps(domain_data)
@@ -349,7 +376,11 @@ class TestHyperliquidMessageSerializationIntegration:
     def _create_allmids_message_handler(
         self, received_messages: list[dict[str, Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create message handler for allMids serialization testing."""
+        """Create message handler for allMids serialization testing.
+        
+        Returns:
+            Callable: Async message handler function for allMids processing.
+        """
 
         async def message_handler(context: WebSocketContextProtocol) -> None:
             """Handle live allMids messages with strict validation."""
@@ -443,7 +474,11 @@ class TestHyperliquidMessageSerializationIntegration:
                 pytest.fail(f"Missing required envelope field: {field}")
 
     def _create_envelope_data(self, context_data: dict[str, Any]) -> dict[str, Any]:
-        """Create complete envelope data structure for testing."""
+        """Create complete envelope data structure for testing.
+
+        Returns:
+            dict[str, Any]: Complete envelope data structure for testing.
+        """
         return {
             "routing_key": context_data["routing_key"],
             "model_type": context_data["model_type"],
@@ -475,7 +510,11 @@ class TestHyperliquidMessageSerializationIntegration:
     def _create_envelope_integrity_handler(
         self, received_envelopes: list[dict[str, Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create message handler for envelope integrity testing."""
+        """Create message handler for envelope integrity testing.
+        
+        Returns:
+            Callable: Async message handler function for envelope validation.
+        """
 
         async def message_handler(context: WebSocketContextProtocol) -> None:
             """Validate envelope structure with strict checks."""
@@ -560,7 +599,11 @@ class TestHyperliquidMessageSerializationIntegration:
         )
 
     def _get_extreme_test_values(self) -> dict[str, Any]:
-        """Get extreme precision test values."""
+        """Get extreme precision test values.
+
+        Returns:
+            dict[str, Any]: Dictionary containing extreme precision test values.
+        """
         # Use actual numeric values that can be precisely represented in JSON
         # These are carefully chosen to be exactly representable in IEEE 754 double precision
         return {
@@ -571,7 +614,11 @@ class TestHyperliquidMessageSerializationIntegration:
         }
 
     def _validate_extreme_values_serialization(self, test_data: dict[str, Any]) -> dict[str, Any]:
-        """Validate serialization of extreme values."""
+        """Validate serialization of extreme values.
+
+        Returns:
+            dict[str, Any]: The parsed JSON data after serialization validation.
+        """
         # JSON serialization must succeed with extreme values
         # Use default=str to handle Decimal and other non-serializable objects
         try:
@@ -649,7 +696,11 @@ class TestHyperliquidMessageSerializationIntegration:
                     return {}
 
     def _extract_prices_data(self, domain_data: DomainModelProtocol) -> dict[str, Any]:
-        """Extract prices data from domain model using protocol methods."""
+        """Extract prices data from domain model using protocol methods.
+
+        Returns:
+            dict[str, Any]: Extracted prices data from the domain model.
+        """
         # Get the serialized data using the utility function
         serialized_data = self._get_serialized_data(domain_data)
 
@@ -701,7 +752,11 @@ class TestHyperliquidMessageSerializationIntegration:
     def _create_precision_test_handler(
         self, received_messages: list[dict[str, Any]], precision_tests_passed: list[int]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create message handler for precision testing."""
+        """Create message handler for precision testing.
+        
+        Returns:
+            Callable: Async message handler function for precision testing.
+        """
 
         async def message_handler(context: WebSocketContextProtocol) -> None:
             """Test precision with real market data."""

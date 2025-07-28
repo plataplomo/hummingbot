@@ -64,7 +64,17 @@ class ErrorData:
     @field_validator("component", "error_type", "error_message", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str) -> str:
-        """Validate required string fields are non-empty."""
+        """Validate required string fields are non-empty.
+        
+        Args:
+            v: String value to validate
+            
+        Returns:
+            Validated and stripped string value
+            
+        Raises:
+            MalformedTradeError: If string is empty or whitespace-only
+        """
         if not v or not v.strip():
             raise MalformedTradeError(
                 message="Required string fields cannot be empty",
@@ -76,7 +86,14 @@ class ErrorData:
     @field_validator("error_code", mode="before")
     @classmethod
     def validate_error_code(cls, v: str | None) -> str | None:
-        """Validate optional error code field."""
+        """Validate optional error code field.
+        
+        Args:
+            v: Optional error code value to validate
+            
+        Returns:
+            Validated error code string or None if not provided
+        """
         if v is not None and not v.strip():
             return None
         return v
@@ -84,7 +101,14 @@ class ErrorData:
     @field_validator("retry_count", mode="before")
     @classmethod
     def validate_retry_count(cls, v: int) -> int:
-        """Validate retry count is non-negative."""
+        """Validate retry count is non-negative.
+
+        Returns:
+            int: The validated retry count.
+
+        Raises:
+            MalformedTradeError: If retry count is negative.
+        """
         if v < 0:
             raise MalformedTradeError(
                 message="Retry count cannot be negative",
@@ -96,7 +120,14 @@ class ErrorData:
     @field_validator("max_retries", mode="before")
     @classmethod
     def validate_max_retries(cls, v: int) -> int:
-        """Validate max retries is positive."""
+        """Validate max retries is positive.
+
+        Returns:
+            int: The validated max retries value.
+
+        Raises:
+            MalformedTradeError: If max retries is not positive.
+        """
         if v <= 0:
             raise MalformedTradeError(
                 message="Max retries must be positive", field_name="max_retries", field_value=str(v)
@@ -117,7 +148,14 @@ class ComponentStateData:
     @field_validator("component_name", "component_type", "new_state", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str) -> str:
-        """Validate required string fields are non-empty."""
+        """Validate required string fields are non-empty.
+
+        Returns:
+            str: The validated and stripped string.
+
+        Raises:
+            MalformedTradeError: If string is empty or whitespace-only.
+        """
         if not v or not v.strip():
             raise MalformedTradeError(
                 message="Required string fields cannot be empty",
@@ -129,7 +167,11 @@ class ComponentStateData:
     @field_validator("previous_state", mode="before")
     @classmethod
     def validate_previous_state(cls, v: str | None) -> str | None:
-        """Validate optional previous state field."""
+        """Validate optional previous state field.
+
+        Returns:
+            str | None: The validated state string or None if empty.
+        """
         if v is not None and not v.strip():
             return None
         return v
@@ -149,7 +191,14 @@ class StateSnapshotData:
     @field_validator("snapshot_id", "component", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str) -> str:
-        """Validate required string fields are non-empty."""
+        """Validate required string fields are non-empty.
+
+        Returns:
+            str: The validated and stripped string.
+
+        Raises:
+            MalformedTradeError: If string is empty or whitespace-only.
+        """
         if not v or not v.strip():
             raise MalformedTradeError(
                 message="Required string fields cannot be empty",
@@ -161,7 +210,14 @@ class StateSnapshotData:
     @field_validator("snapshot_type", mode="before")
     @classmethod
     def validate_snapshot_type(cls, v: str) -> str:
-        """Validate snapshot type is valid."""
+        """Validate snapshot type is valid.
+
+        Returns:
+            str: The validated snapshot type in lowercase.
+
+        Raises:
+            MalformedTradeError: If snapshot type is not valid.
+        """
         valid_types = {"full", "incremental", "checkpoint"}
         if v.lower() not in valid_types:
             raise MalformedTradeError(
@@ -172,7 +228,14 @@ class StateSnapshotData:
     @field_validator("size_bytes", mode="before")
     @classmethod
     def validate_size_bytes(cls, v: int) -> int:
-        """Validate size bytes is non-negative."""
+        """Validate size bytes is non-negative.
+
+        Returns:
+            int: The validated size in bytes.
+
+        Raises:
+            MalformedTradeError: If size is negative.
+        """
         if v < 0:
             raise MalformedTradeError(
                 message="Size bytes cannot be negative", field_name="size_bytes", field_value=str(v)
@@ -182,7 +245,11 @@ class StateSnapshotData:
     @field_validator("checksum", mode="before")
     @classmethod
     def validate_checksum(cls, v: str | None) -> str | None:
-        """Validate optional checksum field."""
+        """Validate optional checksum field.
+
+        Returns:
+            str | None: The validated checksum string or None if empty.
+        """
         if v is not None and not v.strip():
             return None
         return v
@@ -205,6 +272,9 @@ class ErrorOccurredEvent(BasePortfolioEvent[ErrorData]):
             error: Error details
             severity: Error severity level
             **kwargs: Additional metadata fields
+
+        Returns:
+            ErrorOccurredEvent: The created error event.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(priority=severity, source_component=error.component)
@@ -231,7 +301,11 @@ class ErrorOccurredEvent(BasePortfolioEvent[ErrorData]):
         return cls(event_type=EventType.ERROR_OCCURRED, data=error, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize error data."""
+        """Serialize error data.
+
+        Returns:
+            dict[str, Any]: Serialized error data.
+        """
         return {
             "component": self.data.component,
             "error_type": self.data.error_type,
@@ -264,6 +338,9 @@ class ErrorRecoveredEvent(BasePortfolioEvent[ErrorData]):
             recovery_method: How the error was recovered
             recovery_duration_ms: Time taken to recover
             **kwargs: Additional metadata fields
+
+        Returns:
+            ErrorRecoveredEvent: The created error recovered event.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(source_component=error.component)
@@ -292,7 +369,11 @@ class ErrorRecoveredEvent(BasePortfolioEvent[ErrorData]):
         return cls(event_type=EventType.ERROR_RECOVERED, data=error, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize error data."""
+        """Serialize error data.
+
+        Returns:
+            dict[str, Any]: Serialized error data.
+        """
         return {
             "component": self.data.component,
             "error_type": self.data.error_type,
@@ -315,6 +396,9 @@ class ComponentInitializedEvent(BasePortfolioEvent[ComponentStateData]):
         Args:
             component_state: Component state data
             **kwargs: Additional metadata fields
+
+        Returns:
+            ComponentInitializedEvent: The created component initialized event.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(source_component=component_state.component_name)
@@ -341,7 +425,11 @@ class ComponentInitializedEvent(BasePortfolioEvent[ComponentStateData]):
         )
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize component state data."""
+        """Serialize component state data.
+
+        Returns:
+            dict[str, Any]: Serialized component state data.
+        """
         return {
             "component_name": self.data.component_name,
             "component_type": self.data.component_type,
@@ -368,6 +456,9 @@ class ComponentShutdownEvent(BasePortfolioEvent[ComponentStateData]):
             component_state: Component state data
             shutdown_reason: Reason for shutdown
             **kwargs: Additional metadata fields
+
+        Returns:
+            ComponentShutdownEvent: The created component shutdown event.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(source_component=component_state.component_name)
@@ -395,7 +486,11 @@ class ComponentShutdownEvent(BasePortfolioEvent[ComponentStateData]):
         return cls(event_type=EventType.COMPONENT_SHUTDOWN, data=component_state, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize component state data."""
+        """Serialize component state data.
+
+        Returns:
+            dict[str, Any]: Serialized component state data.
+        """
         return {
             "component_name": self.data.component_name,
             "component_type": self.data.component_type,
@@ -418,6 +513,9 @@ class StateSnapshotCreatedEvent(BasePortfolioEvent[StateSnapshotData]):
         Args:
             snapshot: Snapshot data
             **kwargs: Additional metadata fields
+
+        Returns:
+            StateSnapshotCreatedEvent: The created state snapshot event.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(source_component=snapshot.component)
@@ -444,7 +542,11 @@ class StateSnapshotCreatedEvent(BasePortfolioEvent[StateSnapshotData]):
         return cls(event_type=EventType.STATE_SNAPSHOT_CREATED, data=snapshot, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize snapshot data."""
+        """Serialize snapshot data.
+
+        Returns:
+            dict[str, Any]: Serialized snapshot data.
+        """
         return {
             "snapshot_id": self.data.snapshot_id,
             "component": self.data.component,
@@ -473,6 +575,9 @@ class StateRestoredEvent(BasePortfolioEvent[StateSnapshotData]):
             snapshot: Snapshot that was restored
             restore_duration_ms: Time taken to restore
             **kwargs: Additional metadata fields
+
+        Returns:
+            StateRestoredEvent: The created state restored event.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(source_component=snapshot.component)
@@ -501,7 +606,11 @@ class StateRestoredEvent(BasePortfolioEvent[StateSnapshotData]):
         return cls(event_type=EventType.STATE_RESTORED, data=snapshot, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize snapshot data."""
+        """Serialize snapshot data.
+
+        Returns:
+            dict[str, Any]: Serialized snapshot data.
+        """
         return {
             "snapshot_id": self.data.snapshot_id,
             "component": self.data.component,

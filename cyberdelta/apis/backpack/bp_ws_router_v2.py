@@ -119,7 +119,7 @@ class BackpackDepthTransformer:
             Symbol string.
 
         Raises:
-            ValueError: If symbol cannot be extracted.
+            SymbolExtractionError: If symbol cannot be extracted from context or validated data.
         """
         # Try to get symbol from context first
         if context:
@@ -278,11 +278,25 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
     def _extract_topic_from_object_envelope(
         self, envelope: BackpackRawWebSocketEnvelope
     ) -> str | None:
-        """Extract topic from object-style envelope."""
+        """Extract topic from object-style envelope.
+
+        Args:
+            envelope: The validated WebSocket envelope to extract topic from.
+
+        Returns:
+            Topic string from the envelope's stream attribute.
+        """
         return envelope.stream
 
     def _extract_topic_from_dict_envelope(self, envelope: dict[str, Any]) -> str | None:
-        """Extract topic from dict-style envelope."""
+        """Extract topic from dict-style envelope.
+
+        Args:
+            envelope: Dictionary-style envelope containing stream or topic information.
+
+        Returns:
+            Topic string if found in envelope, None otherwise.
+        """
         stream_value = envelope.get("stream")
         if isinstance(stream_value, str):
             return stream_value
@@ -294,7 +308,14 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         return None
 
     def _validate_and_extract_topic_type(self, topic: str) -> str | None:
-        """Validate topic and extract topic type."""
+        """Validate topic and extract topic type.
+
+        Args:
+            topic: Topic string to validate and extract type from.
+
+        Returns:
+            Topic type string if validation succeeds, None if validation fails.
+        """
         try:
             topic_type, _ = BackpackValidators.validate_backpack_topic(topic)
         except ValueError:

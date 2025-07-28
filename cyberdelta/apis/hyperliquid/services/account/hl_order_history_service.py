@@ -95,7 +95,10 @@ class HyperliquidOrderHistoryService:
 
         Raises:
             APIError: If order history retrieval fails or processing fails
-            RequiredParameterError: If required parameters are missing
+            TypeError: If service logic encounters type errors
+            ValueError: If service logic encounters value errors
+            TransformationError: If transformation of raw data to internal models fails
+            ValidationError: If validation of data models fails
         """
         self._validate_order_history_args(args)
 
@@ -270,9 +273,6 @@ class HyperliquidOrderHistoryService:
 
         Returns:
             list[HyperliquidRawHistoricalOrderResponse]: Processed historical orders with status
-
-        Raises:
-            APIError: If processing fails
         """
         validated_data = ensure_list_response(
             raw_data,
@@ -299,9 +299,6 @@ class HyperliquidOrderHistoryService:
 
         Returns:
             list[Order]: Mapped internal orders
-
-        Raises:
-            TransformationError: If mapping fails
         """
         return [
             self._mapper.transform_raw_historical_order_to_internal(
@@ -344,7 +341,17 @@ class HyperliquidOrderHistoryService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle transformation errors."""
+        """Handle transformation errors.
+        
+        Args:
+            e_transform: The transformation error that occurred
+            method_name: The name of the method where the error occurred
+            status_code: HTTP status code from the response
+            raw_response_content: Raw response content for debugging
+            
+        Raises:
+            APIError: Always raises an APIError with transformation details
+        """
         logger.error(
             "transformation_error",
             action=method_name,
@@ -367,7 +374,17 @@ class HyperliquidOrderHistoryService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle validation errors."""
+        """Handle validation errors.
+        
+        Args:
+            e_val: The validation error that occurred
+            method_name: The name of the method where the error occurred
+            status_code: HTTP status code from the response
+            raw_response_content: Raw response content for debugging
+            
+        Raises:
+            APIError: Always raises an APIError with validation details
+        """
         logger.error(
             "validation_error",
             action=method_name,
@@ -386,7 +403,15 @@ class HyperliquidOrderHistoryService:
     def _handle_service_logic_error(
         self, e_service_logic: ValueError | TypeError, method_name: str
     ) -> None:
-        """Handle service logic errors."""
+        """Handle service logic errors.
+        
+        Args:
+            e_service_logic: The ValueError or TypeError that occurred
+            method_name: The name of the method where the error occurred
+            
+        Raises:
+            APIError: Raises APIError for internal service errors
+        """
         error_msg = str(e_service_logic)
         if method_name in error_msg:
             # Input validation error - re-raise
@@ -412,7 +437,17 @@ class HyperliquidOrderHistoryService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle unexpected errors."""
+        """Handle unexpected errors.
+        
+        Args:
+            e_unexpected: The unexpected exception that occurred
+            method_name: The name of the method where the error occurred
+            status_code: HTTP status code from the response
+            raw_response_content: Raw response content for debugging
+            
+        Raises:
+            APIError: Always raises an APIError with error details
+        """
         logger.error(
             "unexpected_service_failure",
             action=method_name,

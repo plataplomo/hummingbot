@@ -14,7 +14,11 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.fixture
     def mock_limiter(self) -> MagicMock:
-        """Create a mock TokenBucketRateLimiterRuntime."""
+        """Create a mock TokenBucketRateLimiterRuntime.
+        
+        Returns:
+            MagicMock configured as TokenBucketRateLimiterRuntime with async methods
+        """
         limiter = MagicMock(spec=TokenBucketRateLimiterRuntime)
         limiter.trigger_ip_ban = AsyncMock()
         limiter.acquire = AsyncMock()
@@ -22,7 +26,14 @@ class TestBackpackRateLimitStrategy:
 
     @pytest.fixture
     def strategy(self, mock_limiter: MagicMock) -> BackpackRateLimitStrategy:
-        """Create a BackpackRateLimitStrategy instance with mocked limiter."""
+        """Create a BackpackRateLimitStrategy instance with mocked limiter.
+        
+        Args:
+            mock_limiter: Mock rate limiter to inject into strategy
+            
+        Returns:
+            BackpackRateLimitStrategy instance configured with mock limiter
+        """
         return BackpackRateLimitStrategy(limiter=mock_limiter, default_request_weight=1)
 
     @pytest.mark.asyncio

@@ -79,6 +79,16 @@ class NetworkEnvironment(BaseModel):
 
         This validation prevents catastrophic mistakes like using mainnet
         endpoints with testnet configuration or vice versa.
+
+        Args:
+            v: The endpoint URL to validate
+            info: Validation context containing chain_id
+
+        Returns:
+            The validated endpoint URL if it matches the chain environment
+
+        Raises:
+            NetworkEnvironmentError: If endpoint doesn't match chain environment
         """
         if info.data and "chain_id" in info.data:
             chain_id = info.data["chain_id"]
@@ -111,7 +121,14 @@ class NetworkEnvironment(BaseModel):
 
     @model_validator(mode="after")
     def validate_environment_consistency(self) -> NetworkEnvironment:
-        """Validate overall environment consistency."""
+        """Validate overall environment consistency.
+
+        Returns:
+            The validated NetworkEnvironment instance
+
+        Raises:
+            NetworkEnvironmentError: If API and WebSocket endpoints are from different environments
+        """
         # Additional cross-field validation
         api_str = str(self.api_endpoint).lower()
         ws_str = str(self.websocket_endpoint).lower()
@@ -131,7 +148,11 @@ class NetworkEnvironment(BaseModel):
         return self
 
     def is_mainnet(self) -> bool:
-        """Check if this is a mainnet environment."""
+        """Check if this is a mainnet environment.
+
+        Returns:
+            True if this is a mainnet environment, False otherwise
+        """
         return self.chain_id == ChainId.MAINNET
 
 
@@ -159,6 +180,9 @@ class NetworkEnvironmentFactory:
 
         Returns:
             Configured NetworkEnvironment instance
+
+        Raises:
+            NetworkEnvironmentError: If chain_id doesn't match environment_type expectation
         """
         # Map environment type to ChainId enum for validation
         chain_id_enum = ChainId.MAINNET if environment_type.is_production else ChainId.TESTNET
@@ -185,6 +209,14 @@ class NetworkEnvironmentFactory:
         """Create mainnet environment from config - real funds at risk.
 
         WARNING: This environment uses real funds and real trades.
+
+        Args:
+            api_endpoint: API endpoint URL for mainnet
+            websocket_endpoint: WebSocket endpoint URL for mainnet
+            chain_id: Blockchain chain ID (default: 1337 for mainnet)
+
+        Returns:
+            Configured NetworkEnvironment instance for mainnet
         """
         return NetworkEnvironmentFactory.from_config(
             environment_type=EnvironmentType.MAINNET,
@@ -197,7 +229,16 @@ class NetworkEnvironmentFactory:
     def testnet(
         api_endpoint: str, websocket_endpoint: str, chain_id: int = 421614
     ) -> NetworkEnvironment:
-        """Create testnet environment from config - safe for development."""
+        """Create testnet environment from config - safe for development.
+
+        Args:
+            api_endpoint: API endpoint URL for testnet
+            websocket_endpoint: WebSocket endpoint URL for testnet
+            chain_id: Blockchain chain ID (default: 421614 for testnet)
+
+        Returns:
+            Configured NetworkEnvironment instance for testnet
+        """
         return NetworkEnvironmentFactory.from_config(
             environment_type=EnvironmentType.TESTNET,
             chain_id=chain_id,
@@ -291,7 +332,14 @@ class SecurityPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_security_consistency(self) -> SecurityPolicy:
-        """Ensure security settings provide adequate protection."""
+        """Ensure security settings provide adequate protection.
+
+        Returns:
+            The validated SecurityPolicy instance
+
+        Raises:
+            ThreatModelError: If security settings are inconsistent with threat model
+        """
         # Paranoid threat model requires comprehensive validation
         if (
             self.threat_model == ThreatModel.PARANOID
@@ -357,7 +405,14 @@ class AuthenticationEnvironment(BaseModel):
 
     @model_validator(mode="after")
     def validate_authentication_consistency(self) -> AuthenticationEnvironment:
-        """Validate authentication environment consistency."""
+        """Validate authentication environment consistency.
+
+        Returns:
+            The validated AuthenticationEnvironment instance
+
+        Raises:
+            NetworkEnvironmentError: If mainnet uses development security or other inconsistencies
+        """
         # Mainnet should have strong security
         if (
             self.network.chain_id == ChainId.MAINNET

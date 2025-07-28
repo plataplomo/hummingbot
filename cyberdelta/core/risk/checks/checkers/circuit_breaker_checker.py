@@ -161,13 +161,21 @@ class CircuitBreakerChecker(TypedBaseChecker[CheckResult]):
         self.logger.info("Set fail_on_half_open", fail_on_half_open=fail_on_half_open)
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+
+        Returns:
+            CheckResult indicating the check was skipped
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+
+        Returns:
+            CheckResult indicating the check failed with error details
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

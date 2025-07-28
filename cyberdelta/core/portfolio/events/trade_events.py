@@ -39,6 +39,9 @@ class TradeReceivedEvent(BasePortfolioEvent[Trade]):
         Args:
             trade: The received trade
             **kwargs: Additional metadata fields
+            
+        Returns:
+            TradeReceivedEvent: A new trade received event instance.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
@@ -58,7 +61,12 @@ class TradeReceivedEvent(BasePortfolioEvent[Trade]):
         return cls(event_type=EventType.TRADE_RECEIVED, data=trade, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize trade data."""
+        """Serialize trade data.
+        
+        Returns:
+            dict[str, Any]: Serialized trade data with trade ID, exchange, symbol, 
+                side, size, price, fee details, execution time, and order ID.
+        """
         return {
             "trade_id": self.data.id,
             "exchange_id": self.data.exchange,
@@ -90,6 +98,9 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
             trade: The validated trade
             validation_results: Optional validation results
             **kwargs: Additional metadata fields
+            
+        Returns:
+            TradeValidatedEvent: A new trade validated event instance.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
@@ -116,7 +127,12 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
         return cls(event_type=EventType.TRADE_VALIDATED, data=trade, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize trade data."""
+        """Serialize trade data.
+        
+        Returns:
+            dict[str, Any]: Serialized trade data with trade ID, exchange, symbol,
+                side, size, price, and execution time.
+        """
         return {
             "trade_id": self.data.id,
             "exchange_id": self.data.exchange,
@@ -147,6 +163,9 @@ class TradeProcessedEvent(BasePortfolioEvent[Trade]):
             position_id: ID of affected position
             realized_pnl: Realized P&L from trade
             **kwargs: Additional metadata fields
+            
+        Returns:
+            TradeProcessedEvent: A new trade processed event instance.
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
@@ -172,7 +191,12 @@ class TradeProcessedEvent(BasePortfolioEvent[Trade]):
         return cls(event_type=EventType.TRADE_PROCESSED, data=trade, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize trade data."""
+        """Serialize trade data.
+        
+        Returns:
+            dict[str, Any]: Serialized trade data with trade ID, exchange, symbol,
+                side, size, price, fee details, and execution time.
+        """
         return {
             "trade_id": self.data.id,
             "exchange_id": self.data.exchange,
@@ -219,6 +243,9 @@ class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
             reason: Rejection reason
             error_code: Optional error code
             **kwargs: Additional metadata fields
+            
+        Returns:
+            TradeRejectedEvent: A new trade rejected event instance.
         """
         # Create RejectedTradeData from raw data
         rejected_data = RejectedTradeData(
@@ -255,7 +282,12 @@ class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
         return cls(event_type=EventType.TRADE_REJECTED, data=rejected_data, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize rejection data."""
+        """Serialize rejection data.
+        
+        Returns:
+            dict[str, Any]: Serialized rejection data with trade ID, exchange, symbol,
+                side, size, price, order ID, rejection reason, error code, and raw data.
+        """
         return {
             "trade_id": self.data.trade_id,
             "exchange_id": self.data.exchange_id,

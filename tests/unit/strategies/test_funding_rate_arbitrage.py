@@ -30,7 +30,11 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mock_data_handler() -> MagicMock:
-    """Create a mock DataHandler instance."""
+    """Create a mock DataHandler instance.
+    
+    Returns:
+        MagicMock: Mocked DataHandler with configured methods.
+    """
     handler = MagicMock()
     # Create proper Mock objects for each method
     handler.get_latest_funding_rate = Mock(return_value=None)
@@ -43,7 +47,11 @@ def mock_data_handler() -> MagicMock:
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create a mock PortfolioTracker instance."""
+    """Create a mock PortfolioTracker instance.
+    
+    Returns:
+        Mock: Mocked PortfolioTracker with test positions.
+    """
     tracker = Mock(spec=PortfolioTracker)
 
     # Create mock positions
@@ -79,7 +87,11 @@ def mock_portfolio_tracker() -> Mock:
 
 @pytest.fixture
 def mock_risk_manager() -> Mock:
-    """Create a mock RiskManager instance."""
+    """Create a mock RiskManager instance.
+    
+    Returns:
+        Mock: Mocked RiskManager with sized opportunity responses.
+    """
     manager = Mock(spec=RiskManager)
 
     # Create a mock ArbitrageOpportunity
@@ -114,7 +126,11 @@ def mock_risk_manager() -> Mock:
 
 @pytest.fixture
 def strategy_params() -> dict[str, Any]:
-    """Standard strategy parameters for testing."""
+    """Standard strategy parameters for testing.
+    
+    Returns:
+        dict[str, Any]: Test strategy configuration parameters.
+    """
     return {
         "min_funding_differential": "0.0001",
         "min_profit_usd": "0.1",
@@ -135,7 +151,11 @@ def funding_rate_strategy(
     mock_risk_manager: Mock,
     strategy_params: dict[str, Any],
 ) -> FundingRateArbitrageStrategy:
-    """Create a FundingRateArbitrageStrategy instance for testing."""
+    """Create a FundingRateArbitrageStrategy instance for testing.
+    
+    Returns:
+        FundingRateArbitrageStrategy: Configured strategy with mocked dependencies.
+    """
     return FundingRateArbitrageStrategy(
         name="test_strategy",
         symbol="BTC-PERP",

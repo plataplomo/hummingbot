@@ -28,7 +28,11 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create a mock PortfolioTracker instance."""
+    """Create a mock PortfolioTracker instance.
+    
+    Returns:
+        Mock: A mock PortfolioTracker instance for testing.
+    """
     tracker = Mock(spec=PortfolioTracker)
 
     # Mock app_settings
@@ -218,7 +222,11 @@ class TestLoadState:
     """Test suite for load_state function with success, edge, and failure cases."""
 
     def create_test_state_data(self) -> dict[str, Any]:
-        """Create test state data for loading."""
+        """Create test state data for loading.
+        
+        Returns:
+            dict[str, Any]: Test state data for portfolio loading tests.
+        """
         return {
             "version": "1.0",
             "timestamp": "2023-01-01T00:00:00Z",

@@ -136,6 +136,9 @@ class TestBackpackPerpLargePositions:
 
         Returns:
             The maximum order quantity validated by the exchange.
+            
+        Raises:
+            ValueError: If insufficient margin for minimum order size.
         """
         constraints = await get_market_constraints(api, symbol)
         account_summary = await api.get_account_summary()
@@ -170,7 +173,11 @@ class TestBackpackPerpLargePositions:
     async def _calculate_max_notional(
         self, api: BackpackAPI, symbol: str, account_summary: MarginAccountSummary
     ) -> Decimal:
-        """Calculate maximum notional based on exchange limits."""
+        """Calculate maximum notional based on exchange limits.
+        
+        Returns:
+            Maximum notional value based on available equity and leverage limit.
+        """
         await api.get_market(GetMarketArgs(symbol=symbol))
 
         logger.debug(
@@ -210,7 +217,11 @@ class TestBackpackPerpLargePositions:
     def _calculate_max_quantity(
         self, max_notional: Decimal, market_price: Decimal, constraints: dict[str, Any]
     ) -> Decimal:
-        """Calculate maximum quantity respecting step size."""
+        """Calculate maximum quantity respecting step size.
+        
+        Returns:
+            Maximum order quantity rounded down to respect step size constraints.
+        """
         # Calculate raw quantity without premature rounding
         raw_quantity = max_notional / market_price
 
@@ -253,7 +264,14 @@ class TestBackpackPerpLargePositions:
         constraints: dict[str, Any],
         market_price: Decimal,
     ) -> Decimal:
-        """Validate test size by placing and canceling an order."""
+        """Validate test size by placing and canceling an order.
+        
+        Returns:
+            Validated test order size that was successfully placed and canceled.
+            
+        Raises:
+            ValueError: If test size is below minimum order requirements.
+        """
         # Calculate precision from step_size (e.g., 0.01 -> 2 decimal places)
         step_size = constraints["step_size"]
         precision = -step_size.as_tuple().exponent

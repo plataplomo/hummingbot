@@ -113,6 +113,13 @@ class OrderExecution(BaseModel):
 
         Prevents dangerous combinations that could cause trading errors or
         uncontrolled financial operations.
+
+        Returns:
+            OrderExecution: The validated OrderExecution instance
+
+        Raises:
+            TradingExecutionError: If liquidity requirement and margin policy
+                combination creates risk of uncontrolled borrowing
         """
         # Prevent high-risk combinations
         if (
@@ -215,7 +222,15 @@ class AccountSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_account_safety(self) -> AccountSettings:
-        """Validate account settings for financial safety."""
+        """Validate account settings for financial safety.
+
+        Returns:
+            AccountSettings: The validated AccountSettings instance
+
+        Raises:
+            LeverageRiskError: If leverage limit exceeds safe threshold with
+                full automation enabled
+        """
         # High leverage with full automation is dangerous
         if (
             self.leverage_limit > HIGH_LEVERAGE_THRESHOLD
@@ -241,7 +256,11 @@ class AccountSettings(BaseModel):
         return self
 
     def to_api_fields(self) -> dict[str, bool]:
-        """Convert to API format for request payload."""
+        """Convert to API format for request payload.
+
+        Returns:
+            dict[str, bool]: Dictionary with API field names and boolean values
+        """
         return {
             "autoLend": self.automation_policy
             in {

@@ -104,7 +104,11 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
     @staticmethod
     def _raise_none_response_error(http_status: int) -> None:
-        """Raise error for None response after validation."""
+        """Raise error for None response after validation.
+        
+        Raises:
+            APIError: Always raises with INVALID_RESPONSE code.
+        """
         raise APIError(
             message="Received None response after validation",
             code=APIErrorCode.INVALID_RESPONSE.value,
@@ -113,7 +117,11 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
     @staticmethod
     def _raise_internal_logic_error() -> NoReturn:
-        """Raise error for internal logic error."""
+        """Raise error for internal logic error.
+        
+        Raises:
+            RuntimeError: Always raises for internal logic error.
+        """
         msg = "Internal error: raw_content is None after validation"
         raise RuntimeError(msg)
 
@@ -244,9 +252,6 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
         Returns:
             List of Order objects representing all open orders
-
-        Raises:
-            APIError: If API request fails or data transformation fails
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_all_open_orders"
@@ -490,10 +495,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
             symbol_filter: Symbol filter that was applied
 
         Returns:
-            Empty list (fallback behavior)
-
-        Raises:
-            APIError: For non-recoverable errors
+            Empty list (fallback behavior) or raises for non-recoverable errors
         """
         context = f"open orders (symbol: {symbol_filter})"
 

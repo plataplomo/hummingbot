@@ -384,7 +384,12 @@ class HyperliquidAPIComponentsFactory:
         return component
 
     def _get_component_config(self) -> dict[ComponentName, dict[str, Any]]:
-        """Get component configuration mapping."""
+        """Get component configuration mapping.
+        
+        Returns:
+            Dictionary mapping component names to their configuration including
+            registry keys, expected types, and factory methods.
+        """
         return {
             # Account Mappers
             "account_summary_mapper": {
@@ -485,7 +490,14 @@ class HyperliquidAPIComponentsFactory:
         }
 
     def _create_component(self, component_name: ComponentName) -> AnyComponent:
-        """Create component based on component name."""
+        """Create component based on component name.
+        
+        Returns:
+            The created component instance (mapper, builder, or handler).
+            
+        Raises:
+            ValueError: If component name is unknown or creation fails.
+        """
         # Delegate to specific creators to reduce complexity
         mapper = self._try_create_mapper(component_name)
         if mapper is not None:
@@ -505,7 +517,12 @@ class HyperliquidAPIComponentsFactory:
         raise ValueError(msg)
 
     def _try_create_mapper(self, component_name: ComponentName) -> MapperComponent | None:
-        """Try to create a mapper component."""
+        """Try to create a mapper component.
+        
+        Returns:
+            The created mapper component if component_name matches a mapper type,
+            None otherwise.
+        """
         account_mapper = self._try_create_account_mapper(component_name)
         if account_mapper is not None:
             return account_mapper
@@ -521,7 +538,12 @@ class HyperliquidAPIComponentsFactory:
         return None
 
     def _try_create_account_mapper(self, component_name: ComponentName) -> MapperComponent | None:
-        """Try to create an account mapper component."""
+        """Try to create an account mapper component.
+        
+        Returns:
+            The created account mapper if component_name matches an account mapper type,
+            None otherwise.
+        """
         if component_name == "account_summary_mapper":
             return self.create_account_summary_mapper()
         if component_name == "balance_mapper":
@@ -533,7 +555,12 @@ class HyperliquidAPIComponentsFactory:
         return None
 
     def _try_create_market_mapper(self, component_name: ComponentName) -> MapperComponent | None:
-        """Try to create a market data mapper component."""
+        """Try to create a market data mapper component.
+        
+        Returns:
+            The created market data mapper if component_name matches a market mapper type,
+            None otherwise.
+        """
         if component_name == "order_book_mapper":
             return self.create_order_book_mapper()
         if component_name == "price_ticker_mapper":
@@ -545,7 +572,12 @@ class HyperliquidAPIComponentsFactory:
         return None
 
     def _try_create_trading_mapper(self, component_name: ComponentName) -> MapperComponent | None:
-        """Try to create a trading mapper component."""
+        """Try to create a trading mapper component.
+        
+        Returns:
+            The created trading mapper if component_name matches a trading mapper type,
+            None otherwise.
+        """
         if component_name == "order_mapper":
             return self.create_order_mapper()
         if component_name == "order_response_mapper":
@@ -555,7 +587,12 @@ class HyperliquidAPIComponentsFactory:
         return None
 
     def _try_create_builder(self, component_name: ComponentName) -> BuilderComponent | None:
-        """Try to create a builder component."""
+        """Try to create a builder component.
+        
+        Returns:
+            The created request builder if component_name matches a builder type,
+            None otherwise.
+        """
         if component_name == "account_request_builder":
             return self.create_account_request_builder()
         if component_name == "market_data_request_builder":
@@ -565,7 +602,12 @@ class HyperliquidAPIComponentsFactory:
         return None
 
     def _try_create_handler(self, component_name: ComponentName) -> HandlerComponent | None:
-        """Try to create a handler component."""
+        """Try to create a handler component.
+        
+        Returns:
+            The created response handler if component_name matches a handler type,
+            None otherwise.
+        """
         if component_name == "account_response_handler":
             return self.create_account_response_handler()
         if component_name == "market_data_response_handler":
@@ -580,9 +622,6 @@ class HyperliquidAPIComponentsFactory:
         Args:
             component_name: Name of the component
             component: The component instance to validate
-
-        Raises:
-            TypeError: If the component doesn't implement the expected protocol
         """
         # Protocol validation mapping
         protocol_map = {
@@ -782,39 +821,78 @@ class HyperliquidAPIComponentsFactory:
 
     # Decomposed mapper creation methods
     def create_balance_mapper(self) -> BalanceMapperProtocol:
-        """Create a HyperliquidBalanceMapper instance."""
+        """Create a HyperliquidBalanceMapper instance.
+        
+        Returns:
+            A new HyperliquidBalanceMapper instance that implements BalanceMapperProtocol.
+        """
         return HyperliquidBalanceMapper()
 
     def create_position_mapper(self) -> PositionMapperProtocol:
-        """Create a HyperliquidPositionMapper instance."""
+        """Create a HyperliquidPositionMapper instance.
+        
+        Returns:
+            A new HyperliquidPositionMapper instance that implements PositionMapperProtocol.
+        """
         return HyperliquidPositionMapper()
 
     def create_account_summary_mapper(self) -> AccountSummaryMapperProtocol:
-        """Create a HyperliquidAccountSummaryMapper instance."""
+        """Create a HyperliquidAccountSummaryMapper instance.
+        
+        Returns:
+            A new HyperliquidAccountSummaryMapper instance that implements
+            AccountSummaryMapperProtocol.
+        """
         return HyperliquidAccountSummaryMapper()
 
     def create_transaction_mapper(self) -> TransactionMapperProtocol:
-        """Create a HyperliquidTransactionMapper instance."""
+        """Create a HyperliquidTransactionMapper instance.
+        
+        Returns:
+            A new HyperliquidTransactionMapper instance that implements TransactionMapperProtocol.
+        """
         return HyperliquidTransactionMapper()
 
     def create_order_book_mapper(self) -> OrderBookMapperProtocol:
-        """Create a HyperliquidOrderBookMapper instance."""
+        """Create a HyperliquidOrderBookMapper instance.
+        
+        Returns:
+            A new HyperliquidOrderBookMapper instance that implements OrderBookMapperProtocol.
+        """
         return HyperliquidOrderBookMapper()
 
     def create_price_ticker_mapper(self) -> PriceTickerMapperProtocol:
-        """Create a HyperliquidPriceTickerMapper instance."""
+        """Create a HyperliquidPriceTickerMapper instance.
+        
+        Returns:
+            A new HyperliquidPriceTickerMapper instance that implements PriceTickerMapperProtocol.
+        """
         return HyperliquidPriceTickerMapper()
 
     def create_historical_data_mapper(self) -> HistoricalDataMapperProtocol:
-        """Create a HyperliquidHistoricalDataMapper instance."""
+        """Create a HyperliquidHistoricalDataMapper instance.
+        
+        Returns:
+            A new HyperliquidHistoricalDataMapper instance that implements
+            HistoricalDataMapperProtocol.
+        """
         return HyperliquidHistoricalDataMapper()
 
     def create_market_metadata_mapper(self) -> MarketMetadataMapperProtocol:
-        """Create a HyperliquidMarketMetadataMapper instance."""
+        """Create a HyperliquidMarketMetadataMapper instance.
+        
+        Returns:
+            A new HyperliquidMarketMetadataMapper instance that implements
+            MarketMetadataMapperProtocol.
+        """
         return HyperliquidMarketMetadataMapper()
 
     def create_trading_enum_mapper(self) -> TradingEnumMapperProtocol:
-        """Create a HyperliquidTradingEnumMapper instance."""
+        """Create a HyperliquidTradingEnumMapper instance.
+        
+        Returns:
+            A new HyperliquidTradingEnumMapper instance that implements TradingEnumMapperProtocol.
+        """
         return HyperliquidTradingEnumMapper()
 
     def create_serialization_strategy(self) -> HyperliquidSerializationStrategy:

@@ -54,10 +54,6 @@ def _validate_funding_rate(
         funding_rate: The funding rate to validate
         symbol: The expected symbol
         funding_rate_bounds: Min/max bounds from exchange
-
-    Raises:
-        AssertionError: If validation fails
-        pytest.Failed: If critical validation errors occur
     """
     assert isinstance(funding_rate, FundingRate), f"Should be FundingRate model for {symbol}"
     assert funding_rate.symbol == symbol, (

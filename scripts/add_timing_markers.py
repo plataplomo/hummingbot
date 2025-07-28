@@ -36,7 +36,15 @@ FILES_NEEDING_MARKER = [
 
 
 def check_timing_operations(content: str) -> bool:
-    """Check if file contains timing operations."""
+    """Check if file contains timing operations.
+
+    Args:
+        content: File content to analyze.
+
+    Returns:
+        bool: True if the content contains timing operations like sleep,
+            wait_for, or timeout calls.
+    """
     timing_patterns = [
         r"asyncio\.sleep",
         r"time\.sleep",
@@ -51,12 +59,27 @@ def check_timing_operations(content: str) -> bool:
 
 
 def has_timing_marker(content: str) -> bool:
-    """Check if file already has timing marker."""
+    """Check if file already has timing marker.
+
+    Args:
+        content: File content to analyze.
+
+    Returns:
+        bool: True if the content already contains a pytest timing marker.
+    """
     return bool(re.search(r"pytestmark\s*=.*pytest\.mark\.timing", content))
 
 
 def add_timing_marker(file_path: Path) -> tuple[bool, str]:
-    """Add timing marker to a test file."""
+    """Add timing marker to a test file.
+
+    Args:
+        file_path: Path to the test file to modify.
+
+    Returns:
+        tuple[bool, str]: A tuple containing success status and a descriptive
+            message about the operation result.
+    """
     try:
         content = file_path.read_text()
 
@@ -104,7 +127,11 @@ def add_timing_marker(file_path: Path) -> tuple[bool, str]:
 
 
 def main() -> int:
-    """Main script execution."""
+    """Main script execution.
+
+    Returns:
+        int: Exit code - 0 for success, 1 if any errors occurred.
+    """
     success_count = 0
     skip_count = 0
     error_count = 0

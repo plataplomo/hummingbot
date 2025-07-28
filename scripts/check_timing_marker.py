@@ -11,7 +11,15 @@ from pathlib import Path
 
 
 def has_timing_operations(content: str) -> bool:
-    """Check if file contains timing operations."""
+    """Check if file contains timing operations.
+
+    Args:
+        content: File content to analyze.
+
+    Returns:
+        bool: True if the content contains timing operations like sleep,
+            wait_for, or timeout calls.
+    """
     timing_patterns = [
         r"asyncio\.sleep",
         r"time\.sleep",
@@ -25,7 +33,15 @@ def has_timing_operations(content: str) -> bool:
 
 
 def has_timing_marker(content: str) -> bool:
-    """Check if file has timing marker."""
+    """Check if file has timing marker.
+
+    Args:
+        content: File content to analyze.
+
+    Returns:
+        bool: True if the content contains pytest timing markers
+            (@pytest.mark.timing or pytestmark assignment).
+    """
     # Check for various forms of timing marker
     marker_patterns = [
         r"pytestmark\s*=.*pytest\.mark\.timing",
@@ -37,7 +53,15 @@ def has_timing_marker(content: str) -> bool:
 
 
 def check_file(file_path: Path) -> tuple[bool, list[str]]:
-    """Check a file for proper timing marker usage."""
+    """Check a file for proper timing marker usage.
+
+    Args:
+        file_path: Path to the Python test file to check.
+
+    Returns:
+        tuple[bool, list[str]]: A tuple containing success status (True if no
+            issues found) and a list of issue descriptions.
+    """
     issues: list[str] = []
 
     try:
@@ -56,7 +80,11 @@ def check_file(file_path: Path) -> tuple[bool, list[str]]:
 
 
 def main() -> int:
-    """Main pre-commit hook execution."""
+    """Main pre-commit hook execution.
+
+    Returns:
+        int: Exit code - 0 for success, 1 if timing marker issues found.
+    """
     # Get files from command line (pre-commit passes them)
     files = sys.argv[1:] if len(sys.argv) > 1 else []
 

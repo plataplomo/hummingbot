@@ -43,7 +43,11 @@ class TestBackpackOrderBookModelCreation:
     """Test OrderBook model creation from WebSocket depth streams."""
 
     async def _setup_orderbook_connection(self, api: BackpackAPI) -> str:
-        """Set up connection and get test symbol for orderbook testing."""
+        """Set up connection and get test symbol for orderbook testing.
+        
+        Returns:
+            The WebSocket-formatted symbol (with underscores instead of slashes).
+        """
         await api.connect_websocket()
         if not api.is_connected:
             pytest.fail("WebSocket connection failed - cannot test OrderBook creation")
@@ -68,7 +72,11 @@ class TestBackpackOrderBookModelCreation:
     async def _create_orderbook_handler(
         self, received_orderbooks: list[OrderBook]
     ) -> MessageHandler:
-        """Create handler that extracts OrderBook from context."""
+        """Create handler that extracts OrderBook from context.
+        
+        Returns:
+            Message handler function that processes WebSocket contexts and extracts OrderBooks.
+        """
 
         async def orderbook_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)

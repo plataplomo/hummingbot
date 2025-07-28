@@ -50,7 +50,15 @@ class CacheConfiguration:
     @field_validator("max_size", mode="before")
     @classmethod
     def validate_max_size(cls, v: int | str) -> int:
-        """Validate cache max size is positive and within limits."""
+        """Validate cache max size is positive and within limits.
+        
+        Returns:
+            int: The validated max size value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_CACHE_SIZE.
+        """
         # Convert string to int if needed
         if isinstance(v, str):
             v = int(v)
@@ -65,7 +73,15 @@ class CacheConfiguration:
     @field_validator("default_ttl", "cleanup_interval", mode="before")
     @classmethod
     def validate_intervals(cls, v: float | str) -> float:
-        """Validate TTL and cleanup intervals are positive."""
+        """Validate TTL and cleanup intervals are positive.
+        
+        Returns:
+            float: The validated interval value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TTL_SECONDS.
+        """
         # Convert string to float if needed
         if isinstance(v, str):
             v = float(v)
@@ -78,7 +94,11 @@ class CacheConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "max_size": self.max_size,
             "default_ttl": self.default_ttl,
@@ -99,7 +119,15 @@ class PricingConfiguration:
     @field_validator("batch_size_limit", mode="before")
     @classmethod
     def validate_batch_size(cls, v: int) -> int:
-        """Validate batch size limit is positive."""
+        """Validate batch size limit is positive.
+        
+        Returns:
+            int: The validated batch size value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_BATCH_SIZE_LIMIT.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name="batch_size_limit", section="pricing"
@@ -116,7 +144,15 @@ class PricingConfiguration:
     @field_validator("default_cache_ttl", "price_staleness_threshold", mode="before")
     @classmethod
     def validate_time_values(cls, v: float) -> float:
-        """Validate time values are positive and within limits."""
+        """Validate time values are positive and within limits.
+        
+        Returns:
+            float: The validated time value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TIME_VALUE_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name="time_value", section="pricing"
@@ -131,7 +167,11 @@ class PricingConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "default_cache_ttl": self.default_cache_ttl,
             "batch_size_limit": self.batch_size_limit,
@@ -150,7 +190,11 @@ class SymbolConfiguration:
     cache_enabled: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "fallback_enabled": self.fallback_enabled,
             "strict_mode": self.strict_mode,
@@ -185,7 +229,18 @@ class ScreeningConfiguration:
     )
     @classmethod
     def validate_numeric_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate numeric string fields can be converted to Decimal."""
+        """Validate numeric string fields can be converted to Decimal.
+        
+        Returns:
+            str: The validated numeric string.
+            
+        Raises:
+            InvalidNumericStringError: If the string cannot be converted to Decimal.
+            NonFiniteConfigValueError: If the value is not finite.
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds max bounds.
+            ConfigValueTooSmallError: If the value is below min bounds.
+        """
         # First convert to Decimal
         try:
             value = Decimal(v)
@@ -226,7 +281,11 @@ class ScreeningConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "strict_mode": self.strict_mode,
             "allow_zero_quantities": self.allow_zero_quantities,
@@ -255,7 +314,15 @@ class BalanceConfiguration:
     @field_validator("cleanup_interval", "max_balance_age", mode="before")
     @classmethod
     def validate_time_intervals(cls, v: int, info: ValidationInfo) -> int:
-        """Validate time interval values are positive."""
+        """Validate time interval values are positive.
+        
+        Returns:
+            int: The validated time interval value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TTL_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name=info.field_name or "interval_field", section="balance"
@@ -272,7 +339,15 @@ class BalanceConfiguration:
     @field_validator("precision", mode="before")
     @classmethod
     def validate_precision(cls, v: int, info: ValidationInfo) -> int:
-        """Validate precision is non-negative and within limits."""
+        """Validate precision is non-negative and within limits.
+        
+        Returns:
+            int: The validated precision value.
+            
+        Raises:
+            NegativeConfigValueError: If the value is negative.
+            ConfigPrecisionTooHighError: If the value exceeds MAX_DECIMAL_PRECISION.
+        """
         if v < 0:
             raise NegativeConfigValueError(
                 value=str(v), field_name=info.field_name or "precision", section="balance"
@@ -287,7 +362,11 @@ class BalanceConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "auto_cleanup_enabled": self.auto_cleanup_enabled,
             "cleanup_interval": self.cleanup_interval,
@@ -308,7 +387,15 @@ class PositionConfiguration:
     @field_validator("cleanup_interval", "max_position_age", mode="before")
     @classmethod
     def validate_time_intervals(cls, v: int, info: ValidationInfo) -> int:
-        """Validate time intervals are positive."""
+        """Validate time intervals are positive.
+        
+        Returns:
+            int: The validated time interval value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TTL_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name=info.field_name or "interval_field", section="position"
@@ -325,7 +412,15 @@ class PositionConfiguration:
     @field_validator("precision", mode="before")
     @classmethod
     def validate_precision(cls, v: int, info: ValidationInfo) -> int:
-        """Validate precision is non-negative and within limits."""
+        """Validate precision is non-negative and within limits.
+        
+        Returns:
+            int: The validated precision value.
+            
+        Raises:
+            NegativeConfigValueError: If the value is negative.
+            ConfigPrecisionTooHighError: If the value exceeds MAX_DECIMAL_PRECISION.
+        """
         if v < 0:
             raise NegativeConfigValueError(
                 value=str(v), field_name=info.field_name or "precision", section="position"
@@ -340,7 +435,11 @@ class PositionConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "auto_cleanup_enabled": self.auto_cleanup_enabled,
             "cleanup_interval": self.cleanup_interval,
@@ -361,7 +460,15 @@ class OrderConfiguration:
     @field_validator("max_orders_per_exchange", mode="before")
     @classmethod
     def validate_max_orders(cls, v: int, info: ValidationInfo) -> int:
-        """Validate maximum orders per exchange is positive."""
+        """Validate maximum orders per exchange is positive.
+        
+        Returns:
+            int: The validated max orders value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_BATCH_SIZE.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v),
@@ -380,7 +487,15 @@ class OrderConfiguration:
     @field_validator("cleanup_interval", mode="before")
     @classmethod
     def validate_cleanup_interval(cls, v: int, info: ValidationInfo) -> int:
-        """Validate cleanup interval is positive."""
+        """Validate cleanup interval is positive.
+        
+        Returns:
+            int: The validated cleanup interval value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TTL_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name=info.field_name or "cleanup_interval", section="order"
@@ -395,7 +510,11 @@ class OrderConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "max_orders_per_exchange": self.max_orders_per_exchange,
             "cleanup_completed_orders": self.cleanup_completed_orders,
@@ -416,7 +535,14 @@ class PnLConfiguration:
     @field_validator("calculation_method", mode="before")
     @classmethod
     def validate_calculation_method(cls, v: str, info: ValidationInfo) -> str:
-        """Validate calculation method is a supported value."""
+        """Validate calculation method is a supported value.
+        
+        Returns:
+            str: The validated calculation method.
+            
+        Raises:
+            InvalidConfigChoiceError: If the method is not in valid_methods.
+        """
         valid_methods = {"FIFO", "LIFO", "WEIGHTED_AVERAGE"}
         if v not in valid_methods:
             raise InvalidConfigChoiceError(
@@ -430,7 +556,15 @@ class PnLConfiguration:
     @field_validator("precision", mode="before")
     @classmethod
     def validate_precision(cls, v: int, info: ValidationInfo) -> int:
-        """Validate precision is non-negative and within limits."""
+        """Validate precision is non-negative and within limits.
+        
+        Returns:
+            int: The validated precision value.
+            
+        Raises:
+            NegativeConfigValueError: If the value is negative.
+            ConfigPrecisionTooHighError: If the value exceeds MAX_DECIMAL_PRECISION.
+        """
         if v < 0:
             raise NegativeConfigValueError(
                 value=str(v), field_name=info.field_name or "precision", section="pnl"
@@ -445,7 +579,11 @@ class PnLConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "calculation_method": self.calculation_method,
             "precision": self.precision,
@@ -465,7 +603,15 @@ class ConcurrencyConfiguration:
     @field_validator("max_concurrent_operations", mode="before")
     @classmethod
     def validate_max_operations(cls, v: int, info: ValidationInfo) -> int:
-        """Validate maximum concurrent operations is positive."""
+        """Validate maximum concurrent operations is positive.
+        
+        Returns:
+            int: The validated max operations value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_CONCURRENT_OPERATIONS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v),
@@ -484,7 +630,15 @@ class ConcurrencyConfiguration:
     @field_validator("lock_timeout", mode="before")
     @classmethod
     def validate_lock_timeout(cls, v: float, info: ValidationInfo) -> float:
-        """Validate lock timeout is positive."""
+        """Validate lock timeout is positive.
+        
+        Returns:
+            float: The validated lock timeout value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_LOCK_TIMEOUT_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name=info.field_name or "lock_timeout", section="concurrency"
@@ -499,7 +653,11 @@ class ConcurrencyConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "max_concurrent_operations": self.max_concurrent_operations,
             "lock_timeout": self.lock_timeout,
@@ -520,7 +678,15 @@ class StateManagerConfiguration:
     @field_validator("cleanup_interval", "snapshot_interval", mode="before")
     @classmethod
     def validate_intervals(cls, v: int, info: ValidationInfo) -> int:
-        """Validate intervals are positive."""
+        """Validate intervals are positive.
+        
+        Returns:
+            int: The validated interval value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TTL_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v),
@@ -537,7 +703,11 @@ class StateManagerConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "auto_cleanup_enabled": self.auto_cleanup_enabled,
             "cleanup_interval": self.cleanup_interval,
@@ -559,7 +729,15 @@ class MonitoringConfiguration:
     @field_validator("metrics_interval", "health_check_interval", mode="before")
     @classmethod
     def validate_intervals(cls, v: int, info: ValidationInfo) -> int:
-        """Validate metrics and health check intervals are positive."""
+        """Validate metrics and health check intervals are positive.
+        
+        Returns:
+            int: The validated interval value.
+            
+        Raises:
+            NonPositiveConfigValueError: If the value is not positive.
+            ConfigValueTooLargeError: If the value exceeds MAX_TIME_VALUE_SECONDS.
+        """
         if v <= 0:
             raise NonPositiveConfigValueError(
                 value=str(v), field_name=info.field_name or "interval_field", section="monitoring"
@@ -574,7 +752,11 @@ class MonitoringConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
+        """Convert to dictionary format.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "enabled": self.enabled,
             "metrics_interval": self.metrics_interval,
@@ -607,7 +789,14 @@ class PortfolioConfiguration:
     @field_validator("log_level", mode="before")
     @classmethod
     def validate_log_level(cls, v: str, info: ValidationInfo) -> str:
-        """Validate log level is a supported value."""
+        """Validate log level is a supported value.
+        
+        Returns:
+            str: The validated log level.
+            
+        Raises:
+            InvalidConfigChoiceError: If the log level is not in valid_levels.
+        """
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         if v not in valid_levels:
             raise InvalidConfigChoiceError(
@@ -619,7 +808,11 @@ class PortfolioConfiguration:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format for factory usage."""
+        """Convert to dictionary format for factory usage.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the configuration.
+        """
         return {
             "cache": self.cache.to_dict(),
             "pricing": self.pricing.to_dict(),
@@ -762,12 +955,20 @@ class PortfolioConfiguration:
 
     @classmethod
     def create_default(cls) -> PortfolioConfiguration:
-        """Create default configuration."""
+        """Create default configuration.
+        
+        Returns:
+            PortfolioConfiguration: A default configuration instance.
+        """
         return cls()
 
     @classmethod
     def create_development(cls) -> PortfolioConfiguration:
-        """Create development-friendly configuration."""
+        """Create development-friendly configuration.
+        
+        Returns:
+            PortfolioConfiguration: A development configuration instance.
+        """
         config = cls()
         config.debug_mode = True
         config.log_level = "DEBUG"
@@ -780,7 +981,11 @@ class PortfolioConfiguration:
 
     @classmethod
     def create_production(cls) -> PortfolioConfiguration:
-        """Create production-optimized configuration."""
+        """Create production-optimized configuration.
+        
+        Returns:
+            PortfolioConfiguration: A production configuration instance.
+        """
         config = cls()
         config.debug_mode = False
         config.log_level = "INFO"
@@ -794,7 +999,11 @@ class PortfolioConfiguration:
 
     @classmethod
     def create_test(cls) -> PortfolioConfiguration:
-        """Create test-friendly configuration."""
+        """Create test-friendly configuration.
+        
+        Returns:
+            PortfolioConfiguration: A test configuration instance.
+        """
         config = cls()
         config.debug_mode = True
         config.log_level = "DEBUG"
@@ -813,43 +1022,71 @@ class PortfolioConfiguration:
         return config
 
     def _validate_cache_config(self) -> list[str]:
-        """Validate cache configuration."""
+        """Validate cache configuration.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Validation now handled by Pydantic
         return errors
 
     def _validate_pricing_config(self) -> list[str]:
-        """Validate pricing configuration."""
+        """Validate pricing configuration.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Validation now handled by Pydantic
         return errors
 
     def _validate_screening_config(self) -> list[str]:
-        """Validate screening configuration."""
+        """Validate screening configuration.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Validation now handled by Pydantic
         return errors
 
     def _validate_pnl_config(self) -> list[str]:
-        """Validate P&L configuration."""
+        """Validate P&L configuration.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Validation now handled by Pydantic
         return errors
 
     def _validate_concurrency_config(self) -> list[str]:
-        """Validate concurrency configuration."""
+        """Validate concurrency configuration.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Validation now handled by Pydantic
         return errors
 
     def _validate_log_level(self) -> list[str]:
-        """Validate log level."""
+        """Validate log level.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Validation now handled by Pydantic
         return errors
 
     def validate(self) -> list[str]:
-        """Validate configuration and return list of errors."""
+        """Validate configuration and return list of errors.
+        
+        Returns:
+            list[str]: List of validation errors (empty if valid).
+        """
         errors: list[str] = []
         # Most validation is now handled by Pydantic automatically
         # This method is kept for backward compatibility

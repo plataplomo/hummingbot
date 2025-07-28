@@ -45,7 +45,11 @@ logger = get_logger(__name__)
 
 @pytest.fixture
 def trading_data_mapper() -> BackpackOrderMapper:
-    """Provide an instance of BackpackOrderMapper."""
+    """Provide an instance of BackpackOrderMapper.
+    
+    Returns:
+        BackpackOrderMapper instance for testing
+    """
     return BackpackOrderMapper()
 
 
@@ -64,7 +68,26 @@ def create_raw_order(
     updated_at: str | None = None,
     avg_fill_price: str | None = None,
 ) -> BackpackRawOrderResponse:
-    """Create a BackpackRawOrderResponse with customizable parameters."""
+    """Create a BackpackRawOrderResponse with customizable parameters.
+    
+    Args:
+        side: Order side (Buy/Sell)
+        status: Order status (NEW, FILLED, etc.)
+        order_type: Order type (LIMIT, MARKET, etc.)
+        price: Order price as string
+        quantity: Order quantity as string
+        executed_quantity: Executed quantity as string
+        order_id: Exchange order ID
+        client_id: Client order ID
+        symbol: Trading symbol
+        time_in_force: Time in force (GTC, IOC, etc.)
+        created_at: Creation timestamp
+        updated_at: Update timestamp
+        avg_fill_price: Average fill price as string
+        
+    Returns:
+        BackpackRawOrderResponse with specified parameters
+    """
     if created_at is None:
         created_at = datetime.now(UTC).isoformat()
     if updated_at is None:

@@ -40,31 +40,51 @@ from cyberdelta.exceptions.service_validation import (
 
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
-    """Create a mock HTTP client requester."""
+    """Create a mock HTTP client requester.
+    
+    Returns:
+        AsyncMock: Mock HTTP client for testing.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        MagicMock: Mock BackpackAccountRequestBuilder instance for testing.
+    """
     return MagicMock(spec=BackpackAccountRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        MagicMock: Mock BackpackAccountResponseHandler instance for testing.
+    """
     return MagicMock(spec=BackpackAccountResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        MagicMock: Mock BackpackTransferMapper instance for testing.
+    """
     return MagicMock(spec=BackpackTransferMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Create a mock authenticator."""
+    """Create a mock authenticator.
+    
+    Returns:
+        MagicMock: Mock authenticator instance for testing.
+    """
     return MagicMock()
 
 
@@ -76,7 +96,11 @@ def transfer_service(
     mock_mapper: MagicMock,
     mock_authenticator: MagicMock,
 ) -> BackpackTransferService:
-    """Create a transfer service instance with mocks."""
+    """Create a transfer service instance with mocks.
+    
+    Returns:
+        BackpackTransferService: Configured service instance with mocked dependencies.
+    """
     return BackpackTransferService(
         http_client_requester=mock_http_client,
         request_builder=mock_request_builder,
@@ -89,7 +113,11 @@ def transfer_service(
 
 @pytest.fixture
 def mock_raw_withdrawal_response() -> BackpackRawWithdrawalResponse:
-    """Create a mock raw withdrawal response."""
+    """Create a mock raw withdrawal response.
+    
+    Returns:
+        BackpackRawWithdrawalResponse: Mock withdrawal response with test data.
+    """
     return BackpackRawWithdrawalResponse(
         id=123,
         status="confirmed",
@@ -105,7 +133,11 @@ def mock_raw_withdrawal_response() -> BackpackRawWithdrawalResponse:
 
 @pytest.fixture
 def mock_transfer() -> Transfer:
-    """Create a mock transfer."""
+    """Create a mock transfer.
+    
+    Returns:
+        Transfer: Mock Transfer instance with test data.
+    """
     return Transfer(
         id="transfer_123",
         asset="USDC",
@@ -118,7 +150,11 @@ def mock_transfer() -> Transfer:
 
 @pytest.fixture
 def mock_withdrawal() -> Withdrawal:
-    """Create a mock withdrawal."""
+    """Create a mock withdrawal.
+    
+    Returns:
+        Withdrawal: Mock Withdrawal instance with test data.
+    """
     return Withdrawal(
         id="withdrawal_123",
         asset="USDC",

@@ -91,6 +91,7 @@ class BackpackOrderCancellationService:
         Raises:
             APIError: If cancellation fails due to API errors or order not found
             ValueError: If the order ID is invalid
+            TypeError: If there are type-related errors during processing
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -176,6 +177,7 @@ class BackpackOrderCancellationService:
 
         Raises:
             APIError: If the request fails or response is invalid
+            MissingRequiredFieldError: If required fields are missing
         """
         if not self._authenticator:
             raise APIError(
@@ -296,7 +298,7 @@ class BackpackOrderCancellationService:
             CancelOrderResult: Processed cancellation result
 
         Raises:
-            APIError: If response processing fails
+            MissingRequiredFieldError: If required fields are missing during processing
         """
         # Backpack's cancel order returns the cancelled order details or an error.
         # The response handler needs to determine success.

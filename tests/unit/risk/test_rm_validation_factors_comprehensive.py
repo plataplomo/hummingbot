@@ -21,7 +21,11 @@ def create_test_opportunity_with_exchanges(
     net_funding_differential: Decimal = Decimal("0.01"),
     frozen_time: FreezerProtocol | None = None,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity with specified exchanges."""
+    """Create a test arbitrage opportunity with specified exchanges.
+    
+    Returns:
+        ArbitrageOpportunity: An arbitrage opportunity instance for testing.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange=long_exchange,

@@ -262,7 +262,6 @@ class HyperliquidPriceTickerService:
 
         Raises:
             APIError: If the underlying API request to fetch all contexts fails
-            ValueError: If symbol is invalid (empty or whitespace)
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_ticker"
@@ -599,7 +598,11 @@ class HyperliquidPriceTickerService:
             ) from e
 
     async def _get_funding_rate_from_contexts(self, symbol: str) -> FundingRate | None:
-        """Get funding rate for symbol from asset contexts."""
+        """Get funding rate for symbol from asset contexts.
+        
+        Returns:
+            FundingRate | None: Funding rate if found, None otherwise.
+        """
         all_contexts_response = await self.get_all_asset_contexts_raw()
         if (
             all_contexts_response
@@ -632,6 +635,9 @@ class HyperliquidPriceTickerService:
 
         Args:
             status_code: HTTP status code
+            
+        Raises:
+            APIError: Always raises with INVALID_RESPONSE code.
         """
         raise APIError(
             code=APIErrorCode.INVALID_RESPONSE.value,

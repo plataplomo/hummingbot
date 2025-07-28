@@ -277,7 +277,11 @@ def eth_asset() -> str:
 
 
 def _create_mock_account_service() -> MagicMock:
-    """Create a mock account service with async methods."""
+    """Create a mock account service with async methods.
+
+    Returns:
+        MagicMock: A mock account service with mocked async methods.
+    """
     mock_service = MagicMock()
     mock_service.get_balances = AsyncMock()
     mock_service.get_account_info = AsyncMock()
@@ -290,7 +294,11 @@ def _create_mock_account_service() -> MagicMock:
 
 
 def _create_mock_market_data_service() -> MagicMock:
-    """Create a mock market data service with async methods."""
+    """Create a mock market data service with async methods.
+
+    Returns:
+        MagicMock: A mock market data service with mocked async methods.
+    """
     mock_service = MagicMock()
     mock_service.get_ticker = AsyncMock()
     mock_service.get_order_book = AsyncMock()
@@ -303,7 +311,11 @@ def _create_mock_market_data_service() -> MagicMock:
 
 
 def _create_mock_trading_service() -> MagicMock:
-    """Create a mock trading service with async methods."""
+    """Create a mock trading service with async methods.
+
+    Returns:
+        MagicMock: A mock trading service with mocked async methods.
+    """
     mock_service = MagicMock()
     mock_service.place_order = AsyncMock()
     mock_service.cancel_order = AsyncMock()
@@ -352,7 +364,7 @@ def bp_api_with_di(
 
     This enables unit testing without accessing protected members.
 
-    Returns:
+    Yields:
         Callable[..., BackpackAPI]: Factory function for creating BackpackAPI instances with mocks.
     """
     created_apis: list[BackpackAPI] = []

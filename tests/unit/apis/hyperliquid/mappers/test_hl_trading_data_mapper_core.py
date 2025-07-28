@@ -42,7 +42,11 @@ logger = get_logger(__name__)
 
 @pytest.fixture
 def trading_data_mapper() -> HyperliquidOrderMapper:
-    """Provide an instance of HyperliquidOrderMapper."""
+    """Provide an instance of HyperliquidOrderMapper.
+    
+    Returns:
+        HyperliquidOrderMapper: Mapper instance for trading data transformations.
+    """
     return HyperliquidOrderMapper()
 
 
@@ -58,7 +62,11 @@ def create_raw_order(
     asset: str = "ETH-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
-    """Create a HyperliquidRawOrder with customizable parameters."""
+    """Create a HyperliquidRawOrder with customizable parameters.
+    
+    Returns:
+        HyperliquidRawOrder: Raw order object with the specified parameters.
+    """
     if order_type is None:
         order_type = {"limit": {"tif": "Gtc"}}
 
@@ -90,7 +98,11 @@ def create_raw_historical_order(
     asset: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
-    """Create a HyperliquidRawHistoricalOrder with customizable parameters."""
+    """Create a HyperliquidRawHistoricalOrder with customizable parameters.
+    
+    Returns:
+        HyperliquidRawHistoricalOrder: Raw historical order object with the specified parameters.
+    """
     if order_type is None:
         order_type = {"limit": {"tif": "Ioc"}}
 
@@ -135,7 +147,11 @@ def create_raw_historical_order(
 
 @pytest.fixture
 def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInfo:
-    """Provide a valid HyperliquidRawTriggerInfo for a stop loss."""
+    """Provide a valid HyperliquidRawTriggerInfo for a stop loss.
+    
+    Returns:
+        HyperliquidRawTriggerInfo: Trigger info configured for stop loss orders.
+    """
     return HyperliquidRawTriggerInfo(
         triggerPx="2900.00",
         isMarket=True,
@@ -145,7 +161,11 @@ def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInf
 
 @pytest.fixture
 def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerInfo:
-    """Provide a valid HyperliquidRawTriggerInfo for a take profit."""
+    """Provide a valid HyperliquidRawTriggerInfo for a take profit.
+    
+    Returns:
+        HyperliquidRawTriggerInfo: Trigger info configured for take profit orders.
+    """
     return HyperliquidRawTriggerInfo(
         triggerPx="3200.00",
         isMarket=False,

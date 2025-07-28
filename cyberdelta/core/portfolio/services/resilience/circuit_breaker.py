@@ -39,7 +39,11 @@ class CircuitState(Enum):
 
 # Type-preserving factory function
 def _state_changes_factory() -> list[tuple[float, CircuitState]]:
-    """Factory function that preserves list[tuple[float, CircuitState]] type information."""
+    """Factory function that preserves list[tuple[float, CircuitState]] type information.
+
+    Returns:
+        list[tuple[float, CircuitState]]: Empty list for storing state change history.
+    """
     return []
 
 
@@ -65,7 +69,18 @@ class CircuitBreakerConfig:
     @field_validator("success_threshold", mode="before")
     @classmethod
     def validate_success_threshold(cls, v: int, info: ValidationInfo) -> int:
-        """Validate success_threshold is less than failure_threshold."""
+        """Validate success_threshold is less than failure_threshold.
+
+        Args:
+            v: The success threshold value to validate.
+            info: Validation context containing other field values.
+
+        Returns:
+            int: The validated success threshold value.
+
+        Raises:
+            CircuitBreakerThresholdError: If success_threshold >= failure_threshold.
+        """
         if "failure_threshold" in info.data and v >= info.data["failure_threshold"]:
             raise CircuitBreakerThresholdError(
                 threshold_type="success_threshold",
@@ -117,17 +132,29 @@ class CircuitBreaker[T]:
 
     @property
     def state(self) -> CircuitState:
-        """Get current circuit state."""
+        """Get current circuit state.
+
+        Returns:
+            CircuitState: Current state of the circuit breaker.
+        """
         return self._state
 
     @property
     def is_open(self) -> bool:
-        """Check if circuit is open."""
+        """Check if circuit is open.
+
+        Returns:
+            bool: True if circuit is open (rejecting requests), False otherwise.
+        """
         return self._state == CircuitState.OPEN
 
     @property
     def is_closed(self) -> bool:
-        """Check if circuit is closed."""
+        """Check if circuit is closed.
+
+        Returns:
+            bool: True if circuit is closed (operating normally), False otherwise.
+        """
         return self._state == CircuitState.CLOSED
 
     async def call(
@@ -136,7 +163,17 @@ class CircuitBreaker[T]:
         *args: object,
         **kwargs: object,
     ) -> ResilienceResult[T]:
-        """Execute function with circuit breaker protection."""
+        """Execute function with circuit breaker protection.
+
+        Args:
+            func: Async function to execute with protection.
+            *args: Positional arguments to pass to func.
+            **kwargs: Keyword arguments to pass to func.
+
+        Returns:
+            ResilienceResult[T]: Result containing either the successful function result
+                                or failure information with metrics.
+        """
         async with self._lock:
             self._metrics.total_calls += 1
 
@@ -274,7 +311,14 @@ class CircuitBreaker[T]:
             )
 
     def _create_metrics(self, duration_ms: float = 0.0) -> ResilienceMetrics:
-        """Create resilience metrics from circuit breaker metrics."""
+        """Create resilience metrics from circuit breaker metrics.
+
+        Args:
+            duration_ms: Duration of the operation in milliseconds.
+
+        Returns:
+            ResilienceMetrics: Metrics object containing circuit breaker statistics.
+        """
         return ResilienceMetrics(
             total_attempts=self._metrics.total_calls,
             successful_attempts=self._metrics.successful_calls,
@@ -285,7 +329,12 @@ class CircuitBreaker[T]:
         )
 
     def get_metrics(self) -> dict[str, object]:
-        """Get circuit breaker metrics."""
+        """Get circuit breaker metrics.
+
+        Returns:
+            dict[str, object]: Dictionary containing comprehensive circuit breaker metrics
+                             including state, call counts, success/failure rates.
+        """
         return {
             "name": self.name,
             "state": self._state.value,
@@ -334,7 +383,15 @@ class CircuitBreakerRegistry:
         name: str,
         config: CircuitBreakerConfig | None = None,
     ) -> CircuitBreaker[Any]:
-        """Get existing circuit breaker or create new one."""
+        """Get existing circuit breaker or create new one.
+
+        Args:
+            name: Name identifier for the circuit breaker.
+            config: Optional configuration, uses default if not provided.
+
+        Returns:
+            CircuitBreaker[Any]: The requested circuit breaker instance.
+        """
         if name not in self._breakers:
             self._breakers[name] = CircuitBreaker(
                 name=name,
@@ -343,11 +400,23 @@ class CircuitBreakerRegistry:
         return self._breakers[name]
 
     def get(self, name: str) -> CircuitBreaker[Any] | None:
-        """Get circuit breaker by name."""
+        """Get circuit breaker by name.
+
+        Args:
+            name: Name identifier for the circuit breaker.
+
+        Returns:
+            CircuitBreaker[Any] | None: The circuit breaker if found, None otherwise.
+        """
         return self._breakers.get(name)
 
     def get_all_metrics(self) -> dict[str, dict[str, object]]:
-        """Get metrics for all circuit breakers."""
+        """Get metrics for all circuit breakers.
+
+        Returns:
+            dict[str, dict[str, object]]: Dictionary mapping circuit breaker names
+                                         to their respective metrics.
+        """
         return {name: breaker.get_metrics() for name, breaker in self._breakers.items()}
 
     async def reset_all(self) -> None:
@@ -367,7 +436,11 @@ class GlobalRegistryManager:
 
     @classmethod
     def get_registry(cls) -> CircuitBreakerRegistry:
-        """Get the global circuit breaker registry."""
+        """Get the global circuit breaker registry.
+
+        Returns:
+            CircuitBreakerRegistry: The singleton registry instance.
+        """
         if cls._instance is None:
             cls._instance = CircuitBreakerRegistry()
         return cls._instance
@@ -379,7 +452,11 @@ class GlobalRegistryManager:
 
 
 def get_registry() -> CircuitBreakerRegistry:
-    """Get the global circuit breaker registry."""
+    """Get the global circuit breaker registry.
+
+    Returns:
+        CircuitBreakerRegistry: The singleton registry instance.
+    """
     return GlobalRegistryManager.get_registry()
 
 

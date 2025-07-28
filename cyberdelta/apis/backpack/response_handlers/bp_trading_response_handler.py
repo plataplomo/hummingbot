@@ -88,11 +88,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             headers: Response headers
             context: Context string indicating the operation (e.g., "trading.place_order")
 
-        Returns:
-            Processed response data
-
         Raises:
-            APIError: If response processing fails
             NotImplementedError: If context is not supported
         """
         # Extract operation from context (format: "domain.operation")
@@ -131,12 +127,16 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         status_code: int,
     ) -> BackpackRawOrderResponse:
         """Validate the raw response for the Place Order endpoint.
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            status_code: HTTP status code
 
         Returns:
             Validated BackpackRawOrderResponse model.
 
         Raises:
-            APIError: If validation of order data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = "place order response"
         validated_data = ensure_dict_response(
@@ -195,12 +195,17 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Get Open Orders endpoint.
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Optional symbol to filter orders
+            status_code: HTTP status code
 
         Returns:
             List of validated BackpackRawOrderResponse models for open orders.
 
         Raises:
-            APIError: If validation of order data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"open orders ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -233,12 +238,17 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Get Order History endpoint.
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Optional symbol to filter orders
+            status_code: HTTP status code
 
         Returns:
             List of validated BackpackRawOrderResponse models from order history.
 
         Raises:
-            APIError: If validation of order data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"order history ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -273,12 +283,17 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         """Validate the raw response for the Get Trade History endpoint.
 
         Now returns list[BackpackRawPublicTrade] as per user request.
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Optional symbol to filter trades
+            status_code: HTTP status code
 
         Returns:
             List of validated BackpackRawPublicTrade models.
-
+            
         Raises:
-            APIError: If validation of trade data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"trade history ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -318,7 +333,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             List of validated BackpackRawFillResponse models.
 
         Raises:
-            APIError: If validation of fill data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"fills history ({symbol or 'all'})"
         validated_list = ensure_list_response(
@@ -351,6 +366,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         status_code: int,
     ) -> BackpackRawOrderResponse:
         """Validate the raw response for the Get Order Status endpoint.
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            identifier: Order ID or client order ID
+            status_code: HTTP status code
 
         Returns:
             Validated BackpackRawOrderResponse model with current order status.
@@ -364,11 +384,12 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         try:
             return BackpackRawOrderResponse.model_validate(validated_data)
         except ValidationError as e:
-            raise BackpackTradingResponseHandler._handle_validation_error(
+            api_error = BackpackTradingResponseHandler._handle_validation_error(
                 e,
                 context,
                 validated_data,
-            ) from e
+            )
+            raise api_error from e
 
     @staticmethod
     def handle_cancel_all_orders_response(

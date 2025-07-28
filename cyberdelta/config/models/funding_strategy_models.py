@@ -47,7 +47,17 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @field_validator("funding_threshold")
     @classmethod
     def validate_funding_threshold(cls, v: Decimal) -> Decimal:
-        """Validate funding threshold is within reasonable bounds."""
+        """Validate funding threshold is within reasonable bounds.
+        
+        Args:
+            v: The funding threshold value to validate.
+            
+        Returns:
+            The validated funding threshold.
+            
+        Raises:
+            RangeFieldError: If funding threshold exceeds maximum allowed value.
+        """
         if v > MAX_FUNDING_THRESHOLD:
             raise RangeFieldError(
                 field_name="funding_threshold",
@@ -63,7 +73,17 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @field_validator("max_price_spread_pct")
     @classmethod
     def validate_max_price_spread_pct(cls, v: Decimal) -> Decimal:
-        """Validate price spread percentage is reasonable."""
+        """Validate price spread percentage is reasonable.
+        
+        Args:
+            v: The price spread percentage to validate.
+            
+        Returns:
+            The validated price spread percentage.
+            
+        Raises:
+            RangeFieldError: If price spread percentage exceeds maximum allowed value.
+        """
         if v > MAX_PRICE_SPREAD_PCT:
             raise RangeFieldError(
                 field_name="max_price_spread_pct",
@@ -79,7 +99,17 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @field_validator("check_interval")
     @classmethod
     def validate_check_interval(cls, v: int) -> int:
-        """Validate check interval is within reasonable bounds."""
+        """Validate check interval is within reasonable bounds.
+        
+        Args:
+            v: The check interval in seconds to validate.
+            
+        Returns:
+            The validated check interval.
+            
+        Raises:
+            RangeFieldError: If check interval is outside allowed bounds.
+        """
         if v < MIN_CHECK_INTERVAL_SECONDS:
             raise RangeFieldError(
                 field_name="check_interval",
@@ -103,7 +133,18 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @field_validator("perp_exchange", "spot_exchange")
     @classmethod
     def validate_exchange_names(cls, v: str, info: ValidationInfo) -> str:
-        """Validate exchange names are supported."""
+        """Validate exchange names are supported.
+        
+        Args:
+            v: The exchange name to validate.
+            info: Validation context information.
+            
+        Returns:
+            The validated exchange name in lowercase.
+            
+        Raises:
+            EnumFieldError: If exchange name is not in the supported exchanges list.
+        """
         if v.lower() not in SUPPORTED_EXCHANGES:
             raise EnumFieldError(
                 field_name=info.field_name if info and info.field_name else "exchange",
@@ -115,7 +156,19 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
 
     @model_validator(mode="after")
     def validate_exchange_combination(self) -> Self:
-        """Validate that exchange combination makes sense for this strategy."""
+        """Validate that exchange combination makes sense for this strategy.
+        
+        Ensures that:
+        - Perp and spot exchanges are different
+        - Perp exchange is HyperLiquid
+        - Spot exchange is Backpack
+        
+        Returns:
+            The validated model instance.
+            
+        Raises:
+            OrderLogicError: If exchange combination is invalid for the strategy.
+        """
         if self.perp_exchange == self.spot_exchange:
             msg = "perp_exchange and spot_exchange must be different for arbitrage"
             raise OrderLogicError(

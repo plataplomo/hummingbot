@@ -59,31 +59,51 @@ TransactionMapper = HyperliquidTransactionMapper
 
 @pytest.fixture
 def account_summary_mapper() -> HyperliquidAccountSummaryMapper:
-    """Provide an instance of HyperliquidAccountSummaryMapper."""
+    """Provide an instance of HyperliquidAccountSummaryMapper.
+
+    Returns:
+        HyperliquidAccountSummaryMapper: Mapper instance for account summary transformations.
+    """
     return HyperliquidAccountSummaryMapper()
 
 
 @pytest.fixture
 def balance_mapper() -> HyperliquidBalanceMapper:
-    """Provide an instance of HyperliquidBalanceMapper."""
+    """Provide an instance of HyperliquidBalanceMapper.
+
+    Returns:
+        HyperliquidBalanceMapper: Mapper instance for balance transformations.
+    """
     return HyperliquidBalanceMapper()
 
 
 @pytest.fixture
 def position_mapper() -> HyperliquidPositionMapper:
-    """Provide an instance of HyperliquidPositionMapper."""
+    """Provide an instance of HyperliquidPositionMapper.
+
+    Returns:
+        HyperliquidPositionMapper: Mapper instance for position transformations.
+    """
     return HyperliquidPositionMapper()
 
 
 @pytest.fixture
 def transaction_mapper() -> HyperliquidTransactionMapper:
-    """Provide an instance of HyperliquidTransactionMapper."""
+    """Provide an instance of HyperliquidTransactionMapper.
+
+    Returns:
+        HyperliquidTransactionMapper: Mapper instance for transaction transformations.
+    """
     return HyperliquidTransactionMapper()
 
 
 @pytest.fixture
 def raw_clearinghouse_state_base_fixture() -> HyperliquidRawClearinghouseState:
-    """Provide a base HyperliquidRawClearinghouseState fixture for testing."""
+    """Provide a base HyperliquidRawClearinghouseState fixture for testing.
+
+    Returns:
+        HyperliquidRawClearinghouseState: Base clearinghouse state with sample test data.
+    """
     margin_summary = HyperliquidRawMarginSummary(
         accountValue="12000.0",
         totalRawUsd="12500.0",

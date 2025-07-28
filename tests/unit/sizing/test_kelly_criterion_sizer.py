@@ -41,7 +41,11 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
-    """Create a test AppSettings instance with minimal required fields."""
+    """Create a test AppSettings instance with minimal required fields.
+    
+    Returns:
+        AppSettings: Configured test AppSettings instance for Kelly Criterion testing.
+    """
     return AppSettings(
         general=GeneralSettings(
             log_level="INFO",
@@ -173,7 +177,11 @@ def create_test_opportunity(
     long_funding_rate: float = 0.0001,
     short_funding_rate: float = -0.0001,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity: A configured test arbitrage opportunity with specified parameters.
+    """
     net_funding_differential = Decimal(str(long_funding_rate)) - Decimal(str(short_funding_rate))
 
     return ArbitrageOpportunity(
@@ -192,7 +200,11 @@ def create_test_opportunity(
 def create_test_context(
     available_capital: float = 100000.0, sizing_method: str = "kelly_criterion"
 ) -> SizingContext:
-    """Create a test sizing context."""
+    """Create a test sizing context.
+    
+    Returns:
+        SizingContext: A configured test sizing context with the specified parameters.
+    """
     return SizingContext(
         sizing_method=sizing_method, available_capital=Decimal(str(available_capital))
     )

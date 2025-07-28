@@ -43,13 +43,21 @@ from cyberdelta.enums.exchange_names import ExchangeName
 # Common time fixtures
 @pytest.fixture
 def now() -> datetime:
-    """Current UTC datetime for testing."""
+    """Current UTC datetime for testing.
+
+    Returns:
+        datetime: Current UTC datetime.
+    """
     return datetime.now(UTC)
 
 
 @pytest.fixture
 def mock_clock() -> Mock:
-    """Mock clock for time-dependent tests."""
+    """Mock clock for time-dependent tests.
+
+    Returns:
+        Mock: Mock clock object with now() method.
+    """
     mock = Mock()
     mock.now.return_value = datetime.now(UTC)
     return mock
@@ -58,7 +66,11 @@ def mock_clock() -> Mock:
 # Common configuration fixtures
 @pytest.fixture
 def mock_app_settings() -> MagicMock:
-    """Mock application settings."""
+    """Mock application settings.
+
+    Returns:
+        MagicMock: Mock application settings object.
+    """
     settings = MagicMock()
     settings.get.return_value = {}
     return settings
@@ -66,7 +78,11 @@ def mock_app_settings() -> MagicMock:
 
 @pytest.fixture
 def mock_config() -> MagicMock:
-    """Mock configuration object."""
+    """Mock configuration object.
+
+    Returns:
+        MagicMock: Mock configuration object.
+    """
     config = MagicMock()
     config.get.return_value = {}
     return config
@@ -74,7 +90,11 @@ def mock_config() -> MagicMock:
 
 @pytest.fixture
 def pt_config() -> PortfolioTrackerConfig:
-    """Standard portfolio tracker configuration."""
+    """Standard portfolio tracker configuration.
+
+    Returns:
+        PortfolioTrackerConfig: Standard portfolio tracker configuration.
+    """
     return PortfolioTrackerConfig(
         data_freshness_seconds=60,
         # Ensure validation timeout <= state update timeout to satisfy business logic
@@ -90,7 +110,11 @@ def pt_config() -> PortfolioTrackerConfig:
 # Symbol mapper fixtures
 @pytest.fixture
 def mock_symbol_mapper() -> Mock:
-    """Mock symbol mapper with standard mappings."""
+    """Mock symbol mapper with standard mappings.
+    
+    Returns:
+        Mock: A mock symbol mapper instance for testing.
+    """
     mapper = Mock(spec=SymbolService)
     mapper.get_exchange_symbol.return_value = "BTC-PERP"
     mapper.get_internal_symbol.return_value = "BTC"
@@ -106,6 +130,14 @@ def create_test_exchange_config(
     exchange_name: ExchangeName, symbols: dict[str, str] | None = None, **overrides: object
 ) -> ExchangeSpecificConfig:
     """Create a test ExchangeSpecificConfig with minimal required fields.
+
+    Args:
+        exchange_name: The exchange name to configure.
+        symbols: Optional symbol mappings.
+        **overrides: Additional configuration overrides.
+
+    Returns:
+        ExchangeSpecificConfig: Test exchange configuration.
 
     Args:
         exchange_name: The exchange name enum
@@ -153,19 +185,31 @@ def create_test_exchange_config(
 
 @pytest.fixture
 def hyperliquid_exchange_config() -> ExchangeSpecificConfig:
-    """Standard Hyperliquid exchange configuration."""
+    """Standard Hyperliquid exchange configuration.
+
+    Returns:
+        ExchangeSpecificConfig: Standard Hyperliquid exchange configuration.
+    """
     return create_test_exchange_config(ExchangeName.HYPERLIQUID)
 
 
 @pytest.fixture
 def backpack_exchange_config() -> ExchangeSpecificConfig:
-    """Standard Backpack exchange configuration."""
+    """Standard Backpack exchange configuration.
+
+    Returns:
+        ExchangeSpecificConfig: Standard Backpack exchange configuration.
+    """
     return create_test_exchange_config(ExchangeName.BACKPACK)
 
 
 @pytest.fixture
 def symbol_mapper_config() -> dict[str, ExchangeSpecificConfig]:
-    """Standard symbol mapper configuration with typed exchanges."""
+    """Standard symbol mapper configuration with typed exchanges.
+
+    Returns:
+        dict[str, ExchangeSpecificConfig]: Mapping of exchange names to their configurations.
+    """
     return {
         "hyperliquid": create_test_exchange_config(ExchangeName.HYPERLIQUID),
         "backpack": create_test_exchange_config(ExchangeName.BACKPACK),
@@ -175,7 +219,11 @@ def symbol_mapper_config() -> dict[str, ExchangeSpecificConfig]:
 # Portfolio tracker fixtures
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Mock portfolio tracker with standard methods."""
+    """Mock portfolio tracker with standard methods.
+
+    Returns:
+        Mock: Mock portfolio tracker with configured method return values.
+    """
     tracker = Mock(spec=PortfolioTracker)
     tracker.get_open_orders.return_value = []
     tracker.get_order_history.return_value = []
@@ -189,7 +237,11 @@ def mock_portfolio_tracker() -> Mock:
 # Sample data fixtures
 @pytest.fixture
 def sample_order() -> Order:
-    """Standard test order."""
+    """Standard test order.
+
+    Returns:
+        Order: Test order with standard BTC-PERP buy configuration.
+    """
     return Order(
         client_order_id=str(uuid4()),
         exchange="hyperliquid",
@@ -210,7 +262,11 @@ def sample_order() -> Order:
 
 @pytest.fixture
 def sample_spot_balance() -> SpotBalance:
-    """Standard test spot balance."""
+    """Standard test spot balance.
+
+    Returns:
+        SpotBalance: Test USDC balance with 10k total, 8k available.
+    """
     return SpotBalance(
         asset="USDC",
         total_quantity=Decimal("10000.0"),
@@ -222,7 +278,11 @@ def sample_spot_balance() -> SpotBalance:
 
 @pytest.fixture
 def sample_derivative_position() -> DerivativePosition:
-    """Standard test derivative position."""
+    """Standard test derivative position.
+
+    Returns:
+        DerivativePosition: Test BTC-PERP long position with unrealized PnL.
+    """
     return DerivativePosition(
         symbol="BTC-PERP",
         side=OrderSide.BUY,
@@ -238,7 +298,11 @@ def sample_derivative_position() -> DerivativePosition:
 
 @pytest.fixture
 def sample_trade() -> Trade:
-    """Standard test trade."""
+    """Standard test trade.
+
+    Returns:
+        Trade: Test BTC-PERP buy trade at $50k.
+    """
     return Trade(
         id=str(uuid4()),
         symbol="BTC-PERP",
@@ -253,7 +317,11 @@ def sample_trade() -> Trade:
 
 @pytest.fixture
 def sample_ticker() -> Ticker:
-    """Standard test ticker."""
+    """Standard test ticker.
+
+    Returns:
+        Ticker: Test BTC-PERP ticker with bid/ask spread around $50k.
+    """
     return Ticker(
         symbol="BTC-PERP",
         exchange="test_exchange",
@@ -267,7 +335,11 @@ def sample_ticker() -> Ticker:
 
 @pytest.fixture
 def sample_order_book() -> OrderBook:
-    """Standard test order book."""
+    """Standard test order book.
+
+    Returns:
+        OrderBook: Test BTC-PERP order book with bid/ask levels.
+    """
     return OrderBook(
         symbol="BTC-PERP",
         bids=[(Decimal("49950.0"), Decimal("10.0"))],
@@ -278,7 +350,11 @@ def sample_order_book() -> OrderBook:
 
 @pytest.fixture
 def sample_funding_rate() -> FundingRate:
-    """Standard test funding rate."""
+    """Standard test funding rate.
+
+    Returns:
+        FundingRate: Test BTC-PERP funding rate of 0.01% with 8h next funding.
+    """
     return FundingRate(
         symbol="BTC-PERP",
         funding_rate=Decimal("0.0001"),
@@ -289,7 +365,11 @@ def sample_funding_rate() -> FundingRate:
 
 @pytest.fixture
 def sample_candle() -> Candle:
-    """Standard test candle."""
+    """Standard test candle.
+
+    Returns:
+        Candle: Test BTC-PERP 1m candle from $50k to $50.5k.
+    """
     now_time = datetime.now(UTC)
     return Candle(
         symbol="BTC-PERP",
@@ -305,7 +385,11 @@ def sample_candle() -> Candle:
 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
-    """Standard test trade signal."""
+    """Standard test trade signal.
+
+    Returns:
+        TradeSignal: Test BTC-PERP enter long signal at $50k with 80% confidence.
+    """
     return TradeSignal(
         symbol="BTC-PERP",
         signal_type=SignalType.ENTER_LONG,
@@ -319,7 +403,11 @@ def sample_trade_signal() -> TradeSignal:
 
 @pytest.fixture
 def sample_margin_summary() -> MarginAccountSummary:
-    """Standard test margin account summary."""
+    """Standard test margin account summary.
+
+    Returns:
+        MarginAccountSummary: Test margin account with $100k total, $90k available equity.
+    """
     return MarginAccountSummary(
         exchange="hyperliquid",
         timestamp=datetime.now(UTC),
@@ -337,14 +425,22 @@ ExchangePositions = dict[str, dict[str, DerivativePosition]]
 # Collection fixtures for tests that need multiple objects
 @pytest.fixture(params=["default", "large", "minimal"])
 def sample_orders(request: pytest.FixtureRequest) -> dict[str, dict[str, Order]]:
-    """Sample orders organized by exchange - parametrized for different scenarios."""
+    """Sample orders organized by exchange - parametrized for different scenarios.
+
+    Returns:
+        dict[str, dict[str, Order]]: Orders grouped by exchange and order ID for test scenarios.
+    """
     scenario = str(request.param)
     return create_sample_orders(scenario)
 
 
 @pytest.fixture(params=["default", "large", "minimal"])
 def sample_balances_state(request: pytest.FixtureRequest) -> dict[str, dict[str, SpotBalance]]:
-    """Sample balances organized by exchange - parametrized for different scenarios."""
+    """Sample balances organized by exchange - parametrized for different scenarios.
+
+    Returns:
+        Balances grouped by exchange and asset for test scenarios.
+    """
     scenario = str(request.param)
     return create_sample_balances(scenario)
 
@@ -356,40 +452,64 @@ sample_balances_parametrized = sample_balances_state
 # Test data scenarios as fixtures that can be used with indirect parametrization
 @pytest.fixture
 def balance_scenario(request: pytest.FixtureRequest) -> dict[str, dict[str, SpotBalance]]:
-    """Fixture that creates balance data based on indirect parametrization."""
+    """Fixture that creates balance data based on indirect parametrization.
+
+    Returns:
+        dict[str, dict[str, SpotBalance]]: Balance data structured by exchange and asset.
+    """
     scenario = getattr(request, "param", "default")
     return create_sample_balances(scenario)
 
 
 @pytest.fixture
 def order_scenario(request: pytest.FixtureRequest) -> dict[str, dict[str, Order]]:
-    """Fixture that creates order data based on indirect parametrization."""
+    """Fixture that creates order data based on indirect parametrization.
+
+    Returns:
+        dict[str, dict[str, Order]]: Order data structured by exchange and order ID.
+    """
     scenario = getattr(request, "param", "default")
     return create_sample_orders(scenario)
 
 
 @pytest.fixture
 def position_scenario(request: pytest.FixtureRequest) -> dict[str, dict[str, DerivativePosition]]:
-    """Fixture that creates position data based on indirect parametrization."""
+    """Fixture that creates position data based on indirect parametrization.
+
+    Returns:
+        dict[str, dict[str, DerivativePosition]]: Position data structured by exchange and symbol.
+    """
     scenario = getattr(request, "param", "default")
     return create_sample_positions(scenario)
 
 
 @pytest.fixture
 def sample_balances_large() -> dict[str, dict[str, SpotBalance]]:
-    """Sample balances organized by exchange - large capital scenario."""
+    """Sample balances organized by exchange - large capital scenario.
+
+    Returns:
+        dict[str, dict[str, SpotBalance]]: Large capital balances for portfolio stress testing.
+    """
     return create_sample_balances("large")
 
 
 @pytest.fixture
 def sample_balances_minimal() -> dict[str, dict[str, SpotBalance]]:
-    """Sample balances organized by exchange - minimal amounts scenario."""
+    """Sample balances organized by exchange - minimal amounts scenario.
+
+    Returns:
+        dict[str, dict[str, SpotBalance]]: Minimal balances for edge case testing.
+    """
     return create_sample_balances("minimal")
 
 
 @pytest.fixture(params=["default", "large", "minimal"])
 def sample_positions(request: pytest.FixtureRequest) -> dict[str, dict[str, DerivativePosition]]:
-    """Sample positions organized by exchange - parametrized for different scenarios."""
+    """Sample positions organized by exchange - parametrized for different scenarios.
+
+    Returns:
+        Positions grouped by exchange and symbol for test scenarios.
+    """
     scenario = str(request.param)
     return create_sample_positions(scenario)
 
@@ -397,32 +517,52 @@ def sample_positions(request: pytest.FixtureRequest) -> dict[str, dict[str, Deri
 # Non-parametrized versions for specific test cases
 @pytest.fixture
 def sample_orders_default() -> dict[str, dict[str, Order]]:
-    """Sample orders organized by exchange - default scenario only."""
+    """Sample orders organized by exchange - default scenario only.
+
+    Returns:
+        dict[str, dict[str, Order]]: Default test orders without parametrization.
+    """
     return create_sample_orders("default")
 
 
 @pytest.fixture
 def sample_positions_default() -> dict[str, dict[str, DerivativePosition]]:
-    """Sample positions organized by exchange - default scenario only."""
+    """Sample positions organized by exchange - default scenario only.
+
+    Returns:
+        dict[str, dict[str, DerivativePosition]]: Default test positions without parametrization.
+    """
     return create_sample_positions("default")
 
 
 # Common exchange names for parametrized tests
 @pytest.fixture(params=["hyperliquid", "backpack"])
 def exchange_name(request: pytest.FixtureRequest) -> str:
-    """Parametrized exchange names."""
+    """Parametrized exchange names.
+
+    Returns:
+        str: Exchange name for parametrized testing across supported exchanges.
+    """
     return str(request.param)
 
 
 @pytest.fixture(params=[OrderSide.BUY, OrderSide.SELL])
 def order_side(request: pytest.FixtureRequest) -> OrderSide:
-    """Parametrized order sides."""
+    """Parametrized order sides.
+
+    Returns:
+        OrderSide: Order side (BUY or SELL) for parametrized testing.
+    """
     return OrderSide(request.param)
 
 
 @pytest.fixture(params=["BTC", "ETH", "SOL"])
 def symbol(request: pytest.FixtureRequest) -> str:
-    """Parametrized symbol names."""
+    """Parametrized symbol names.
+
+    Returns:
+        str: Symbol name for parametrized testing across major cryptocurrencies.
+    """
     return str(request.param)
 
 
@@ -435,7 +575,11 @@ def create_test_order(
     price: Decimal = Decimal("50000.0"),
     status: OrderStatus = OrderStatus.NEW,
 ) -> Order:
-    """Create a test order with customizable parameters."""
+    """Create a test order with customizable parameters.
+
+    Returns:
+        Order: Test order with specified or default parameters.
+    """
     return Order(
         client_order_id=str(uuid4()),
         exchange=exchange,
@@ -460,7 +604,11 @@ def create_test_balance(
     total_quantity: Decimal = Decimal("10000.0"),
     available_quantity: Decimal | None = None,
 ) -> SpotBalance:
-    """Create a test balance with customizable parameters."""
+    """Create a test balance with customizable parameters.
+
+    Returns:
+        SpotBalance: Test balance with specified or default parameters.
+    """
     if available_quantity is None:
         available_quantity = total_quantity * Decimal("0.8")
 
@@ -482,7 +630,11 @@ def create_test_signal(
     confidence: float = 0.8,
     metadata: dict[str, Any] | None = None,
 ) -> TradeSignal:
-    """Create a test signal with customizable parameters."""
+    """Create a test signal with customizable parameters.
+
+    Returns:
+        TradeSignal: Test trade signal with specified or default parameters.
+    """
     if metadata is None:
         metadata = {"strategy": "test_strategy"}
 
@@ -505,6 +657,12 @@ def create_sample_balances(scenario: str = "default") -> dict[str, dict[str, Spo
             - "default": Standard test amounts
             - "large": Large capital amounts for portfolio tests
             - "minimal": Small amounts for edge case testing
+
+    Returns:
+        Nested dictionary of balances organized by exchange and asset.
+
+    Raises:
+        ValueError: If scenario is not one of the supported scenarios.
     """
     scenarios = {
         "default": {
@@ -560,7 +718,11 @@ def create_sample_balances(scenario: str = "default") -> dict[str, dict[str, Spo
 
 
 def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order]]:
-    """Create sample orders for different test scenarios."""
+    """Create sample orders for different test scenarios.
+
+    Returns:
+        dict[str, dict[str, Order]]: Nested dictionary of orders organized by exchange and order ID.
+    """
     base_time = datetime.now(UTC)
 
     scenarios = {
@@ -682,7 +844,11 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
 
 
 def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, DerivativePosition]]:
-    """Create sample positions for different test scenarios."""
+    """Create sample positions for different test scenarios.
+
+    Returns:
+        Nested dictionary of positions organized by exchange and symbol.
+    """
     base_time = datetime.now(UTC)
 
     scenarios = {

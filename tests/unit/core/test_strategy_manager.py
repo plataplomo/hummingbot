@@ -24,31 +24,51 @@ from cyberdelta.enums import OrderSide, SignalType
 
 @pytest.fixture
 def mock_config() -> Mock:
-    """Create mock configuration for testing."""
+    """Create mock configuration for testing.
+
+    Returns:
+        Mock: A mock AppSettings instance for testing.
+    """
     return Mock(spec=AppSettings)
 
 
 @pytest.fixture
 def mock_execution_handler() -> Mock:
-    """Create mock execution handler."""
+    """Create mock execution handler.
+
+    Returns:
+        Mock: A mock ExecutionHandler instance for testing.
+    """
     return Mock(spec=ExecutionHandler)
 
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker."""
+    """Create mock portfolio tracker.
+
+    Returns:
+        Mock: A mock PortfolioTracker instance for testing.
+    """
     return Mock(spec=PortfolioTracker)
 
 
 @pytest.fixture
 def mock_risk_manager() -> Mock:
-    """Create mock risk manager."""
+    """Create mock risk manager.
+
+    Returns:
+        Mock: A mock RiskManager instance for testing.
+    """
     return Mock(spec=RiskManager)
 
 
 @pytest.fixture
 def mock_signal_queue() -> Mock:
-    """Create mock signal queue."""
+    """Create mock signal queue.
+
+    Returns:
+        Mock: A mock PrioritySignalQueue instance for testing.
+    """
     queue = Mock(spec=PrioritySignalQueue)
     queue.add_signal = AsyncMock()
     return queue
@@ -62,7 +82,11 @@ def strategy_manager(
     mock_risk_manager: Mock,
     mock_signal_queue: Mock,
 ) -> StrategyManager:
-    """Create StrategyManager instance for testing."""
+    """Create StrategyManager instance for testing.
+
+    Returns:
+        StrategyManager: A configured StrategyManager instance for testing.
+    """
     return StrategyManager(
         config=mock_config,
         execution_handler=mock_execution_handler,
@@ -131,26 +155,42 @@ class MockStrategy(Strategy):
         self.update_historical_data_calls.append(data)
 
     async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
-        """Process market data."""
+        """Process market data.
+
+        Returns:
+            TradeSignal | list[TradeSignal] | None: The configured return value for testing.
+        """
         self.process_data_calls.append(data)
         if self.process_data_side_effect:
             raise self.process_data_side_effect
         return self.process_data_return_value
 
     def get_required_history_size(self) -> int:
-        """Get required history size."""
+        """Get required history size.
+
+        Returns:
+            int: The required history size (always 0 for testing).
+        """
         return 0
 
 
 @pytest.fixture
 def mock_strategy() -> MockStrategy:
-    """Create mock strategy for testing."""
+    """Create mock strategy for testing.
+
+    Returns:
+        MockStrategy: A MockStrategy instance for testing.
+    """
     return MockStrategy()
 
 
 @pytest.fixture
 def sample_candle() -> Candle:
-    """Create sample candle for testing."""
+    """Create sample candle for testing.
+
+    Returns:
+        Candle: A sample candle with BTC-PERP data for testing.
+    """
     return Candle(
         symbol="BTC-PERP",
         open=Decimal("50000.0"),
@@ -165,7 +205,11 @@ def sample_candle() -> Candle:
 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
-    """Create sample trade signal for testing."""
+    """Create sample trade signal for testing.
+
+    Returns:
+        TradeSignal: A sample ENTER_LONG trade signal for testing.
+    """
     return TradeSignal(
         signal_id="test_signal_1",
         symbol="BTC-PERP",

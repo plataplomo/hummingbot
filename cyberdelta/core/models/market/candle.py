@@ -76,20 +76,35 @@ class Candle(BaseModel):
     @field_validator("symbol", mode="before")
     @classmethod
     def validate_symbol(cls, v: object) -> str:
-        """Validate the 'symbol' field."""
+        """Validate the 'symbol' field.
+        
+        Returns:
+            str: The validated symbol string.
+        """
         return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
 
     @field_validator("interval", mode="before")
     @classmethod
     def validate_interval(cls, v: object) -> str:
-        """Validate the 'interval' field."""
+        """Validate the 'interval' field.
+        
+        Returns:
+            str: The validated interval string.
+        """
         # Basic validation for now, consider adding regex for common patterns if needed.
         return validate_str_field(v, field_name="interval", max_length=16, allow_empty=False)
 
     @field_validator("open_time", mode="before")
     @classmethod
     def validate_open_time(cls, v: datetime | float | str | None) -> datetime:
-        """Validate and parse the 'open_time' field to a required UTC datetime object."""
+        """Validate and parse the 'open_time' field to a required UTC datetime object.
+        
+        Returns:
+            datetime: The parsed UTC datetime object.
+            
+        Raises:
+            DateTimeFieldError: If open_time is missing or invalid.
+        """
         dt = parse_datetime_utc(v, field_name="open_time")
         if dt is None:
             raise DateTimeFieldError(
@@ -119,7 +134,8 @@ class Candle(BaseModel):
             The parsed, finite Decimal value.
 
         Raises:
-            ValueError: If input is None, cannot be parsed, or is not finite.
+            RequiredFieldNoneError: If input is None.
+            DecimalFiniteError: If value is not finite (NaN or Infinity).
 
         """
         field_name = info.field_name if info.field_name is not None else "unknown_decimal_field"
@@ -145,7 +161,14 @@ class Candle(BaseModel):
 
     @model_validator(mode="after")
     def check_ohlc_consistency(self) -> Self:
-        """Validate the logical consistency of OHLC prices (high >= low, etc.)."""
+        """Validate the logical consistency of OHLC prices (high >= low, etc.).
+        
+        Returns:
+            Self: The validated Candle instance.
+            
+        Raises:
+            OHLCConsistencyError: If OHLC prices are logically inconsistent.
+        """
         if self.high < self.low:
             raise OHLCConsistencyError(
                 constraint="high must be >= low",

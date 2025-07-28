@@ -34,7 +34,11 @@ pytestmark = pytest.mark.timing
 
 
 def create_test_opportunity() -> ArbitrageOpportunity:
-    """Create a test ArbitrageOpportunity."""
+    """Create a test ArbitrageOpportunity.
+    
+    Returns:
+        ArbitrageOpportunity: Configured test arbitrage opportunity for order submission tests.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="hyperliquid",
@@ -50,7 +54,11 @@ def create_test_opportunity() -> ArbitrageOpportunity:
 
 
 def create_test_order() -> Mock:
-    """Create a test Order with to_dict method."""
+    """Create a test Order with to_dict method.
+    
+    Returns:
+        Mock: Mock Order instance with to_dict method for testing.
+    """
     order = Order(
         client_order_id="test_order_123",
         exchange_order_id="exchange_123",
@@ -349,7 +357,11 @@ class TestSynchronizedOrderSubmissionServiceSimple:
 
     @pytest.fixture
     def service(self) -> SynchronizedOrderSubmissionService:
-        """Create SynchronizedOrderSubmissionService instance."""
+        """Create SynchronizedOrderSubmissionService instance.
+        
+        Returns:
+            SynchronizedOrderSubmissionService: Configured service instance for testing.
+        """
         config: dict[str, Any] = {
             "execution.verification_timeout": 10.0,
             "execution.verification_retries": 3,

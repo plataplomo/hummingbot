@@ -896,6 +896,9 @@ class TestExecutionHandler:
 
         Returns:
             Order: Configured order object based on exchange and side parameters.
+            
+        Raises:
+            ValueError: If unexpected exchange/side combination is provided.
         """
         if exchange_id == "hyperliquid" and side == OrderSide.BUY:
             return self._create_hyperliquid_buy_order(

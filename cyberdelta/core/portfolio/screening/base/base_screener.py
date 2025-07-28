@@ -67,7 +67,11 @@ class BaseScreener(ABC):  # BasePortfolioManager removed in refactor
         """Shutdown internal screener state."""
 
     def _ensure_initialized(self) -> None:
-        """Ensure the screener is initialized."""
+        """Ensure the screener is initialized.
+
+        Raises:
+            ScreenerNotInitializedError: If the screener is not initialized
+        """
         if not self.is_initialized:
             raise ScreenerNotInitializedError(screener_name=self.name)
 

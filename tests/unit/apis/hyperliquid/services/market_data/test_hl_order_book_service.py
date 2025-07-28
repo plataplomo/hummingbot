@@ -40,25 +40,41 @@ from cyberdelta.enums import OrderSide
 
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
-    """Create a mock HTTP requester."""
+    """Create a mock HTTP requester.
+    
+    Returns:
+        AsyncMock: A mock instance of the HTTP requester.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> Mock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidMarketDataRequestBuilder.
+    """
     return MagicMock(spec=HyperliquidMarketDataRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> Mock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidResponseHandler.
+    """
     return MagicMock(spec=HyperliquidResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> Mock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidOrderBookMapper.
+    """
     return MagicMock(spec=HyperliquidOrderBookMapper)
 
 
@@ -69,7 +85,11 @@ def order_book_service(
     mock_response_handler: Mock,
     mock_mapper: Mock,
 ) -> HyperliquidOrderBookService:
-    """Create an order book service instance with mocks."""
+    """Create an order book service instance with mocks.
+    
+    Returns:
+        HyperliquidOrderBookService: Service instance configured with mock dependencies.
+    """
     return HyperliquidOrderBookService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -81,7 +101,11 @@ def order_book_service(
 
 @pytest.fixture
 def mock_raw_l2_book() -> HyperliquidRawL2Book:
-    """Create a mock raw L2 order book."""
+    """Create a mock raw L2 order book.
+    
+    Returns:
+        HyperliquidRawL2Book: A mock L2 order book for ETH.
+    """
     return HyperliquidRawL2Book(
         coin="ETH",
         levels=[
@@ -100,7 +124,11 @@ def mock_raw_l2_book() -> HyperliquidRawL2Book:
 
 @pytest.fixture
 def mock_order_book() -> OrderBook:
-    """Create a mock order book."""
+    """Create a mock order book.
+    
+    Returns:
+        OrderBook: A mock order book with bids and asks for ETH.
+    """
     return OrderBook(
         symbol="ETH",
         bids=[
@@ -117,7 +145,11 @@ def mock_order_book() -> OrderBook:
 
 @pytest.fixture
 def mock_raw_public_trade() -> HyperliquidRawPublicTrade:
-    """Create a mock raw public trade."""
+    """Create a mock raw public trade.
+    
+    Returns:
+        HyperliquidRawPublicTrade: A mock public trade for ETH.
+    """
     return HyperliquidRawPublicTrade(
         coin="ETH",
         side="B",  # Buy
@@ -132,7 +164,11 @@ def mock_raw_public_trade() -> HyperliquidRawPublicTrade:
 
 @pytest.fixture
 def mock_trade() -> Trade:
-    """Create a mock trade."""
+    """Create a mock trade.
+    
+    Returns:
+        Trade: A mock trade for ETH.
+    """
     return Trade(
         id="trade_123",
         order_id="order_123",

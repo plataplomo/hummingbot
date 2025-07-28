@@ -20,22 +20,38 @@ class TestHyperliquidMarketDataService:
 
     @pytest.fixture
     def mock_http_client_requester(self) -> AsyncMock:
-        """Create mock HTTP client requester."""
+        """Create mock HTTP client requester.
+        
+        Returns:
+            AsyncMock: Mocked async HTTP client requester function.
+        """
         return AsyncMock()
 
     @pytest.fixture
     def mock_request_builder(self) -> MagicMock:
-        """Create mock request builder."""
+        """Create mock request builder.
+        
+        Returns:
+            MagicMock: Mocked request builder instance.
+        """
         return MagicMock()
 
     @pytest.fixture
     def mock_response_handler(self) -> MagicMock:
-        """Create mock response handler."""
+        """Create mock response handler.
+        
+        Returns:
+            MagicMock: Mocked response handler instance.
+        """
         return MagicMock()
 
     @pytest.fixture
     def mock_historical_data_mapper(self) -> MagicMock:
-        """Create mock historical data mapper."""
+        """Create mock historical data mapper.
+        
+        Returns:
+            MagicMock: Mocked HyperliquidHistoricalDataMapper instance.
+        """
         return MagicMock(spec=HyperliquidHistoricalDataMapper)
 
     @pytest.fixture
@@ -46,7 +62,11 @@ class TestHyperliquidMarketDataService:
         mock_response_handler: MagicMock,
         mock_historical_data_mapper: MagicMock,
     ) -> HyperliquidMarketDataService:
-        """Create HyperliquidMarketDataService instance for testing."""
+        """Create HyperliquidMarketDataService instance for testing.
+        
+        Returns:
+            HyperliquidMarketDataService: Market data service with mocked dependencies.
+        """
         return HyperliquidMarketDataService(
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,

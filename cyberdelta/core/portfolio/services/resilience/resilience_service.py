@@ -70,7 +70,18 @@ class RetryConfig:
     @field_validator("max_delay", mode="before")
     @classmethod
     def validate_delays(cls, v: float, info: ValidationInfo) -> float:
-        """Validate max_delay is greater than initial_delay."""
+        """Validate max_delay is greater than initial_delay.
+
+        Args:
+            v: The max_delay value to validate.
+            info: Validation context containing other field values.
+
+        Returns:
+            float: The validated max_delay value.
+
+        Raises:
+            ResilienceConfigurationError: If max_delay is not greater than initial_delay.
+        """
         if "initial_delay" in info.data and v <= info.data["initial_delay"]:
             raise ResilienceConfigurationError(
                 config_type="retry_delay",
@@ -97,7 +108,18 @@ class CircuitBreakerConfig:
     @field_validator("success_threshold", mode="before")
     @classmethod
     def validate_success_threshold(cls, v: int, info: ValidationInfo) -> int:
-        """Validate success_threshold is less than failure_threshold."""
+        """Validate success_threshold is less than failure_threshold.
+
+        Args:
+            v: The success_threshold value to validate.
+            info: Validation context containing other field values.
+
+        Returns:
+            int: The validated success_threshold value.
+
+        Raises:
+            CircuitBreakerThresholdError: If success_threshold is not less than failure_threshold.
+        """
         if "failure_threshold" in info.data and v >= info.data["failure_threshold"]:
             raise CircuitBreakerThresholdError(
                 threshold_type="success_threshold",
@@ -121,7 +143,18 @@ class HealthCheckConfig:
     @field_validator("timeout", mode="before")
     @classmethod
     def validate_timeout(cls, v: float, info: ValidationInfo) -> float:
-        """Validate timeout is less than check_interval."""
+        """Validate timeout is less than check_interval.
+
+        Args:
+            v: The timeout value to validate.
+            info: Validation context containing other field values.
+
+        Returns:
+            float: The validated timeout value.
+
+        Raises:
+            ResilienceConfigurationError: If timeout is not less than check_interval.
+        """
         if "check_interval" in info.data and v >= info.data["check_interval"]:
             raise ResilienceConfigurationError(
                 config_type="health_check_timeout",
@@ -156,7 +189,20 @@ class CircuitBreaker[T]:
         )
 
     async def call(self, func: Callable[..., Awaitable[T]], *args: object, **kwargs: object) -> T:
-        """Execute function with circuit breaker protection."""
+        """Execute function with circuit breaker protection.
+
+        Args:
+            func: Async function to execute with circuit breaker protection.
+            *args: Positional arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            T: The result of the function execution.
+
+        Raises:
+            CircuitBreakerOpenError: If circuit breaker is open and retry time hasn't elapsed.
+            ServiceTimeoutError: If function execution times out.
+        """
         if self.state == CircuitBreakerState.OPEN:
             if time.time() < self.next_attempt_time:
                 raise CircuitBreakerOpenError(
@@ -214,7 +260,12 @@ class CircuitBreaker[T]:
             )
 
     def get_state(self) -> dict[str, object]:
-        """Get current circuit breaker state."""
+        """Get current circuit breaker state.
+
+        Returns:
+            dict[str, object]: Current state information including name, state,
+                failure/success counts, and timing details.
+        """
         return {
             "name": self.name,
             "state": self.state.value,
@@ -239,7 +290,24 @@ class RetryMechanism:
     async def execute(
         self, func: Callable[..., Awaitable[T]], *args: object, **kwargs: object
     ) -> T:
-        """Execute function with retry logic."""
+        """Execute function with retry logic.
+
+        Args:
+            func: Async function to execute with retry protection.
+            *args: Positional arguments to pass to the function.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            T: Result of the function execution after successful retry.
+
+        Raises:
+            ValueError: If function raises ValueError and retries are exhausted.
+            TypeError: If function raises TypeError and retries are exhausted.
+            KeyError: If function raises KeyError and retries are exhausted.
+            AttributeError: If function raises AttributeError and retries are exhausted.
+            ArithmeticError: If function raises ArithmeticError and retries are exhausted.
+            RuntimeError: If all retry attempts are exhausted with no exception.
+        """
         last_exception = None
         delay = self.config.initial_delay
 
@@ -341,7 +409,24 @@ class GracefulDegradationManager:
         *args: object,
         **kwargs: object,
     ) -> T:
-        """Execute function with fallback capability."""
+        """Execute function with fallback capability.
+
+        Args:
+            service_name: Name of the service for fallback registration.
+            primary_func: Primary async function to execute.
+            *args: Positional arguments to pass to the functions.
+            **kwargs: Keyword arguments to pass to the functions.
+
+        Returns:
+            T: Result from either primary function or fallback handler.
+
+        Raises:
+            ValueError: If primary function fails with this error.
+            TypeError: If primary function fails with this error.
+            KeyError: If primary function fails with this error.
+            AttributeError: If primary function fails with this error.
+            ArithmeticError: If primary function fails with this error.
+        """
         # Check if degradation mode is enabled
         if self.degradation_modes.get(service_name, False):
             fallback_handler = self.fallback_handlers.get(service_name)
@@ -400,7 +485,14 @@ class PortfolioResilienceService(BasePortfolioService):
         )
 
     def _init_retry_config(self, cfg: dict[str, object]) -> RetryConfig:
-        """Initialize retry configuration with validation."""
+        """Initialize retry configuration with validation.
+
+        Args:
+            cfg: Configuration dictionary containing retry settings.
+
+        Returns:
+            RetryConfig: Validated retry configuration object.
+        """
         max_attempts = cfg.get("retry_max_attempts", 3)
         if not isinstance(max_attempts, int) or max_attempts < 1:
             max_attempts = 3
@@ -430,7 +522,14 @@ class PortfolioResilienceService(BasePortfolioService):
         )
 
     def _init_circuit_breaker_config(self, cfg: dict[str, object]) -> CircuitBreakerConfig:
-        """Initialize circuit breaker configuration with validation."""
+        """Initialize circuit breaker configuration with validation.
+
+        Args:
+            cfg: Configuration dictionary containing circuit breaker settings.
+
+        Returns:
+            CircuitBreakerConfig: Validated circuit breaker configuration object.
+        """
         failure_threshold = cfg.get("circuit_breaker_failure_threshold", 5)
         if not isinstance(failure_threshold, int) or failure_threshold < 1:
             failure_threshold = 5
@@ -455,7 +554,14 @@ class PortfolioResilienceService(BasePortfolioService):
         )
 
     def _init_health_check_config(self, cfg: dict[str, object]) -> HealthCheckConfig:
-        """Initialize health check configuration with validation."""
+        """Initialize health check configuration with validation.
+
+        Args:
+            cfg: Configuration dictionary containing health check settings.
+
+        Returns:
+            HealthCheckConfig: Validated health check configuration object.
+        """
         check_interval = cfg.get("health_check_interval", 30.0)
         if not isinstance(check_interval, (int, float)) or check_interval < 0:
             check_interval = 30.0
@@ -540,7 +646,20 @@ class PortfolioResilienceService(BasePortfolioService):
         use_fallback: bool = True,
         **kwargs: object,
     ) -> T:
-        """Execute function with full resilience capabilities."""
+        """Execute function with full resilience capabilities.
+
+        Args:
+            service_name: Name of the service for resilience tracking.
+            func: Async function to execute with resilience protection.
+            *args: Positional arguments to pass to the function.
+            use_circuit_breaker: Whether to use circuit breaker protection.
+            use_retry: Whether to use retry mechanism.
+            use_fallback: Whether to use fallback capability.
+            **kwargs: Keyword arguments to pass to the function.
+
+        Returns:
+            T: Result of the function execution with resilience protection.
+        """
         execution_func: Callable[..., Awaitable[T]] = func
 
         # Apply circuit breaker if enabled
@@ -611,7 +730,14 @@ class PortfolioResilienceService(BasePortfolioService):
     async def _execute_health_check(
         self, health_check_func: Callable[[], bool | Awaitable[bool]]
     ) -> bool:
-        """Execute a health check function."""
+        """Execute a health check function.
+
+        Args:
+            health_check_func: Health check function that returns bool or awaitable bool.
+
+        Returns:
+            bool: True if the service is healthy, False otherwise.
+        """
         result = health_check_func()
         if asyncio.iscoroutine(result) or asyncio.isfuture(result):
             return await asyncio.wait_for(result, timeout=self.health_check_config.timeout)
@@ -643,7 +769,12 @@ class PortfolioResilienceService(BasePortfolioService):
                 )
 
     def get_resilience_status(self) -> dict[str, object]:
-        """Get current resilience status."""
+        """Get current resilience status.
+
+        Returns:
+            dict[str, object]: Comprehensive status of all resilience components including
+                service health, circuit breaker states, degradation modes, and configuration.
+        """
         return {
             "service_health": self.service_health,
             "circuit_breakers": {

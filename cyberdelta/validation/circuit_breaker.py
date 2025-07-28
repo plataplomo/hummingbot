@@ -823,7 +823,11 @@ class CircuitBreakerSystem:
         return True, None  # Allowed if no breakers are OPEN
 
     def _check_global_breakers(self) -> tuple[bool, str | None]:
-        """Check all global circuit breakers."""
+        """Check all global circuit breakers.
+        
+        Returns:
+            Tuple of (can_execute, reason_if_blocked).
+        """
         now = datetime.now(UTC)
 
         for breaker_name, breaker in self.breakers.items():
@@ -867,7 +871,15 @@ class CircuitBreakerSystem:
         exchange: str,
         symbol: str | None,
     ) -> tuple[bool, str | None]:
-        """Check exchange-specific circuit breakers."""
+        """Check exchange-specific circuit breakers.
+        
+        Args:
+            exchange: Exchange identifier.
+            symbol: Optional symbol for symbol-specific checks.
+            
+        Returns:
+            Tuple of (can_execute, reason_if_blocked).
+        """
         if exchange not in self.exchange_breakers:
             return True, None
 
@@ -886,7 +898,15 @@ class CircuitBreakerSystem:
         breaker_item: CircuitBreaker | dict[str, CircuitBreaker],
         symbol: str | None,
     ) -> list[CircuitBreaker]:
-        """Get the list of breakers to check based on the breaker item type."""
+        """Get the list of breakers to check based on the breaker item type.
+        
+        Args:
+            breaker_item: Either a single breaker or a dictionary of symbol-specific breakers.
+            symbol: Optional symbol for filtering symbol-specific breakers.
+            
+        Returns:
+            List of circuit breakers to check.
+        """
         breakers_to_check: list[CircuitBreaker] = []
 
         if isinstance(breaker_item, CircuitBreaker):
@@ -905,7 +925,15 @@ class CircuitBreakerSystem:
         breaker: CircuitBreaker,
         exchange: str,
     ) -> tuple[bool, str | None]:
-        """Check an individual circuit breaker and handle recovery testing."""
+        """Check an individual circuit breaker and handle recovery testing.
+        
+        Args:
+            breaker: The circuit breaker to check.
+            exchange: Exchange identifier for context.
+            
+        Returns:
+            Tuple of (can_execute, reason_if_blocked).
+        """
         if not breaker.allow_operation():
             reason = (
                 f"Exchange breaker '{breaker.name}' for {exchange} is OPEN due to: "
@@ -1480,6 +1508,19 @@ class CircuitBreakerSystem:
         symbol: str | None = None,
         default_cooldown_override: int | None = None,  # New parameter for explicit default
     ) -> CircuitBreaker | None:
+        """Create a circuit breaker from configuration.
+        
+        Args:
+            breaker_name_or_key: Name or key for the breaker.
+            breaker_specific_config: Configuration dictionary for the breaker.
+            exchange_name_context: Exchange name for context.
+            breaker_class: Class type of the breaker to create.
+            symbol: Optional symbol for symbol-specific breakers.
+            default_cooldown_override: Optional override for default cooldown.
+            
+        Returns:
+            Created circuit breaker instance or None if creation failed.
+        """
         name = breaker_name_or_key
         try:
             # Determine cooldown
@@ -1540,7 +1581,16 @@ class CircuitBreakerSystem:
         default_cooldown_override: int | None,
         name: str,
     ) -> int:
-        """Determine the cooldown value for a breaker from config."""
+        """Determine the cooldown value for a breaker from config.
+        
+        Args:
+            breaker_specific_config: Configuration dictionary for the breaker.
+            default_cooldown_override: Optional override for default cooldown.
+            name: Name of the breaker for logging.
+            
+        Returns:
+            Cooldown value in seconds.
+        """
         # 1. From this specific breaker's config (`breaker_specific_config`)
         cooldown_raw = breaker_specific_config.get("cooldown_seconds")
         if cooldown_raw is None and default_cooldown_override is not None:
@@ -1590,7 +1640,17 @@ class CircuitBreakerSystem:
         breaker_specific_config: dict[str, Any],
         cooldown: int,
     ) -> CircuitBreaker | None:
-        """Instantiate the appropriate breaker based on class type."""
+        """Instantiate the appropriate breaker based on class type.
+        
+        Args:
+            breaker_class: Class type of the breaker to create.
+            name: Name for the breaker instance.
+            breaker_specific_config: Configuration dictionary for the breaker.
+            cooldown: Cooldown value in seconds.
+            
+        Returns:
+            Created circuit breaker instance or None if unknown class.
+        """
         if breaker_class == APIErrorBreaker:
             return self._create_api_error_breaker(name, breaker_specific_config, cooldown)
         if breaker_class == VolatilityBreaker:
@@ -1618,7 +1678,16 @@ class CircuitBreakerSystem:
         breaker_specific_config: dict[str, Any],
         cooldown: int,
     ) -> APIErrorBreaker:
-        """Create an API error breaker from config."""
+        """Create an API error breaker from config.
+        
+        Args:
+            name: Name for the breaker instance.
+            breaker_specific_config: Configuration dictionary for the breaker.
+            cooldown: Cooldown value in seconds.
+            
+        Returns:
+            Created APIErrorBreaker instance.
+        """
         error_threshold = int(breaker_specific_config.get("error_threshold", 5))
         window_seconds_val = breaker_specific_config.get(
             "time_window_seconds",
@@ -1633,7 +1702,16 @@ class CircuitBreakerSystem:
         breaker_specific_config: dict[str, Any],
         cooldown: int,
     ) -> VolatilityBreaker:
-        """Create a volatility breaker from config."""
+        """Create a volatility breaker from config.
+        
+        Args:
+            name: Name for the breaker instance.
+            breaker_specific_config: Configuration dictionary for the breaker.
+            cooldown: Cooldown value in seconds.
+            
+        Returns:
+            Created VolatilityBreaker instance.
+        """
         lookback_periods = int(breaker_specific_config.get("lookback_periods", 12))
         volatility_threshold = float(
             breaker_specific_config.get("volatility_threshold", 0.05),
@@ -1646,7 +1724,16 @@ class CircuitBreakerSystem:
         breaker_specific_config: dict[str, Any],
         cooldown: int,
     ) -> DrawdownBreaker:
-        """Create a drawdown breaker from config."""
+        """Create a drawdown breaker from config.
+        
+        Args:
+            name: Name for the breaker instance.
+            breaker_specific_config: Configuration dictionary for the breaker.
+            cooldown: Cooldown value in seconds.
+            
+        Returns:
+            Created DrawdownBreaker instance.
+        """
         drawdown_threshold_val = breaker_specific_config.get(
             "max_drawdown_percentage",
             breaker_specific_config.get("drawdown_threshold", 0.10),
@@ -1660,7 +1747,16 @@ class CircuitBreakerSystem:
         breaker_specific_config: dict[str, Any],
         cooldown: int,
     ) -> LiquidityBreaker:
-        """Create a liquidity breaker from config."""
+        """Create a liquidity breaker from config.
+        
+        Args:
+            name: Name for the breaker instance.
+            breaker_specific_config: Configuration dictionary for the breaker.
+            cooldown: Cooldown value in seconds.
+            
+        Returns:
+            Created LiquidityBreaker instance.
+        """
         min_liquidity_val = breaker_specific_config.get(
             "min_liquidity_usd",
             breaker_specific_config.get("min_liquidity", 1000.0),

@@ -18,7 +18,11 @@ logger = get_logger(__name__)
 
 
 def simulate_hyperliquid_leverage_update() -> None:
-    """Simulate the complete flow of updating leverage in Hyperliquid."""
+    """Simulate the complete flow of updating leverage in Hyperliquid.
+
+    Raises:
+        APIError: If leverage_limit is None or invalid range.
+    """
     logger.info("=== Hyperliquid Leverage Update Flow ===\n")
 
     # Step 1: Create update args

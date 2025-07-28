@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models import DerivativePosition, Trade
 from cyberdelta.core.portfolio.portfolio_types.portfolio_data_models import (
     ExchangeBalances,
     ExchangePositions,
@@ -29,7 +30,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import DerivativePosition, SpotBalance, Trade
+    from cyberdelta.core.models import SpotBalance
     from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import (
         StateContainerProtocol,
@@ -59,7 +60,14 @@ class TradeValidator:
         self.max_trade_value = self.validation_config.max_trade_value
 
     def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
-        """Validate a single trade."""
+        """Validate a single trade.
+        
+        Args:
+            trade: The trade to validate.
+            
+        Returns:
+            ValidationResult containing the trade and any validation issues found.
+        """
         issues: list[ValidationIssue] = []
 
         # Validate price bounds
@@ -142,7 +150,14 @@ class BalanceValidator:
         self.allow_negative_balances = self.validation_config.allow_negative_balances
 
     def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
-        """Validate a single balance."""
+        """Validate a single balance.
+        
+        Args:
+            balance: The spot balance to validate.
+            
+        Returns:
+            ValidationResult containing the balance and any validation issues found.
+        """
         # Use validation chain for cleaner validation
         chain = ValidationChain(balance)
 
@@ -216,7 +231,14 @@ class PositionValidator:
     def validate_position(
         self, position: DerivativePosition
     ) -> ValidationResult[DerivativePosition]:
-        """Validate a single position."""
+        """Validate a single position.
+        
+        Args:
+            position: The derivative position to validate.
+            
+        Returns:
+            ValidationResult containing the position and any validation issues found.
+        """
         issues: list[ValidationIssue] = []
 
         # Validate position size
@@ -328,13 +350,27 @@ class PortfolioValidationService:
         )
 
     async def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
-        """Validate a trade."""
+        """Validate a trade.
+        
+        Args:
+            trade: The trade to validate.
+            
+        Returns:
+            ValidationResult containing the trade and any validation issues found.
+        """
         result = self.trade_validator.validate_trade(trade)
         self._record_validation("trade", result)
         return result
 
     async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
-        """Validate a balance."""
+        """Validate a balance.
+        
+        Args:
+            balance: The spot balance to validate.
+            
+        Returns:
+            ValidationResult containing the balance and any validation issues found.
+        """
         result = self.balance_validator.validate_balance(balance)
         self._record_validation("balance", result)
         return result
@@ -342,13 +378,27 @@ class PortfolioValidationService:
     async def validate_position(
         self, position: DerivativePosition
     ) -> ValidationResult[DerivativePosition]:
-        """Validate a position."""
+        """Validate a position.
+        
+        Args:
+            position: The derivative position to validate.
+            
+        Returns:
+            ValidationResult containing the position and any validation issues found.
+        """
         result = self.position_validator.validate_position(position)
         self._record_validation("position", result)
         return result
 
     async def validate_batch_trades(self, trades: list[Trade]) -> ValidationResult[list[Trade]]:
-        """Validate a batch of trades."""
+        """Validate a batch of trades.
+        
+        Args:
+            trades: List of trades to validate.
+            
+        Returns:
+            ValidationResult containing all trades and accumulated validation issues.
+        """
         all_issues: list[ValidationIssue] = []
 
         for trade in trades:
@@ -358,7 +408,11 @@ class PortfolioValidationService:
         return ValidationResult[list[Trade]].from_issues(trades, all_issues)
 
     async def validate_portfolio_state(self) -> ValidationResult[PortfolioState]:
-        """Validate overall portfolio state using state container."""
+        """Validate overall portfolio state using state container.
+        
+        Returns:
+            ValidationResult containing the portfolio state and any validation issues found.
+        """
         issues: list[ValidationIssue] = []
 
         # Build portfolio state with typed models
@@ -459,7 +513,14 @@ class PortfolioValidationService:
     async def _validate_cross_consistency(
         self, portfolio_state: PortfolioState
     ) -> list[ValidationIssue]:
-        """Validate cross-component consistency."""
+        """Validate cross-component consistency.
+        
+        Args:
+            portfolio_state: The portfolio state to validate for cross-consistency.
+            
+        Returns:
+            List of validation issues found during cross-consistency checks.
+        """
         issues: list[ValidationIssue] = []
 
         # Add cross-validation logic here
@@ -468,7 +529,12 @@ class PortfolioValidationService:
         return issues
 
     def _record_validation(self, validation_type: str, result: ValidationResult[Any]) -> None:
-        """Record validation statistics."""
+        """Record validation statistics.
+        
+        Args:
+            validation_type: Type of validation being recorded (e.g., 'trade', 'balance').
+            result: The validation result to record.
+        """
         self.validation_stats[validation_type]["total"] += 1
         if result.is_valid:
             self.validation_stats[validation_type]["passed"] += 1
@@ -482,7 +548,11 @@ class PortfolioValidationService:
                 self.recent_issues.pop(0)
 
     def get_validation_stats(self) -> ValidationStatistics:
-        """Get validation statistics."""
+        """Get validation statistics.
+        
+        Returns:
+            ValidationStatistics containing validation counts and recent issues.
+        """
         # Create proper IssueDict entries - filter out None values
         recent_issues_data: list[IssueDict] = []
         for issue in self.recent_issues[-20:]:  # Last 20 issues

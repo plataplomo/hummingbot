@@ -41,18 +41,30 @@ class SymbolStore(SymbolStoreProtocol):
                 self._exchange_to_internal[exchange_name][exchange_symbol.value] = internal_value
 
     def get_by_internal(self, internal_symbol: str) -> UnifiedSymbol | None:
-        """Retrieve symbol by internal canonical representation."""
+        """Retrieve symbol by internal canonical representation.
+        
+        Returns:
+            UnifiedSymbol if found, None otherwise
+        """
         with self._lock:
             return self._symbols.get(internal_symbol)
 
     def get_by_exchange(self, exchange_symbol: str, exchange_name: str) -> UnifiedSymbol | None:
-        """Retrieve symbol by exchange-specific representation."""
+        """Retrieve symbol by exchange-specific representation.
+        
+        Returns:
+            UnifiedSymbol if found, None otherwise
+        """
         with self._lock:
             internal = self._exchange_to_internal.get(exchange_name, {}).get(exchange_symbol)
             return self._symbols.get(internal) if internal else None
 
     def get_all(self) -> list[UnifiedSymbol]:
-        """Get all stored symbols for system operations."""
+        """Get all stored symbols for system operations.
+        
+        Returns:
+            List of all stored UnifiedSymbol instances
+        """
         with self._lock:
             return list(self._symbols.values())
 

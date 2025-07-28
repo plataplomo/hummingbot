@@ -89,7 +89,17 @@ class ValidationContext(BaseModel):
     @field_validator("field_name", "context_description")
     @classmethod
     def validate_descriptive_fields(cls, v: str) -> str:
-        """Ensure field names and context descriptions are meaningful."""
+        """Ensure field names and context descriptions are meaningful.
+        
+        Args:
+            v: The field value to validate
+            
+        Returns:
+            The validated field value
+            
+        Raises:
+            ValidationRangeError: If the field contains leading/trailing whitespace
+        """
         if v.strip() != v:
             raise ValidationRangeError(
                 field_name="field_name_or_description",
@@ -111,7 +121,11 @@ class ValidationContext(BaseModel):
 
     @model_validator(mode="after")
     def validate_policy_consistency(self) -> ValidationContext:
-        """Ensure validation policies are consistent."""
+        """Ensure validation policies are consistent.
+        
+        Returns:
+            The validated ValidationContext instance
+        """
         # Financial precision should have appropriate range validation
         if (
             self.precision_policy in {PrecisionPolicy.FINANCIAL_8, PrecisionPolicy.PRICE_4}
@@ -149,7 +163,11 @@ class ValidationContext(BaseModel):
         return self
 
     def to_legacy_booleans(self) -> dict[str, bool]:
-        """Convert to legacy boolean format for backward compatibility."""
+        """Convert to legacy boolean format for backward compatibility.
+        
+        Returns:
+            Dictionary mapping legacy boolean parameter names to their values
+        """
         return {
             "allow_none": self.null_policy != NullPolicy.REJECT,
             "allow_zero": self.range_policy in {RangePolicy.NON_NEGATIVE, RangePolicy.ANY},
@@ -173,7 +191,14 @@ class NumericValidationContext(ValidationContext):
 
     @model_validator(mode="after")
     def validate_numeric_constraints(self) -> NumericValidationContext:
-        """Validate numeric constraints are consistent."""
+        """Validate numeric constraints are consistent.
+        
+        Returns:
+            The validated NumericValidationContext instance
+            
+        Raises:
+            ValidationRangeError: If min_value > max_value or if range policy conflicts with bounds
+        """
         if (
             self.min_value is not None
             and self.max_value is not None
@@ -221,7 +246,14 @@ class StringValidationContext(ValidationContext):
 
     @model_validator(mode="after")
     def validate_string_constraints(self) -> StringValidationContext:
-        """Validate string constraints are consistent."""
+        """Validate string constraints are consistent.
+        
+        Returns:
+            The validated StringValidationContext instance
+            
+        Raises:
+            ValidationRangeError: If min_length > max_length
+        """
         if self.max_length is not None and self.min_length > self.max_length:
             raise ValidationRangeError(
                 field_name=self.field_name,

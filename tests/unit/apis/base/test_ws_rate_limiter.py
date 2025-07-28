@@ -194,7 +194,11 @@ class TestWebSocketRateLimiter:
 
     @pytest.fixture
     def basic_configs(self) -> list[RateLimitConfig]:
-        """Create basic rate limit configurations."""
+        """Create basic rate limit configurations.
+        
+        Returns:
+            list[RateLimitConfig]: List of basic rate limit configurations for testing.
+        """
         return [
             RateLimitConfig(
                 limit_type=RateLimitType.GLOBAL,
@@ -214,7 +218,11 @@ class TestWebSocketRateLimiter:
 
     @pytest.fixture
     def rate_limiter(self, basic_configs: list[RateLimitConfig]) -> WebSocketRateLimiter:
-        """Create a rate limiter with basic configs."""
+        """Create a rate limiter with basic configs.
+        
+        Returns:
+            WebSocketRateLimiter: Configured rate limiter for testing.
+        """
         return WebSocketRateLimiter(basic_configs)
 
     def test_rate_limiter_initialization(self, rate_limiter: WebSocketRateLimiter) -> None:
@@ -360,7 +368,11 @@ class TestRateLimitMiddleware:
 
     @pytest.fixture
     def middleware(self) -> RateLimitMiddleware:
-        """Create rate limit middleware."""
+        """Create rate limit middleware.
+        
+        Returns:
+            RateLimitMiddleware: Configured rate limit middleware for testing.
+        """
         config = RateLimitConfig(
             limit_type=RateLimitType.GLOBAL, requests_per_second=1.0, burst_size=1
         )

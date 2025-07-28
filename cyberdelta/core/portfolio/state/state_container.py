@@ -167,15 +167,30 @@ class StateContainer[T: BaseStateModel](BaseStateModel):
         yield from self.states.items()
 
     def get_state_count(self) -> int:
-        """Get the number of stored states."""
+        """Get the number of stored states.
+        
+        Returns:
+            Number of states currently stored in the container
+        """
         return len(self.states)
 
     def get_state_keys(self) -> list[str]:
-        """Get all state keys."""
+        """Get all state keys.
+        
+        Returns:
+            List of all state keys in the container
+        """
         return list(self.states.keys())
 
     def has_state(self, key: str) -> bool:
-        """Check if a state key exists."""
+        """Check if a state key exists.
+        
+        Args:
+            key: State key to check
+            
+        Returns:
+            True if the key exists in the container, False otherwise
+        """
         return key in self.states
 
     def create_snapshot(self) -> StateSnapshot[T]:

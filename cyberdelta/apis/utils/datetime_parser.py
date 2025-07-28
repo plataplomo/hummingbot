@@ -181,7 +181,14 @@ def _parse_unix_timestamp(
     field_name: str,
     context: str,
 ) -> datetime:
-    """Parse Unix timestamp (auto-detecting seconds vs milliseconds)."""
+    """Parse Unix timestamp (auto-detecting seconds vs milliseconds).
+    
+    Returns:
+        Parsed datetime in UTC timezone.
+        
+    Raises:
+        APIError: If timestamp parsing fails or is out of reasonable range.
+    """
     try:
         # Auto-detect format based on magnitude
         # Timestamps after year 3000 are likely milliseconds
@@ -223,7 +230,14 @@ def _parse_string_timestamp(
     field_name: str,
     context: str,
 ) -> datetime:
-    """Parse string timestamp using common formats."""
+    """Parse string timestamp using common formats.
+    
+    Returns:
+        Parsed datetime in UTC timezone.
+        
+    Raises:
+        APIError: If string timestamp parsing fails or format is unrecognized.
+    """
     value = value.strip()
     if not value:
         raise APIError(
@@ -282,12 +296,20 @@ def _parse_string_timestamp(
 
 
 def _raise_unknown_format_error(format_type: str) -> NoReturn:
-    """Raise ValueError for unknown format type."""
+    """Raise ValueError for unknown format type.
+    
+    Raises:
+        ValueError: Always raised with unknown format type message.
+    """
     msg = f"Unknown format type: {format_type}"
     raise ValueError(msg)
 
 
 def _raise_timestamp_range_error(timestamp_seconds: float) -> NoReturn:
-    """Raise ValueError for timestamp out of range."""
+    """Raise ValueError for timestamp out of range.
+    
+    Raises:
+        ValueError: Always raised with timestamp range error message.
+    """
     msg = f"Timestamp out of reasonable range: {timestamp_seconds}"
     raise ValueError(msg)

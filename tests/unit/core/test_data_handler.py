@@ -36,7 +36,11 @@ from cyberdelta.core.models.market.candle import Candle
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Override mock app settings to add symbol configurations for data handler."""
+    """Override mock app settings to add symbol configurations for data handler.
+    
+    Returns:
+        Mock: Mocked AppSettings with exchange and symbol configurations.
+    """
     settings = Mock(spec=AppSettings)
 
     # Create mock exchange configs with symbols
@@ -54,7 +58,11 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_api_clients() -> dict[str, ExchangeAPI]:
-    """Create mock API clients for testing."""
+    """Create mock API clients for testing.
+    
+    Returns:
+        dict[str, ExchangeAPI]: Dictionary of mocked exchange API clients.
+    """
     hyperliquid_client = Mock(spec=ExchangeAPI)
     hyperliquid_client.exchange_id = "hyperliquid"
 
@@ -73,7 +81,11 @@ def mock_api_clients() -> dict[str, ExchangeAPI]:
 
 @pytest.fixture
 def mock_clock() -> Mock:
-    """Create mock clock for testing."""
+    """Create mock clock for testing.
+    
+    Returns:
+        Mock: Mocked clock function returning current UTC time.
+    """
     mock_clock = Mock()
     mock_clock.return_value = datetime.now(UTC)
     return mock_clock
@@ -87,7 +99,11 @@ def data_handler(
     mock_symbol_mapper: Mock,
     mock_clock: Mock,
 ) -> Generator[DataHandler]:
-    """Create DataHandler instance for testing."""
+    """Create DataHandler instance for testing.
+    
+    Yields:
+        DataHandler: Configured DataHandler instance with mocked dependencies.
+    """
     loop = asyncio.new_event_loop()
     handler = DataHandler(
         app_settings=mock_app_settings,
@@ -107,7 +123,11 @@ def data_handler(
 
 @pytest.fixture
 def sample_order_book() -> OrderBook:
-    """Create sample order book for testing."""
+    """Create sample order book for testing.
+    
+    Returns:
+        OrderBook: Sample order book with BTC-PERP bids and asks.
+    """
     return OrderBook(
         symbol="BTC-PERP",
         bids=[(Decimal("50000.0"), Decimal("1.0")), (Decimal("49950.0"), Decimal("2.0"))],
@@ -118,7 +138,11 @@ def sample_order_book() -> OrderBook:
 
 @pytest.fixture
 def sample_funding_rate() -> FundingRate:
-    """Create sample funding rate for testing."""
+    """Create sample funding rate for testing.
+    
+    Returns:
+        FundingRate: Sample funding rate with 0.01% rate.
+    """
     return FundingRate(
         symbol="BTC-PERP",
         funding_rate=Decimal("0.0001"),

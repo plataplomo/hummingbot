@@ -141,7 +141,11 @@ class TestBackpackWebSocketDataFlow:
     def _create_depth_handler(
         self, received_orderbooks: list[OrderBook]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create handler for orderbook depth stream."""
+        """Create handler for orderbook depth stream.
+
+        Returns:
+            Callable: Async handler function for processing orderbook updates.
+        """
 
         async def depth_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the final domain model."""
@@ -263,7 +267,11 @@ class TestBackpackWebSocketDataFlow:
     def _create_trades_handler(
         self, received_trades: list[Trade]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create trades handler to reduce complexity."""
+        """Create trades handler to reduce complexity.
+
+        Returns:
+            Callable: Async handler function for processing trade updates.
+        """
 
         async def trades_handler(context: WebSocketContextProtocol) -> None:
             """Handler that receives the final domain model."""
@@ -383,7 +391,11 @@ class TestBackpackWebSocketDataFlow:
     def _create_universal_handler(
         self, stream_type: str, received_models: dict[str, list[Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create a handler for a specific stream type."""
+        """Create a handler for a specific stream type.
+
+        Returns:
+            Callable: Async handler function for the specified stream type.
+        """
 
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Fix RUF029
@@ -433,7 +445,11 @@ class TestBackpackWebSocketDataFlow:
     async def _wait_for_concurrent_stream_data(
         self, received_models: dict[str, list[Any]], max_wait: float = 15.0
     ) -> int:
-        """Wait for data from concurrent streams and return active stream count."""
+        """Wait for data from concurrent streams and return active stream count.
+
+        Returns:
+            int: Number of active streams that received data.
+        """
         start_time = asyncio.get_event_loop().time()
         while (asyncio.get_event_loop().time() - start_time) < max_wait:
             # Check if we have data from at least 2 streams
@@ -543,7 +559,11 @@ class TestBackpackWebSocketDataFlow:
         error_count = 0
 
         async def error_prone_handler(context: WebSocketContextProtocol) -> None:
-            """Handler that sometimes raises errors to test error isolation."""
+            """Handler that sometimes raises errors to test error isolation.
+
+            Raises:
+                ValueError: Simulated error for testing error handling.
+            """
             nonlocal error_count
             await asyncio.sleep(0)  # Fix RUF029
 

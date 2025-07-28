@@ -633,7 +633,17 @@ class PerformanceTracker:
         start_time: datetime | None,
         end_time: datetime | None,
     ) -> list[dict[str, Any]]:
-        """Filter funding rates by exchange, symbol, and time range."""
+        """Filter funding rates by exchange, symbol, and time range.
+        
+        Args:
+            exchange: Exchange to filter by (optional)
+            symbol: Symbol to filter by (optional)
+            start_time: Start time for filtering (optional)
+            end_time: End time for filtering (optional)
+            
+        Returns:
+            List of filtered funding rate dictionaries
+        """
         # Make a copy to filter
         filtered_rates = list(self.funding_rates)
 
@@ -663,7 +673,14 @@ class PerformanceTracker:
         return filtered_rates
 
     def _create_funding_rates_dataframe(self, filtered_rates: list[dict[str, Any]]) -> pd.DataFrame:
-        """Create and process the funding rates DataFrame."""
+        """Create and process the funding rates DataFrame.
+        
+        Args:
+            filtered_rates: List of filtered funding rate dictionaries
+            
+        Returns:
+            Processed DataFrame with timestamp index and numeric columns
+        """
         # Convert to DataFrame
         funding_df = pd.DataFrame(filtered_rates)
         funding_df["timestamp"] = pd.to_datetime(funding_df["timestamp"], errors="coerce")
@@ -676,7 +693,15 @@ class PerformanceTracker:
         return funding_df.set_index("timestamp")
 
     def _apply_pivot_if_requested(self, df: pd.DataFrame, pivot: bool) -> pd.DataFrame:
-        """Apply pivot transformation if requested."""
+        """Apply pivot transformation if requested.
+        
+        Args:
+            df: Input DataFrame to potentially pivot
+            pivot: Whether to apply pivot transformation
+            
+        Returns:
+            Either pivoted DataFrame (with symbols as columns) or original DataFrame
+        """
         if pivot and "symbol" in df.columns and "funding_rate" in df.columns:
             try:
                 # Pivot requires unique index/column combinations

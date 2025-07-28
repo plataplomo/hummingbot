@@ -149,11 +149,11 @@ select = [  # Linting rules to apply
     "C",   # complexity
     "FURB",# bugbear
     "RET", # return
-#    "TC003",  # type-checking
+    "TC004",  # type-checking
     "RUF", # redundant-use-of-function
     "SIM", # similar
     "ERA", # commented-out-code
-#    "DOC", # docstrings
+    "DOC", # docstrings
     "INP", # import
     "PLR",
     "G",

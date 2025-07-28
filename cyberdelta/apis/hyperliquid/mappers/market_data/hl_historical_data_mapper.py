@@ -60,22 +60,51 @@ class HyperliquidHistoricalDataMapper(
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely with default fallback."""
+        """Parse decimal values safely with default fallback.
+        
+        Args:
+            value: The value to parse as Decimal.
+            default: The default value to return if parsing fails.
+            
+        Returns:
+            The parsed Decimal value or the default.
+        """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format."""
+        """Normalize symbol to internal format.
+        
+        Args:
+            symbol: The symbol in exchange format.
+            
+        Returns:
+            The normalized symbol in internal format.
+        """
         return HyperliquidCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format."""
+        """Denormalize symbol to exchange format.
+        
+        Args:
+            symbol: The symbol in internal format.
+            
+        Returns:
+            The denormalized symbol in exchange format.
+        """
         return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime."""
+        """Convert millisecond timestamp to datetime.
+        
+        Args:
+            timestamp_ms: The timestamp in milliseconds.
+            
+        Returns:
+            The converted datetime object or None if input is None.
+        """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from CandleMapperProtocol
@@ -88,6 +117,9 @@ class HyperliquidHistoricalDataMapper(
 
         Returns:
             Candle domain model
+            
+        Raises:
+            CandleTransformationError: If no candles could be transformed from the raw snapshot.
         """
         # For a single candle snapshot, transform and return first candle
         # Default symbol and interval if not available
@@ -274,9 +306,6 @@ class HyperliquidHistoricalDataMapper(
 
         Returns:
             FundingRate: Internal domain model with HL details, or None if no funding data
-
-        Raises:
-            FundingRateTransformationError: If transformation fails
         """
         try:
             logger.debug(
@@ -553,8 +582,16 @@ class HyperliquidHistoricalDataMapper(
         interval: str,
     ) -> Candle | None:
         """Parse a single candle from the raw snapshot at the given index.
+        
+        Args:
+            raw_snapshot: The raw candle snapshot containing OHLCV data.
+            index: The index of the candle to parse.
+            symbol: The symbol for the candle.
+            interval: The time interval for the candle.
 
-        Returns None if the candle data is invalid and should be skipped.
+        Returns:
+            A Candle object if the data is valid, None if the candle data is invalid and
+            should be skipped.
         """
         # Parse OHLCV data from parallel lists
         ohlcv_prices = HyperliquidHistoricalDataMapper._parse_ohlcv_prices(raw_snapshot, index)
@@ -582,8 +619,14 @@ class HyperliquidHistoricalDataMapper(
         index: int,
     ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal] | None:
         """Parse OHLCV prices from raw snapshot at given index.
+        
+        Args:
+            raw_snapshot: The raw candle snapshot containing OHLCV data.
+            index: The index of the candle to parse.
 
-        Returns None if any price is invalid.
+        Returns:
+            A tuple of (open, high, low, close, volume) prices if all are valid,
+            None if any price is invalid.
         """
         try:
             open_price = parse_decimal_value(
@@ -630,7 +673,18 @@ class HyperliquidHistoricalDataMapper(
         close_price: Decimal | None,
         volume: Decimal | None,
     ) -> None:
-        """Validate that all candle prices are non-None after parsing."""
+        """Validate that all candle prices are non-None after parsing.
+        
+        Args:
+            open_price: The open price of the candle.
+            high_price: The high price of the candle.
+            low_price: The low price of the candle.
+            close_price: The close price of the candle.
+            volume: The volume of the candle.
+            
+        Raises:
+            MissingRequiredFieldError: If any of the required price fields are None.
+        """
         missing_fields: list[str] = []
         if open_price is None:
             missing_fields.append("open_price")
@@ -657,7 +711,21 @@ class HyperliquidHistoricalDataMapper(
         close_price: Decimal,
         volume: Decimal,
     ) -> Candle:
-        """Create a Candle object from the provided data."""
+        """Create a Candle object from the provided data.
+        
+        Args:
+            symbol: The trading symbol.
+            interval: The time interval for the candle.
+            timestamp: The opening time of the candle.
+            open_price: The opening price.
+            high_price: The highest price during the interval.
+            low_price: The lowest price during the interval.
+            close_price: The closing price.
+            volume: The trading volume during the interval.
+            
+        Returns:
+            A Candle object created from the provided data.
+        """
         candle_data = {
             "symbol": symbol,
             "interval": interval,

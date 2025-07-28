@@ -34,25 +34,41 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 @pytest.fixture
 def ticker_mapper() -> BackpackTickerMapper:
-    """Fixture providing a BackpackTickerMapper instance."""
+    """Fixture providing a BackpackTickerMapper instance.
+    
+    Returns:
+        BackpackTickerMapper: Instance for testing ticker transformations.
+    """
     return BackpackTickerMapper()
 
 
 @pytest.fixture
 def order_book_mapper() -> BackpackOrderBookMapper:
-    """Fixture providing a BackpackOrderBookMapper instance."""
+    """Fixture providing a BackpackOrderBookMapper instance.
+    
+    Returns:
+        BackpackOrderBookMapper: Instance for testing order book transformations.
+    """
     return BackpackOrderBookMapper()
 
 
 @pytest.fixture
 def trade_mapper() -> BackpackTradeMapper:
-    """Fixture providing a BackpackTradeMapper instance."""
+    """Fixture providing a BackpackTradeMapper instance.
+    
+    Returns:
+        BackpackTradeMapper: Instance for testing trade transformations.
+    """
     return BackpackTradeMapper()
 
 
 @pytest.fixture
 def test_timestamp_ms() -> int:
-    """Fixture providing a consistent test timestamp in milliseconds."""
+    """Fixture providing a consistent test timestamp in milliseconds.
+    
+    Returns:
+        int: Timestamp in milliseconds (2024-01-15T10:30:00Z).
+    """
     return 1705314600000  # 2024-01-15T10:30:00Z
 
 
@@ -67,7 +83,11 @@ def create_raw_ticker_event(
     price_change_percent: str = "0.5",
     event_time: int = 1705314600000,
 ) -> BackpackRawTickerEvent:
-    """Create BackpackRawTickerEvent instances for WebSocket testing."""
+    """Create BackpackRawTickerEvent instances for WebSocket testing.
+    
+    Returns:
+        BackpackRawTickerEvent: Raw ticker event with specified parameters.
+    """
     return BackpackRawTickerEvent(
         s=s,
         c=last_price,
@@ -126,7 +146,11 @@ def create_raw_trade_event(
     seller_id: str = "seller123",
     trade_time: int = 1705314600000,
 ) -> BackpackRawPublicTradeEvent:
-    """Create BackpackRawPublicTradeEvent instances for WebSocket testing."""
+    """Create BackpackRawPublicTradeEvent instances for WebSocket testing.
+    
+    Returns:
+        BackpackRawPublicTradeEvent: Raw trade event with specified parameters.
+    """
     return BackpackRawPublicTradeEvent(
         s=s,
         p=p,

@@ -94,7 +94,11 @@ class RiskManagerStateManager:
         )
 
     def _init_storage(self) -> None:
-        """Initialize the storage backend."""
+        """Initialize the storage backend.
+        
+        Raises:
+            RiskConfigError: If unsupported storage type is specified
+        """
         if self.storage_type == "sqlite":
             self._init_sqlite()
         elif self.storage_type == "json":
@@ -364,7 +368,11 @@ class RiskManagerStateManager:
         final_decision: dict[str, Any] | None = None,
         execution_metrics: dict[str, float] | None = None,
     ) -> StateSnapshot:
-        """Create a point-in-time snapshot."""
+        """Create a point-in-time snapshot.
+        
+        Returns:
+            StateSnapshot containing current processing state
+        """
         snapshot = StateSnapshot(
             timestamp=datetime.now(tz=UTC),
             opportunity_id=opportunity_id,
@@ -384,11 +392,19 @@ class RiskManagerStateManager:
         return snapshot
 
     def get_current_state(self) -> RiskManagerState | None:
-        """Get the current risk manager state."""
+        """Get the current risk manager state.
+        
+        Returns:
+            Current state if active session exists, None otherwise
+        """
         return self.current_state
 
     def get_session_history(self, session_id: str) -> RiskManagerState | None:
-        """Get historical state for a specific session."""
+        """Get historical state for a specific session.
+        
+        Returns:
+            Historical state data for the session, None if not found
+        """
         return self._load_state(session_id)
 
     def get_check_results_history(
@@ -398,7 +414,11 @@ class RiskManagerStateManager:
         since: datetime | None = None,
         limit: int = 100,
     ) -> list[CheckResult]:
-        """Get historical check results."""
+        """Get historical check results.
+        
+        Returns:
+            List of check results matching the specified criteria
+        """
         return self._load_check_results(session_id, checker_name, since, limit)
 
     def get_performance_summary(
@@ -406,7 +426,11 @@ class RiskManagerStateManager:
         session_id: str | None = None,
         since: datetime | None = None,
     ) -> dict[str, Any]:
-        """Get performance summary statistics."""
+        """Get performance summary statistics.
+        
+        Returns:
+            Dictionary containing performance metrics and statistics
+        """
         if not session_id and self.current_state:
             session_id = self.current_state.session_id
 
@@ -455,7 +479,11 @@ class RiskManagerStateManager:
         }
 
     def cleanup_old_data(self, before_date: datetime | None = None) -> int:
-        """Clean up old historical data."""
+        """Clean up old historical data.
+        
+        Returns:
+            Number of records deleted
+        """
         if not before_date:
             before_date = datetime.now(tz=UTC) - timedelta(days=self.max_history_days)
 
@@ -481,7 +509,11 @@ class RiskManagerStateManager:
         session_id: str | None = None,
         include_snapshots: bool = True,
     ) -> None:
-        """Export state data to JSON file."""
+        """Export state data to JSON file.
+        
+        Raises:
+            RiskConfigError: If no session ID is provided and no active session exists
+        """
         export_path = Path(export_path)
 
         if not session_id and self.current_state:
@@ -706,7 +738,11 @@ class RiskManagerStateManager:
             )
 
     def _load_state(self, session_id: str) -> RiskManagerState | None:
-        """Load state from SQLite."""
+        """Load state from SQLite.
+        
+        Returns:
+            Loaded state data if found, None otherwise
+        """
         if self.storage_type != "sqlite":
             return None
 
@@ -732,7 +768,11 @@ class RiskManagerStateManager:
         since: datetime | None,
         limit: int,
     ) -> list[CheckResult]:
-        """Load check results from SQLite."""
+        """Load check results from SQLite.
+        
+        Returns:
+            List of check results matching the query criteria
+        """
         if self.storage_type != "sqlite":
             return []
 
@@ -778,7 +818,11 @@ class RiskManagerStateManager:
         return results
 
     def _cleanup_sqlite_data(self, before_date: datetime) -> int:
-        """Clean up old SQLite data."""
+        """Clean up old SQLite data.
+        
+        Returns:
+            Number of records deleted from SQLite database
+        """
         deleted_count = 0
 
         with sqlite3.connect(self.db_path) as conn:
@@ -831,11 +875,19 @@ class RiskManagerStateManager:
         self.memory_store["check_results"].append(result.to_dict())
 
     def _cleanup_json_data(self, before_date: datetime) -> int:
-        """Clean up old JSON data."""
+        """Clean up old JSON data.
+        
+        Returns:
+            Number of records deleted from JSON storage
+        """
         # Implementation for JSON cleanup
         return 0
 
     def _cleanup_memory_data(self, before_date: datetime) -> int:
-        """Clean up old memory data."""
+        """Clean up old memory data.
+        
+        Returns:
+            Number of records deleted from memory storage
+        """
         # Implementation for memory cleanup
         return 0

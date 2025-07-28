@@ -87,17 +87,29 @@ class BackpackResponseHandlerRegistry(BaseComponentRegistry[IResponseHandler]):
         )
 
     def get_trading_handler(self, operation: str) -> IResponseHandler:
-        """Get a trading-specific response handler."""
+        """Get a trading-specific response handler.
+        
+        Returns:
+            IResponseHandler: The trading response handler for the specified operation.
+        """
         handler_name = f"trading.{operation}"
         return self.get(handler_name)
 
     def get_account_handler(self, operation: str) -> IResponseHandler:
-        """Get an account-specific response handler."""
+        """Get an account-specific response handler.
+        
+        Returns:
+            IResponseHandler: The account response handler for the specified operation.
+        """
         handler_name = f"account.{operation}"
         return self.get(handler_name)
 
     def get_market_data_handler(self, operation: str) -> IResponseHandler:
-        """Get a market data response handler."""
+        """Get a market data response handler.
+        
+        Returns:
+            IResponseHandler: The market data response handler for the specified operation.
+        """
         handler_name = f"market_data.{operation}"
         return self.get(handler_name)
 
@@ -122,7 +134,11 @@ class BackpackResponseHandlerRegistry(BaseComponentRegistry[IResponseHandler]):
         headers: dict[str, str],
         context: str | None = None,
     ) -> object:
-        """Handle a response using the appropriate domain handler."""
+        """Handle a response using the appropriate domain handler.
+        
+        Returns:
+            object: The processed response data.
+        """
         if context is None:
             context = f"{domain}.{operation}"
 
@@ -186,7 +202,11 @@ class BackpackResponseHandlerRegistry(BaseComponentRegistry[IResponseHandler]):
         logger.debug("bp_market_data_handlers_registered", count=10)
 
     def validate_registry(self) -> list[str]:
-        """Validate that all expected handlers are registered."""
+        """Validate that all expected handlers are registered.
+        
+        Returns:
+            list[str]: List of validation issues, empty if no issues found.
+        """
         issues: list[str] = []
 
         # Backpack-specific expected operations

@@ -41,7 +41,14 @@ class TestHyperliquidOrderBookModelCreation:
     """Test OrderBook model creation from WebSocket l2Book streams."""
 
     async def _setup_hl_orderbook_connection(self, api: HyperliquidAPI) -> str:
-        """Set up Hyperliquid connection and get test symbol for orderbook testing."""
+        """Set up Hyperliquid connection and get test symbol for orderbook testing.
+        
+        Args:
+            api: HyperliquidAPI instance to connect
+            
+        Returns:
+            Symbol string for testing orderbook functionality
+        """
         await api.connect_websocket()
         if not api.is_connected:
             pytest.fail("WebSocket connection failed - cannot test OrderBook creation")
@@ -54,7 +61,14 @@ class TestHyperliquidOrderBookModelCreation:
     async def _create_hl_orderbook_handler(
         self, received_orderbooks: list[OrderBook]
     ) -> MessageHandler:
-        """Create handler that extracts OrderBook from Hyperliquid context."""
+        """Create handler that extracts OrderBook from Hyperliquid context.
+        
+        Args:
+            received_orderbooks: List to store received OrderBook instances
+            
+        Returns:
+            Async message handler function for processing orderbook updates
+        """
 
         async def orderbook_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)

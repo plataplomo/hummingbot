@@ -275,6 +275,9 @@ class PortfolioHealthMonitor(BasePortfolioService):
 
         Returns:
             HealthReport with current health status
+
+        Raises:
+            RuntimeError: If the health monitor is not running
         """
         if not self.is_running:
             raise RuntimeError

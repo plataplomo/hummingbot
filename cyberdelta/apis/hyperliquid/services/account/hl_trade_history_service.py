@@ -92,7 +92,10 @@ class HyperliquidTradeHistoryService:
 
         Raises:
             APIError: If trade history retrieval fails or processing fails
-            RequiredParameterError: If required parameters are missing
+            TransformationError: If response transformation to internal models fails
+            ValidationError: If response validation or data validation fails
+            ValueError: If service logic encounters invalid values during processing
+            TypeError: If service logic encounters type errors during processing
 
         Note:
             Hyperliquid's userFills endpoint doesn't support server-side filtering.
@@ -226,8 +229,8 @@ class HyperliquidTradeHistoryService:
         Returns:
             ParsedJsonResponse: Validated response data
 
-        Raises:
-            APIError: If validation fails
+        Note:
+            This method delegates to ensure_list_response which may raise APIError.
         """
         return ensure_list_response(
             raw_response_list,
@@ -276,8 +279,8 @@ class HyperliquidTradeHistoryService:
         Returns:
             list[Trade]: Mapped internal trades
 
-        Raises:
-            TransformationError: If mapping fails
+        Note:
+            The mapper may raise TransformationError if mapping fails.
         """
         return [
             self._mapper.transform_raw_user_fill_to_internal(fill) for fill in fills_response.root
@@ -327,7 +330,19 @@ class HyperliquidTradeHistoryService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle transformation errors."""
+        """Handle transformation errors.
+
+        Logs the transformation error and converts it to an APIError with appropriate context.
+
+        Args:
+            e_transform: The transformation error that occurred
+            method_name: Name of the method where the error occurred
+            status_code: HTTP status code from the response
+            raw_response_content: Raw response content for debugging
+
+        Raises:
+            APIError: Always raises APIError with transformation error details
+        """
         logger.error(
             "transformation_error",
             action=method_name,
@@ -350,7 +365,19 @@ class HyperliquidTradeHistoryService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle validation errors."""
+        """Handle validation errors.
+
+        Logs the validation error and converts it to an APIError with appropriate context.
+
+        Args:
+            e_val: The validation error that occurred
+            method_name: Name of the method where the error occurred
+            status_code: HTTP status code from the response
+            raw_response_content: Raw response content for debugging
+
+        Raises:
+            APIError: Always raises APIError with validation error details
+        """
         logger.error(
             "validation_error",
             action=method_name,
@@ -369,7 +396,22 @@ class HyperliquidTradeHistoryService:
     def _handle_service_logic_error(
         self, e_service_logic: ValueError | TypeError, method_name: str
     ) -> None:
-        """Handle service logic errors."""
+        """Handle service logic errors.
+
+        Determines if the error is an input validation error (re-raises) or internal
+        service error (converts to APIError).
+
+        Args:
+            e_service_logic: The ValueError or TypeError that occurred
+            method_name: Name of the method where the error occurred
+
+        Raises:
+            APIError: If it's an internal service error
+
+        Note:
+            Re-raises the original ValueError or TypeError if it appears to be an input
+            validation error (when method_name appears in the error message).
+        """
         error_msg = str(e_service_logic)
         if method_name in error_msg:
             # Input validation error - re-raise
@@ -395,7 +437,19 @@ class HyperliquidTradeHistoryService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle unexpected errors."""
+        """Handle unexpected errors.
+
+        Logs unexpected errors and converts them to APIError for consistent error handling.
+
+        Args:
+            e_unexpected: The unexpected exception that occurred
+            method_name: Name of the method where the error occurred
+            status_code: HTTP status code from the response
+            raw_response_content: Raw response content for debugging
+
+        Raises:
+            APIError: Always raises APIError with unexpected error details
+        """
         logger.error(
             "unexpected_service_failure",
             action=method_name,

@@ -34,7 +34,11 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing with exchange configuration."""
+    """Create mock app settings for testing with exchange configuration.
+    
+    Returns:
+        Mock: Mock instance of AppSettings with configured exchanges.
+    """
     settings = Mock(spec=AppSettings)
 
     # Configure exchanges as a dict with ExchangeSpecificConfig objects
@@ -50,7 +54,11 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_pt_config(pt_config: PortfolioTrackerConfig) -> Mock:
-    """Extend the shared pt_config with additional mock settings."""
+    """Extend the shared pt_config with additional mock settings.
+    
+    Returns:
+        Mock: Mock instance of PortfolioTrackerConfig with extended settings.
+    """
     config = Mock(spec=PortfolioTrackerConfig)
     config.high_watermark_file = ""
     config.state_file = ""
@@ -65,7 +73,11 @@ def mock_pt_config(pt_config: PortfolioTrackerConfig) -> Mock:
 
 @pytest.fixture
 def portfolio_tracker(mock_app_settings: Mock, mock_pt_config: Mock) -> PortfolioTracker:
-    """Create a PortfolioTracker instance for testing."""
+    """Create a PortfolioTracker instance for testing.
+    
+    Returns:
+        PortfolioTracker: Configured portfolio tracker instance for testing.
+    """
     return PortfolioTracker(mock_app_settings, mock_pt_config)
 
 

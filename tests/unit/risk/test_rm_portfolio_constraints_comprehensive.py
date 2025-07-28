@@ -19,7 +19,11 @@ def create_test_opportunity(
     net_funding_differential: Decimal = Decimal("0.01"),
     expected_profit_usd: Decimal = Decimal(100),
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity: An arbitrage opportunity instance for testing.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="exchange_a",

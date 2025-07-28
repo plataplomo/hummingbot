@@ -389,20 +389,49 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Safely parse decimal values with fallback."""
+        """Safely parse decimal values with fallback.
+
+        Args:
+            value: Value to parse as Decimal (string, float, Decimal, or None).
+            default: Default value to return if parsing fails.
+
+        Returns:
+            Parsed Decimal value or default if parsing fails.
+        """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated)."""
+        """Convert symbol to Backpack format (underscore-separated).
+
+        Args:
+            symbol: Symbol string to normalize (e.g., "BTC/USD").
+
+        Returns:
+            Symbol in Backpack format with underscores (e.g., "BTC_USD").
+        """
         return BackpackCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated)."""
+        """Convert symbol from Backpack to internal format (slash-separated).
+
+        Args:
+            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
+
+        Returns:
+            Symbol in internal format with slashes (e.g., "BTC/USD").
+        """
         return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime."""
+        """Convert millisecond timestamp to UTC datetime.
+
+        Args:
+            timestamp_ms: Timestamp in milliseconds (float or None).
+
+        Returns:
+            UTC datetime object if timestamp is provided, None otherwise.
+        """
         return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

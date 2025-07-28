@@ -77,10 +77,12 @@ class MarketOrder:
             Order: Executed order with status (FILLED/PARTIALLY_FILLED/CANCELLED)
 
         Raises:
-            MarketOrderError: If market orders are disabled or execution fails
-            InsufficientLiquidityError: If insufficient liquidity
-            PriceDeviationError: If price deviation exceeds limits
-            APIError: If API calls fail
+            disabled_error: If market orders are disabled in configuration
+            timeout_error: If order execution times out
+            ValueError: If order parameters are invalid or API responses are malformed
+            TypeError: If arguments have incorrect types
+            KeyError: If required data is missing from API responses
+            AttributeError: If expected attributes are missing from objects
         """
         # 1. Validate configuration
         if not self._config.enabled:
@@ -219,7 +221,7 @@ class MarketOrder:
             Order: Final order result
 
         Raises:
-            MarketOrderError: If no orders were executed or same as execute_market_order
+            no_orders_error: If no orders were executed during retry attempts
         """
         remaining_quantity = quantity
         total_filled = Decimal(0)
@@ -273,7 +275,9 @@ class MarketOrder:
             quantity: Order quantity
 
         Raises:
-            ValueError: If parameters are invalid
+            empty_symbol_error: If symbol is empty or None
+            invalid_quantity_error: If quantity is not positive
+            infinite_quantity_error: If quantity is not finite
         """
         if not symbol:
             raise MarketOrderParameterError.empty_symbol_error()

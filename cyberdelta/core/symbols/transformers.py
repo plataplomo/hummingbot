@@ -22,14 +22,32 @@ class HyperliquidSymbolTransformer(SymbolTransformerProtocol):
     """Hyperliquid exchange symbol transformations."""
 
     def internal_to_exchange(self, internal: InternalSymbol) -> str:
-        """Transform internal symbol to Hyperliquid format."""
+        """Transform internal symbol to Hyperliquid format.
+        
+        Returns:
+            Hyperliquid-formatted symbol string (e.g., BTC-PERP or BTC/USDC)
+        """
         if internal.market_type == MarketType.PERP:
             return f"{internal.base_asset}-PERP"
         # SPOT
         return f"{internal.base_asset}/{internal.quote_asset}"
 
     def exchange_to_internal(self, exchange_symbol: str) -> InternalSymbol:
-        """Transform Hyperliquid symbol to internal format."""
+        """Transform Hyperliquid symbol to internal format.
+        
+        Handles Hyperliquid's symbol formats:
+        - Perpetuals: "BTC-PERP" → InternalSymbol(BTC_USD, PERP)
+        - Spot: "BTC/USDC" → InternalSymbol(BTC_USDC, SPOT)
+        
+        Args:
+            exchange_symbol: Hyperliquid exchange symbol string
+            
+        Returns:
+            InternalSymbol with extracted base/quote assets and market type
+            
+        Raises:
+            ValueError: If symbol format is not recognized as valid Hyperliquid format
+        """
         if "-PERP" in exchange_symbol:
             base = exchange_symbol.replace("-PERP", "")
             return create_internal_symbol(
@@ -50,14 +68,32 @@ class BackpackSymbolTransformer(SymbolTransformerProtocol):
     """Backpack exchange symbol transformations."""
 
     def internal_to_exchange(self, internal: InternalSymbol) -> str:
-        """Transform internal symbol to Backpack format."""
+        """Transform internal symbol to Backpack format.
+        
+        Returns:
+            Backpack-formatted symbol string (e.g., BTC_PERP or BTC_USDC)
+        """
         if internal.market_type == MarketType.PERP:
             return f"{internal.base_asset}_PERP"
         # SPOT
         return f"{internal.base_asset}_{internal.quote_asset}"
 
     def exchange_to_internal(self, exchange_symbol: str) -> InternalSymbol:
-        """Transform Backpack symbol to internal format."""
+        """Transform Backpack symbol to internal format.
+        
+        Handles Backpack's symbol formats:
+        - Perpetuals: "BTC_PERP" → InternalSymbol(BTC_USD, PERP)
+        - Spot: "BTC_USDC" → InternalSymbol(BTC_USDC, SPOT)
+        
+        Args:
+            exchange_symbol: Backpack exchange symbol string
+            
+        Returns:
+            InternalSymbol with extracted base/quote assets and market type
+            
+        Raises:
+            ValueError: If symbol format is not recognized as valid Backpack format
+        """
         if "_PERP" in exchange_symbol:
             base = exchange_symbol.replace("_PERP", "")
             return create_internal_symbol(
@@ -78,14 +114,22 @@ class BinanceSymbolTransformer(SymbolTransformerProtocol):
     """Binance exchange - implement when adding Binance support."""
 
     def internal_to_exchange(self, internal: InternalSymbol) -> str:
-        """Transform internal symbol to Binance format."""
+        """Transform internal symbol to Binance format.
+        
+        Returns:
+            Binance-formatted symbol string (e.g., BTCUSDT)
+        """
         if internal.market_type == MarketType.PERP:
             return f"{internal.base_asset}USDT"  # Binance futures format
         # SPOT
         return f"{internal.base_asset}{internal.quote_asset}"
 
     def exchange_to_internal(self, exchange_symbol: str) -> InternalSymbol:
-        """Transform Binance symbol to internal format."""
+        """Transform Binance symbol to internal format.
+        
+        Returns:
+            InternalSymbol (not implemented yet)
+        """
         # Binance-specific parsing logic will be implemented when adding Binance
         raise NotImplementedError("Binance symbol transformer not implemented yet")
 

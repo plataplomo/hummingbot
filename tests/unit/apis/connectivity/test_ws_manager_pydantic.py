@@ -73,7 +73,11 @@ def mock_websocket() -> MagicMock:
     # The WebSocket manager uses `async for msg in self._ws_connection`
     # Create an empty async generator using a lambda to avoid unreachable code
     def create_empty_async_generator() -> AsyncIterator[object]:
-        """Factory function that returns an empty async generator."""
+        """Factory function that returns an empty async generator.
+        
+        Returns:
+            Empty async iterator for mocking WebSocket message stream
+        """
 
         async def _gen() -> AsyncIterator[object]:
             # Use a minimal async operation to satisfy ruff's async requirement

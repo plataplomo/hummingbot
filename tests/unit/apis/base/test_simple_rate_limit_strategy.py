@@ -17,14 +17,25 @@ class TestSimpleTokenBucketStrategy:
 
     @pytest.fixture
     def mock_limiter(self) -> AsyncMock:
-        """Create a mock TokenBucketRateLimiterRuntime."""
+        """Create a mock TokenBucketRateLimiterRuntime.
+        
+        Returns:
+            AsyncMock configured as TokenBucketRateLimiterRuntime
+        """
         limiter = AsyncMock(spec=TokenBucketRateLimiterRuntime)
         limiter.acquire.return_value = 0.0
         return limiter
 
     @pytest.fixture
     def strategy(self, mock_limiter: AsyncMock) -> SimpleTokenBucketStrategy:
-        """Create a SimpleTokenBucketStrategy with mock limiter."""
+        """Create a SimpleTokenBucketStrategy with mock limiter.
+        
+        Args:
+            mock_limiter: Mock rate limiter to inject
+            
+        Returns:
+            SimpleTokenBucketStrategy instance configured with mock limiter
+        """
         return SimpleTokenBucketStrategy(limiter=mock_limiter, default_request_weight=1)
 
     @pytest.mark.asyncio

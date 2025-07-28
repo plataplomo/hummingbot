@@ -66,12 +66,24 @@ class HyperliquidRateLimiter:
         self.requests = [(ts, weight) for ts, weight in self.requests if ts > cutoff_time]
 
     def _get_current_weight(self) -> int:
-        """Get current total weight in the time window."""
+        """Get current total weight in the time window.
+
+        Returns:
+            Total weight of all requests within the current time window.
+        """
         self._cleanup_old_requests()
         return sum(weight for _, weight in self.requests)
 
     def _get_request_weight(self, request_type: str) -> int:
-        """Get the weight for a specific request type."""
+        """Get the weight for a specific request type.
+
+        Returns:
+            Weight value for the given request type:
+            - 2 for l2Book, allMids, clearinghouseState, orderStatus,
+              spotClearinghouseState, exchangeStatus
+            - 60 for userRole
+            - 20 for all other info requests
+        """
         # Weight 2 requests
         weight_2_requests = {
             "l2Book",
@@ -138,6 +150,9 @@ class HyperliquidDataCollector:
         Args:
             output_dir: Directory where collected JSON data files will be saved
             session: aiohttp session for making public API requests
+
+        Raises:
+            ValueError: If Hyperliquid exchange configuration is not found or disabled.
         """
         self.output_dir = output_dir
         self.session = session
@@ -183,7 +198,11 @@ class HyperliquidDataCollector:
         payload: dict[str, Any],
         request_type: str,
     ) -> dict[str, Any] | None:
-        """Fetch JSON data from a URL with POST payload, rate limiting, and error handling."""
+        """Fetch JSON data from a URL with POST payload, rate limiting, and error handling.
+
+        Returns:
+            Dictionary containing the JSON response data if successful, None if request failed.
+        """
         # Apply rate limiting
         await self.rate_limiter.acquire(request_type)
 
@@ -588,21 +607,33 @@ class HyperliquidDataCollector:
             self._save_json(data, filename)
 
     def get_default_coins(self) -> list[str]:
-        """Get default coins from configuration or fallback."""
+        """Get default coins from configuration or fallback.
+
+        Returns:
+            List of default coin symbols from configuration or fallback values.
+        """
         # Use configured symbols, fallback to common ones
         if self.configured_symbols:
             return list(self.configured_symbols.values())
         return ["ETH", "BTC", "SOL", "DOGE", "MATIC"]
 
     def get_sample_users(self) -> list[str]:
-        """Get sample user addresses for testing user-specific endpoints."""
+        """Get sample user addresses for testing user-specific endpoints.
+
+        Returns:
+            List of example user wallet addresses for testing.
+        """
         # These are example addresses - in practice, you'd want real addresses with activity
         return [
             "0xAe24B4BDAD4633f0961dc66A491473d6BC8E5BA0",  # Zero address
         ]
 
     def get_sample_vault_addresses(self) -> list[str]:
-        """Get sample vault addresses for testing vault endpoints."""
+        """Get sample vault addresses for testing vault endpoints.
+
+        Returns:
+            List of example vault addresses for testing vault-related endpoints.
+        """
         # These are example vault addresses
         return [
             "0x1234567890123456789012345678901234567890",
@@ -610,11 +641,19 @@ class HyperliquidDataCollector:
         ]
 
     def get_sample_order_ids(self) -> list[int]:
-        """Get sample order IDs for testing order status endpoints."""
+        """Get sample order IDs for testing order status endpoints.
+
+        Returns:
+            List of example order IDs for testing order status queries.
+        """
         return [123456789, 987654321, 555666777]
 
     def get_sample_client_order_ids(self) -> list[str]:
-        """Get sample client order IDs for testing order status endpoints."""
+        """Get sample client order IDs for testing order status endpoints.
+
+        Returns:
+            List of example client order IDs for testing order status queries.
+        """
         return ["0x123456789abcdef", "0xfedcba987654321", "0xabc123def456789"]
 
     async def collect_all_data(self, coins: list[str]) -> None:

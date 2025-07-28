@@ -38,7 +38,11 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing."""
+    """Create mock app settings for testing.
+    
+    Returns:
+        Mock: Mock AppSettings instance with configured exchange settings.
+    """
     settings = Mock(spec=AppSettings)
 
     # Configure execution settings
@@ -53,13 +57,21 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker for testing."""
+    """Create mock portfolio tracker for testing.
+    
+    Returns:
+        Mock: Mock PortfolioTracker instance for testing.
+    """
     return Mock(spec=PortfolioTracker)
 
 
 @pytest.fixture
 def mock_symbol_service() -> Mock:
-    """Create mock symbol service for testing."""
+    """Create mock symbol service for testing.
+    
+    Returns:
+        Mock: Mock SymbolService instance with default symbol mapping behavior.
+    """
     service = Mock(spec=SymbolService)
     # Default behavior - return the same symbol
     service.get_exchange_symbol.return_value = "BTC-PERP"
@@ -68,7 +80,11 @@ def mock_symbol_service() -> Mock:
 
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
-    """Create mock circuit breaker system for testing."""
+    """Create mock circuit breaker system for testing.
+    
+    Returns:
+        Mock: Mock CircuitBreakerSystem instance that allows all operations by default.
+    """
     system = Mock(spec=CircuitBreakerSystem)
     # Default behavior - allow all operations
     system.can_execute.return_value = (True, None)
@@ -83,7 +99,11 @@ def execution_handler(
     mock_symbol_service: Mock,
     mock_circuit_breaker_system: Mock,
 ) -> ExecutionHandler:
-    """Create an ExecutionHandler instance for testing."""
+    """Create an ExecutionHandler instance for testing.
+    
+    Returns:
+        ExecutionHandler: Configured ExecutionHandler instance with mocked dependencies.
+    """
     return ExecutionHandler(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_tracker,
@@ -94,7 +114,11 @@ def execution_handler(
 
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
-    """Create a sample ArbitrageOpportunity for testing."""
+    """Create a sample ArbitrageOpportunity for testing.
+    
+    Returns:
+        ArbitrageOpportunity: Sample ArbitrageOpportunity instance with test data.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="hyperliquid",
@@ -112,7 +136,11 @@ def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
 def sample_sized_opportunity(
     sample_arbitrage_opportunity: ArbitrageOpportunity,
 ) -> SizedOpportunity:
-    """Create a sample SizedOpportunity for testing."""
+    """Create a sample SizedOpportunity for testing.
+    
+    Returns:
+        SizedOpportunity: Sample SizedOpportunity instance with test data.
+    """
     return SizedOpportunity(
         opportunity=sample_arbitrage_opportunity,
         long_size=Decimal("1000.0"),
@@ -126,7 +154,11 @@ def sample_sized_opportunity(
 
 @pytest.fixture
 def mock_exchange_api() -> Mock:
-    """Create mock exchange API for testing."""
+    """Create mock exchange API for testing.
+    
+    Returns:
+        Mock: Mock ExchangeAPI instance with async methods mocked.
+    """
     api = Mock(spec=ExchangeAPI)
 
     # Mock successful order placement

@@ -169,7 +169,15 @@ class BackpackCommonMappers:
 
     @staticmethod
     def _is_dict_with_key(obj: object, key: str) -> TypeGuard[dict[str, object]]:
-        """Type guard to check if object is a dict containing the given key."""
+        """Type guard to check if object is a dict containing the given key.
+
+        Args:
+            obj: Object to check
+            key: Key to look for in the dict
+
+        Returns:
+            True if obj is a dict containing the given key, False otherwise
+        """
         return isinstance(obj, dict) and key in obj
 
     @staticmethod
@@ -194,7 +202,14 @@ class BackpackCommonMappers:
 
     @staticmethod
     def _is_list(obj: object) -> TypeGuard[list[object]]:
-        """Type guard to check if object is a list."""
+        """Type guard to check if object is a list.
+
+        Args:
+            obj: Object to check
+
+        Returns:
+            True if obj is a list, False otherwise
+        """
         return isinstance(obj, list)
 
     @staticmethod
@@ -256,7 +271,7 @@ class BackpackCommonMappers:
             The validated value
 
         Raises:
-            ValueError: If value is not positive
+            NonPositiveValueError: If value is not positive
         """
         if value <= 0:
             raise NonPositiveValueError(field_name, value)

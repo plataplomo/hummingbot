@@ -81,22 +81,38 @@ logger = get_logger(__name__)
 
 # Type-preserving factory functions
 def _str_object_dict_factory() -> dict[str, object]:
-    """Factory function that preserves dict[str, object] type information."""
+    """Factory function that preserves dict[str, object] type information.
+
+    Returns:
+        Empty dictionary with dict[str, object] type annotation preserved.
+    """
     return {}
 
 
 def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
+    """Factory function that preserves list[str] type information.
+
+    Returns:
+        Empty list with list[str] type annotation preserved.
+    """
     return []
 
 
 def _config_source_list_factory() -> list[ConfigSourceDescriptor]:
-    """Factory function that preserves list[ConfigSourceDescriptor] type information."""
+    """Factory function that preserves list[ConfigSourceDescriptor] type information.
+
+    Returns:
+        Empty list with list[ConfigSourceDescriptor] type annotation preserved.
+    """
     return []
 
 
 def _config_change_list_factory() -> list[ConfigChange]:
-    """Factory function that preserves list[ConfigChange] type information."""
+    """Factory function that preserves list[ConfigChange] type information.
+
+    Returns:
+        Empty list with list[ConfigChange] type annotation preserved.
+    """
     return []
 
 
@@ -151,7 +167,14 @@ class ConfigSourceDescriptor:
     @field_validator("name", "location", mode="before")
     @classmethod
     def validate_strings(cls, v: str) -> str:
-        """Validate string fields are non-empty."""
+        """Validate string fields are non-empty.
+
+        Returns:
+            Stripped string value if validation passes.
+
+        Raises:
+            ConfigStringValidationError: If string is empty or contains only whitespace.
+        """
         if not v or not v.strip():
             raise ConfigStringValidationError
         return v.strip()
@@ -174,7 +197,14 @@ class ConfigChange:
     @field_validator("key", mode="before")
     @classmethod
     def validate_key(cls, v: str) -> str:
-        """Validate key is non-empty."""
+        """Validate key is non-empty.
+
+        Returns:
+            Stripped key value if validation passes.
+
+        Raises:
+            ConfigChangeKeyValidationError: If key is empty or contains only whitespace.
+        """
         if not v or not v.strip():
             raise ConfigChangeKeyValidationError
         return v.strip()
@@ -182,7 +212,14 @@ class ConfigChange:
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
-        """Validate timestamp is non-negative."""
+        """Validate timestamp is non-negative.
+
+        Returns:
+            Validated timestamp value if non-negative.
+
+        Raises:
+            ConfigTimestampNegativeError: If timestamp is negative.
+        """
         if v < 0:
             raise ConfigTimestampNegativeError
         return v
@@ -202,7 +239,14 @@ class ConfigValidationResult:
     @field_validator("validation_time", mode="before")
     @classmethod
     def validate_time(cls, v: float) -> float:
-        """Validate validation time is non-negative."""
+        """Validate validation time is non-negative.
+
+        Returns:
+            Validated time value if non-negative.
+
+        Raises:
+            ConfigTimestampNegativeError: If validation time is negative.
+        """
         if v < 0:
             raise ConfigTimestampNegativeError(field_type="validation_time")
         return v
@@ -225,7 +269,14 @@ class ConfigProfile:
     @field_validator("name", mode="before")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """Validate profile name is non-empty."""
+        """Validate profile name is non-empty.
+
+        Returns:
+            Stripped profile name if validation passes.
+
+        Raises:
+            ConfigProfileNameValidationError: If profile name is empty or contains only whitespace.
+        """
         if not v or not v.strip():
             raise ConfigProfileNameValidationError
         return v.strip()
@@ -233,7 +284,14 @@ class ConfigProfile:
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod
     def validate_timestamps(cls, v: float) -> float:
-        """Validate timestamps are non-negative."""
+        """Validate timestamps are non-negative.
+
+        Returns:
+            Validated timestamp value if non-negative.
+
+        Raises:
+            ConfigTimestampNegativeError: If timestamp is negative.
+        """
         if v < 0:
             raise ConfigTimestampNegativeError(field_type="created_at/updated_at")
         return v
@@ -255,7 +313,14 @@ class ConfigSnapshot:
     @field_validator("snapshot_id", "profile", mode="before")
     @classmethod
     def validate_strings(cls, v: str) -> str:
-        """Validate string fields are non-empty."""
+        """Validate string fields are non-empty.
+
+        Returns:
+            Stripped string value if validation passes.
+
+        Raises:
+            ConfigStringValidationError: If string is empty or contains only whitespace.
+        """
         if not v or not v.strip():
             raise ConfigStringValidationError
         return v.strip()
@@ -263,7 +328,14 @@ class ConfigSnapshot:
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
-        """Validate timestamp is positive."""
+        """Validate timestamp is positive.
+
+        Returns:
+            Validated timestamp value if positive.
+
+        Raises:
+            ConfigTimestampValidationError: If timestamp is not positive.
+        """
         if v <= 0:
             raise ConfigTimestampValidationError
         return v
@@ -474,7 +546,14 @@ class PortfolioConfigManager(BasePortfolioService):
         logger.info("portfolio_config_manager_shutdown_internal")
 
     async def get_configuration(self) -> PortfolioConfiguration:
-        """Get current portfolio configuration."""
+        """Get current portfolio configuration.
+
+        Returns:
+            The current portfolio configuration instance.
+
+        Raises:
+            RuntimeError: If configuration cannot be loaded.
+        """
         if self.current_config is None:
             await self._load_configuration()
         if self.current_config is None:
@@ -482,7 +561,11 @@ class PortfolioConfigManager(BasePortfolioService):
         return self.current_config
 
     async def get_config_value(self, key: str, default: object = None) -> object:
-        """Get specific configuration value."""
+        """Get specific configuration value.
+
+        Returns:
+            The configuration value at the specified key path, or default if not found.
+        """
         config = await self.get_configuration()
         keys = key.split(".")
 
@@ -504,7 +587,14 @@ class PortfolioConfigManager(BasePortfolioService):
         reason: str = "",
         persist: bool = True,
     ) -> bool:
-        """Set configuration value."""
+        """Set configuration value.
+
+        Returns:
+            True if configuration value was successfully set and validated, False otherwise.
+
+        Raises:
+            RuntimeError: If current configuration is not available.
+        """
         try:
             # Get current value
             old_value = await self.get_config_value(key)
@@ -575,7 +665,11 @@ class PortfolioConfigManager(BasePortfolioService):
             return True
 
     async def reload_configuration(self, force: bool = False) -> bool:
-        """Reload configuration from sources."""
+        """Reload configuration from sources.
+
+        Returns:
+            True if configuration was successfully reloaded, False otherwise.
+        """
         try:
             if not force and not self._should_reload():
                 return True
@@ -626,7 +720,11 @@ class PortfolioConfigManager(BasePortfolioService):
             return True
 
     async def switch_profile(self, profile_name: str) -> bool:
-        """Switch to a different configuration profile."""
+        """Switch to a different configuration profile.
+
+        Returns:
+            True if profile was successfully switched, False otherwise.
+        """
         if profile_name not in self.config_profiles:
             logger.error("profile_not_found", profile=profile_name)
             return False
@@ -687,7 +785,14 @@ class PortfolioConfigManager(BasePortfolioService):
             return True
 
     async def create_snapshot(self, description: str = "", tags: list[str] | None = None) -> str:
-        """Create configuration snapshot."""
+        """Create configuration snapshot.
+
+        Returns:
+            The unique identifier of the created snapshot.
+
+        Raises:
+            ConfigManagerValidationError: If current configuration is not available.
+        """
         snapshot_id = f"snapshot_{int(time.time())}"
 
         if self.current_config is None:
@@ -730,7 +835,11 @@ class PortfolioConfigManager(BasePortfolioService):
         return snapshot_id
 
     async def restore_snapshot(self, snapshot_id: str) -> bool:
-        """Restore configuration from snapshot."""
+        """Restore configuration from snapshot.
+
+        Returns:
+            True if snapshot was successfully restored, False otherwise.
+        """
         if snapshot_id not in self.config_snapshots:
             logger.error("snapshot_not_found", snapshot_id=snapshot_id)
             return False
@@ -820,7 +929,11 @@ class PortfolioConfigManager(BasePortfolioService):
     async def get_change_history(
         self, limit: int | None = None, since: float | None = None, key_filter: str | None = None
     ) -> list[ConfigChange]:
-        """Get configuration change history."""
+        """Get configuration change history.
+
+        Returns:
+            List of configuration changes filtered and sorted by the specified criteria.
+        """
         changes = self.change_history
 
         # Apply filters
@@ -840,7 +953,11 @@ class PortfolioConfigManager(BasePortfolioService):
         return changes
 
     async def get_config_statistics(self) -> dict[str, object]:
-        """Get configuration management statistics."""
+        """Get configuration management statistics.
+
+        Returns:
+            Dictionary containing comprehensive configuration management statistics.
+        """
         return {
             **self.config_statistics.model_dump(),
             "profiles_count": len(self.config_profiles),
@@ -868,6 +985,11 @@ class PortfolioConfigManager(BasePortfolioService):
                 try:
 
                     def _load_profile(file_path: Path) -> ConfigProfile:
+                        """Load configuration profile from file.
+
+                        Returns:
+                            Loaded and validated configuration profile.
+                        """
                         with file_path.open(encoding="utf-8") as f:
                             data = json.load(f)
                             # For Pydantic dataclasses, we need to use the constructor
@@ -918,7 +1040,11 @@ class PortfolioConfigManager(BasePortfolioService):
         )
 
     def _create_base_configuration(self) -> PortfolioConfiguration:
-        """Create base configuration based on current profile."""
+        """Create base configuration based on current profile.
+
+        Returns:
+            Base portfolio configuration instance appropriate for the current profile.
+        """
         if self.current_profile == "development":
             return PortfolioConfiguration.create_development()
         if self.current_profile == "production":
@@ -962,11 +1088,23 @@ class PortfolioConfigManager(BasePortfolioService):
         self.current_config = config
 
     async def _load_source_config(self, source: ConfigSourceDescriptor) -> dict[str, object] | None:
-        """Load configuration from a specific source."""
+        """Load configuration from a specific source.
+
+        Returns:
+            Configuration dictionary from the source, or None if source cannot be loaded.
+        """
         if source.source_type == ConfigSource.FILE:
             if Path(source.location).exists():
 
                 def _load_source() -> dict[str, object]:
+                    """Load configuration data from file source.
+
+                    Returns:
+                        Configuration dictionary loaded from the file.
+
+                    Raises:
+                        ConfigurationError: If loaded data is not a dictionary.
+                    """
                     with Path(source.location).open(encoding="utf-8") as f:
                         data = json.load(f)
                         if not isinstance(data, dict):
@@ -989,7 +1127,11 @@ class PortfolioConfigManager(BasePortfolioService):
     async def _validate_configuration(
         self, config: PortfolioConfiguration
     ) -> ConfigValidationResult:
-        """Validate configuration using Pydantic and business logic validation."""
+        """Validate configuration using Pydantic and business logic validation.
+
+        Returns:
+            Configuration validation result containing validation status and any errors.
+        """
         if not self.validation_enabled:
             return ConfigValidationResult(is_valid=True)
 
@@ -1052,6 +1194,7 @@ class PortfolioConfigManager(BasePortfolioService):
             }
 
             def _save_profile() -> None:
+                """Save profile configuration to file."""
                 with Path(profile_file).open("w", encoding="utf-8") as f:
                     json.dump(profile_data, f, indent=2)
 
@@ -1088,6 +1231,7 @@ class PortfolioConfigManager(BasePortfolioService):
             }
 
             def _save_snapshot() -> None:
+                """Save snapshot configuration to file."""
                 with Path(snapshot_file).open("w", encoding="utf-8") as f:
                     json.dump(snapshot_data, f, indent=2)
 
@@ -1116,7 +1260,11 @@ class PortfolioConfigManager(BasePortfolioService):
                 snapshot_file.unlink()
 
     def _should_reload(self) -> bool:
-        """Check if configuration should be reloaded."""
+        """Check if configuration should be reloaded.
+
+        Returns:
+            True if configuration files have changed and reload is needed, False otherwise.
+        """
         # Check if any source files have changed
         for source in self.config_sources.values():
             if (

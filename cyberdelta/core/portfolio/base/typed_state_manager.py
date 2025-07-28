@@ -26,7 +26,11 @@ from cyberdelta.core.portfolio.portfolio_types.state_types import StateValidatio
 
 # Type-preserving factory functions for dataclass fields
 def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
+    """Factory function that preserves list[str] type information.
+
+    Returns:
+        Empty list of strings.
+    """
     return []
 
 
@@ -83,7 +87,11 @@ class StateManagerResult:
         metadata: StateManagerMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> StateManagerResult:
-        """Create a successful result."""
+        """Create a successful result.
+
+        Returns:
+            StateManagerResult with success=True.
+        """
         return cls(
             success=True,
             message=message,
@@ -100,7 +108,11 @@ class StateManagerResult:
         metadata: StateManagerMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> StateManagerResult:
-        """Create a failure result."""
+        """Create a failure result.
+
+        Returns:
+            StateManagerResult with success=False.
+        """
         return cls(
             success=False,
             message=message,
@@ -397,7 +409,11 @@ class TypedStateManager[T](ABC):
         self.error_count = 0
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+
+        Returns:
+            String representation of the state manager.
+        """
         return (
             f"{self.__class__.__name__}("
             f"manager={self.manager_name}, "

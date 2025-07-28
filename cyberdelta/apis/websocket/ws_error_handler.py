@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from cachetools import TTLCache
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -16,10 +16,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
-
-
-if TYPE_CHECKING:
-    pass
 
 
 class ErrorSuppressionConfig(BaseModel):

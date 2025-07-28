@@ -32,12 +32,26 @@ logger = get_logger(__name__)
 
 
 def _is_config_dict(value: object) -> TypeGuard[dict[str, Any]]:
-    """Senior-level TypeGuard for configuration dictionary validation."""
+    """Senior-level TypeGuard for configuration dictionary validation.
+    
+    Args:
+        value: The value to check.
+        
+    Returns:
+        TypeGuard indicating if value is a dict[str, Any].
+    """
     return isinstance(value, dict)
 
 
 def _safe_repr(value: object) -> str:
-    """Senior-level safe representation function for logging unknown types."""
+    """Senior-level safe representation function for logging unknown types.
+    
+    Args:
+        value: The value to convert to string representation.
+        
+    Returns:
+        Safe string representation of the value.
+    """
     try:
         return repr(value)
     except (TypeError, ValueError, AttributeError, RecursionError):
@@ -235,7 +249,7 @@ class MultiTierFundingProvider:
             Tuple of (funding_rate, confidence_score)
 
         Raises:
-            FundingRateSourceError: If no funding rate data is available
+            NoFundingDataError: If all funding sources fail
 
         """
         # Try to get from cache if not stale
@@ -543,7 +557,8 @@ class MultiTierFundingProvider:
             Tuple of (funding_rate, confidence_score)
 
         Raises:
-            FundingRateSourceError: If fallback source also fails
+            NoFallbackSourceError: If no fallback source is registered
+            AllSourcesFailedError: If fallback source also fails
 
         """
         if exchange not in self.fallback_sources:
@@ -634,6 +649,9 @@ class MultiTierFundingProvider:
 
         Returns:
             IntegratedFundingData object
+            
+        Raises:
+            NoValidWeightedDataError: If no valid weighted data is available
 
         """
         # Define base weights and reliability multipliers
@@ -862,7 +880,16 @@ class MultiTierFundingProvider:
         key: str,
         default: float,
     ) -> float:
-        """Safely get and validate a float config value."""
+        """Safely get and validate a float config value.
+        
+        Args:
+            config_dict: Configuration dictionary.
+            key: Key to look up in the config.
+            default: Default value if key not found or invalid.
+            
+        Returns:
+            The float value from config or default.
+        """
         value = config_dict.get(key, default)
         if isinstance(value, float):
             return value
@@ -890,7 +917,16 @@ class MultiTierFundingProvider:
         return default
 
     def _validate_int_config(self, config_dict: dict[str, Any], key: str, default: int) -> int:
-        """Safely get and validate an integer config value."""
+        """Safely get and validate an integer config value.
+        
+        Args:
+            config_dict: Configuration dictionary.
+            key: Key to look up in the config.
+            default: Default value if key not found or invalid.
+            
+        Returns:
+            The integer value from config or default.
+        """
         value = config_dict.get(key, default)
         if isinstance(value, int):
             return value

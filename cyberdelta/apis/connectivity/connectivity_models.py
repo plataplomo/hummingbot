@@ -41,6 +41,16 @@ class ProcessedResponseHeaders(BaseModel):
         """Validates that the content_type string contains acceptable characters.
 
         Ensures string does not consist only of whitespace if not empty.
+
+        Args:
+            v: The content_type string to validate
+
+        Returns:
+            str: The validated content_type string
+
+        Raises:
+            ContentTypeValidationError: If content_type contains invalid characters
+                or consists only of whitespace
         """
         if not VALID_CONTENT_TYPE_CHARS_REGEX.fullmatch(v):
             raise ContentTypeValidationError(v, "Content-Type contains invalid characters")

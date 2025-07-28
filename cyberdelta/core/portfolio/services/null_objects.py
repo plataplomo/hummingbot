@@ -7,6 +7,9 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.structlog_config import get_logger
+
+# Import classes used at runtime (not just type-checking)
+from cyberdelta.core.models import DerivativePosition, SpotBalance, Trade
 from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
     PortfolioExposureResult,
 )
@@ -37,7 +40,7 @@ from cyberdelta.core.portfolio.portfolio_types.validation_types import Validatio
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import DerivativePosition, Order, SpotBalance, Trade
+    from cyberdelta.core.models import Order
 
 
 logger = get_logger(__name__)
@@ -137,7 +140,11 @@ class NullStateManager(StateManagerProtocol):
         )
 
     async def process_trade(self, trade: Trade) -> bool:
-        """Always return True (success) but do nothing."""
+        """Always return True (success) but do nothing.
+        
+        Returns:
+            bool: Always True indicating successful processing
+        """
         logger.debug("null_process_trade", trade_id=trade.id)
         return True
 
@@ -297,7 +304,11 @@ class NullResilienceService:
         *args: object,
         **kwargs: object,
     ) -> object:
-        """Execute function directly without resilience."""
+        """Execute function directly without resilience.
+        
+        Returns:
+            object: Result of the function execution
+        """
         logger.debug("null_resilience_execute", service_name=service_name)
         return await func(*args, **kwargs)
 
@@ -325,55 +336,99 @@ class NullValidationService:
         )
 
     async def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
-        """Always return valid."""
+        """Always return valid.
+        
+        Returns:
+            ValidationResult[Trade]: Successful validation result for the trade
+        """
         return ValidationResult[Trade].success(trade)
 
     async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
-        """Always return valid."""
+        """Always return valid.
+        
+        Returns:
+            ValidationResult[SpotBalance]: Successful validation result for the balance
+        """
         return ValidationResult[SpotBalance].success(balance)
 
     async def validate_position(
         self, position: DerivativePosition
     ) -> ValidationResult[DerivativePosition]:
-        """Always return valid."""
+        """Always return valid.
+        
+        Returns:
+            ValidationResult[DerivativePosition]: Successful validation result for the position
+        """
         return ValidationResult[DerivativePosition].success(position)
 
     async def validate_portfolio_state(self) -> ValidationResult[object]:
-        """Always return valid."""
+        """Always return valid.
+        
+        Returns:
+            ValidationResult[object]: Successful validation result for the portfolio state
+        """
         return ValidationResult[object].success({})
 
 
 # Factory functions for creating null objects
 def create_null_balance_manager() -> BalanceManagerProtocol:
-    """Create null balance manager."""
+    """Create null balance manager.
+    
+    Returns:
+        BalanceManagerProtocol: Null balance manager instance
+    """
     return NullBalanceManager()
 
 
 def create_null_position_manager() -> PositionManagerProtocol:
-    """Create null position manager."""
+    """Create null position manager.
+    
+    Returns:
+        PositionManagerProtocol: Null position manager instance
+    """
     return NullPositionManager()
 
 
 def create_null_order_manager() -> OrderManagerProtocol:
-    """Create null order manager."""
+    """Create null order manager.
+    
+    Returns:
+        OrderManagerProtocol: Null order manager instance
+    """
     return NullOrderManager()
 
 
 def create_null_state_manager() -> StateManagerProtocol:
-    """Create null state manager."""
+    """Create null state manager.
+    
+    Returns:
+        StateManagerProtocol: Null state manager instance
+    """
     return NullStateManager()
 
 
 def create_null_portfolio_manager() -> PortfolioManagerProtocol[None]:
-    """Create null portfolio manager."""
+    """Create null portfolio manager.
+    
+    Returns:
+        PortfolioManagerProtocol[None]: Null portfolio manager instance
+    """
     return NullPortfolioManager()
 
 
 def create_null_resilience_service() -> NullResilienceService:
-    """Create null resilience service."""
+    """Create null resilience service.
+    
+    Returns:
+        NullResilienceService: Null resilience service instance
+    """
     return NullResilienceService()
 
 
 def create_null_validation_service() -> NullValidationService:
-    """Create null validation service."""
+    """Create null validation service.
+    
+    Returns:
+        NullValidationService: Null validation service instance
+    """
     return NullValidationService()

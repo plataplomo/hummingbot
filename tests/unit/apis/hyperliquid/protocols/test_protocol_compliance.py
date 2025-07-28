@@ -230,25 +230,41 @@ FACTORY_COMPONENT_TESTS = [
 # Fixtures
 @pytest.fixture
 def balance_mapper() -> HyperliquidBalanceMapper:
-    """Provide a HyperliquidBalanceMapper instance for testing."""
+    """Provide a HyperliquidBalanceMapper instance for testing.
+    
+    Returns:
+        HyperliquidBalanceMapper: Balance mapper instance for protocol compliance testing.
+    """
     return HyperliquidBalanceMapper()
 
 
 @pytest.fixture
 def market_data_builder() -> HyperliquidMarketDataRequestBuilder:
-    """Provide a HyperliquidMarketDataRequestBuilder instance for testing."""
+    """Provide a HyperliquidMarketDataRequestBuilder instance for testing.
+    
+    Returns:
+        HyperliquidMarketDataRequestBuilder: Market data request builder instance.
+    """
     return HyperliquidMarketDataRequestBuilder()
 
 
 @pytest.fixture
 def market_data_handler() -> HyperliquidMarketDataResponseHandler:
-    """Provide a HyperliquidMarketDataResponseHandler instance for testing."""
+    """Provide a HyperliquidMarketDataResponseHandler instance for testing.
+    
+    Returns:
+        HyperliquidMarketDataResponseHandler: Market data response handler instance.
+    """
     return HyperliquidMarketDataResponseHandler()
 
 
 @pytest.fixture
 def test_factory() -> HyperliquidAPIComponentsFactory:
-    """Provide a configured factory instance for testing."""
+    """Provide a configured factory instance for testing.
+    
+    Returns:
+        HyperliquidAPIComponentsFactory: Configured factory with test exchange config and secrets.
+    """
     config = ExchangeSpecificConfig(
         enabled=True,
         api_base_url_mainnet=HttpUrl("https://api.hyperliquid.xyz"),
@@ -278,7 +294,12 @@ def test_factory() -> HyperliquidAPIComponentsFactory:
 
 @pytest.fixture
 def structural_balance_mapper() -> BalanceMapperProtocol:
-    """Provide a structural balance mapper for testing structural typing."""
+    """Provide a structural balance mapper for testing structural typing.
+    
+    Returns:
+        BalanceMapperProtocol: A class that structurally matches BalanceMapperProtocol 
+            without inheriting.
+    """
 
     class StructuralBalanceMapper:
         """A class that structurally matches BalanceMapperProtocol without inheriting."""
@@ -610,7 +631,11 @@ class TestRuntimeProtocolChecking:
         """Test that protocols work correctly in type annotations."""
 
         def process_balance_mapper(mapper: BalanceMapperProtocol) -> bool:
-            """Function that accepts a BalanceMapperProtocol."""
+            """Function that accepts a BalanceMapperProtocol.
+            
+            Returns:
+                bool: True if mapper has transform_raw_balance_to_internal method.
+            """
             return hasattr(mapper, "transform_raw_balance_to_internal")
 
         # Should accept actual implementation

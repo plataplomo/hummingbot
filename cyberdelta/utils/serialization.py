@@ -48,7 +48,7 @@ class CyberDeltaJSONEncoder(json.JSONEncoder):
             JSON-serializable representation of the object.
 
         Raises:
-            TypeError: If the object type is not serializable.
+            JSONSerializationError: If the object type is not serializable.
 
         """
         if isinstance(o, Decimal):

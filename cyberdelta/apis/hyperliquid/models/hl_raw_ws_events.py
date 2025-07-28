@@ -99,7 +99,11 @@ MAX_DECIMAL_PRECISION = 8  # Maximum 8 decimal places for crypto
 def _raise_notional_value_error(
     notional: Decimal, price: Decimal, size: Decimal, condition: str
 ) -> None:
-    """Raise error for notional value violations."""
+    """Raise error for notional value violations.
+    
+    Raises:
+        ValueError: When notional value violates business rules.
+    """
     msg = f"Notional value too {condition}: {notional} (price: {price}, size: {size})"
     raise ValueError(msg)
 
@@ -145,6 +149,12 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
         This validator performs business logic validation to ensure timestamp
         is reasonable after conversion.
+        
+        Returns:
+            Validated timestamp in milliseconds.
+            
+        Raises:
+            ValueError: If timestamp is outside acceptable range.
         """
         # Convert to datetime for validation
         try:
@@ -173,6 +183,12 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
         This validator preprocesses numeric inputs from various formats
         before Decimal conversion.
+        
+        Returns:
+            Normalized string representation suitable for Decimal conversion.
+            
+        Raises:
+            ValueError: If value cannot be normalized to a valid numeric string.
         """
         if isinstance(v, (int, float)):
             # Convert numbers to strings for Decimal precision
@@ -205,6 +221,12 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
         This validator performs business logic validation of financial
         precision requirements.
+        
+        Returns:
+            Validated financial string value.
+            
+        Raises:
+            ValueError: If value doesn't meet financial precision requirements.
         """
         try:
             decimal_val = Decimal(v)
@@ -288,6 +310,12 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
         This model validator performs cross-field validation to ensure
         fill data is internally consistent.
+        
+        Returns:
+            Validated HyperliquidRawWsFillEvent instance.
+            
+        Raises:
+            ValueError: If cross-field validation fails.
         """
         # Validate that price * size is reasonable (basic sanity check)
         try:
@@ -317,22 +345,38 @@ class HyperliquidRawWsFillEvent(BaseModel):
 
 
 def is_list(obj: object) -> TypeGuard[list[object]]:
-    """TypeGuard to check if an object is a list."""
+    """TypeGuard to check if an object is a list.
+    
+    Returns:
+        True if obj is a list, False otherwise.
+    """
     return isinstance(obj, list)
 
 
 def has_exact_length(lst: list[object], length: int) -> bool:
-    """Check if a list has exactly the specified length."""
+    """Check if a list has exactly the specified length.
+    
+    Returns:
+        True if list has exactly the specified length, False otherwise.
+    """
     return len(lst) == length
 
 
 def is_dict(obj: object) -> TypeGuard[dict[str, object]]:
-    """TypeGuard to check if an object is a dictionary with string keys."""
+    """TypeGuard to check if an object is a dictionary with string keys.
+    
+    Returns:
+        True if obj is a dictionary, False otherwise.
+    """
     return isinstance(obj, dict)
 
 
 def is_non_empty_dict(obj: object) -> TypeGuard[dict[str, object]]:
-    """TypeGuard to check if an object is a non-empty dictionary with string keys."""
+    """TypeGuard to check if an object is a non-empty dictionary with string keys.
+    
+    Returns:
+        True if obj is a non-empty dictionary, False otherwise.
+    """
     return is_dict(obj) and bool(obj)
 
 
@@ -340,6 +384,9 @@ def is_list_of_list_of_dict(obj: object) -> TypeGuard[list[list[dict[str, object
     """Type guard to check if an object is a list of two lists of dict[str, object].
 
     Enables static type narrowing for both Mypy and Pyright.
+    
+    Returns:
+        True if obj matches the expected structure, False otherwise.
     """
     # Check if it's a list
     if not is_list(obj):
@@ -397,7 +444,8 @@ class HyperliquidRawWsBookUpdate(BaseModel):
             Validated list structure ready for further Pydantic processing
 
         Raises:
-            ValueError: If structure is invalid or has wrong length
+            StructureTypeError: If structure is not a list or sublists are invalid.
+            SequenceLengthError: If outer list doesn't have exactly 2 elements.
 
         """
         field_name = info.field_name or "levels"
@@ -493,7 +541,15 @@ class HyperliquidRawWsOrderUpdate(BaseModel):
     @field_validator("data", mode="before")
     @classmethod
     def validate_data(cls, v: object, info: ValidationInfo) -> dict[str, object]:
-        """Ensure data is a non-empty dictionary."""
+        """Ensure data is a non-empty dictionary.
+        
+        Returns:
+            Validated dictionary data.
+            
+        Raises:
+            StructureTypeError: If data is not a dictionary.
+            EmptyDictionaryError: If dictionary is empty.
+        """
         field_name = info.field_name or "data"
         if not isinstance(v, dict):
             raise StructureTypeError(

@@ -159,6 +159,9 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
         This validator replaces the preprocessing mapper logic by handling the
         tuple response format from the metaAndAssetCtxs endpoint.
+
+        Returns:
+            Dictionary with 'meta' and 'asset_ctxs' keys for Pydantic validation.
         """
         # Validate input structure
         list_obj = cls._validate_input_structure(values)
@@ -177,7 +180,15 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
     @classmethod
     def _validate_input_structure(cls, obj: object) -> list[Any]:
-        """Validate that input is a 2-element list."""
+        """Validate that input is a 2-element list.
+
+        Returns:
+            The validated list for further processing.
+
+        Raises:
+            StructureTypeError: If input is not a list.
+            SequenceLengthError: If list doesn't have exactly 2 elements.
+        """
         if not is_list_any(obj):
             raise StructureTypeError(
                 field_name="MetaAndAssetCtxs response",
@@ -198,7 +209,14 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
     @classmethod
     def _extract_tuple_elements(cls, list_obj: list[Any]) -> tuple[dict[str, Any], list[Any]]:
-        """Extract and validate meta and asset_ctxs elements from tuple."""
+        """Extract and validate meta and asset_ctxs elements from tuple.
+
+        Returns:
+            Tuple of (meta_dict, asset_ctxs_list) extracted from input.
+
+        Raises:
+            StructureTypeError: If elements are not of expected types.
+        """
         meta_obj_raw = list_obj[0]
         asset_ctxs_list_raw = list_obj[1]
 
@@ -220,7 +238,11 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
 
     @classmethod
     def _preprocess_meta_dict(cls, meta_dict: dict[str, Any]) -> dict[str, Any]:
-        """Preprocess the meta dictionary for Pydantic validation."""
+        """Preprocess the meta dictionary for Pydantic validation.
+
+        Returns:
+            Preprocessed meta dictionary with defaults applied.
+        """
         # Create a mutable copy for preprocessing
         meta_data = dict(meta_dict)
 
@@ -250,7 +272,14 @@ class HyperliquidRawMetaAndAssetCtxsResponse(BaseModel):
         asset_ctxs_list: list[Any],
         preprocessed_meta: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """Preprocess asset contexts list with name enrichment from universe."""
+        """Preprocess asset contexts list with name enrichment from universe.
+
+        Returns:
+            List of preprocessed asset context dictionaries.
+
+        Raises:
+            StructureTypeError: If any asset context is not a dictionary.
+        """
         preprocessed_ctxs: list[dict[str, Any]] = []
 
         # Extract universe for name enrichment

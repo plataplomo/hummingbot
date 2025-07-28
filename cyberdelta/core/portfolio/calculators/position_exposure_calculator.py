@@ -88,7 +88,17 @@ class PositionExposure:
     )
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Ensure decimal values are finite."""
+        """Ensure decimal values are finite.
+
+        Args:
+            v: Decimal value to validate
+
+        Returns:
+            Validated finite Decimal value
+
+        Raises:
+            InvalidCalculationInputError: If value is not finite
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -99,7 +109,18 @@ class PositionExposure:
     @field_validator("side", mode="after")
     @classmethod
     def validate_side_consistency(cls, v: str, info: ValidationInfo) -> str:
-        """Validate side consistency with net exposure."""
+        """Validate side consistency with net exposure.
+
+        Args:
+            v: Position side (LONG or SHORT)
+            info: Validation context with other field data
+
+        Returns:
+            Validated side value
+
+        Raises:
+            InvalidCalculationInputError: If side is inconsistent with net exposure
+        """
         if "net_exposure" in info.data:
             net = info.data["net_exposure"]
             if v == "LONG" and net < 0:
@@ -119,7 +140,17 @@ class PositionExposure:
     @field_validator("base_currency", "quote_currency", mode="before")
     @classmethod
     def validate_currency_codes(cls, v: str | None) -> str | None:
-        """Validate and normalize currency codes."""
+        """Validate and normalize currency codes.
+
+        Args:
+            v: Currency code to validate
+
+        Returns:
+            Normalized uppercase currency code or None
+
+        Raises:
+            InvalidCalculationInputError: If currency code is empty string
+        """
         if v is not None:
             if not v.strip():
                 raise InvalidCalculationInputError(
@@ -129,7 +160,11 @@ class PositionExposure:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            Dictionary representation with all exposure metrics
+        """
         return {
             "position_id": self.position_id,
             "exchange_id": self.exchange_id,
@@ -176,7 +211,17 @@ class PortfolioImpactMetrics:
     @field_validator("position_weight", "exposure_weight", "var_contribution", mode="before")
     @classmethod
     def validate_percentages(cls, v: float | str) -> float:
-        """Validate percentage values are finite."""
+        """Validate percentage values are finite.
+
+        Args:
+            v: Percentage value to validate
+
+        Returns:
+            Validated float percentage value
+
+        Raises:
+            InvalidCalculationInputError: If value is not finite or reasonable
+        """
         value: float = v if isinstance(v, (int, float)) else float(v)
         if not (REASONABLE_PERCENTAGE_MIN < value < REASONABLE_PERCENTAGE_MAX):
             raise InvalidCalculationInputError(
@@ -231,6 +276,13 @@ class PositionExposureCalculator:
 
         Returns:
             Position exposure metrics
+
+        Raises:
+            ValueError: If calculation inputs are invalid
+            TypeError: If input types are incorrect
+            KeyError: If required fields are missing
+            AttributeError: If required attributes are missing
+            ArithmeticError: If arithmetic operations fail
         """
         try:
             # Use provided volatility or default
@@ -342,7 +394,15 @@ class PositionExposureCalculator:
     def _calculate_liquidation_price(
         self, position: DerivativePosition, current_price: Decimal
     ) -> Decimal | None:
-        """Calculate estimated liquidation price."""
+        """Calculate estimated liquidation price.
+
+        Args:
+            position: The derivative position
+            current_price: Current market price
+
+        Returns:
+            Estimated liquidation price or None if not calculable
+        """
         if position.entry_price is None or position.size == 0:
             return None
 
@@ -367,7 +427,14 @@ class PositionExposureCalculator:
         return entry_price + (collateral_value / abs(position.size))
 
     def _parse_symbol_currencies(self, symbol: str) -> tuple[str | None, str | None]:
-        """Parse base and quote currencies from symbol."""
+        """Parse base and quote currencies from symbol.
+
+        Args:
+            symbol: Trading symbol to parse
+
+        Returns:
+            Tuple of (base_currency, quote_currency), either can be None
+        """
         # Common patterns:
         # BTC-PERP, ETH-PERP -> base currency only
         # BTC/USD, ETH/USDT -> base and quote

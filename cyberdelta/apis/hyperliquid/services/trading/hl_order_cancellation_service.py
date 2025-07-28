@@ -127,10 +127,6 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             CancelOrderResult containing detailed cancellation information
-
-        Raises:
-            APIError: If API request fails or order cancellation fails
-            ValueError: If order_id is not valid or symbol is missing
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_order"
@@ -147,9 +143,6 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects for all cancelled orders
-
-        Raises:
-            APIError: If operation fails
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_all_orders"
@@ -217,6 +210,13 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects
+            
+        Raises:
+            APIError: If API request fails.
+            TransformationError: If data transformation fails.
+            ValidationError: If validation fails.
+            ValueError: If arguments are invalid.
+            TypeError: If type validation fails.
         """
         self._validate_cancel_args_list(cancel_args, current_method)
 
@@ -254,6 +254,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
+            
+        Raises:
+            APIError: If response is invalid.
         """
         raw_content, http_status, _ = await self._http_requester(
             method="POST",
@@ -326,7 +329,8 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             Tuple of (validated symbol, validated order ID)
 
         Raises:
-            ValueError: If parameters are invalid
+            InvalidParameterTypeError: If symbol is None.
+            MissingRequiredParameterError: If order_id is None.
         """
         if not args.symbol:
             raise InvalidParameterTypeError(
@@ -386,6 +390,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             Validated cancellation request payload model
+            
+        Raises:
+            APIError: If asset index cannot be found for symbol.
         """
         # Convert (symbol, order_id) tuples to (asset_index, order_id) tuples
         # Convert to format expected by request builder: [(order_id, asset_index, symbol)]
@@ -421,6 +428,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of processed CancelOrderResult objects
+            
+        Raises:
+            APIError: If response is empty or invalid.
         """
         # Check for exchange-level errors
         check_error_response(raw_exchange_response, http_status, self._error_mapper)
@@ -458,6 +468,10 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List containing single processed CancelOrderResult object
+            
+        Raises:
+            EmptyResponseError: If response is empty.
+            ServiceParameterError: If response contains errors.
         """
         action_description = f"cancel order {cancel_args.order_id} ({cancel_args.symbol})"
 
@@ -509,6 +523,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of processed CancelOrderResult objects
+            
+        Raises:
+            APIError: If batch response validation fails.
         """
         # Extract the actual status list from the nested response structure
         response_data = raw_exchange_response.response_data
@@ -554,7 +571,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         """Validate prerequisites for cancel all orders operation.
 
         Raises:
-            ValueError: If prerequisites are not met
+            ServiceParameterError: If authentication is not configured.
         """
         # Check authentication
         if not self._authenticator:
@@ -638,6 +655,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Args:
             order_id: The invalid order ID
+            
+        Raises:
+            ServiceParameterError: Always raised with appropriate error message.
         """
         raise ServiceParameterError(
             parameter="order_id",
@@ -657,6 +677,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         Args:
             order_id: The invalid order ID
             original_error: The original ValueError from conversion
+            
+        Raises:
+            ServiceParameterError: Always raised with appropriate error message.
         """
         raise ServiceParameterError(
             parameter="order_id",

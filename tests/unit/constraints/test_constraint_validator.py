@@ -26,7 +26,11 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
-    """Create a test AppSettings instance with minimal required fields."""
+    """Create a test AppSettings instance with minimal required fields.
+    
+    Returns:
+        AppSettings: Test app settings with provided constraints config.
+    """
     return AppSettings.model_validate({
         "general": {"version": "1.0.0", "environment": "test", "debug": True},
         "exchanges": {},
@@ -70,18 +74,30 @@ class MockConstraintValidator:
 
     @property
     def name(self) -> str:
-        """Name of the constraint."""
+        """Name of the constraint.
+        
+        Returns:
+            str: The constraint name.
+        """
         return self._name
 
     @property
     def constraint_type(self) -> str:
-        """Type of constraint."""
+        """Type of constraint.
+        
+        Returns:
+            str: The constraint type.
+        """
         return self._constraint_type
 
     async def validate(
         self, opportunity: SizedOpportunity, context: ConstraintContext
     ) -> ConstraintResult:
-        """Mock constraint validation."""
+        """Mock constraint validation.
+        
+        Returns:
+            ConstraintResult: Mocked validation result based on configured behavior.
+        """
         self.validate_call_count += 1
 
         if self.delay_ms > 0:
@@ -124,7 +140,11 @@ class MockConstraintValidator:
         )
 
     def is_enabled(self) -> bool:
-        """Check if constraint is enabled."""
+        """Check if constraint is enabled.
+        
+        Returns:
+            bool: True if enabled, False otherwise.
+        """
         return self._enabled
 
     def enable(self) -> None:
@@ -138,7 +158,11 @@ class MockConstraintValidator:
 
 # Helper functions for creating test data
 def create_test_opportunity() -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity: Test BTC-PERP arbitrage opportunity.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="hyperliquid",
@@ -153,7 +177,11 @@ def create_test_opportunity() -> ArbitrageOpportunity:
 
 
 def create_test_sized_opportunity() -> SizedOpportunity:
-    """Create a test sized opportunity."""
+    """Create a test sized opportunity.
+    
+    Returns:
+        SizedOpportunity: Test sized opportunity with $1000 position size.
+    """
     opportunity = create_test_opportunity()
     sizing_result = SizingResult.success_result(
         position_size_usd=Decimal("1000.00"), allocation_percentage=Decimal("0.02")
@@ -169,7 +197,11 @@ def create_test_sized_opportunity() -> SizedOpportunity:
 
 
 def create_test_constraint_context() -> ConstraintContext:
-    """Create a test constraint context."""
+    """Create a test constraint context.
+    
+    Returns:
+        ConstraintContext: Test constraint context with $100k total capital.
+    """
     return ConstraintContext(
         total_capital=Decimal("100000.00"),
         available_capital=Decimal("80000.00"),

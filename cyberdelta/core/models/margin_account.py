@@ -75,7 +75,14 @@ class MarginAccountSummary(BaseModel):
     @field_validator("exchange", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty, reasonable length."""
+        """Validate required string fields are non-empty, reasonable length.
+        
+        Returns:
+            The validated string value.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")
@@ -88,7 +95,15 @@ class MarginAccountSummary(BaseModel):
         v: str | float | datetime,
         info: ValidationInfo,
     ) -> datetime:
-        """Parse required datetime, ensuring UTC."""
+        """Parse required datetime, ensuring UTC.
+        
+        Returns:
+            The parsed datetime in UTC timezone.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+            RequiredFieldNoneError: If datetime value is None or invalid.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")
@@ -109,7 +124,15 @@ class MarginAccountSummary(BaseModel):
         v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal, ensuring finite and non-negative."""
+        """Parse required decimal, ensuring finite and non-negative.
+        
+        Returns:
+            The parsed finite Decimal value.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+            DecimalFiniteError: If decimal value is not finite.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")
@@ -135,7 +158,15 @@ class MarginAccountSummary(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimals, allowing None but ensuring finite if present."""
+        """Parse optional decimals, allowing None but ensuring finite if present.
+        
+        Returns:
+            The parsed finite Decimal value or None if input is None or invalid.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+            DecimalFiniteError: If decimal value is not finite when provided.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")
@@ -186,7 +217,15 @@ class HyperliquidMarginDetails(BaseModel):
         v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal, ensuring finite and non-negative."""
+        """Parse required decimal, ensuring finite and non-negative.
+        
+        Returns:
+            The parsed finite Decimal value.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+            DecimalFiniteError: If decimal value is not finite.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")
@@ -311,7 +350,15 @@ class BackpackMarginDetails(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
+        """Parse optional decimal, ensuring finite if present.
+        
+        Returns:
+            The parsed finite Decimal value or None if input is None or invalid.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+            DecimalFiniteError: If decimal value is not finite when provided.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")
@@ -335,7 +382,14 @@ class BackpackMarginDetails(BaseModel):
     @field_validator("imf_raw", "mmf_raw", mode="before")
     @classmethod
     def validate_optional_string(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string field if present."""
+        """Validate optional string field if present.
+        
+        Returns:
+            The validated string value or None if input is None.
+            
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError("validation")

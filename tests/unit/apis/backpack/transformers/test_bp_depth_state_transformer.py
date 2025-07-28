@@ -225,13 +225,21 @@ class TestBackpackDepthStateTransformer:
 
     @pytest.fixture
     def transformer(self) -> BackpackDepthStateTransformer:
-        """Create a transformer instance for testing."""
+        """Create a transformer instance for testing.
+        
+        Returns:
+            BackpackDepthStateTransformer instance with mapper configured
+        """
         mapper = BackpackOrderBookMapper()
         return BackpackDepthStateTransformer(mapper)
 
     @pytest.fixture
     def mock_context(self) -> Mock:
-        """Create a mock context with symbol extraction capability."""
+        """Create a mock context with symbol extraction capability.
+        
+        Returns:
+            Mock WebSocketContextProtocol with symbol methods configured
+        """
         context = Mock(spec=WebSocketContextProtocol)
         context.get_symbol_param = Mock(return_value={"symbol": "BTC_USDC"})
         context.symbol = "BTC_USDC"

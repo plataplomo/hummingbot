@@ -449,7 +449,11 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
 
 @pytest.mark.asyncio
 def _setup_test_position(exchange_id: str, symbol: str) -> DerivativePosition:
-    """Create a test position."""
+    """Create a test position.
+    
+    Returns:
+        DerivativePosition: A test derivative position instance.
+    """
     return DerivativePosition(
         exchange=exchange_id,
         symbol=symbol,
@@ -483,7 +487,11 @@ def _check_hl_discrepancies(discrepancies: list[Any]) -> None:
 
 
 def _check_bp_discrepancies(discrepancies: list[Any]) -> None:
-    """Check discrepancies for Backpack exchange."""
+    """Check discrepancies for Backpack exchange.
+    
+    Raises:
+        AssertionError: If a discrepancy is not a HistoricalDiscrepancyRecord.
+    """
     for disc in discrepancies:
         assert isinstance(disc, HistoricalDiscrepancyRecord)
         if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":

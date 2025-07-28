@@ -235,6 +235,9 @@ class HyperliquidClearinghouseStateService:
 
         Args:
             status_code: HTTP status code
+
+        Raises:
+            APIError: Always raised for empty response
         """
         raise APIError(
             message="Empty response from clearinghouse state request",
@@ -248,6 +251,9 @@ class HyperliquidClearinghouseStateService:
         Args:
             raw_data: The invalid response data
             status_code: HTTP status code
+
+        Raises:
+            APIError: Always raised for invalid response type
         """
         raise APIError(
             code=APIErrorCode.INVALID_RESPONSE.value,

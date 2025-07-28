@@ -17,7 +17,11 @@ from cyberdelta.core.portfolio.exceptions import MalformedTradeError
 
 # Type-preserving factory function for tags dict
 def _str_str_dict_factory() -> dict[str, str]:
-    """Factory function that preserves dict[str, str] type information."""
+    """Factory function that preserves dict[str, str] type information.
+    
+    Returns:
+        dict[str, str]: Empty dictionary with preserved type information
+    """
     return {}
 
 
@@ -131,7 +135,14 @@ class EventMetadata:
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
-        """Validate timestamp is positive."""
+        """Validate timestamp is positive.
+        
+        Returns:
+            float: The validated timestamp
+            
+        Raises:
+            MalformedTradeError: If timestamp is not positive
+        """
         if v <= 0:
             raise MalformedTradeError(
                 message="Timestamp must be positive", field_name="timestamp", field_value=str(v)
@@ -141,7 +152,11 @@ class EventMetadata:
     @field_validator("exchange_id", "symbol", mode="before")
     @classmethod
     def validate_optional_strings(cls, v: str | None) -> str | None:
-        """Validate optional string fields, returning None for empty strings."""
+        """Validate optional string fields, returning None for empty strings.
+        
+        Returns:
+            str | None: The validated string, or None if empty/whitespace
+        """
         if v is not None and not v.strip():
             return None
         return v
@@ -149,7 +164,14 @@ class EventMetadata:
     @field_validator("retry_count", mode="before")
     @classmethod
     def validate_retry_count(cls, v: int) -> int:
-        """Validate retry count is non-negative."""
+        """Validate retry count is non-negative.
+        
+        Returns:
+            int: The validated retry count
+            
+        Raises:
+            MalformedTradeError: If retry count is negative
+        """
         if v < 0:
             raise MalformedTradeError(
                 message="Retry count cannot be negative",
@@ -159,7 +181,11 @@ class EventMetadata:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert metadata to dictionary."""
+        """Convert metadata to dictionary.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of metadata
+        """
         return {
             "event_id": str(self.event_id),
             "timestamp": self.timestamp,
@@ -213,7 +239,11 @@ class BasePortfolioEvent[T](ABC):
         return self.age > max_age_seconds
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert event to dictionary representation."""
+        """Convert event to dictionary representation.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the event
+        """
         return {
             "event_type": self.event_type.value,
             "data": self._serialize_data(),
@@ -228,7 +258,11 @@ class BasePortfolioEvent[T](ABC):
         """
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            str: Human-readable string representation of the event
+        """
         return (
             f"{self.__class__.__name__}("
             f"type={self.event_type.value}, "
@@ -260,7 +294,11 @@ class EventHandler[T](ABC):
         """
 
     def get_handler_name(self) -> str:
-        """Get handler name for logging."""
+        """Get handler name for logging.
+        
+        Returns:
+            str: The class name of the handler
+        """
         return self.__class__.__name__
 
 
@@ -291,7 +329,11 @@ class TypeEventFilter(EventFilter):
         self.allowed_types = allowed_types
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
-        """Check if event type is allowed."""
+        """Check if event type is allowed.
+        
+        Returns:
+            bool: True if event type is in allowed types
+        """
         return event.event_type in self.allowed_types
 
 
@@ -307,7 +349,11 @@ class PriorityEventFilter(EventFilter):
         self.min_priority = min_priority
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
-        """Check if event priority meets minimum."""
+        """Check if event priority meets minimum.
+        
+        Returns:
+            bool: True if event priority meets or exceeds minimum priority
+        """
         return event.metadata.priority.value >= self.min_priority.value
 
 
@@ -323,7 +369,11 @@ class ExchangeEventFilter(EventFilter):
         self.allowed_exchanges = allowed_exchanges
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
-        """Check if event is from allowed exchange."""
+        """Check if event is from allowed exchange.
+        
+        Returns:
+            bool: True if event exchange is allowed or None
+        """
         if event.metadata.exchange_id is None:
             return True  # Allow events without exchange ID
         return event.metadata.exchange_id in self.allowed_exchanges
@@ -341,7 +391,11 @@ class CompositeEventFilter(EventFilter):
         self.filters = filters
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
-        """Check if all filters pass."""
+        """Check if all filters pass.
+        
+        Returns:
+            bool: True if all filters allow the event to be processed
+        """
         return all(f.should_process(event) for f in self.filters)
 
     def add_filter(self, event_filter: EventFilter) -> None:

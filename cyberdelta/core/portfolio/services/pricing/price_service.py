@@ -186,7 +186,15 @@ class PriceDataService:
     async def _get_batch_prices_raw(
         self, symbols: list[str], exchange_id: str | None
     ) -> dict[str, Decimal]:
-        """Get raw prices from cache and API."""
+        """Get raw prices from cache and API.
+
+        Args:
+            symbols: List of trading symbols to fetch prices for
+            exchange_id: Optional specific exchange ID
+
+        Returns:
+            dict[str, Decimal]: Dictionary mapping symbols to their raw prices
+        """
         result: dict[str, Decimal] = {}
         cache_hits, cache_misses = await self._check_price_cache(symbols, exchange_id)
 
@@ -203,7 +211,17 @@ class PriceDataService:
     async def _check_price_cache(
         self, symbols: list[str], exchange_id: str | None
     ) -> tuple[dict[str, Decimal], list[str]]:
-        """Check cache for symbol prices."""
+        """Check cache for symbol prices.
+
+        Args:
+            symbols: List of trading symbols to check in cache
+            exchange_id: Optional specific exchange ID
+
+        Returns:
+            tuple[dict[str, Decimal], list[str]]: Tuple of (cache_hits, cache_misses)
+                where cache_hits maps symbols to cached prices and cache_misses
+                contains symbols not found in cache
+        """
         cache_hits: dict[str, Decimal] = {}
         cache_misses: list[str] = []
 
@@ -231,7 +249,15 @@ class PriceDataService:
     async def _fetch_and_cache_prices(
         self, symbols: list[str], exchange_id: str | None
     ) -> dict[str, Decimal]:
-        """Fetch prices from API and cache them."""
+        """Fetch prices from API and cache them.
+
+        Args:
+            symbols: List of trading symbols to fetch from API
+            exchange_id: Optional specific exchange ID
+
+        Returns:
+            dict[str, Decimal]: Dictionary mapping symbols to fetched prices
+        """
         result: dict[str, Decimal] = {}
 
         try:
@@ -258,7 +284,16 @@ class PriceDataService:
     async def _convert_batch_currencies(
         self, prices: dict[str, Decimal], target_currency: str, exchange_id: str | None
     ) -> dict[str, Decimal]:
-        """Convert batch prices to target currency."""
+        """Convert batch prices to target currency.
+
+        Args:
+            prices: Dictionary of symbols to prices to convert
+            target_currency: Currency to convert all prices to
+            exchange_id: Optional specific exchange ID
+
+        Returns:
+            dict[str, Decimal]: Dictionary mapping symbols to converted prices
+        """
         converted_result: dict[str, Decimal] = {}
 
         for symbol, price in prices.items():
@@ -307,7 +342,14 @@ class PriceDataService:
         return self._get_mock_price_for_symbol(symbol)
 
     def _get_mock_price_for_symbol(self, symbol: str) -> Decimal:
-        """Get a mock price for a symbol to make testing more realistic."""
+        """Get a mock price for a symbol to make testing more realistic.
+
+        Args:
+            symbol: Trading symbol to get mock price for
+
+        Returns:
+            Decimal: Mock price for the symbol based on known currency mappings
+        """
         symbol_upper = symbol.upper()
 
         # Mock prices for common symbols
@@ -329,7 +371,15 @@ class PriceDataService:
         return Decimal("1.00")
 
     def _get_conversion_rate(self, from_currency: str, to_currency: str) -> Decimal:
-        """Get simplified conversion rate between currencies."""
+        """Get simplified conversion rate between currencies.
+
+        Args:
+            from_currency: Source currency code
+            to_currency: Target currency code
+
+        Returns:
+            Decimal: Conversion rate to multiply source amount by
+        """
         if from_currency == to_currency:
             return Decimal("1.00")
 

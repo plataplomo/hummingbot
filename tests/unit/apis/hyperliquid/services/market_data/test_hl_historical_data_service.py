@@ -50,25 +50,41 @@ from cyberdelta.core.models.market.candle import Candle
 
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
-    """Create a mock HTTP requester."""
+    """Create a mock HTTP requester.
+    
+    Returns:
+        AsyncMock instance for HTTP request testing.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> Mock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        Mock instance configured as HyperliquidMarketDataRequestBuilder.
+    """
     return MagicMock(spec=HyperliquidMarketDataRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> Mock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        Mock instance configured as HyperliquidResponseHandler.
+    """
     return MagicMock(spec=HyperliquidResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> Mock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        Mock instance configured as HyperliquidHistoricalDataMapper.
+    """
     return MagicMock(spec=HyperliquidHistoricalDataMapper)
 
 
@@ -79,7 +95,17 @@ def historical_data_service(
     mock_response_handler: Mock,
     mock_mapper: Mock,
 ) -> HyperliquidHistoricalDataService:
-    """Create a historical data service instance with mocks."""
+    """Create a historical data service instance with mocks.
+    
+    Args:
+        mock_http_requester: Mock HTTP requester for API calls.
+        mock_request_builder: Mock request builder for payload construction.
+        mock_response_handler: Mock response handler for parsing responses.
+        mock_mapper: Mock mapper for data transformation.
+        
+    Returns:
+        HyperliquidHistoricalDataService instance configured with all mocks.
+    """
     return HyperliquidHistoricalDataService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -91,7 +117,11 @@ def historical_data_service(
 
 @pytest.fixture
 def mock_asset_ctx() -> HyperliquidRawAssetCtx:
-    """Create a mock asset context with funding rate."""
+    """Create a mock asset context with funding rate.
+    
+    Returns:
+        HyperliquidRawAssetCtx instance with sample BTC data.
+    """
     return HyperliquidRawAssetCtx(
         funding="0.0001",
         markPx="3500.00",
@@ -112,7 +142,14 @@ def mock_asset_ctx() -> HyperliquidRawAssetCtx:
 def mock_meta_and_asset_ctxs_response(
     mock_asset_ctx: HyperliquidRawAssetCtx,
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
-    """Create a mock meta and asset contexts response."""
+    """Create a mock meta and asset contexts response.
+    
+    Args:
+        mock_asset_ctx: Mock asset context to include in response
+        
+    Returns:
+        HyperliquidRawMetaAndAssetCtxsResponse with sample data
+    """
     # Use proper tuple format that model expects
     return HyperliquidRawMetaAndAssetCtxsResponse.model_validate([
         {  # meta dict
@@ -158,7 +195,11 @@ def mock_meta_and_asset_ctxs_response(
 
 @pytest.fixture
 def mock_funding_rate() -> FundingRate:
-    """Create a mock funding rate."""
+    """Create a mock funding rate.
+    
+    Returns:
+        FundingRate instance with sample ETH funding data.
+    """
     return FundingRate(
         symbol="ETH",
         funding_rate=Decimal("0.0001"),
@@ -170,7 +211,11 @@ def mock_funding_rate() -> FundingRate:
 
 @pytest.fixture
 def mock_historical_funding_item() -> HyperliquidRawFundingHistoryItem:
-    """Create a mock historical funding rate item."""
+    """Create a mock historical funding rate item.
+    
+    Returns:
+        HyperliquidRawFundingHistoryItem with sample ETH historical funding data.
+    """
     return HyperliquidRawFundingHistoryItem(
         coin="ETH",
         fundingRate="0.0001",
@@ -181,7 +226,11 @@ def mock_historical_funding_item() -> HyperliquidRawFundingHistoryItem:
 
 @pytest.fixture
 def mock_candle_snapshot() -> HyperliquidRawCandleSnapshot:
-    """Create a mock candle snapshot."""
+    """Create a mock candle snapshot.
+    
+    Returns:
+        HyperliquidRawCandleSnapshot with sample OHLCV data for two periods.
+    """
     return HyperliquidRawCandleSnapshot(
         t=[1704067200000, 1704070800000],  # Timestamps
         o=["64000.00", "64500.00"],  # Open prices
@@ -195,7 +244,11 @@ def mock_candle_snapshot() -> HyperliquidRawCandleSnapshot:
 
 @pytest.fixture
 def mock_candle() -> Candle:
-    """Create a mock candle."""
+    """Create a mock candle.
+    
+    Returns:
+        Candle instance with sample BTC OHLCV data.
+    """
     return Candle(
         symbol="BTC",
         interval="1h",

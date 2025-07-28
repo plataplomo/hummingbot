@@ -58,9 +58,6 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
             *args: Positional arguments
             **kwargs: Keyword arguments including 'operation' to specify the request type
 
-        Returns:
-            Request payload dictionary
-
         Raises:
             NotImplementedError: If operation is not supported or parameters are insufficient
         """
@@ -285,6 +282,9 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
         Returns:
             BackpackRawGetMarketDataParams: Validated query parameters
+
+        Raises:
+            MissingRequiredParameterError: If interval is not valid
         """
         logger.debug(
             "building_get_market_data_params",

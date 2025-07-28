@@ -25,7 +25,19 @@ class MyClass:
 
     @staticmethod
     def process(data: Mapping[str, Any]) -> str:
-        """Process data and return result."""
+        """Process data and return result.
+
+        Args:
+            data: Input data mapping to process
+
+        Returns:
+            str: Processed result string
+
+        Raises:
+            KeyError: If 'key' is missing from data
+            ValueError: If 'key' is None or 'number' is negative
+            TypeError: If 'number' is not an integer
+        """
         if "key" not in data:
             raise KeyError("key")
         if data.get("key") is None:
@@ -39,7 +51,17 @@ class MyClass:
 
     @staticmethod
     def process_single(value: str | float) -> str | int | float:
-        """Process single value."""
+        """Process single value.
+
+        Args:
+            value: Value to process
+
+        Returns:
+            str | int | float: The processed value
+
+        Raises:
+            ValueError: If value is the string 'error'
+        """
         if isinstance(value, str) and value == "error":
             raise ValueError("Invalid value")
         return value
@@ -49,6 +71,12 @@ class MyClass:
 
         Args:
             _data: Input data (unused in this template example)
+
+        Returns:
+            dict[str, Any]: Result from dependency fetch operation
+
+        Raises:
+            ServiceError: If no dependency is configured or dependency is unavailable
         """
         if self.dependency is None:
             raise ServiceError("No dependency configured")
@@ -60,7 +88,17 @@ class MyClass:
             return result
 
     def process_instance(self, data: Mapping[str, Any]) -> str:
-        """Instance method that checks internal state."""
+        """Instance method that checks internal state.
+
+        Args:
+            data: Input data mapping to process
+
+        Returns:
+            str: Processed result string
+
+        Raises:
+            RuntimeError: If internal state is invalid
+        """
         if self._internal_state != "valid":
             raise RuntimeError("Invalid state")
         return self.process(data)
@@ -271,7 +309,11 @@ class TestMyComponentIntegration:
 
     @pytest.fixture
     def mock_dependency(self) -> Mock:
-        """Mock external dependency."""
+        """Mock external dependency.
+
+        Returns:
+            Mock: Mock object for external dependency
+        """
         return Mock()
 
     def test_integration_with_dependency_success(self, mock_dependency: Mock) -> None:

@@ -49,8 +49,11 @@ async def save_state(self: PortfolioTracker, state_file_path: str | None = None)
                         uses default from config.
 
     Raises:
-        IOError: If unable to write to the state file.
-        Exception: For other errors during state serialization.
+        ValueError: If portfolio state data is invalid during serialization
+        TypeError: If data types are incompatible during serialization
+        KeyError: If required keys are missing from portfolio state
+        AttributeError: If required portfolio attributes are missing
+        ArithmeticError: If arithmetic operations fail during state processing
     """
     try:
         logger.info("Starting async portfolio state save...")

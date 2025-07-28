@@ -203,7 +203,7 @@ def extract_symbol_from_context(context: WebSocketContextProtocol) -> dict[str, 
         Dictionary with symbol parameter for mapper method
 
     Raises:
-        KeyError: If symbol is not found in context
+        SymbolNotFoundError: If symbol is not found in context
     """
     # Use the Protocol method for exchange-agnostic extraction
     symbol_param = context.get_symbol_param()
@@ -226,7 +226,7 @@ def extract_coin_from_context(context: WebSocketContextProtocol) -> dict[str, st
         Dictionary with coin parameter for mapper method
 
     Raises:
-        KeyError: If coin is not found in context
+        CoinNotFoundError: If coin is not found in context
     """
     # Use the Protocol method for exchange-agnostic extraction
     coin_param = context.get_coin_param()

@@ -111,7 +111,7 @@ class DerivativePosition(BaseModel):
             Validated string value
 
         Raises:
-            ValueError: If field name is None or string validation fails
+            FieldNameMissingError: If field name is None
         """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
@@ -134,7 +134,7 @@ class DerivativePosition(BaseModel):
             Validated string value or None if not provided
 
         Raises:
-            ValueError: If field name is None or string validation fails
+            FieldNameMissingError: If field name is None
         """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
@@ -156,7 +156,20 @@ class DerivativePosition(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal ('size'), ensuring finite."""
+        """Parse required decimal ('size'), ensuring finite.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field information
+
+        Returns:
+            Parsed finite decimal value
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            RequiredFieldNoneError: If parsed value is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
@@ -184,7 +197,19 @@ class DerivativePosition(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimals, ensuring finite if present."""
+        """Parse optional decimals, ensuring finite if present.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field information
+
+        Returns:
+            Parsed finite decimal value or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
@@ -202,7 +227,19 @@ class DerivativePosition(BaseModel):
         v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime:
-        """Parse required datetime, ensuring UTC."""
+        """Parse required datetime, ensuring UTC.
+
+        Args:
+            v: The value to parse (string, float, datetime, or None)
+            info: Validation context containing field information
+
+        Returns:
+            Parsed UTC datetime
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            RequiredFieldNoneError: If parsed datetime is None
+        """
         # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
         field_name = info.field_name
         if field_name is None:
@@ -216,21 +253,33 @@ class DerivativePosition(BaseModel):
     # --- Instance Methods ---
 
     def is_active(self) -> bool:
-        """Check if the position has a non-zero size."""
+        """Check if the position has a non-zero size.
+
+        Returns:
+            True if position size is non-zero, False otherwise
+        """
         return self.size != Decimal(0)
 
     # --- Model Validators ---
 
     @model_validator(mode="after")
     def check_position_logic(self) -> Self:
-        """Validate cross-field consistency (entry_price, side/size, details slots)."""
+        """Validate cross-field consistency (entry_price, side/size, details slots).
+
+        Returns:
+            Self instance after validation
+        """
         self._validate_entry_price_logic()
         self._validate_side_size_logic()
         self._validate_extension_slot_consistency()
         return self
 
     def _validate_entry_price_logic(self) -> None:
-        """Validate entry price consistency with position size."""
+        """Validate entry price consistency with position size.
+
+        Raises:
+            PositionLogicError: If entry price logic is inconsistent with position size
+        """
         if self.size != Decimal(0):
             if self.entry_price is None:
                 raise PositionLogicError(
@@ -255,7 +304,11 @@ class DerivativePosition(BaseModel):
             )
 
     def _validate_side_size_logic(self) -> None:
-        """Validate side consistency with position size."""
+        """Validate side consistency with position size.
+
+        Raises:
+            PositionLogicError: If side is inconsistent with position size
+        """
         if self.size > Decimal(0) and self.side != OrderSide.BUY:
             raise PositionLogicError(
                 "side_size_consistency",
@@ -272,7 +325,11 @@ class DerivativePosition(BaseModel):
             )
 
     def _validate_extension_slot_consistency(self) -> None:
-        """Validate exchange-specific details consistency (Idea 5)."""
+        """Validate exchange-specific details consistency (Idea 5).
+
+        Raises:
+            PositionLogicError: If exchange-specific details are inconsistent
+        """
         known_exchanges_with_details = {"hyperliquid", "backpack"}
 
         if self.exchange == "hyperliquid" and self.bp_details is not None:
@@ -323,7 +380,18 @@ class HyperliquidPositionDetails(BaseModel):
     @field_validator("leverage_type", mode="before")
     @classmethod
     def validate_leverage_type(cls, v: object, info: ValidationInfo) -> str:
-        """Validate leverage_type is 'cross' or 'isolated'."""
+        """Validate leverage_type is 'cross' or 'isolated'.
+
+        Args:
+            v: The value to validate
+            info: Validation context containing field information
+
+        Returns:
+            Validated leverage type string
+
+        Raises:
+            FieldNameMissingError: If validation fails due to field errors
+        """
         field_name = info.field_name or "leverage_type"
         allowed_values: set[str] = {"cross", "isolated"}
         try:
@@ -336,7 +404,20 @@ class HyperliquidPositionDetails(BaseModel):
     @field_validator("leverage_value", "max_leverage", mode="before")
     @classmethod
     def validate_leverage_int(cls, v: object, info: ValidationInfo) -> int:
-        """Validate leverage values are non-negative integers."""
+        """Validate leverage values are non-negative integers.
+
+        Args:
+            v: The value to validate
+            info: Validation context containing field information
+
+        Returns:
+            Validated non-negative integer
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            TypeFieldError: If value is not an integer
+            RequiredFieldNoneError: If value is negative
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -353,7 +434,19 @@ class HyperliquidPositionDetails(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
+        """Parse optional decimal, ensuring finite if present.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field information
+
+        Returns:
+            Parsed finite decimal value or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -392,7 +485,19 @@ class BackpackPositionDetails(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
+        """Parse optional decimal, ensuring finite if present.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field information
+
+        Returns:
+            Parsed finite decimal value or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError

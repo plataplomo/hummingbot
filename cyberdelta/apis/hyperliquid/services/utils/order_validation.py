@@ -27,9 +27,6 @@ def validate_place_order_params(args: PlaceOrderArgs, current_method: str) -> No
     Args:
         args: Order placement parameters
         current_method: Name of calling method for error context
-
-    Raises:
-        ValueError: If order parameters are invalid for Hyperliquid
     """
     _validate_order_type(args.order_type, current_method)
     _validate_time_in_force(args.time_in_force, current_method)
@@ -116,7 +113,7 @@ def map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:
         Hyperliquid-compatible time in force string
 
     Raises:
-        ValueError: If time in force is not supported
+        InvalidEnumValueError: If time in force is not supported
     """
     mapping = {
         TimeInForce.GTC: "Gtc",
@@ -137,7 +134,11 @@ def map_time_in_force_to_hyperliquid(tif: TimeInForce) -> str:
 
 
 def _validate_order_type(order_type: OrderType, current_method: str) -> None:
-    """Validate that order type is supported by Hyperliquid."""
+    """Validate that order type is supported by Hyperliquid.
+
+    Raises:
+        ValueError: If order type is not supported by Hyperliquid
+    """
     supported_order_types = [
         OrderType.LIMIT,
         OrderType.MARKET,
@@ -161,7 +162,11 @@ def _validate_order_type(order_type: OrderType, current_method: str) -> None:
 
 
 def _validate_time_in_force(tif: TimeInForce, current_method: str) -> None:
-    """Validate that time in force is supported by Hyperliquid."""
+    """Validate that time in force is supported by Hyperliquid.
+
+    Raises:
+        ValueError: If time in force is not supported by Hyperliquid
+    """
     if tif == TimeInForce.FOK:
         error_msg = (
             f"[{current_method}] TimeInForce FOK is not supported by Hyperliquid. "
@@ -172,7 +177,11 @@ def _validate_time_in_force(tif: TimeInForce, current_method: str) -> None:
 
 
 def _validate_price_requirements(args: PlaceOrderArgs, current_method: str) -> None:
-    """Validate price requirements for different order types."""
+    """Validate price requirements for different order types.
+
+    Raises:
+        ValueError: If price requirements are not met
+    """
     if args.order_type in {OrderType.LIMIT, OrderType.STOP_LIMIT} and args.price is None:
         error_msg = f"[{current_method}] Price is required for {args.order_type.value} orders"
         logger.error("missing_price", method=current_method, order_type=args.order_type.value)
@@ -185,7 +194,11 @@ def _validate_price_requirements(args: PlaceOrderArgs, current_method: str) -> N
 
 
 def _validate_stop_price_requirements(args: PlaceOrderArgs, current_method: str) -> None:
-    """Validate stop price requirements for stop orders."""
+    """Validate stop price requirements for stop orders.
+
+    Raises:
+        ValueError: If stop price requirements are not met
+    """
     if args.order_type in {OrderType.STOP_MARKET, OrderType.STOP_LIMIT} and args.stop_price is None:
         error_msg = f"[{current_method}] Stop price is required for {args.order_type.value} orders"
         logger.error("missing_stop_price", method=current_method, order_type=args.order_type.value)
@@ -198,7 +211,11 @@ def _validate_stop_price_requirements(args: PlaceOrderArgs, current_method: str)
 
 
 def _validate_quantity_precision(quantity: Decimal, current_method: str) -> None:
-    """Validate quantity precision and bounds."""
+    """Validate quantity precision and bounds.
+
+    Raises:
+        ValueError: If quantity is invalid
+    """
     if quantity <= Decimal(0):
         error_msg = f"[{current_method}] Quantity must be positive, got: {quantity}"
         logger.error("invalid_quantity", method=current_method, quantity=str(quantity))

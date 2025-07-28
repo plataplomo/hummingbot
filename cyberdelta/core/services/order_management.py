@@ -96,7 +96,14 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         return await self._execute_order_with_retries(request, api_client)
 
     def _check_circuit_breaker(self, exchange_id: str) -> ExecutionResult | None:
-        """Check circuit breaker and return error result if tripped."""
+        """Check circuit breaker and return error result if tripped.
+        
+        Args:
+            exchange_id: Exchange identifier to check
+            
+        Returns:
+            ExecutionResult with error if circuit breaker is tripped, None otherwise
+        """
         if not self.circuit_breaker:
             return None
 
@@ -120,7 +127,15 @@ class OrderManagementService(BaseAsyncService, IOrderService):
     async def _execute_order_with_retries(
         self, request: OrderRequest, api_client: ExchangeAPI
     ) -> ExecutionResult:
-        """Execute order placement with retry logic."""
+        """Execute order placement with retry logic.
+        
+        Args:
+            request: Order placement request
+            api_client: Exchange API client
+            
+        Returns:
+            ExecutionResult with order information or error details
+        """
         start_time = time.time()
         last_exception = None
 
@@ -152,7 +167,17 @@ class OrderManagementService(BaseAsyncService, IOrderService):
     async def _attempt_order_placement(
         self, request: OrderRequest, api_client: ExchangeAPI, attempt: int, start_time: float
     ) -> ExecutionResult | None:
-        """Attempt a single order placement."""
+        """Attempt a single order placement.
+        
+        Args:
+            request: Order placement request
+            api_client: Exchange API client
+            attempt: Current attempt number
+            start_time: Start time of the operation
+            
+        Returns:
+            ExecutionResult with order information if successful, None if failed
+        """
         self.logger.info(
             "Placing order",
             exchange_id=request.exchange_id,
@@ -186,7 +211,16 @@ class OrderManagementService(BaseAsyncService, IOrderService):
     async def _handle_api_error_retry(
         self, error: APIError, request: OrderRequest, attempt: int
     ) -> ExecutionResult | None:
-        """Handle API error and determine if retry should occur."""
+        """Handle API error and determine if retry should occur.
+        
+        Args:
+            error: The API error that occurred
+            request: Order placement request
+            attempt: Current attempt number
+            
+        Returns:
+            ExecutionResult with error details if no retry should occur, None to continue retrying
+        """
         self.logger.warning(
             "Order placement failed",
             exchange_id=request.exchange_id,
@@ -218,7 +252,15 @@ class OrderManagementService(BaseAsyncService, IOrderService):
     async def _handle_retries_exhausted(
         self, last_exception: Exception | None, exchange_id: str
     ) -> ExecutionResult:
-        """Handle the case when all retries are exhausted."""
+        """Handle the case when all retries are exhausted.
+        
+        Args:
+            last_exception: The last exception that occurred
+            exchange_id: Exchange identifier
+            
+        Returns:
+            ExecutionResult with error details for exhausted retries
+        """
         if isinstance(last_exception, APIError):
             return await self.error_handler.handle_api_error(
                 last_exception, "order placement (retries exhausted)", exchange_id
@@ -436,9 +478,6 @@ class OrderManagementService(BaseAsyncService, IOrderService):
 
         Returns:
             Order object from successful placement
-
-        Raises:
-            APIError: If order placement fails
         """
         # Prepare order arguments based on the API client interface
         order_args = {
@@ -539,9 +578,6 @@ class OrderManagementService(BaseAsyncService, IOrderService):
 
         Returns:
             True if cancellation was successful
-
-        Raises:
-            APIError: If cancellation fails
         """
         # Prepare arguments for cancellation
         args = {"order_id": order_id}

@@ -39,7 +39,11 @@ Mapper = HyperliquidMarketMetadataMapper
 
 @pytest.fixture
 def mapper() -> HyperliquidMarketMetadataMapper:
-    """Provide an instance of HyperliquidMarketMetadataMapper."""
+    """Provide an instance of HyperliquidMarketMetadataMapper.
+    
+    Returns:
+        HyperliquidMarketMetadataMapper instance for testing.
+    """
     return HyperliquidMarketMetadataMapper()
 
 
@@ -49,7 +53,11 @@ def create_asset_definition(
     only_isolated: bool = False,
     sz_decimals: int = 4,
 ) -> HyperliquidRawAssetDefinition:
-    """Create a HyperliquidRawAssetDefinition for testing."""
+    """Create a HyperliquidRawAssetDefinition for testing.
+    
+    Returns:
+        HyperliquidRawAssetDefinition with specified or default values.
+    """
     return HyperliquidRawAssetDefinition(
         name=name,
         szDecimals=sz_decimals,
@@ -68,7 +76,11 @@ def create_asset_ctx(
     day_ntl_vlm: str = "50000000.00",
     impact_px: str | None = "3000.25",
 ) -> HyperliquidRawAssetCtx:
-    """Create a HyperliquidRawAssetCtx for testing."""
+    """Create a HyperliquidRawAssetCtx for testing.
+    
+    Returns:
+        HyperliquidRawAssetCtx with specified or default values.
+    """
     return HyperliquidRawAssetCtx(
         name=name,
         funding=funding,
@@ -89,7 +101,11 @@ def create_meta_and_asset_ctxs_response(
     asset_definitions: list[HyperliquidRawAssetDefinition] | None = None,
     asset_ctxs: list[HyperliquidRawAssetCtx] | None = None,
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
-    """Create a HyperliquidRawMetaAndAssetCtxsResponse for testing."""
+    """Create a HyperliquidRawMetaAndAssetCtxsResponse for testing.
+    
+    Returns:
+        HyperliquidRawMetaAndAssetCtxsResponse with test data.
+    """
     if asset_definitions is None:
         asset_definitions = [
             create_asset_definition("ETH-PERP"),

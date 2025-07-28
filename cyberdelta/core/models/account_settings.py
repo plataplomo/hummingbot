@@ -74,7 +74,7 @@ class AccountSettings(BaseModel):
         """Update leverage limit with validation.
 
         Raises:
-            ValueError: If leverage limit is not finite or less than 1.
+            DecimalFiniteError: If leverage limit is not finite or less than 1.
         """
         if new_limit is not None:
             parsed = parse_decimal_value(new_limit, field_name="leverage_limit", allow_none=False)
@@ -173,7 +173,14 @@ class BackpackAccountSettingsDetails(BaseModel):
     @field_validator("leverage_limit_raw", mode="before")
     @classmethod
     def validate_optional_string(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string field if present."""
+        """Validate optional string field if present.
+
+        Returns:
+            Validated string value or None if input is None.
+
+        Raises:
+            FieldNameMissingError: If field name is missing from validation info.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError(context="BackpackAccountSettingsDetails validation")

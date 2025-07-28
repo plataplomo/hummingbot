@@ -105,7 +105,11 @@ class TestSmartSymbolGenerator:
 
     @pytest.fixture
     def smart_config(self) -> SmartSymbolsConfig:
-        """Create test smart configuration."""
+        """Create test smart configuration.
+        
+        Returns:
+            SmartSymbolsConfig: A smart symbols configuration for testing.
+        """
         return SmartSymbolsConfig(
             list=["BTC", "ETH"],
             patterns=SymbolPatterns(

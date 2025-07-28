@@ -34,7 +34,11 @@ class TransferArgs(BaseModel):
     @field_validator("asset", "from_account_type", "to_account_type", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty with max length 64."""
+        """Validate required string fields are non-empty with max length 64.
+        
+        Returns:
+            Validated string value.
+        """
         return validate_api_str_field(
             v,
             field_name=str(info.field_name),
@@ -45,7 +49,11 @@ class TransferArgs(BaseModel):
     @field_validator("client_transfer_id", mode="before")
     @classmethod
     def validate_optional_string(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string fields."""
+        """Validate optional string fields.
+        
+        Returns:
+            Validated string value or None if input was None.
+        """
         if v is None:
             return None
         return validate_api_str_field(
@@ -58,7 +66,15 @@ class TransferArgs(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def parse_amount_decimal(cls, v: PotentialDecimalInput, info: ValidationInfo) -> Decimal:
-        """Parse and validate amount as a positive finite decimal."""
+        """Parse and validate amount as a positive finite decimal.
+        
+        Returns:
+            Parsed and validated Decimal value.
+            
+        Raises:
+            TypeFieldError: If input is not a valid decimal type.
+            DecimalFieldError: If value is not finite or cannot be parsed.
+        """
         field_name = str(info.field_name)
 
         # Use TypeGuard for better type safety
@@ -81,7 +97,14 @@ class TransferArgs(BaseModel):
 
     @model_validator(mode="after")
     def check_account_types_differ(self) -> "TransferArgs":
-        """Ensure from and to account types are different."""
+        """Ensure from and to account types are different.
+        
+        Returns:
+            Self for method chaining.
+            
+        Raises:
+            TransferAccountError: If from and to account types are the same.
+        """
         if self.from_account_type == self.to_account_type:
             raise TransferAccountError(
                 from_account=self.from_account_type,
@@ -112,7 +135,11 @@ class WithdrawArgs(BaseModel):
     @field_validator("asset", "address", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields."""
+        """Validate required string fields.
+        
+        Returns:
+            Validated string value.
+        """
         return validate_api_str_field(
             v,
             field_name=str(info.field_name),
@@ -123,7 +150,11 @@ class WithdrawArgs(BaseModel):
     @field_validator("network", "tag", "client_withdrawal_id", "two_factor_token", mode="before")
     @classmethod
     def validate_optional_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string fields."""
+        """Validate optional string fields.
+        
+        Returns:
+            Validated string value or None if input was None.
+        """
         if v is None:
             return None
         # Shorter max_length for network/tag unless specific exchanges require longer
@@ -137,7 +168,15 @@ class WithdrawArgs(BaseModel):
     @field_validator("amount", mode="before")
     @classmethod
     def parse_amount_decimal(cls, v: PotentialDecimalInput, info: ValidationInfo) -> Decimal:
-        """Parse and validate amount as a positive finite decimal."""
+        """Parse and validate amount as a positive finite decimal.
+        
+        Returns:
+            Parsed and validated Decimal value.
+            
+        Raises:
+            TypeFieldError: If input is not a valid decimal type.
+            DecimalFieldError: If value is not finite or cannot be parsed.
+        """
         field_name = str(info.field_name)
 
         # Use TypeGuard for better type safety

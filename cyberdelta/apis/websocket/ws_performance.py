@@ -227,11 +227,19 @@ class OptimizedProcessor[T: BaseModel]:
         self.validation_cache: dict[str, T] = {}
 
     def _get_cache_key(self, payload: dict[str, Any]) -> str:
-        """Generate cache key for payload."""
+        """Generate cache key for payload.
+        
+        Returns:
+            String hash key for the payload.
+        """
         return str(hash(str(sorted(payload.items()))))
 
     def _check_cache(self, payload: dict[str, Any]) -> T | None:
-        """Check if payload is in cache."""
+        """Check if payload is in cache.
+        
+        Returns:
+            Cached validated model if found, None otherwise.
+        """
         if not self.config.enable_memory_optimization:
             return None
         cache_key = self._get_cache_key(payload)
@@ -247,7 +255,11 @@ class OptimizedProcessor[T: BaseModel]:
             self.validation_cache[cache_key] = validated
 
     def _validate_with_msgspec(self, payload: dict[str, Any]) -> T | None:
-        """Try to validate using msgspec."""
+        """Try to validate using msgspec.
+        
+        Returns:
+            Validated model if msgspec validation succeeds, None if it fails.
+        """
         if not (self.msgspec_available and self.msgspec_encoder and self.msgspec_decoder):
             return None
 
@@ -261,7 +273,14 @@ class OptimizedProcessor[T: BaseModel]:
             return None
 
     def _validate_with_pydantic(self, payload: dict[str, Any]) -> T:
-        """Validate using Pydantic with error conversion."""
+        """Validate using Pydantic with error conversion.
+        
+        Returns:
+            Validated Pydantic model instance.
+            
+        Raises:
+            ValidationError: If Pydantic validation fails.
+        """
         try:
             return self.raw_model.model_validate(payload)
         except Exception as e:
@@ -289,9 +308,6 @@ class OptimizedProcessor[T: BaseModel]:
 
         Returns:
             Validated model instance.
-
-        Raises:
-            ValidationError: If validation fails.
         """
         start_time = time.perf_counter()
         method = "unknown"

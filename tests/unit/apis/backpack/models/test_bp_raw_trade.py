@@ -494,7 +494,15 @@ def test_BackpackRawFillResponse_invalid_types() -> None:
 
 
 def test_BackpackRawFillResponse_invalid_formats_and_values() -> None:
-    """Test that invalid formats and values raise ValidationError."""
+    """Test that invalid formats and values raise ValidationError.
+
+    Raises:
+        ValidationError: For various validation failures
+        TypeError: For type mismatches
+        EmptyStringError: For empty string fields
+        DateTimeParsingError: For invalid datetime formats
+        TypeFieldError: For type field validation errors
+    """
     invalid_cases = [
         ("fee", ""),  # Empty string
         ("fee", "  "),  # Whitespace string

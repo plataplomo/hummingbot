@@ -23,7 +23,11 @@ class TestHyperliquidRateLimitStrategy:
 
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
-        """Create a mock Hyperliquid configuration."""
+        """Create a mock Hyperliquid configuration.
+        
+        Returns:
+            Mock ExchangeSpecificConfig with Hyperliquid-specific settings
+        """
         config = Mock(spec=ExchangeSpecificConfig)
         config.exchange_name = ExchangeName.HYPERLIQUID
         config.ip_weight_limit_per_minute = 1200
@@ -273,7 +277,11 @@ class TestHyperliquidRateLimitStrategyIntegration:
 
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
-        """Create a minimal real configuration."""
+        """Create a minimal real configuration.
+        
+        Returns:
+            Mock ExchangeSpecificConfig with minimal test settings
+        """
         config = Mock(spec=ExchangeSpecificConfig)
         config.exchange_name = ExchangeName.HYPERLIQUID
         config.ip_weight_limit_per_minute = 60  # 1/sec for testing

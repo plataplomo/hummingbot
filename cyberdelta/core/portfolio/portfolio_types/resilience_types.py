@@ -53,7 +53,13 @@ class ResilienceError(BaseModel):
     cause: Exception | None = None
 
     def to_exception(self) -> Exception:
-        """Convert to appropriate exception type."""
+        """Convert to appropriate exception type.
+        
+        Returns:
+            Exception: ServiceTimeoutError for timeout errors, ServiceUnavailableError
+                for circuit breaker and service unavailable errors, or RuntimeError
+                for other error types.
+        """
         if self.error_type == ResilienceErrorType.TIMEOUT:
             return ServiceTimeoutError(self.message)
         if self.error_type in {
@@ -100,7 +106,11 @@ class ResilienceResult[T](BaseModel):
         metrics: ResilienceMetrics,
         degraded: bool = False,
     ) -> ResilienceResult[T]:
-        """Create a successful result."""
+        """Create a successful result.
+        
+        Returns:
+            ResilienceResult[T]: A successful result containing the provided value.
+        """
         return cls(
             value=value,
             success=True,
@@ -115,7 +125,11 @@ class ResilienceResult[T](BaseModel):
         error: ResilienceError,
         metrics: ResilienceMetrics,
     ) -> ResilienceResult[T]:
-        """Create a failed result."""
+        """Create a failed result.
+        
+        Returns:
+            ResilienceResult[T]: A failed result containing the error information.
+        """
         return cls(
             value=None,
             success=False,
@@ -125,7 +139,14 @@ class ResilienceResult[T](BaseModel):
         )
 
     def unwrap(self) -> T:
-        """Get the value or raise the error."""
+        """Get the value or raise the error.
+        
+        Returns:
+            T: The successful value if the result is successful.
+        
+        Raises:
+            ResilienceResultError: If the result has no value or error.
+        """
         if self.success and self.value is not None:
             return self.value
         if self.error:
@@ -133,13 +154,22 @@ class ResilienceResult[T](BaseModel):
         raise ResilienceResultError
 
     def unwrap_or(self, default: T) -> T:
-        """Get the value or return default."""
+        """Get the value or return default.
+        
+        Returns:
+            T: The successful value if the result is successful, otherwise the default.
+        """
         if self.success and self.value is not None:
             return self.value
         return default
 
     def map(self, func: Callable[[T], U]) -> ResilienceResult[U]:
-        """Transform the value if successful."""
+        """Transform the value if successful.
+        
+        Returns:
+            ResilienceResult[U]: A new result with the transformed value if successful,
+                or a failed result if the transformation fails or the original result failed.
+        """
         if self.success and self.value is not None:
             try:
                 new_value = func(self.value)

@@ -16,7 +16,11 @@ from typing import Any
 
 
 def count_time_operations(content: str) -> dict[str, int]:
-    """Count various time-related operations in test content."""
+    """Count various time-related operations in test content.
+
+    Returns:
+        Dictionary mapping operation names to their counts in the content.
+    """
     patterns = {
         "datetime_now": r"datetime\.now\(",
         "datetime_utcnow": r"datetime\.utcnow\(",
@@ -38,7 +42,20 @@ def count_time_operations(content: str) -> dict[str, int]:
 
 
 def analyze_test_file(file_path: Path) -> dict[str, Any]:
-    """Analyze a single test file for time-related patterns."""
+    """Analyze a single test file for time-related patterns.
+
+    Returns:
+        Dictionary containing:
+        - path: File path as string
+        - counts: Dictionary of pattern counts
+        - uses_time_operations: Whether file uses time operations
+        - uses_old_mocking: Whether file uses old mocking patterns
+        - uses_new_fixtures: Whether file uses new fixtures
+        - has_timing_marker: Whether file has timing pytest marker
+        - needs_timing_marker: Whether file needs timing marker
+        - migration_status: Status of migration ("migrated", "needs_migration", or "no_mocking")
+        - error: Error message if file couldn't be analyzed (only present on error)
+    """
     try:
         content = file_path.read_text()
         counts = count_time_operations(content)
@@ -89,7 +106,16 @@ def analyze_test_file(file_path: Path) -> dict[str, Any]:
 
 
 def generate_metrics(test_dir: Path = Path("tests")) -> dict[str, Any]:
-    """Generate comprehensive metrics for time fixture adoption."""
+    """Generate comprehensive metrics for time fixture adoption.
+
+    Returns:
+        Dictionary containing:
+        - timestamp: ISO format timestamp when metrics were generated
+        - summary: Dictionary with aggregate statistics
+        - time_operations_breakdown: Count totals for each operation type
+        - migration_candidates: List of file paths needing migration
+        - new_fixture_adopters: List of file paths using new fixtures
+    """
     # Find all test files
     test_files = list(test_dir.rglob("test_*.py"))
 
@@ -153,7 +179,11 @@ def generate_metrics(test_dir: Path = Path("tests")) -> dict[str, Any]:
 
 
 def format_console_output(metrics: dict[str, Any]) -> str:
-    """Format metrics for console output."""
+    """Format metrics for console output.
+
+    Returns:
+        Formatted string ready for console display with metrics summary.
+    """
     summary = metrics["summary"]
 
     output: list[str] = []
@@ -183,7 +213,11 @@ def format_console_output(metrics: dict[str, Any]) -> str:
 
 
 def format_github_output(metrics: dict[str, Any]) -> str:
-    """Format metrics for GitHub Actions output."""
+    """Format metrics for GitHub Actions output.
+
+    Returns:
+        Formatted string with GitHub Actions annotations and metrics.
+    """
     summary = metrics["summary"]
 
     # Create GitHub-friendly output with annotations

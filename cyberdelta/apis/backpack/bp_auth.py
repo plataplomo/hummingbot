@@ -45,8 +45,9 @@ class BackpackEd25519Authenticator(IAuthenticator):
             private_key_b64_secret: SecretStr containing Base64-encoded private key for signing.
 
         Raises:
-            ValueError: If API key or private key is empty, or if the private key is invalid Base64
-                or cannot be loaded as an ED25519 private key.
+            InvalidAPIKeyError: If the API key is empty or invalid.
+            InvalidPrivateKeyError: If the private key is empty, invalid Base64, or cannot be loaded
+                as an ED25519 private key.
 
         """
         # Get secret values and validate
@@ -150,7 +151,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             Instruction string for signing
 
         Raises:
-            APIError: If instruction not found for the endpoint
+            UnknownEndpointError: If instruction not found for the endpoint
 
         """
         method_upper = method.upper()
@@ -321,7 +322,11 @@ class BackpackEd25519Authenticator(IAuthenticator):
             An AuthenticatedRequestComponents Pydantic model.
 
         Raises:
-            APIError: If signing fails or instruction not found.
+            ValueError: If signature generation or parameter processing fails.
+            TypeError: If parameter types are invalid.
+            KeyError: If required authentication parameters are missing.
+            UnknownEndpointError: If the endpoint instruction mapping is not found.
+            AuthenticationPreparationError: If signing fails or other authentication errors occur.
 
         """
         try:
@@ -381,7 +386,7 @@ class BackpackEd25519Authenticator(IAuthenticator):
             BackpackRawWsSignatureComponents model with api_key, timestamp, window, and signature
 
         Raises:
-            APIError: If signature generation fails due to any error during the signing process.
+            WebSocketSignatureError: If signature generation fails due to any error during signing.
 
         """
         try:

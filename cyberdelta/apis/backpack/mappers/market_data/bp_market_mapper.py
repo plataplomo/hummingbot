@@ -132,20 +132,49 @@ class BackpackMarketMapper(MarketMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely using BackpackCommonMappers."""
+        """Parse decimal values safely using BackpackCommonMappers.
+
+        Args:
+            value: Value to parse as Decimal (string, float, Decimal, or None).
+            default: Default value to return if parsing fails.
+
+        Returns:
+            Parsed Decimal value or default if parsing fails.
+        """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format using BackpackCommonMappers."""
+        """Normalize symbol format using BackpackCommonMappers.
+
+        Args:
+            symbol: Symbol string to normalize (e.g., "BTC/USD").
+
+        Returns:
+            Symbol in Backpack format with underscores (e.g., "BTC_USD").
+        """
         return BackpackCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol format using BackpackCommonMappers."""
+        """Denormalize symbol format using BackpackCommonMappers.
+
+        Args:
+            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
+
+        Returns:
+            Symbol in internal format with slashes (e.g., "BTC/USD").
+        """
         return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert timestamp to datetime using BackpackCommonMappers."""
+        """Convert timestamp to datetime using BackpackCommonMappers.
+
+        Args:
+            timestamp_ms: Timestamp in milliseconds (float or None).
+
+        Returns:
+            UTC datetime object if timestamp is provided, None otherwise.
+        """
         return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

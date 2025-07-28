@@ -136,6 +136,12 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
         - None responses
         - Nested order structures
         - Flat order structures
+
+        Returns:
+            dict[str, Any]: Normalized order data in the expected format.
+
+        Raises:
+            APIError: If the response format is invalid or order is not found.
         """
         # Handle list format responses
         if is_list_any(data):
@@ -165,7 +171,14 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
 
     @classmethod
     def _handle_list_response(cls, data: list[Any]) -> dict[str, Any]:
-        """Handle list format responses."""
+        """Handle list format responses.
+
+        Returns:
+            dict[str, Any]: First valid order data from the list.
+
+        Raises:
+            APIError: If the list is empty, contains invalid data, or order not found.
+        """
         if len(data) == 0:
             raise APIError(
                 message="Order not found (empty list).",
@@ -202,7 +215,11 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
 
     @classmethod
     def _handle_string_response(cls, data: str) -> None:
-        """Handle string responses - always raises an error."""
+        """Handle string responses - always raises an error.
+
+        Raises:
+            APIError: Always raised as string responses indicate errors.
+        """
         if "Order not found" in data:
             raise APIError(
                 message=f"Order not found (direct string: {data!r})",
@@ -216,7 +233,11 @@ class HyperliquidRawHistoricalOrderResponse(BaseModel):
 
     @classmethod
     def _normalize_order_structure(cls, data: dict[str, Any]) -> dict[str, Any]:
-        """Normalize nested or flat order structures."""
+        """Normalize nested or flat order structures.
+
+        Returns:
+            dict[str, Any]: Normalized order data with consistent structure.
+        """
         # Handle nested order structures
         if "order" in data and is_dict_str_any(data["order"]):
             # data["order"] is now properly typed as dict[str, Any] due to TypeGuard
@@ -276,6 +297,12 @@ class HyperliquidRawHistoricalOrdersResponse(
         - Type checking that input is a list
         - Filtering out non-dict items with warnings
         - Ensuring all items are dictionaries for further validation
+
+        Returns:
+            list[dict[str, Any]]: List of validated order dictionaries.
+
+        Raises:
+            StructureTypeError: If input is not a list.
         """
         if not is_list_any(v):
             raise StructureTypeError(

@@ -19,7 +19,14 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
-    """Create a test AppSettings instance with minimal required fields."""
+    """Create a test AppSettings instance with minimal required fields.
+    
+    Returns:
+        AppSettings instance loaded from test configuration file.
+        
+    Raises:
+        RuntimeError: If test settings fail to load from configuration file.
+    """
     # Load from the actual test config file
     test_config_path = Path(__file__).parent.parent.parent / "config" / "test_config.yaml"
     manager = ConfigManager(str(test_config_path))
@@ -39,7 +46,11 @@ def create_test_opportunity(
     spread_percentage: float | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity instance with specified or default values.
+    """
     net_funding_differential = Decimal(str(long_funding_rate)) - Decimal(str(short_funding_rate))
 
     opportunity = ArbitrageOpportunity(
@@ -71,7 +82,11 @@ def create_test_context(
     config: dict[str, Any] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> CheckContext:
-    """Create a test check context."""
+    """Create a test check context.
+    
+    Returns:
+        CheckContext instance for testing validation checks.
+    """
     return CheckContext(
         check_name=check_name,
         config=config,

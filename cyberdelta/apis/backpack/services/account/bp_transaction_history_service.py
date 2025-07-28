@@ -282,9 +282,6 @@ class BackpackTransactionHistoryService:
 
         Returns:
             Tuple of validated response data and status code
-
-        Raises:
-            APIError: If API request fails
         """
         endpoint_path = "/wapi/v1/history/orders"
 
@@ -344,9 +341,6 @@ class BackpackTransactionHistoryService:
 
         Returns:
             Tuple of validated response data and status code
-
-        Raises:
-            APIError: If API request fails
         """
         endpoint_path = "/wapi/v1/history/fills"
 
@@ -405,9 +399,6 @@ class BackpackTransactionHistoryService:
 
         Returns:
             List of transformed Order objects
-
-        Raises:
-            APIError: If response processing fails
         """
         # Handle response through response handler
         raw_orders_list: list[BackpackRawOrderResponse] = (
@@ -462,9 +453,6 @@ class BackpackTransactionHistoryService:
 
         Returns:
             List of transformed Trade objects
-
-        Raises:
-            APIError: If response processing fails
         """
         # Use fills handler since we're calling /wapi/v1/history/fills
         raw_fills_list = self._response_handler.handle_get_fills_response(

@@ -22,7 +22,11 @@ T = TypeVar("T")
 
 
 def _is_sized_data(value: object) -> TypeGuard[Sized]:
-    """Senior-level TypeGuard to safely narrow types for data collection counting."""
+    """Senior-level TypeGuard to safely narrow types for data collection counting.
+    
+    Returns:
+        TypeGuard[Sized]: True if the value has a __len__ method, False otherwise.
+    """
     return hasattr(value, "__len__")
 
 
@@ -32,8 +36,6 @@ async def ensure_websocket_connected(api: HyperliquidAPI) -> None:
     Args:
         api: HyperliquidAPI instance
 
-    Raises:
-        pytest.fail: If connection cannot be established
     """
     await api.connect_websocket()
     if not api.is_connected:
@@ -114,8 +116,6 @@ async def get_real_ticker_data(api: HyperliquidAPI, symbol: str) -> dict[str, An
     Returns:
         Real ticker data from exchange
 
-    Raises:
-        pytest.fail: If ticker data cannot be retrieved
     """
     try:
         ticker = await api.get_ticker(symbol)
@@ -146,8 +146,6 @@ async def get_real_market_symbols(api: HyperliquidAPI, limit: int = 5) -> list[s
     Returns:
         List of real trading symbols
 
-    Raises:
-        pytest.fail: If markets cannot be retrieved
     """
     try:
         markets = await api.get_markets(GetMarketsArgs())
@@ -184,9 +182,6 @@ async def get_most_active_symbol(api: HyperliquidAPI) -> str:
 
     Returns:
         Most active symbol (typically 'BTC')
-
-    Raises:
-        pytest.fail: If markets cannot be retrieved or no active symbol found
     """
     try:
         markets = await api.get_markets(GetMarketsArgs())

@@ -34,7 +34,11 @@ from cyberdelta.logging.logging_helpers import (
 
 @pytest.fixture
 def mock_logger() -> Mock:
-    """Create mock structlog logger for testing."""
+    """Create mock structlog logger for testing.
+
+    Returns:
+        Mock: A mock structlog BoundLogger instance for testing.
+    """
     logger = Mock(spec=structlog.BoundLogger)
     logger.info = Mock()
     return logger
@@ -42,7 +46,11 @@ def mock_logger() -> Mock:
 
 @pytest.fixture
 def sample_order() -> Order:
-    """Create sample order for testing."""
+    """Create sample order for testing.
+
+    Returns:
+        Order: A sample order instance with predefined values.
+    """
     return Order(
         exchange="hyperliquid",
         client_order_id="test_order_123",
@@ -67,7 +75,11 @@ def sample_order() -> Order:
 
 @pytest.fixture
 def sample_position() -> DerivativePosition:
-    """Create sample position for testing."""
+    """Create sample position for testing.
+
+    Returns:
+        DerivativePosition: A sample derivative position instance.
+    """
     return DerivativePosition(
         exchange="hyperliquid",
         symbol="BTC-PERP",
@@ -82,7 +94,11 @@ def sample_position() -> DerivativePosition:
 
 @pytest.fixture
 def sample_trade() -> Trade:
-    """Create sample trade for testing."""
+    """Create sample trade for testing.
+
+    Returns:
+        Trade: A sample trade instance with predefined values.
+    """
     return Trade(
         id="trade_123",
         symbol="BTC-PERP",
@@ -99,7 +115,11 @@ def sample_trade() -> Trade:
 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
-    """Create sample trade signal for testing."""
+    """Create sample trade signal for testing.
+
+    Returns:
+        TradeSignal: A sample trade signal instance.
+    """
     return TradeSignal(
         signal_id="signal_123",
         symbol="BTC-PERP",
@@ -115,7 +135,11 @@ def sample_trade_signal() -> TradeSignal:
 
 @pytest.fixture
 def sample_margin_summary() -> MarginAccountSummary:
-    """Create sample margin account summary for testing."""
+    """Create sample margin account summary for testing.
+
+    Returns:
+        MarginAccountSummary: A sample margin account summary instance.
+    """
     return MarginAccountSummary(
         exchange="hyperliquid",
         timestamp=datetime.now(UTC),

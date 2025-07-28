@@ -13,7 +13,11 @@ from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
 
 
 def _create_str_list() -> list[str]:
-    """Create typed string list for dataclass fields."""
+    """Create typed string list for dataclass fields.
+    
+    Returns:
+        Empty list of strings for use as dataclass field default factory.
+    """
     return []
 
 
@@ -58,17 +62,29 @@ class PortfolioSnapshot:
 
     @property
     def total_pnl(self) -> Decimal:
-        """Total P&L (realized + unrealized)."""
+        """Total P&L (realized + unrealized).
+        
+        Returns:
+            Sum of realized and unrealized P&L
+        """
         return self.realized_pnl + self.unrealized_pnl
 
     @property
     def position_count(self) -> int:
-        """Number of active positions."""
+        """Number of active positions.
+        
+        Returns:
+            Count of positions in the snapshot
+        """
         return len(self.positions)
 
     @property
     def capital_deployed(self) -> Decimal:
-        """Total capital deployed in positions."""
+        """Total capital deployed in positions.
+        
+        Returns:
+            Total value minus cash balance
+        """
         return self.total_value - self.cash_balance
 
 
@@ -118,7 +134,11 @@ class RiskMetricsResult:
     warnings: list[str] = field(default_factory=_create_str_list)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+        
+        Returns:
+            Dictionary representation of risk metrics organized by category.
+        """
         return {
             "value_at_risk": {
                 "var_95": float(self.value_at_risk_95),
@@ -199,6 +219,9 @@ class RiskMetricsCalculator:
 
         Returns:
             RiskMetricsResult with all calculated metrics
+            
+        Raises:
+            RiskCalculationError: If insufficient data points provided for calculation.
         """
         if len(portfolio_snapshots) < self.min_data_points:
             raise RiskCalculationError(
@@ -301,7 +324,11 @@ class RiskMetricsCalculator:
         return result
 
     def _calculate_returns(self, snapshots: list[PortfolioSnapshot]) -> list[Decimal]:
-        """Calculate portfolio returns from snapshots."""
+        """Calculate portfolio returns from snapshots.
+        
+        Returns:
+            List of simple returns calculated from consecutive portfolio values.
+        """
         returns: list[Decimal] = []
 
         for i in range(1, len(snapshots)):
@@ -314,7 +341,11 @@ class RiskMetricsCalculator:
         return returns
 
     def _calculate_var(self, returns: list[Decimal], confidence_level: float) -> Decimal:
-        """Calculate Value at Risk."""
+        """Calculate Value at Risk.
+        
+        Returns:
+            Value at Risk at the specified confidence level, or 0 if no returns.
+        """
         if not returns:
             return Decimal(0)
 
@@ -329,7 +360,11 @@ class RiskMetricsCalculator:
         return -sorted_returns[0]
 
     def _calculate_cvar(self, returns: list[Decimal], confidence_level: float) -> Decimal:
-        """Calculate Conditional Value at Risk (Expected Shortfall)."""
+        """Calculate Conditional Value at Risk (Expected Shortfall).
+        
+        Returns:
+            Expected shortfall beyond VaR threshold, or 0 if no returns.
+        """
         if not returns:
             return Decimal(0)
 
@@ -350,7 +385,11 @@ class RiskMetricsCalculator:
         return -sorted_returns[0]
 
     def _calculate_sharpe_ratio(self, returns: list[Decimal]) -> Decimal:
-        """Calculate Sharpe ratio."""
+        """Calculate Sharpe ratio.
+        
+        Returns:
+            Annualized Sharpe ratio measuring risk-adjusted return, or 0 if insufficient data.
+        """
         if not returns or len(returns) < MIN_SAMPLES_FOR_STATISTICAL_CALCULATION:
             return Decimal(0)
 
@@ -375,7 +414,11 @@ class RiskMetricsCalculator:
         return sharpe_ratio
 
     def _calculate_sortino_ratio(self, returns: list[Decimal]) -> Decimal:
-        """Calculate Sortino ratio (uses downside volatility)."""
+        """Calculate Sortino ratio (uses downside volatility).
+        
+        Returns:
+            Annualized Sortino ratio using downside deviation, or 0 if insufficient downside data.
+        """
         if not returns:
             return Decimal(0)
 
@@ -404,7 +447,11 @@ class RiskMetricsCalculator:
         return sortino_ratio
 
     def _calculate_max_drawdown(self, snapshots: list[PortfolioSnapshot]) -> tuple[Decimal, int]:
-        """Calculate maximum drawdown and duration."""
+        """Calculate maximum drawdown and duration.
+        
+        Returns:
+            Tuple of (maximum drawdown percentage, duration in days).
+        """
         if not snapshots:
             return Decimal(0), 0
 
@@ -436,7 +483,11 @@ class RiskMetricsCalculator:
         return max_drawdown, max_duration
 
     def _calculate_current_drawdown(self, snapshots: list[PortfolioSnapshot]) -> Decimal:
-        """Calculate current drawdown from peak."""
+        """Calculate current drawdown from peak.
+        
+        Returns:
+            Current drawdown percentage from historical peak, or 0 if no data.
+        """
         if not snapshots:
             return Decimal(0)
 
@@ -450,7 +501,12 @@ class RiskMetricsCalculator:
         return Decimal(0)
 
     def _calculate_calmar_ratio(self, returns: list[Decimal], max_drawdown: Decimal) -> Decimal:
-        """Calculate Calmar ratio (return / max drawdown)."""
+        """Calculate Calmar ratio (return / max drawdown).
+        
+        Returns:
+            Calmar ratio measuring return per unit of maximum drawdown, or 0 if no data 
+                or zero drawdown.
+        """
         if not returns or max_drawdown == 0:
             return Decimal(0)
 
@@ -461,7 +517,11 @@ class RiskMetricsCalculator:
         return annualized_return / max_drawdown
 
     def _calculate_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate portfolio volatility."""
+        """Calculate portfolio volatility.
+        
+        Returns:
+            Annualized portfolio volatility, or 0 if insufficient data.
+        """
         if len(returns) < MIN_SAMPLES_FOR_STATISTICAL_CALCULATION:
             return Decimal(0)
 
@@ -473,7 +533,11 @@ class RiskMetricsCalculator:
         return daily_vol * Decimal(str(math.sqrt(365)))
 
     def _calculate_downside_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate downside volatility."""
+        """Calculate downside volatility.
+        
+        Returns:
+            Annualized volatility of negative returns only, or 0 if insufficient negative returns.
+        """
         negative_returns = [r for r in returns if r < 0]
 
         if len(negative_returns) < MIN_SAMPLES_FOR_STATISTICAL_CALCULATION:
@@ -482,7 +546,11 @@ class RiskMetricsCalculator:
         return self._calculate_volatility(negative_returns)
 
     def _calculate_upside_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate upside volatility."""
+        """Calculate upside volatility.
+        
+        Returns:
+            Annualized volatility of positive returns only, or 0 if insufficient positive returns.
+        """
         positive_returns = [r for r in returns if r > 0]
 
         if len(positive_returns) < MIN_SAMPLES_FOR_STATISTICAL_CALCULATION:
@@ -491,7 +559,11 @@ class RiskMetricsCalculator:
         return self._calculate_volatility(positive_returns)
 
     def _calculate_concentration_ratio(self, snapshot: PortfolioSnapshot) -> Decimal:
-        """Calculate portfolio concentration ratio."""
+        """Calculate portfolio concentration ratio.
+        
+        Returns:
+            Herfindahl index measuring portfolio concentration, or 0 if no positions.
+        """
         if not snapshot.positions or snapshot.total_value == 0:
             return Decimal(0)
 
@@ -510,7 +582,12 @@ class RiskMetricsCalculator:
     def _calculate_beta(
         self, portfolio_returns: list[Decimal], benchmark_returns: list[Decimal]
     ) -> Decimal:
-        """Calculate portfolio beta relative to benchmark."""
+        """Calculate portfolio beta relative to benchmark.
+        
+        Returns:
+            Portfolio beta measuring systematic risk relative to benchmark, default 1.0 
+                if insufficient data.
+        """
         if (
             len(portfolio_returns) != len(benchmark_returns)
             or len(portfolio_returns) < MIN_SAMPLES_FOR_STATISTICAL_CALCULATION
@@ -542,7 +619,12 @@ class RiskMetricsCalculator:
         benchmark_returns: list[Decimal],
         beta: Decimal,
     ) -> Decimal:
-        """Calculate portfolio alpha (Jensen's alpha)."""
+        """Calculate portfolio alpha (Jensen's alpha).
+        
+        Returns:
+            Annualized Jensen's alpha measuring excess return above CAPM prediction, or 0 
+                if insufficient data.
+        """
         if len(portfolio_returns) != len(benchmark_returns) or not portfolio_returns:
             return Decimal(0)
 
@@ -561,7 +643,11 @@ class RiskMetricsCalculator:
         return result
 
     def _calculate_win_rate(self, returns: list[Decimal]) -> Decimal:
-        """Calculate win rate (percentage of positive returns)."""
+        """Calculate win rate (percentage of positive returns).
+        
+        Returns:
+            Percentage of periods with positive returns as decimal (0.0 to 1.0).
+        """
         if not returns:
             return Decimal(0)
 
@@ -569,7 +655,11 @@ class RiskMetricsCalculator:
         return Decimal(str(positive_returns)) / Decimal(str(len(returns)))
 
     def _calculate_profit_factor(self, returns: list[Decimal]) -> Decimal:
-        """Calculate profit factor (gross profit / gross loss)."""
+        """Calculate profit factor (gross profit / gross loss).
+        
+        Returns:
+            Ratio of gross profits to gross losses, capped at 999 for infinite values.
+        """
         if not returns:
             return Decimal(0)
 
@@ -627,7 +717,11 @@ class RiskMetricsCalculator:
         }
 
     def set_risk_free_rate(self, rate: Decimal) -> None:
-        """Set risk-free rate for calculations."""
+        """Set risk-free rate for calculations.
+        
+        Raises:
+            RiskCalculationError: If risk-free rate is negative.
+        """
         if rate < 0:
             raise RiskCalculationError(RiskCalculationError.NEGATIVE_RISK_FREE_RATE)
 
@@ -635,7 +729,11 @@ class RiskMetricsCalculator:
         self.logger.info("Set risk-free rate", rate=float(rate))
 
     def set_var_parameters(self, method: str, horizon_days: int) -> None:
-        """Set VaR calculation parameters."""
+        """Set VaR calculation parameters.
+        
+        Raises:
+            RiskCalculationError: If VaR method is not supported.
+        """
         if method not in {"historical", "parametric", "monte_carlo"}:
             raise RiskCalculationError(RiskCalculationError.INVALID_VAR_METHOD)
 
@@ -648,7 +746,11 @@ class RiskMetricsCalculator:
         )
 
     def get_calculator_stats(self) -> dict[str, Any]:
-        """Get calculator statistics."""
+        """Get calculator statistics.
+        
+        Returns:
+            Dictionary containing current calculator configuration and settings.
+        """
         return {
             "risk_free_rate": float(self.risk_free_rate),
             "confidence_levels": self.confidence_levels,

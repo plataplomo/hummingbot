@@ -18,18 +18,30 @@ class TestUnifiedSymbolService:
 
     @pytest.fixture
     def mock_service(self) -> Mock:
-        """Create a mock symbol service."""
+        """Create a mock symbol service.
+        
+        Returns:
+            Mock: Mock instance of SymbolService for testing.
+        """
         return Mock(spec=SymbolService)
 
     @pytest.fixture
     def service(self, mock_service: Mock) -> UnifiedSymbolService:
-        """Create a UnifiedSymbolService with mocked service."""
+        """Create a UnifiedSymbolService with mocked service.
+        
+        Returns:
+            UnifiedSymbolService: Service instance with mocked dependencies for testing.
+        """
         with patch("cyberdelta.core.symbol_service.SymbolService", return_value=mock_service):
             return UnifiedSymbolService()
 
     @pytest.fixture
     def sample_symbols(self) -> dict[str, Any]:
-        """Create sample symbols for testing."""
+        """Create sample symbols for testing.
+        
+        Returns:
+            dict[str, Any]: Dictionary containing sample symbol objects for testing.
+        """
         btc_internal = InternalSymbol(value="BTC", base_asset="BTC", market_type=MarketType.PERP)
 
         btc_hl_exchange = ExchangeSymbol(

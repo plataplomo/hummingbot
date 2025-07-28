@@ -46,7 +46,11 @@ class TestBackpackProcessorPipeline:
     """Test WebSocket processor pipeline with real message processing."""
 
     def _extract_envelope_data(self, context: WebSocketContextProtocol) -> dict[str, Any] | None:
-        """Extract data from validated envelope if present."""
+        """Extract data from validated envelope if present.
+        
+        Returns:
+            Dictionary containing stream data and domain model, or None if no valid envelope.
+        """
         if hasattr(context, "validated_envelope") and context.validated_envelope:
             envelope = context.validated_envelope
             if hasattr(envelope, "data") and envelope.data:
@@ -80,7 +84,11 @@ class TestBackpackProcessorPipeline:
             elapsed = (datetime.now(UTC) - start_time).total_seconds()
 
     async def _setup_market_test(self, bp_api: BackpackAPI) -> str:
-        """Helper to setup market testing and return symbol."""
+        """Helper to setup market testing and return symbol.
+        
+        Returns:
+            Symbol string of the first available market.
+        """
         await self._ensure_websocket_connected(bp_api)
         markets = await bp_api.get_markets(GetMarketsArgs())
         if not markets:
@@ -436,7 +444,11 @@ class TestBackpackProcessorPipeline:
             )
 
     async def _get_test_symbol(self, bp_api_for_test_env: BackpackAPI) -> str:
-        """Get a symbol for testing."""
+        """Get a symbol for testing.
+        
+        Returns:
+            Symbol string of the first available market.
+        """
         markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
         if not markets:
             pytest.fail("No markets available")
@@ -449,7 +461,11 @@ class TestBackpackProcessorPipeline:
         start_time: float,
         symbol: str,
     ) -> tuple[float, float]:
-        """Calculate and log performance metrics."""
+        """Calculate and log performance metrics.
+        
+        Returns:
+            Tuple of (total_time, messages_per_second).
+        """
         end_time = asyncio.get_event_loop().time()
         total_time = end_time - start_time
         messages_per_second = message_count / total_time if total_time > 0 else 0

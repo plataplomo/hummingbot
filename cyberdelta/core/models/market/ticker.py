@@ -68,14 +68,32 @@ class Ticker(BaseModel):
     @field_validator("symbol", "exchange", mode="before")
     @classmethod
     def validate_symbol_exchange(cls, v: object, info: ValidationInfo) -> str:
-        """Validate the 'symbol' and 'exchange' fields."""
+        """Validate the 'symbol' and 'exchange' fields.
+        
+        Args:
+            v: Value to validate.
+            info: Pydantic validation context.
+            
+        Returns:
+            str: Validated string value.
+        """
         field_name = info.field_name if info.field_name is not None else "field"
         return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: datetime | float | str | None) -> datetime:
-        """Validate and parse the 'timestamp' field to a required UTC datetime object."""
+        """Validate and parse the 'timestamp' field to a required UTC datetime object.
+        
+        Args:
+            v: Value to validate and parse.
+            
+        Returns:
+            datetime: Parsed UTC datetime object.
+            
+        Raises:
+            RequiredFieldNoneError: If timestamp is None.
+        """
         dt = parse_datetime_utc(v, field_name="timestamp")
         if dt is None:
             raise RequiredFieldNoneError(
@@ -106,7 +124,7 @@ class Ticker(BaseModel):
             or raises ValueError for invalid/non-finite inputs.
 
         Raises:
-            ValueError: If a non-None input cannot be parsed to a finite Decimal.
+            DecimalFiniteError: If a non-None input is not finite.
 
         """
         # Ensure field_name is a str for the parsing utility.

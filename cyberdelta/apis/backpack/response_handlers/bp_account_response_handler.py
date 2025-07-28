@@ -98,11 +98,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
             headers: Response headers
             context: Context string indicating the operation (e.g., "account.get_balances")
 
-        Returns:
-            Processed response data
-
         Raises:
-            APIError: If response processing fails
             NotImplementedError: If context is not supported
         """
         # Extract operation from context (format: "domain.operation")
@@ -143,11 +139,12 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     ) -> dict[str, BackpackRawBalanceResponse]:
         """Validate the raw response for the Get Balances endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            status_code: HTTP status code
+
         Returns:
             Dictionary mapping asset symbols to BackpackRawBalanceResponse models.
-
-        Raises:
-            APIError: If validation fails or response format is invalid.
         """
         context = "balances"
         validated_data = ensure_dict_response(
@@ -189,12 +186,18 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
 
         Handles a single position dictionary if a symbol is provided,
         or a list of position dictionaries if no symbol is provided.
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Optional symbol to filter positions
+            status_code: HTTP status code
 
         Returns:
             List of validated BackpackRawPositionResponse models.
 
         Raises:
             APIError: If symbol not found or validation of position data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"positions ({symbol or 'all'})"
         validated_positions: list[BackpackRawPositionResponse] = []
@@ -236,11 +239,15 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     ) -> BackpackRawAccountSummaryResponse:
         """Validate the raw response for the Get Account Info endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            status_code: HTTP status code
+
         Returns:
             Validated BackpackRawAccountSummaryResponse model.
 
         Raises:
-            APIError: If validation of account data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = "account info"
         validated_data = ensure_dict_response(
@@ -264,11 +271,15 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     ) -> BackpackRawWithdrawalResponse:
         """Validate the raw response for the Withdraw endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            status_code: HTTP status code
+
         Returns:
             Validated BackpackRawWithdrawalResponse model.
-
+            
         Raises:
-            APIError: If validation of withdrawal data fails.
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = "withdraw response"
         validated_data = ensure_dict_response(
@@ -361,9 +372,18 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         """Validate the raw response for the Get Collateral endpoint.
 
         (/api/v1/capital/collateral).
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            subaccount_id: Optional subaccount ID for context
+            status_code: HTTP status code
+            headers: Response headers
 
         Returns:
             Validated BackpackRawCollateralResponse model.
+            
+        Raises:
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"collateral data (subaccount_id={subaccount_id}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -394,9 +414,18 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/borrow).
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: The asset symbol
+            status_code: HTTP status code
+            headers: Response headers
 
         Returns:
             Validated BackpackRawMaxBorrowQuantity model.
+            
+        Raises:
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"max borrow quantity ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -426,9 +455,19 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/order).
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: The trading symbol
+            side: The order side (buy/sell)
+            status_code: HTTP status code
+            headers: Response headers
 
         Returns:
             Validated BackpackRawMaxOrderQuantity model.
+            
+        Raises:
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"max order quantity ({symbol} {side}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -457,9 +496,18 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/withdrawal).
+        
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: The asset symbol
+            status_code: HTTP status code
+            headers: Response headers
 
         Returns:
             Validated BackpackRawMaxWithdrawalQuantity model.
+            
+        Raises:
+            _handle_validation_error: Re-raised as APIError if validation fails.
         """
         context = f"max withdrawal quantity ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(

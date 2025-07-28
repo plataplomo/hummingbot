@@ -325,7 +325,8 @@ class BackpackWebSocketRouter(
 
         Raises:
             EmptyStringParameterError: If topic is empty
-            ValueError: If topic format is invalid
+            UnsupportedWebSocketTopicError: If topic format is not supported by Backpack
+            WebSocketSubscriptionError: If topic validation fails
 
         """
         # Basic topic validation
@@ -384,7 +385,6 @@ class BackpackWebSocketRouter(
 
         Raises:
             EmptyStringParameterError: If topic is empty
-            ValueError: If topic format is invalid
 
         """
         # Basic topic validation
@@ -454,6 +454,10 @@ class BackpackWebSocketRouter(
         Args:
             message: The WebSocket message to route.
             handlers: Dictionary mapping full topics (e.g., "ticker.SOL_USDC") to handlers.
+
+        Raises:
+            ValueError: If envelope validator is not configured.
+
         """
         if self.envelope_validator is None:
             msg = "Envelope validator is required"

@@ -136,10 +136,6 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of placed Order objects (one per successful order)
-
-        Raises:
-            APIError: If validation fails, batch size exceeded, or API request fails
-            ValueError: If orders list is empty or contains invalid parameters
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "place_batch_orders"
@@ -159,10 +155,6 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects indicating success/failure for each order
-
-        Raises:
-            APIError: If validation fails, batch size exceeded, or API request fails
-            ValueError: If cancel_args list is empty
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "cancel_batch_orders"
@@ -182,6 +174,13 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of successfully placed Order objects
+            
+        Raises:
+            APIError: If API request fails or validation errors occur.
+            ValueError: If orders list is empty or validation fails.
+            TypeError: If type validation fails during processing.
+            TransformationError: If data transformation fails.
+            ValidationError: If Pydantic validation fails.
         """
         self._validate_batch_orders(orders, current_method)
 
@@ -221,6 +220,13 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects
+            
+        Raises:
+            APIError: If API request fails or validation errors occur.
+            ValueError: If cancel_args list is empty or validation fails.
+            TypeError: If type validation fails during processing.
+            TransformationError: If data transformation fails.
+            ValidationError: If Pydantic validation fails.
         """
         self._validate_cancel_args_list(cancel_args, current_method)
 
@@ -259,6 +265,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
+            
+        Raises:
+            APIError: If the exchange returns invalid content format.
         """
         request_config = RequestConfiguration(
             auth_mode=RequestAuthMode.SIGNED,
@@ -294,6 +303,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
+            
+        Raises:
+            APIError: If the exchange returns invalid content format.
         """
         request_config = RequestConfiguration(
             auth_mode=RequestAuthMode.SIGNED,
@@ -349,7 +361,8 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             current_method: Name of calling method for error context
 
         Raises:
-            ValueError: If validation fails
+            ValueError: If orders list is empty, exceeds max batch size, or contains
+                invalid parameters.
         """
         if not orders:
             error_msg = "Cannot place empty batch of orders"
@@ -428,7 +441,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             Tuple of (validated symbol, validated order ID)
 
         Raises:
-            ValueError: If parameters are invalid
+            InvalidParameterTypeError: If symbol is empty or invalid type.
         """
         if not args.symbol:
             raise InvalidParameterTypeError(
@@ -467,7 +480,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             List of (PlaceOrderArgs, asset_index) tuples
 
         Raises:
-            APIError: If symbol not found or asset index lookup fails
+            SymbolNotFoundError: If symbol not found or asset index lookup fails.
         """
         orders_with_indices: list[tuple[PlaceOrderArgs, int]] = []
 
@@ -565,6 +578,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of successfully placed Order objects
+            
+        Raises:
+            APIError: If response has no status data or exchange-level errors.
         """
         # Check for exchange-level errors
         check_error_response(raw_exchange_response, http_status, self._error_mapper)
@@ -641,6 +657,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects
+            
+        Raises:
+            APIError: If response has no status data or exchange-level errors.
         """
         # Check for exchange-level errors
         check_error_response(raw_response, http_status, self._error_mapper)
@@ -848,7 +867,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             original_orders: Original order placement arguments
 
         Raises:
-            OrderError: If any orders failed to place
+            OrderError: If any orders failed to place.
         """
         if failed_orders:
             error_details = "; ".join([f"Order {i + 1}: {error}" for i, error in failed_orders])
@@ -860,7 +879,11 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             )
 
     def _raise_market_order_error(self) -> None:
-        """Raise ServiceParameterError for market orders in batch operations."""
+        """Raise ServiceParameterError for market orders in batch operations.
+        
+        Raises:
+            ServiceParameterError: Always raised for market order in batch.
+        """
         raise ServiceParameterError(
             parameter="order_type",
             issue="market orders are not supported in batch operations",
@@ -876,6 +899,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Args:
             order_id: The invalid order ID
+            
+        Raises:
+            ServiceParameterError: Always raised for non-positive order ID.
         """
         raise ServiceParameterError(
             parameter="order_id",
@@ -895,6 +921,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         Args:
             order_id: The invalid order ID
             original_error: The original ValueError from conversion
+            
+        Raises:
+            ServiceParameterError: Always raised for invalid order ID format.
         """
         raise ServiceParameterError(
             parameter="order_id",

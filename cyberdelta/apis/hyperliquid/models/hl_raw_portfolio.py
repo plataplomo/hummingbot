@@ -54,6 +54,14 @@ class HyperliquidRawPortfolioHistoryEntry(RootModel[tuple[RawTimestampMsInt, Raw
         """Ensure input is a 2-element list/tuple or a dict {0: ts, 1: val}.
 
         Pydantic handles element validation against RawTimestampMsInt and RawFiniteDecimalStr.
+
+        Returns:
+            List of [timestamp, value] for Pydantic to convert to tuple.
+
+        Raises:
+            DictStructureError: If dict doesn't have required keys 0 and 1.
+            SequenceLengthError: If list/tuple doesn't have exactly 2 elements.
+            StructureTypeError: If input is neither dict, list, nor tuple.
         """
         field_name = info.field_name or "history_entry_tuple"
 
@@ -132,6 +140,13 @@ class HyperliquidRawPortfolioTupleItem(
         """Ensure input is a 2-element list/tuple.
 
         Pydantic handles element validation.
+
+        Returns:
+            Tuple or list of [timeframe, data_dict] for further validation.
+
+        Raises:
+            StructureTypeError: If input is not a list/tuple or second element is not a dict.
+            SequenceLengthError: If list/tuple doesn't have exactly 2 elements.
         """
         field_name = info.field_name or "portfolio_tuple_item"
         if not isinstance(v, list | tuple):
@@ -183,6 +198,12 @@ class HyperliquidRawPortfolioResponse(RootModel[list[HyperliquidRawPortfolioTupl
         """Ensure the root input is a list.
 
         Pydantic will handle item validation.
+
+        Returns:
+            The input list for further validation by Pydantic.
+
+        Raises:
+            StructureTypeError: If input is not a list.
         """
         field_name = info.field_name or "portfolio_response_list"
         if not isinstance(v, list):

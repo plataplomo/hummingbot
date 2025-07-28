@@ -102,7 +102,11 @@ class TestHyperliquidPydanticRouter:
     def _setup_router_and_processors(
         self, hl_api_for_test_env: HyperliquidAPI
     ) -> tuple[Any, dict[str, Any]]:
-        """Set up router and verify it has processors."""
+        """Set up router and verify it has processors.
+        
+        Returns:
+            tuple[Any, dict[str, Any]]: Router instance and its processors dictionary.
+        """
         router = getattr(hl_api_for_test_env, "_hl_ws_router", None)
         if not router:
             pytest.fail("WebSocket router not available")
@@ -120,7 +124,11 @@ class TestHyperliquidPydanticRouter:
     async def _mock_processors_for_tracking(
         self, processors: dict[str, Any], processor_calls: dict[str, list[Any]]
     ) -> dict[str, Callable[..., Any]]:
-        """Mock processors to track their invocations."""
+        """Mock processors to track their invocations.
+        
+        Returns:
+            dict[str, Callable[..., Any]]: Dictionary of original processors for restoration.
+        """
         original_processors: dict[str, Callable[..., Any]] = {}
         for name, processor in processors.items():
             original_processors[name] = processor.process

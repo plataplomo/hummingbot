@@ -62,7 +62,10 @@ async def create_test_perp_position(
         tuple[str, Decimal]: Order ID and quantity of the created position.
 
     Raises:
-        ValueError: If market price cannot be determined.
+        ValueError: If market price cannot be determined or order placement fails.
+        APIError: If API requests fail.
+        TypeError: If type conversion errors occur.
+        KeyError: If required data keys are missing.
     """
     try:
         # Get market price and place order ABOVE it to ensure IOC fill

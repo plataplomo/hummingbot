@@ -77,7 +77,11 @@ class TestHyperliquidWebSocketMarketData:
     async def _setup_l2book_test(
         self, hl_api: HyperliquidAPI
     ) -> tuple[str, list[OrderBook], asyncio.Event]:
-        """Setup L2 book test environment."""
+        """Setup L2 book test environment.
+        
+        Returns:
+            Tuple of (test_symbol, received_orderbooks list, data_received event).
+        """
         active_symbols = await get_active_trading_symbols(hl_api)
         test_symbol = active_symbols[0]
         received_orderbooks: list[OrderBook] = []
@@ -87,7 +91,11 @@ class TestHyperliquidWebSocketMarketData:
     def _create_l2book_handler(
         self, test_symbol: str, received_orderbooks: list[OrderBook], data_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create L2 book handler with validation."""
+        """Create L2 book handler with validation.
+        
+        Returns:
+            Async handler function that processes L2 book WebSocket messages.
+        """
 
         async def l2book_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
@@ -208,7 +216,11 @@ class TestHyperliquidWebSocketMarketData:
     def _create_trades_handler(
         self, test_symbol: str, received_trades: list[Trade], trade_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create trades handler with validation."""
+        """Create trades handler with validation.
+        
+        Returns:
+            Async handler function that processes trades WebSocket messages.
+        """
 
         async def trades_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
@@ -281,7 +293,11 @@ class TestHyperliquidWebSocketMarketData:
     def _create_allmids_handler(
         self, received_mids: list[dict[str, Decimal]], mids_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
-        """Create allmids handler with validation."""
+        """Create allmids handler with validation.
+        
+        Returns:
+            Async handler function that processes allmids WebSocket messages.
+        """
 
         async def allmids_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029

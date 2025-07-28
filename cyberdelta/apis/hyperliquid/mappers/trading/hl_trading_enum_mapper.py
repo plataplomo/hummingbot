@@ -38,7 +38,14 @@ logger = get_logger(__name__)
 
 
 def _is_dict_str_any(value: object) -> bool:
-    """Type guard to check if value is a dict[str, Any]."""
+    """Type guard to check if value is a dict[str, Any].
+
+    Args:
+        value: Object to check
+
+    Returns:
+        bool: True if value is a dict, False otherwise
+    """
     return isinstance(value, dict)
 
 
@@ -56,22 +63,51 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Parse decimal values safely with default fallback."""
+        """Parse decimal values safely with default fallback.
+
+        Args:
+            value: Value to parse as decimal
+            default: Default value if parsing fails
+
+        Returns:
+            Decimal: Parsed decimal value or default
+        """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format."""
+        """Normalize symbol to internal format.
+
+        Args:
+            symbol: Exchange symbol to normalize
+
+        Returns:
+            str: Normalized symbol for internal use
+        """
         return HyperliquidCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format."""
+        """Denormalize symbol to exchange format.
+
+        Args:
+            symbol: Internal symbol to denormalize
+
+        Returns:
+            str: Denormalized symbol for exchange use
+        """
         return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime."""
+        """Convert millisecond timestamp to datetime.
+
+        Args:
+            timestamp_ms: Timestamp in milliseconds
+
+        Returns:
+            datetime | None: Converted datetime or None if timestamp is None
+        """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-compliant static methods
@@ -155,8 +191,8 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
             OrderSide: Mapped internal enum value
 
         Raises:
-            TransformationError: If side cannot be mapped
-
+            TransformationError: If side validation fails (re-raised from validate_order_side)
+            OrderTransformationError: If any other error occurs during mapping
         """
         try:
             # Validate the side value
@@ -187,6 +223,9 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         Returns:
             OrderStatus: Mapped internal enum value
 
+        Raises:
+            TransformationError: Re-raised if encountered during mapping
+            OrderTransformationError: If mapping fails due to unexpected error
         """
         try:
             status_map = {
@@ -230,12 +269,26 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
 
     @staticmethod
     def get_trigger_type(trigger: HyperliquidRawTriggerInfo | None) -> str | None:
-        """Extract trigger type from trigger info."""
+        """Extract trigger type from trigger info.
+
+        Args:
+            trigger: Trigger info object or None
+
+        Returns:
+            str | None: Trigger type ('sl' or 'tp') or None if no trigger
+        """
         return getattr(trigger, "tpsl", None) if trigger else None
 
     @staticmethod
     def map_limit_order_type(trigger: HyperliquidRawTriggerInfo | None) -> OrderType:
-        """Map limit order types with optional trigger."""
+        """Map limit order types with optional trigger.
+
+        Args:
+            trigger: Optional trigger info for stop/take profit orders
+
+        Returns:
+            OrderType: STOP_LIMIT for stop loss, TAKE_PROFIT_LIMIT for take profit, or LIMIT
+        """
         trigger_type = HyperliquidTradingEnumMapper.get_trigger_type(trigger)
         if trigger_type == "sl":
             return OrderType.STOP_LIMIT
@@ -245,7 +298,14 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
 
     @staticmethod
     def map_market_order_type(trigger: HyperliquidRawTriggerInfo | None) -> OrderType:
-        """Map market order types with optional trigger."""
+        """Map market order types with optional trigger.
+
+        Args:
+            trigger: Optional trigger info for stop/take profit orders
+
+        Returns:
+            OrderType: STOP_MARKET for stop loss, TAKE_PROFIT_MARKET for take profit, or MARKET
+        """
         trigger_type = HyperliquidTradingEnumMapper.get_trigger_type(trigger)
         if trigger_type == "sl":
             return OrderType.STOP_MARKET
@@ -268,8 +328,8 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
             OrderType: Mapped internal enum value
 
         Raises:
-            TransformationError: If order type structure is invalid
-
+            TransformationError: Re-raised if encountered during mapping
+            OrderTransformationError: If order type structure is invalid or mapping fails
         """
         try:
             # Hyperliquid uses nested dicts for orderType,
@@ -328,6 +388,8 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         Returns:
             TimeInForce: Mapped internal enum value
 
+        Raises:
+            TransformationError: If time in force value is invalid or cannot be mapped
         """
         try:
             # Only limit orders have TIF in HL

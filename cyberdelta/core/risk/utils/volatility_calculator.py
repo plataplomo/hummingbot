@@ -62,11 +62,19 @@ class PriceData:
 
     @property
     def typical_price(self) -> Decimal:
-        """Calculate typical price (HLC/3)."""
+        """Calculate typical price (HLC/3).
+        
+        Returns:
+            Average of high, low, and close prices
+        """
         return (self.high + self.low + self.close) / 3
 
     def true_range(self, previous_close: Decimal | None = None) -> Decimal:
-        """Calculate true range."""
+        """Calculate true range.
+        
+        Returns:
+            True range value calculated from high-low range and previous close.
+        """
         high_low = self.high - self.low
 
         if previous_close is None:
@@ -114,7 +122,11 @@ class VolatilityResult:
     warnings: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to dictionary."""
+        """Convert result to dictionary.
+        
+        Returns:
+            Dictionary representation of the volatility result with all metrics.
+        """
         return {
             "volatility": float(self.volatility),
             "annualized_volatility": float(self.annualized_volatility),
@@ -184,7 +196,11 @@ class VolatilityCalculator:
         self.cache_ttl_seconds = self.config.get("cache_ttl_seconds", 300)  # 5 minutes
 
     def _validate_input_data(self, price_data: list[PriceData]) -> None:
-        """Validate input data for volatility calculation."""
+        """Validate input data for volatility calculation.
+        
+        Raises:
+            VolatilityCalculationError: If no price data provided or insufficient data points.
+        """
         if not price_data:
             raise VolatilityCalculationError(
                 VolatilityCalculationError.NO_PRICE_DATA,
@@ -204,7 +220,11 @@ class VolatilityCalculator:
         method: VolatilityMethod | None,
         timeframe: VolatilityTimeframe | None,
     ) -> tuple[VolatilityMethod, VolatilityTimeframe, list[PriceData]]:
-        """Prepare inputs for volatility calculation."""
+        """Prepare inputs for volatility calculation.
+        
+        Returns:
+            Tuple containing validated method, timeframe, and filtered price data.
+        """
         method = method or self.default_method
         timeframe = timeframe or self.default_timeframe
 
@@ -217,7 +237,14 @@ class VolatilityCalculator:
     def _calculate_volatility_by_method(
         self, method: VolatilityMethod, returns: list[Decimal], price_data: list[PriceData]
     ) -> Decimal:
-        """Calculate volatility using the specified method."""
+        """Calculate volatility using the specified method.
+        
+        Returns:
+            Calculated volatility value using the specified method.
+            
+        Raises:
+            VolatilityCalculationError: If the calculation method is not supported.
+        """
         if method == VolatilityMethod.SIMPLE:
             return self._calculate_simple_volatility(returns)
         if method == VolatilityMethod.EXPONENTIAL:
@@ -234,7 +261,11 @@ class VolatilityCalculator:
         )
 
     def _calculate_additional_metrics(self, returns: list[Decimal]) -> dict[str, Any]:
-        """Calculate additional statistical metrics."""
+        """Calculate additional statistical metrics.
+        
+        Returns:
+            Dictionary containing skewness, kurtosis, upside/downside volatility, and percentiles.
+        """
         mean_return = sum(returns) / len(returns) if returns else Decimal(0)
 
         # Calculate skewness and kurtosis if enough data
@@ -270,12 +301,20 @@ class VolatilityCalculator:
         }
 
     def _annualize_volatility(self, volatility: Decimal, timeframe: VolatilityTimeframe) -> Decimal:
-        """Annualize volatility based on timeframe."""
+        """Annualize volatility based on timeframe.
+        
+        Returns:
+            Annualized volatility value scaled by the appropriate factor for the timeframe.
+        """
         annualization_factor = self.annualization_factors.get(timeframe, 365.25)
         return volatility * Decimal(str(math.sqrt(annualization_factor)))
 
     def _calculate_period_hours(self, price_data: list[PriceData]) -> float:
-        """Calculate period hours from price data."""
+        """Calculate period hours from price data.
+        
+        Returns:
+            Number of hours covered by the price data, or 0 if insufficient data.
+        """
         if len(price_data) >= MIN_SAMPLES_FOR_PERIOD_CALC:
             time_diff = price_data[-1].timestamp - price_data[0].timestamp
             return time_diff.total_seconds() / 3600
@@ -291,7 +330,11 @@ class VolatilityCalculator:
         period_hours: float,
         additional_metrics: dict[str, Any],
     ) -> VolatilityResult:
-        """Create the final volatility result."""
+        """Create the final volatility result.
+        
+        Returns:
+            Complete VolatilityResult object with all calculated metrics and metadata.
+        """
         return VolatilityResult(
             volatility=volatility,
             annualized_volatility=annualized_volatility,
@@ -375,7 +418,11 @@ class VolatilityCalculator:
         return result
 
     def _calculate_returns(self, price_data: list[PriceData]) -> list[Decimal]:
-        """Calculate returns from price data."""
+        """Calculate returns from price data.
+        
+        Returns:
+            List of logarithmic returns calculated from consecutive price data points.
+        """
         returns: list[Decimal] = []
 
         for i in range(1, len(price_data)):
@@ -388,7 +435,11 @@ class VolatilityCalculator:
         return returns
 
     def _calculate_simple_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate simple historical volatility."""
+        """Calculate simple historical volatility.
+        
+        Returns:
+            Standard deviation of returns, or 0 if no returns or calculation fails.
+        """
         if not returns:
             return Decimal(0)
 
@@ -402,7 +453,11 @@ class VolatilityCalculator:
             return Decimal(0)
 
     def _calculate_ewma_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate exponentially weighted moving average volatility."""
+        """Calculate exponentially weighted moving average volatility.
+        
+        Returns:
+            EWMA volatility with exponential decay weighting, or 0 if no returns.
+        """
         if not returns:
             return Decimal(0)
 
@@ -417,7 +472,11 @@ class VolatilityCalculator:
         return Decimal(str(math.sqrt(float(variance))))
 
     def _calculate_garch_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate GARCH(1,1) volatility."""
+        """Calculate GARCH(1,1) volatility.
+        
+        Returns:
+            GARCH(1,1) conditional volatility forecast, or 0 if no returns.
+        """
         if not returns:
             return Decimal(0)
 
@@ -437,7 +496,11 @@ class VolatilityCalculator:
         return Decimal(str(math.sqrt(float(variance))))
 
     def _calculate_realized_volatility(self, price_data: list[PriceData]) -> Decimal:
-        """Calculate realized volatility using high-frequency data."""
+        """Calculate realized volatility using high-frequency data.
+        
+        Returns:
+            Realized volatility calculated from sum of squared returns, or 0 if insufficient data.
+        """
         if len(price_data) < MIN_SAMPLES_FOR_REALIZED_VOLATILITY:
             return Decimal(0)
 
@@ -458,7 +521,11 @@ class VolatilityCalculator:
         return Decimal(str(math.sqrt(realized_variance)))
 
     def _calculate_parkinson_volatility(self, price_data: list[PriceData]) -> Decimal:
-        """Calculate Parkinson volatility using high-low prices."""
+        """Calculate Parkinson volatility using high-low prices.
+        
+        Returns:
+            Parkinson volatility calculated from high-low price ratios, or 0 if no valid data.
+        """
         if not price_data:
             return Decimal(0)
 
@@ -482,7 +549,11 @@ class VolatilityCalculator:
         return Decimal(str(math.sqrt(float(variance))))
 
     def _calculate_skewness(self, returns: list[Decimal], mean: Decimal, std: Decimal) -> Decimal:
-        """Calculate skewness of returns."""
+        """Calculate skewness of returns.
+        
+        Returns:
+            Skewness value measuring asymmetry of return distribution, or 0 if insufficient data.
+        """
         if std == 0 or len(returns) < MIN_SAMPLES_FOR_SKEWNESS:
             return Decimal(0)
 
@@ -494,7 +565,12 @@ class VolatilityCalculator:
         )
 
     def _calculate_kurtosis(self, returns: list[Decimal], mean: Decimal, std: Decimal) -> Decimal:
-        """Calculate kurtosis of returns."""
+        """Calculate kurtosis of returns.
+        
+        Returns:
+            Excess kurtosis value measuring tail heaviness of distribution, or 0 if 
+                insufficient data.
+        """
         if std == 0 or len(returns) < MIN_SAMPLES_FOR_KURTOSIS:
             return Decimal(0)
 
@@ -509,7 +585,11 @@ class VolatilityCalculator:
         ) * (sum_fourth / (std**4)) - Decimal(3)
 
     def _calculate_upside_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate upside volatility (volatility of positive returns)."""
+        """Calculate upside volatility (volatility of positive returns).
+        
+        Returns:
+            Volatility of positive returns only, or 0 if insufficient positive returns.
+        """
         positive_returns = [r for r in returns if r > 0]
 
         if len(positive_returns) < MIN_SAMPLES_FOR_UPSIDE_VOLATILITY:
@@ -518,7 +598,11 @@ class VolatilityCalculator:
         return self._calculate_simple_volatility(positive_returns)
 
     def _calculate_downside_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate downside volatility (volatility of negative returns)."""
+        """Calculate downside volatility (volatility of negative returns).
+        
+        Returns:
+            Volatility of negative returns only, or 0 if insufficient negative returns.
+        """
         negative_returns = [r for r in returns if r < 0]
 
         if len(negative_returns) < MIN_SAMPLES_FOR_DOWNSIDE_VOLATILITY:
@@ -527,7 +611,11 @@ class VolatilityCalculator:
         return self._calculate_simple_volatility(negative_returns)
 
     def _calculate_vol_of_vol(self, returns: list[Decimal], window: int = 20) -> Decimal | None:
-        """Calculate volatility of volatility."""
+        """Calculate volatility of volatility.
+        
+        Returns:
+            Volatility of rolling volatilities, or None if insufficient data for calculation.
+        """
         if len(returns) < window * 2:
             return None
 
@@ -620,7 +708,11 @@ class VolatilityCalculator:
         )
 
     def set_ewma_lambda(self, lambda_value: Decimal) -> None:
-        """Set EWMA lambda parameter."""
+        """Set EWMA lambda parameter.
+        
+        Raises:
+            VolatilityCalculationError: If lambda value is not between 0 and 1.
+        """
         if lambda_value <= 0 or lambda_value >= 1:
             raise VolatilityCalculationError(VolatilityCalculationError.LAMBDA_OUT_OF_RANGE)
 
@@ -628,7 +720,11 @@ class VolatilityCalculator:
         self.logger.info("Set EWMA lambda", lambda_value=float(lambda_value))
 
     def set_garch_parameters(self, omega: Decimal, alpha: Decimal, beta: Decimal) -> None:
-        """Set GARCH parameters."""
+        """Set GARCH parameters.
+        
+        Raises:
+            VolatilityCalculationError: If parameters are negative or create unstable model.
+        """
         if omega < 0 or alpha < 0 or beta < 0:
             raise VolatilityCalculationError(VolatilityCalculationError.GARCH_PARAMS_NEGATIVE)
 
@@ -646,7 +742,11 @@ class VolatilityCalculator:
         )
 
     def get_calculator_stats(self) -> dict[str, Any]:
-        """Get calculator statistics."""
+        """Get calculator statistics.
+        
+        Returns:
+            Dictionary containing current calculator configuration and statistics.
+        """
         return {
             "default_method": self.default_method.value,
             "default_timeframe": self.default_timeframe.value,

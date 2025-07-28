@@ -13,27 +13,47 @@ from cyberdelta.core.portfolio.portfolio_types.domain_models import ErrorContext
 
 
 def make_trade_list() -> list[Trade]:
-    """Factory function for trades list."""
+    """Factory function for trades list.
+
+    Returns:
+        list[Trade]: Empty list for storing Trade objects.
+    """
     return []
 
 
 def make_position_list() -> list[DerivativePosition]:
-    """Factory function for positions list."""
+    """Factory function for positions list.
+
+    Returns:
+        list[DerivativePosition]: Empty list for storing DerivativePosition objects.
+    """
     return []
 
 
 def make_order_list() -> list[Order]:
-    """Factory function for orders list."""
+    """Factory function for orders list.
+
+    Returns:
+        list[Order]: Empty list for storing Order objects.
+    """
     return []
 
 
 def make_error_list() -> list[ErrorContext]:
-    """Factory function for errors list."""
+    """Factory function for errors list.
+
+    Returns:
+        list[ErrorContext]: Empty list for storing ErrorContext objects.
+    """
     return []
 
 
 def make_balance_dict() -> dict[str, SpotBalance]:
-    """Factory function for balances dict."""
+    """Factory function for balances dict.
+
+    Returns:
+        dict[str, SpotBalance]: Empty dictionary for storing SpotBalance objects by asset symbol.
+    """
     return {}
 
 
@@ -120,7 +140,12 @@ class PortfolioSnapshot(BaseModel):
     metadata: dict[str, object] = Field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert portfolio snapshot to dictionary representation.
+
+        Returns:
+            dict[str, object]: Dictionary containing all snapshot data with 
+                string-formatted decimals.
+        """
         return {
             "snapshot_id": str(self.snapshot_id),
             "timestamp": self.timestamp,
@@ -192,7 +217,12 @@ class ExchangeSummary(BaseModel):
     spot_balances: dict[str, Decimal] = Field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert exchange summary to dictionary representation.
+
+        Returns:
+            dict[str, object]: Dictionary containing exchange summary data with 
+                string-formatted decimals.
+        """
         return {
             "exchange_id": self.exchange_id,
             "account_value": str(self.account_value),
@@ -251,7 +281,11 @@ class TradingSession(BaseModel):
     fees_by_exchange: dict[str, Decimal] = Field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert trading session to dictionary representation.
+
+        Returns:
+            dict[str, object]: Dictionary containing session data with string-formatted decimals.
+        """
         return {
             "session_id": str(self.session_id),
             "start_time": self.start_time,
@@ -276,21 +310,33 @@ class TradingSession(BaseModel):
 
     @property
     def win_rate(self) -> Decimal:
-        """Calculate win rate."""
+        """Calculate win rate as ratio of winning trades to total trades.
+
+        Returns:
+            Decimal: Win rate between 0 and 1, or 0 if no trades.
+        """
         if self.total_trades == 0:
             return Decimal(0)
         return Decimal(self.winning_trades) / Decimal(self.total_trades)
 
     @property
     def session_duration(self) -> float:
-        """Get session duration in seconds."""
+        """Get session duration in seconds.
+
+        Returns:
+            float: Duration between start and end time, or 0 if session not ended.
+        """
         if self.end_time is None:
             return 0.0
         return self.end_time - self.start_time
 
     @property
     def net_pnl(self) -> Decimal:
-        """Calculate net P&L after fees."""
+        """Calculate net P&L after fees.
+
+        Returns:
+            Decimal: Realized P&L minus total fees paid.
+        """
         return self.session_realized_pnl - self.total_fees_paid
 
 
@@ -317,7 +363,12 @@ class PortfolioUpdate(BaseModel):
     errors: list[ErrorContext] = Field(default_factory=make_error_list)
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert portfolio update to dictionary representation.
+
+        Returns:
+            dict[str, object]: Dictionary containing update data including trades, 
+                balances, positions, and orders.
+        """
         return {
             "update_id": str(self.update_id),
             "timestamp": self.timestamp,
@@ -360,7 +411,12 @@ class RiskParameters(BaseModel):
     max_currency_exposure: Decimal = Decimal("0.5")  # 50% in any single currency
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert risk parameters to dictionary representation.
+
+        Returns:
+            dict[str, object]: Dictionary containing risk parameter settings with 
+                string-formatted decimals.
+        """
         return {
             "max_position_size": str(self.max_position_size) if self.max_position_size else None,
             "max_position_count": self.max_position_count,
@@ -410,7 +466,12 @@ class PerformanceMetrics(BaseModel):
     average_loss: Decimal = Decimal(0)
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert performance metrics to dictionary representation.
+
+        Returns:
+            dict[str, object]: Dictionary containing performance metrics with 
+                string-formatted decimals.
+        """
         return {
             "total_return": str(self.total_return),
             "daily_return": str(self.daily_return),

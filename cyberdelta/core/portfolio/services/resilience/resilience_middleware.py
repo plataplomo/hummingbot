@@ -41,7 +41,11 @@ class ResilienceMiddleware:
         fallback_handler: Callable[..., Any] | None = None,
         health_check: Callable[..., Any] | None = None,
     ) -> Callable[[Callable[..., T]], Callable[..., Awaitable[T]]]:
-        """Decorator to add resilience capabilities to a function."""
+        """Decorator to add resilience capabilities to a function.
+        
+        Returns:
+            Decorator function that wraps the target function with resilience features
+        """
 
         def decorator(func: Callable[..., T]) -> Callable[..., Awaitable[T]]:
             # Register service if not already registered
@@ -106,7 +110,11 @@ class ResilienceMiddleware:
 
 
 def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> type[Any]:
-    """Create a mixin class for adding resilience capabilities."""
+    """Create a mixin class for adding resilience capabilities.
+    
+    Returns:
+        ResilienceMixin class with resilience capabilities for portfolio components
+    """
 
     class ResilienceMixin:
         """Mixin for adding resilience capabilities to portfolio components."""
@@ -127,7 +135,11 @@ def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> t
             fallback_handler: Callable[..., Any] | None = None,
             health_check: Callable[..., Any] | None = None,
         ) -> Callable[[Callable[P, T]], Callable[P, Awaitable[T]]]:
-            """Decorator for making methods resilient."""
+            """Decorator for making methods resilient.
+            
+            Returns:
+                Decorator that wraps methods with resilience capabilities
+            """
             # Use class name as service name if not provided
             if service_name is None:
                 service_name = self.__class__.__name__
@@ -150,7 +162,11 @@ def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> t
             *args: object,
             **kwargs: object,
         ) -> object:
-            """Execute function with resilience capabilities."""
+            """Execute function with resilience capabilities.
+            
+            Returns:
+                Result of the executed function with resilience applied
+            """
             return await self.resilience_service.execute_with_resilience(
                 service_name,
                 func,
@@ -162,11 +178,19 @@ def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> t
             )
 
         def get_resilience_status(self) -> dict[str, Any]:
-            """Get resilience status for this component."""
+            """Get resilience status for this component.
+            
+            Returns:
+                Dictionary containing resilience status information
+            """
             return self.resilience_service.get_resilience_status()
 
         async def health_check(self) -> bool:
-            """Default health check implementation."""
+            """Default health check implementation.
+            
+            Returns:
+                True if component is healthy, False otherwise
+            """
             # Check for is_running attribute without getattr
             # The mixin is designed to be used with classes that have is_running
             # Return True as default for classes without this attribute
@@ -224,7 +248,11 @@ PORTFOLIO_RESILIENCE_CONFIGS = {
 
 
 def get_resilience_config(service_type: str) -> dict[str, Any]:
-    """Get resilience configuration for a service type."""
+    """Get resilience configuration for a service type.
+    
+    Returns:
+        Dictionary containing circuit breaker and retry configurations
+    """
     return PORTFOLIO_RESILIENCE_CONFIGS.get(
         service_type,
         {
@@ -238,7 +266,14 @@ def get_resilience_config(service_type: str) -> dict[str, Any]:
 async def with_timeout(
     func: Callable[..., Awaitable[Any]], timeout_seconds: float, *args: object, **kwargs: object
 ) -> object:
-    """Execute function with timeout."""
+    """Execute function with timeout.
+    
+    Returns:
+        Result of the executed function
+        
+    Raises:
+        TimeoutError: If function execution exceeds timeout_seconds
+    """
     try:
         return await asyncio.wait_for(func(*args, **kwargs), timeout=timeout_seconds)
     except TimeoutError:
@@ -253,7 +288,14 @@ async def with_exponential_backoff(
     backoff_multiplier: float = 2.0,
     max_delay: float = 60.0,
 ) -> object:
-    """Execute function with exponential backoff retry."""
+    """Execute function with exponential backoff retry.
+    
+    Returns:
+        Result of the successful function execution
+        
+    Raises:
+        RuntimeError: If all retry attempts are exhausted without exception
+    """
     delay = initial_delay
     last_exception = None
 
@@ -280,7 +322,11 @@ async def with_exponential_backoff(
 
 
 def create_fallback_handler(fallback_value: object) -> Callable[..., Any]:
-    """Create a simple fallback handler that returns a default value."""
+    """Create a simple fallback handler that returns a default value.
+    
+    Returns:
+        Fallback function that returns the specified fallback_value
+    """
 
     def fallback_handler(*args: object, **kwargs: object) -> object:
         logger.info("fallback_handler_executed", fallback_value=fallback_value)
@@ -290,7 +336,11 @@ def create_fallback_handler(fallback_value: object) -> Callable[..., Any]:
 
 
 def create_health_check(component: object, check_attr: str = "is_running") -> Callable[[], bool]:
-    """Create a health check function for a component."""
+    """Create a health check function for a component.
+    
+    Returns:
+        Health check function that returns component health status
+    """
 
     def health_check() -> bool:
         try:

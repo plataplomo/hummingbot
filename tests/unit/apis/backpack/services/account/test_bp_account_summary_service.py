@@ -47,37 +47,61 @@ from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginA
 
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
-    """Create a mock HTTP client requester."""
+    """Create a mock HTTP client requester.
+    
+    Returns:
+        AsyncMock: A mock instance of the HTTP client.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        MagicMock: A mock instance of BackpackAccountRequestBuilder.
+    """
     return MagicMock(spec=BackpackAccountRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        MagicMock: A mock instance of BackpackAccountResponseHandler.
+    """
     return MagicMock(spec=BackpackAccountResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        MagicMock: A mock instance of BackpackAccountSummaryMapper.
+    """
     return MagicMock(spec=BackpackAccountSummaryMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Create a mock authenticator."""
+    """Create a mock authenticator.
+    
+    Returns:
+        MagicMock: A mock instance of authenticator.
+    """
     return MagicMock()
 
 
 @pytest.fixture
 def mock_account_state_service() -> AsyncMock:
-    """Create a mock account state service."""
+    """Create a mock account state service.
+    
+    Returns:
+        AsyncMock: A mock instance of account state service.
+    """
     return AsyncMock()
 
 
@@ -90,7 +114,11 @@ def account_summary_service(
     mock_authenticator: MagicMock,
     mock_account_state_service: AsyncMock,
 ) -> BackpackAccountSummaryService:
-    """Create an account summary service instance with mocks."""
+    """Create an account summary service instance with mocks.
+    
+    Returns:
+        BackpackAccountSummaryService: Service instance configured with mock dependencies.
+    """
     return BackpackAccountSummaryService(
         http_client_requester=mock_http_client,
         request_builder=mock_request_builder,
@@ -104,7 +132,11 @@ def account_summary_service(
 
 @pytest.fixture
 def mock_raw_account_summary() -> BackpackRawAccountSummaryResponse:
-    """Create a mock raw account summary."""
+    """Create a mock raw account summary.
+    
+    Returns:
+        BackpackRawAccountSummaryResponse: A mock account summary with test data.
+    """
     return BackpackRawAccountSummaryResponse.model_validate({
         "autoBorrowSettlements": True,
         "autoLend": True,
@@ -125,7 +157,11 @@ def mock_raw_account_summary() -> BackpackRawAccountSummaryResponse:
 
 @pytest.fixture
 def mock_raw_balance() -> BackpackRawBalanceResponse:
-    """Create a mock raw balance."""
+    """Create a mock raw balance.
+    
+    Returns:
+        BackpackRawBalanceResponse: A mock balance response with test data.
+    """
     return BackpackRawBalanceResponse(
         available="1000.00",
         locked="100.00",
@@ -135,7 +171,11 @@ def mock_raw_balance() -> BackpackRawBalanceResponse:
 
 @pytest.fixture
 def mock_raw_position() -> BackpackRawPositionResponse:
-    """Create a mock raw position."""
+    """Create a mock raw position.
+    
+    Returns:
+        BackpackRawPositionResponse: A mock position for BTC-PERP.
+    """
     return BackpackRawPositionResponse.model_validate({
         "symbol": "BTC-PERP",
         "netQuantity": "1.5",
@@ -162,7 +202,11 @@ def mock_raw_position() -> BackpackRawPositionResponse:
 
 @pytest.fixture
 def mock_collateral_response() -> BackpackRawCollateralResponse:
-    """Create a mock collateral response."""
+    """Create a mock collateral response.
+    
+    Returns:
+        BackpackRawCollateralResponse: A mock collateral response with USDC data.
+    """
     return BackpackRawCollateralResponse.model_validate({
         "netEquity": "77600.00",
         "netEquityAvailable": "77390.00",
@@ -194,7 +238,11 @@ def mock_collateral_response() -> BackpackRawCollateralResponse:
 
 @pytest.fixture
 def mock_margin_account_summary() -> MarginAccountSummary:
-    """Create a mock margin account summary."""
+    """Create a mock margin account summary.
+    
+    Returns:
+        MarginAccountSummary: A mock margin account summary with test values.
+    """
     return MarginAccountSummary(
         exchange="backpack",
         timestamp=datetime.now(UTC),
@@ -216,7 +264,11 @@ def mock_margin_account_summary() -> MarginAccountSummary:
 
 @pytest.fixture
 def mock_account_settings() -> AccountSettings:
-    """Create mock account settings."""
+    """Create mock account settings.
+    
+    Returns:
+        AccountSettings: Mock account settings with test configuration.
+    """
     return AccountSettings(
         exchange="backpack",
         auto_borrow_settlements=True,

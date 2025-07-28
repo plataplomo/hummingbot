@@ -24,7 +24,11 @@ class StateError(PortfolioError):
     """Base exception for state management errors."""
 
     def _get_default_error_code(self) -> str:
-        """Get default error code for state exceptions."""
+        """Get default error code for state exceptions.
+
+        Returns:
+            Default error code string based on class name
+        """
         return f"STATE_{self.__class__.__name__.upper()}"
 
 

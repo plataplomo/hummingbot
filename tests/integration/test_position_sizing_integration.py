@@ -29,7 +29,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 
 @pytest.fixture
 def setup_dependencies() -> dict[str, MagicMock]:
-    """Set up test dependencies."""
+    """Set up test dependencies.
+    
+    Returns:
+        dict[str, MagicMock]: Dictionary of mock dependencies for testing.
+    """
     data_handler = MagicMock()
     portfolio_tracker = MagicMock()
     config = MagicMock(spec=AppSettings)
@@ -47,7 +51,11 @@ def setup_dependencies() -> dict[str, MagicMock]:
 def strategy_with_risk_manager(
     setup_dependencies: dict[str, MagicMock],
 ) -> FundingRateArbitrageStrategy:
-    """Create strategy instance with risk manager."""
+    """Create strategy instance with risk manager.
+    
+    Returns:
+        FundingRateArbitrageStrategy: Strategy configured with risk management.
+    """
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
         symbol="BTC-PERP",
@@ -69,7 +77,11 @@ def strategy_with_risk_manager(
 def strategy_without_risk_manager(
     setup_dependencies: dict[str, MagicMock],
 ) -> FundingRateArbitrageStrategy:
-    """Create strategy instance without risk manager."""
+    """Create strategy instance without risk manager.
+    
+    Returns:
+        FundingRateArbitrageStrategy: Strategy configured without risk management.
+    """
     return FundingRateArbitrageStrategy(
         name="test_no_rm",
         symbol="BTC-PERP",
@@ -89,7 +101,11 @@ def strategy_without_risk_manager(
 
 @pytest.fixture
 def mock_opportunity() -> ArbitrageOpportunity:
-    """Create a mock opportunity for testing."""
+    """Create a mock opportunity for testing.
+    
+    Returns:
+        ArbitrageOpportunity: Mock arbitrage opportunity with test data.
+    """
     return ArbitrageOpportunity(
         symbol="BTC/USDT",
         long_exchange="ExchangeA",

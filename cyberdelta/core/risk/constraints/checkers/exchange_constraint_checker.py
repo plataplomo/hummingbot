@@ -47,7 +47,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         self._set_default_order_sizes()
 
     def _config_to_decimal(self, key: str, default: Decimal) -> Decimal:
-        """Convert config value to Decimal safely."""
+        """Convert config value to Decimal safely.
+
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if conversion fails
+
+        Returns:
+            Decimal value or default if conversion fails
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, (str, int, float)):
             return Decimal(str(value))
@@ -56,7 +64,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         return default
 
     def _config_to_int(self, key: str, default: int) -> int:
-        """Convert config value to int safely."""
+        """Convert config value to int safely.
+
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if conversion fails
+
+        Returns:
+            Integer value or default if conversion fails
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, int):
             return value
@@ -70,7 +86,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
     def _config_to_dict_str_decimal(
         self, key: str, default: dict[str, Decimal]
     ) -> dict[str, Decimal]:
-        """Convert config value to dict[str, Decimal] safely."""
+        """Convert config value to dict[str, Decimal] safely.
+
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if conversion fails
+
+        Returns:
+            Dictionary with string keys and Decimal values
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, dict):
             result: dict[str, Decimal] = {}
@@ -83,7 +107,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         return default
 
     def _config_to_list_str(self, key: str, default: list[str]) -> list[str]:
-        """Convert config value to list[str] safely."""
+        """Convert config value to list[str] safely.
+
+        Args:
+            key: Configuration key to retrieve
+            default: Default value if conversion fails
+
+        Returns:
+            List of strings or default if conversion fails
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, list):
             return [str(item) for item in value if item is not None]
@@ -137,7 +169,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate exchange constraints."""
+        """Validate exchange constraints.
+
+        Args:
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of constraint violations, empty if all constraints pass
+        """
         violations: list[ConstraintViolation] = []
 
         # Validate both long and short exchanges
@@ -180,7 +220,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         exchange: str,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate position count per exchange."""
+        """Validate position count per exchange.
+
+        Args:
+            exchange: Exchange identifier
+            context: Constraint validation context
+
+        Returns:
+            List of position count constraint violations
+        """
         violations: list[ConstraintViolation] = []
 
         # Count current positions on this exchange
@@ -217,7 +265,16 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate allocation per exchange."""
+        """Validate allocation per exchange.
+
+        Args:
+            exchange: Exchange identifier
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of allocation constraint violations
+        """
         violations: list[ConstraintViolation] = []
 
         # Calculate current allocation on this exchange
@@ -252,7 +309,16 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate leverage per exchange."""
+        """Validate leverage per exchange.
+
+        Args:
+            exchange: Exchange identifier
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of leverage constraint violations
+        """
         violations: list[ConstraintViolation] = []
 
         # Check if exchange has specific leverage limits
@@ -307,7 +373,16 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
             self.logger.info("Unblocked exchange", exchange=exchange)
 
     def set_order_size_limits(self, exchange: str, min_size: Decimal, max_size: Decimal) -> None:
-        """Set order size limits for an exchange."""
+        """Set order size limits for an exchange.
+
+        Args:
+            exchange: Exchange identifier
+            min_size: Minimum order size in USD
+            max_size: Maximum order size in USD
+
+        Raises:
+            ExchangeConstraintError: If min_size >= max_size
+        """
         if min_size >= max_size:
             raise ExchangeConstraintError(
                 ExchangeConstraintError.INVALID_ORDER_SIZE_RANGE,
@@ -324,7 +399,15 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         )
 
     def set_exchange_leverage_limit(self, exchange: str, max_leverage: Decimal) -> None:
-        """Set leverage limit for an exchange."""
+        """Set leverage limit for an exchange.
+
+        Args:
+            exchange: Exchange identifier
+            max_leverage: Maximum leverage allowed
+
+        Raises:
+            ExchangeConstraintError: If max_leverage <= 0
+        """
         if max_leverage <= 0:
             raise ExchangeConstraintError(
                 ExchangeConstraintError.INVALID_LEVERAGE_VALUE,
@@ -335,7 +418,14 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         self.logger.info("Set leverage limit", exchange=exchange, max_leverage=float(max_leverage))
 
     def set_exchange_allocation_limit(self, max_allocation: Decimal) -> None:
-        """Set allocation limit per exchange."""
+        """Set allocation limit per exchange.
+
+        Args:
+            max_allocation: Maximum allocation percentage (0-1)
+
+        Raises:
+            ExchangeConstraintError: If max_allocation <= 0 or max_allocation > 1
+        """
         if max_allocation <= 0 or max_allocation > 1:
             raise ExchangeConstraintError(
                 ExchangeConstraintError.INVALID_ALLOCATION_RANGE,
@@ -346,7 +436,14 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         self.logger.info("Set exchange allocation limit", max_allocation=float(max_allocation))
 
     def set_exchange_position_limit(self, max_positions: int) -> None:
-        """Set position limit per exchange."""
+        """Set position limit per exchange.
+
+        Args:
+            max_positions: Maximum number of positions per exchange
+
+        Raises:
+            ExchangeConstraintError: If max_positions <= 0
+        """
         if max_positions <= 0:
             raise ExchangeConstraintError(
                 ExchangeConstraintError.INVALID_POSITION_LIMIT,
@@ -357,7 +454,14 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         self.logger.info("Set exchange position limit", max_positions=max_positions)
 
     def get_exchange_info(self, exchange: str) -> dict[str, Any]:
-        """Get information about an exchange."""
+        """Get information about an exchange.
+
+        Args:
+            exchange: Exchange identifier
+
+        Returns:
+            Dictionary containing exchange information including limits and constraints
+        """
         return {
             "exchange": exchange,
             "allowed": (
@@ -382,7 +486,11 @@ class ExchangeConstraintChecker(BaseConstraintValidator):
         }
 
     def get_constraint_stats(self) -> dict[str, Any]:
-        """Get constraint statistics."""
+        """Get constraint statistics.
+
+        Returns:
+            Dictionary containing all constraint configuration and statistics
+        """
         return {
             "max_positions_per_exchange": self.exchange_constraint.max_positions_per_exchange,
             "max_allocation_per_exchange": float(

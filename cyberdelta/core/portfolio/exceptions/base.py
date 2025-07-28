@@ -30,11 +30,19 @@ class PortfolioError(Exception):
         self.recoverable = recoverable
 
     def _get_default_error_code(self) -> str:
-        """Get default error code based on exception class."""
+        """Get default error code based on exception class.
+
+        Returns:
+            Default error code string.
+        """
         return f"PORTFOLIO_{self.__class__.__name__.upper()}"
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert exception to dictionary for logging/serialization."""
+        """Convert exception to dictionary for logging/serialization.
+
+        Returns:
+            Dictionary representation of the exception.
+        """
         return {
             "error_type": self.__class__.__name__,
             "message": self.message,
@@ -44,7 +52,11 @@ class PortfolioError(Exception):
         }
 
     def __str__(self) -> str:
-        """String representation of the exception."""
+        """String representation of the exception.
+
+        Returns:
+            String representation of the exception.
+        """
         if self.error_code:
             return f"[{self.error_code}] {self.message}"
         return self.message

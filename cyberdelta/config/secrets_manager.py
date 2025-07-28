@@ -46,9 +46,6 @@ class SecretsManager:
             secrets_path: Optional path to the secrets file.
                          If not provided, default locations will be checked.
 
-        Raises:
-            ConfigurationError: If secrets loading or validation fails.
-
         """
         self.secrets_data: SecretsConfig | None = None
         self.secrets_path = Path(secrets_path) if secrets_path else self._get_secrets_path()
@@ -60,8 +57,10 @@ class SecretsManager:
         """Load secrets from the configured location and validate against SecretsConfig model.
 
         Raises:
-            ConfigurationError: If file is not found, YAML parsing fails,
-                               or Pydantic validation fails.
+            ConfigFileNotFoundError: If the secrets file is not found.
+            ConfigFileInvalidError: If the secrets file has invalid content.
+            ConfigFileReadError: If there's an error reading the secrets file.
+            ConfigValidationError: If Pydantic validation fails.
 
         """
         # Check if secrets file exists
@@ -167,12 +166,7 @@ class SecretsManager:
         return default_path
 
     def reload(self) -> None:
-        """Reload secrets from file.
-
-        Raises:
-            ConfigurationError: If reload fails.
-
-        """
+        """Reload secrets from file."""
         self.secrets_data = None
         self.secrets_loaded = False
         self.load()

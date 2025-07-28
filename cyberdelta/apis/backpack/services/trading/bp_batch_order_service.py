@@ -91,7 +91,6 @@ class BackpackBatchOrderService:
 
         Raises:
             APIError: If cancellation fails due to API errors
-            ValueError: If parameters are invalid
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -161,6 +160,7 @@ class BackpackBatchOrderService:
 
         Raises:
             APIError: If the request fails or response is invalid
+            MissingRequiredFieldError: If authenticator is not available
         """
         if not self._authenticator:
             raise APIError(
@@ -257,9 +257,6 @@ class BackpackBatchOrderService:
 
         Returns:
             list[CancelOrderResult]: List of cancellation results
-
-        Raises:
-            APIError: If response processing fails
         """
         try:
             validated_data = ensure_list_response(

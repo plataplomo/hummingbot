@@ -98,7 +98,7 @@ class LegacyBridge:
             short_exchange: Short exchange identifier
 
         Raises:
-            ValueError: If validation fails
+            SymbolValidationError: If validation fails
         """
         is_valid, errors = self.helpers.validate_arbitrage_pair(
             internal, long_exchange, short_exchange

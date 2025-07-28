@@ -33,7 +33,16 @@ class CurrencyConverter:
     """Simple currency converter interface for unrealized P&L calculations."""
 
     async def convert(self, amount: Decimal, from_currency: str, to_currency: str) -> Decimal:
-        """Convert amount from one currency to another."""
+        """Convert amount from one currency to another.
+        
+        Args:
+            amount: Amount to convert
+            from_currency: Source currency code
+            to_currency: Target currency code
+            
+        Returns:
+            Decimal: Converted amount in target currency
+        """
         # For now, implement basic conversion logic
         # In production, this would use real exchange rates
         if from_currency == to_currency:
@@ -275,7 +284,11 @@ class UnrealizedPnLCalculator(BaseCalculator[UnrealizedPnLResult]):
             )
 
     def _get_current_timestamp(self) -> float:
-        """Get current timestamp for metadata."""
+        """Get current timestamp for metadata.
+        
+        Returns:
+            float: Current timestamp in seconds since epoch
+        """
         return time.time()
 
     async def calculate_portfolio_summary(

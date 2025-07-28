@@ -63,6 +63,16 @@ class BackpackPrivateDataCollector:
         Args:
             output_dir: Directory where collected JSON data files will be saved
             session: Authenticated aiohttp session for making API requests
+
+        Raises:
+            ConfigurationError: If Backpack configuration is missing or disabled.
+            SecretsNotLoadedError: If secrets configuration cannot be loaded.
+            RequiredParameterError: If required Backpack secrets are missing.
+            InvalidAuthTypeError: If authentication type is not 'api_key'.
+            AttributeError: If required configuration attributes are missing.
+            ImportError: If required modules cannot be imported.
+            KeyError: If required configuration keys are missing.
+            ValueError: If configuration values are invalid.
         """
         self.logger = get_logger(__name__)
         self.output_dir = output_dir
@@ -123,7 +133,11 @@ class BackpackPrivateDataCollector:
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
-        """Fetch JSON data from an authenticated endpoint with error handling."""
+        """Fetch JSON data from an authenticated endpoint with error handling.
+
+        Returns:
+            dict[str, Any] | None: JSON response data or None if error occurs.
+        """
         try:
             # Prepare authenticated request
             auth_components = await self.authenticator.prepare_request(
@@ -588,7 +602,11 @@ class BackpackPrivateDataCollector:
             self._save_json(data, "bp_private_account_quotes.json")
 
     def get_default_symbols(self) -> list[str]:
-        """Get default symbols from configuration or fallback."""
+        """Get default symbols from configuration or fallback.
+
+        Returns:
+            list[str]: List of default trading symbols.
+        """
         return (
             list(self.configured_symbols.values())
             if self.configured_symbols
@@ -596,21 +614,37 @@ class BackpackPrivateDataCollector:
         )
 
     def get_sample_order_ids(self) -> list[str]:
-        """Get sample order IDs for testing (these would be real order IDs in practice)."""
+        """Get sample order IDs for testing (these would be real order IDs in practice).
+
+        Returns:
+            list[str]: List of sample order IDs.
+        """
         return ["123456789", "987654321", "555666777"]
 
     def get_blockchains(self) -> list[str]:
-        """Get supported blockchains for deposit addresses."""
+        """Get supported blockchains for deposit addresses.
+
+        Returns:
+            list[str]: List of supported blockchain names.
+        """
         # Only include blockchains that are known to work with Backpack
         # Removed: "Polygon" (not supported), "Bitcoin" (treasury service issues)
         return ["Solana", "Ethereum"]
 
     def get_borrow_lend_intervals(self) -> list[str]:
-        """Get valid intervals for borrow/lend history."""
+        """Get valid intervals for borrow/lend history.
+
+        Returns:
+            list[str]: List of valid interval strings.
+        """
         return ["1d", "1w", "1month", "1year"]
 
     def get_dust_conversion_assets(self) -> list[str]:
-        """Get common assets that might have dust to convert."""
+        """Get common assets that might have dust to convert.
+
+        Returns:
+            list[str]: List of asset symbols that might have dust.
+        """
         # Test dust conversion for common assets that users might hold
         return ["SOL", "BTC", "ETH"]
 
@@ -765,6 +799,15 @@ async def main() -> None:
     Parses command-line arguments, sets up configuration and authentication,
     and runs the complete private data collection process across all authenticated
     Backpack API endpoints. Saves collected data as JSON fixtures for testing.
+
+    Raises:
+        AttributeError: If required attributes are missing.
+        ConnectionError: If connection to API fails.
+        ImportError: If required modules cannot be imported.
+        KeyError: If required configuration keys are missing.
+        OSError: If file operations fail.
+        RuntimeError: If runtime errors occur.
+        ValueError: If invalid values are encountered.
     """
     # Ensure we're running from project root
     _ensure_project_root()

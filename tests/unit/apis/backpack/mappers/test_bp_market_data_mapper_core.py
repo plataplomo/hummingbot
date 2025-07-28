@@ -73,33 +73,78 @@ class CompositeMarketDataMapper:
     def transform_raw_ticker_to_internal(
         self, raw_ticker: BackpackRawTickerResponse, symbol_override: str | None = None
     ) -> Ticker:
-        """Transform raw ticker to internal format."""
+        """Transform raw ticker to internal format.
+
+        Args:
+            raw_ticker: Raw ticker response from Backpack API.
+            symbol_override: Optional symbol override for the ticker.
+
+        Returns:
+            Ticker: Transformed ticker with market data.
+        """
         return self.ticker_mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override)
 
     def transform_raw_market_to_internal(self, raw_market: BackpackRawMarketResponse) -> Market:
-        """Transform raw market to internal format."""
+        """Transform raw market to internal format.
+
+        Args:
+            raw_market: Raw market response from Backpack API.
+
+        Returns:
+            Market: Transformed market information.
+        """
         return self.market_mapper.transform_raw_market_to_internal(raw_market)
 
     def transform_raw_order_book_to_internal(
         self, symbol: str, raw_order_book: BackpackRawOrderBook
     ) -> OrderBook:
-        """Transform raw order book to internal format."""
+        """Transform raw order book to internal format.
+
+        Args:
+            symbol: Trading symbol for the order book.
+            raw_order_book: Raw order book from Backpack API.
+
+        Returns:
+            OrderBook: Transformed order book with bid/ask levels.
+        """
         return self.order_book_mapper.transform_raw_order_book_to_internal(symbol, raw_order_book)
 
     def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Trade:
-        """Transform raw trade to internal format."""
+        """Transform raw trade to internal format.
+
+        Args:
+            raw_trade: Raw trade data from Backpack API.
+
+        Returns:
+            Trade: Transformed trade with execution details.
+        """
         return self.trade_mapper.transform_raw_trade_to_internal(raw_trade)
 
     def transform_raw_funding_rate_to_internal(
         self, raw_funding_rate: BackpackRawFundingRateResponse
     ) -> FundingRate:
-        """Transform raw funding rate to internal format."""
+        """Transform raw funding rate to internal format.
+
+        Args:
+            raw_funding_rate: Raw funding rate response from Backpack API.
+
+        Returns:
+            FundingRate: Transformed funding rate information.
+        """
         return self.funding_rate_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
 
     def transform_raw_funding_interval_rate_to_internal(
         self, raw_funding_rate: BackpackRawFundingIntervalRate, symbol: str
     ) -> FundingRate:
-        """Transform raw funding interval rate to internal format."""
+        """Transform raw funding interval rate to internal format.
+
+        Args:
+            raw_funding_rate: Raw funding interval rate from Backpack API.
+            symbol: Trading symbol for the funding rate.
+
+        Returns:
+            FundingRate: Transformed funding rate for the interval.
+        """
         return self.funding_rate_mapper.transform_raw_funding_interval_rate_to_internal(
             raw_funding_rate, symbol
         )
@@ -107,7 +152,16 @@ class CompositeMarketDataMapper:
     def transform_raw_kline_to_internal(
         self, symbol: str, interval: str, raw_kline: BackpackRawKlineResponse
     ) -> Candle:
-        """Transform raw kline to internal format."""
+        """Transform raw kline to internal format.
+
+        Args:
+            symbol: Trading symbol for the kline.
+            interval: Time interval for the kline.
+            raw_kline: Raw kline data from Backpack API.
+
+        Returns:
+            Candle: Transformed candlestick data.
+        """
         return self.candle_mapper.transform_raw_kline_to_internal(symbol, interval, raw_kline)
 
 

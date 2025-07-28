@@ -38,31 +38,51 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
-    """Create a mock HTTP client requester."""
+    """Create a mock HTTP client requester.
+    
+    Returns:
+        AsyncMock instance configured for HTTP client testing.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        MagicMock instance configured as BackpackTradingRequestBuilder.
+    """
     return MagicMock(spec=BackpackTradingRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        MagicMock instance configured as BackpackTradingResponseHandler.
+    """
     return MagicMock(spec=BackpackTradingResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        MagicMock instance configured as BackpackTransactionMapper.
+    """
     return MagicMock(spec=BackpackTransactionMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Create a mock authenticator."""
+    """Create a mock authenticator.
+    
+    Returns:
+        MagicMock instance for authentication testing.
+    """
     return MagicMock()
 
 
@@ -74,7 +94,18 @@ def transaction_history_service(
     mock_mapper: MagicMock,
     mock_authenticator: MagicMock,
 ) -> BackpackTransactionHistoryService:
-    """Create a transaction history service instance with mocks."""
+    """Create a transaction history service instance with mocks.
+    
+    Args:
+        mock_http_client: Mock HTTP client for API requests.
+        mock_request_builder: Mock request builder for constructing requests.
+        mock_response_handler: Mock response handler for processing responses.
+        mock_mapper: Mock mapper for data transformation.
+        mock_authenticator: Mock authenticator for authentication.
+        
+    Returns:
+        BackpackTransactionHistoryService instance configured with all mocks.
+    """
     return BackpackTransactionHistoryService(
         http_client_requester=mock_http_client,
         request_builder=mock_request_builder,
@@ -87,7 +118,11 @@ def transaction_history_service(
 
 @pytest.fixture
 def mock_raw_order() -> BackpackRawOrderResponse:
-    """Create a mock raw order."""
+    """Create a mock raw order.
+    
+    Returns:
+        BackpackRawOrderResponse instance with sample order data
+    """
     return BackpackRawOrderResponse(
         id="order_123",
         symbol="BTC-USDC",
@@ -117,7 +152,11 @@ def mock_raw_order() -> BackpackRawOrderResponse:
 
 @pytest.fixture
 def mock_order() -> Order:
-    """Create a mock order."""
+    """Create a mock order.
+    
+    Returns:
+        Order instance with sample data matching the mock_raw_order.
+    """
     return Order(
         exchange_order_id="order_123",
         client_order_id="client_123",
@@ -141,7 +180,11 @@ def mock_order() -> Order:
 
 @pytest.fixture
 def mock_raw_fill() -> BackpackRawFillResponse:
-    """Create a mock raw fill."""
+    """Create a mock raw fill.
+    
+    Returns:
+        BackpackRawFillResponse instance with sample fill/trade data
+    """
     return BackpackRawFillResponse(
         tradeId=456,
         orderId="order_123",
@@ -160,7 +203,11 @@ def mock_raw_fill() -> BackpackRawFillResponse:
 
 @pytest.fixture
 def mock_trade() -> Trade:
-    """Create a mock trade."""
+    """Create a mock trade.
+    
+    Returns:
+        Trade instance with sample data matching the mock_raw_fill.
+    """
     return Trade(
         id="trade_456",
         order_id="order_123",

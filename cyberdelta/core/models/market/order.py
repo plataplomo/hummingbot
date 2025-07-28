@@ -168,7 +168,8 @@ class Order(BaseModel):
             Validated string value or None if optional field is None
 
         Raises:
-            ValueError: If field name is None or validation fails
+            FieldNameMissingError: If field name is None
+            RequiredFieldNoneError: If client_order_id is None (required)
         """
         field_name = info.field_name
         if field_name is None:
@@ -195,7 +196,7 @@ class Order(BaseModel):
             Validated string value
 
         Raises:
-            ValueError: If field name is None or validation fails
+            FieldNameMissingError: If field name is None
         """
         field_name = info.field_name
         if field_name is None:
@@ -209,7 +210,18 @@ class Order(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Validate average fill price specifically."""
+        """Validate average fill price specifically.
+
+        Args:
+            v: The value to validate (string, float, Decimal, or None)
+            info: Validation context containing field name
+
+        Returns:
+            Validated Decimal value or None if not provided
+
+        Raises:
+            DecimalFiniteError: If the value is not finite
+        """
         if v is None:
             return None
         if isinstance(v, Decimal):
@@ -239,7 +251,19 @@ class Order(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite and positive if present."""
+        """Parse optional decimal, ensuring finite and positive if present.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed Decimal value or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -260,7 +284,19 @@ class Order(BaseModel):
         v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal, ensuring finite and positive (via Field)."""
+        """Parse required decimal, ensuring finite and positive (via Field).
+
+        Args:
+            v: The value to parse (string, float, or Decimal)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed finite Decimal value
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -278,7 +314,19 @@ class Order(BaseModel):
         v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal, ensuring finite and non-negative (via Field)."""
+        """Parse required decimal, ensuring finite and non-negative (via Field).
+
+        Args:
+            v: The value to parse (string, float, or Decimal)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed finite Decimal value
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -296,7 +344,19 @@ class Order(BaseModel):
         v: str | float | datetime,
         info: ValidationInfo,
     ) -> datetime:
-        """Parse required datetime, ensuring UTC."""
+        """Parse required datetime, ensuring UTC.
+
+        Args:
+            v: The value to parse (string, float, or datetime)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed UTC datetime
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            RequiredFieldNoneError: If parsed datetime is None
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -313,7 +373,18 @@ class Order(BaseModel):
         v: str | float | datetime | None,
         info: ValidationInfo,
     ) -> datetime | None:
-        """Parse optional datetime, ensuring UTC if present."""
+        """Parse optional datetime, ensuring UTC if present.
+
+        Args:
+            v: The value to parse (string, float, datetime, or None)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed UTC datetime or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -328,7 +399,14 @@ class Order(BaseModel):
     # --- Model Validator ---
     @model_validator(mode="after")
     def check_order_logic(self) -> Self:
-        """Validate essential cross-field order logic."""
+        """Validate essential cross-field order logic.
+
+        Returns:
+            Self instance after validation
+
+        Raises:
+            OrderLogicError: If cross-field validation fails
+        """
         limit_types = {OrderType.LIMIT, OrderType.STOP_LIMIT, OrderType.TAKE_PROFIT_LIMIT}
         stop_types = {OrderType.STOP_MARKET, OrderType.STOP_LIMIT}
 
@@ -407,7 +485,19 @@ class HyperliquidOrderDetails(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
+        """Parse optional decimal, ensuring finite if present.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed finite Decimal value or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -455,7 +545,19 @@ class BackpackOrderDetails(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present."""
+        """Parse optional decimal, ensuring finite if present.
+
+        Args:
+            v: The value to parse (string, float, Decimal, or None)
+            info: Validation context containing field name
+
+        Returns:
+            Parsed finite Decimal value or None if not provided
+
+        Raises:
+            FieldNameMissingError: If field name is None
+            DecimalFiniteError: If parsed value is not finite
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError

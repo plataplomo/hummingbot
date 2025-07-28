@@ -56,12 +56,20 @@ class SupportsIteration(Protocol):
 
 
 def is_str_any_dict(obj: object) -> TypeGuard[dict[str, Any]]:
-    """TypeGuard to ensure dict has str keys."""
+    """TypeGuard to ensure dict has str keys.
+
+    Returns:
+        TypeGuard[dict[str, Any]]: True if obj is a dict with string keys.
+    """
     return isinstance(obj, dict)
 
 
 def is_any_list(obj: object) -> TypeGuard[list[Any]]:
-    """TypeGuard to ensure object is a list."""
+    """TypeGuard to ensure object is a list.
+
+    Returns:
+        TypeGuard[list[Any]]: True if obj is a list.
+    """
     return isinstance(obj, list)
 
 
@@ -69,22 +77,38 @@ class TestBackpackAllStreamModelConversions:
     """Test comprehensive stream-to-model conversions for all WebSocket data types."""
 
     def _is_trade(self, obj: object) -> TypeGuard[Trade]:
-        """Type guard for Trade objects."""
+        """Type guard for Trade objects.
+
+        Returns:
+            TypeGuard[Trade]: True if obj is a Trade instance.
+        """
         return isinstance(obj, Trade)
 
     def _is_backpack_fill(self, obj: object) -> TypeGuard[BackpackRawFillResponse]:
-        """Type guard for BackpackRawFillResponse objects."""
+        """Type guard for BackpackRawFillResponse objects.
+
+        Returns:
+            True if obj is a BackpackRawFillResponse instance, False otherwise.
+        """
         return isinstance(obj, BackpackRawFillResponse)
 
     def _get_domain_model_keys(self, context_data: dict[str, Any]) -> list[str]:
-        """Extract domain model keys with proper typing."""
+        """Extract domain model keys with proper typing.
+
+        Returns:
+            list[str]: List of keys from the domain model in context data.
+        """
         domain_model_value = context_data.get("domain_model")
         if is_str_any_dict(domain_model_value):
             return list(domain_model_value.keys())
         return []
 
     def _extract_symbol_from_model(self, model_dict: object) -> str | None:
-        """Extract symbol from model dict with proper typing."""
+        """Extract symbol from model dict with proper typing.
+
+        Returns:
+            str | None: Symbol string if found, None otherwise.
+        """
         if is_str_any_dict(model_dict):
             symbol_value = model_dict.get("symbol")
             if isinstance(symbol_value, str):
@@ -92,18 +116,33 @@ class TestBackpackAllStreamModelConversions:
         return None
 
     def _get_model_dict_keys(self, model_dict: object) -> list[str] | str:
-        """Get model dict keys with proper typing."""
+        """Get model dict keys with proper typing.
+
+        Returns:
+            list[str] | str: List of dict keys if model_dict is a dict, 'NOT_A_DICT' otherwise.
+        """
         if is_str_any_dict(model_dict):
             return list(model_dict.keys())
         return "NOT_A_DICT"
 
     def _extract_trades(self, items: SupportsIteration) -> list[Trade]:
-        """Extract Trade objects from iterable with proper typing."""
+        """Extract Trade objects from iterable with proper typing.
+
+        Returns:
+            list[Trade]: List of Trade objects filtered from the input iterable.
+        """
         result: list[Trade] = [item for item in items if self._is_trade(item)]
         return result
 
     def _extract_fills(self, items: SupportsIteration) -> list[BackpackRawFillResponse]:
-        """Extract BackpackRawFillResponse objects from iterable with proper typing."""
+        """Extract BackpackRawFillResponse objects from iterable with proper typing.
+
+        Args:
+            items: Iterable of items to filter
+
+        Returns:
+            list[BackpackRawFillResponse]: List of BackpackRawFillResponse objects found in iterable
+        """
         result: list[BackpackRawFillResponse] = [
             item for item in items if self._is_backpack_fill(item)
         ]
@@ -116,7 +155,11 @@ class TestBackpackAllStreamModelConversions:
             pytest.fail("WebSocket connection failed - cannot test stream conversion")
 
     async def _get_test_symbol(self, api: BackpackAPI) -> str:
-        """Get a test symbol from available markets, preferring perpetual markets for liquidity."""
+        """Get a test symbol from available markets, preferring perpetual markets for liquidity.
+
+        Returns:
+            str: Symbol string for testing, preferring SOL-PERP or first available perpetual.
+        """
         markets = await api.get_markets(GetMarketsArgs())
         if not markets:
             pytest.fail("No markets available for testing")
@@ -165,7 +208,11 @@ class TestBackpackAllStreamModelConversions:
         return test_market.symbol
 
     async def _create_ticker_handler(self, received_tickers: list[Ticker]) -> MessageHandler:
-        """Create handler for ticker stream messages."""
+        """Create handler for ticker stream messages.
+
+        Returns:
+            MessageHandler: Async handler function for processing ticker stream messages.
+        """
 
         async def ticker_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -271,7 +318,11 @@ class TestBackpackAllStreamModelConversions:
         )
 
     async def _create_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
-        """Create handler for trades stream messages."""
+        """Create handler for trades stream messages.
+
+        Returns:
+            MessageHandler: Async handler function for processing trades stream messages.
+        """
 
         async def trades_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -320,7 +371,16 @@ class TestBackpackAllStreamModelConversions:
     def _process_trade_list(
         self, potential_trades: list[Trade], received_trades: list[Trade], key: str
     ) -> bool:
-        """Process a list of potential trade objects."""
+        """Process a list of potential trade objects.
+
+        Args:
+            potential_trades: List of potential trade objects to process
+            received_trades: List to append processed trades to
+            key: Key identifier for logging
+
+        Returns:
+            bool: True if any trades were found and processed
+        """
         trades_found = False
         for trade in potential_trades:
             received_trades.append(trade)
@@ -420,7 +480,11 @@ class TestBackpackAllStreamModelConversions:
         )
 
     async def _create_fills_handler(self, received_fills: list[Any]) -> MessageHandler:
-        """Create handler for fills stream messages."""
+        """Create handler for fills stream messages.
+
+        Returns:
+            MessageHandler: Async handler function for processing fills stream messages.
+        """
 
         async def fills_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
@@ -471,7 +535,16 @@ class TestBackpackAllStreamModelConversions:
         received_fills: list[BackpackRawFillResponse],
         key: str,
     ) -> bool:
-        """Process a list of potential fill objects."""
+        """Process a list of potential fill objects.
+
+        Args:
+            potential_fills: List of potential fill objects to process
+            received_fills: List to append processed fills to
+            key: Key identifier for logging
+
+        Returns:
+            bool: True if any fills were found and processed
+        """
         fills_found = False
         for fill in potential_fills:
             if hasattr(fill, "symbol"):
@@ -674,7 +747,11 @@ class TestBackpackAllStreamModelConversions:
     async def _setup_stream_integration(
         self, bp_api_for_test_env: BackpackAPI
     ) -> tuple[str, dict[str, list[Any]]]:
-        """Set up WebSocket connection and get test symbol for stream integration."""
+        """Set up WebSocket connection and get test symbol for stream integration.
+
+        Returns:
+            tuple[str, dict[str, list[Any]]]: Test symbol and initialized stream results dictionary.
+        """
         await bp_api_for_test_env.connect_websocket()
 
         if not bp_api_for_test_env.is_connected:
@@ -696,7 +773,11 @@ class TestBackpackAllStreamModelConversions:
     async def _create_integration_handler(
         self, stream_type: str, stream_results: dict[str, list[Any]]
     ) -> MessageHandler:
-        """Create handler for specific stream type."""
+        """Create handler for specific stream type.
+
+        Returns:
+            MessageHandler: Async handler function for collecting stream data by type.
+        """
         await asyncio.sleep(0)  # Satisfy RUF029
 
         async def handler(context: WebSocketContextProtocol) -> None:
@@ -842,7 +923,15 @@ class TestBackpackAllStreamModelConversions:
     async def _create_consistency_handler(
         self, stream_type: str, model_data: dict[str, dict[str, Any]]
     ) -> MessageHandler:
-        """Create handler that tracks model data for consistency."""
+        """Create handler that tracks model data for consistency.
+
+        Args:
+            stream_type: Type of stream to handle
+            model_data: Dictionary to store model data for consistency tracking
+
+        Returns:
+            MessageHandler: Handler function for processing WebSocket messages
+        """
 
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)

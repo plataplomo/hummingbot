@@ -186,7 +186,8 @@ def secure_transform[T: BaseModel](
         Validated and secure model instance
 
     Raises:
-        TransformationError: If validation fails (indicates potential attack)
+        SecurityValidationError: If validation fails (indicates potential attack)
+        UnexpectedTransformationError: If an unexpected error occurs during transformation
 
     Example:
         >>> balance_data = {"asset": "BTC", "total_quantity": "100.5", ...}
@@ -364,7 +365,9 @@ def validate_financial_constraints(
         max_value: Optional maximum allowed value
 
     Raises:
-        ValueError: If constraints are violated
+        TypeFieldError: If value cannot be converted to numeric type
+        RangeFieldError: If value violates range constraints
+        DecimalFiniteError: If value is infinite or NaN
     """
     try:
         numeric_value = float(value)

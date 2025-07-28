@@ -22,7 +22,11 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing."""
+    """Create mock app settings for testing.
+    
+    Returns:
+        Mock: Mocked AppSettings with risk configuration.
+    """
     settings = Mock(spec=AppSettings)
 
     # Create mock risk configuration
@@ -49,7 +53,11 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker for testing."""
+    """Create mock portfolio tracker for testing.
+    
+    Returns:
+        Mock: Mocked portfolio tracker with default behaviors.
+    """
     tracker = Mock()
     tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
 
@@ -73,7 +81,11 @@ def mock_portfolio_tracker() -> Mock:
 
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
-    """Create mock circuit breaker system for testing."""
+    """Create mock circuit breaker system for testing.
+    
+    Returns:
+        Mock: Mocked circuit breaker system that allows execution.
+    """
     system = Mock()
     # can_execute should return (can_execute: bool, reason: str)
     system.can_execute.return_value = (True, "Circuit breaker closed")
@@ -82,7 +94,11 @@ def mock_circuit_breaker_system() -> Mock:
 
 @pytest.fixture
 def mock_funding_rate_validator() -> Mock:
-    """Create mock funding rate validator for testing."""
+    """Create mock funding rate validator for testing.
+    
+    Returns:
+        Mock: Mocked funding rate validator with sample metrics.
+    """
     validator = Mock()
     validator.get_symbol_metrics.return_value = {
         "accuracy": 0.85,
@@ -101,7 +117,11 @@ def risk_manager(
     mock_circuit_breaker_system: Mock,
     mock_funding_rate_validator: Mock,
 ) -> RiskManager:
-    """Create a RiskManager instance for testing."""
+    """Create a RiskManager instance for testing.
+    
+    Returns:
+        RiskManager: Configured risk manager with all mocked dependencies.
+    """
     return RiskManager(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_tracker,
@@ -112,7 +132,11 @@ def risk_manager(
 
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
-    """Create a sample ArbitrageOpportunity for testing."""
+    """Create a sample ArbitrageOpportunity for testing.
+    
+    Returns:
+        ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with 20 bps spread.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="hyperliquid",

@@ -65,6 +65,9 @@ class PerformanceMetricsCalculator:
         Returns:
             Annualized Sharpe ratio (Decimal).
 
+        Raises:
+            EmptySharpeRatioError: If the returns series is empty
+
         """
         # Check for empty series
         if len(returns) == 0:
@@ -178,10 +181,6 @@ class PerformanceMetricsCalculator:
 
         Returns:
             Calmar ratio (Decimal).
-
-        Raises:
-            EmptyMaxDrawdownError: If the returns series is empty
-                (raised by calculate_max_drawdown).
 
         """
         # Calculate annualized return

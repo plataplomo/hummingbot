@@ -66,19 +66,31 @@ OrderBookMapper = HyperliquidOrderBookMapper
 
 @pytest.fixture
 def ticker_mapper() -> HyperliquidPriceTickerMapper:
-    """Provide an instance of HyperliquidPriceTickerMapper."""
+    """Provide an instance of HyperliquidPriceTickerMapper.
+    
+    Returns:
+        HyperliquidPriceTickerMapper instance for testing.
+    """
     return HyperliquidPriceTickerMapper()
 
 
 @pytest.fixture
 def funding_mapper() -> HyperliquidHistoricalDataMapper:
-    """Provide an instance of HyperliquidHistoricalDataMapper."""
+    """Provide an instance of HyperliquidHistoricalDataMapper.
+    
+    Returns:
+        HyperliquidHistoricalDataMapper instance for testing.
+    """
     return HyperliquidHistoricalDataMapper()
 
 
 @pytest.fixture
 def order_book_mapper() -> HyperliquidOrderBookMapper:
-    """Provide an instance of HyperliquidOrderBookMapper."""
+    """Provide an instance of HyperliquidOrderBookMapper.
+    
+    Returns:
+        HyperliquidOrderBookMapper instance for testing.
+    """
     return HyperliquidOrderBookMapper()
 
 
@@ -99,7 +111,11 @@ def create_asset_ctx(
     impact_pxs: list[str] | None = None,
     day_base_vlm: str | None = None,
 ) -> HyperliquidRawAssetCtx:
-    """Helper to create HyperliquidRawAssetCtx with defaults for required fields."""
+    """Helper to create HyperliquidRawAssetCtx with defaults for required fields.
+    
+    Returns:
+        HyperliquidRawAssetCtx instance with provided or default values.
+    """
     return HyperliquidRawAssetCtx(
         name=name,
         funding=funding,

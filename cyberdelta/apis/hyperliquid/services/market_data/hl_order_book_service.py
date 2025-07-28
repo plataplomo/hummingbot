@@ -91,7 +91,6 @@ class HyperliquidOrderBookService:
 
         Raises:
             APIError: If the API request fails or the response is invalid
-            ValueError: If symbol is invalid (empty or whitespace)
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_book"
@@ -278,6 +277,9 @@ class HyperliquidOrderBookService:
         Raises:
             APIError: If the API request fails or the response is invalid
             ValueError: If symbol is invalid (empty or whitespace)
+            TransformationError: If data transformation fails
+            ValidationError: If data validation fails
+            TypeError: If data type validation fails
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
@@ -482,7 +484,7 @@ class HyperliquidOrderBookService:
             List of internal Trade objects
 
         Raises:
-            APIError: If mapping fails for all trades
+            None - This method handles errors internally and returns partial results
         """
         internal_trades: list[Trade] = []
         for raw_trade in validated_raw_trades:
@@ -568,7 +570,17 @@ class HyperliquidOrderBookService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle transformation errors for recent trades."""
+        """Handle transformation errors for recent trades.
+
+        Args:
+            error: The transformation error that occurred
+            symbol: Trading symbol for context
+            status_code: HTTP status code from the request
+            raw_response_content: Raw response content for debugging
+
+        Raises:
+            APIError: Always raises an APIError wrapping the original TransformationError
+        """
         logger.error(
             "recent_trades_transform_error",
             exchange=self._exchange_name,
@@ -591,7 +603,17 @@ class HyperliquidOrderBookService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle validation errors for recent trades."""
+        """Handle validation errors for recent trades.
+
+        Args:
+            error: The validation error that occurred
+            symbol: Trading symbol for context
+            status_code: HTTP status code from the request
+            raw_response_content: Raw response content for debugging
+
+        Raises:
+            APIError: Always raises an APIError wrapping the original ValidationError
+        """
         logger.error(
             "recent_trades_validation_error",
             exchange=self._exchange_name,
@@ -612,7 +634,15 @@ class HyperliquidOrderBookService:
         error: ValueError | TypeError,
         symbol: str,
     ) -> None:
-        """Handle service logic errors for recent trades."""
+        """Handle service logic errors for recent trades.
+
+        Args:
+            error: The service logic error that occurred
+            symbol: Trading symbol for context
+
+        Raises:
+            APIError: Always raises an APIError wrapping the original service logic error
+        """
         logger.error(
             "recent_trades_service_logic_error",
             exchange=self._exchange_name,
@@ -633,7 +663,17 @@ class HyperliquidOrderBookService:
         status_code: int,
         raw_response_content: str | None,
     ) -> None:
-        """Handle unexpected errors for recent trades."""
+        """Handle unexpected errors for recent trades.
+
+        Args:
+            error: The unexpected error that occurred
+            symbol: Trading symbol for context
+            status_code: HTTP status code from the request
+            raw_response_content: Raw response content for debugging
+
+        Raises:
+            APIError: Always raises an APIError wrapping the original unexpected error
+        """
         logger.error(
             "recent_trades_unexpected_error",
             exchange=self._exchange_name,
@@ -657,6 +697,9 @@ class HyperliquidOrderBookService:
         Args:
             validated_response: The invalid response data
             status_code: HTTP status code
+
+        Raises:
+            APIError: Always raises an APIError for invalid response type
         """
         raise APIError(
             code=APIErrorCode.INVALID_RESPONSE.value,

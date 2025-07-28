@@ -67,7 +67,14 @@ class RateLimitConfig(BaseModel):
     @field_validator("burst_size")
     @classmethod
     def burst_size_must_be_reasonable(cls, v: int, info: ValidationInfo) -> int:
-        """Validate burst size is reasonable compared to rate."""
+        """Validate burst size is reasonable compared to rate.
+        
+        Returns:
+            The validated burst size value.
+            
+        Raises:
+            BurstSizeTooLargeError: If burst size exceeds 10 times the requests per second.
+        """
         data = info.data
         if "requests_per_second" in data:
             max_burst = int(data["requests_per_second"] * 10)  # Max 10 seconds worth
@@ -125,13 +132,21 @@ class TokenBucket:
         return False, self.tokens
 
     def time_until_available(self) -> float:
-        """Get seconds until next token is available."""
+        """Get seconds until next token is available.
+        
+        Returns:
+            Time in seconds until next token becomes available.
+        """
         if self.tokens >= 1.0:
             return 0.0
         return (1.0 - self.tokens) / self.requests_per_second
 
     def current_rate(self) -> float:
-        """Get current request rate (same as configured rate for token bucket)."""
+        """Get current request rate (same as configured rate for token bucket).
+        
+        Returns:
+            Current request rate per second.
+        """
         return self.requests_per_second
 
 
@@ -170,7 +185,11 @@ class SlidingWindowCounter:
         return False, 0
 
     def time_until_available(self) -> float:
-        """Get seconds until oldest request expires."""
+        """Get seconds until oldest request expires.
+        
+        Returns:
+            Time in seconds until oldest request expires from the window.
+        """
         if len(self.requests) < self.max_requests:
             return 0.0
         if not self.requests:
@@ -178,7 +197,11 @@ class SlidingWindowCounter:
         return max(0.0, self.requests[0] + self.window_size_seconds - time.time())
 
     def current_rate(self) -> float:
-        """Get current request rate per second."""
+        """Get current request rate per second.
+        
+        Returns:
+            Current request rate based on requests in the sliding window.
+        """
         if not self.requests:
             return 0.0
         return len(self.requests) / self.window_size_seconds
@@ -209,6 +232,9 @@ class WebSocketRateLimiter:
 
         Returns:
             Configured limiter instance
+            
+        Raises:
+            UnsupportedAlgorithmError: If the algorithm is not supported.
         """
         if config.algorithm == RateLimitAlgorithm.TOKEN_BUCKET:
             return TokenBucket(config.requests_per_second, config.burst_size)

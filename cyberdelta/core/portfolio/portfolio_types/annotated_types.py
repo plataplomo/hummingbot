@@ -104,7 +104,16 @@ type MarginRatio = Annotated[
 
 # String constraints
 def validate_symbol(value: str) -> str:
-    """Validate trading symbol format."""
+    """Validate trading symbol format.
+    
+    Returns:
+        str: The validated symbol in uppercase format.
+        
+    Raises:
+        EmptySymbolError: If the symbol is empty or None.
+        InvalidSymbolLengthError: If symbol length is outside allowed range.
+        InvalidSymbolCharactersError: If symbol contains invalid characters.
+    """
     if not value:
         raise EmptySymbolError
     if len(value) < SYMBOL_MIN_LENGTH or len(value) > SYMBOL_MAX_LENGTH:
@@ -115,7 +124,16 @@ def validate_symbol(value: str) -> str:
 
 
 def validate_asset(value: str) -> str:
-    """Validate asset name format."""
+    """Validate asset name format.
+    
+    Returns:
+        str: The validated asset name in uppercase format.
+        
+    Raises:
+        EmptyAssetError: If the asset name is empty or None.
+        InvalidAssetLengthError: If asset name length is outside allowed range.
+        InvalidAssetCharactersError: If asset name contains invalid characters.
+    """
     if not value:
         raise EmptyAssetError
     if len(value) < ASSET_MIN_LENGTH or len(value) > ASSET_MAX_LENGTH:
@@ -126,7 +144,14 @@ def validate_asset(value: str) -> str:
 
 
 def validate_exchange_name(value: str) -> str:
-    """Validate exchange name."""
+    """Validate exchange name.
+    
+    Returns:
+        str: The validated exchange name in lowercase format.
+        
+    Raises:
+        InvalidExchangeError: If exchange name is not in the allowed list.
+    """
     valid_exchanges = {"hyperliquid", "backpack"}
     if value.lower() not in valid_exchanges:
         raise InvalidExchangeError(value, valid_exchanges)
@@ -183,7 +208,14 @@ type Username = Annotated[
 
 # Time constraints
 def validate_timestamp(value: float) -> float:
-    """Validate timestamp is reasonable."""
+    """Validate timestamp is reasonable.
+    
+    Returns:
+        float: The validated timestamp value.
+        
+    Raises:
+        InvalidTimestampRangeError: If timestamp is outside the allowed range.
+    """
     current_time = time.time()
     # Allow timestamps from 2020 to 100 years in the future
     min_timestamp = MIN_TIMESTAMP
@@ -211,14 +243,28 @@ type DurationMs = Annotated[int, Field(ge=0, description="Duration in millisecon
 
 # Collection constraints
 def validate_non_empty_list(value: list[Any]) -> list[Any]:
-    """Validate that a list is not empty."""
+    """Validate that a list is not empty.
+    
+    Returns:
+        list[Any]: The validated non-empty list.
+        
+    Raises:
+        EmptyListError: If the list is empty.
+    """
     if not value:
         raise EmptyListError
     return value
 
 
 def validate_unique_list(value: list[Any]) -> list[Any]:
-    """Validate that a list contains unique elements."""
+    """Validate that a list contains unique elements.
+    
+    Returns:
+        list[Any]: The validated list with unique elements.
+        
+    Raises:
+        NonUniqueListError: If the list contains duplicate elements.
+    """
     if len(value) != len(set(value)):
         raise NonUniqueListError(value)
     return value
@@ -241,7 +287,14 @@ type LimitedList = Annotated[
 
 # Portfolio-specific constraints
 def validate_position_size(value: float) -> float:
-    """Validate position size (can be negative for short positions)."""
+    """Validate position size (can be negative for short positions).
+    
+    Returns:
+        float: The validated position size value.
+        
+    Raises:
+        PositionSizeTooLargeError: If position size exceeds maximum allowed value.
+    """
     if abs(value) > MAX_POSITION_SIZE:
         raise PositionSizeTooLargeError(value)
     return value
@@ -297,14 +350,28 @@ type LogLevel = Annotated[
 
 # Configuration constraints
 def validate_cache_size(value: int) -> int:
-    """Validate cache size is reasonable."""
+    """Validate cache size is reasonable.
+    
+    Returns:
+        int: The validated cache size value.
+        
+    Raises:
+        InvalidCacheSizeError: If cache size is outside the allowed range.
+    """
     if value < MIN_CACHE_SIZE or value > MAX_CACHE_SIZE:
         raise InvalidCacheSizeError(value)
     return value
 
 
 def validate_ttl_seconds(value: float) -> float:
-    """Validate TTL is reasonable."""
+    """Validate TTL is reasonable.
+    
+    Returns:
+        float: The validated TTL value in seconds.
+        
+    Raises:
+        InvalidTTLError: If TTL is outside the allowed range.
+    """
     if value < MIN_TTL_SECONDS or value > MAX_TTL_SECONDS:
         raise InvalidTTLError(value)
     return value
@@ -342,7 +409,14 @@ type UUID = Annotated[
 
 # Network and URL constraints
 def validate_url(value: str) -> str:
-    """Validate URL format."""
+    """Validate URL format.
+    
+    Returns:
+        str: The validated URL string.
+        
+    Raises:
+        InvalidURLFormatError: If URL format is invalid or missing required protocol.
+    """
     if not value.startswith(("http://", "https://", "ws://", "wss://")):
         raise InvalidURLFormatError(value)
     return value
@@ -369,7 +443,14 @@ type Port = Annotated[int, Field(ge=1, le=65535, description="Network port (1-65
 
 # Business logic constraints
 def validate_market_hours(value: str) -> str:
-    """Validate market hours format (HH:MM-HH:MM)."""
+    """Validate market hours format (HH:MM-HH:MM).
+    
+    Returns:
+        str: The validated market hours string.
+        
+    Raises:
+        InvalidMarketHoursFormatError: If market hours format is invalid.
+    """
     pattern = r"^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$"
     if not re.match(pattern, value):
         raise InvalidMarketHoursFormatError(value)
@@ -408,7 +489,11 @@ def create_bounded_float(
     max_val: float | None = None,
     description: str = "Bounded float value",
 ) -> type[float]:
-    """Create a float type with custom bounds."""
+    """Create a float type with custom bounds.
+    
+    Returns:
+        type[float]: The base float type (annotated types cannot be returned from functions).
+    """
     constraints = {}
     if min_val is not None:
         constraints["ge"] = min_val
@@ -424,7 +509,11 @@ def create_bounded_int(
     max_val: int | None = None,
     description: str = "Bounded integer value",
 ) -> type[int]:
-    """Create an int type with custom bounds."""
+    """Create an int type with custom bounds.
+    
+    Returns:
+        type[int]: The base int type (annotated types cannot be returned from functions).
+    """
     constraints = {}
     if min_val is not None:
         constraints["ge"] = min_val
@@ -441,7 +530,11 @@ def create_constrained_string(
     pattern: str | None = None,
     description: str = "Constrained string value",
 ) -> type[str]:
-    """Create a string type with custom constraints."""
+    """Create a string type with custom constraints.
+    
+    Returns:
+        type[str]: The base str type (annotated types cannot be returned from functions).
+    """
     StringConstraints(
         min_length=min_length, max_length=max_length, pattern=pattern, strip_whitespace=True
     )

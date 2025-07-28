@@ -14,7 +14,12 @@ logger = get_logger(__name__)
 
 
 def get_autolend_status(api: BackpackAPI) -> bool | None:
-    """Get the autoLend status from account settings."""
+    """Get the autoLend status from account settings.
+
+    Returns:
+        Boolean indicating autoLend status if available, None if the functionality
+        is not implemented in the API client.
+    """
     logger.info("1. ACCOUNT SETTINGS (/api/v1/account):")
     logger.info("   NOTE: The Backpack API client does not currently expose a public method")
     logger.info("   to retrieve account settings (autoLend, autoBorrowSettlements, etc.)")
@@ -70,7 +75,11 @@ def analyze_autolend_status(auto_lend: bool | None) -> None:
 
 
 async def test() -> None:
-    """Test autolending status and its effect on balance endpoints."""
+    """Test autolending status and its effect on balance endpoints.
+
+    Raises:
+        RuntimeError: If configuration or secrets fail to load.
+    """
     # Load configuration
     config_path = Path("tests/config/test_config.yaml")
     secrets_path = Path("tests/config/test_secrets.yaml")

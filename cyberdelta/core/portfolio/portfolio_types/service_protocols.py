@@ -63,7 +63,18 @@ class ServiceValidationStats:
     )
     @classmethod
     def validate_counts(cls, v: int, info: ValidationInfo) -> int:
-        """Validate validation counts do not exceed total."""
+        """Validate validation counts do not exceed total.
+
+        Args:
+            v: The count value to validate
+            info: Validation context containing other field values
+
+        Returns:
+            The validated count value
+
+        Raises:
+            StateValidationError: If count exceeds total_validations
+        """
         field_name = info.field_name
         if field_name in {"successful_validations", "failed_validations"}:
             # These should not exceed total_validations
@@ -89,7 +100,17 @@ class ServiceResilienceStatus:
     @field_validator("circuit_breaker_state", mode="before")
     @classmethod
     def validate_state(cls, v: str) -> str:
-        """Validate circuit breaker state is valid."""
+        """Validate circuit breaker state is valid.
+
+        Args:
+            v: The circuit breaker state to validate
+
+        Returns:
+            The validated and normalized state (lowercase)
+
+        Raises:
+            StateValidationError: If state is not one of: open, closed, half_open
+        """
         valid_states = {"open", "closed", "half_open"}
         if v.lower() not in valid_states:
             valid_states_str = ", ".join(valid_states)
@@ -113,7 +134,18 @@ class ServiceCacheStats:
     @field_validator("hit_rate", mode="before")
     @classmethod
     def validate_hit_rate(cls, v: float, info: ValidationInfo) -> float:
-        """Validate hit rate matches calculated value."""
+        """Validate hit rate matches calculated value.
+
+        Args:
+            v: The hit rate to validate
+            info: Validation context containing hits and misses values
+
+        Returns:
+            The validated hit rate
+
+        Raises:
+            StateValidationError: If hit rate doesn't match calculated value from hits/misses
+        """
         hits = info.data.get("hits", 0)
         misses = info.data.get("misses", 0)
         total = hits + misses
@@ -141,7 +173,17 @@ class ServiceStateData:
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
-        """Validate timestamp is positive."""
+        """Validate timestamp is positive.
+
+        Args:
+            v: The timestamp value to validate
+
+        Returns:
+            The validated timestamp
+
+        Raises:
+            ServiceProtocolValidationError: If timestamp is not positive
+        """
         if v <= 0:
             raise ServiceProtocolValidationError(field_type="Timestamp")
         return v
@@ -160,7 +202,17 @@ class ServiceSymbolMetadata:
     @field_validator("base_asset", "quote_asset", "exchange_type", mode="before")
     @classmethod
     def validate_strings(cls, v: str) -> str:
-        """Validate asset and exchange type strings are non-empty."""
+        """Validate asset and exchange type strings are non-empty.
+
+        Args:
+            v: The string value to validate
+
+        Returns:
+            The validated and normalized string (stripped and uppercase)
+
+        Raises:
+            ServiceProtocolValidationError: If string is empty or only whitespace
+        """
         if not v or not v.strip():
             raise ServiceProtocolValidationError(
                 field_type="Asset and exchange type strings", requirement="cannot be empty"
@@ -170,7 +222,18 @@ class ServiceSymbolMetadata:
     @field_validator("contract_size", mode="before")
     @classmethod
     def validate_contract_size(cls, v: float | None, info: ValidationInfo) -> float | None:
-        """Validate contract size is positive for perpetual contracts."""
+        """Validate contract size is positive for perpetual contracts.
+
+        Args:
+            v: The contract size value to validate
+            info: Validation context containing is_perpetual flag
+
+        Returns:
+            The validated contract size
+
+        Raises:
+            ServiceProtocolValidationError: If contract size is not positive for perpetual contracts
+        """
         if v is not None and info.data.get("is_perpetual", False) and v <= 0:
             raise ServiceProtocolValidationError(
                 field_type="Contract size", requirement="must be positive for perpetual contracts"

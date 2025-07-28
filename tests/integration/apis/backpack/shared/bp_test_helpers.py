@@ -1276,7 +1276,6 @@ async def get_account_margin_parameters(api: BackpackAPI) -> dict[str, Decimal |
         - has_open_orders: Whether account has open orders
 
     Raises:
-        ValueError: If failed to parse initial or maintenance margin factors.
         RuntimeError: If failed to get margin parameters from the exchange.
     """
     try:

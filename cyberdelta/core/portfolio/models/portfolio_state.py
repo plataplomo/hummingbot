@@ -15,12 +15,20 @@ from .base import BaseStateModel, ValidationResult
 
 # Typed factory functions to avoid Unknown type inference
 def _trades_factory() -> list[Trade]:
-    """Factory function for list[Trade]."""
+    """Factory function for list[Trade].
+    
+    Returns:
+        list[Trade]: Empty list of trades.
+    """
     return []
 
 
 def _orders_factory() -> list[Order]:
-    """Factory function for list[Order]."""
+    """Factory function for list[Order].
+    
+    Returns:
+        list[Order]: Empty list of orders.
+    """
     return []
 
 
@@ -281,7 +289,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_basic_fields(self) -> ValidationResult:
-        """Validate basic required fields."""
+        """Validate basic required fields.
+        
+        Returns:
+            ValidationResult: Result indicating if basic fields are valid.
+        """
         result = ValidationResult(valid=True)
 
         if not self.portfolio_id:
@@ -293,7 +305,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_financial_metrics(self) -> ValidationResult:
-        """Validate financial consistency."""
+        """Validate financial consistency.
+        
+        Returns:
+            ValidationResult: Result indicating if financial metrics are consistent.
+        """
         result = ValidationResult(valid=True)
 
         if self.total_account_value < Decimal(0):
@@ -305,7 +321,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_counts(self) -> ValidationResult:
-        """Validate position and order counts."""
+        """Validate position and order counts.
+        
+        Returns:
+            ValidationResult: Result indicating if counts are valid.
+        """
         result = ValidationResult(valid=True)
 
         if self.active_positions < 0:
@@ -320,7 +340,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_risk_metrics(self) -> ValidationResult:
-        """Validate risk metrics."""
+        """Validate risk metrics.
+        
+        Returns:
+            ValidationResult: Result indicating if risk metrics are within bounds.
+        """
         result = ValidationResult(valid=True)
 
         if self.leverage < Decimal(0):
@@ -332,7 +356,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_exchange_summaries(self) -> ValidationResult:
-        """Validate exchange summary data."""
+        """Validate exchange summary data.
+        
+        Returns:
+            ValidationResult: Result indicating if exchange summaries are valid.
+        """
         result = ValidationResult(valid=True)
 
         if not self.exchange_summaries:
@@ -363,7 +391,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_component_health(self) -> ValidationResult:
-        """Validate component health data."""
+        """Validate component health data.
+        
+        Returns:
+            ValidationResult: Result indicating if component health is acceptable.
+        """
         result = ValidationResult(valid=True)
 
         if not self.component_health:
@@ -392,7 +424,11 @@ class PortfolioState(PortfolioStateData):
         return result
 
     def _validate_cross_consistency(self) -> ValidationResult:
-        """Validate cross-data consistency."""
+        """Validate cross-data consistency.
+        
+        Returns:
+            ValidationResult: Result indicating if data is internally consistent.
+        """
         result = ValidationResult(valid=True)
 
         # Check if portfolio totals match exchange summaries

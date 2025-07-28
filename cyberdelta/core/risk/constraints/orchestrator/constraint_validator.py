@@ -89,7 +89,11 @@ class ConstraintValidator:
         )
 
     def _create_position_config(self) -> dict[str, Any]:
-        """Create position constraint configuration from AppSettings."""
+        """Create position constraint configuration from AppSettings.
+        
+        Returns:
+            Dictionary containing position constraint configuration settings
+        """
         return {
             "enabled": True,
             "min_position_size": float(self.risk_settings.sizing.min_position_size),
@@ -106,7 +110,11 @@ class ConstraintValidator:
         }
 
     def _create_portfolio_config(self) -> dict[str, Any]:
-        """Create portfolio constraint configuration from AppSettings."""
+        """Create portfolio constraint configuration from AppSettings.
+        
+        Returns:
+            Dictionary containing portfolio constraint configuration settings
+        """
         return {
             "enabled": True,
             "max_total_exposure": float(self.global_risk.max_total_exposure_usd),
@@ -116,7 +124,11 @@ class ConstraintValidator:
         }
 
     def _create_exchange_config(self) -> dict[str, Any]:
-        """Create exchange constraint configuration from AppSettings."""
+        """Create exchange constraint configuration from AppSettings.
+        
+        Returns:
+            Dictionary containing exchange constraint configuration settings
+        """
         return {
             "enabled": True,
             "max_exchange_allocation": 0.6,  # Hardcoded default - 60% max per exchange
@@ -127,7 +139,11 @@ class ConstraintValidator:
         }
 
     def _create_leverage_config(self) -> dict[str, Any]:
-        """Create leverage constraint configuration from AppSettings."""
+        """Create leverage constraint configuration from AppSettings.
+        
+        Returns:
+            Dictionary containing leverage constraint configuration settings
+        """
         return {
             "enabled": True,
             "max_leverage": float(self.risk_settings.sizing.max_leverage),
@@ -197,7 +213,11 @@ class ConstraintValidator:
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintResult]:
-        """Validate with fail-fast strategy."""
+        """Validate with fail-fast strategy.
+        
+        Returns:
+            List of constraint validation results, stops at first failure
+        """
         results: list[ConstraintResult] = []
 
         for validator in self.validators:
@@ -264,7 +284,11 @@ class ConstraintValidator:
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintResult]:
-        """Validate with all validators."""
+        """Validate with all validators.
+        
+        Returns:
+            List of constraint validation results from all enabled validators
+        """
         results: list[ConstraintResult] = []
 
         # Create validation tasks
@@ -315,7 +339,11 @@ class ConstraintValidator:
         return results
 
     def _aggregate_results(self, results: list[ConstraintResult]) -> ConstraintResult:
-        """Aggregate validation results."""
+        """Aggregate validation results.
+        
+        Returns:
+            Single aggregated constraint result with combined status and violations
+        """
         if not results:
             return ConstraintResult.passed_result(
                 message="No validation results to aggregate",
@@ -406,7 +434,11 @@ class ConstraintValidator:
         self.logger.info("Removed validator", validator_name=validator_name)
 
     def get_validator(self, validator_name: str) -> ConstraintInterface | None:
-        """Get a validator by name."""
+        """Get a validator by name.
+        
+        Returns:
+            Validator instance if found, None otherwise
+        """
         for validator in self.validators:
             if validator.name == validator_name:
                 return validator
@@ -440,7 +472,11 @@ class ConstraintValidator:
         )
 
     def get_performance_stats(self) -> dict[str, Any]:
-        """Get performance statistics."""
+        """Get performance statistics.
+        
+        Returns:
+            Dictionary containing validation performance statistics
+        """
         avg_validation_time = (
             self.total_validation_time / self.validation_count if self.validation_count > 0 else 0
         )
@@ -458,7 +494,11 @@ class ConstraintValidator:
         }
 
     def get_validator_stats(self) -> dict[str, Any]:
-        """Get validator statistics."""
+        """Get validator statistics.
+        
+        Returns:
+            Dictionary containing statistics for each validator
+        """
         return {
             validator.name: {
                 "type": validator.constraint_type,
@@ -476,7 +516,11 @@ class ConstraintValidator:
         self.logger.info("Reset performance metrics")
 
     def get_config(self) -> dict[str, Any]:
-        """Get configuration as dictionary for backward compatibility."""
+        """Get configuration as dictionary for backward compatibility.
+        
+        Returns:
+            Dictionary containing complete validator configuration
+        """
         return {
             "enabled": True,
             "fail_fast": self.fail_fast,
@@ -507,11 +551,19 @@ class ConstraintValidator:
         return cls(app_settings)
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            Human-readable string representation of the validator
+        """
         return f"ConstraintValidator(validators={len(self.validators)}, fail_fast={self.fail_fast})"
 
     def __repr__(self) -> str:
-        """Detailed representation."""
+        """Detailed representation.
+        
+        Returns:
+            Detailed string representation suitable for debugging
+        """
         return (
             f"ConstraintValidator(validators={len(self.validators)}, "
             f"fail_fast={self.fail_fast}, app_settings={self.app_settings})"

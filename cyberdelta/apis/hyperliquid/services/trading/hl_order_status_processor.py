@@ -134,8 +134,8 @@ class HyperliquidOrderStatusProcessor:
             raw_exchange_response: Raw response from the exchange
             http_status: HTTP status code
 
-        Raises:
-            APIError: If the response contains an error
+        Note:
+            Raises the mapped error (typically APIError) if response contains an error.
         """
         if (raw_exchange_response.status == "err" and raw_exchange_response.response) and (
             isinstance(raw_exchange_response.response, str)
@@ -164,7 +164,7 @@ class HyperliquidOrderStatusProcessor:
             Order object created from the exchange response
 
         Raises:
-            APIError: If response processing fails
+            OrderError: If order processing fails or has invalid status
         """
         # Check if this is an error response
         self.check_error_response(raw_exchange_response, http_status)

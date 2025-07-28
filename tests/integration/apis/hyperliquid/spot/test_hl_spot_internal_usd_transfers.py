@@ -46,7 +46,11 @@ class TestHyperliquidInternalUsdTransfers:
     """Test internal USD transfers between spot and perp accounts."""
 
     async def _get_initial_usdc_balance(self, hl_api: HyperliquidAPI) -> Decimal:
-        """Get initial USDC balance and validate it exists."""
+        """Get initial USDC balance and validate it exists.
+        
+        Returns:
+            Decimal: The initial USDC balance.
+        """
         initial_balances = await hl_api.get_balances()
 
         if "USDC" not in initial_balances:

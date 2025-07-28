@@ -58,7 +58,11 @@ def create_asset_ctx(
     impact_pxs: list[str] | None = None,
     day_base_vlm: str | None = None,
 ) -> HyperliquidRawAssetCtx:
-    """Helper to create HyperliquidRawAssetCtx with defaults for required fields."""
+    """Helper to create HyperliquidRawAssetCtx with defaults for required fields.
+
+    Returns:
+        HyperliquidRawAssetCtx: Asset context object with provided values and defaults.
+    """
     return HyperliquidRawAssetCtx(
         name=name,
         funding=funding,
@@ -78,19 +82,31 @@ def create_asset_ctx(
 
 @pytest.fixture
 def ticker_mapper() -> HyperliquidPriceTickerMapper:
-    """Provide an instance of HyperliquidPriceTickerMapper."""
+    """Provide an instance of HyperliquidPriceTickerMapper.
+
+    Returns:
+        HyperliquidPriceTickerMapper: Mapper instance for price ticker transformations.
+    """
     return HyperliquidPriceTickerMapper()
 
 
 @pytest.fixture
 def funding_mapper() -> HyperliquidHistoricalDataMapper:
-    """Provide an instance of HyperliquidHistoricalDataMapper."""
+    """Provide an instance of HyperliquidHistoricalDataMapper.
+
+    Returns:
+        HyperliquidHistoricalDataMapper: Mapper instance for historical data transformations.
+    """
     return HyperliquidHistoricalDataMapper()
 
 
 @pytest.fixture
 def hyperliquid_raw_asset_ctx_eth_fixture() -> HyperliquidRawAssetCtx:
-    """Provide a valid HyperliquidRawAssetCtx for ETH-PERP."""
+    """Provide a valid HyperliquidRawAssetCtx for ETH-PERP.
+
+    Returns:
+        HyperliquidRawAssetCtx: Asset context configured with ETH-PERP test data.
+    """
     return create_asset_ctx(
         name="ETH-PERP",
         funding="0.00001234",
@@ -109,7 +125,11 @@ def hyperliquid_raw_asset_ctx_eth_fixture() -> HyperliquidRawAssetCtx:
 
 @pytest.fixture
 def hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture() -> HyperliquidRawAssetCtx:
-    """Provide a valid HyperliquidRawAssetCtx for BTC-PERP with no impactPx."""
+    """Provide a valid HyperliquidRawAssetCtx for BTC-PERP with no impactPx.
+
+    Returns:
+        HyperliquidRawAssetCtx: Asset context for BTC-PERP without impact price.
+    """
     return create_asset_ctx(
         name="BTC-PERP",
         funding="-0.00000567",

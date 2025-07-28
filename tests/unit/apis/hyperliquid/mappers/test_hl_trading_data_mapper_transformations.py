@@ -50,13 +50,21 @@ logger = get_logger(__name__)
 
 @pytest.fixture
 def trading_data_mapper() -> HyperliquidOrderMapper:
-    """Provide an instance of HyperliquidOrderMapper."""
+    """Provide an instance of HyperliquidOrderMapper.
+    
+    Returns:
+        HyperliquidOrderMapper: Order mapper instance for transformation testing.
+    """
     return HyperliquidOrderMapper()
 
 
 @pytest.fixture
 def base_timestamp() -> int:
-    """Provide a consistent timestamp for tests."""
+    """Provide a consistent timestamp for tests.
+    
+    Returns:
+        int: Current timestamp in milliseconds.
+    """
     return int(datetime.now(UTC).timestamp() * 1000)
 
 
@@ -72,7 +80,11 @@ def create_raw_order(
     asset: str = "ETH-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
-    """Create a HyperliquidRawOrder with customizable parameters."""
+    """Create a HyperliquidRawOrder with customizable parameters.
+    
+    Returns:
+        HyperliquidRawOrder: Raw order with specified parameters.
+    """
     if order_type is None:
         order_type = {"limit": {"tif": "Gtc"}}
 
@@ -104,7 +116,11 @@ def create_raw_historical_order(
     coin: str = "SOL-PERP",
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
-    """Create a HyperliquidRawHistoricalOrder with customizable parameters."""
+    """Create a HyperliquidRawHistoricalOrder with customizable parameters.
+    
+    Returns:
+        HyperliquidRawHistoricalOrder: Raw historical order with specified parameters.
+    """
     return HyperliquidRawHistoricalOrder(
         oid=oid,
         cloid=cloid,
@@ -130,7 +146,11 @@ def create_raw_historical_order(
 
 @pytest.fixture
 def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInfo:
-    """Provide a valid HyperliquidRawTriggerInfo for a stop loss."""
+    """Provide a valid HyperliquidRawTriggerInfo for a stop loss.
+    
+    Returns:
+        HyperliquidRawTriggerInfo: Stop loss trigger configuration with market order.
+    """
     return HyperliquidRawTriggerInfo(
         triggerPx="2900.00",
         isMarket=True,
@@ -140,7 +160,11 @@ def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInf
 
 @pytest.fixture
 def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerInfo:
-    """Provide a valid HyperliquidRawTriggerInfo for a take profit."""
+    """Provide a valid HyperliquidRawTriggerInfo for a take profit.
+    
+    Returns:
+        HyperliquidRawTriggerInfo: Take profit trigger configuration with limit order.
+    """
     return HyperliquidRawTriggerInfo(
         triggerPx="3200.00",
         isMarket=False,

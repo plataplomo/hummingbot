@@ -115,6 +115,8 @@ class BackpackBalanceService:
 
         Raises:
             APIError: If API request fails or data transformation fails
+            TransformationError: If balance data transformation fails
+            ValidationError: If balance data validation fails
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_balances"
@@ -390,6 +392,9 @@ class BackpackBalanceService:
 
         Returns:
             Dictionary mapping symbols to SpotBalance objects
+
+        Raises:
+            TransformationError: If transformation fails for all balances
         """
         internal_balances: dict[str, SpotBalance] = {}
         transform_errors: list[str] = []
@@ -504,6 +509,9 @@ class BackpackBalanceService:
 
         Returns:
             Raw collateral response object or None if unavailable
+
+        Raises:
+            APIError: If API request fails (except for SYMBOL_NOT_FOUND which returns None)
         """
         try:
             # Build request for collateral endpoint
@@ -624,8 +632,8 @@ class BackpackBalanceService:
             error: The exception that occurred
             current_method: Name of the calling method
 
-        Returns:
-            Empty dictionary or raises APIError
+        Raises:
+            APIError: Always raises APIError with appropriate code and message
         """
         if isinstance(error, TransformationError):
             logger.error(

@@ -104,7 +104,11 @@ class ConcurrencyManager(BaseStateModel):
         )
 
     async def health_check(self) -> bool:
-        """Check health of concurrency manager."""
+        """Check health of concurrency manager.
+        
+        Returns:
+            True if the manager is healthy, False otherwise
+        """
         return (
             self.is_initialized
             and self.is_running
@@ -120,6 +124,9 @@ class ConcurrencyManager(BaseStateModel):
 
         Returns:
             asyncio.Lock instance - explicitly typed
+            
+        Raises:
+            RuntimeError: If maximum number of exchange locks is reached
         """
         if exchange_id not in self._exchange_locks:
             if len(self._exchange_locks) >= self.max_locks_per_type:
@@ -146,6 +153,9 @@ class ConcurrencyManager(BaseStateModel):
 
         Returns:
             asyncio.Lock instance - explicitly typed
+            
+        Raises:
+            RuntimeError: If maximum number of symbol locks is reached
         """
         if symbol not in self._symbol_locks:
             if len(self._symbol_locks) >= self.max_locks_per_type:

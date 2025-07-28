@@ -207,7 +207,16 @@ class StrategyManager:
         await self._process_strategies_for_symbol(data)
 
     async def _update_historical_data(self, data: Candle) -> None:
-        """Update historical data for all strategies handling this symbol."""
+        """Update historical data for all strategies handling this symbol.
+        
+        Args:
+            data: Market data candle to update strategies with
+            
+        Raises:
+            ValueError: If data validation fails during historical data update
+            TypeError: If data type is incompatible with strategy requirements
+            AttributeError: If strategy lacks required historical data methods
+        """
         strategy_name = ""  # Initialize strategy_name
         try:
             for strategy in self.strategies.values():

@@ -134,11 +134,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             headers: Response headers
             context: Context string indicating the operation (e.g., "market_data.get_ticker")
 
-        Returns:
-            Processed response data
-
         Raises:
-            APIError: If response processing fails
             NotImplementedError: If context is not supported
         """
         # Extract operation from context (format: "domain.operation")
@@ -182,11 +178,14 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> BackpackRawTickerResponse:
         """Validate the raw response for the Get Ticker endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             Validated BackpackRawTickerResponse model.
-
-        Raises:
-            APIError: If validation fails or response format is invalid.
         """
         context = f"ticker ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -213,11 +212,14 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> BackpackRawOrderBook:
         """Validate the raw response for the Get Order Book endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             Validated BackpackRawOrderBook model.
-
-        Raises:
-            APIError: If validation fails or response format is invalid.
         """
         context = f"order book ({symbol}) - Status: {status_code}"
         validated_data = ensure_dict_response(
@@ -244,11 +246,14 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> list[BackpackRawRecentPublicTrade]:
         """Validate the raw response for the Get Recent Trades endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             List of validated BackpackRawRecentPublicTrade models.
-
-        Raises:
-            APIError: If validation fails or response format is invalid.
         """
         context = f"recent trades ({symbol}) - Status: {status_code}"
         validated_list = ensure_list_response(
@@ -285,12 +290,18 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> BackpackRawFundingRateResponse:
         """Validate the raw response for the Get Funding Rate endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             Validated BackpackRawFundingRateResponse model.
 
         Raises:
-            APIError: If response format is unexpected (empty list or non-dict/list type) or
-                validation of funding rate data fails.
+            APIError: If response format is unexpected (empty list or non-dict/list type).
+            _handle_validation_error: Internal validation error handler.
         """
         context = f"funding rate ({symbol}) - Status: {status_code}"
 
@@ -336,11 +347,15 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> list[BackpackRawMarketResponse]:
         """Validate the raw response for the Get Markets endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            status_code: HTTP status code of the response
+
         Returns:
             List of validated BackpackRawMarketResponse models.
 
         Raises:
-            APIError: If validation of market data fails.
+            _handle_validation_error: Internal validation error handler.
         """
         context = "markets"
         validated_list = ensure_list_response(
@@ -387,7 +402,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             BackpackRawMarketResponse: The validated market model.
 
         Raises:
-            APIError: If validation fails or response format is unexpected.
+            _handle_validation_error: Internal validation error handler.
         """
         context = f"market for {symbol}"
         validated_data = ensure_dict_response(
@@ -415,12 +430,19 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> list[BackpackRawKlineResponse]:  # Changed return type
         """Validate the raw response for the Get Market Data (Klines) endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            timeframe: Kline timeframe for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             List of validated BackpackRawKlineResponse models.
 
         Raises:
-            APIError: If unexpected error occurs validating kline items or validation of
-                kline data fails.
+            APIError: If unexpected error occurs validating kline items.
+            _handle_validation_error: Internal validation error handler.
         """
         context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
         validated_list = ensure_list_response(
@@ -494,11 +516,17 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> list[BackpackRawPublicTrade]:
         """Validate the raw response for the Get Historical Trades endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             List of validated BackpackRawPublicTrade models.
 
         Raises:
-            APIError: If validation of trade data fails.
+            _handle_validation_error: Internal validation error handler.
         """
         context = f"historical trades ({symbol}) - Status: {status_code}"
         validated_list = ensure_list_response(
@@ -533,6 +561,12 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> BackpackRawFundingRateResponse:
         """Validate the raw response for the Get Current Funding Rate endpoint.
 
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
+
         Returns:
             Validated BackpackRawFundingRateResponse model.
         """
@@ -546,11 +580,12 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             # Assuming BackpackRawFundingRateResponse is the correct model for a single rate
             return BackpackRawFundingRateResponse.model_validate(validated_data)
         except ValidationError as e:
-            raise BackpackMarketDataResponseHandler._handle_validation_error(
+            api_error = BackpackMarketDataResponseHandler._handle_validation_error(
                 e,
                 context,
                 validated_data,
-            ) from e
+            )
+            raise api_error from e
 
     @staticmethod
     def handle_get_historical_funding_rates_response(
@@ -561,10 +596,19 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     ) -> list[BackpackRawFundingIntervalRate]:
         """Validate the raw response for the Get Historical Funding Rates endpoint.
 
-        (/api/v1/fundingRates).
+        Endpoint: /api/v1/fundingRates
+
+        Args:
+            raw_response_content: Raw JSON response from the API
+            symbol: Trading symbol for context in error messages
+            status_code: HTTP status code of the response
+            headers: HTTP response headers
 
         Returns:
             List of validated BackpackRawFundingIntervalRate models.
+
+        Raises:
+            _handle_validation_error: Internal validation error handler.
         """
         context = f"historical funding rates ({symbol}) - Status: {status_code}"
         validated_list = ensure_list_response(

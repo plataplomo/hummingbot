@@ -54,27 +54,58 @@ class MockPortfolioTracker:
         return self.balance_ratio
 
     def get_total_capital(self) -> Decimal:
-        """Get total available capital."""
+        """Get total available capital.
+        
+        Returns:
+            Total capital amount of 100000.
+        """
         return Decimal(100000)
 
     def get_exchange_balance(self, exchange: str, asset: str) -> Decimal:
-        """Get balance for specific exchange and asset."""
+        """Get balance for specific exchange and asset.
+        
+        Args:
+            exchange: The exchange name.
+            asset: The asset symbol.
+            
+        Returns:
+            Mock balance of 1000 for any exchange/asset combination.
+        """
         return Decimal(1000)
 
     def get_all_positions(self) -> Sequence[tuple[str, Position]]:
-        """Get all current positions."""
+        """Get all current positions.
+        
+        Returns:
+            Empty list of positions for testing.
+        """
         return []
 
     async def get_current_drawdown(self) -> Decimal | None:
-        """Get current portfolio drawdown."""
+        """Get current portfolio drawdown.
+        
+        Returns:
+            Fixed drawdown of 5% for testing.
+        """
         return Decimal("0.05")  # 5% drawdown
 
     async def get_total_exposure_usd(self) -> Decimal:
-        """Get total portfolio exposure in USD."""
+        """Get total portfolio exposure in USD.
+        
+        Returns:
+            Total exposure of 5000 USD.
+        """
         return Decimal(5000)
 
     def get_exchange_balances(self, exchange: str) -> list[SpotBalance]:
-        """Get all exchange balances."""
+        """Get all exchange balances.
+        
+        Args:
+            exchange: The exchange name.
+            
+        Returns:
+            List containing a single USDC balance with 1000 total and 800 available.
+        """
         return [
             SpotBalance(
                 exchange=exchange,
@@ -86,13 +117,21 @@ class MockPortfolioTracker:
         ]
 
     def get_total_portfolio_value(self) -> Decimal:
-        """Get total portfolio value."""
+        """Get total portfolio value.
+        
+        Returns:
+            Total portfolio value of 50000.
+        """
         return Decimal(50000)
 
 
 @pytest.fixture
 def global_risk_settings() -> GlobalRiskSettings:
-    """Create GlobalRiskSettings for testing."""
+    """Create GlobalRiskSettings for testing.
+    
+    Returns:
+        GlobalRiskSettings with constrained position and exposure limits.
+    """
     return GlobalRiskSettings(
         max_position_usd=Decimal(5000),  # Lower limit for testing
         max_total_exposure_usd=Decimal(15000),  # Lower limit for testing
@@ -101,7 +140,14 @@ def global_risk_settings() -> GlobalRiskSettings:
 
 @pytest.fixture
 def constrained_app_settings(global_risk_settings: GlobalRiskSettings) -> AppSettings:
-    """Create AppSettings with constrained GlobalRiskSettings."""
+    """Create AppSettings with constrained GlobalRiskSettings.
+    
+    Args:
+        global_risk_settings: The global risk settings to use.
+        
+    Returns:
+        AppSettings configured with the provided global risk limits.
+    """
     return AppSettings.model_validate({
         "general": {"version": "1.0.0", "environment": "test", "debug": True},
         "exchanges": {},
@@ -124,13 +170,21 @@ def constrained_app_settings(global_risk_settings: GlobalRiskSettings) -> AppSet
 
 @pytest.fixture
 def mock_portfolio_tracker() -> MockPortfolioTracker:
-    """Create mock portfolio tracker."""
+    """Create mock portfolio tracker.
+    
+    Returns:
+        MockPortfolioTracker instance for testing.
+    """
     return MockPortfolioTracker()
 
 
 @pytest.fixture
 def high_value_opportunity() -> ArbitrageOpportunity:
-    """Create a high-value arbitrage opportunity for testing constraints."""
+    """Create a high-value arbitrage opportunity for testing constraints.
+    
+    Returns:
+        ArbitrageOpportunity with large price spread for constraint testing.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-USD",
         long_exchange="Hyperliquid",

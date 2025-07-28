@@ -56,7 +56,11 @@ class ValidationMiddleware:
     def validate_trade(
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-        """Decorator to validate trades."""
+        """Decorator to validate trades.
+        
+        Returns:
+            Decorator function that adds trade validation to async methods.
+        """
 
         def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             @functools.wraps(func)
@@ -86,7 +90,11 @@ class ValidationMiddleware:
     def validate_balance(
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-        """Decorator to validate balances."""
+        """Decorator to validate balances.
+        
+        Returns:
+            Decorator function that adds balance validation to async methods.
+        """
 
         def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             @functools.wraps(func)
@@ -116,7 +124,11 @@ class ValidationMiddleware:
     def validate_position(
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-        """Decorator to validate positions."""
+        """Decorator to validate positions.
+        
+        Returns:
+            Decorator function that adds position validation to async methods.
+        """
 
         def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             @functools.wraps(func)
@@ -146,7 +158,11 @@ class ValidationMiddleware:
     def validate_batch_trades(
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-        """Decorator to validate batch of trades."""
+        """Decorator to validate batch of trades.
+        
+        Returns:
+            Decorator function that adds batch trade validation to async methods.
+        """
 
         def decorator(func: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
             @functools.wraps(func)
@@ -176,7 +192,11 @@ class ValidationMiddleware:
     def _extract_trade_from_args(
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> Trade | None:
-        """Extract trade from function arguments."""
+        """Extract trade from function arguments.
+        
+        Returns:
+            Trade object if found in arguments, None otherwise.
+        """
         # Try to find trade in positional arguments
         for arg in args:
             if isinstance(arg, Trade):
@@ -192,7 +212,11 @@ class ValidationMiddleware:
     def _extract_balance_from_args(
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> SpotBalance | None:
-        """Extract balance from function arguments."""
+        """Extract balance from function arguments.
+        
+        Returns:
+            SpotBalance object if found in arguments, None otherwise.
+        """
         # Try to find balance in positional arguments
         for arg in args:
             if isinstance(arg, SpotBalance):
@@ -208,7 +232,11 @@ class ValidationMiddleware:
     def _extract_position_from_args(
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> DerivativePosition | None:
-        """Extract position from function arguments."""
+        """Extract position from function arguments.
+        
+        Returns:
+            DerivativePosition object if found in arguments, None otherwise.
+        """
         # Try to find position in positional arguments
         for arg in args:
             if isinstance(arg, DerivativePosition):
@@ -222,7 +250,11 @@ class ValidationMiddleware:
         return None
 
     def _is_trade_list(self, obj: object) -> TypeGuard[list[Trade]]:
-        """Type guard for list of trades."""
+        """Type guard for list of trades.
+        
+        Returns:
+            True if obj is a non-empty list of Trade objects, False otherwise.
+        """
         if not isinstance(obj, list):
             return False
         # After isinstance check, obj is known to be list
@@ -236,7 +268,11 @@ class ValidationMiddleware:
     def _extract_trades_from_args(
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> list[Trade] | None:
-        """Extract list of trades from function arguments."""
+        """Extract list of trades from function arguments.
+        
+        Returns:
+            List of Trade objects if found in arguments, None otherwise.
+        """
         # Try to find trades in positional arguments
         for arg in args:
             if self._is_trade_list(arg):
@@ -275,7 +311,11 @@ class ValidationMiddleware:
 
 
 def create_validation_mixin(validation_service: PortfolioValidationService) -> type[Any]:
-    """Create a mixin class for adding validation capabilities."""
+    """Create a mixin class for adding validation capabilities.
+    
+    Returns:
+        ValidationMixin class configured with the provided validation service.
+    """
 
     class ValidationMixin:
         """Mixin for adding validation capabilities to portfolio components."""
@@ -298,21 +338,37 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
             self.validation_middleware.set_strict_mode(strict)
 
         async def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
-            """Validate a trade."""
+            """Validate a trade.
+            
+            Returns:
+                Validation result containing the validated trade and any issues found.
+            """
             return await self.validation_service.validate_trade(trade)
 
         async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
-            """Validate a balance."""
+            """Validate a balance.
+            
+            Returns:
+                Validation result containing the validated balance and any issues found.
+            """
             return await self.validation_service.validate_balance(balance)
 
         async def validate_position(
             self, position: DerivativePosition
         ) -> ValidationResult[DerivativePosition]:
-            """Validate a position."""
+            """Validate a position.
+            
+            Returns:
+                Validation result containing the validated position and any issues found.
+            """
             return await self.validation_service.validate_position(position)
 
         def get_validation_statistics(self) -> dict[str, Any]:
-            """Get validation statistics."""
+            """Get validation statistics.
+            
+            Returns:
+                Dictionary containing validation statistics from the service.
+            """
             return self.validation_service.get_validation_stats().model_dump()
 
     return ValidationMixin
@@ -322,7 +378,11 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
 def validate_trade_input(
     validation_service: PortfolioValidationService, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-    """Decorator for validating trade inputs."""
+    """Decorator for validating trade inputs.
+    
+    Returns:
+        Decorator function that validates trade inputs before method execution.
+    """
     middleware = ValidationMiddleware(validation_service)
     return middleware.validate_trade(fail_on_error=fail_on_error)
 
@@ -330,7 +390,11 @@ def validate_trade_input(
 def validate_balance_input(
     validation_service: PortfolioValidationService, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-    """Decorator for validating balance inputs."""
+    """Decorator for validating balance inputs.
+    
+    Returns:
+        Decorator function that validates balance inputs before method execution.
+    """
     middleware = ValidationMiddleware(validation_service)
     return middleware.validate_balance(fail_on_error=fail_on_error)
 
@@ -338,7 +402,11 @@ def validate_balance_input(
 def validate_position_input(
     validation_service: PortfolioValidationService, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
-    """Decorator for validating position inputs."""
+    """Decorator for validating position inputs.
+    
+    Returns:
+        Decorator function that validates position inputs before method execution.
+    """
     middleware = ValidationMiddleware(validation_service)
     return middleware.validate_position(fail_on_error=fail_on_error)
 
@@ -350,7 +418,11 @@ async def validate_data_integrity(
     balances: list[SpotBalance] | None = None,
     positions: list[DerivativePosition] | None = None,
 ) -> dict[str, ValidationResult[Any]]:
-    """Validate data integrity for multiple data types."""
+    """Validate data integrity for multiple data types.
+    
+    Returns:
+        Dictionary mapping data type names to their validation results.
+    """
     results: dict[str, ValidationResult[Any]] = {}
 
     if trades:
@@ -392,7 +464,12 @@ async def validate_data_integrity(
 def create_validation_report(
     validation_results: dict[str, ValidationResult[Any]],
 ) -> dict[str, Any]:
-    """Create a comprehensive validation report."""
+    """Create a comprehensive validation report.
+    
+    Returns:
+        Dictionary containing timestamp, overall validity status, data type summaries,
+        and issue counts by severity.
+    """
     report: dict[str, Any] = {
         "timestamp": __import__("time").time(),
         "overall_valid": all(result.is_valid for result in validation_results.values()),

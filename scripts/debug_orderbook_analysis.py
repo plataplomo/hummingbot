@@ -27,7 +27,13 @@ logger = get_logger(__name__)
 
 
 def create_sample_messages() -> dict[str, dict[str, Any]]:
-    """Create sample Backpack depth messages based on problem document analysis."""
+    """Create sample Backpack depth messages based on problem document analysis.
+
+    Returns:
+        Dictionary mapping message type names to sample message data dictionaries.
+        Keys include: "full_snapshot", "incremental_update", "partial_update_bids_only",
+        and "partial_update_asks_only".
+    """
     return {
         "full_snapshot": {
             "U": "12345",
@@ -199,11 +205,20 @@ def test_filtering_effectiveness() -> None:
     messages = create_sample_messages()
 
     def should_process_depth_message(raw_depth: BackpackRawDepthUpdateEvent) -> bool:
-        """Proposed filter: Only process messages that contain actual orderbook data."""
+        """Proposed filter: Only process messages that contain actual orderbook data.
+
+        Returns:
+            True if the message contains both bids and asks data, False otherwise.
+        """
         return raw_depth.bids is not None and raw_depth.asks is not None
 
     def is_snapshot_message(raw_depth: BackpackRawDepthUpdateEvent) -> bool:
-        """Detect snapshot messages by sequence number pattern."""
+        """Detect snapshot messages by sequence number pattern.
+
+        Returns:
+            True if the message is a snapshot (first_update_id equals last_update_id
+            and contains both bids and asks), False otherwise.
+        """
         return (
             raw_depth.first_update_id == raw_depth.last_update_id
             and raw_depth.bids is not None
@@ -226,7 +241,11 @@ def test_filtering_effectiveness() -> None:
 
 
 def validate_problem_document_claims() -> bool:
-    """Validate specific claims from the problem document."""
+    """Validate specific claims from the problem document.
+
+    Returns:
+        True if all claims are validated successfully, False if any claim fails.
+    """
     logger.info("Starting problem document claims validation")
 
     all_claims_valid = True
@@ -294,7 +313,11 @@ def validate_problem_document_claims() -> bool:
 
 
 def main() -> int:
-    """Run all analysis functions."""
+    """Run all analysis functions.
+
+    Returns:
+        Exit code: 0 for success, 1 for failure.
+    """
     logger.info(
         "debug_analysis_start",
         timestamp=datetime.now(UTC).isoformat(),

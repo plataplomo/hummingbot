@@ -40,7 +40,11 @@ class TestableExecutionHandler(ExecutionHandler):
         post_only: bool = False,
         is_long_leg: bool = True,
     ) -> Order | None:
-        """Wrapper that exposes _place_order_with_retry for testing."""
+        """Wrapper that exposes _place_order_with_retry for testing.
+        
+        Returns:
+            Order | None: Placed order if successful, None if failed or service unavailable.
+        """
         # The refactored ExecutionHandler uses services now
         if hasattr(self.services, "order_service"):
             request = OrderRequest(
@@ -66,7 +70,11 @@ class TestableExecutionHandler(ExecutionHandler):
         symbol: str | None = None,
         client_order_id: str | None = None,
     ) -> Order | None:
-        """Wrapper that exposes _get_order_status for testing."""
+        """Wrapper that exposes _get_order_status for testing.
+        
+        Returns:
+            Order | None: Order status if found, None if not found or service unavailable.
+        """
         # The refactored ExecutionHandler uses services now
         if hasattr(self.services, "order_service"):
             result = await self.services.order_service.get_order_status(order_id, exchange_id)
@@ -81,7 +89,11 @@ class TestableExecutionHandler(ExecutionHandler):
         side: OrderSide,
         quantity: Decimal,
     ) -> bool:
-        """Test wrapper for _compensate_position."""
+        """Test wrapper for _compensate_position.
+        
+        Returns:
+            bool: True if compensation successful, False otherwise or service unavailable.
+        """
         # The refactored ExecutionHandler uses services now
         if hasattr(self.services, "compensation_service"):
             result = await self.services.compensation_service.compensate_position(

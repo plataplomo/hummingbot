@@ -47,27 +47,47 @@ class SizingResult:
 
     @property
     def success(self) -> bool:
-        """Check if sizing was successful."""
+        """Check if sizing was successful.
+        
+        Returns:
+            True if status is SUCCESS, False otherwise
+        """
         return self.status == SizingStatus.SUCCESS
 
     @property
     def failed(self) -> bool:
-        """Check if sizing failed."""
+        """Check if sizing failed.
+        
+        Returns:
+            True if status is FAILED, False otherwise
+        """
         return self.status == SizingStatus.FAILED
 
     @property
     def insufficient_capital(self) -> bool:
-        """Check if sizing failed due to insufficient capital."""
+        """Check if sizing failed due to insufficient capital.
+        
+        Returns:
+            True if status is INSUFFICIENT_CAPITAL, False otherwise
+        """
         return self.status == SizingStatus.INSUFFICIENT_CAPITAL
 
     @property
     def constraints_violated(self) -> bool:
-        """Check if sizing failed due to constraint violations."""
+        """Check if sizing failed due to constraint violations.
+        
+        Returns:
+            True if status is CONSTRAINTS_VIOLATED, False otherwise
+        """
         return self.status == SizingStatus.CONSTRAINTS_VIOLATED
 
     @property
     def error(self) -> bool:
-        """Check if sizing failed due to error."""
+        """Check if sizing failed due to error.
+        
+        Returns:
+            True if status is ERROR, False otherwise
+        """
         return self.status == SizingStatus.ERROR
 
     @classmethod
@@ -86,7 +106,25 @@ class SizingResult:
         kelly_fraction: Decimal | None = None,
         risk_adjusted_size: Decimal | None = None,
     ) -> "SizingResult":
-        """Create a successful sizing result."""
+        """Create a successful sizing result.
+        
+        Args:
+            position_size_usd: The calculated position size in USD.
+            allocation_percentage: The position allocation as a percentage of available capital.
+            message: Optional success message.
+            details: Optional additional details.
+            execution_time_ms: Optional execution time in milliseconds.
+            base_size: Optional base position size before adjustments.
+            validation_factor: Optional validation adjustment factor.
+            constraint_adjustments: Optional constraint-based adjustments.
+            expected_return: Optional expected return.
+            volatility: Optional volatility measure.
+            kelly_fraction: Optional Kelly criterion fraction.
+            risk_adjusted_size: Optional risk-adjusted position size.
+            
+        Returns:
+            SizingResult: A successful sizing result with SUCCESS status.
+        """
         return cls(
             status=SizingStatus.SUCCESS,
             position_size_usd=position_size_usd,
@@ -110,7 +148,16 @@ class SizingResult:
         details: dict[str, Any] | None = None,
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
-        """Create a failed sizing result."""
+        """Create a failed sizing result.
+        
+        Args:
+            message: Failure reason message.
+            details: Optional additional failure details.
+            execution_time_ms: Optional execution time in milliseconds.
+            
+        Returns:
+            SizingResult: A failed sizing result with FAILED status and zero position size.
+        """
         return cls(
             status=SizingStatus.FAILED,
             position_size_usd=Decimal(0),
@@ -128,7 +175,17 @@ class SizingResult:
         message: str | None = None,
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
-        """Create an insufficient capital result."""
+        """Create an insufficient capital result.
+        
+        Args:
+            required_capital: Capital required for the position.
+            available_capital: Capital currently available.
+            message: Optional custom message, defaults to a descriptive message.
+            execution_time_ms: Optional execution time in milliseconds.
+            
+        Returns:
+            SizingResult: A sizing result with INSUFFICIENT_CAPITAL status and zero position size.
+        """
         return cls(
             status=SizingStatus.INSUFFICIENT_CAPITAL,
             position_size_usd=Decimal(0),
@@ -152,7 +209,16 @@ class SizingResult:
         message: str | None = None,
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
-        """Create a constraint violation result."""
+        """Create a constraint violation result.
+        
+        Args:
+            violated_constraints: List of constraint names that were violated.
+            message: Optional custom message, defaults to listing the violations.
+            execution_time_ms: Optional execution time in milliseconds.
+            
+        Returns:
+            SizingResult: A sizing result with CONSTRAINTS_VIOLATED status and zero position size.
+        """
         return cls(
             status=SizingStatus.CONSTRAINTS_VIOLATED,
             position_size_usd=Decimal(0),
@@ -171,7 +237,16 @@ class SizingResult:
         details: dict[str, Any] | None = None,
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
-        """Create an error result."""
+        """Create an error result.
+        
+        Args:
+            message: Error message describing what went wrong.
+            details: Optional additional error details.
+            execution_time_ms: Optional execution time in milliseconds.
+            
+        Returns:
+            SizingResult: A sizing result with ERROR status and zero position size.
+        """
         return cls(
             status=SizingStatus.ERROR,
             position_size_usd=Decimal(0),
@@ -182,7 +257,11 @@ class SizingResult:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to dictionary."""
+        """Convert result to dictionary.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation with all sizing result fields.
+        """
         return {
             "status": self.status.value,
             "position_size_usd": float(self.position_size_usd),
@@ -224,14 +303,30 @@ class SizingContext:
     risk_free_rate: Decimal | None = None
 
     def get_config_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
-        """Get a configuration value."""
+        """Get a configuration value.
+        
+        Args:
+            key: Configuration key to look up.
+            default: Default value if key not found.
+            
+        Returns:
+            ConfigValue: The configuration value or default if not found.
+        """
         if self.config is None:
             return default
         result = self.config.get(key, default)
         return result if result is not None else default
 
     def get_metadata_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
-        """Get a metadata value."""
+        """Get a metadata value.
+        
+        Args:
+            key: Metadata key to look up.
+            default: Default value if key not found.
+            
+        Returns:
+            ConfigValue: The metadata value or default if not found.
+        """
         if self.metadata is None:
             return default
         result = self.metadata.get(key, default)
@@ -272,36 +367,64 @@ class SizedOpportunity:
 
     @property
     def total_size_usd(self) -> Decimal:
-        """Total position size in USD."""
+        """Total position size in USD.
+        
+        Returns:
+            Sum of long and short position sizes
+        """
         return self.long_size_usd + self.short_size_usd
 
     @property
     def is_valid(self) -> bool:
-        """Check if the sized opportunity is valid."""
+        """Check if the sized opportunity is valid.
+        
+        Returns:
+            True if sizing successful and both positions have positive size
+        """
         return self.sizing_result.success and self.long_size_usd > 0 and self.short_size_usd > 0
 
     @property
     def allocation_percentage(self) -> Decimal:
-        """Allocation percentage from sizing result."""
+        """Allocation percentage from sizing result.
+        
+        Returns:
+            Position allocation as percentage of available capital
+        """
         return self.sizing_result.allocation_percentage
 
     @property
     def symbol(self) -> str:
-        """Symbol from the opportunity."""
+        """Symbol from the opportunity.
+        
+        Returns:
+            Trading symbol or 'unknown' if not available
+        """
         return getattr(self.opportunity, "symbol", "unknown")
 
     @property
     def long_exchange(self) -> str:
-        """Long exchange from the opportunity."""
+        """Long exchange from the opportunity.
+        
+        Returns:
+            Exchange name for long position or 'unknown' if not available
+        """
         return getattr(self.opportunity, "long_exchange", "unknown")
 
     @property
     def short_exchange(self) -> str:
-        """Short exchange from the opportunity."""
+        """Short exchange from the opportunity.
+        
+        Returns:
+            Exchange name for short position or 'unknown' if not available
+        """
         return getattr(self.opportunity, "short_exchange", "unknown")
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert sized opportunity to dictionary."""
+        """Convert sized opportunity to dictionary.
+        
+        Returns:
+            dict[str, Any]: Dictionary representation of the sized opportunity including all fields.
+        """
         return {
             "symbol": self.symbol,
             "long_exchange": self.long_exchange,
@@ -331,7 +454,20 @@ class SizedOpportunity:
         sizing_result: SizingResult,
         sizing_method: str | None = None,
     ) -> "SizedOpportunity":
-        """Create SizedOpportunity from sizing result."""
+        """Create SizedOpportunity from sizing result.
+        
+        Args:
+            opportunity: The arbitrage opportunity to size.
+            sizing_result: The successful sizing result.
+            sizing_method: Optional name of the sizing method used.
+            
+        Returns:
+            SizedOpportunity: A new sized opportunity with position sizes split equally 
+                between long and short.
+            
+        Raises:
+            SizingError: If sizing_result is not successful.
+        """
         if not sizing_result.success:
             raise SizingError(SizingError.CANNOT_CREATE_SIZED_OPPORTUNITY_FROM_FAILED_RESULT)
 

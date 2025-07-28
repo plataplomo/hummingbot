@@ -29,13 +29,31 @@ logging.addLevelName(TRACE_LEVEL, "TRACE")
 
 
 def add_timestamp(_: object, __: str, event_dict: EventDict) -> EventDict:
-    """Add ISO format timestamp to log events."""
+    """Add ISO format timestamp to log events.
+
+    Args:
+        _: Logger instance (unused)
+        __: Event name (unused)
+        event_dict: The event dictionary to modify
+
+    Returns:
+        EventDict: Modified event dictionary with timestamp added
+    """
     event_dict["timestamp"] = datetime.now(UTC).isoformat()
     return event_dict
 
 
 def censor_sensitive_data(_: object, __: str, event_dict: EventDict) -> EventDict:
-    """Remove or mask sensitive data from logs."""
+    """Remove or mask sensitive data from logs.
+
+    Args:
+        _: Logger instance (unused)
+        __: Event name (unused)
+        event_dict: The event dictionary to censor
+
+    Returns:
+        EventDict: Modified event dictionary with sensitive data masked
+    """
     sensitive_keys = {
         "api_key",
         "secret",
@@ -54,7 +72,16 @@ def censor_sensitive_data(_: object, __: str, event_dict: EventDict) -> EventDic
 
 
 def strip_ansi_codes(_: object, __: str, event_dict: EventDict) -> EventDict:
-    """Strip ANSI color codes from all string values in event dict."""
+    """Strip ANSI color codes from all string values in event dict.
+
+    Args:
+        _: Logger instance (unused)
+        __: Event name (unused)
+        event_dict: The event dictionary to process
+
+    Returns:
+        EventDict: Modified event dictionary with ANSI codes stripped
+    """
     ansi_pattern = re.compile(r"\x1b\[[0-9;]*m")
 
     def strip_value(
@@ -240,15 +267,36 @@ class TraceLevelLogger:
         )
 
     def bind(self, **kwargs: object) -> TraceLevelLogger:
-        """Bind context to logger."""
+        """Bind context to logger.
+
+        Args:
+            **kwargs: Context variables to bind to the logger
+
+        Returns:
+            TraceLevelLogger: New logger instance with bound context
+        """
         return TraceLevelLogger(self._logger.bind(**kwargs))
 
     def unbind(self, *keys: str) -> TraceLevelLogger:
-        """Unbind context from logger."""
+        """Unbind context from logger.
+
+        Args:
+            *keys: Context keys to unbind from the logger
+
+        Returns:
+            TraceLevelLogger: New logger instance with context unbound
+        """
         return TraceLevelLogger(self._logger.unbind(*keys))
 
     def try_unbind(self, *keys: str) -> TraceLevelLogger:
-        """Try to unbind context from logger."""
+        """Try to unbind context from logger.
+
+        Args:
+            *keys: Context keys to try to unbind from the logger
+
+        Returns:
+            TraceLevelLogger: New logger instance with context unbound if keys existed
+        """
         return TraceLevelLogger(self._logger.try_unbind(*keys))
 
     def __getattr__(self, name: str) -> object:

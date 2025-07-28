@@ -22,13 +22,21 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock application settings."""
+    """Create mock application settings.
+    
+    Returns:
+        Mock: Mocked AppSettings instance.
+    """
     return Mock(spec=AppSettings)
 
 
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
-    """Create mock circuit breaker system."""
+    """Create mock circuit breaker system.
+    
+    Returns:
+        Mock: Mocked CircuitBreakerSystem with configured methods.
+    """
     system = Mock(spec=CircuitBreakerSystem)
     system.get_breaker = Mock(return_value=None)
     system.get_exchange_breaker = Mock(return_value=None)
@@ -38,7 +46,11 @@ def mock_circuit_breaker_system() -> Mock:
 
 @pytest.fixture
 def signal_queue(mock_app_settings: Mock, mock_circuit_breaker_system: Mock) -> PrioritySignalQueue:
-    """Create PrioritySignalQueue instance for testing."""
+    """Create PrioritySignalQueue instance for testing.
+    
+    Returns:
+        PrioritySignalQueue: Queue instance with mocked dependencies.
+    """
     return PrioritySignalQueue(
         app_settings=mock_app_settings,
         circuit_breaker_system=mock_circuit_breaker_system,
@@ -47,7 +59,11 @@ def signal_queue(mock_app_settings: Mock, mock_circuit_breaker_system: Mock) -> 
 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
-    """Create sample trade signal for testing."""
+    """Create sample trade signal for testing.
+    
+    Returns:
+        TradeSignal: Sample BTC-PERP long entry signal.
+    """
     return TradeSignal(
         signal_id="test_signal_123",
         timestamp=datetime.now(UTC),
@@ -64,7 +80,11 @@ def sample_trade_signal() -> TradeSignal:
 
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
-    """Create sample arbitrage opportunity for testing."""
+    """Create sample arbitrage opportunity for testing.
+    
+    Returns:
+        ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with utility scores.
+    """
     return ArbitrageOpportunity(
         symbol="BTC-PERP",
         long_exchange="hyperliquid",

@@ -20,7 +20,11 @@ class CalculationError(PortfolioError):
     """Base exception for calculation errors."""
 
     def _get_default_error_code(self) -> str:
-        """Get default error code for calculation exceptions."""
+        """Get default error code for calculation exceptions.
+        
+        Returns:
+            str: Default error code in format 'CALC_<CLASSNAME>'
+        """
         return f"CALC_{self.__class__.__name__.upper()}"
 
 

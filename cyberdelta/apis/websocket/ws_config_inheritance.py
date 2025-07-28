@@ -162,7 +162,15 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
         }
 
     def get_config(self, model_type: type[BaseModel], context: ConfigurationContext) -> ConfigDict:
-        """Get configuration based on model hierarchy and context."""
+        """Get configuration based on model hierarchy and context.
+
+        Args:
+            model_type: The Pydantic model class to get configuration for
+            context: Configuration context for optimization
+
+        Returns:
+            ConfigDict with merged base configuration and context-specific modifiers
+        """
         # Get base configuration from hierarchy
         base_config = self._get_base_config(model_type)
 
@@ -173,11 +181,25 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
         return self._merge_configs(base_config, cast(dict[str, Any], context_modifiers))
 
     def supports_context(self, context: ConfigurationContext) -> bool:
-        """Check if strategy supports the given context."""
+        """Check if strategy supports the given context.
+
+        Args:
+            context: Configuration context to check support for
+
+        Returns:
+            True if strategy supports the context, False otherwise
+        """
         return context in self._context_modifiers
 
     def _get_base_config(self, model_type: type[BaseModel]) -> ConfigDict:
-        """Get base configuration for model type."""
+        """Get base configuration for model type.
+
+        Args:
+            model_type: The Pydantic model class to get base configuration for
+
+        Returns:
+            ConfigDict with base configuration from hierarchy or default envelope config
+        """
         # Check direct mapping first
         class_name = model_type.__name__
         if class_name in self._config_hierarchy:
@@ -192,7 +214,15 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
         return EnvelopeModelConfig.model_config
 
     def _merge_configs(self, base_config: ConfigDict, modifiers: dict[str, Any]) -> ConfigDict:
-        """Merge base configuration with context modifiers."""
+        """Merge base configuration with context modifiers.
+
+        Args:
+            base_config: Base configuration to start with
+            modifiers: Context-specific configuration modifications
+
+        Returns:
+            ConfigDict with merged configuration settings
+        """
         # Create a new ConfigDict with merged settings
         # Start with base config and apply modifiers using dict merging
         merged_dict = dict(base_config)
@@ -290,7 +320,15 @@ class PerformanceProfileStrategy(ConfigurationStrategy):
         }
 
     def get_config(self, model_type: type[BaseModel], context: ConfigurationContext) -> ConfigDict:
-        """Get configuration based on performance profile for context."""
+        """Get configuration based on performance profile for context.
+
+        Args:
+            model_type: The Pydantic model class (not used in this strategy)
+            context: Configuration context to map to performance profile
+
+        Returns:
+            ConfigDict based on performance profile associated with the context
+        """
         # Map context to performance profile
         profile = self._context_profile_mapping.get(context, PerformanceProfile.BALANCED)
 
@@ -301,11 +339,25 @@ class PerformanceProfileStrategy(ConfigurationStrategy):
         return cast(ConfigDict, dict(profile_config))
 
     def supports_context(self, context: ConfigurationContext) -> bool:
-        """Check if strategy supports the given context."""
+        """Check if strategy supports the given context.
+
+        Args:
+            context: Configuration context to check support for
+
+        Returns:
+            True if context is mapped to a performance profile, False otherwise
+        """
         return context in self._context_profile_mapping
 
     def get_profile_config(self, profile: PerformanceProfile) -> dict[str, Any]:
-        """Get configuration for a specific performance profile."""
+        """Get configuration for a specific performance profile.
+
+        Args:
+            profile: Performance profile to get configuration for
+
+        Returns:
+            Dictionary with configuration settings for the specified profile
+        """
         return self._profile_configs[profile]
 
 
@@ -321,7 +373,15 @@ class CompositeConfigurationStrategy(ConfigurationStrategy):
         self.strategies = strategies
 
     def get_config(self, model_type: type[BaseModel], context: ConfigurationContext) -> ConfigDict:
-        """Get configuration using first supporting strategy."""
+        """Get configuration using first supporting strategy.
+
+        Args:
+            model_type: The Pydantic model class to get configuration for
+            context: Configuration context for optimization
+
+        Returns:
+            ConfigDict from first strategy that supports the context, or fallback config
+        """
         for strategy in self.strategies:
             if strategy.supports_context(context):
                 return strategy.get_config(model_type, context)
@@ -335,7 +395,14 @@ class CompositeConfigurationStrategy(ConfigurationStrategy):
         )
 
     def supports_context(self, context: ConfigurationContext) -> bool:
-        """Check if any strategy supports the given context."""
+        """Check if any strategy supports the given context.
+
+        Args:
+            context: Configuration context to check support for
+
+        Returns:
+            True if any contained strategy supports the context, False otherwise
+        """
         return any(strategy.supports_context(context) for strategy in self.strategies)
 
 
@@ -437,7 +504,11 @@ class ConfigurationManager:
         return cast(ConfigDict, dict(config_dict))
 
     def get_cache_stats(self) -> dict[str, Any]:
-        """Get configuration cache statistics."""
+        """Get configuration cache statistics.
+
+        Returns:
+            Dictionary with cache performance metrics including hits, misses, and hit rate
+        """
         total_requests = self._cache_stats["hits"] + self._cache_stats["misses"]
         hit_rate = (self._cache_stats["hits"] / max(total_requests, 1)) * 100
 

@@ -15,7 +15,11 @@ IssueDict = dict[str, str | int | float | bool]
 
 # Typed factory functions to avoid Unknown type inference
 def _issue_list_factory() -> list[IssueDict]:
-    """Factory function for IssueDict list."""
+    """Factory function for IssueDict list.
+
+    Returns:
+        Empty list of IssueDict objects.
+    """
     return []
 
 

@@ -207,7 +207,7 @@ class HyperliquidAccountRequestBuilder(
             HyperliquidRawInternalUsdTransferPayload: Validated top-level API request model
 
         Raises:
-            ValueError: If account types are invalid or asset is not USDC
+            InvalidEnumValueError: If account types are invalid or asset is not USDC
         """
         logger.debug(
             "building_internal_transfer_payload",

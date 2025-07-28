@@ -46,7 +46,14 @@ class CalculationMetadata:
     @field_validator("calculator", mode="before")
     @classmethod
     def validate_calculator_name(cls, v: str) -> str:
-        """Validate calculator name is non-empty."""
+        """Validate calculator name is non-empty.
+
+        Returns:
+            str: The validated calculator name.
+
+        Raises:
+            InvalidCalculatorNameError: If calculator name is empty.
+        """
         if not v:
             raise InvalidCalculatorNameError(calculator_name=v)
         return v.strip()
@@ -71,7 +78,14 @@ class CalculationResult[TResult]:
     @field_validator("execution_time_ms", mode="before")
     @classmethod
     def validate_execution_time(cls, v: float | str) -> float:
-        """Validate execution time is non-negative."""
+        """Validate execution time is non-negative.
+
+        Returns:
+            float: The validated execution time.
+
+        Raises:
+            NegativeExecutionTimeError: If execution time is negative.
+        """
         value: float = v if isinstance(v, (int, float)) else float(v)
         if value < 0:
             raise NegativeExecutionTimeError(execution_time=value)
@@ -85,7 +99,11 @@ class CalculationResult[TResult]:
         metadata: CalculationMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> CalculationResult[TResult]:
-        """Create a successful result."""
+        """Create a successful result.
+
+        Returns:
+            CalculationResult[TResult]: A successful calculation result instance.
+        """
         return cls(
             success=True,
             result=result,
@@ -102,7 +120,11 @@ class CalculationResult[TResult]:
         metadata: CalculationMetadata | None = None,
         execution_time_ms: float = 0.0,
     ) -> CalculationResult[TResult]:
-        """Create a failure result."""
+        """Create a failure result.
+
+        Returns:
+            CalculationResult[TResult]: A failed calculation result instance.
+        """
         return cls(
             success=False,
             result=None,
@@ -132,7 +154,14 @@ class CalculatorMetrics:
     @field_validator("error_rate", "cache_hit_rate", mode="before")
     @classmethod
     def validate_rates(cls, v: float | str) -> float:
-        """Validate rates are between 0 and 1."""
+        """Validate rates are between 0 and 1.
+
+        Returns:
+            float: The validated rate value.
+
+        Raises:
+            InvalidRateRangeError: If rate is not between 0 and 1.
+        """
         value: float = v if isinstance(v, (int, float)) else float(v)
         if not 0 <= value <= 1:
             raise InvalidRateRangeError(rate=value, rate_type="Cache hit rate")
@@ -331,7 +360,11 @@ class TypedCalculator[TInput, TResult](ABC):
         self.cache_misses = 0
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+
+        Returns:
+            str: String representation of the calculator.
+        """
         return (
             f"{self.__class__.__name__}("
             f"calculator={self.calculator_name}, "

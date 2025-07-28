@@ -96,7 +96,14 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _check_missing_fields(self, opportunity: ArbitrageOpportunity) -> list[str]:
-        """Check for missing or empty business logic fields."""
+        """Check for missing or empty business logic fields.
+        
+        Args:
+            opportunity: The arbitrage opportunity to check.
+            
+        Returns:
+            List of missing or invalid field descriptions.
+        """
         missing_fields: list[str] = []
 
         # Core required fields are enforced by Pydantic model validation
@@ -121,7 +128,15 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
     def _check_invalid_fields(
         self, opportunity: ArbitrageOpportunity, missing_fields: list[str]
     ) -> list[str]:
-        """Check for invalid field values."""
+        """Check for invalid field values.
+        
+        Args:
+            opportunity: The arbitrage opportunity to check.
+            missing_fields: List of fields already identified as missing.
+            
+        Returns:
+            List of invalid field descriptions.
+        """
         invalid_fields: list[str] = []
 
         # Check numeric field validity
@@ -138,7 +153,15 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
     def _validate_numeric_fields(
         self, opportunity: ArbitrageOpportunity, missing_fields: list[str]
     ) -> list[str]:
-        """Validate numeric field values."""
+        """Validate numeric field values.
+        
+        Args:
+            opportunity: The arbitrage opportunity to check.
+            missing_fields: List of fields already identified as missing.
+            
+        Returns:
+            List of invalid numeric field descriptions.
+        """
         invalid_fields: list[str] = []
 
         for field in self.numeric_fields:
@@ -167,7 +190,18 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
         return invalid_fields
 
     def _convert_to_decimal(self, value: str | float | Decimal, field: str) -> Decimal:
-        """Convert value to Decimal, return None if invalid type."""
+        """Convert value to Decimal.
+        
+        Args:
+            value: The value to convert.
+            field: The field name for error reporting.
+            
+        Returns:
+            The value as a Decimal.
+            
+        Raises:
+            TypeFieldError: If the value type cannot be converted.
+        """
         if isinstance(value, str):
             return Decimal(value)
         if isinstance(value, Decimal):
@@ -177,7 +211,14 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
         raise TypeFieldError(field, "str, int, float, or Decimal", type(value).__name__, value)
 
     def _validate_exchange_fields(self, opportunity: ArbitrageOpportunity) -> list[str]:
-        """Validate exchange fields are different."""
+        """Validate exchange fields are different.
+        
+        Args:
+            opportunity: The arbitrage opportunity to check.
+            
+        Returns:
+            List of invalid exchange field descriptions.
+        """
         invalid_fields: list[str] = []
 
         # Fields are guaranteed to exist by Pydantic model
@@ -191,7 +232,14 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
         return invalid_fields
 
     def _validate_side_fields(self, opportunity: ArbitrageOpportunity) -> list[str]:
-        """Validate side field values."""
+        """Validate side field values.
+        
+        Args:
+            opportunity: The arbitrage opportunity to check.
+            
+        Returns:
+            List of invalid side field descriptions.
+        """
         invalid_fields: list[str] = []
         valid_sides = ["buy", "sell", "long", "short"]
 
@@ -213,7 +261,15 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
     def _build_error_messages(
         self, missing_fields: list[str], invalid_fields: list[str]
     ) -> list[str]:
-        """Build error messages from missing and invalid fields."""
+        """Build error messages from missing and invalid fields.
+        
+        Args:
+            missing_fields: List of missing field descriptions.
+            invalid_fields: List of invalid field descriptions.
+            
+        Returns:
+            List of formatted error messages.
+        """
         error_messages: list[str] = []
         if missing_fields:
             error_messages.append(f"Missing required fields: {', '.join(missing_fields)}")
@@ -262,13 +318,25 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
         self.logger.info("Set maximum value", field=field, max_value=str(max_value))
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+        
+        Returns:
+            CheckResult indicating the check was skipped.
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+        
+        Args:
+            error: The exception that occurred.
+            execution_time: Time taken for execution in seconds.
+            
+        Returns:
+            CheckResult indicating the check encountered an error.
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

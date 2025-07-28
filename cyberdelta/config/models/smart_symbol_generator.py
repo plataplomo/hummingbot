@@ -46,7 +46,15 @@ class SmartSymbolGenerator:
         )
 
     def generate_unified_symbols(self) -> list[UnifiedSymbolConfig]:
-        """Generate list of UnifiedSymbolConfig from smart configuration."""
+        """Generate list of UnifiedSymbolConfig from smart configuration.
+        
+        This method transforms the concise smart symbol configuration into
+        fully-qualified UnifiedSymbolConfig objects that can be used throughout
+        the trading system for cross-exchange symbol mapping.
+        
+        Returns:
+            list[UnifiedSymbolConfig]: Generated unified symbol configurations
+        """
         unified_symbols: list[UnifiedSymbolConfig] = []
 
         for symbol in self.smart_config.list:
@@ -70,7 +78,14 @@ class SmartSymbolGenerator:
         """Generate single UnifiedSymbolConfig from symbol string.
 
         Uses the existing enum validation and model structure to ensure
-        compatibility with the current system.
+        compatibility with the current system. Applies pattern-based transformations
+        and custom overrides to create exchange-specific symbol mappings.
+        
+        Returns:
+            UnifiedSymbolConfig: Complete symbol configuration with all exchange mappings
+            
+        Raises:
+            ValueError: If no valid exchange mappings can be generated for the symbol
         """
         # Create internal symbol config with string market type (no enum conversion)
         market_type_str = self.defaults.get("market_type", "PERP")

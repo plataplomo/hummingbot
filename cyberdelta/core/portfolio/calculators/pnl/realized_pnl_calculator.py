@@ -53,7 +53,14 @@ class RealizedPnLInput:
     @field_validator("trade", mode="after")
     @classmethod
     def validate_trade(cls, v: Trade) -> Trade:
-        """Validate trade has required fields."""
+        """Validate trade has required fields.
+
+        Returns:
+            The validated trade.
+
+        Raises:
+            InvalidCalculationInputError: If trade validation fails.
+        """
         if v.quantity <= 0:
             raise InvalidCalculationInputError(
                 parameter="quantity", value=v.quantity, expected="positive value"
@@ -69,7 +76,14 @@ class RealizedPnLInput:
     def validate_symbol_match(
         cls, v: DerivativePosition | Trade, info: ValidationInfo
     ) -> DerivativePosition | Trade:
-        """Validate position and trade symbols match."""
+        """Validate position and trade symbols match.
+
+        Returns:
+            The validated position or trade.
+
+        Raises:
+            InvalidCalculationInputError: If symbols do not match.
+        """
         if info.field_name == "trade" and "position" in info.data:
             position = info.data["position"]
             if position.symbol != v.symbol:

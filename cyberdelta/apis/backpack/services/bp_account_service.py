@@ -226,6 +226,9 @@ class BackpackAccountService:
         """Retrieve all account balances.
 
         Delegates to the balance service component.
+
+        Returns:
+            Dictionary mapping asset symbols to SpotBalance objects
         """
         return await self._balance_service.get_balances()
 
@@ -235,6 +238,12 @@ class BackpackAccountService:
         """Retrieve derivative positions, optionally filtered by symbol.
 
         Delegates to the position service component.
+
+        Args:
+            symbol: Optional symbol to filter positions
+
+        Returns:
+            List of DerivativePosition objects
         """
         return await self._position_service.get_positions(symbol)
 
@@ -244,6 +253,9 @@ class BackpackAccountService:
         """Retrieve the account summary information.
 
         Delegates to the account summary service component.
+
+        Returns:
+            MarginAccountSummary object with account details
         """
         return await self._account_summary_service.get_account_summary()
 
@@ -264,6 +276,12 @@ class BackpackAccountService:
         """Retrieve historical trades based on the provided arguments.
 
         Delegates to the transaction history service component.
+
+        Args:
+            args: Trade history query parameters
+
+        Returns:
+            List of Trade objects
         """
         return await self._transaction_history_service.get_trade_history(args)
 
@@ -272,6 +290,12 @@ class BackpackAccountService:
 
         Note: Backpack doesn't have a separate order history endpoint,
         so this is currently not implemented.
+
+        Args:
+            args: Order history query parameters
+
+        Returns:
+            Empty list (not implemented for Backpack)
         """
         # Backpack doesn't have order history endpoint
         return []
@@ -282,6 +306,12 @@ class BackpackAccountService:
         """Execute a transfer operation.
 
         Delegates to the transfer service component.
+
+        Args:
+            transfer_args: Transfer operation parameters
+
+        Returns:
+            Transfer object with transaction details
         """
         return await self._transfer_service.transfer(transfer_args)
 

@@ -23,7 +23,6 @@ from pydantic import ValidationError
 
 # Third-party imports for type checking only
 if TYPE_CHECKING:
-    import pytest
     from pytest_mock import MockerFixture
 
 # Project-specific imports
@@ -51,25 +50,41 @@ Mapper = HyperliquidOrderBookMapper
 
 @pytest.fixture
 def market_data_mapper() -> HyperliquidOrderBookMapper:
-    """Provide an instance of HyperliquidOrderBookMapper."""
+    """Provide an instance of HyperliquidOrderBookMapper.
+
+    Returns:
+        HyperliquidOrderBookMapper: A mapper instance for testing order book transformations.
+    """
     return HyperliquidOrderBookMapper()
 
 
 @pytest.fixture
 def hyperliquid_raw_book_level_fixture_bid() -> HyperliquidRawBookLevel:
-    """Provide a valid HyperliquidRawBookLevel for a bid."""
+    """Provide a valid HyperliquidRawBookLevel for a bid.
+
+    Returns:
+        HyperliquidRawBookLevel: A book level representing a bid at price 2999.50 with size 10.5.
+    """
     return HyperliquidRawBookLevel(px="2999.50", sz="10.5", n=2)
 
 
 @pytest.fixture
 def hyperliquid_raw_book_level_fixture_ask() -> HyperliquidRawBookLevel:
-    """Provide a valid HyperliquidRawBookLevel for an ask."""
+    """Provide a valid HyperliquidRawBookLevel for an ask.
+
+    Returns:
+        HyperliquidRawBookLevel: A book level representing an ask at price 3000.50 with size 5.25.
+    """
     return HyperliquidRawBookLevel(px="3000.50", sz="5.25", n=3)
 
 
 @pytest.fixture
 def hyperliquid_raw_l2_book_eth_fixture() -> HyperliquidRawL2Book:
-    """Provide a valid HyperliquidRawL2Book for ETH-PERP."""
+    """Provide a valid HyperliquidRawL2Book for ETH-PERP.
+
+    Returns:
+        HyperliquidRawL2Book: A realistic order book with 3 bid and 3 ask levels for ETH-PERP.
+    """
     # Create more levels for a more realistic book
     bid_levels = [
         HyperliquidRawBookLevel(px="2999.50", sz="10.5", n=2),
@@ -90,7 +105,11 @@ def hyperliquid_raw_l2_book_eth_fixture() -> HyperliquidRawL2Book:
 
 @pytest.fixture
 def hyperliquid_raw_l2_book_empty_fixture() -> HyperliquidRawL2Book:
-    """Provide an empty HyperliquidRawL2Book."""
+    """Provide an empty HyperliquidRawL2Book.
+
+    Returns:
+        HyperliquidRawL2Book: An order book with no bid or ask levels for BTC-PERP.
+    """
     return HyperliquidRawL2Book(
         coin="BTC-PERP",
         levels=[[], []],  # Empty bids and asks
@@ -100,7 +119,11 @@ def hyperliquid_raw_l2_book_empty_fixture() -> HyperliquidRawL2Book:
 
 @pytest.fixture
 def hyperliquid_raw_public_trade_buy_fixture() -> HyperliquidRawPublicTrade:
-    """Provide a valid HyperliquidRawPublicTrade for a BUY trade."""
+    """Provide a valid HyperliquidRawPublicTrade for a BUY trade.
+
+    Returns:
+        HyperliquidRawPublicTrade: A BUY trade for ETH-PERP at price 3002.00 with size 1.5.
+    """
     return HyperliquidRawPublicTrade(
         coin="ETH-PERP",
         side="B",
@@ -115,7 +138,11 @@ def hyperliquid_raw_public_trade_buy_fixture() -> HyperliquidRawPublicTrade:
 
 @pytest.fixture
 def hyperliquid_raw_public_trade_sell_fixture() -> HyperliquidRawPublicTrade:
-    """Provide a valid HyperliquidRawPublicTrade for a SELL trade."""
+    """Provide a valid HyperliquidRawPublicTrade for a SELL trade.
+
+    Returns:
+        HyperliquidRawPublicTrade: A SELL trade for BTC-PERP at price 60100.75 with size 0.02.
+    """
     return HyperliquidRawPublicTrade(
         coin="BTC-PERP",
         side="A",  # Sell
@@ -573,7 +600,17 @@ class TestTransformRawTrades:
         original_transform = HyperliquidOrderBookMapper.transform_raw_public_trade_to_internal
 
         def mock_transform_side_effect(raw_trade: HyperliquidRawPublicTrade) -> Trade | None:
-            """Return mock transform side effect for testing."""
+            """Return mock transform side effect for testing.
+
+            Args:
+                raw_trade: The raw trade to transform.
+
+            Returns:
+                Trade | None: Transformed trade or None if transformation fails.
+
+            Raises:
+                ValueError: If the trade coin is 'ERROR-PERP' (for testing error handling).
+            """
             if raw_trade.coin == "ERROR-PERP":
                 raise ValueError("Simulated transformation error")
             result = original_transform(raw_trade)

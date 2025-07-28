@@ -28,7 +28,11 @@ from cyberdelta.core.portfolio.services.base.base_service import ServiceConfigur
 
 # Type-preserving factory function
 def _str_list_factory() -> list[str]:
-    """Factory function that preserves list[str] type information."""
+    """Factory function that preserves list[str] type information.
+
+    Returns:
+        Empty list with preserved str type information
+    """
     return []
 
 
@@ -189,7 +193,12 @@ class ServiceLifecycle(ABC):
         ...
 
     async def initialize(self) -> None:
-        """Initialize the service with proper error handling."""
+        """Initialize the service with proper error handling.
+
+        Raises:
+            ServiceInitializationStateError: If service is not in a valid state for initialization
+            ServiceInitializationFailedError: If service initialization fails
+        """
         if self._status not in {ServiceStatus.CREATED, ServiceStatus.STOPPED, ServiceStatus.FAILED}:
             raise ServiceInitializationStateError(
                 service_name=self.service_name,
@@ -225,7 +234,13 @@ class ServiceLifecycle(ABC):
             ) from e
 
     async def start(self) -> None:
-        """Start the service with proper error handling."""
+        """Start the service with proper error handling.
+
+        Raises:
+            ServiceStartStateError: If service is not in a valid state for starting
+            ServiceStartupTimeoutError: If service startup exceeds timeout
+            ServiceStartFailedError: If service startup fails
+        """
         if self._status != ServiceStatus.INITIALIZED:
             if self._status == ServiceStatus.CREATED:
                 await self.initialize()
@@ -291,7 +306,12 @@ class ServiceLifecycle(ABC):
             ) from e
 
     async def stop(self) -> None:
-        """Stop the service with proper error handling."""
+        """Stop the service with proper error handling.
+
+        Raises:
+            ServiceShutdownTimeoutError: If service shutdown exceeds timeout
+            ServiceShutdownFailedError: If service shutdown fails
+        """
         if self._status not in {ServiceStatus.RUNNING, ServiceStatus.FAILED}:
             logger.warning(
                 "service_already_stopped",
@@ -390,7 +410,11 @@ class ServiceLifecycle(ABC):
         )
 
     async def cleanup(self) -> None:
-        """Clean up service resources."""
+        """Clean up service resources.
+
+        Raises:
+            ServiceCleanupError: If service cleanup fails
+        """
         if self._status == ServiceStatus.RUNNING:
             await self.stop()
 
@@ -426,7 +450,11 @@ class ServiceLifecycle(ABC):
         self._shutdown_handlers.append(handler)
 
     def _check_health_internal(self) -> bool:
-        """Internal health check wrapper."""
+        """Internal health check wrapper.
+
+        Returns:
+            True if service is healthy, False otherwise
+        """
         try:
             # Run synchronous health check
             loop = asyncio.get_event_loop()
@@ -468,7 +496,11 @@ class ServiceLifecycle(ABC):
                 await asyncio.sleep(self._health_check_interval)
 
     def get_health_info(self) -> ServiceHealthInfo:
-        """Get current health information."""
+        """Get current health information.
+
+        Returns:
+            ServiceHealthInfo containing current health status and metrics
+        """
         try:
             is_healthy, issues = asyncio.run(self._check_health())
         except (
@@ -491,7 +523,11 @@ class ServiceLifecycle(ABC):
         )
 
     def get_metrics(self) -> dict[str, str | float]:
-        """Get service metrics."""
+        """Get service metrics.
+
+        Returns:
+            Dictionary containing service metrics and status information
+        """
         current_uptime = 0.0
         if self._start_time and self._status == ServiceStatus.RUNNING:
             current_uptime = time.time() - self._start_time

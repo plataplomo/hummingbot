@@ -76,7 +76,17 @@ class ConstraintResult:
         execution_time_ms: float | None = None,
         constraints_checked: int = 0,
     ) -> "ConstraintResult":
-        """Create a passed result."""
+        """Create a passed result.
+
+        Args:
+            message: Optional result message
+            details: Optional result details
+            execution_time_ms: Execution time in milliseconds
+            constraints_checked: Number of constraints checked
+
+        Returns:
+            ConstraintResult instance with PASSED status
+        """
         return cls(
             status=ConstraintResultStatus.PASSED,
             violations=[],
@@ -95,7 +105,18 @@ class ConstraintResult:
         execution_time_ms: float | None = None,
         constraints_checked: int = 0,
     ) -> "ConstraintResult":
-        """Create a failed result."""
+        """Create a failed result.
+
+        Args:
+            violations: List of constraint violations
+            message: Optional result message
+            details: Optional result details
+            execution_time_ms: Execution time in milliseconds
+            constraints_checked: Number of constraints checked
+
+        Returns:
+            ConstraintResult instance with FAILED status
+        """
         return cls(
             status=ConstraintResultStatus.FAILED,
             violations=violations,
@@ -114,7 +135,18 @@ class ConstraintResult:
         execution_time_ms: float | None = None,
         constraints_checked: int = 0,
     ) -> "ConstraintResult":
-        """Create a warning result."""
+        """Create a warning result.
+
+        Args:
+            violations: List of constraint violations (warnings)
+            message: Optional result message
+            details: Optional result details
+            execution_time_ms: Execution time in milliseconds
+            constraints_checked: Number of constraints checked
+
+        Returns:
+            ConstraintResult instance with WARNING status
+        """
         return cls(
             status=ConstraintResultStatus.WARNING,
             violations=violations,
@@ -125,7 +157,11 @@ class ConstraintResult:
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to dictionary."""
+        """Convert result to dictionary.
+
+        Returns:
+            Dictionary representation of the constraint result
+        """
         return {
             "status": self.status.value,
             "violations": [v.to_dict() for v in self.violations],
@@ -165,26 +201,60 @@ class ConstraintContext:
     metadata: dict[str, Any] | None = None
 
     def get_current_allocation(self, symbol: str) -> Decimal:
-        """Get current allocation for a symbol."""
+        """Get current allocation for a symbol.
+
+        Args:
+            symbol: Symbol to get allocation for
+
+        Returns:
+            Current allocation amount for the symbol
+        """
         return self.current_allocations.get(symbol, Decimal(0))
 
     def get_current_exchange_allocation(self, exchange: str) -> Decimal:
-        """Get current allocation for an exchange."""
+        """Get current allocation for an exchange.
+
+        Args:
+            exchange: Exchange to get allocation for
+
+        Returns:
+            Current allocation amount for the exchange
+        """
         return self.current_exchange_allocations.get(exchange, Decimal(0)) or Decimal(0)
 
     def get_total_allocation(self) -> Decimal:
-        """Get total current allocation."""
+        """Get total current allocation.
+
+        Returns:
+            Sum of all current allocations
+        """
         return sum(self.current_allocations.values(), Decimal(0))
 
     def get_config_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
-        """Get configuration value."""
+        """Get configuration value.
+
+        Args:
+            key: Configuration key to look up
+            default: Default value if key not found
+
+        Returns:
+            Configuration value or default
+        """
         if self.config is None:
             return default
         result = self.config.get(key, default)
         return result if result is not None else default
 
     def get_metadata_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
-        """Get metadata value."""
+        """Get metadata value.
+
+        Args:
+            key: Metadata key to look up
+            default: Default value if key not found
+
+        Returns:
+            Metadata value or default
+        """
         if self.metadata is None:
             return default
         result = self.metadata.get(key, default)
@@ -281,7 +351,15 @@ class BaseConstraintValidator(ABC):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> ConstraintResult:
-        """Validate constraints for a sized opportunity."""
+        """Validate constraints for a sized opportunity.
+
+        Args:
+            opportunity: The sized opportunity to validate
+            context: Context information for validation
+
+        Returns:
+            ConstraintResult containing validation results
+        """
         if not self._enabled:
             return ConstraintResult.passed_result(
                 message=f"Constraint {self.name} is disabled",
@@ -366,7 +444,11 @@ class BaseConstraintValidator(ABC):
             )
 
     def is_enabled(self) -> bool:
-        """Check if constraint is enabled."""
+        """Check if constraint is enabled.
+
+        Returns:
+            True if constraint is enabled, False otherwise
+        """
         return self._enabled
 
     def enable(self) -> None:
@@ -378,7 +460,15 @@ class BaseConstraintValidator(ABC):
         self._enabled = False
 
     def get_config_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
-        """Get configuration value."""
+        """Get configuration value.
+
+        Args:
+            key: Configuration key to look up
+            default: Default value if key not found
+
+        Returns:
+            Configuration value or default
+        """
         result = self.config.get(key, default)
         return result if result is not None else default
 

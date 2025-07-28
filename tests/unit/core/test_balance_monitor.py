@@ -18,7 +18,11 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings with balance monitoring configuration."""
+    """Create mock app settings with balance monitoring configuration.
+    
+    Returns:
+        Mock: Mocked AppSettings with balance monitoring thresholds configured.
+    """
     settings = Mock(spec=AppSettings)
 
     # Configure exchanges as a dict with ExchangeSpecificConfig objects
@@ -44,7 +48,11 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create a mock portfolio tracker."""
+    """Create a mock portfolio tracker.
+    
+    Returns:
+        Mock: Mocked PortfolioTracker with default behavior configured.
+    """
     tracker = Mock(spec=PortfolioTracker)
     # Set up default behavior
     tracker.get_exchange_balance.return_value = None
@@ -53,13 +61,21 @@ def mock_portfolio_tracker() -> Mock:
 
 @pytest.fixture
 def balance_monitor(mock_app_settings: Mock, mock_portfolio_tracker: Mock) -> BalanceMonitor:
-    """Create a BalanceMonitor instance for testing."""
+    """Create a BalanceMonitor instance for testing.
+    
+    Returns:
+        BalanceMonitor: Instance configured with mock dependencies.
+    """
     return BalanceMonitor(mock_app_settings, mock_portfolio_tracker)
 
 
 @pytest.fixture
 def sufficient_balance() -> SpotBalance:
-    """Create a SpotBalance that meets minimum requirements."""
+    """Create a SpotBalance that meets minimum requirements.
+    
+    Returns:
+        SpotBalance: Balance with 200 USDC (above both exchange minimums).
+    """
     return SpotBalance(
         exchange="hyperliquid",
         asset="USDC",
@@ -71,7 +87,11 @@ def sufficient_balance() -> SpotBalance:
 
 @pytest.fixture
 def low_balance() -> SpotBalance:
-    """Create a SpotBalance that's low but above critical threshold."""
+    """Create a SpotBalance that's low but above critical threshold.
+    
+    Returns:
+        SpotBalance: Balance with 120 USDC (above min but below low threshold).
+    """
     return SpotBalance(
         exchange="hyperliquid",
         asset="USDC",
@@ -83,7 +103,11 @@ def low_balance() -> SpotBalance:
 
 @pytest.fixture
 def critical_balance() -> SpotBalance:
-    """Create a SpotBalance that's critically low."""
+    """Create a SpotBalance that's critically low.
+    
+    Returns:
+        SpotBalance: Balance with 30 USDC (below minimum requirements).
+    """
     return SpotBalance(
         exchange="hyperliquid",
         asset="USDC",

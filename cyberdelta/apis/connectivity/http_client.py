@@ -153,6 +153,9 @@ class HttpClient:
 
         Uses an externally provided session if available and valid,
         otherwise creates and manages one internally.
+
+        Returns:
+            aiohttp.ClientSession: Active HTTP client session for making requests.
         """
         async with self._session_lock:
             if self._external_session and self._session and not self._session.closed:
@@ -233,7 +236,14 @@ class HttpClient:
     def _validate_headers(
         self, headers: CIMultiDictProxy[str], full_url: str
     ) -> ProcessedResponseHeaders:
-        """Validate and process response headers."""
+        """Validate and process response headers.
+
+        Returns:
+            ProcessedResponseHeaders: Validated and processed response headers.
+
+        Raises:
+            HttpRequestFailedError: If Content-Type header is invalid.
+        """
         try:
             processed_content_type_str = headers.get("Content-Type", "").lower()
             return ProcessedResponseHeaders(content_type=processed_content_type_str)
@@ -260,7 +270,14 @@ class HttpClient:
             ) from ve
 
     async def _read_response_body(self, response: aiohttp.ClientResponse, full_url: str) -> str:
-        """Read response body with error handling."""
+        """Read response body with error handling.
+
+        Returns:
+            str: The response body text.
+
+        Raises:
+            HttpRequestFailedError: If reading the response body fails.
+        """
         try:
             return await response.text()
         except aiohttp.ClientPayloadError as e_payload:
@@ -286,7 +303,14 @@ class HttpClient:
     def _parse_json_response(
         self, response_text: str, full_url: str, status_code: int
     ) -> ParsedJsonResponse:
-        """Parse JSON response with security validation."""
+        """Parse JSON response with security validation.
+
+        Returns:
+            ParsedJsonResponse: Parsed JSON data as dict, list, or string.
+
+        Raises:
+            HttpRequestFailedError: If JSON parsing fails or response is unsafe.
+        """
         try:
             logger.debug(
                 "raw_json_response_text",
@@ -353,10 +377,16 @@ class HttpClient:
     ]:
         """Parses the HTTP response, validates headers, and extracts content.
 
-        Returns content, status code, processed headers, and raw headers.
+        Returns:
+            tuple: A 4-element tuple containing:
+                - Parsed response content (JSON data, text, or None for empty responses)
+                - HTTP status code
+                - Processed response headers
+                - Raw response headers
 
-        Raises HttpRequestFailedError for issues like invalid Content-Type, body read errors,
-        or JSON decoding failures.
+        Raises:
+            HttpRequestFailedError: For issues like invalid Content-Type, body read errors,
+                or JSON decoding failures.
         """
         raw_response_headers = response.headers
         processed_headers = self._validate_headers(raw_response_headers, full_url)
@@ -490,7 +520,15 @@ class HttpClient:
         data: dict[str, Any] | None,
         request_timeout: float | None,
     ) -> tuple[dict[str, Any], dict[str, Any] | None, str, float]:
-        """Prepare basic request components."""
+        """Prepare basic request components.
+
+        Returns:
+            tuple[dict[str, Any], dict[str, Any] | None, str, float]: A tuple containing:
+                - Request parameters dictionary
+                - JSON payload dictionary (or None for GET requests)
+                - Full URL for the request
+                - Effective timeout in seconds
+        """
         request_params = (params or {}).copy()
         json_payload: dict[str, Any] | None = None
 
@@ -538,7 +576,19 @@ class HttpClient:
         json_payload: dict[str, Any] | None,
         full_url: str,
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
-        """Setup request headers and handle authentication."""
+        """Setup request headers and handle authentication.
+
+        Returns:
+            tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]: A tuple containing:
+                - Updated request headers
+                - Updated request parameters
+                - Updated JSON payload (or None)
+
+        Raises:
+            AuthenticatorNotConfiguredError: If authentication is required but no
+                authenticator provided.
+            APIError: If authentication preparation fails.
+        """
         session_for_initial_headers = await self._get_session()
         request_headers = dict(session_for_initial_headers.headers.copy())
         request_headers.update(headers or {})
@@ -602,7 +652,16 @@ class HttpClient:
         ProcessedResponseHeaders,
         CIMultiDictProxy[str],
     ]:
-        """Execute the HTTP request with retry logic."""
+        """Execute the HTTP request with retry logic.
+
+        Returns:
+            tuple: A tuple containing parsed response, status code, processed headers,
+                and raw headers.
+
+        Raises:
+            HttpRequestFailedError: If the request fails after all retries.
+            UnreachableCodeError: If the retry loop exits unexpectedly.
+        """
         current_attempt = 0
         last_exception: Exception | None = None
 
@@ -669,7 +728,12 @@ class HttpClient:
         ProcessedResponseHeaders,
         CIMultiDictProxy[str],
     ]:
-        """Execute a single HTTP request attempt."""
+        """Execute a single HTTP request attempt.
+
+        Returns:
+            tuple: A tuple containing parsed response, status code, processed headers,
+                and raw headers.
+        """
         session = await self._get_session()
 
         # Log request details
@@ -707,7 +771,15 @@ class HttpClient:
         ProcessedResponseHeaders,
         CIMultiDictProxy[str],
     ]:
-        """Handle the HTTP response."""
+        """Handle the HTTP response.
+
+        Returns:
+            tuple: A tuple containing parsed response, status code, processed headers,
+                and raw headers.
+
+        Raises:
+            HttpRequestFailedError: If the response indicates an error or parsing fails.
+        """
         if HTTPStatus.OK.value <= response.status < HTTPStatus.MULTIPLE_CHOICES.value:
             try:
                 return await self._parse_and_validate_response(response, full_url)
@@ -792,14 +864,22 @@ class HttpClient:
         raise error
 
     def _should_fail_fast(self, error: HttpRequestFailedError) -> bool:
-        """Determine if an error should cause immediate failure without retries."""
+        """Determine if an error should cause immediate failure without retries.
+
+        Returns:
+            bool: True if the error should fail immediately, False otherwise.
+        """
         if error.code == APIErrorCode.INVALID_RESPONSE.value:
             return True
         # HttpRequestFailedError inherits from APIError which always has http_status property
         return error.http_status in {400, 401, 403, 404, 405, 406, 415}
 
     def _should_skip_retry_delay(self, exception: Exception) -> bool:
-        """Determine if retry delay should be skipped for certain exceptions."""
+        """Determine if retry delay should be skipped for certain exceptions.
+
+        Returns:
+            bool: True if retry delay should be skipped, False otherwise.
+        """
         if isinstance(exception, HttpRequestFailedError):
             return exception.http_status in {400, 401, 403, 404, 405, 406, 415}
         return False
@@ -828,7 +908,12 @@ class HttpClient:
         ProcessedResponseHeaders,
         CIMultiDictProxy[str],
     ]:
-        """Handle final failure after all retries exhausted."""
+        """Handle final failure after all retries exhausted.
+
+        Raises:
+            HttpRequestFailedError: Always raised with details of the final failure.
+            UnreachableCodeError: If last_exception is None unexpectedly.
+        """
         logger.error(
             "request_failed_after_all_retries",
             action="handle_final_failure",
@@ -873,7 +958,11 @@ class HttpClient:
         ) from last_exception
 
     async def __aenter__(self) -> Self:
-        """Enter the async context manager and ensure session is ready."""
+        """Enter the async context manager and ensure session is ready.
+
+        Returns:
+            Self: The HttpClient instance for use in the context.
+        """
         await self._get_session()  # Ensure session is created if used in "async with"
         return self
 

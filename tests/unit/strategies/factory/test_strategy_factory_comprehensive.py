@@ -88,7 +88,11 @@ class TestStrategyFactoryInit:
 
     @pytest.fixture
     def mock_config(self) -> Mock:
-        """Create a mock configuration for testing."""
+        """Create a mock configuration for testing.
+        
+        Returns:
+            Mock: Mock AppSettings configuration with strategy settings.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
@@ -125,14 +129,22 @@ class TestValidateStrategyEnabled:
 
     @pytest.fixture
     def mock_config(self) -> Mock:
-        """Create a mock configuration for testing."""
+        """Create a mock configuration for testing.
+        
+        Returns:
+            Mock: Mock AppSettings configuration for validation tests.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         return config
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance for testing."""
+        """Create a StrategyFactory instance for testing.
+        
+        Returns:
+            StrategyFactory: Factory instance initialized with mock configuration.
+        """
         return StrategyFactory(mock_config)
 
     # ==================== SUCCESS CASES ====================
@@ -231,7 +243,11 @@ class TestCreateHLPerpBPSpotStrategy:
 
     @pytest.fixture
     def mock_config(self) -> Mock:
-        """Create a mock configuration for testing."""
+        """Create a mock configuration for testing.
+        
+        Returns:
+            Mock: Mock AppSettings configuration with HL perp BP spot strategy settings.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
@@ -249,22 +265,38 @@ class TestCreateHLPerpBPSpotStrategy:
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance for testing."""
+        """Create a StrategyFactory instance for testing.
+        
+        Returns:
+            StrategyFactory: Factory instance for strategy creation tests.
+        """
         return StrategyFactory(mock_config)
 
     @pytest.fixture
     def mock_data_handler(self) -> Mock:
-        """Create a mock data handler."""
+        """Create a mock data handler.
+        
+        Returns:
+            Mock: Mock DataHandler instance for testing strategy creation.
+        """
         return Mock(spec=DataHandler)
 
     @pytest.fixture
     def mock_portfolio_tracker(self) -> Mock:
-        """Create a mock portfolio tracker."""
+        """Create a mock portfolio tracker.
+        
+        Returns:
+            Mock: Mock PortfolioTracker instance for testing strategy creation.
+        """
         return Mock(spec=PortfolioTracker)
 
     @pytest.fixture
     def mock_risk_manager(self) -> Mock:
-        """Create a mock risk manager."""
+        """Create a mock risk manager.
+        
+        Returns:
+            Mock: Mock RiskManager instance for testing strategy creation.
+        """
         return Mock(spec=RiskManager)
 
     # ==================== SUCCESS CASES ====================
@@ -489,7 +521,11 @@ class TestCreateStrategy:
 
     @pytest.fixture
     def mock_config(self) -> Mock:
-        """Create a mock configuration for testing."""
+        """Create a mock configuration for testing.
+        
+        Returns:
+            Mock: Mock AppSettings configuration with strategy settings.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
@@ -499,22 +535,38 @@ class TestCreateStrategy:
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance for testing."""
+        """Create a StrategyFactory instance for testing.
+        
+        Returns:
+            StrategyFactory: Factory instance for strategy creation tests.
+        """
         return StrategyFactory(mock_config)
 
     @pytest.fixture
     def mock_data_handler(self) -> Mock:
-        """Create a mock data handler."""
+        """Create a mock data handler.
+        
+        Returns:
+            Mock: Mock DataHandler instance for testing strategy creation.
+        """
         return Mock(spec=DataHandler)
 
     @pytest.fixture
     def mock_portfolio_tracker(self) -> Mock:
-        """Create a mock portfolio tracker."""
+        """Create a mock portfolio tracker.
+        
+        Returns:
+            Mock: Mock PortfolioTracker instance for testing strategy creation.
+        """
         return Mock(spec=PortfolioTracker)
 
     @pytest.fixture
     def mock_risk_manager(self) -> Mock:
-        """Create a mock risk manager."""
+        """Create a mock risk manager.
+        
+        Returns:
+            Mock: Mock RiskManager instance for testing strategy creation.
+        """
         return Mock(spec=RiskManager)
 
     # ==================== SUCCESS CASES ====================
@@ -639,14 +691,22 @@ class TestConvertStrategyParamsToDict:
 
     @pytest.fixture
     def mock_config(self) -> Mock:
-        """Create a mock configuration for testing."""
+        """Create a mock configuration for testing.
+        
+        Returns:
+            Mock: Mock AppSettings configuration for parameter conversion tests.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         return config
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance for testing."""
+        """Create a StrategyFactory instance for testing.
+        
+        Returns:
+            StrategyFactory: Factory instance for parameter conversion tests.
+        """
         return StrategyFactory(mock_config)
 
     # ==================== SUCCESS CASES ====================
@@ -846,12 +906,20 @@ class TestGetAvailableStrategyTypes:
 
     @pytest.fixture
     def mock_config(self) -> Mock:
-        """Create a mock configuration for testing."""
+        """Create a mock configuration for testing.
+        
+        Returns:
+            Mock: Mock AppSettings configuration for strategy type queries.
+        """
         return Mock(spec=AppSettings)
 
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance for testing."""
+        """Create a StrategyFactory instance for testing.
+        
+        Returns:
+            StrategyFactory: Factory instance for testing available strategy types.
+        """
         return StrategyFactory(mock_config)
 
     # ==================== SUCCESS CASES ====================
@@ -888,7 +956,11 @@ class TestValidateStrategyConfig:
 
     @pytest.fixture
     def mock_config_enabled(self) -> Mock:
-        """Create a mock configuration with enabled strategy."""
+        """Create a mock configuration with enabled strategy.
+        
+        Returns:
+            Mock: Mock AppSettings with enabled strategy configuration.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
@@ -897,7 +969,11 @@ class TestValidateStrategyConfig:
 
     @pytest.fixture
     def mock_config_disabled(self) -> Mock:
-        """Create a mock configuration with disabled strategy."""
+        """Create a mock configuration with disabled strategy.
+        
+        Returns:
+            Mock: Mock AppSettings with disabled strategy configuration.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
@@ -906,12 +982,20 @@ class TestValidateStrategyConfig:
 
     @pytest.fixture
     def factory_enabled(self, mock_config_enabled: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance with enabled strategy."""
+        """Create a StrategyFactory instance with enabled strategy.
+        
+        Returns:
+            StrategyFactory: Factory with enabled strategy configuration.
+        """
         return StrategyFactory(mock_config_enabled)
 
     @pytest.fixture
     def factory_disabled(self, mock_config_disabled: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance with disabled strategy."""
+        """Create a StrategyFactory instance with disabled strategy.
+        
+        Returns:
+            StrategyFactory: Factory with disabled strategy configuration.
+        """
         return StrategyFactory(mock_config_disabled)
 
     # ==================== SUCCESS CASES ====================
@@ -1127,7 +1211,11 @@ class TestStrategyFactoryIntegration:
 
     @pytest.fixture
     def complete_mock_config(self) -> Mock:
-        """Create a complete mock configuration for integration testing."""
+        """Create a complete mock configuration for integration testing.
+        
+        Returns:
+            Mock: Complete mock AppSettings configuration for integration tests.
+        """
         config = Mock(spec=AppSettings)
         config.strategies = Mock()
         config.strategies.hl_perp_bp_spot = Mock()
@@ -1147,12 +1235,20 @@ class TestStrategyFactoryIntegration:
 
     @pytest.fixture
     def factory(self, complete_mock_config: Mock) -> StrategyFactory:
-        """Create a StrategyFactory instance for integration testing."""
+        """Create a StrategyFactory instance for integration testing.
+        
+        Returns:
+            StrategyFactory: Factory instance for integration testing workflow.
+        """
         return StrategyFactory(complete_mock_config)
 
     @pytest.fixture
     def all_mocks(self) -> dict[str, Mock]:
-        """Create all required mocks for strategy creation."""
+        """Create all required mocks for strategy creation.
+        
+        Returns:
+            Dictionary containing all mock dependencies needed for strategy creation.
+        """
         return {
             "data_handler": Mock(spec=DataHandler),
             "portfolio_tracker": Mock(spec=PortfolioTracker),

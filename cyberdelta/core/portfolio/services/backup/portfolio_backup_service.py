@@ -99,7 +99,11 @@ class BackupMetadataInfo(BaseModel):
     @field_validator("backup_source", mode="before")
     @classmethod
     def validate_backup_source(cls, v: str) -> str:
-        """Validate backup source is non-empty."""
+        """Validate backup source is non-empty.
+        
+        Returns:
+            The validated backup source string, defaulting to 'system' if empty.
+        """
         if not v or not v.strip():
             return "system"
         return v.strip()
@@ -124,7 +128,11 @@ class CustomBackupMetadata(BaseModel):
     @field_validator("creator", mode="before")
     @classmethod
     def validate_creator(cls, v: str) -> str:
-        """Validate creator is non-empty."""
+        """Validate creator is non-empty.
+        
+        Returns:
+            The validated creator string, defaulting to 'system' if empty.
+        """
         if not v or not v.strip():
             return "system"
         return v.strip()
@@ -151,7 +159,11 @@ class RecoveryMetadataInfo(BaseModel):
     @field_validator("recovery_source", mode="before")
     @classmethod
     def validate_recovery_source(cls, v: str) -> str:
-        """Validate recovery source is non-empty."""
+        """Validate recovery source is non-empty.
+        
+        Returns:
+            The validated recovery source string, defaulting to 'backup' if empty.
+        """
         if not v or not v.strip():
             return "backup"
         return v.strip()
@@ -168,7 +180,14 @@ class SerializablePositionData(BaseModel):
     @field_validator("size", "value", mode="before")
     @classmethod
     def validate_decimal_strings(cls, v: str | float) -> str:
-        """Validate decimal string representations."""
+        """Validate decimal string representations.
+        
+        Returns:
+            The validated decimal value as a string.
+            
+        Raises:
+            BackupServiceValidationError: If the value cannot be converted to a valid number.
+        """
         value: str = str(v) if not isinstance(v, str) else v
         # Basic validation for decimal string format
         try:
@@ -189,7 +208,14 @@ class SerializableBalanceData(BaseModel):
     @field_validator("balance", "available", mode="before")
     @classmethod
     def validate_balance_strings(cls, v: str | float) -> str:
-        """Validate balance string representations."""
+        """Validate balance string representations.
+        
+        Returns:
+            The validated balance value as a string.
+            
+        Raises:
+            BackupServiceValidationError: If the value cannot be converted to a valid number.
+        """
         value: str = str(v) if not isinstance(v, str) else v
         try:
             float(value)  # Test if it can be converted to a number
@@ -210,7 +236,14 @@ class SerializableOrderData(BaseModel):
     @field_validator("quantity", "price", mode="before")
     @classmethod
     def validate_order_strings(cls, v: str | float) -> str:
-        """Validate order string representations."""
+        """Validate order string representations.
+        
+        Returns:
+            The validated order value as a string.
+            
+        Raises:
+            BackupServiceValidationError: If the value cannot be converted to a valid number.
+        """
         value: str = str(v) if not isinstance(v, str) else v
         try:
             float(value)  # Test if it can be converted to a number
@@ -413,7 +446,18 @@ class PortfolioBackupService(BasePortfolioService):
         tags: list[str] | None = None,
         custom_metadata: dict[str, object] | None = None,
     ) -> BackupMetadata:
-        """Create a portfolio backup."""
+        """Create a portfolio backup.
+        
+        Returns:
+            The backup metadata for the created backup.
+            
+        Raises:
+            ValueError: If portfolio state cannot be retrieved or backup configuration is invalid.
+            TypeError: If provided parameters have incorrect types.
+            KeyError: If required data fields are missing during backup creation.
+            AttributeError: If required attributes are not available on backup objects.
+            ArithmeticError: If numerical calculations fail during backup processing.
+        """
         start_time = time.time()
         backup_id = f"backup_{int(start_time)}_{backup_type.value}"
 
@@ -508,7 +552,15 @@ class PortfolioBackupService(BasePortfolioService):
     async def restore_backup(
         self, backup_id: str, validate_before_restore: bool = True, dry_run: bool = False
     ) -> RecoveryResult:
-        """Restore portfolio from backup."""
+        """Restore portfolio from backup.
+        
+        Returns:
+            The recovery result containing restoration status and metrics.
+            
+        Raises:
+            ValueError: If the backup_id is not found in metadata.
+            FileNotFoundError: If the backup file does not exist.
+        """
         start_time = time.time()
 
         # Get backup metadata
@@ -595,7 +647,11 @@ class PortfolioBackupService(BasePortfolioService):
         end_time: float | None = None,
         limit: int | None = None,
     ) -> list[BackupMetadata]:
-        """List available backups."""
+        """List available backups.
+        
+        Returns:
+            A list of backup metadata objects matching the filter criteria.
+        """
         backups = list(self.backup_metadata.values())
 
         # Apply filters
@@ -618,11 +674,19 @@ class PortfolioBackupService(BasePortfolioService):
         return backups
 
     async def get_backup_metadata(self, backup_id: str) -> BackupMetadata | None:
-        """Get metadata for a specific backup."""
+        """Get metadata for a specific backup.
+        
+        Returns:
+            The backup metadata if found, None otherwise.
+        """
         return self.backup_metadata.get(backup_id)
 
     async def delete_backup(self, backup_id: str) -> bool:
-        """Delete a backup."""
+        """Delete a backup.
+        
+        Returns:
+            True if the backup was successfully deleted, False otherwise.
+        """
         if backup_id not in self.backup_metadata:
             return False
 
@@ -651,7 +715,11 @@ class PortfolioBackupService(BasePortfolioService):
             return True
 
     async def cleanup_expired_backups(self) -> int:
-        """Clean up expired backups."""
+        """Clean up expired backups.
+        
+        Returns:
+            The number of expired backups that were successfully deleted.
+        """
         current_time = time.time()
         expired_backups: list[str] = []
 
@@ -670,7 +738,11 @@ class PortfolioBackupService(BasePortfolioService):
         return deleted_count
 
     async def get_backup_statistics(self) -> dict[str, object]:
-        """Get backup service statistics."""
+        """Get backup service statistics.
+        
+        Returns:
+            A dictionary containing comprehensive backup service statistics.
+        """
         current_time = time.time()
 
         # Calculate average backup time
@@ -706,7 +778,14 @@ class PortfolioBackupService(BasePortfolioService):
         }
 
     async def _get_portfolio_state(self) -> PortfolioStateData:
-        """Get current portfolio state for backup."""
+        """Get current portfolio state for backup.
+        
+        Returns:
+            The current portfolio state data ready for backup.
+            
+        Raises:
+            ValueError: If the portfolio state manager is not available.
+        """
         if not self.portfolio_state_manager:
             raise ValueError
 
@@ -737,18 +816,30 @@ class PortfolioBackupService(BasePortfolioService):
     def _convert_to_serializable(
         self, state: PortfolioStateData
     ) -> dict[str, str | int | float | bool | None]:
-        """Convert PortfolioStateData to SerializableType format using Pydantic."""
+        """Convert PortfolioStateData to SerializableType format using Pydantic.
+        
+        Returns:
+            A serializable dictionary representation of the portfolio state.
+        """
         # Use Pydantic's model_dump with string conversion for serialization
         return state.model_dump(mode="python")  # Returns properly serializable dict
 
     async def _apply_backup_filters(self, state: PortfolioStateData) -> PortfolioStateData:
-        """Apply backup filters to state data."""
+        """Apply backup filters to state data.
+        
+        Returns:
+            The filtered portfolio state data.
+        """
         # Apply include/exclude patterns
         # This is a simplified implementation
         return state
 
     async def _create_backup_file(self, metadata: BackupMetadata, state: PortfolioStateData) -> str:
-        """Create backup file from state data."""
+        """Create backup file from state data.
+        
+        Returns:
+            The file path of the created backup file.
+        """
         # Generate filename
         timestamp_str = str(int(metadata.timestamp))
         filename = f"{metadata.backup_id}_{timestamp_str}.{metadata.format.value}"
@@ -797,7 +888,11 @@ class PortfolioBackupService(BasePortfolioService):
         return file_path
 
     async def _load_json_file(self, file_path: str) -> PortfolioStateData:
-        """Load JSON backup file."""
+        """Load JSON backup file.
+        
+        Returns:
+            The portfolio state data loaded from the JSON backup file.
+        """
 
         def _read_json() -> PortfolioStateData:
             with Path(file_path).open(encoding="utf-8") as f:
@@ -807,7 +902,11 @@ class PortfolioBackupService(BasePortfolioService):
         return await asyncio.to_thread(_read_json)
 
     async def _load_pickle_file(self, file_path: str) -> PortfolioStateData:
-        """Load pickle backup file."""
+        """Load pickle backup file.
+        
+        Returns:
+            The portfolio state data loaded from the pickle backup file.
+        """
 
         def _read_pickle() -> PortfolioStateData:
             with Path(file_path).open("rb") as f:
@@ -818,7 +917,11 @@ class PortfolioBackupService(BasePortfolioService):
         return await asyncio.to_thread(_read_pickle)
 
     async def _load_compressed_json_file(self, file_path: str) -> PortfolioStateData:
-        """Load compressed JSON backup file."""
+        """Load compressed JSON backup file.
+        
+        Returns:
+            The portfolio state data loaded from the compressed JSON backup file.
+        """
 
         def _read_compressed_json() -> PortfolioStateData:
             with gzip.open(file_path, "rt", encoding="utf-8") as f:
@@ -828,7 +931,11 @@ class PortfolioBackupService(BasePortfolioService):
         return await asyncio.to_thread(_read_compressed_json)
 
     async def _load_compressed_pickle_file(self, file_path: str) -> PortfolioStateData:
-        """Load compressed pickle backup file."""
+        """Load compressed pickle backup file.
+        
+        Returns:
+            The portfolio state data loaded from the compressed pickle backup file.
+        """
 
         def _read_compressed_pickle() -> PortfolioStateData:
             with gzip.open(file_path, "rb") as f:
@@ -839,7 +946,14 @@ class PortfolioBackupService(BasePortfolioService):
         return await asyncio.to_thread(_read_compressed_pickle)
 
     async def _load_backup_file(self, metadata: BackupMetadata) -> PortfolioStateData:
-        """Load backup data from file using format-specific loader."""
+        """Load backup data from file using format-specific loader.
+        
+        Returns:
+            The portfolio state data loaded from the backup file.
+            
+        Raises:
+            UnsupportedBackupFormatError: If the backup format is not supported.
+        """
         file_path = metadata.file_path
 
         # Dispatch to appropriate loader method
@@ -855,7 +969,11 @@ class PortfolioBackupService(BasePortfolioService):
         raise UnsupportedBackupFormatError(metadata.format)
 
     async def _calculate_checksum(self, file_path: str) -> str:
-        """Calculate checksum for backup file."""
+        """Calculate checksum for backup file.
+        
+        Returns:
+            The SHA-256 checksum of the backup file as a hexadecimal string.
+        """
 
         def _calculate_hash() -> str:
             hash_sha256 = hashlib.sha256()
@@ -867,7 +985,11 @@ class PortfolioBackupService(BasePortfolioService):
         return await asyncio.to_thread(_calculate_hash)
 
     async def _validate_backup(self, metadata: BackupMetadata) -> bool:
-        """Validate backup integrity."""
+        """Validate backup integrity.
+        
+        Returns:
+            True if the backup is valid and intact, False otherwise.
+        """
         try:
             # Check file exists
             if not Path(metadata.file_path).exists():
@@ -902,7 +1024,11 @@ class PortfolioBackupService(BasePortfolioService):
             return True
 
     async def _validate_backup_file(self, metadata: BackupMetadata) -> bool:
-        """Validate backup file before restoration."""
+        """Validate backup file before restoration.
+        
+        Returns:
+            True if the backup file is valid for restoration, False otherwise.
+        """
         return await self._validate_backup(metadata)
 
     async def _restore_portfolio_state(
@@ -922,7 +1048,11 @@ class PortfolioBackupService(BasePortfolioService):
     async def _validate_restored_state(
         self, backup_data: PortfolioStateData, result: RecoveryResult
     ) -> bool:
-        """Validate restored portfolio state."""
+        """Validate restored portfolio state.
+        
+        Returns:
+            True if the restored state is valid, False otherwise.
+        """
         # This is a simplified implementation
         # In a real implementation, this would validate the restored state
         return True
@@ -1042,7 +1172,11 @@ class PortfolioBackupService(BasePortfolioService):
     def _serialize_positions(
         self, positions: dict[str, dict[str, str]]
     ) -> dict[str, SerializablePositionData]:
-        """Serialize positions for backup."""
+        """Serialize positions for backup.
+        
+        Returns:
+            A dictionary of serialized position data objects.
+        """
         # Convert positions to typed serializable format
         serialized: dict[str, SerializablePositionData] = {}
         for position_id, position_data in positions.items():
@@ -1061,7 +1195,11 @@ class PortfolioBackupService(BasePortfolioService):
     def _serialize_balances(
         self, balances: dict[str, dict[str, str]]
     ) -> dict[str, SerializableBalanceData]:
-        """Serialize balances for backup."""
+        """Serialize balances for backup.
+        
+        Returns:
+            A dictionary of serialized balance data objects.
+        """
         # Convert balances to typed serializable format
         serialized: dict[str, SerializableBalanceData] = {}
         for balance_id, balance_data in balances.items():
@@ -1080,7 +1218,11 @@ class PortfolioBackupService(BasePortfolioService):
     def _serialize_orders(
         self, orders: dict[str, dict[str, str]]
     ) -> dict[str, SerializableOrderData]:
-        """Serialize orders for backup."""
+        """Serialize orders for backup.
+        
+        Returns:
+            A dictionary of serialized order data objects.
+        """
         # Convert orders to typed serializable format
         serialized: dict[str, SerializableOrderData] = {}
         for order_id, order_data in orders.items():

@@ -14,7 +14,11 @@ logger = get_logger(__name__)
 
 
 async def test_spot_balances(api: BackpackAPI) -> dict[str, SpotBalance]:
-    """Test spot balances endpoint."""
+    """Test spot balances endpoint.
+
+    Returns:
+        Dictionary mapping symbol to SpotBalance objects for all balances.
+    """
     logger.info("1. SPOT BALANCES (/api/v1/capital):")
 
     # Initialize spot_balances
@@ -67,7 +71,11 @@ def display_summary(spot_balances: dict[str, SpotBalance]) -> None:
 
 
 async def test() -> None:
-    """Test Backpack API balance and collateral endpoints."""
+    """Test Backpack API balance and collateral endpoints.
+
+    Raises:
+        RuntimeError: If configuration or secrets fail to load.
+    """
     # Load configuration using the same approach as test fixtures
     config_path = Path("tests/config/test_config.yaml")
     secrets_path = Path("tests/config/test_secrets.yaml")

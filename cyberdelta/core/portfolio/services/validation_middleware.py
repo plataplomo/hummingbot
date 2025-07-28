@@ -105,7 +105,11 @@ class ValidationMiddleware[T: BaseStateModel](BaseStateModel):
         )
 
     async def health_check(self) -> bool:
-        """Check health of validation middleware."""
+        """Check health of validation middleware.
+
+        Returns:
+            bool: True if middleware is initialized and running, False otherwise
+        """
         return self.is_initialized and self.is_running
 
     def enable_validation(self) -> None:
@@ -290,7 +294,11 @@ class ValidationMiddleware[T: BaseStateModel](BaseStateModel):
         return decorator
 
     def get_stats(self) -> ValidationStats:
-        """Get validation statistics."""
+        """Get validation statistics.
+
+        Returns:
+            ValidationStats: Current validation statistics
+        """
         return self.stats
 
     def reset_stats(self) -> None:
@@ -299,7 +307,11 @@ class ValidationMiddleware[T: BaseStateModel](BaseStateModel):
         logger.info("validation_stats_reset", state_id=self.state_id)
 
     async def validate_state(self) -> ValidationResult:
-        """Validate middleware state."""
+        """Validate middleware state.
+
+        Returns:
+            ValidationResult: Result indicating if middleware state is valid
+        """
         result = ValidationResult(valid=True)
 
         # Validate service state
@@ -323,7 +335,11 @@ class ValidationMiddleware[T: BaseStateModel](BaseStateModel):
         return f"validation_middleware_{self.state_id}"
 
     def to_state_dict(self) -> dict[str, Any]:
-        """Convert to state dictionary for persistence."""
+        """Convert to state dictionary for persistence.
+
+        Returns:
+            dict[str, Any]: State dictionary containing all middleware state
+        """
         return {
             "state_id": self.state_id,
             "created_at": self.created_at.isoformat(),
@@ -337,7 +353,14 @@ class ValidationMiddleware[T: BaseStateModel](BaseStateModel):
 
     @classmethod
     def from_state_dict(cls, data: dict[str, Any]) -> ValidationMiddleware[T]:
-        """Create middleware from state dictionary."""
+        """Create middleware from state dictionary.
+
+        Args:
+            data: State dictionary containing middleware configuration
+
+        Returns:
+            ValidationMiddleware[T]: New middleware instance from state data
+        """
         config = ValidationConfig.model_validate(data.get("config", {}))
         stats = ValidationStats.model_validate(data.get("stats", {}))
 
@@ -438,7 +461,11 @@ def create_validation_mixin(
             self.validation_middleware.set_strict_mode(strict)
 
         def get_validation_statistics(self) -> dict[str, Any]:
-            """Get validation statistics."""
+            """Get validation statistics.
+
+            Returns:
+                dict[str, Any]: Validation statistics as dictionary
+            """
             return self.validation_middleware.get_stats().model_dump()
 
     return ValidationMixin

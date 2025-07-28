@@ -81,9 +81,6 @@ class WebSocketTypeAdapters:
 
         Returns:
             Validated envelope model
-
-        Raises:
-            ValidationError: If JSON is invalid or doesn't match schema
         """
         return cls.envelope_adapter.validate_json(json_data)
 
@@ -200,6 +197,9 @@ class StreamingValidationAdapter:
 
         Returns:
             List of validated envelope models
+
+        Raises:
+            ValueError: If batch validation fails on any message
         """
         results: list[WebSocketEnvelopeUnion] = []
         for message in messages:

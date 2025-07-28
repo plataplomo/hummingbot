@@ -89,6 +89,9 @@ class CalculatorFactory:
 
         Returns:
             CalculatorSet containing all calculator instances with validation
+
+        Raises:
+            CalculatorCreationError: If any calculator creation fails
         """
         try:
             exposure_calc = self.create_exposure_calculator()

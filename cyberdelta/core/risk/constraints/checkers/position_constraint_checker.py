@@ -24,14 +24,30 @@ class PositionConstraintChecker(BaseConstraintValidator):
     """Validates position-level constraints."""
 
     def _config_to_decimal(self, key: str, default: Decimal) -> Decimal:
-        """Convert config value to Decimal safely."""
+        """Convert config value to Decimal safely.
+
+        Args:
+            key: Configuration key to look up
+            default: Default value if key not found or conversion fails
+
+        Returns:
+            Decimal value from config or default
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, (str, int, float, Decimal)):
             return Decimal(str(value))
         return default
 
     def _config_to_int(self, key: str, default: int) -> int:
-        """Convert config value to int safely."""
+        """Convert config value to int safely.
+
+        Args:
+            key: Configuration key to look up
+            default: Default value if key not found or conversion fails
+
+        Returns:
+            Integer value from config or default
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, int):
             return value
@@ -45,7 +61,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
     def _config_to_decimal_optional(
         self, key: str, default: Decimal | None = None
     ) -> Decimal | None:
-        """Convert config value to optional Decimal safely."""
+        """Convert config value to optional Decimal safely.
+
+        Args:
+            key: Configuration key to look up
+            default: Default value if key not found or conversion fails
+
+        Returns:
+            Decimal value from config, default, or None
+        """
         value = self.get_config_value(key, default)
         if value is None:
             return None
@@ -92,7 +116,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate position constraints."""
+        """Validate position constraints.
+
+        Args:
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of constraint violations found
+        """
         violations: list[ConstraintViolation] = []
 
         # Validate position size
@@ -124,7 +156,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate leverage constraints."""
+        """Validate leverage constraints.
+
+        Args:
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of leverage constraint violations
+        """
         violations: list[ConstraintViolation] = []
 
         # Calculate implied leverage
@@ -155,7 +195,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate position count limits."""
+        """Validate position count limits.
+
+        Args:
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of position count violations
+        """
         violations: list[ConstraintViolation] = []
 
         # Count existing positions for this symbol
@@ -234,7 +282,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate risk-based constraints."""
+        """Validate risk-based constraints.
+
+        Args:
+            opportunity: Sized opportunity to validate
+            context: Constraint validation context
+
+        Returns:
+            List of risk constraint violations
+        """
         violations: list[ConstraintViolation] = []
 
         # Validate position risk if configured
@@ -292,7 +348,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         return violations
 
     def set_position_size_limits(self, min_size: Decimal, max_size: Decimal) -> None:
-        """Set position size limits."""
+        """Set position size limits.
+
+        Args:
+            min_size: Minimum position size in USD
+            max_size: Maximum position size in USD
+
+        Raises:
+            PositionConstraintError: If min_size >= max_size
+        """
         if min_size >= max_size:
             raise PositionConstraintError(
                 PositionConstraintError.MIN_SIZE_MUST_BE_LESS_THAN_MAX_SIZE
@@ -305,7 +369,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         )
 
     def set_allocation_limits(self, min_allocation: Decimal, max_allocation: Decimal) -> None:
-        """Set allocation percentage limits."""
+        """Set allocation percentage limits.
+
+        Args:
+            min_allocation: Minimum allocation percentage (0.0-1.0)
+            max_allocation: Maximum allocation percentage (0.0-1.0)
+
+        Raises:
+            PositionConstraintError: If min_allocation >= max_allocation
+        """
         if min_allocation >= max_allocation:
             raise PositionConstraintError(
                 PositionConstraintError.MIN_ALLOCATION_MUST_BE_LESS_THAN_MAX_ALLOCATION
@@ -320,7 +392,14 @@ class PositionConstraintChecker(BaseConstraintValidator):
         )
 
     def set_leverage_limit(self, max_leverage: Decimal) -> None:
-        """Set maximum leverage."""
+        """Set maximum leverage.
+
+        Args:
+            max_leverage: Maximum leverage multiplier
+
+        Raises:
+            PositionConstraintError: If max_leverage <= 0
+        """
         if max_leverage <= 0:
             raise PositionConstraintError(PositionConstraintError.MAX_LEVERAGE_MUST_BE_POSITIVE)
 
@@ -328,7 +407,15 @@ class PositionConstraintChecker(BaseConstraintValidator):
         self.logger.info("Set leverage limit", max_leverage=float(max_leverage))
 
     def set_position_count_limits(self, max_per_symbol: int, max_per_exchange: int) -> None:
-        """Set position count limits."""
+        """Set position count limits.
+
+        Args:
+            max_per_symbol: Maximum positions per symbol
+            max_per_exchange: Maximum positions per exchange
+
+        Raises:
+            PositionConstraintError: If either limit is <= 0
+        """
         if max_per_symbol <= 0 or max_per_exchange <= 0:
             raise PositionConstraintError(
                 PositionConstraintError.POSITION_COUNT_LIMITS_MUST_BE_POSITIVE
@@ -359,7 +446,11 @@ class PositionConstraintChecker(BaseConstraintValidator):
         )
 
     def get_constraint_stats(self) -> dict[str, Any]:
-        """Get constraint statistics."""
+        """Get constraint statistics.
+
+        Returns:
+            Dictionary containing current constraint configuration values
+        """
         return {
             "min_position_size": float(self.position_constraint.min_position_size),
             "max_position_size": float(self.position_constraint.max_position_size),

@@ -25,7 +25,11 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_cond
 
 
 def context_to_dict(context: WebSocketContextProtocol) -> dict[str, Any]:
-    """Convert typed context to dict for testing."""
+    """Convert typed context to dict for testing.
+    
+    Returns:
+        Dictionary containing context attributes for test assertions.
+    """
     result = {
         "routing_key": context.routing_key,
         "symbol": context.symbol,

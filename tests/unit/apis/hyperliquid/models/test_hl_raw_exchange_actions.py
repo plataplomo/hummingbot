@@ -48,6 +48,9 @@ def set_nested_value(
     This function dynamically traverses nested dict/list structures using mixed
     str/int path elements. The runtime isinstance checks ensure type safety
     for dynamic traversal and assignment.
+    
+    Raises:
+        TypeError: If path element type doesn't match the data structure type.
     """
     current_level: Any = data_dict  # Start as Any, narrow through type guards
 

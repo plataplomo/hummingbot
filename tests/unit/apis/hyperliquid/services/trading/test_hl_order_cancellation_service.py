@@ -97,31 +97,51 @@ ORDER_ID_SCENARIOS = [
 # Fixtures
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
-    """Create a mock HTTP requester."""
+    """Create a mock HTTP requester.
+    
+    Returns:
+        AsyncMock: A mock instance of the HTTP requester.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> Mock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidTradingRequestBuilder.
+    """
     return MagicMock(spec=HyperliquidTradingRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> Mock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidTradingResponseHandler.
+    """
     return MagicMock(spec=HyperliquidTradingResponseHandler)
 
 
 @pytest.fixture
 def mock_error_mapper() -> Mock:
-    """Create a mock error mapper."""
+    """Create a mock error mapper.
+    
+    Returns:
+        Mock: A mock instance of HyperliquidErrorMapper.
+    """
     return MagicMock(spec=HyperliquidErrorMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> Mock:
-    """Create a mock authenticator."""
+    """Create a mock authenticator.
+    
+    Returns:
+        Mock: A mock authenticator with sign_transaction method.
+    """
     mock = MagicMock()
     mock.sign_transaction = AsyncMock()
     return mock
@@ -129,13 +149,21 @@ def mock_authenticator() -> Mock:
 
 @pytest.fixture
 def mock_get_asset_index() -> AsyncMock:
-    """Create a mock get_asset_index callable."""
+    """Create a mock get_asset_index callable.
+    
+    Returns:
+        AsyncMock: A mock callable that returns asset index 0.
+    """
     return AsyncMock(return_value=0)
 
 
 @pytest.fixture
 def mock_order_query_service() -> Mock:
-    """Create a mock order query service."""
+    """Create a mock order query service.
+    
+    Returns:
+        Mock: A mock order query service with async get_open_orders method.
+    """
     mock = MagicMock()
     # Make get_open_orders async to match business logic
     mock.get_open_orders = AsyncMock()
@@ -152,7 +180,11 @@ def order_cancellation_service(
     mock_get_asset_index: AsyncMock,
     mock_order_query_service: Mock,
 ) -> HyperliquidOrderCancellationService:
-    """Create an order cancellation service instance with mocks."""
+    """Create an order cancellation service instance with mocks.
+    
+    Returns:
+        HyperliquidOrderCancellationService: Service instance configured with mock dependencies.
+    """
     return HyperliquidOrderCancellationService(
         http_client_requester=mock_http_requester,
         request_builder=mock_request_builder,
@@ -168,7 +200,11 @@ def order_cancellation_service(
 
 @pytest.fixture
 def valid_cancel_order_args() -> CancelOrderArgs:
-    """Create valid cancel order arguments."""
+    """Create valid cancel order arguments.
+    
+    Returns:
+        CancelOrderArgs: Valid arguments for canceling an order.
+    """
     return CancelOrderArgs(
         symbol="BTC-USD",
         order_id="12345",
@@ -177,7 +213,11 @@ def valid_cancel_order_args() -> CancelOrderArgs:
 
 @pytest.fixture
 def mock_cancel_result() -> CancelOrderResult:
-    """Create a mock successful cancel result."""
+    """Create a mock successful cancel result.
+    
+    Returns:
+        CancelOrderResult: A successful order cancellation result.
+    """
     return CancelOrderResult(
         order_id="12345",
         client_order_id=None,
@@ -188,7 +228,11 @@ def mock_cancel_result() -> CancelOrderResult:
 
 @pytest.fixture
 def mock_open_order() -> Order:
-    """Create a mock open order."""
+    """Create a mock open order.
+    
+    Returns:
+        Order: A mock open order with test data.
+    """
     return Order(
         exchange_order_id="12345",
         client_order_id="client_123",
@@ -211,7 +255,11 @@ def mock_open_order() -> Order:
 
 @pytest.fixture
 def multiple_cancel_order_args() -> list[CancelOrderArgs]:
-    """Create multiple cancel order arguments for batch testing."""
+    """Create multiple cancel order arguments for batch testing.
+    
+    Returns:
+        list[CancelOrderArgs]: A list of cancel order arguments for different symbols.
+    """
     return [
         CancelOrderArgs(symbol="BTC-USD", order_id="12345"),
         CancelOrderArgs(symbol="ETH-USD", order_id="67890"),
@@ -221,7 +269,11 @@ def multiple_cancel_order_args() -> list[CancelOrderArgs]:
 
 @pytest.fixture
 def mock_open_orders() -> list[Order]:
-    """Create multiple mock open orders."""
+    """Create multiple mock open orders.
+    
+    Returns:
+        list[Order]: A list of mock open orders for testing.
+    """
     return [
         Order(
             exchange_order_id="12345",

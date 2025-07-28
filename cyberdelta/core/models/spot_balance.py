@@ -57,7 +57,19 @@ class BackpackSpotBalanceDetails(BaseModel):
         v: str | float | Decimal | None,
         info: ValidationInfo,
     ) -> Decimal | None:
-        """Parse optional decimal, allowing None but ensuring finite if present."""
+        """Parse optional decimal, allowing None but ensuring finite if present.
+        
+        Args:
+            v: Value to parse.
+            info: Pydantic validation context.
+            
+        Returns:
+            Decimal | None: Parsed decimal if valid, None if input is None.
+            
+        Raises:
+            FieldNameMissingError: If field name is not available in validation context.
+            DecimalFiniteError: If parsed decimal is not finite.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -117,7 +129,18 @@ class SpotBalance(BaseModel):
     @field_validator("exchange", "asset", mode="before")
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty, reasonable length."""
+        """Validate required string fields are non-empty, reasonable length.
+        
+        Args:
+            v: String value to validate.
+            info: Pydantic validation context.
+            
+        Returns:
+            str: Validated string.
+            
+        Raises:
+            FieldNameMissingError: If field name is not available in validation context.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -130,7 +153,19 @@ class SpotBalance(BaseModel):
         v: str | float | datetime,
         info: ValidationInfo,
     ) -> datetime:
-        """Parse required datetime, ensuring UTC."""
+        """Parse required datetime, ensuring UTC.
+        
+        Args:
+            v: Value to parse as datetime.
+            info: Pydantic validation context.
+            
+        Returns:
+            datetime: Parsed UTC datetime.
+            
+        Raises:
+            FieldNameMissingError: If field name is not available in validation context.
+            DateTimeFieldError: If datetime parsing fails or returns None.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
@@ -150,7 +185,19 @@ class SpotBalance(BaseModel):
         v: str | float | Decimal,
         info: ValidationInfo,
     ) -> Decimal:
-        """Parse required decimal, ensuring finite and non-negative via Field."""
+        """Parse required decimal, ensuring finite and non-negative via Field.
+        
+        Args:
+            v: Value to parse as decimal.
+            info: Pydantic validation context.
+            
+        Returns:
+            Decimal: Parsed finite decimal.
+            
+        Raises:
+            FieldNameMissingError: If field name is not available in validation context.
+            DecimalFiniteError: If parsed decimal is not finite.
+        """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError

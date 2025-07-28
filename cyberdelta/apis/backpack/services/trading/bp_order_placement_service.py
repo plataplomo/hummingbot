@@ -98,8 +98,8 @@ class BackpackOrderPlacementService:
             Order: The created order object with exchange-assigned ID and status
 
         Raises:
-            APIError: If order placement fails due to API errors
-            ValueError: If order parameters are invalid for Backpack exchange
+            APIError: If order placement fails due to API errors, validation errors,
+                parameter errors, or any other unexpected issues
         """
         # Service Input Parameter Validation
         frame = inspect.currentframe()
@@ -247,7 +247,9 @@ class BackpackOrderPlacementService:
             current_method: Name of calling method for error context
 
         Raises:
-            ValueError: If validation fails
+            InvalidEnumValueError: If order parameters have invalid enum values
+            InvalidParameterTypeError: If order parameters have invalid types
+            MissingRequiredParameterError: If required order parameters are missing
         """
         # Validate symbol (Pydantic ensures it's a string, just check if empty)
         if not args.symbol:

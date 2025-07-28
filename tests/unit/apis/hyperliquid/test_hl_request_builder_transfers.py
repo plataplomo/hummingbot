@@ -25,17 +25,29 @@ class TestHyperliquidAccountRequestBuilder:
 
     @pytest.fixture
     def builder(self) -> HyperliquidAccountRequestBuilder:
-        """Create a HyperliquidAccountRequestBuilder instance."""
+        """Create a HyperliquidAccountRequestBuilder instance.
+        
+        Returns:
+            HyperliquidAccountRequestBuilder: Request builder instance for testing.
+        """
         return HyperliquidAccountRequestBuilder()
 
     @pytest.fixture
     def valid_wallet_address(self) -> str:
-        """Provide a valid wallet address."""
+        """Provide a valid wallet address.
+        
+        Returns:
+            str: Valid Ethereum wallet address for testing.
+        """
         return "0x1234567890abcdef1234567890abcdef12345678"
 
     @pytest.fixture
     def valid_destination_address(self) -> str:
-        """Provide a valid destination wallet address."""
+        """Provide a valid destination wallet address.
+        
+        Returns:
+            str: Valid destination Ethereum wallet address for testing.
+        """
         return "0xabcdef1234567890abcdef1234567890abcdef12"
 
     def test_build_withdraw_payload(

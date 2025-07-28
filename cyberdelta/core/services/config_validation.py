@@ -151,7 +151,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_retry_settings(
         self, exec_settings: ExecutionSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate retry-related settings."""
+        """Validate retry-related settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -185,7 +189,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_slippage_settings(
         self, exec_settings: ExecutionSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate slippage-related settings."""
+        """Validate slippage-related settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -206,7 +214,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_other_execution_settings(
         self, exec_settings: ExecutionSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate other execution settings."""
+        """Validate other execution settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -236,7 +248,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_compensation_settings(
         self, comp_settings: ExecutionCompensationSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate compensation-specific settings."""
+        """Validate compensation-specific settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -254,7 +270,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_exchange_settings(
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate exchange configuration settings."""
+        """Validate exchange configuration settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -291,7 +311,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_single_exchange(
         self, exchange_id: str, exchange_config: ExchangeSpecificConfig
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate settings for a single exchange."""
+        """Validate settings for a single exchange.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -329,7 +353,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_exchange_rate_limits(
         self, exchange_id: str, exchange_config: ExchangeSpecificConfig
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate exchange-specific rate limiting configuration."""
+        """Validate exchange-specific rate limiting configuration.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -365,7 +393,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_risk_settings(
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate risk management settings."""
+        """Validate risk management settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -397,7 +429,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_global_risk_settings(
         self, risk_settings: RiskSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate global risk settings."""
+        """Validate global risk settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -438,7 +474,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_sizing_settings(
         self, risk_settings: RiskSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate position sizing settings."""
+        """Validate position sizing settings.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -475,7 +515,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_cross_dependencies(
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate cross-dependencies between configuration sections."""
+        """Validate cross-dependencies between configuration sections.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -501,7 +545,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_strategy_dependencies(
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate strategy-exchange dependencies."""
+        """Validate strategy-exchange dependencies.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []
@@ -558,7 +606,11 @@ class ExecutionConfigValidator(BaseService):
     def _validate_monitoring_dependencies(
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
-        """Validate balance monitoring dependencies."""
+        """Validate balance monitoring dependencies.
+        
+        Returns:
+            Tuple of (errors, warnings, critical_errors) lists
+        """
         errors: list[str] = []
         warnings: list[str] = []
         critical_errors: list[str] = []

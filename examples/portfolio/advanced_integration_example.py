@@ -61,21 +61,37 @@ class InMemoryStateContainer:
         self.trades: dict[ExchangeName, list[Trade]] = {}
 
     async def get_balances(self, exchange: ExchangeName) -> dict[str, SpotBalance]:
-        """Get balances for an exchange."""
+        """Get balances for an exchange.
+        
+        Returns:
+            Dictionary mapping asset symbols to their SpotBalance objects.
+        """
         return self.balances.get(exchange, {})
 
     async def get_positions(self, exchange: ExchangeName) -> dict[str, DerivativePosition]:
-        """Get positions for an exchange."""
+        """Get positions for an exchange.
+        
+        Returns:
+            Dictionary mapping symbols to their DerivativePosition objects.
+        """
         return self.positions.get(exchange, {})
 
     async def get_orders(self, exchange: ExchangeName) -> list[Order]:
-        """Get orders for an exchange."""
+        """Get orders for an exchange.
+        
+        Returns:
+            List of Order objects for the specified exchange.
+        """
         return self.orders.get(exchange, [])
 
     async def update_balances(
         self, exchange: ExchangeName, balances: dict[str, SpotBalance]
     ) -> StateUpdateResult:
-        """Update balances for an exchange."""
+        """Update balances for an exchange.
+        
+        Returns:
+            StateUpdateResult indicating success and update statistics.
+        """
         if exchange not in self.balances:
             self.balances[exchange] = {}
         self.balances[exchange].update(balances)
@@ -86,7 +102,11 @@ class InMemoryStateContainer:
     async def update_positions(
         self, exchange: ExchangeName, positions: dict[str, DerivativePosition]
     ) -> StateUpdateResult:
-        """Update positions for an exchange."""
+        """Update positions for an exchange.
+        
+        Returns:
+            StateUpdateResult indicating success and update statistics.
+        """
         if exchange not in self.positions:
             self.positions[exchange] = {}
         self.positions[exchange].update(positions)
@@ -95,14 +115,22 @@ class InMemoryStateContainer:
         )
 
     async def add_trade(self, exchange: ExchangeName, trade: Trade) -> StateUpdateResult:
-        """Add a trade for an exchange."""
+        """Add a trade for an exchange.
+        
+        Returns:
+            StateUpdateResult indicating success and update statistics.
+        """
         if exchange not in self.trades:
             self.trades[exchange] = []
         self.trades[exchange].append(trade)
         return StateUpdateResult(success=True, execution_time_ms=0.0, affected_entities=1)
 
     async def create_snapshot(self, exchange: ExchangeName) -> PortfolioSnapshot:
-        """Create a portfolio snapshot for an exchange."""
+        """Create a portfolio snapshot for an exchange.
+        
+        Returns:
+            PortfolioSnapshot containing current state of balances, positions, and orders.
+        """
         balances = await self.get_balances(exchange)
         positions = await self.get_positions(exchange)
         orders = await self.get_orders(exchange)
@@ -203,7 +231,11 @@ class AdvancedPortfolioStrategy:
         )
 
     async def execute_rebalancing_strategy(self) -> dict[str, Any]:
-        """Execute portfolio rebalancing with advanced risk management."""
+        """Execute portfolio rebalancing with advanced risk management.
+        
+        Returns:
+            Dictionary containing rebalancing results, trade execution status, and metrics.
+        """
         logger.info("executing_rebalancing_strategy")
 
         # Step 1: Get current portfolio state
@@ -238,7 +270,11 @@ class AdvancedPortfolioStrategy:
         return strategy_results
 
     async def _calculate_current_allocations(self) -> dict[str, Decimal]:
-        """Calculate current portfolio allocations."""
+        """Calculate current portfolio allocations.
+        
+        Returns:
+            dict[str, Decimal]: Mapping of symbols to their allocation percentages.
+        """
         logger.info("calculating_current_allocations")
 
         # Get total capital
@@ -271,7 +307,11 @@ class AdvancedPortfolioStrategy:
     async def _determine_rebalancing_trades(
         self, current_allocations: dict[str, Decimal]
     ) -> list[dict[str, Any]]:
-        """Determine trades needed for rebalancing."""
+        """Determine trades needed for rebalancing.
+        
+        Returns:
+            list[dict[str, Any]]: List of trade specifications for rebalancing.
+        """
         logger.info("determining_rebalancing_trades")
 
         rebalancing_trades: list[dict[str, Any]] = []
@@ -318,7 +358,11 @@ class AdvancedPortfolioStrategy:
     async def _execute_rebalancing_trades(
         self, trades: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Execute rebalancing trades with risk management."""
+        """Execute rebalancing trades with risk management.
+        
+        Returns:
+            list[dict[str, Any]]: List of executed trade results.
+        """
         logger.info("executing_rebalancing_trades", trade_count=len(trades))
 
         execution_results: list[dict[str, Any]] = []
@@ -374,7 +418,11 @@ class AdvancedPortfolioStrategy:
         return execution_results
 
     async def _perform_risk_check(self, trade_spec: dict[str, Any]) -> dict[str, Any]:
-        """Perform comprehensive risk check before trade execution."""
+        """Perform comprehensive risk check before trade execution.
+        
+        Returns:
+            dict[str, Any]: Risk check results including validation status.
+        """
         logger.info("performing_risk_check", symbol=trade_spec["symbol"])
 
         # Get current portfolio state
@@ -425,7 +473,11 @@ class AdvancedPortfolioStrategy:
         }
 
     async def _create_trade_from_spec(self, trade_spec: dict[str, Any]) -> Trade:
-        """Create a trade object from trade specification."""
+        """Create a trade object from trade specification.
+        
+        Returns:
+            Trade: Created trade object.
+        """
         # Convert side string to enum
         side = OrderSide.BUY if trade_spec["side"] == "BUY" else OrderSide.SELL
 
@@ -442,7 +494,11 @@ class AdvancedPortfolioStrategy:
         )
 
     async def _execute_trade_with_resilience(self, trade: Trade) -> bool:
-        """Execute trade with full resilience and validation."""
+        """Execute trade with full resilience and validation.
+        
+        Returns:
+            bool: True if trade executed successfully, False otherwise.
+        """
         # Validate trade first
         validation_result_raw = await self.validation_service.validate_trade(trade)
         validation_result = cast(ValidationResult[Trade], validation_result_raw)
@@ -482,7 +538,11 @@ class AdvancedPortfolioStrategy:
             return False
 
     async def execute_risk_monitoring_strategy(self) -> dict[str, Any]:
-        """Execute continuous risk monitoring strategy."""
+        """Execute continuous risk monitoring strategy.
+        
+        Returns:
+            Dictionary containing risk monitoring results, violations, and portfolio metrics.
+        """
         logger.info("executing_risk_monitoring_strategy")
 
         # Monitor portfolio exposure
@@ -605,7 +665,11 @@ class AdvancedPortfolioStrategy:
         )
 
     async def execute_performance_analysis(self) -> dict[str, Any]:
-        """Execute comprehensive performance analysis."""
+        """Execute comprehensive performance analysis.
+        
+        Returns:
+            Dictionary containing performance metrics, validation statistics, and resilience status.
+        """
         logger.info("executing_performance_analysis")
 
         # Get portfolio performance metrics
@@ -667,7 +731,14 @@ class AdvancedIntegrationDemo:
         self.state_container: Any = None  # Will be initialized in initialize_advanced_system
 
     def _get_app_settings(self) -> AppSettings:
-        """Get app settings for example."""
+        """Get app settings for example.
+        
+        Returns:
+            AppSettings: Application settings instance.
+            
+        Raises:
+            RuntimeError: If settings cannot be created.
+        """
         try:
             # Try to get existing app settings or create minimal ones
             instance: AppSettings | None = getattr(AppSettings, "_instance", None)
@@ -686,7 +757,11 @@ class AdvancedIntegrationDemo:
             ) from None
 
     def _create_example_config(self) -> dict[str, Any]:
-        """Create configuration for advanced features."""
+        """Create configuration for advanced features.
+        
+        Returns:
+            dict[str, Any]: Configuration dictionary for advanced features.
+        """
         return {
             "resilience": {
                 "retry_max_attempts": 3,
@@ -736,7 +811,11 @@ class AdvancedIntegrationDemo:
         await self._setup_strategy()
 
     def _create_in_memory_container(self) -> object:
-        """Create in-memory state container for examples."""
+        """Create in-memory state container for examples.
+        
+        Returns:
+            object: In-memory state container instance.
+        """
         return InMemoryStateContainer()
 
     async def _initialize_resilience_system(self, config: dict[str, Any]) -> None:
@@ -785,7 +864,11 @@ class AdvancedIntegrationDemo:
             await self._cleanup_advanced_system()
 
     async def _setup_initial_portfolio_state(self) -> None:
-        """Setup initial portfolio state for demonstration."""
+        """Setup initial portfolio state for demonstration.
+        
+        Raises:
+            ValueError: If balance update validation fails.
+        """
         logger.info("setting_up_initial_portfolio_state")
 
         # Add some initial balances
@@ -851,7 +934,11 @@ class AdvancedIntegrationDemo:
         logger.info("initial_portfolio_state_setup_completed")
 
     def _raise_strategy_not_initialized(self) -> None:
-        """Raise strategy initialization error."""
+        """Raise strategy initialization error.
+        
+        Raises:
+            StrategyNotInitializedError: Always raises this error.
+        """
         raise StrategyNotInitializedError
 
     async def _cleanup_advanced_system(self) -> None:

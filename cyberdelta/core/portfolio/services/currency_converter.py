@@ -44,7 +44,17 @@ class FXRate:
     @field_validator("from_currency", "to_currency", mode="before")
     @classmethod
     def validate_currency_code(cls, v: str) -> str:
-        """Validate currency codes are uppercase and non-empty."""
+        """Validate currency codes are uppercase and non-empty.
+
+        Args:
+            v: Currency code to validate
+
+        Returns:
+            Uppercase, trimmed currency code
+
+        Raises:
+            CurrencyConverterError: If currency code is empty or invalid
+        """
         if not v or not v.strip():
             raise CurrencyConverterError(
                 operation_type="currency_validation", requirement="currency code cannot be empty"
@@ -54,7 +64,17 @@ class FXRate:
     @field_validator("source", mode="before")
     @classmethod
     def validate_source(cls, v: str) -> str:
-        """Validate source is one of allowed values."""
+        """Validate source is one of allowed values.
+
+        Args:
+            v: Source value to validate
+
+        Returns:
+            Validated source value
+
+        Raises:
+            CurrencyConverterError: If source is not one of: market, fixed, derived
+        """
         valid_sources = {"market", "fixed", "derived"}
         if v not in valid_sources:
             raise CurrencyConverterError(
@@ -66,7 +86,18 @@ class FXRate:
     @field_validator("bid", "ask", mode="before")
     @classmethod
     def validate_bid_ask(cls, v: Decimal | None, info: ValidationInfo) -> Decimal | None:
-        """Validate bid/ask relationship."""
+        """Validate bid/ask relationship.
+
+        Args:
+            v: Bid or ask price to validate
+            info: Validation context with field name and other data
+
+        Returns:
+            Validated price or None if input is None
+
+        Raises:
+            CurrencyConverterError: If ask price is not greater than bid price
+        """
         if v is None:
             return v
         if (
@@ -94,7 +125,11 @@ class FXRate:
         return None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            Dictionary representation of the FX rate with all fields
+        """
         return {
             "from_currency": self.from_currency,
             "to_currency": self.to_currency,
@@ -151,7 +186,11 @@ class CurrencyConverter:
         )
 
     def _get_default_fallback_rates(self) -> dict[str, float]:
-        """Get default fallback rates to USD."""
+        """Get default fallback rates to USD.
+
+        Returns:
+            Dictionary mapping currency codes to their USD exchange rates
+        """
         return {
             "USD": 1.0,
             "EUR": 1.10,
@@ -191,7 +230,7 @@ class CurrencyConverter:
             Exchange rate
 
         Raises:
-            ValueError: If rate cannot be determined
+            ExchangeRateUnavailableError: If rate cannot be determined
         """
         # Same currency
         if from_currency == to_currency:
@@ -282,7 +321,15 @@ class CurrencyConverter:
         return await self.convert(amount, self.base_currency, currency, use_cache)
 
     async def _get_cached_rate(self, from_currency: str, to_currency: str) -> FXRate | None:
-        """Get rate from cache if valid."""
+        """Get rate from cache if valid.
+
+        Args:
+            from_currency: Source currency
+            to_currency: Target currency
+
+        Returns:
+            Cached FX rate if available and not expired, None otherwise
+        """
         async with self._cache_lock:
             # Direct rate
             key = (from_currency, to_currency)
@@ -325,7 +372,15 @@ class CurrencyConverter:
                 self._rate_cache[inv_key] = inv_rate
 
     async def _fetch_market_rate(self, from_currency: str, to_currency: str) -> FXRate | None:
-        """Fetch rate from market data."""
+        """Fetch rate from market data.
+
+        Args:
+            from_currency: Source currency
+            to_currency: Target currency
+
+        Returns:
+            FX rate from market data or None if not available
+        """
         if not self.price_service:
             return None
 
@@ -384,7 +439,15 @@ class CurrencyConverter:
         return None
 
     async def _get_derived_rate(self, from_currency: str, to_currency: str) -> FXRate | None:
-        """Get rate derived through base currency."""
+        """Get rate derived through base currency.
+
+        Args:
+            from_currency: Source currency
+            to_currency: Target currency
+
+        Returns:
+            FX rate derived through base currency or None if not possible
+        """
         if self.base_currency in {from_currency, to_currency}:
             return None
 
@@ -404,7 +467,15 @@ class CurrencyConverter:
         return None
 
     def _get_fallback_rate(self, from_currency: str, to_currency: str) -> Decimal | None:
-        """Get fallback rate."""
+        """Get fallback rate.
+
+        Args:
+            from_currency: Source currency
+            to_currency: Target currency
+
+        Returns:
+            Fallback exchange rate or None if not available
+        """
         # Direct fallback rate
         if from_currency in self.fallback_rates and to_currency == self.base_currency:
             return Decimal(str(self.fallback_rates[from_currency]))
@@ -462,7 +533,11 @@ class CurrencyConverter:
         return rates
 
     def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
+        """Get cache statistics.
+
+        Returns:
+            Dictionary with cache statistics including fresh, stale, and expired rates
+        """
         total_rates = len(self._rate_cache)
 
         fresh_rates = 0

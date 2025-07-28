@@ -24,14 +24,22 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
     """Validates portfolio-level constraints."""
 
     def _config_to_decimal(self, key: str, default: Decimal) -> Decimal:
-        """Convert config value to Decimal safely."""
+        """Convert config value to Decimal safely.
+        
+        Returns:
+            Decimal value from configuration or default if conversion fails.
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, (str, int, float, Decimal)):
             return Decimal(str(value))
         return default
 
     def _config_to_int(self, key: str, default: int) -> int:
-        """Convert config value to int safely."""
+        """Convert config value to int safely.
+        
+        Returns:
+            Integer value from configuration or default if conversion fails.
+        """
         value = self.get_config_value(key, default)
         if isinstance(value, int):
             return value
@@ -45,7 +53,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
     def _config_to_decimal_optional(
         self, key: str, default: Decimal | None = None
     ) -> Decimal | None:
-        """Convert config value to optional Decimal safely."""
+        """Convert config value to optional Decimal safely.
+        
+        Returns:
+            Decimal value from configuration, None, or default if conversion fails.
+        """
         value = self.get_config_value(key, default)
         if value is None:
             return None
@@ -91,7 +103,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate portfolio constraints."""
+        """Validate portfolio constraints.
+        
+        Returns:
+            List of constraint violations found during validation.
+        """
         violations: list[ConstraintViolation] = []
 
         # Validate total allocation
@@ -125,7 +141,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate total portfolio allocation."""
+        """Validate total portfolio allocation.
+        
+        Returns:
+            List of allocation constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         current_total_allocation = context.get_total_allocation()
@@ -144,7 +164,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate total position count."""
+        """Validate total position count.
+        
+        Returns:
+            List of position count constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         current_positions = len(context.current_positions)
@@ -172,7 +196,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate symbol concentration."""
+        """Validate symbol concentration.
+        
+        Returns:
+            List of symbol concentration constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         symbol = opportunity.symbol
@@ -193,7 +221,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate exchange concentration."""
+        """Validate exchange concentration.
+        
+        Returns:
+            List of exchange concentration constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         # Validate long exchange concentration
@@ -227,7 +259,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate diversification requirements."""
+        """Validate diversification requirements.
+        
+        Returns:
+            List of diversification constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         # Get unique symbols and exchanges
@@ -283,7 +319,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate portfolio risk constraints."""
+        """Validate portfolio risk constraints.
+        
+        Returns:
+            List of risk-related constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         # Validate maximum portfolio risk if configured
@@ -319,7 +359,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         return violations
 
     def _calculate_portfolio_risk(self, context: ConstraintContext) -> Decimal:
-        """Calculate current portfolio risk."""
+        """Calculate current portfolio risk.
+        
+        Returns:
+            Total portfolio risk as a Decimal value.
+        """
         total_risk = Decimal(0)
 
         for position in context.current_positions:
@@ -336,7 +380,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         return total_risk
 
     def _calculate_opportunity_risk(self, opportunity: SizedOpportunity) -> Decimal:
-        """Calculate risk for a single opportunity."""
+        """Calculate risk for a single opportunity.
+        
+        Returns:
+            Risk value for the opportunity as a Decimal.
+        """
         # Get volatility for opportunity
         volatility = getattr(opportunity.opportunity, "volatility", None)
         if volatility:
@@ -354,7 +402,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         opportunity: SizedOpportunity,
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
-        """Validate correlation exposure."""
+        """Validate correlation exposure.
+        
+        Returns:
+            List of correlation exposure constraint violations.
+        """
         violations: list[ConstraintViolation] = []
 
         # This is a simplified correlation check
@@ -396,7 +448,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
     def set_allocation_limits(
         self, max_total: Decimal, max_per_symbol: Decimal, max_per_exchange: Decimal
     ) -> None:
-        """Set allocation limits."""
+        """Set allocation limits.
+        
+        Raises:
+            PortfolioConstraintError: If any limit is not positive.
+        """
         if max_total <= 0 or max_per_symbol <= 0 or max_per_exchange <= 0:
             raise PortfolioConstraintError(
                 PortfolioConstraintError.ALLOCATION_LIMITS_MUST_BE_POSITIVE
@@ -414,7 +470,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         )
 
     def set_position_limits(self, max_total_positions: int) -> None:
-        """Set position count limits."""
+        """Set position count limits.
+        
+        Raises:
+            PortfolioConstraintError: If limit is not positive.
+        """
         if max_total_positions <= 0:
             raise PortfolioConstraintError(
                 PortfolioConstraintError.POSITION_LIMITS_MUST_BE_POSITIVE
@@ -424,7 +484,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         self.logger.info("Set position limit", max_positions=max_total_positions)
 
     def set_diversification_requirements(self, min_symbols: int, min_exchanges: int) -> None:
-        """Set diversification requirements."""
+        """Set diversification requirements.
+        
+        Raises:
+            PortfolioConstraintError: If requirements are not positive.
+        """
         if min_symbols <= 0 or min_exchanges <= 0:
             raise PortfolioConstraintError(
                 PortfolioConstraintError.DIVERSIFICATION_REQUIREMENTS_MUST_BE_POSITIVE
@@ -458,7 +522,11 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         )
 
     def get_constraint_stats(self) -> dict[str, Any]:
-        """Get constraint statistics."""
+        """Get constraint statistics.
+        
+        Returns:
+            Dictionary containing current constraint configuration values.
+        """
         return {
             "max_total_allocation": float(self.portfolio_constraint.max_total_allocation),
             "max_total_positions": self.portfolio_constraint.max_total_positions,

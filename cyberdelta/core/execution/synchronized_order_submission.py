@@ -111,7 +111,11 @@ class ExecutionResult:
     second_fill: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+        
+        Returns:
+            Dictionary representation of the synchronized execution result
+        """
         return {
             "execution_id": self.execution_id,
             "status": self.status.name if hasattr(self.status, "name") else self.status,
@@ -235,7 +239,14 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
-        """Verify local order details."""
+        """Verify local order details.
+        
+        Returns:
+            tuple[Order | None, bool, str | None]: A tuple containing:
+                - The local order object if found, None otherwise
+                - True if verification succeeded, False otherwise
+                - Error message if verification failed, None otherwise
+        """
         local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
 
         if not local_order:
@@ -298,7 +309,14 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
-        """Verify API order details."""
+        """Verify API order details.
+        
+        Returns:
+            tuple[Order | None, bool, str | None]: A tuple containing:
+                - The API order object if found, None otherwise
+                - True if verification succeeded, False otherwise
+                - Error message if verification failed, None otherwise
+        """
         api_client = self.exchange_adapters.get(exchange)
         api_order: Order | None = None
 
@@ -374,7 +392,13 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[bool, str | None]:
-        """Verify API order properties match expected details."""
+        """Verify API order properties match expected details.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if all properties match, False otherwise
+                - Error message if properties don't match, None otherwise
+        """
         properties_to_check = {
             "symbol": "symbol",
             "side": "side",
@@ -510,7 +534,14 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
-        """Verify local order state."""
+        """Verify local order state.
+        
+        Returns:
+            tuple[Order | None, bool, str | None]: A tuple containing:
+                - The local order object if found, None otherwise
+                - True if verification succeeded, False otherwise
+                - Error message if verification failed, None otherwise
+        """
         local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
         if not local_order:
             verification_success = False
@@ -536,7 +567,12 @@ class OrderVerifier:
         verification_error: str | None,
         verification_details: dict[str, Any],
     ) -> dict[str, Any]:
-        """Handle case where API client is not found."""
+        """Handle case where API client is not found.
+        
+        Returns:
+            dict[str, Any]: A verification result dictionary with timestamp, success=False,
+                error message about missing API client, and the current verification details.
+        """
         verification_success = False
         error_msg = "API client not found for exchange"
         verification_error = (
@@ -565,7 +601,14 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
-        """Fetch order from exchange API."""
+        """Fetch order from exchange API.
+        
+        Returns:
+            tuple[Order | None, bool, str | None]: A tuple containing:
+                - The API order object if successfully fetched, None otherwise
+                - True if fetch succeeded, False otherwise
+                - Error message if fetch failed, None otherwise
+        """
         api_order: Order | None = None
         try:
             symbol_for_api_call = local_order.symbol if local_order else None
@@ -629,7 +672,14 @@ class OrderVerifier:
         order_id: str,
         symbol_for_api_call: str | None,
     ) -> Order | None:
-        """Call the appropriate API method to fetch order."""
+        """Call the appropriate API method to fetch order.
+        
+        Returns:
+            Order | None: The order object if successfully fetched, None otherwise.
+            
+        Raises:
+            RequiredFieldError: If required fields are missing for the API call.
+        """
         if hasattr(api_client, "get_order_status"):
             return await api_client.get_order_status(
                 GetOrderArgs(
@@ -672,7 +722,13 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[bool, str | None]:
-        """Verify order statuses match expected values."""
+        """Verify order statuses match expected values.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if statuses match expectations, False otherwise
+                - Error message if statuses don't match, None otherwise
+        """
         if verification_success:
             if local_order and local_order.status != OrderStatus.FILLED:
                 verification_success = False
@@ -1149,7 +1205,14 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         opportunity: OpportunityType,
     ) -> dict[str, Any]:
-        """Perform pre-execution verification checks."""
+        """Perform pre-execution verification checks.
+        
+        Returns:
+            dict[str, Any]: A verification result dictionary containing:
+                - 'verified': bool indicating if all checks passed
+                - 'error': error message if any checks failed
+                - 'details': detailed results of individual checks
+        """
         results: dict[str, Any] = {}
         all_success = True
         error_msg = ""
@@ -1207,7 +1270,13 @@ class SynchronizedOrderSubmissionService:
         all_success: bool,
         error_msg: str,
     ) -> tuple[bool, str]:
-        """Verify circuit breakers for both legs."""
+        """Verify circuit breakers for both legs.
+        
+        Returns:
+            tuple[bool, str]: A tuple containing:
+                - True if all circuit breaker checks passed, False otherwise
+                - Concatenated error messages from failed checks
+        """
         # Circuit breaker check for long leg
         cb_long_ok, cb_long_msg = self.circuit_breaker_system.can_execute(
             opportunity.long_exchange,
@@ -1267,7 +1336,13 @@ class SynchronizedOrderSubmissionService:
         all_success: bool,
         error_msg: str,
     ) -> tuple[bool, str]:
-        """Verify market conditions."""
+        """Verify market conditions.
+        
+        Returns:
+            tuple[bool, str]: A tuple containing:
+                - True if market conditions are acceptable, False otherwise
+                - Error message if market conditions failed
+        """
         market_result = await self.verify_market_conditions(opportunity)
         if self.execution_coordinator:
             await self.execution_coordinator.add_checkpoint(
@@ -1296,7 +1371,13 @@ class SynchronizedOrderSubmissionService:
         all_success: bool,
         error_msg: str,
     ) -> tuple[bool, str]:
-        """Verify balances."""
+        """Verify balances.
+        
+        Returns:
+            tuple[bool, str]: A tuple containing:
+                - True if balance verification passed, False otherwise
+                - Error message if balance verification failed
+        """
         balance_result = await self.verify_balances(opportunity)
         if self.execution_coordinator:
             await self.execution_coordinator.add_checkpoint(
@@ -1318,7 +1399,14 @@ class SynchronizedOrderSubmissionService:
         return all_success, error_msg
 
     async def verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
-        """Verify market conditions (e.g., price spreads, volatility)."""
+        """Verify market conditions (e.g., price spreads, volatility).
+        
+        Returns:
+            dict[str, Any]: Verification results containing:
+                - 'verified': bool (always True in placeholder implementation)
+                - 'timestamp': int (current timestamp in milliseconds)
+                - 'opportunity_data': dict with opportunity details
+        """
         # Placeholder implementation
         return {
             "timestamp": int(time.time() * 1000),
@@ -1328,7 +1416,14 @@ class SynchronizedOrderSubmissionService:
         }
 
     async def verify_balances(self, opportunity: OpportunityType) -> dict[str, Any]:
-        """Verify sufficient balances are available on both exchanges."""
+        """Verify sufficient balances are available on both exchanges.
+        
+        Returns:
+            dict[str, Any]: Balance verification results containing:
+                - 'verified': bool (always True in placeholder implementation)
+                - 'timestamp': int (current timestamp in milliseconds)
+                - 'message': str describing the placeholder status
+        """
         # Placeholder implementation - needs integration with PortfolioTracker
         # and opportunity details (required sizes)
         return {
@@ -1389,7 +1484,15 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         result: ExecutionResult,
     ) -> ExecutionResult:
-        """Execute the first leg of the sequential order."""
+        """Execute the first leg of the sequential order.
+        
+        Returns:
+            ExecutionResult: The updated execution result with:
+                - first_exchange set
+                - first_order_id populated if order was placed
+                - status updated based on order placement and fill results
+                - error message if order placement or fill failed
+        """
         # First leg - prepare and place order
         first_order = self._prepare_order(opportunity, "long")
         first_exchange = (
@@ -1429,7 +1532,14 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         result: ExecutionResult,
     ) -> ExecutionResult:
-        """Place and verify the first order."""
+        """Place and verify the first order.
+        
+        Returns:
+            ExecutionResult: The updated execution result with:
+                - first_order_id populated if order was successfully placed
+                - status set to FAILED if order placement or verification failed
+                - error message detailing any failures
+        """
         first_api = self.exchange_adapters[first_exchange]
 
         try:
@@ -1494,7 +1604,14 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         result: ExecutionResult,
     ) -> ExecutionResult:
-        """Wait for the first order to fill."""
+        """Wait for the first order to fill.
+        
+        Returns:
+            ExecutionResult: The updated execution result with:
+                - first_fill details if order filled successfully
+                - status set to FAILED if order didn't fill within timeout
+                - error message if fill failed
+        """
         # Monitor for fills - this would be implemented to check if order is filled
         fill_result = {"filled": True}  # Placeholder for actual fill monitoring
 
@@ -1521,7 +1638,12 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         result: ExecutionResult,
     ) -> ExecutionResult:
-        """Execute the second leg of the sequential order."""
+        """Execute the second leg of the sequential order.
+        
+        Returns:
+            ExecutionResult: The updated execution result with second order details
+                and status reflecting the outcome of the second leg execution.
+        """
         # Second leg
         second_order = self._prepare_order(opportunity, "short")
         second_exchange = (
@@ -1562,7 +1684,15 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         result: ExecutionResult,
     ) -> ExecutionResult:
-        """Place and verify the second order."""
+        """Place and verify the second order.
+        
+        Returns:
+            ExecutionResult: The updated execution result with:
+                - status set to COMPLETED if both orders succeeded
+                - status set to PARTIALLY_COMPLETED if second order failed
+                - second_order_id populated if order was placed
+                - error message if second order failed
+        """
         second_api = self.exchange_adapters[second_exchange]
 
         try:
@@ -1635,7 +1765,14 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
         result: ExecutionResult,
     ) -> ExecutionResult:
-        """Wait for the second order to fill."""
+        """Wait for the second order to fill.
+        
+        Returns:
+            ExecutionResult: The updated execution result with:
+                - second_fill details if order filled
+                - status set to PARTIALLY_COMPLETED if fill failed
+                - error message if order didn't fill within timeout
+        """
         # Monitor for fills - this would be implemented
         # to check if order is filled
         second_fill_result = {
@@ -1651,7 +1788,15 @@ class SynchronizedOrderSubmissionService:
         return result
 
     def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:
-        """Prepare an Order object for a specific leg of the opportunity."""
+        """Prepare an Order object for a specific leg of the opportunity.
+        
+        Returns:
+            Order: A new Order object configured for the specified leg (long or short)
+                with appropriate symbol, side, quantity, price, and exchange.
+                
+        Raises:
+            OrderParameterError: If required fields are missing or invalid in the opportunity data.
+        """
         # Ensure opportunity is the correct type before accessing attributes
         symbol_val: str
         quantity_val: Any
@@ -1736,7 +1881,13 @@ class SynchronizedOrderSubmissionService:
         opportunity: OpportunityType,
         execution_context: ExecutionContext,
     ) -> dict[str, Any]:
-        """Execute trades simultaneously with verification (less common for arbitrage)."""
+        """Execute trades simultaneously with verification (less common for arbitrage).
+        
+        Returns:
+            dict[str, Any]: Post-execution verification results containing:
+                - 'verified': bool indicating if all verifications passed
+                - 'details': detailed results of position, fill, and order verifications
+        """
         # Placeholder: Actual implementation would involve more complex logic
         # For now, assume it prepares an ExecutionResult that needs post-verification
         mock_simultaneous_execution_result = ExecutionResult(
@@ -1762,7 +1913,14 @@ class SynchronizedOrderSubmissionService:
         opportunity: OpportunityType,
         execution_result: ExecutionResult,
     ) -> dict[str, Any]:
-        """Verify positions, fills, and orders after execution."""
+        """Verify positions, fills, and orders after execution.
+        
+        Returns:
+            dict[str, Any]: Verification results containing:
+                - 'verified': bool indicating if all verifications passed
+                - 'details': dict with keys 'positions', 'fills', 'orders' containing
+                  individual verification results
+        """
         logger.info(
             "post_execution_verification_start",
             action="verify_post_execution",
@@ -1815,7 +1973,12 @@ class SynchronizedOrderSubmissionService:
         all_details: dict[str, Any],
         overall_success: bool,
     ) -> bool:
-        """Verify positions step."""
+        """Verify positions step.
+        
+        Returns:
+            bool: True if position verification succeeded or overall_success was already True,
+                False if position verification failed.
+        """
         position_result = await self.verify_positions(opportunity, execution_result)
         all_details["positions"] = position_result
         if not position_result.get("verified", False):
@@ -1846,7 +2009,12 @@ class SynchronizedOrderSubmissionService:
         all_details: dict[str, Any],
         overall_success: bool,
     ) -> bool:
-        """Verify fills step."""
+        """Verify fills step.
+        
+        Returns:
+            bool: True if fill verification succeeded or overall_success was already True,
+                False if fill verification failed.
+        """
         fill_result = await self.verify_fills(opportunity, execution_result)
         all_details["fills"] = fill_result
         if not fill_result.get("verified", False):
@@ -1874,7 +2042,12 @@ class SynchronizedOrderSubmissionService:
         all_details: dict[str, Any],
         overall_success: bool,
     ) -> bool:
-        """Verify orders step."""
+        """Verify orders step.
+        
+        Returns:
+            bool: True if order verification succeeded or overall_success was already True,
+                False if order verification failed.
+        """
         order_result = await self.verify_orders(opportunity, execution_result)
         all_details["orders"] = order_result
         if not order_result.get("verified", False):

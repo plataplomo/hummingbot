@@ -53,7 +53,11 @@ class PerformanceModePresets:
 
     @staticmethod
     def standard() -> MemoryOptimizationConfig:
-        """Standard configuration for regular trading scenarios."""
+        """Standard configuration for regular trading scenarios.
+
+        Returns:
+            Memory optimization configuration with balanced settings for regular trading.
+        """
         return MemoryOptimizationConfig(
             pool_size=500,
             enable_pooling=False,
@@ -68,7 +72,11 @@ class PerformanceModePresets:
 
     @staticmethod
     def high_frequency() -> MemoryOptimizationConfig:
-        """High-frequency trading configuration."""
+        """High-frequency trading configuration.
+
+        Returns:
+            Memory optimization configuration optimized for high message throughput.
+        """
         return MemoryOptimizationConfig(
             pool_size=2000,
             enable_pooling=True,
@@ -84,7 +92,11 @@ class PerformanceModePresets:
 
     @staticmethod
     def ultra_low_latency() -> MemoryOptimizationConfig:
-        """Ultra-low latency configuration for market making."""
+        """Ultra-low latency configuration for market making.
+
+        Returns:
+            Memory optimization configuration with maximum performance settings.
+        """
         return MemoryOptimizationConfig(
             pool_size=5000,
             enable_pooling=True,
@@ -100,7 +112,11 @@ class PerformanceModePresets:
 
     @staticmethod
     def memory_optimized() -> MemoryOptimizationConfig:
-        """Memory-constrained environment configuration."""
+        """Memory-constrained environment configuration.
+
+        Returns:
+            Memory optimization configuration for minimal memory usage.
+        """
         return MemoryOptimizationConfig(
             pool_size=200,
             enable_pooling=True,

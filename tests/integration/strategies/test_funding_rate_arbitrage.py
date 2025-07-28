@@ -57,7 +57,11 @@ def create_mock_opportunity(
     basis_volatility: Decimal = Decimal("0.001"),
     timestamp: datetime | None = None,
 ) -> ArbitrageOpportunity:
-    """Create mock opportunity for testing."""
+    """Create mock opportunity for testing.
+    
+    Returns:
+        ArbitrageOpportunity: Mock arbitrage opportunity with specified parameters.
+    """
     return ArbitrageOpportunity(
         symbol=symbol,
         long_exchange=long_exchange,
@@ -85,7 +89,11 @@ def create_mock_signal(
     details: dict[str, Any] | None = None,
     expiration: datetime | None = None,
 ) -> TradeSignal:
-    """Create mock signal for testing."""
+    """Create mock signal for testing.
+    
+    Returns:
+        TradeSignal: Mock trade signal with specified parameters.
+    """
     return TradeSignal(
         symbol=symbol,
         signal_type=signal_type,
@@ -102,7 +110,11 @@ def create_mock_signal(
 
 @pytest.fixture
 def strategy() -> FundingRateArbitrageStrategy:
-    """Create a FundingRateArbitrageStrategy instance for testing."""
+    """Create a FundingRateArbitrageStrategy instance for testing.
+    
+    Returns:
+        FundingRateArbitrageStrategy: Configured strategy instance with mock dependencies.
+    """
     data_handler = MagicMock()
     portfolio_tracker = MagicMock(spec=PortfolioTracker)
     risk_manager_mock = MagicMock(spec=RiskManager)
@@ -125,7 +137,11 @@ def strategy() -> FundingRateArbitrageStrategy:
 
 
 def fake_get_position(ex: str, sym: str) -> PositionType:
-    """Return fake position data based on exchange and symbol combination."""
+    """Return fake position data based on exchange and symbol combination.
+    
+    Returns:
+        PositionType: Mock derivative position for the given exchange/symbol, or None if not found.
+    """
     positions = {
         ("hyperliquid", "BTC-PERP"): DerivativePosition(
             exchange="hyperliquid",
@@ -154,7 +170,11 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
 
 
 def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
-    """Return fake ticker data for testing different exchange and symbol combinations."""
+    """Return fake ticker data for testing different exchange and symbol combinations.
+    
+    Returns:
+        Ticker | None: Mock ticker data for the given exchange/symbol, or None if not found.
+    """
     now = datetime.now(UTC)
     if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
         return Ticker(
@@ -180,7 +200,12 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
 
 
 def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | None:
-    """Return fake funding rate data for testing different exchange and symbol combinations."""
+    """Return fake funding rate data for testing different exchange and symbol combinations.
+    
+    Returns:
+        FundingRate | None: Mock funding rate data for the given exchange/symbol,
+            or None if not found.
+    """
     now = datetime.now(UTC)
     if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
         return FundingRate(
@@ -447,7 +472,11 @@ class CandleKwargs(TypedDict, total=False):
 
 
 def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
-    """Create mock candle for testing."""
+    """Create mock candle for testing.
+    
+    Returns:
+        Candle: Mock candle with specified or default parameters.
+    """
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "open_time": datetime.now(UTC) - timedelta(minutes=1),
@@ -483,7 +512,11 @@ class TickerKwargs(TypedDict, total=False):
 
 
 def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
-    """Create mock ticker for testing."""
+    """Create mock ticker for testing.
+    
+    Returns:
+        Ticker: Mock ticker with specified or default parameters.
+    """
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "exchange": "test_exchange",  # Default exchange for testing
@@ -522,7 +555,14 @@ class FundingRateKwargs(TypedDict, total=False):
 
 
 def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate:
-    """Create mock funding rate for testing."""
+    """Create mock funding rate for testing.
+    
+    Returns:
+        FundingRate: Mock funding rate with specified or default parameters.
+        
+    Raises:
+        ValueError: If required fields (symbol or timestamp) are missing or invalid.
+    """
     defaults: dict[str, Any] = {
         "symbol": "BTC-PERP",
         "funding_rate": Decimal("0.0001"),

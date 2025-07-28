@@ -30,12 +30,20 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 def _create_str_list() -> list[str]:
-    """Create typed string list for dataclass fields."""
+    """Create typed string list for dataclass fields.
+    
+    Returns:
+        Empty list of strings for dataclass default factory.
+    """
     return []
 
 
 def _create_str_any_dict() -> dict[str, Any]:
-    """Create typed dict for dataclass fields."""
+    """Create typed dict for dataclass fields.
+    
+    Returns:
+        Empty dictionary with string keys and any values for dataclass default factory.
+    """
     return {}
 
 
@@ -113,7 +121,11 @@ class ProcessedOpportunity:
         return self.status == ProcessingStatus.ERROR or bool(self.check_errors)
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+        
+        Returns:
+            Dictionary representation of the processed opportunity with all metrics.
+        """
         return {
             "opportunity": {
                 "symbol": getattr(self.opportunity, "symbol", "unknown"),
@@ -214,7 +226,11 @@ class RiskManagerOrchestrator:
         self.enable_parallel_processing = True  # Hardcoded default as not in enhanced config
 
     def _create_volatility_config(self) -> dict[str, Any]:
-        """Create volatility calculator configuration from AppSettings."""
+        """Create volatility calculator configuration from AppSettings.
+        
+        Returns:
+            Configuration dictionary for volatility calculator.
+        """
         return {
             "lookback_hours": self.risk_settings.checkers.volatility_lookback_hours,
             "min_volatility": float(self.sizing_settings.min_volatility),
@@ -224,7 +240,11 @@ class RiskManagerOrchestrator:
         }
 
     def _create_validation_factor_config(self) -> dict[str, Any]:
-        """Create validation factor applier configuration from AppSettings."""
+        """Create validation factor applier configuration from AppSettings.
+        
+        Returns:
+            Configuration dictionary for validation factor applier.
+        """
         return {
             "enable_validation_factors": self.sizing_settings.enable_validation_factors,
             "enable_volatility_adjustment": self.sizing_settings.enable_volatility_adjustment,
@@ -420,7 +440,11 @@ class RiskManagerOrchestrator:
         self,
         opportunities: list[ArbitrageOpportunity],
     ) -> list[ProcessedOpportunity]:
-        """Process opportunities in parallel with concurrency control."""
+        """Process opportunities in parallel with concurrency control.
+        
+        Returns:
+            List of processed opportunities with results from parallel processing.
+        """
         results: list[ProcessedOpportunity] = []
 
         # Process in batches to control concurrency
@@ -460,7 +484,11 @@ class RiskManagerOrchestrator:
         self,
         opportunities: list[ArbitrageOpportunity],
     ) -> list[ProcessedOpportunity]:
-        """Process opportunities sequentially."""
+        """Process opportunities sequentially.
+        
+        Returns:
+            List of processed opportunities with results from sequential processing.
+        """
         results: list[ProcessedOpportunity] = []
 
         for opportunity in opportunities:
@@ -500,14 +528,22 @@ class RiskManagerOrchestrator:
         opportunity: ArbitrageOpportunity,
         historical_prices: list[PriceData] | None,
     ) -> VolatilityResult:
-        """Calculate volatility for opportunity."""
+        """Calculate volatility for opportunity.
+        
+        Returns:
+            Volatility calculation result with computed volatility metrics.
+        """
         return self.volatility_calculator.calculate_volatility_for_opportunity(
             opportunity,
             historical_prices,
         )
 
     def _create_constraint_context(self) -> ConstraintContext:
-        """Create constraint validation context."""
+        """Create constraint validation context.
+        
+        Returns:
+            Constraint context with current portfolio state for validation.
+        """
         # Calculate current allocations
         current_allocations: dict[str, Decimal] = {}
         current_exchange_allocations: dict[str, Decimal] = {}
@@ -590,7 +626,11 @@ class RiskManagerOrchestrator:
         )
 
     def remove_position(self, symbol: str) -> bool:
-        """Remove a position from the portfolio."""
+        """Remove a position from the portfolio.
+        
+        Returns:
+            True if position was found and removed, False otherwise.
+        """
         for i, position in enumerate(self.current_positions):
             if position.symbol == symbol:
                 # Release capital
@@ -608,7 +648,11 @@ class RiskManagerOrchestrator:
         return False
 
     def get_portfolio_metrics(self) -> dict[str, Any]:
-        """Get current portfolio metrics."""
+        """Get current portfolio metrics.
+        
+        Returns:
+            Dictionary with portfolio metrics including value, positions, and risk data.
+        """
         if len(self.portfolio_snapshots) >= MIN_SNAPSHOTS_FOR_RISK_METRICS:
             # Calculate comprehensive risk metrics
             risk_metrics = self.risk_metrics_calculator.calculate_risk_metrics(
@@ -635,7 +679,11 @@ class RiskManagerOrchestrator:
         }
 
     def get_orchestrator_stats(self) -> dict[str, Any]:
-        """Get orchestrator statistics."""
+        """Get orchestrator statistics.
+        
+        Returns:
+            Dictionary with processing statistics and performance metrics.
+        """
         avg_processing_time = (
             self.total_processing_time / self.opportunities_processed
             if self.opportunities_processed > 0
@@ -675,14 +723,22 @@ class RiskManagerOrchestrator:
         self.logger.info("Set total capital", total_capital_usd=float(total_capital))
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            Human-readable string with basic orchestrator state.
+        """
         return (
             f"RiskManagerOrchestrator(positions={len(self.current_positions)}, "
             f"available=${self.available_capital:.2f})"
         )
 
     def __repr__(self) -> str:
-        """Detailed representation."""
+        """Detailed representation.
+        
+        Returns:
+            Detailed string representation for debugging with all key metrics.
+        """
         return (
             f"RiskManagerOrchestrator(positions={len(self.current_positions)}, "
             f"total_capital=${self.total_capital:.2f}, "

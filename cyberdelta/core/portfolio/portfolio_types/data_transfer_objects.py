@@ -19,12 +19,20 @@ MetricsDict = dict[str, str | int | float | bool]
 
 # Default factory functions for Pydantic fields
 def _metadata_factory() -> MetadataDict:
-    """Factory function for MetadataDict."""
+    """Factory function for MetadataDict.
+
+    Returns:
+        Empty metadata dictionary
+    """
     return {}
 
 
 def _metrics_factory() -> MetricsDict:
-    """Factory function for MetricsDict."""
+    """Factory function for MetricsDict.
+
+    Returns:
+        Empty metrics dictionary
+    """
     return {}
 
 

@@ -22,14 +22,22 @@ class TestPriceDataService:
 
     @pytest.fixture
     def app_settings(self) -> MagicMock:
-        """Create mock app settings."""
+        """Create mock app settings.
+        
+        Returns:
+            MagicMock: Mock AppSettings instance for testing.
+        """
         settings = MagicMock(spec=AppSettings)
         settings.get = MagicMock(return_value={})
         return settings
 
     @pytest.fixture
     def mock_api_clients(self) -> dict[str, AsyncMock]:
-        """Create mock API clients."""
+        """Create mock API clients.
+        
+        Returns:
+            dict[str, AsyncMock]: Dictionary of mock API clients for testing.
+        """
         hyperliquid_client = AsyncMock(spec=ExchangeAPI)
         backpack_client = AsyncMock(spec=ExchangeAPI)
 
@@ -48,7 +56,11 @@ class TestPriceDataService:
         app_settings: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> PriceDataService:
-        """Create PriceDataService instance."""
+        """Create PriceDataService instance.
+        
+        Returns:
+            PriceDataService: Configured price data service instance for testing.
+        """
         # Cast to the expected type for mypy
         api_clients = cast("dict[str, ExchangeAPI]", mock_api_clients)
         return PriceDataService(

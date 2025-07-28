@@ -17,7 +17,11 @@ class TestFundingRateValidator:
 
     @pytest.fixture
     def validator(self) -> FundingRateValidator:
-        """Create a validator instance for testing."""
+        """Create a validator instance for testing.
+        
+        Returns:
+            FundingRateValidator: A validator instance for testing.
+        """
         config = MagicMock()
         return FundingRateValidator(config)
 

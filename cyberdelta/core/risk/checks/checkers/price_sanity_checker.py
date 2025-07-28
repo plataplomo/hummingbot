@@ -163,7 +163,17 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _to_decimal(self, value: Decimal | str | float) -> Decimal:
-        """Convert value to Decimal with validation."""
+        """Convert value to Decimal with validation.
+        
+        Args:
+            value: The value to convert to Decimal.
+            
+        Returns:
+            The value as a Decimal.
+            
+        Raises:
+            PriceSanityError: If the value type cannot be converted.
+        """
         if isinstance(value, Decimal):
             return value
         if isinstance(value, str):
@@ -179,7 +189,15 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _check_price_bounds(self, long_price: Decimal, short_price: Decimal) -> CheckResult:
-        """Check if prices are within reasonable bounds."""
+        """Check if prices are within reasonable bounds.
+        
+        Args:
+            long_price: The long/buy price to check.
+            short_price: The short/sell price to check.
+            
+        Returns:
+            CheckResult indicating whether prices are within bounds.
+        """
         for price_name, price in [("long_price", long_price), ("short_price", short_price)]:
             if price <= 0:
                 return CheckResult.failure(
@@ -202,7 +220,15 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         return CheckResult.success("Price bounds check passed")
 
     def _check_price_precision(self, long_price: Decimal, short_price: Decimal) -> CheckResult:
-        """Check if prices have reasonable precision."""
+        """Check if prices have reasonable precision.
+        
+        Args:
+            long_price: The long/buy price to check.
+            short_price: The short/sell price to check.
+            
+        Returns:
+            CheckResult indicating whether prices have acceptable precision.
+        """
         for price_name, price in [("long_price", long_price), ("short_price", short_price)]:
             # Count decimal places
             price_str = str(price)
@@ -228,7 +254,15 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         long_price: Decimal,
         short_price: Decimal,
     ) -> CheckResult:
-        """Check if spread is within reasonable bounds."""
+        """Check if spread is within reasonable bounds.
+        
+        Args:
+            long_price: The long/buy price.
+            short_price: The short/sell price.
+            
+        Returns:
+            CheckResult indicating whether spread is reasonable.
+        """
         if long_price == short_price:
             return CheckResult.failure(
                 message="Long and short prices are identical",
@@ -258,7 +292,16 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         long_price: Decimal,
         short_price: Decimal,
     ) -> CheckResult:
-        """Check for price anomalies using historical data."""
+        """Check for price anomalies using historical data.
+        
+        Args:
+            symbol: The trading symbol.
+            long_price: The long/buy price.
+            short_price: The short/sell price.
+            
+        Returns:
+            CheckResult indicating whether any price anomalies were detected.
+        """
         # Need at least 3 historical prices for statistical anomaly detection
         if (
             symbol not in self.price_history
@@ -321,7 +364,13 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         return CheckResult.success("No price anomalies detected")
 
     def _update_price_history(self, symbol: str, long_price: Decimal, short_price: Decimal) -> None:
-        """Update price history for anomaly detection."""
+        """Update price history for anomaly detection.
+        
+        Args:
+            symbol: The trading symbol.
+            long_price: The long/buy price.
+            short_price: The short/sell price.
+        """
         if symbol not in self.price_history:
             self.price_history[symbol] = []
 
@@ -361,8 +410,11 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         """Set price bounds for validation.
 
         Args:
-            min_price: Minimum allowed price
-            max_price: Maximum allowed price
+            min_price: Minimum allowed price.
+            max_price: Maximum allowed price.
+            
+        Raises:
+            PriceSanityError: If min_price is not less than max_price.
         """
         if min_price >= max_price:
             msg = "min_price must be less than max_price"
@@ -381,8 +433,11 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         """Set spread bounds for validation.
 
         Args:
-            min_spread: Minimum allowed spread percentage
-            max_spread: Maximum allowed spread percentage
+            min_spread: Minimum allowed spread percentage.
+            max_spread: Maximum allowed spread percentage.
+            
+        Raises:
+            PriceSanityError: If min_spread is not less than max_spread.
         """
         if min_spread >= max_spread:
             msg = "min_spread must be less than max_spread"
@@ -400,13 +455,25 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+        
+        Returns:
+            CheckResult indicating the check was skipped.
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+        
+        Args:
+            error: The exception that occurred.
+            execution_time: Time taken for execution in seconds.
+            
+        Returns:
+            CheckResult indicating the check encountered an error.
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

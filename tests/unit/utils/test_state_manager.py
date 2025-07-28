@@ -19,7 +19,14 @@ from cyberdelta.utils.state_manager import StateManager, load_state_manager
 
 @pytest.fixture
 def temp_state_dir(tmp_path: Path) -> Path:
-    """Create temporary directory for state testing."""
+    """Create temporary directory for state testing.
+
+    Args:
+        tmp_path: Temporary directory path from pytest
+
+    Returns:
+        Path: Path to the temporary state testing directory
+    """
     state_dir = tmp_path / "state_test"
     state_dir.mkdir(exist_ok=True)
     return state_dir
@@ -27,7 +34,14 @@ def temp_state_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def mock_config(temp_state_dir: Path) -> Mock:
-    """Create mock configuration with test paths."""
+    """Create mock configuration with test paths.
+
+    Args:
+        temp_state_dir: Temporary state directory fixture
+
+    Returns:
+        Mock: Mock AppSettings configured for testing
+    """
     config = Mock(spec=AppSettings)
     config.general = Mock(spec=GeneralSettings)
     config.general.state_file = str(temp_state_dir / "state.json")
@@ -38,7 +52,14 @@ def mock_config(temp_state_dir: Path) -> Mock:
 
 @pytest.fixture
 def state_manager(mock_config: Mock) -> StateManager:
-    """Create StateManager instance for testing."""
+    """Create StateManager instance for testing.
+
+    Args:
+        mock_config: Mock configuration fixture
+
+    Returns:
+        StateManager: Configured StateManager instance for testing
+    """
     return StateManager(mock_config)
 
 

@@ -146,7 +146,15 @@ class WebSocketMessageConfig(BaseModel):
     @field_validator("max_message_size")
     @classmethod
     def validate_max_message_size(cls, v: int) -> int:
-        """Validate message size is within reasonable bounds."""
+        """Validate message size is within reasonable bounds.
+        
+        Returns:
+            int: The validated message size.
+            
+        Raises:
+            MessageSizeTooSmallError: If message size is below minimum.
+            MessageSizeTooBigError: If message size exceeds maximum.
+        """
         if v < MIN_MESSAGE_SIZE_KB:
             raise MessageSizeTooSmallError
         if v > MAX_MESSAGE_SIZE_MB:
@@ -156,7 +164,15 @@ class WebSocketMessageConfig(BaseModel):
     @field_validator("max_nesting_depth")
     @classmethod
     def validate_max_nesting_depth(cls, v: int) -> int:
-        """Validate nesting depth is reasonable."""
+        """Validate nesting depth is reasonable.
+        
+        Returns:
+            int: The validated nesting depth.
+            
+        Raises:
+            NestingDepthTooSmallError: If nesting depth is below 1.
+            NestingDepthTooBigError: If nesting depth exceeds maximum.
+        """
         if v < 1:
             raise NestingDepthTooSmallError
         if v > MAX_NESTING_DEPTH_LIMIT:
@@ -166,7 +182,15 @@ class WebSocketMessageConfig(BaseModel):
     @field_validator("max_array_length")
     @classmethod
     def validate_max_array_length(cls, v: int) -> int:
-        """Validate array length limit."""
+        """Validate array length limit.
+        
+        Returns:
+            int: The validated array length limit.
+            
+        Raises:
+            ArrayLengthTooSmallError: If array length is below 1.
+            ArrayLengthTooBigError: If array length exceeds maximum.
+        """
         if v < 1:
             raise ArrayLengthTooSmallError
         if v > MAX_ARRAY_LENGTH_LIMIT:

@@ -94,7 +94,11 @@ class PerformanceMetrics:
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert metrics to dictionary format."""
+        """Convert metrics to dictionary format.
+        
+        Returns:
+            Dictionary representation of performance metrics
+        """
         return {
             "validation_time_ms": self.validation_time_ms,
             "processing_time_ms": self.processing_time_ms,
@@ -123,7 +127,11 @@ class OptimizationResult:
     configuration_changes: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert optimization result to dictionary format."""
+        """Convert optimization result to dictionary format.
+        
+        Returns:
+            Dictionary representation of optimization result
+        """
         return {
             "original_metrics": self.original_metrics.to_dict(),
             "optimized_metrics": self.optimized_metrics.to_dict(),
@@ -163,7 +171,14 @@ class PerformanceMonitor:
 
     @contextmanager
     def measure_validation(self) -> Iterator[None]:
-        """Context manager for measuring validation performance."""
+        """Context manager for measuring validation performance.
+        
+        Yields:
+            None - used as context manager
+            
+        Raises:
+            ValidationError: Re-raised from validation failures
+        """
         start_time = time.perf_counter()
         validation_errors = 0
 
@@ -184,7 +199,11 @@ class PerformanceMonitor:
 
     @contextmanager
     def measure_processing(self) -> Iterator[None]:
-        """Context manager for measuring processing performance."""
+        """Context manager for measuring processing performance.
+        
+        Yields:
+            None - used as context manager
+        """
         start_time = time.perf_counter()
 
         try:
@@ -197,12 +216,20 @@ class PerformanceMonitor:
                 self._processing_times.append(processing_time)
 
     def record_memory_usage(self, memory_mb: float) -> None:
-        """Record current memory usage."""
+        """Record current memory usage.
+        
+        Args:
+            memory_mb: Memory usage in megabytes
+        """
         with self._lock:
             self._memory_usage.append(memory_mb)
 
     def get_current_metrics(self) -> PerformanceMetrics:
-        """Get current performance metrics."""
+        """Get current performance metrics.
+        
+        Returns:
+            Current performance metrics calculated from recent measurements
+        """
         with self._lock:
             # Calculate recent averages
             recent_validation_time = (
@@ -231,12 +258,20 @@ class PerformanceMonitor:
             )
 
     def get_metrics_history(self) -> list[PerformanceMetrics]:
-        """Get historical metrics."""
+        """Get historical metrics.
+        
+        Returns:
+            List of historical performance metrics
+        """
         with self._lock:
             return list(self._metrics_history)
 
     def detect_bottlenecks(self) -> dict[str, Any]:
-        """Detect performance bottlenecks in the pipeline."""
+        """Detect performance bottlenecks in the pipeline.
+        
+        Returns:
+            Dictionary of detected bottlenecks with severity and recommendations
+        """
         metrics = self.get_current_metrics()
         bottlenecks: dict[str, Any] = {}
 
@@ -283,7 +318,10 @@ class PerformanceMonitor:
         return bottlenecks
 
     def reset_counters(self) -> None:
-        """Reset all performance counters."""
+        """Reset all performance counters.
+        
+        Clears all historical data and resets counters to initial state.
+        """
         with self._lock:
             self._metrics_history.clear()
             self._validation_times.clear()
@@ -415,7 +453,17 @@ class OptimizationEngine:
         test_data: list[dict[str, Any]],
         iterations: int = 100,
     ) -> PerformanceMetrics:
-        """Benchmark a specific configuration."""
+        """Benchmark a specific configuration.
+        
+        Args:
+            model_type: Model type to benchmark
+            context: Configuration context to test
+            test_data: Test data for benchmarking
+            iterations: Number of iterations to run
+            
+        Returns:
+            Performance metrics for the configuration
+        """
         config = self.config_manager.get_config(model_type, context)
 
         # Create temporary model class with this configuration using proper dynamic class creation
@@ -454,7 +502,14 @@ class OptimizationEngine:
     def _get_contexts_for_objective(
         self, objective: OptimizationObjective
     ) -> list[ConfigurationContext]:
-        """Get configuration contexts to try for optimization objective."""
+        """Get configuration contexts to try for optimization objective.
+        
+        Args:
+            objective: Optimization objective to get contexts for
+            
+        Returns:
+            List of configuration contexts ordered by likelihood of success
+        """
         if objective == OptimizationObjective.MINIMIZE_LATENCY:
             return [
                 ConfigurationContext.HIGH_FREQUENCY,
@@ -493,7 +548,16 @@ class OptimizationEngine:
         current_best: PerformanceMetrics,
         objective: OptimizationObjective,
     ) -> bool:
-        """Check if candidate metrics are better for the objective."""
+        """Check if candidate metrics are better for the objective.
+        
+        Args:
+            candidate: Candidate metrics to evaluate
+            current_best: Current best metrics
+            objective: Optimization objective to optimize for
+            
+        Returns:
+            True if candidate is better than current best for the objective
+        """
         if objective == OptimizationObjective.MINIMIZE_LATENCY:
             return candidate.validation_time_ms < current_best.validation_time_ms
         if objective == OptimizationObjective.MAXIMIZE_THROUGHPUT:
@@ -524,7 +588,16 @@ class OptimizationEngine:
         optimized: PerformanceMetrics,
         objective: OptimizationObjective,
     ) -> float:
-        """Calculate improvement percentage for the objective."""
+        """Calculate improvement percentage for the objective.
+        
+        Args:
+            baseline: Baseline performance metrics
+            optimized: Optimized performance metrics
+            objective: Optimization objective
+            
+        Returns:
+            Improvement percentage (positive means better)
+        """
         if objective == OptimizationObjective.MINIMIZE_LATENCY:
             if baseline.validation_time_ms > 0:
                 return (
@@ -547,7 +620,15 @@ class OptimizationEngine:
     def _optimize_for_speed(
         self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
     ) -> OptimizationResult:
-        """Optimize configuration for speed."""
+        """Optimize configuration for speed.
+        
+        Args:
+            model_type: Model type to optimize
+            current_metrics: Current performance metrics
+            
+        Returns:
+            Optimization result with speed-optimized configuration
+        """
         # Use high-frequency configuration
         self.config_manager.create_optimized_config(
             performance_profile=PerformanceProfile.ULTRA_FAST,
@@ -574,7 +655,15 @@ class OptimizationEngine:
     def _optimize_for_memory(
         self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
     ) -> OptimizationResult:
-        """Optimize configuration for memory usage."""
+        """Optimize configuration for memory usage.
+        
+        Args:
+            model_type: Model type to optimize
+            current_metrics: Current performance metrics
+            
+        Returns:
+            Optimization result with memory-optimized configuration
+        """
         self.config_manager.create_optimized_config(
             performance_profile=PerformanceProfile.MINIMAL_MEMORY,
             defer_build=True,
@@ -598,7 +687,15 @@ class OptimizationEngine:
     def _optimize_for_reliability(
         self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
     ) -> OptimizationResult:
-        """Optimize configuration for reliability."""
+        """Optimize configuration for reliability.
+        
+        Args:
+            model_type: Model type to optimize
+            current_metrics: Current performance metrics
+            
+        Returns:
+            Optimization result with reliability-optimized configuration
+        """
         self.config_manager.create_optimized_config(
             performance_profile=PerformanceProfile.SECURE,
             validate_assignment=True,
@@ -624,7 +721,15 @@ class OptimizationEngine:
     def _optimize_for_throughput(
         self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
     ) -> OptimizationResult:
-        """Optimize configuration for throughput."""
+        """Optimize configuration for throughput.
+        
+        Args:
+            model_type: Model type to optimize
+            current_metrics: Current performance metrics
+            
+        Returns:
+            Optimization result with throughput-optimized configuration
+        """
         self.config_manager.create_optimized_config(
             performance_profile=PerformanceProfile.FAST,
             revalidate_instances="never",
@@ -646,7 +751,11 @@ class OptimizationEngine:
         )
 
     def get_optimization_history(self) -> list[OptimizationResult]:
-        """Get history of optimizations applied."""
+        """Get history of optimizations applied.
+        
+        Returns:
+            Copy of optimization history list
+        """
         return self._optimization_history.copy()
 
 
@@ -731,7 +840,15 @@ class PipelineTuner:
     def _generate_recommendations(
         self, metrics: PerformanceMetrics, bottlenecks: dict[str, Any]
     ) -> list[str]:
-        """Generate optimization recommendations."""
+        """Generate optimization recommendations.
+        
+        Args:
+            metrics: Current performance metrics
+            bottlenecks: Detected bottlenecks
+            
+        Returns:
+            List of optimization recommendations
+        """
         recommendations: list[str] = []
 
         if bottlenecks.get("high_validation_time"):
@@ -756,7 +873,11 @@ class PipelineTuner:
         return recommendations
 
     def get_optimization_summary(self) -> dict[str, Any]:
-        """Get summary of optimization capabilities and status."""
+        """Get summary of optimization capabilities and status.
+        
+        Returns:
+            Dictionary containing optimization status and capabilities
+        """
         return {
             "auto_tuning_enabled": self._auto_tuning_enabled,
             "tuning_interval_seconds": self._tuning_interval,
@@ -777,22 +898,47 @@ pipeline_tuner = PipelineTuner()
 
 # Convenience functions
 def analyze_pipeline_performance() -> dict[str, Any]:
-    """Analyze current pipeline performance."""
+    """Analyze current pipeline performance.
+    
+    Returns:
+        Comprehensive performance analysis dictionary
+    """
     return pipeline_tuner.analyze_performance()
 
 
 def tune_for_speed(model_type: type[BaseModel]) -> OptimizationResult:
-    """Tune pipeline for maximum speed."""
+    """Tune pipeline for maximum speed.
+    
+    Args:
+        model_type: Model type to optimize for speed
+        
+    Returns:
+        Optimization result with speed-focused configuration
+    """
     return pipeline_tuner.tune_pipeline(model_type, OptimizationObjective.MINIMIZE_LATENCY)
 
 
 def tune_for_memory(model_type: type[BaseModel]) -> OptimizationResult:
-    """Tune pipeline for minimal memory usage."""
+    """Tune pipeline for minimal memory usage.
+    
+    Args:
+        model_type: Model type to optimize for memory usage
+        
+    Returns:
+        Optimization result with memory-focused configuration
+    """
     return pipeline_tuner.tune_pipeline(model_type, OptimizationObjective.MINIMIZE_MEMORY)
 
 
 def tune_for_throughput(model_type: type[BaseModel]) -> OptimizationResult:
-    """Tune pipeline for maximum throughput."""
+    """Tune pipeline for maximum throughput.
+    
+    Args:
+        model_type: Model type to optimize for throughput
+        
+    Returns:
+        Optimization result with throughput-focused configuration
+    """
     return pipeline_tuner.tune_pipeline(model_type, OptimizationObjective.MAXIMIZE_THROUGHPUT)
 
 

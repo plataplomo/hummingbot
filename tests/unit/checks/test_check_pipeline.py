@@ -24,7 +24,11 @@ def create_test_opportunity(
     long_funding_rate: float = 0.0001,
     short_funding_rate: float = -0.0001,
 ) -> ArbitrageOpportunity:
-    """Create a test arbitrage opportunity."""
+    """Create a test arbitrage opportunity.
+    
+    Returns:
+        ArbitrageOpportunity: Configured test arbitrage opportunity for check pipeline tests.
+    """
     net_funding_differential = Decimal(str(long_funding_rate)) - Decimal(str(short_funding_rate))
 
     return ArbitrageOpportunity(
@@ -66,7 +70,11 @@ class MockChecker(BaseCheckerInterface):
         return self._name
 
     def validate(self, opportunity: ArbitrageOpportunity) -> CheckResult:
-        """Mock validation method."""
+        """Mock validation method.
+        
+        Returns:
+            CheckResult: Mock check result based on configured behavior.
+        """
         self.validate_call_count += 1
 
         if not self.enabled:
@@ -92,7 +100,11 @@ class MockChecker(BaseCheckerInterface):
         )
 
     async def check(self, opportunity: ArbitrageOpportunity, context: CheckContext) -> CheckResult:
-        """Mock async check method."""
+        """Mock async check method.
+        
+        Returns:
+            CheckResult: Mock check result after optional delay.
+        """
         if self.delay_ms > 0:
             await asyncio.sleep(self.delay_ms / 1000.0)
         return self.validate(opportunity)

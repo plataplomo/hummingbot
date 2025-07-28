@@ -23,35 +23,55 @@ class InternalSymbolFactory:
 
     @staticmethod
     def create_btc_usd_perp() -> InternalSymbol:
-        """Create BTC/USD perpetual internal symbol."""
+        """Create BTC/USD perpetual internal symbol.
+        
+        Returns:
+            InternalSymbol for BTC/USD perpetual contract.
+        """
         return create_internal_symbol(
             value="BTC_USD", base_asset="BTC", quote_asset="USD", market_type=MarketType.PERP
         )
 
     @staticmethod
     def create_eth_usd_perp() -> InternalSymbol:
-        """Create ETH/USD perpetual internal symbol."""
+        """Create ETH/USD perpetual internal symbol.
+        
+        Returns:
+            InternalSymbol for ETH/USD perpetual contract.
+        """
         return create_internal_symbol(
             value="ETH_USD", base_asset="ETH", quote_asset="USD", market_type=MarketType.PERP
         )
 
     @staticmethod
     def create_btc_usdc_spot() -> InternalSymbol:
-        """Create BTC/USDC spot internal symbol."""
+        """Create BTC/USDC spot internal symbol.
+        
+        Returns:
+            InternalSymbol for BTC/USDC spot market.
+        """
         return create_internal_symbol(
             value="BTC_USDC", base_asset="BTC", quote_asset="USDC", market_type=MarketType.SPOT
         )
 
     @staticmethod
     def create_eth_usdc_spot() -> InternalSymbol:
-        """Create ETH/USDC spot internal symbol."""
+        """Create ETH/USDC spot internal symbol.
+        
+        Returns:
+            InternalSymbol for ETH/USDC spot market.
+        """
         return create_internal_symbol(
             value="ETH_USDC", base_asset="ETH", quote_asset="USDC", market_type=MarketType.SPOT
         )
 
     @staticmethod
     def create_sol_usd_perp() -> InternalSymbol:
-        """Create SOL/USD perpetual internal symbol."""
+        """Create SOL/USD perpetual internal symbol.
+        
+        Returns:
+            InternalSymbol for SOL/USD perpetual contract.
+        """
         return create_internal_symbol(
             value="SOL_USD", base_asset="SOL", quote_asset="USD", market_type=MarketType.PERP
         )
@@ -85,7 +105,11 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_hyperliquid_btc_perp() -> ExchangeSymbol:
-        """Create Hyperliquid BTC perpetual exchange symbol."""
+        """Create Hyperliquid BTC perpetual exchange symbol.
+        
+        Returns:
+            ExchangeSymbol for BTC perpetual on Hyperliquid.
+        """
         internal = InternalSymbolFactory.create_btc_usd_perp()
         return create_exchange_symbol(
             value="BTC-PERP", exchange_id=ExchangeName.HYPERLIQUID, internal_symbol=internal
@@ -93,7 +117,11 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_hyperliquid_eth_perp() -> ExchangeSymbol:
-        """Create Hyperliquid ETH perpetual exchange symbol."""
+        """Create Hyperliquid ETH perpetual exchange symbol.
+        
+        Returns:
+            ExchangeSymbol for ETH perpetual on Hyperliquid.
+        """
         internal = InternalSymbolFactory.create_eth_usd_perp()
         return create_exchange_symbol(
             value="ETH-PERP", exchange_id=ExchangeName.HYPERLIQUID, internal_symbol=internal
@@ -101,7 +129,11 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_hyperliquid_btc_spot() -> ExchangeSymbol:
-        """Create Hyperliquid BTC spot exchange symbol."""
+        """Create Hyperliquid BTC spot exchange symbol.
+        
+        Returns:
+            ExchangeSymbol for BTC spot on Hyperliquid.
+        """
         internal = InternalSymbolFactory.create_btc_usdc_spot()
         return create_exchange_symbol(
             value="BTC/USDC",
@@ -112,7 +144,11 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_backpack_btc_perp() -> ExchangeSymbol:
-        """Create Backpack BTC perpetual exchange symbol."""
+        """Create Backpack BTC perpetual exchange symbol.
+        
+        Returns:
+            ExchangeSymbol for BTC perpetual on Backpack.
+        """
         internal = InternalSymbolFactory.create_btc_usd_perp()
         return create_exchange_symbol(
             value="BTC_PERP",
@@ -123,7 +159,11 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_backpack_eth_perp() -> ExchangeSymbol:
-        """Create Backpack ETH perpetual exchange symbol."""
+        """Create Backpack ETH perpetual exchange symbol.
+        
+        Returns:
+            ExchangeSymbol for ETH perpetual on Backpack.
+        """
         internal = InternalSymbolFactory.create_eth_usd_perp()
         return create_exchange_symbol(
             value="ETH_PERP",
@@ -134,7 +174,11 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_backpack_btc_spot() -> ExchangeSymbol:
-        """Create Backpack BTC spot exchange symbol."""
+        """Create Backpack BTC spot exchange symbol.
+        
+        Returns:
+            ExchangeSymbol for BTC spot on Backpack.
+        """
         internal = InternalSymbolFactory.create_btc_usdc_spot()
         return create_exchange_symbol(
             value="BTC_USDC",
@@ -211,7 +255,11 @@ class UnifiedSymbolFactory:
 
     @staticmethod
     def create_btc_usd_perp_unified() -> UnifiedSymbol:
-        """Create BTC/USD perpetual unified symbol with multiple exchanges."""
+        """Create BTC/USD perpetual unified symbol with multiple exchanges.
+        
+        Returns:
+            UnifiedSymbol for BTC/USD perpetual with both Hyperliquid and Backpack mappings.
+        """
         internal = InternalSymbolFactory.create_btc_usd_perp()
 
         hyperliquid_symbol = create_exchange_symbol(
@@ -241,7 +289,11 @@ class UnifiedSymbolFactory:
 
     @staticmethod
     def create_eth_usd_perp_unified() -> UnifiedSymbol:
-        """Create ETH/USD perpetual unified symbol with multiple exchanges."""
+        """Create ETH/USD perpetual unified symbol with multiple exchanges.
+        
+        Returns:
+            UnifiedSymbol for ETH/USD perpetual with both Hyperliquid and Backpack mappings.
+        """
         internal = InternalSymbolFactory.create_eth_usd_perp()
 
         hyperliquid_symbol = create_exchange_symbol(
@@ -271,7 +323,11 @@ class UnifiedSymbolFactory:
 
     @staticmethod
     def create_btc_usdc_spot_unified() -> UnifiedSymbol:
-        """Create BTC/USDC spot unified symbol with multiple exchanges."""
+        """Create BTC/USDC spot unified symbol with multiple exchanges.
+        
+        Returns:
+            UnifiedSymbol for BTC/USDC spot with both Hyperliquid and Backpack mappings.
+        """
         internal = InternalSymbolFactory.create_btc_usdc_spot()
 
         hyperliquid_symbol = create_exchange_symbol(
@@ -493,7 +549,11 @@ class SymbolListFactory:
 
     @staticmethod
     def create_crypto_perp_list() -> list[InternalSymbol]:
-        """Create list of major cryptocurrency perpetual symbols."""
+        """Create list of major cryptocurrency perpetual symbols.
+        
+        Returns:
+            List of InternalSymbol objects for major perpetual contracts.
+        """
         return [
             InternalSymbolFactory.create_btc_usd_perp(),
             InternalSymbolFactory.create_eth_usd_perp(),
@@ -504,7 +564,11 @@ class SymbolListFactory:
 
     @staticmethod
     def create_crypto_spot_list() -> list[InternalSymbol]:
-        """Create list of major cryptocurrency spot symbols."""
+        """Create list of major cryptocurrency spot symbols.
+        
+        Returns:
+            List of InternalSymbol objects for major spot markets.
+        """
         return [
             InternalSymbolFactory.create_btc_usdc_spot(),
             InternalSymbolFactory.create_eth_usdc_spot(),
@@ -515,7 +579,11 @@ class SymbolListFactory:
 
     @staticmethod
     def create_unified_symbol_list() -> list[UnifiedSymbol]:
-        """Create list of unified symbols for testing."""
+        """Create list of unified symbols for testing.
+        
+        Returns:
+            List of UnifiedSymbol objects for comprehensive testing scenarios.
+        """
         return [
             UnifiedSymbolFactory.create_btc_usd_perp_unified(),
             UnifiedSymbolFactory.create_eth_usd_perp_unified(),
@@ -524,7 +592,11 @@ class SymbolListFactory:
 
     @staticmethod
     def create_arbitrage_pairs_list() -> list[tuple[ExchangeSymbol, ExchangeSymbol]]:
-        """Create list of arbitrage pairs for testing."""
+        """Create list of arbitrage pairs for testing.
+        
+        Returns:
+            List of (long_symbol, short_symbol) tuples for arbitrage testing.
+        """
         return [
             ArbitrageSymbolFactory.create_btc_arbitrage_pair(),
             ArbitrageSymbolFactory.create_eth_arbitrage_pair(),

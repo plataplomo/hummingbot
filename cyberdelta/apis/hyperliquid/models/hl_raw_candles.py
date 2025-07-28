@@ -103,6 +103,12 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
         This handles the preprocessing logic that was previously in the
         HyperliquidResponsePreprocessingMapper.preprocess_candle_snapshot_response method.
+
+        Returns:
+            A dictionary with properly structured candle data ready for validation.
+
+        Raises:
+            StructureTypeError: If the input is not a dict or is a non-empty list.
         """
         # Handle empty list response (no candle data available)
         if is_list_any(values):
@@ -138,7 +144,14 @@ class HyperliquidRawCandleSnapshot(BaseModel):
 
     @model_validator(mode="after")
     def check_list_lengths(self) -> Self:
-        """Check that all OHLCV lists have the same length as the timestamp list."""
+        """Check that all OHLCV lists have the same length as the timestamp list.
+
+        Returns:
+            The validated instance with all lists confirmed to have equal lengths.
+
+        Raises:
+            ParsingError: If any OHLCV list has a different length than the timestamp list.
+        """
         list_len = len(self.t)
         if not (
             len(self.o) == list_len

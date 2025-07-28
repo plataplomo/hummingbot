@@ -16,7 +16,11 @@ T = TypeVar("T", bound=object)  # Bounded to object for validation flexibility
 
 
 def make_validation_issue_list() -> list[ValidationIssue]:
-    """Factory function for validation issues list."""
+    """Factory function for validation issues list.
+    
+    Returns:
+        list[ValidationIssue]: An empty list to store validation issues.
+    """
     return []
 
 
@@ -65,16 +69,28 @@ class ValidationIssue(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
 
     def is_error(self) -> bool:
-        """Check if this is an error-level issue."""
+        """Check if this is an error-level issue.
+        
+        Returns:
+            bool: True if severity is ERROR, False otherwise.
+        """
         return self.severity == ValidationSeverity.ERROR
 
     def is_warning(self) -> bool:
-        """Check if this is a warning-level issue."""
+        """Check if this is a warning-level issue.
+        
+        Returns:
+            bool: True if severity is WARNING, False otherwise.
+        """
         return self.severity == ValidationSeverity.WARNING
 
 
 def create_missing_field_issue(field_name: str, message: str | None = None) -> ValidationIssue:
-    """Create a missing field validation issue."""
+    """Create a missing field validation issue.
+    
+    Returns:
+        ValidationIssue: A validation issue for a missing required field.
+    """
     return ValidationIssue(
         severity=ValidationSeverity.ERROR,
         category=ValidationCategory.MISSING_REQUIRED,
@@ -91,7 +107,11 @@ def create_type_mismatch_issue(
     actual_type: type,
     message: str | None = None,
 ) -> ValidationIssue:
-    """Create a type mismatch validation issue."""
+    """Create a type mismatch validation issue.
+    
+    Returns:
+        ValidationIssue: A validation issue for a type mismatch error.
+    """
     return ValidationIssue(
         severity=ValidationSeverity.ERROR,
         category=ValidationCategory.INVALID_TYPE,
@@ -114,7 +134,11 @@ def create_range_violation_issue(
     max_value: object | None = None,
     message: str | None = None,
 ) -> ValidationIssue:
-    """Create a range violation validation issue."""
+    """Create a range violation validation issue.
+    
+    Returns:
+        ValidationIssue: A validation issue for a value that's out of range.
+    """
     if not message:
         if min_value is not None and max_value is not None:
             message = (
@@ -150,7 +174,11 @@ def create_business_rule_violation(
     message: str | None = None,
     severity: ValidationSeverity = ValidationSeverity.ERROR,
 ) -> ValidationIssue:
-    """Create a business rule violation validation issue."""
+    """Create a business rule violation validation issue.
+    
+    Returns:
+        ValidationIssue: A validation issue for a business rule violation.
+    """
     return ValidationIssue(
         severity=severity,
         category=ValidationCategory.BUSINESS_RULE,
@@ -176,22 +204,38 @@ class ValidationResult[T](BaseModel):
 
     @classmethod
     def success(cls, value: T) -> ValidationResult[T]:
-        """Create a successful validation result."""
+        """Create a successful validation result.
+        
+        Returns:
+            ValidationResult[T]: A valid result with no issues.
+        """
         return cls(value=value, is_valid=True, issues=[])
 
     @classmethod
     def failure(cls, value: T, issues: list[ValidationIssue]) -> ValidationResult[T]:
-        """Create a failed validation result."""
+        """Create a failed validation result.
+        
+        Returns:
+            ValidationResult[T]: An invalid result with the provided issues.
+        """
         return cls(value=value, is_valid=False, issues=issues)
 
     @classmethod
     def from_issues(cls, value: T, issues: list[ValidationIssue]) -> ValidationResult[T]:
-        """Create result based on issues (fails if any errors)."""
+        """Create result based on issues (fails if any errors).
+        
+        Returns:
+            ValidationResult[T]: A result that's invalid if any issues are errors.
+        """
         has_errors = any(issue.is_error() for issue in issues)
         return cls(value=value, is_valid=not has_errors, issues=issues)
 
     def add_issue(self, issue: ValidationIssue) -> ValidationResult[T]:
-        """Add an issue and return new result."""
+        """Add an issue and return new result.
+        
+        Returns:
+            ValidationResult[T]: A new result with the added issue.
+        """
         new_issues = [*self.issues, issue]
         has_errors = any(issue.is_error() for issue in new_issues)
         return ValidationResult(
@@ -201,7 +245,11 @@ class ValidationResult[T](BaseModel):
         )
 
     def merge(self, other: ValidationResult[Any]) -> ValidationResult[T]:
-        """Merge with another validation result."""
+        """Merge with another validation result.
+        
+        Returns:
+            ValidationResult[T]: A new result with combined issues from both results.
+        """
         merged_issues = self.issues + other.issues
         has_errors = any(issue.is_error() for issue in merged_issues)
         return ValidationResult(
@@ -211,23 +259,43 @@ class ValidationResult[T](BaseModel):
         )
 
     def get_errors(self) -> list[ValidationIssue]:
-        """Get only error-level issues."""
+        """Get only error-level issues.
+        
+        Returns:
+            list[ValidationIssue]: List of issues with ERROR severity.
+        """
         return [issue for issue in self.issues if issue.is_error()]
 
     def get_warnings(self) -> list[ValidationIssue]:
-        """Get only warning-level issues."""
+        """Get only warning-level issues.
+        
+        Returns:
+            list[ValidationIssue]: List of issues with WARNING severity.
+        """
         return [issue for issue in self.issues if issue.is_warning()]
 
     def get_issues_by_field(self, field: str) -> list[ValidationIssue]:
-        """Get issues for a specific field."""
+        """Get issues for a specific field.
+        
+        Returns:
+            list[ValidationIssue]: List of issues associated with the specified field.
+        """
         return [issue for issue in self.issues if issue.field == field]
 
     def has_errors(self) -> bool:
-        """Check if there are any error-level issues."""
+        """Check if there are any error-level issues.
+        
+        Returns:
+            bool: True if any issues have ERROR severity, False otherwise.
+        """
         return any(issue.is_error() for issue in self.issues)
 
     def has_warnings(self) -> bool:
-        """Check if there are any warning-level issues."""
+        """Check if there are any warning-level issues.
+        
+        Returns:
+            bool: True if any issues have WARNING severity, False otherwise.
+        """
         return any(issue.is_warning() for issue in self.issues)
 
     def map(self, func: Callable[[T], U], default_value: U) -> ValidationResult[U]:
@@ -236,6 +304,10 @@ class ValidationResult[T](BaseModel):
         Args:
             func: Function to transform the value
             default_value: Value to use if transformation fails or current result is invalid
+            
+        Returns:
+            ValidationResult[U]: A new result with the transformed value or default value
+                on failure.
         """
         if not self.is_valid:
             # If current result is invalid, cannot map - return invalid result with default
@@ -268,7 +340,11 @@ class ValidationResult[T](BaseModel):
             )
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
+        """Convert to dictionary representation.
+        
+        Returns:
+            dict[str, Any]: Dictionary containing validation state and all issues.
+        """
         return {
             "is_valid": self.is_valid,
             "errors": [
@@ -302,7 +378,11 @@ class ValidationChain[T](BaseModel):
         self._result = ValidationResult(value=value, is_valid=True, issues=[])
 
     def apply_validator(self, validator: Callable[[T], ValidationResult[T]]) -> ValidationChain[T]:
-        """Apply a validator function."""
+        """Apply a validator function.
+        
+        Returns:
+            ValidationChain[T]: Self for method chaining.
+        """
         if self._result.is_valid:
             validation_result = validator(self._result.value)
             self._result = self._result.merge(validation_result)
@@ -313,18 +393,30 @@ class ValidationChain[T](BaseModel):
         condition: Callable[[T], bool],
         issue: ValidationIssue,
     ) -> ValidationChain[T]:
-        """Check a condition and add issue if false."""
+        """Check a condition and add issue if false.
+        
+        Returns:
+            ValidationChain[T]: Self for method chaining.
+        """
         if self._result.is_valid and not condition(self._result.value):
             self._result = self._result.add_issue(issue)
         return self
 
     def transform(self, func: Callable[[T], U], default_value: U) -> ValidationChain[U]:
-        """Transform the value being validated."""
+        """Transform the value being validated.
+        
+        Returns:
+            ValidationChain[U]: A new chain with the transformed value.
+        """
         new_result = self._result.map(func, default_value)
         new_chain = ValidationChain(value=new_result.value)
         new_chain._result = new_result
         return new_chain
 
     def result(self) -> ValidationResult[T]:
-        """Get the final validation result."""
+        """Get the final validation result.
+        
+        Returns:
+            ValidationResult[T]: The accumulated validation result.
+        """
         return self._result

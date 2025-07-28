@@ -26,7 +26,11 @@ from cyberdelta.core.models import SpotBalance
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings with balance monitoring configuration."""
+    """Create mock app settings with balance monitoring configuration.
+    
+    Returns:
+        Mock: Mock application settings with balance monitoring thresholds.
+    """
     settings = Mock(spec=AppSettings)
 
     # Configure exchanges as a dict with ExchangeSpecificConfig objects
@@ -60,7 +64,11 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_portfolio_tracker_with_balances(mock_portfolio_tracker: Mock) -> Mock:
-    """Extend the shared mock_portfolio_tracker to add the balances attribute."""
+    """Extend the shared mock_portfolio_tracker to add the balances attribute.
+    
+    Returns:
+        Mock: Enhanced mock portfolio tracker with balances attribute.
+    """
     # Add balances attribute for tests that access it directly
     mock_portfolio_tracker.balances = {}
     return mock_portfolio_tracker
@@ -70,13 +78,21 @@ def mock_portfolio_tracker_with_balances(mock_portfolio_tracker: Mock) -> Mock:
 def balance_monitor(
     mock_app_settings: Mock, mock_portfolio_tracker_with_balances: Mock
 ) -> BalanceMonitor:
-    """Create a BalanceMonitor instance for testing."""
+    """Create a BalanceMonitor instance for testing.
+    
+    Returns:
+        BalanceMonitor: Balance monitor configured with mock dependencies.
+    """
     return BalanceMonitor(mock_app_settings, mock_portfolio_tracker_with_balances)
 
 
 @pytest.fixture
 def sample_balance_alert() -> BalanceAlert:
-    """Create a sample BalanceAlert for testing."""
+    """Create a sample BalanceAlert for testing.
+    
+    Returns:
+        BalanceAlert: Sample balance alert for testing scenarios.
+    """
     return BalanceAlert(
         asset="USDC",
         threshold_type="low",

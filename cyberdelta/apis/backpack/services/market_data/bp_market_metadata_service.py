@@ -318,7 +318,6 @@ class BackpackMarketMetadataService:
 
         Raises:
             APIError: If funding rate retrieval fails
-            EmptySymbolError: If symbol is empty
         """
         self._validate_funding_rate_symbol(symbol)
 
@@ -363,8 +362,7 @@ class BackpackMarketMetadataService:
 
         Raises:
             APIError: If funding rates retrieval fails
-            NullSymbolsError: If symbols list is None
-            EmptySymbolListError: If symbols list is empty
+            NullSymbolsError: If symbols list is None (from validation)
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
@@ -492,6 +490,9 @@ class BackpackMarketMetadataService:
 
         Returns:
             list[FundingRate]: List of funding rates
+
+        Raises:
+            APIError: If funding rate retrieval fails
         """
         funding_rates: list[FundingRate] = []
         failed_symbols: list[str] = []
@@ -576,6 +577,9 @@ class BackpackMarketMetadataService:
             symbol: Trading symbol
             status_code: HTTP status code
             raw_response_content: Raw response content
+
+        Raises:
+            APIError: Always raises APIError (re-raises or converts exceptions)
         """
         if isinstance(exception, APIError):
             raise exception
@@ -621,6 +625,9 @@ class BackpackMarketMetadataService:
             current_method: Name of calling method
             status_code: HTTP status code
             raw_response_content: Raw response content
+
+        Raises:
+            APIError: Always raises APIError (re-raises or converts exceptions)
         """
         if isinstance(exception, APIError):
             raise exception
@@ -657,6 +664,9 @@ class BackpackMarketMetadataService:
         Args:
             exception: The exception to handle
             symbol: Trading symbol
+
+        Raises:
+            APIError: Always raises APIError (re-raises or converts exceptions)
         """
         if isinstance(exception, APIError):
             raise exception
@@ -689,6 +699,9 @@ class BackpackMarketMetadataService:
             current_method: Name of calling method
             status_code: HTTP status code
             raw_response_content: Raw response content
+
+        Raises:
+            APIError: Always raises APIError (re-raises or converts exceptions)
         """
         if isinstance(exception, APIError):
             raise exception

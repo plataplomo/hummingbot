@@ -15,7 +15,16 @@ logger = get_logger(__name__)
 
 
 def _validate_decimal_finite(value: Decimal, field_name: str, context: str) -> None:
-    """Validate that a decimal value is finite."""
+    """Validate that a decimal value is finite.
+    
+    Args:
+        value: Decimal value to validate
+        field_name: Name of the field for error messages
+        context: Context description for error messages
+        
+    Raises:
+        APIError: If value is not finite
+    """
     if not value.is_finite():
         raise APIError(
             message=f"Non-finite decimal value for {field_name} in {context}: {value}",
@@ -24,7 +33,19 @@ def _validate_decimal_finite(value: Decimal, field_name: str, context: str) -> N
 
 
 def _prepare_value_string(value: str | float | Decimal, field_name: str, context: str) -> str:
-    """Convert value to string for safe decimal parsing."""
+    """Convert value to string for safe decimal parsing.
+    
+    Args:
+        value: Value to convert to string
+        field_name: Name of the field for error messages
+        context: Context description for error messages
+        
+    Returns:
+        str: String representation suitable for Decimal parsing
+        
+    Raises:
+        APIError: If value cannot be converted to string
+    """
     if isinstance(value, str):
         # Remove whitespace
         value_str = value.strip()

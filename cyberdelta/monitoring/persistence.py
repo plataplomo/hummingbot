@@ -16,12 +16,20 @@ type SerializableData = dict[str, Any] | list[Any]
 
 
 def _is_dict_data(value: object) -> TypeGuard[dict[str, Any]]:
-    """Senior-level TypeGuard for dictionary data validation."""
+    """Senior-level TypeGuard for dictionary data validation.
+    
+    Returns:
+        TypeGuard[dict[str, Any]]: True if value is a dictionary, False otherwise.
+    """
     return isinstance(value, dict)
 
 
 def _is_list_data(value: object) -> TypeGuard[list[Any]]:
-    """Senior-level TypeGuard for list data validation."""
+    """Senior-level TypeGuard for list data validation.
+    
+    Returns:
+        TypeGuard[list[Any]]: True if value is a list, False otherwise.
+    """
     return isinstance(value, list)
 
 
@@ -235,7 +243,11 @@ class PerformanceDataPersistence:
         self,
         loaded_data: dict[str, Any] | list[Any],
     ) -> dict[str, Any] | list[Any]:
-        """Post-process returns data to convert timestamp keys back to datetime objects."""
+        """Post-process returns data to convert timestamp keys back to datetime objects.
+        
+        Returns:
+            dict[str, Any] | list[Any]: Processed data with datetime objects restored.
+        """
         # For returns data, convert timestamp keys back to datetime objects
         if not isinstance(loaded_data, dict):
             return loaded_data
@@ -260,7 +272,11 @@ class PerformanceDataPersistence:
     def _process_timestamp_value(
         self, ts_str: object, val: object
     ) -> tuple[datetime, Decimal] | None:
-        """Process a single timestamp-value pair."""
+        """Process a single timestamp-value pair.
+        
+        Returns:
+            tuple[datetime, Decimal] | None: Processed pair or None if invalid.
+        """
         try:
             if not isinstance(ts_str, str) or not isinstance(val, (str, int, float)):
                 logger.warning(
@@ -287,7 +303,11 @@ class PerformanceDataPersistence:
         self,
         loaded_data: dict[str, Any] | list[Any],
     ) -> dict[str, Any] | list[Any]:
-        """Post-process list-based data to convert datetime fields in each item."""
+        """Post-process list-based data to convert datetime fields in each item.
+        
+        Returns:
+            dict[str, Any] | list[Any]: Processed data with datetime fields converted.
+        """
         # For list-based data, convert datetime fields in each item
         if isinstance(loaded_data, list):
             processed_list: list[dict[str, Any]] = []
@@ -391,7 +411,11 @@ class PerformanceDataPersistence:
         self.save_data("trades", "trades.json", trades_data)
 
     def load_trades(self) -> list[dict[str, Any]]:
-        """Load trades data."""
+        """Load trades data.
+        
+        Returns:
+            list[dict[str, Any]]: List of trade dictionaries.
+        """
         loaded_data = self.load_data("trades", "trades.json")
         if isinstance(loaded_data, list):
             return loaded_data
@@ -402,7 +426,11 @@ class PerformanceDataPersistence:
         self.save_data("signals", "signals.json", signals_data)
 
     def load_signals(self) -> list[dict[str, Any]]:
-        """Load signals data."""
+        """Load signals data.
+        
+        Returns:
+            list[dict[str, Any]]: List of signal dictionaries.
+        """
         loaded_data = self.load_data("signals", "signals.json")
         if isinstance(loaded_data, list):
             return loaded_data
@@ -413,7 +441,11 @@ class PerformanceDataPersistence:
         self.save_data("funding_rates", "funding_rates.json", funding_rates_data)
 
     def load_funding_rates(self) -> list[dict[str, Any]]:
-        """Load funding rates data."""
+        """Load funding rates data.
+        
+        Returns:
+            list[dict[str, Any]]: List of funding rate dictionaries.
+        """
         loaded_data = self.load_data("funding_rates", "funding_rates.json")
         if isinstance(loaded_data, list):
             return loaded_data

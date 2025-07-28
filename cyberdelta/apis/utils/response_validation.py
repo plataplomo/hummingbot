@@ -88,7 +88,14 @@ def ensure_list_response(
     context: str,
     status_code: int,
 ) -> list[Any]:
-    """Validate that response is a list with consistent error handling."""
+    """Validate that response is a list with consistent error handling.
+    
+    Returns:
+        Validated list response.
+        
+    Raises:
+        APIError: If response is None or not a list.
+    """
     if response is None:
         logger.error(
             "response_validation_null_response",
@@ -140,7 +147,11 @@ def validate_required_fields(
     context: str,
     status_code: int,
 ) -> None:
-    """Validate that a dictionary contains required fields."""
+    """Validate that a dictionary contains required fields.
+    
+    Raises:
+        APIError: If any required fields are missing from the response.
+    """
     missing_fields = [field for field in required_fields if field not in response]
 
     if missing_fields:
@@ -164,7 +175,14 @@ def ensure_string_response(
     context: str,
     status_code: int,
 ) -> str:
-    """Validate that response is a string with consistent error handling."""
+    """Validate that response is a string with consistent error handling.
+    
+    Returns:
+        Validated string response.
+        
+    Raises:
+        APIError: If response is None or not a string.
+    """
     if response is None:
         logger.error(
             "response_validation_null_response",
@@ -218,7 +236,11 @@ def validate_response_not_empty(
     context: str,
     status_code: int,
 ) -> None:
-    """Validate that a response container is not empty."""
+    """Validate that a response container is not empty.
+    
+    Raises:
+        APIError: If the response container is empty.
+    """
     if not response:
         logger.warning(
             "response_validation_empty_response",

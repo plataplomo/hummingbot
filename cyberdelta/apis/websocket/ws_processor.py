@@ -244,7 +244,11 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         context: WebSocketContextProtocol,
         message_type: str,
     ) -> T | None:
-        """Validate payload with Pydantic model."""
+        """Validate payload with Pydantic model.
+        
+        Returns:
+            Validated Pydantic model instance, or None if validation fails.
+        """
         try:
             validated = self.raw_model.model_validate(payload)
         except ValidationError as e:
@@ -278,7 +282,11 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         context: WebSocketContextProtocol,
         message_type: str,
     ) -> U | list[U] | None:
-        """Transform validated message to domain model."""
+        """Transform validated message to domain model.
+        
+        Returns:
+            Transformed domain model(s), or None if transformation fails.
+        """
         try:
             domain_model = self.transformer.transform(validated, context)
 
@@ -317,7 +325,16 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         context: WebSocketContextProtocol,
         message_type: str,
     ) -> bool:
-        """Handle domain model with message handler."""
+        """Handle domain model with message handler.
+        
+        Returns:
+            True if handling succeeded, False if it failed.
+            
+        Raises:
+            CancelledError: If the async operation is cancelled.
+            KeyboardInterrupt: If interrupted by user signal.
+            SystemExit: If system exit is requested.
+        """
         try:
             # Handler expects typed context, so just pass it directly
             # The handler is responsible for extracting domain model from context

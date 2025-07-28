@@ -28,7 +28,11 @@ from cyberdelta.enums import OrderSide, SignalType
 
 @pytest.fixture
 def mock_execution_handler() -> Mock:
-    """Create mock execution handler."""
+    """Create mock execution handler.
+    
+    Returns:
+        Mock: Mock ExecutionHandler instance for testing.
+    """
     return Mock(spec=ExecutionHandler)
 
 
@@ -37,7 +41,11 @@ def mock_execution_handler() -> Mock:
 
 @pytest.fixture
 def mock_risk_manager() -> Mock:
-    """Create mock risk manager."""
+    """Create mock risk manager.
+    
+    Returns:
+        Mock: Mock RiskManager instance for testing.
+    """
     return Mock(spec=RiskManager)
 
 
@@ -50,7 +58,11 @@ class FakeSignalQueue:
         self._exception_to_raise: Exception | None = None
 
     async def add_signal(self, signal: TradeSignal) -> bool:
-        """Record the signal and return success."""
+        """Record the signal and return success.
+        
+        Returns:
+            bool: True if signal was added successfully.
+        """
         if self._exception_to_raise:
             raise self._exception_to_raise
         self.added_signals.append(signal)
@@ -61,7 +73,11 @@ class FakeSignalQueue:
         self._exception_to_raise = exception
 
     def get_added_signals(self) -> list[TradeSignal]:
-        """Get all signals that were added."""
+        """Get all signals that were added.
+        
+        Returns:
+            list[TradeSignal]: Copy of all added signals.
+        """
         return self.added_signals.copy()
 
     def clear(self) -> None:
@@ -71,7 +87,11 @@ class FakeSignalQueue:
 
 @pytest.fixture
 def mock_signal_queue() -> Mock:
-    """Create mock signal queue that tracks added signals."""
+    """Create mock signal queue that tracks added signals.
+    
+    Returns:
+        Mock: Mock PrioritySignalQueue with signal tracking capabilities.
+    """
     mock = Mock(spec=PrioritySignalQueue)
     # Track added signals
     added_signals: list[TradeSignal] = []
@@ -109,7 +129,11 @@ def strategy_manager(
     mock_risk_manager: Mock,
     mock_signal_queue: Mock,
 ) -> StrategyManager:
-    """Create StrategyManager instance for testing."""
+    """Create StrategyManager instance for testing.
+    
+    Returns:
+        StrategyManager: Configured StrategyManager instance with mocked dependencies.
+    """
     return StrategyManager(
         config=mock_config,
         execution_handler=mock_execution_handler,
@@ -121,7 +145,11 @@ def strategy_manager(
 
 @pytest.fixture
 def mock_strategy() -> Mock:
-    """Create mock strategy for testing."""
+    """Create mock strategy for testing.
+    
+    Returns:
+        Mock: Mock Strategy instance with pre-configured attributes and methods.
+    """
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
     strategy.symbol = "BTC-PERP"
@@ -138,7 +166,11 @@ def mock_strategy() -> Mock:
 
 @pytest.fixture
 def sample_candle() -> Candle:
-    """Create sample candle for testing."""
+    """Create sample candle for testing.
+    
+    Returns:
+        Candle: Sample Candle instance with test data for BTC-PERP.
+    """
     return Candle(
         symbol="BTC-PERP",
         interval="1m",
@@ -153,7 +185,11 @@ def sample_candle() -> Candle:
 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
-    """Create sample trade signal for testing."""
+    """Create sample trade signal for testing.
+    
+    Returns:
+        TradeSignal: Sample TradeSignal instance with test data for entering a long position.
+    """
     return TradeSignal(
         signal_id=str(uuid4()),
         symbol="BTC-PERP",

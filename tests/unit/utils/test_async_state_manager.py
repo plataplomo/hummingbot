@@ -23,7 +23,14 @@ pytestmark = pytest.mark.timing
 
 @pytest.fixture
 def mock_app_settings(tmp_path: Path) -> Mock:
-    """Create mock app settings for testing."""
+    """Create mock app settings for testing.
+
+    Args:
+        tmp_path: Temporary directory path for test files
+
+    Returns:
+        Mock: Mock AppSettings configured for testing
+    """
     settings = Mock(spec=AppSettings)
     settings.general = Mock(spec=GeneralSettings)
     settings.general.state_file = str(tmp_path / "state.json")
@@ -34,7 +41,14 @@ def mock_app_settings(tmp_path: Path) -> Mock:
 
 @pytest.fixture
 def async_state_manager(mock_app_settings: Mock) -> AsyncStateManager:
-    """Create AsyncStateManager instance for testing."""
+    """Create AsyncStateManager instance for testing.
+
+    Args:
+        mock_app_settings: Mock app settings fixture
+
+    Returns:
+        AsyncStateManager: Configured AsyncStateManager instance for testing
+    """
     return AsyncStateManager(mock_app_settings)
 
 

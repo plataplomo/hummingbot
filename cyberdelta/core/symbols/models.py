@@ -87,17 +87,29 @@ class SymbolFormat:
 
     @classmethod
     def is_valid_internal(cls, symbol: str) -> bool:
-        """Check if symbol matches internal format."""
+        """Check if symbol matches internal format.
+        
+        Returns:
+            True if symbol matches internal format pattern
+        """
         return bool(cls.INTERNAL_PATTERN.match(symbol))
 
     @classmethod
     def is_valid_exchange(cls, symbol: str) -> bool:
-        """Check if symbol matches exchange format."""
+        """Check if symbol matches exchange format.
+        
+        Returns:
+            True if symbol matches exchange format pattern
+        """
         return bool(cls.EXCHANGE_PATTERN.match(symbol))
 
     @classmethod
     def is_valid_asset(cls, asset: str) -> bool:
-        """Check if asset code is valid."""
+        """Check if asset code is valid.
+        
+        Returns:
+            True if asset code matches valid pattern
+        """
         return bool(cls.ASSET_PATTERN.match(asset))
 
 
@@ -123,7 +135,20 @@ class BaseSymbol(BaseModel):
     @field_validator("value", mode="before")
     @classmethod
     def normalize_value(cls, v: object) -> str:
-        """Normalize symbol value handling various input types."""
+        """Normalize symbol value handling various input types.
+        
+        Accepts both string and integer inputs (for Backpack WebSocket compatibility).
+        Strings are normalized to uppercase and whitespace is stripped.
+        
+        Args:
+            v: Input value to normalize (string or int)
+            
+        Returns:
+            Normalized symbol value as uppercase string
+            
+        Raises:
+            SymbolValidationError: If input is neither string nor integer
+        """
         if isinstance(v, int):
             # Handle integer symbols (Backpack WebSocket case)
             return str(v)
@@ -136,7 +161,18 @@ class BaseSymbol(BaseModel):
 
     @model_validator(mode="after")
     def validate_format(self) -> BaseSymbol:
-        """Validate symbol format against type-specific rules."""
+        """Validate symbol format against type-specific rules.
+        
+        Checks the symbol value against regex patterns and length constraints
+        defined for each symbol type. Validation is skipped if no pattern is
+        defined for the symbol type.
+        
+        Returns:
+            Validated BaseSymbol instance
+            
+        Raises:
+            SymbolValidationError: If symbol format or length is invalid
+        """
         pattern = SymbolFormat.PATTERNS.get(self.symbol_type)
         max_length = SymbolFormat.MAX_LENGTHS.get(self.symbol_type)
 
@@ -161,15 +197,27 @@ class BaseSymbol(BaseModel):
         return self
 
     def __str__(self) -> str:
-        """String representation."""
+        """String representation.
+        
+        Returns:
+            Symbol value as string
+        """
         return self.value
 
     def __hash__(self) -> int:
-        """Hash based on value and type."""
+        """Hash based on value and type.
+        
+        Returns:
+            Hash of the symbol value and type tuple
+        """
         return hash((self.value, self.symbol_type))
 
     def __eq__(self, other: object) -> bool:
-        """Equality comparison."""
+        """Equality comparison.
+        
+        Returns:
+            True if symbols are equal, False otherwise
+        """
         if isinstance(other, str):
             return self.value == other.upper()
         if isinstance(other, BaseSymbol):
@@ -177,7 +225,11 @@ class BaseSymbol(BaseModel):
         return False
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary with essential fields."""
+        """Convert to dictionary with essential fields.
+        
+        Returns:
+            Dictionary containing value, symbol_type, and created_at
+        """
         return {
             "value": self.value,
             "symbol_type": self.symbol_type.value,
@@ -206,7 +258,11 @@ class InternalSymbol(BaseSymbol):
     @model_validator(mode="before")
     @classmethod
     def extract_assets(cls, values: dict[str, Any]) -> dict[str, Any]:
-        """Extract base and quote assets from value if not provided."""
+        """Extract base and quote assets from value if not provided.
+        
+        Returns:
+            Updated values dict with extracted base and quote assets
+        """
         if "value" in values:
             value = values.get("value", "")
 
@@ -224,25 +280,41 @@ class InternalSymbol(BaseSymbol):
     @property
     @computed_field
     def is_pair(self) -> bool:
-        """Check if this is a trading pair."""
+        """Check if this is a trading pair.
+        
+        Returns:
+            True if symbol has a quote asset (is a pair)
+        """
         return self.quote_asset is not None
 
     @property
     @computed_field
     def canonical_name(self) -> str:
-        """Get canonical symbol representation."""
+        """Get canonical symbol representation.
+        
+        Returns:
+            Canonical symbol name in format BASE_QUOTE or BASE
+        """
         if self.quote_asset:
             return f"{self.base_asset}_{self.quote_asset}"
         return self.base_asset
 
     def to_pair_format(self) -> str:
-        """Convert to pair format for compatibility."""
+        """Convert to pair format for compatibility.
+        
+        Returns:
+            Symbol in pair format (BASE_QUOTE) or single asset format
+        """
         if self.quote_asset:
             return f"{self.base_asset}_{self.quote_asset}"
         return self.base_asset
 
     def matches_asset(self, asset: str) -> bool:
-        """Check if symbol contains the specified asset."""
+        """Check if symbol contains the specified asset.
+        
+        Returns:
+            True if asset matches base or quote asset
+        """
         asset_upper = asset.upper()
         return asset_upper in {self.base_asset, self.quote_asset}
 
@@ -272,7 +344,11 @@ class ExchangeSymbol(BaseSymbol):
     @property
     @computed_field
     def is_indexed(self) -> bool:
-        """Check if symbol uses index notation."""
+        """Check if symbol uses index notation.
+        
+        Returns:
+            True if symbol has asset_index, symbol_id, or starts with @
+        """
         return (
             self.asset_index is not None or self.symbol_id is not None or self.value.startswith("@")
         )
@@ -280,7 +356,11 @@ class ExchangeSymbol(BaseSymbol):
     @property
     @computed_field
     def display_name(self) -> str:
-        """Get human-readable display name."""
+        """Get human-readable display name.
+        
+        Returns:
+            Human-readable symbol name based on internal symbol or value
+        """
         if self.internal_symbol:
             if self.internal_symbol.quote_asset:
                 return f"{self.internal_symbol.base_asset}_{self.internal_symbol.quote_asset}"
@@ -288,7 +368,11 @@ class ExchangeSymbol(BaseSymbol):
         return self.value
 
     def to_websocket_format(self) -> str | int:
-        """Convert to WebSocket stream format."""
+        """Convert to WebSocket stream format.
+        
+        Returns:
+            Symbol ID for Backpack or string value for other exchanges
+        """
         if self.exchange_id == ExchangeName.BACKPACK and self.symbol_id is not None:
             return self.symbol_id
         return self.value
@@ -332,7 +416,18 @@ class UnifiedSymbol(BaseModel):
 
     @model_validator(mode="after")
     def validate_mappings(self) -> UnifiedSymbol:
-        """Ensure all exchange mappings reference the same internal symbol."""
+        """Ensure all exchange mappings reference the same internal symbol.
+        
+        Validates that all exchange symbols in the mappings dictionary have the
+        correct exchange ID and reference the same internal symbol to maintain
+        data consistency.
+        
+        Returns:
+            Validated UnifiedSymbol instance
+            
+        Raises:
+            SymbolValidationError: If exchange ID mismatch or internal symbol mismatch
+        """
         for exchange_id_str, exchange_symbol in self.exchange_mappings.items():
             exchange_id = ExchangeName(exchange_id_str)
             # Check exchange ID matches
@@ -352,15 +447,27 @@ class UnifiedSymbol(BaseModel):
         return self
 
     def get_exchange_symbol(self, exchange: ExchangeName) -> ExchangeSymbol | None:
-        """Get exchange-specific symbol if available."""
+        """Get exchange-specific symbol if available.
+        
+        Returns:
+            ExchangeSymbol for the specified exchange or None if not mapped
+        """
         return self.exchange_mappings.get(exchange.value)
 
     def supports_exchange(self, exchange: ExchangeName) -> bool:
-        """Check if symbol is supported on exchange."""
+        """Check if symbol is supported on exchange.
+        
+        Returns:
+            True if symbol has mapping for the specified exchange
+        """
         return exchange.value in self.exchange_mappings
 
     def get_all_exchange_values(self) -> dict[ExchangeName, str]:
-        """Get all exchange symbol values."""
+        """Get all exchange symbol values.
+        
+        Returns:
+            Dictionary mapping exchange names to symbol values
+        """
         return {
             ExchangeName(exchange): symbol.value
             for exchange, symbol in self.exchange_mappings.items()
@@ -369,7 +476,11 @@ class UnifiedSymbol(BaseModel):
     @property
     @computed_field
     def supported_exchanges(self) -> set[ExchangeName]:
-        """Get set of supported exchanges."""
+        """Get set of supported exchanges.
+        
+        Returns:
+            Set of exchange names that have symbol mappings
+        """
         return {ExchangeName(key) for key in self.exchange_mappings}
 
 
@@ -384,7 +495,11 @@ def create_internal_symbol(
     base_asset: str | None = None,
     quote_asset: str | None = None,
 ) -> InternalSymbol:
-    """Factory function to create internal symbols."""
+    """Factory function to create internal symbols.
+    
+    Returns:
+        New InternalSymbol instance with extracted or provided assets
+    """
     # Extract base and quote assets if not provided
     if base_asset is None:
         if "_" in value:
@@ -410,7 +525,11 @@ def create_exchange_symbol(
     asset_index: int | None = None,
     symbol_id: int | None = None,
 ) -> ExchangeSymbol:
-    """Factory function to create exchange symbols."""
+    """Factory function to create exchange symbols.
+    
+    Returns:
+        New ExchangeSymbol instance with provided metadata
+    """
     return ExchangeSymbol(
         value=str(value),
         exchange_id=exchange_id,

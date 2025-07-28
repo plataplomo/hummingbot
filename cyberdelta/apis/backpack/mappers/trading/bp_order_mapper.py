@@ -64,7 +64,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
             OrderSide: Mapped internal enum value
 
         Raises:
-            TransformationError: If side cannot be mapped
+            UnknownOrderSideError: If side cannot be mapped
 
         """
         side_lower = bp_side.lower() if bp_side else ""
@@ -149,7 +149,15 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _check_system_order_type(bp_type_lower: str, system_type: str) -> OrderType | None:
-        """Check systemOrderType for stop/take profit orders."""
+        """Check systemOrderType for stop/take profit orders.
+        
+        Args:
+            bp_type_lower: Lowercased order type string
+            system_type: System order type field from Backpack
+            
+        Returns:
+            OrderType enum if system type indicates stop/take profit order, None otherwise
+        """
         if "stop" in system_type:
             if bp_type_lower == "market":
                 return OrderType.STOP_MARKET
@@ -164,7 +172,19 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _check_triggered_order(raw_order: BackpackRawOrderResponse) -> OrderType | None:
-        """Check if order was a triggered stop/take profit order."""
+        """Check if order was a triggered stop/take profit order.
+        
+        This method analyzes the raw order data to determine if it was triggered
+        as a stop loss or take profit order by examining the trigger price fields.
+        
+        Args:
+            raw_order: Raw order response from Backpack containing trigger price fields
+        
+        Returns:
+            OrderType.STOP_MARKET if stop loss triggered,
+            OrderType.TAKE_PROFIT_MARKET if take profit triggered,
+            None if not a triggered order
+        """
         if raw_order.stopLossTriggerPrice or raw_order.stopLossLimitPrice:
             return OrderType.STOP_MARKET
         if raw_order.takeProfitTriggerPrice or raw_order.takeProfitLimitPrice:
@@ -175,7 +195,15 @@ class BackpackOrderMapper(OrderMapperProtocol):
     def _check_trigger_price_order(
         bp_type_lower: str, raw_order: BackpackRawOrderResponse | None
     ) -> OrderType:
-        """Determine order type based on trigger price."""
+        """Determine order type based on trigger price.
+        
+        Args:
+            bp_type_lower: Lowercased order type string
+            raw_order: Raw order data from Backpack (optional)
+            
+        Returns:
+            OrderType enum based on trigger price presence and order type
+        """
         # Check if this is a take profit order
         if raw_order and raw_order.takeProfitTriggerPrice:
             if bp_type_lower == "market":
@@ -245,7 +273,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
+            OrderTransformationError: If transformation fails
 
         """
         try:
@@ -331,10 +359,15 @@ class BackpackOrderMapper(OrderMapperProtocol):
     @staticmethod
     def _parse_order_quantities(raw_order: BackpackRawOrderResponse) -> tuple[Decimal, Decimal]:
         """Parse and validate order quantities.
+        
+        Args:
+            raw_order: Raw order data from Backpack
+            
+        Returns:
+            Tuple of (quantity_requested, quantity_filled) as Decimal values
 
         Raises:
-            TransformationError: If quantity requirements are not met.
-            ValueError: If quantity values cannot be parsed as decimals.
+            InvalidQuantityError: If quantity requirements are not met
         """
         quantity_requested = parse_decimal_value(
             raw_order.quantity,
@@ -368,7 +401,15 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | None:
-        """Parse order price field, returning None for zero or invalid values."""
+        """Parse order price field, returning None for zero or invalid values.
+        
+        Args:
+            price_value: Price value as string or None
+            field_name: Name of the field for error reporting
+            
+        Returns:
+            Parsed price as Decimal or None if price is zero/invalid
+        """
         if not price_value or price_value == "0":
             return None
 
@@ -443,10 +484,16 @@ class BackpackOrderMapper(OrderMapperProtocol):
         raw_order: BackpackRawOrderResponse,
     ) -> tuple[datetime, datetime | None, datetime | None]:
         """Parse order timestamps.
+        
+        Args:
+            raw_order: Raw order data from Backpack
+            
+        Returns:
+            Tuple of (created_timestamp, updated_timestamp, triggered_timestamp) where
+            created_timestamp is required and others may be None
 
         Raises:
-            TransformationError: If required timestamp is missing.
-            ValueError: If timestamp values cannot be parsed as datetime.
+            MissingTimestampError: If required timestamp is missing
         """
         created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")
         if created_timestamp is None:
@@ -479,7 +526,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
+            OrderTransformationError: If transformation fails
 
         """
         try:
@@ -645,7 +692,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
-            TransformationError: If transformation fails
+            OrderTransformationError: If transformation fails
 
         """
         try:
@@ -756,20 +803,49 @@ class BackpackOrderMapper(OrderMapperProtocol):
     def parse_decimal_safely(
         value: str | float | Decimal | None, default: Decimal = Decimal(0)
     ) -> Decimal:
-        """Safely parse decimal values with fallback."""
+        """Safely parse decimal values with fallback.
+        
+        Args:
+            value: Value to parse as Decimal
+            default: Default value to return if parsing fails
+            
+        Returns:
+            Parsed Decimal value or default if parsing fails
+        """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
     def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated)."""
+        """Convert symbol to Backpack format (underscore-separated).
+        
+        Args:
+            symbol: Symbol string to normalize
+            
+        Returns:
+            Symbol in Backpack format with underscores
+        """
         return BackpackCommonMappers.normalize_symbol(symbol)
 
     @staticmethod
     def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated)."""
+        """Convert symbol from Backpack to internal format (slash-separated).
+        
+        Args:
+            symbol: Symbol string in Backpack format
+            
+        Returns:
+            Symbol in internal format with slashes
+        """
         return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime."""
+        """Convert millisecond timestamp to UTC datetime.
+        
+        Args:
+            timestamp_ms: Timestamp in milliseconds or None
+            
+        Returns:
+            UTC datetime object or None if timestamp is None
+        """
         return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

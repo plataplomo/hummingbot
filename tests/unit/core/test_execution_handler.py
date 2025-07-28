@@ -49,7 +49,11 @@ pytestmark = pytest.mark.timing
 
 
 def _get_can_execute_mock(execution_handler: ExecutionHandler) -> Mock:
-    """Helper to get the can_execute mock with proper typing."""
+    """Helper to get the can_execute mock with proper typing.
+
+    Returns:
+        Mock: The can_execute mock from the circuit breaker system.
+    """
     assert execution_handler.circuit_breaker_system is not None
     can_execute = execution_handler.circuit_breaker_system.can_execute
     assert isinstance(can_execute, Mock)
@@ -57,7 +61,11 @@ def _get_can_execute_mock(execution_handler: ExecutionHandler) -> Mock:
 
 
 def _get_symbol_service_mock(execution_handler: ExecutionHandler) -> Mock:
-    """Helper to get the symbol service's get_exchange_symbol mock with proper typing."""
+    """Helper to get the symbol service's get_exchange_symbol mock with proper typing.
+
+    Returns:
+        Mock: The get_exchange_symbol mock from the symbol service.
+    """
     get_exchange_symbol = execution_handler.symbol_service.get_exchange_symbol
     assert isinstance(get_exchange_symbol, Mock)
     return get_exchange_symbol
@@ -74,7 +82,11 @@ def _create_mock_order(
     average_fill_price: Decimal | None = None,
     **kwargs: str | int | Decimal | None,
 ) -> Mock:
-    """Create a properly configured mock Order object with all required attributes."""
+    """Create a properly configured mock Order object with all required attributes.
+
+    Returns:
+        Mock: A configured mock Order object with test data.
+    """
     mock_order = Mock(spec=Order)
     mock_order.client_order_id = client_order_id
     mock_order.exchange_order_id = exchange_order_id
@@ -126,7 +138,11 @@ def _create_mock_order(
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings with execution-specific configuration."""
+    """Create mock app settings with execution-specific configuration.
+
+    Returns:
+        Mock: A mock AppSettings instance configured for execution testing.
+    """
     settings = Mock(spec=AppSettings)
 
     # Execution settings
@@ -156,7 +172,11 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def mock_circuit_breaker() -> Mock:
-    """Create mock circuit breaker system."""
+    """Create mock circuit breaker system.
+
+    Returns:
+        Mock: A mock CircuitBreakerSystem instance for testing.
+    """
     mock = Mock(spec=CircuitBreakerSystem)
     # Set up the can_execute method to return a tuple by default
     mock.can_execute = Mock(return_value=(True, None))
@@ -170,7 +190,11 @@ def execution_handler(
     mock_symbol_service: Mock,
     mock_circuit_breaker: Mock,
 ) -> ExecutionHandler:
-    """Create ExecutionHandler instance with mocked dependencies."""
+    """Create ExecutionHandler instance with mocked dependencies.
+
+    Returns:
+        ExecutionHandler: A configured ExecutionHandler instance for testing.
+    """
     return ExecutionHandler(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_tracker,
@@ -181,7 +205,11 @@ def execution_handler(
 
 @pytest.fixture
 def mock_exchange_api() -> Mock:
-    """Create mock exchange API client."""
+    """Create mock exchange API client.
+
+    Returns:
+        Mock: A mock ExchangeAPI instance for testing.
+    """
     api = Mock(spec=ExchangeAPI)
     api.exchange_id = "test_exchange"
     api.place_order = AsyncMock()
@@ -192,7 +220,11 @@ def mock_exchange_api() -> Mock:
 
 @pytest.fixture
 def sample_opportunity() -> ArbitrageOpportunity:
-    """Create sample arbitrage opportunity."""
+    """Create sample arbitrage opportunity.
+
+    Returns:
+        ArbitrageOpportunity: A sample arbitrage opportunity for testing.
+    """
     return ArbitrageOpportunity(
         symbol="BTC",
         long_exchange="exchange1",
@@ -211,7 +243,11 @@ def sample_opportunity() -> ArbitrageOpportunity:
 
 @pytest.fixture
 def sized_opportunity(sample_opportunity: ArbitrageOpportunity) -> SizedOpportunity:
-    """Create sample sized opportunity."""
+    """Create sample sized opportunity.
+
+    Returns:
+        SizedOpportunity: A sample sized opportunity for testing.
+    """
     return SizedOpportunity(
         opportunity=sample_opportunity,
         long_size=Decimal("1.0"),

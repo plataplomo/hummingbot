@@ -28,7 +28,11 @@ class TestHyperliquidAPIImproved:
 
     @pytest.fixture
     def mock_dependencies(self) -> dict[str, MagicMock]:
-        """Create all mock dependencies for API testing."""
+        """Create all mock dependencies for API testing.
+        
+        Returns:
+            Dictionary containing all mocked dependencies keyed by service name
+        """
         authenticator = MagicMock()
         authenticator.wallet_address = "0x1234567890123456789012345678901234567890"
         authenticator.prepare_request = AsyncMock()
@@ -82,7 +86,16 @@ class TestHyperliquidAPIImproved:
         active_hl_secrets: PrivateKeyAuthSecrets,
         mock_dependencies: dict[str, MagicMock],
     ) -> Callable[..., HyperliquidAPI]:
-        """Factory to create HyperliquidAPI instances with mock dependencies."""
+        """Factory to create HyperliquidAPI instances with mock dependencies.
+        
+        Args:
+            active_hl_config: Exchange configuration
+            active_hl_secrets: Authentication secrets
+            mock_dependencies: Dictionary of mocked services
+            
+        Returns:
+            Factory function that creates HyperliquidAPI instances
+        """
 
         def _create(**overrides: MagicMock) -> HyperliquidAPI:
             deps = {**mock_dependencies, **overrides}

@@ -111,7 +111,11 @@ class AccountSummary(BaseModel):
     health_score: Decimal | None = None  # 0-100 score
 
     def to_dict(self) -> dict[str, str | float | dict[str, str | None] | None]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            Dictionary representation of the account summary with string values.
+        """
         return {
             "exchange_id": self.exchange_id,
             "account_value": str(self.account_value),
@@ -207,6 +211,13 @@ class MarginAccountSummaryManager:
 
         Returns:
             Updated account summary
+
+        Raises:
+            ValueError: If account data format is invalid
+            TypeError: If account data types are incorrect
+            KeyError: If required account data fields are missing
+            AttributeError: If account data structure is malformed
+            ArithmeticError: If calculations fail due to invalid numeric values
         """
         try:
             # Parse account data based on exchange format
@@ -264,7 +275,14 @@ class MarginAccountSummaryManager:
             return summary
 
     def _parse_hyperliquid_data(self, data: HyperliquidAccountData) -> AccountSummary:
-        """Parse Hyperliquid account data format."""
+        """Parse Hyperliquid account data format.
+
+        Args:
+            data: Validated Hyperliquid account data
+
+        Returns:
+            Parsed account summary for Hyperliquid exchange
+        """
         # Hyperliquid specific parsing with type safety
         margin_summary = data.margin_summary
 
@@ -300,7 +318,14 @@ class MarginAccountSummaryManager:
         )
 
     def _parse_backpack_data(self, data: BackpackAccountData) -> AccountSummary:
-        """Parse Backpack account data format."""
+        """Parse Backpack account data format.
+
+        Args:
+            data: Validated Backpack account data
+
+        Returns:
+            Parsed account summary for Backpack exchange
+        """
         # Backpack specific parsing with type safety
         total_equity = Decimal(data.equity)
         margin_used = Decimal(data.margin_used)
@@ -329,7 +354,15 @@ class MarginAccountSummaryManager:
     def _parse_generic_data(
         self, exchange_id: str, data: GenericExchangeAccountData
     ) -> AccountSummary:
-        """Parse generic account data format."""
+        """Parse generic account data format.
+
+        Args:
+            exchange_id: Exchange identifier
+            data: Validated generic exchange account data
+
+        Returns:
+            Parsed account summary for generic exchange
+        """
         # Generic parsing for unknown exchanges with type safety
         account_value = Decimal(data.account_value)
         used_margin = Decimal(data.used_margin)
@@ -444,7 +477,14 @@ class MarginAccountSummaryManager:
         )
 
     def _calculate_health_score(self, summary: AccountSummary) -> Decimal:
-        """Calculate account health score (0-100)."""
+        """Calculate account health score (0-100).
+
+        Args:
+            summary: Account summary to evaluate
+
+        Returns:
+            Health score between 0 and 100, where 100 is healthiest
+        """
         score = Decimal(100)
 
         # Deduct based on margin ratio
@@ -466,24 +506,47 @@ class MarginAccountSummaryManager:
         return max(score, Decimal(0))
 
     def get_summary(self, exchange_id: str) -> AccountSummary | None:
-        """Get current account summary for exchange."""
+        """Get current account summary for exchange.
+
+        Args:
+            exchange_id: Exchange identifier
+
+        Returns:
+            Current account summary for the exchange, or None if not found
+        """
         return self._summaries.get(exchange_id)
 
     def get_all_summaries(self) -> dict[str, AccountSummary]:
-        """Get all current account summaries."""
+        """Get all current account summaries.
+
+        Returns:
+            Dictionary mapping exchange IDs to their current account summaries
+        """
         return self._summaries.copy()
 
     def get_summary_history(
         self, exchange_id: str, limit: int | None = None
     ) -> list[AccountSummary]:
-        """Get historical summaries for exchange."""
+        """Get historical summaries for exchange.
+
+        Args:
+            exchange_id: Exchange identifier
+            limit: Maximum number of historical summaries to return
+
+        Returns:
+            List of historical account summaries, most recent last
+        """
         history = self._summary_history.get(exchange_id, [])
         if limit:
             return history[-limit:]
         return history.copy()
 
     def get_aggregate_metrics(self) -> dict[str, float | int]:
-        """Get aggregate metrics across all exchanges."""
+        """Get aggregate metrics across all exchanges.
+
+        Returns:
+            Dictionary containing aggregated metrics across all exchanges
+        """
         if not self._summaries:
             return {
                 "total_account_value": 0,

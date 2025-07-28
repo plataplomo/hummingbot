@@ -22,7 +22,11 @@ class TestMarginAccountSummaryManager:
 
     @pytest.fixture
     def sample_summary(self) -> MarginAccountSummary:
-        """Create a sample margin account summary."""
+        """Create a sample margin account summary.
+        
+        Returns:
+            MarginAccountSummary: A sample margin account summary for testing.
+        """
         return MarginAccountSummary(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
@@ -86,6 +90,11 @@ class TestTradeManager:
 
     @pytest.fixture
     def sample_trade(self) -> Trade:
+        """Create a sample trade.
+        
+        Returns:
+            Trade: A sample trade instance for testing.
+        """
         """Create a sample trade."""
         return Trade(
             id="trade_001",

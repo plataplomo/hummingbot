@@ -146,7 +146,8 @@ class BaseEnvelopeValidator:
             Validated routing key.
 
         Raises:
-            ValueError: If routing key is invalid.
+            EmptyRoutingKeyError: If routing key is empty or None.
+            InvalidRoutingKeyFormatError: If routing key contains invalid characters.
         """
         if not routing_key or not routing_key.strip():
             raise EmptyRoutingKeyError
@@ -173,7 +174,7 @@ class BaseEnvelopeValidator:
             Validated payload.
 
         Raises:
-            ValueError: If payload structure is invalid.
+            PayloadTooLargeError: If payload exceeds size limits.
         """
         if isinstance(payload, dict):
             # Check for reasonable dict size

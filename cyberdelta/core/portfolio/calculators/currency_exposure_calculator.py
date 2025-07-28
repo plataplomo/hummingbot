@@ -59,7 +59,17 @@ class CurrencyExposure:
     @field_validator("currency", mode="before")
     @classmethod
     def validate_currency(cls, v: str) -> str:
-        """Validate and normalize currency code."""
+        """Validate and normalize currency code.
+
+        Args:
+            v: Currency code to validate
+
+        Returns:
+            Normalized uppercase currency code
+
+        Raises:
+            InvalidCalculationInputError: If currency is empty
+        """
         if not v:
             raise InvalidCalculationInputError(
                 parameter="currency", value=v, expected="non-empty string"
@@ -78,7 +88,17 @@ class CurrencyExposure:
     )
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Ensure all decimal values are finite."""
+        """Ensure all decimal values are finite.
+
+        Args:
+            v: Value to validate as Decimal
+
+        Returns:
+            Validated Decimal value
+
+        Raises:
+            InvalidCalculationInputError: If value is not finite
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -89,7 +109,18 @@ class CurrencyExposure:
     @field_validator("long_exposure", "short_exposure", mode="after")
     @classmethod
     def validate_exposure_consistency(cls, v: Decimal, info: ValidationInfo) -> Decimal:
-        """Validate exposure sign consistency."""
+        """Validate exposure sign consistency.
+
+        Args:
+            v: Exposure value to validate
+            info: Validation context containing field information
+
+        Returns:
+            Validated exposure value
+
+        Raises:
+            InvalidCalculationInputError: If exposure sign is inconsistent
+        """
         if info.field_name == "long_exposure" and v < 0:
             raise InvalidCalculationInputError(
                 parameter="long_exposure", value=v, expected="non-negative value"
@@ -101,7 +132,11 @@ class CurrencyExposure:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            Dictionary representation of currency exposure
+        """
         return {
             "currency": self.currency,
             "gross_exposure": str(self.gross_exposure),
@@ -172,7 +207,17 @@ class PortfolioCurrencyExposure:
     @field_validator("base_currency", mode="before")
     @classmethod
     def validate_base_currency(cls, v: str) -> str:
-        """Validate and normalize base currency."""
+        """Validate and normalize base currency.
+
+        Args:
+            v: Base currency code to validate
+
+        Returns:
+            Normalized uppercase base currency code
+
+        Raises:
+            InvalidCalculationInputError: If base currency is empty
+        """
         if not v:
             raise InvalidCalculationInputError(
                 parameter="base_currency", value=v, expected="non-empty string"
@@ -189,7 +234,17 @@ class PortfolioCurrencyExposure:
     )
     @classmethod
     def validate_risk_metrics(cls, v: Decimal | str | float) -> Decimal:
-        """Ensure risk metrics are finite and non-negative."""
+        """Ensure risk metrics are finite and non-negative.
+
+        Args:
+            v: Risk metric value to validate
+
+        Returns:
+            Validated Decimal risk metric value
+
+        Raises:
+            InvalidCalculationInputError: If value is not finite
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -202,7 +257,17 @@ class PortfolioCurrencyExposure:
     def validate_currency_exposures(
         cls, v: dict[str, CurrencyExposure]
     ) -> dict[str, CurrencyExposure]:
-        """Validate currency exposures dictionary."""
+        """Validate currency exposures dictionary.
+
+        Args:
+            v: Dictionary of currency exposures to validate
+
+        Returns:
+            Validated currency exposures dictionary
+
+        Raises:
+            CurrencyMismatchError: If currency key doesn't match exposure currency
+        """
         # v is already typed as dict[str, CurrencyExposure] by Pydantic
         for currency, exposure in v.items():
             # exposure is already typed as CurrencyExposure by Pydantic
@@ -213,7 +278,11 @@ class PortfolioCurrencyExposure:
         return v
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+
+        Returns:
+            Dictionary representation of portfolio currency exposure
+        """
         return {
             "base_currency": self.base_currency,
             "total_currencies": self.total_currencies,
@@ -290,7 +359,11 @@ class CurrencyExposureCalculator:
         )
 
     def _get_default_volatilities(self) -> dict[str, float]:
-        """Get default FX volatilities."""
+        """Get default FX volatilities.
+
+        Returns:
+            Dictionary mapping currency codes to default volatility values
+        """
         return {
             "USD": 0.0,  # Base currency
             "EUR": 0.08,
@@ -448,7 +521,14 @@ class CurrencyExposureCalculator:
     def _parse_position_currencies(
         self, position: DerivativePosition
     ) -> tuple[str | None, str | None]:
-        """Parse currencies from position symbol."""
+        """Parse currencies from position symbol.
+
+        Args:
+            position: Derivative position to parse currencies from
+
+        Returns:
+            Tuple of (base_currency, quote_currency), either may be None
+        """
         symbol = position.symbol
 
         # Handle perpetuals
@@ -476,7 +556,15 @@ class CurrencyExposureCalculator:
         currency: str,
         prices: dict[str, Decimal] | None,
     ) -> Decimal | None:
-        """Get FX rate to base currency."""
+        """Get FX rate to base currency.
+
+        Args:
+            currency: Currency to get rate for
+            prices: Optional price dictionary for rate lookup
+
+        Returns:
+            FX rate to base currency, or None if not found
+        """
         if currency == self.base_currency:
             return Decimal(1)
 
@@ -534,7 +622,15 @@ class CurrencyExposureCalculator:
         currency_exposures: dict[str, CurrencyExposure],
         total_fx_exposure: Decimal,
     ) -> PortfolioCurrencyExposure:
-        """Calculate portfolio-level FX metrics."""
+        """Calculate portfolio-level FX metrics.
+
+        Args:
+            currency_exposures: Dictionary of individual currency exposures
+            total_fx_exposure: Total FX exposure across all currencies
+
+        Returns:
+            Portfolio-level currency exposure metrics
+        """
         if not currency_exposures:
             return PortfolioCurrencyExposure(
                 base_currency=self.base_currency,

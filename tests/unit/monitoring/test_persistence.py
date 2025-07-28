@@ -22,20 +22,32 @@ from cyberdelta.monitoring.persistence import PerformanceDataPersistence
 
 @pytest.fixture
 def temp_output_dir() -> Generator[str]:
-    """Create a temporary directory for test output."""
+    """Create a temporary directory for test output.
+    
+    Yields:
+        str: Path to temporary directory for test output.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         yield tmpdir
 
 
 @pytest.fixture
 def persistence(temp_output_dir: str) -> PerformanceDataPersistence:
-    """Create a persistence instance with temporary output directory."""
+    """Create a persistence instance with temporary output directory.
+    
+    Returns:
+        PerformanceDataPersistence: Persistence instance configured with temp directory.
+    """
     return PerformanceDataPersistence(temp_output_dir)
 
 
 @pytest.fixture
 def sample_returns_data() -> dict[datetime, Decimal]:
-    """Create sample returns data for testing."""
+    """Create sample returns data for testing.
+    
+    Returns:
+        dict[datetime, Decimal]: Dictionary mapping timestamps to return values.
+    """
     return {
         datetime(2024, 1, 1, 12, 0, tzinfo=UTC): Decimal("0.01"),
         datetime(2024, 1, 1, 13, 0, tzinfo=UTC): Decimal("0.02"),
@@ -45,7 +57,11 @@ def sample_returns_data() -> dict[datetime, Decimal]:
 
 @pytest.fixture
 def sample_trades_data() -> list[dict[str, Any]]:
-    """Create sample trades data for testing."""
+    """Create sample trades data for testing.
+    
+    Returns:
+        list[dict[str, Any]]: List of trade dictionaries with sample data.
+    """
     return [
         {
             "trade_id": "T001",
@@ -66,7 +82,11 @@ def sample_trades_data() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def sample_signals_data() -> list[dict[str, Any]]:
-    """Create sample signals data for testing."""
+    """Create sample signals data for testing.
+    
+    Returns:
+        list[dict[str, Any]]: List of signal dictionaries with sample data.
+    """
     return [
         {
             "signal_id": "S001",
@@ -82,7 +102,11 @@ def sample_signals_data() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def sample_funding_rates_data() -> list[dict[str, Any]]:
-    """Create sample funding rates data for testing."""
+    """Create sample funding rates data for testing.
+    
+    Returns:
+        list[dict[str, Any]]: List of funding rate dictionaries with sample data.
+    """
     return [
         {
             "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),

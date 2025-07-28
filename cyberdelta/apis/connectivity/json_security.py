@@ -34,8 +34,7 @@ def secure_json_loads(
         Parsed JSON data
 
     Raises:
-        ValueError: If data exceeds security limits
-        json.JSONDecodeError: If JSON is invalid
+        ValueError: If data exceeds security limits or JSON is invalid
     """
     # Size validation
     data_size = len(data)

@@ -84,14 +84,22 @@ class Market(BaseModel):
     )
     @classmethod
     def validate_string_fields(cls, v: object, info: ValidationInfo) -> str:
-        """Validate string fields."""
+        """Validate string fields.
+
+        Returns:
+            Validated string value.
+        """
         field_name = info.field_name if info.field_name is not None else "unknown_field"
         return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
     @field_validator("created_at", mode="before")
     @classmethod
     def validate_created_at(cls, v: datetime | float | str | None) -> datetime | None:
-        """Validate and parse the 'created_at' field to an optional UTC datetime object."""
+        """Validate and parse the 'created_at' field to an optional UTC datetime object.
+
+        Returns:
+            Parsed datetime in UTC or None if input is None.
+        """
         if v is None:
             return None
         return parse_datetime_utc(v, field_name="created_at")
@@ -121,7 +129,7 @@ class Market(BaseModel):
             The parsed Decimal value if input is valid, None if input is None for optional fields.
 
         Raises:
-            ValueError: If input cannot be parsed to a finite Decimal.
+            DecimalFiniteError: If input cannot be parsed to a finite Decimal.
 
         """
         field_name = info.field_name if info.field_name is not None else "unknown_field"

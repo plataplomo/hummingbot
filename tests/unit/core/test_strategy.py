@@ -20,7 +20,11 @@ class ConcreteStrategy(Strategy):
     """Concrete implementation of Strategy for testing."""
 
     async def process_data(self, data: Candle) -> TradeSignal | list[TradeSignal] | None:
-        """Test implementation of process_data."""
+        """Test implementation of process_data.
+        
+        Returns:
+            None: Always returns None for testing purposes.
+        """
         # Simple test implementation that returns None
         return None
 
@@ -87,7 +91,11 @@ class TestStrategyLifecycle:
 
     @pytest.fixture
     def strategy(self) -> ConcreteStrategy:
-        """Create a strategy instance for testing."""
+        """Create a strategy instance for testing.
+        
+        Returns:
+            ConcreteStrategy: Test strategy instance.
+        """
         return ConcreteStrategy(name="TestStrategy", symbol="BTC-PERP")
 
     # ==================== SUCCESS CASES ====================
@@ -197,7 +205,11 @@ class TestStrategyParameterManagement:
 
     @pytest.fixture
     def strategy_with_params(self) -> ConcreteStrategy:
-        """Create a strategy with initial parameters."""
+        """Create a strategy with initial parameters.
+        
+        Returns:
+            ConcreteStrategy: Strategy configured with test parameters.
+        """
         params = {"threshold": 0.01, "window": 20, "enabled": True}
         return ConcreteStrategy(name="ParamStrategy", symbol="BTC-PERP", params=params)
 
@@ -294,12 +306,20 @@ class TestStrategyHistoricalData:
 
     @pytest.fixture
     def strategy(self) -> ConcreteStrategy:
-        """Create a strategy instance for testing."""
+        """Create a strategy instance for testing.
+        
+        Returns:
+            ConcreteStrategy: Test strategy instance for data tests.
+        """
         return ConcreteStrategy(name="DataStrategy", symbol="BTC-PERP")
 
     @pytest.fixture
     def sample_candle(self) -> Candle:
-        """Create a sample candle for testing."""
+        """Create a sample candle for testing.
+        
+        Returns:
+            Candle: Sample BTC-PERP candle with test data.
+        """
         return Candle(
             symbol="BTC-PERP",
             interval="1m",
@@ -455,7 +475,11 @@ class TestStrategyInfo:
 
     @pytest.fixture
     def strategy_with_data(self) -> ConcreteStrategy:
-        """Create a strategy with some data for testing."""
+        """Create a strategy with some data for testing.
+        
+        Returns:
+            ConcreteStrategy: Enabled strategy with pre-populated data.
+        """
         params = {"threshold": 0.01, "window": 20}
         strategy = ConcreteStrategy(name="InfoStrategy", symbol="BTC-PERP", params=params)
         strategy.enable()

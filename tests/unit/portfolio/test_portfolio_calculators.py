@@ -21,7 +21,11 @@ class TestPnLCalculators:
 
     @pytest.fixture
     def sample_positions(self) -> list[DerivativePosition]:
-        """Create sample positions."""
+        """Create sample positions.
+        
+        Returns:
+            list[DerivativePosition]: List of sample derivative positions for testing.
+        """
         return [
             DerivativePosition(
                 exchange="hyperliquid",
@@ -38,7 +42,11 @@ class TestPnLCalculators:
 
     @pytest.fixture
     def sample_trades(self) -> list[Trade]:
-        """Create sample trades."""
+        """Create sample trades.
+        
+        Returns:
+            list[Trade]: List of sample trades for testing.
+        """
         return [
             Trade(
                 id="trade_001",
@@ -95,7 +103,11 @@ class TestExposureCalculators:
 
     @pytest.fixture
     def sample_balances(self) -> dict[str, SpotBalance]:
-        """Create sample balances."""
+        """Create sample balances.
+        
+        Returns:
+            dict[str, SpotBalance]: Dictionary of sample spot balances for testing.
+        """
         return {
             "USDC": SpotBalance(
                 exchange="hyperliquid",

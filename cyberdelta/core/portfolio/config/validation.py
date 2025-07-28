@@ -262,7 +262,7 @@ def validate_startup_configuration(config: PortfolioConfiguration) -> None:
         config: Portfolio configuration to validate
 
     Raises:
-        ValidationError: If critical configuration errors are found
+        ConfigurationValidationError: If critical configuration errors are found
     """
     errors = ConfigurationValidator.validate_configuration(config)
 
@@ -318,7 +318,11 @@ def _update_single_section(
 def _get_section_assignment_map(
     config: PortfolioConfiguration,
 ) -> dict[str, Callable[[object], None]]:
-    """Get mapping of section names to assignment functions."""
+    """Get mapping of section names to assignment functions.
+    
+    Returns:
+        dict[str, Callable[[object], None]]: Mapping of section names to their assignment functions.
+    """
     return {
         "cache": lambda cfg: _assign_cache(config, cfg),
         "pricing": lambda cfg: _assign_pricing(config, cfg),
@@ -424,7 +428,11 @@ def _update_nested_sections(config: PortfolioConfiguration, kwargs: dict[str, ob
 
 
 def _validate_critical_errors(errors: list[str]) -> None:
-    """Validate and raise critical configuration errors."""
+    """Validate and raise critical configuration errors.
+    
+    Raises:
+        ConfigurationValidationError: If critical configuration errors are found.
+    """
     if not errors:
         return
 
@@ -448,9 +456,6 @@ def create_validated_configuration(**kwargs: object) -> PortfolioConfiguration:
 
     Returns:
         Validated PortfolioConfiguration instance
-
-    Raises:
-        ValueError: If configuration validation fails
     """
     # Create configuration with Pydantic validation
     config = PortfolioConfiguration()

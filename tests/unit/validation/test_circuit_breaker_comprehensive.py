@@ -51,14 +51,22 @@ class ConcreteCircuitBreaker(CircuitBreaker):
             self.trip("Test trip condition")
 
     def _check_recovery(self) -> bool:
-        """Check if system has recovered."""
+        """Check if system has recovered.
+        
+        Returns:
+            bool: True if system has recovered, False otherwise.
+        """
         self.recovery_called = True
         return self.recovery_success
 
 
 @pytest.fixture
 def mock_app_settings() -> Mock:
-    """Create mock app settings for testing."""
+    """Create mock app settings for testing.
+    
+    Returns:
+        Mock: Mock AppSettings instance configured for testing.
+    """
     settings = Mock(spec=AppSettings)
 
     # Mock safety systems
@@ -87,37 +95,61 @@ def mock_app_settings() -> Mock:
 
 @pytest.fixture
 def concrete_breaker() -> ConcreteCircuitBreaker:
-    """Create concrete circuit breaker for testing."""
+    """Create concrete circuit breaker for testing.
+
+    Returns:
+        ConcreteCircuitBreaker: Configured circuit breaker instance for testing.
+    """
     return ConcreteCircuitBreaker("test_breaker", cooldown_seconds=60)
 
 
 @pytest.fixture
 def volatility_breaker() -> VolatilityBreaker:
-    """Create volatility breaker for testing."""
+    """Create volatility breaker for testing.
+
+    Returns:
+        VolatilityBreaker: Configured volatility breaker instance for testing.
+    """
     return VolatilityBreaker("volatility_test", lookback_periods=5, volatility_threshold=0.1)
 
 
 @pytest.fixture
 def drawdown_breaker() -> DrawdownBreaker:
-    """Create drawdown breaker for testing."""
+    """Create drawdown breaker for testing.
+
+    Returns:
+        DrawdownBreaker: Configured drawdown breaker instance for testing.
+    """
     return DrawdownBreaker("drawdown_test", drawdown_threshold=0.2)
 
 
 @pytest.fixture
 def api_error_breaker() -> APIErrorBreaker:
-    """Create API error breaker for testing."""
+    """Create API error breaker for testing.
+
+    Returns:
+        APIErrorBreaker: Configured API error breaker instance for testing.
+    """
     return APIErrorBreaker("api_test", error_threshold=3, window_seconds=60)
 
 
 @pytest.fixture
 def liquidity_breaker() -> LiquidityBreaker:
-    """Create liquidity breaker for testing."""
+    """Create liquidity breaker for testing.
+
+    Returns:
+        LiquidityBreaker: Configured liquidity breaker instance for testing.
+    """
     return LiquidityBreaker("liquidity_test", min_liquidity=1000.0)
 
 
 @pytest.fixture
 def circuit_system(mock_app_settings: Mock) -> CircuitBreakerSystem:
-    """Create circuit breaker system for testing."""
+    """Create circuit breaker system for testing.
+
+    Returns:
+        CircuitBreakerSystem: Configured circuit breaker system for testing.
+    """
     return CircuitBreakerSystem(mock_app_settings)
 
 
@@ -136,7 +168,11 @@ class TestCircuitBreakerTrippedError:
         assert str(error) == "Test error message"
 
     def test_exception_raising_success(self) -> None:
-        """Test successful raising of CircuitBreakerTrippedError."""
+        """Test successful raising of CircuitBreakerTrippedError.
+        
+        Raises:
+            CircuitBreakerTrippedError: Expected exception for test validation.
+        """
         # Act & Assert
         with pytest.raises(CircuitBreakerTrippedError) as exc_info:
             raise CircuitBreakerTrippedError("Breaker tripped")

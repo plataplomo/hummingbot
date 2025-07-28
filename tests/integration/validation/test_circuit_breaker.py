@@ -496,7 +496,11 @@ ConfigValue = str | int | float | bool | dict[str, Any] | list[Any] | None
 
 @pytest.fixture
 def mock_config() -> AppSettings:
-    """Create a generic mock Config for circuit breaker tests."""
+    """Create a generic mock Config for circuit breaker tests.
+    
+    Returns:
+        AppSettings: Mock app settings for circuit breaker tests.
+    """
     cfg = MagicMock(spec=AppSettings)
 
     # Mock nested attributes structure
@@ -517,7 +521,11 @@ def mock_config() -> AppSettings:
 # Define a more specific config fixture for tests needing exchange structure
 @pytest.fixture
 def mock_config_with_exchanges() -> AppSettings:
-    """Mock Config object with predefined exchange configurations for CB testing."""
+    """Mock Config object with predefined exchange configurations for CB testing.
+    
+    Returns:
+        AppSettings: Mock app settings with exchange configurations for testing.
+    """
     mock = MagicMock(spec=AppSettings)
 
     # Mock safety systems structure

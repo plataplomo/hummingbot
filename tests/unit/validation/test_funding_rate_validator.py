@@ -19,19 +19,31 @@ from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
 @pytest.fixture
 def mock_config() -> AppSettings:
-    """Create a mock configuration for testing."""
+    """Create a mock configuration for testing.
+
+    Returns:
+        AppSettings: Mock configuration instance for testing.
+    """
     return Mock(spec=AppSettings)
 
 
 @pytest.fixture
 def validator(mock_config: AppSettings) -> FundingRateValidator:
-    """Create a funding rate validator instance for testing."""
+    """Create a funding rate validator instance for testing.
+
+    Returns:
+        FundingRateValidator: Configured validator instance for testing.
+    """
     return FundingRateValidator(mock_config)
 
 
 @pytest.fixture
 def sample_predictions() -> list[dict[str, Any]]:
-    """Create sample prediction data for testing."""
+    """Create sample prediction data for testing.
+
+    Returns:
+        list[dict[str, Any]]: List of sample prediction data dictionaries.
+    """
     base_time = int(time.time() * 1000)
     return [
         {
@@ -57,7 +69,11 @@ def sample_predictions() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def sample_payments() -> list[dict[str, Any]]:
-    """Create sample payment data for testing."""
+    """Create sample payment data for testing.
+
+    Returns:
+        list[dict[str, Any]]: List of sample payment data dictionaries.
+    """
     base_time = int(time.time() * 1000)
     return [
         {

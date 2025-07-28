@@ -45,7 +45,14 @@ class PerformanceMode:
 
 
 def _raise_unknown_mode_error(mode: str) -> NoReturn:
-    """Raise error for unknown performance mode."""
+    """Raise error for unknown performance mode.
+    
+    Args:
+        mode: The unknown performance mode that was provided.
+        
+    Raises:
+        TypeError: Always raised with details about the unknown mode.
+    """
     msg = f"Unknown performance mode: {mode}"
     raise TypeError(msg)
 
@@ -84,9 +91,6 @@ class WebSocketPerformanceProcessor:
 
         Returns:
             Validated envelope model
-
-        Raises:
-            ValidationError: If validation fails
         """
         validation_mode = mode or self.default_mode
         start_time = time.perf_counter()
@@ -113,7 +117,14 @@ class WebSocketPerformanceProcessor:
             return result
 
     def _validate_ultra_fast(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
-        """Ultra-fast validation using all performance optimizations."""
+        """Ultra-fast validation using all performance optimizations.
+        
+        Args:
+            message: Message in any supported format.
+            
+        Returns:
+            Validated WebSocket envelope using discriminated unions for maximum performance.
+        """
         if isinstance(message, (str, bytes)):
             # Direct JSON validation - fastest path
             return self.adapters.validate_json_ultra_fast(message)
@@ -122,7 +133,17 @@ class WebSocketPerformanceProcessor:
         return self.adapters.validate_python_ultra_fast(data_with_discriminator)
 
     def _validate_fast(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
-        """Fast validation with basic error checking."""
+        """Fast validation with basic error checking.
+        
+        Args:
+            message: Message in any supported format.
+            
+        Returns:
+            Validated WebSocket envelope with basic safety checks.
+            
+        Raises:
+            ValidationError: If JSON parsing fails or message is invalid.
+        """
         # Similar to ultra-fast but with some additional checks
         if isinstance(message, (str, bytes)):
             # Parse first to check for basic JSON validity with DoS protection
@@ -136,11 +157,28 @@ class WebSocketPerformanceProcessor:
         return validate_envelope_ultra_fast(message)
 
     def _validate_balanced(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
-        """Balanced validation with moderate safety checks."""
+        """Balanced validation with moderate safety checks.
+        
+        Args:
+            message: Message in any supported format.
+            
+        Returns:
+            Validated WebSocket envelope using streaming validation adapter.
+        """
         return self.streaming_adapter.validate_streaming_message(message)
 
     def _validate_secure(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
-        """Secure validation with comprehensive checks."""
+        """Secure validation with comprehensive checks.
+        
+        Args:
+            message: Message in any supported format.
+            
+        Returns:
+            Validated WebSocket envelope with comprehensive security validation.
+            
+        Raises:
+            ValidationError: If JSON parsing fails or message format is invalid.
+        """
         # Convert to dict format for comprehensive validation
         if isinstance(message, (str, bytes)):
             try:
@@ -273,17 +311,36 @@ performance_processor = WebSocketPerformanceProcessor()
 
 # Convenience functions for common use cases
 def validate_ultra_fast(message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
-    """Ultra-fast validation with maximum performance optimizations."""
+    """Ultra-fast validation with maximum performance optimizations.
+    
+    Args:
+        message: Message in any supported format.
+        
+    Returns:
+        Validated WebSocket envelope using ultra-fast performance mode.
+    """
     return performance_processor.validate_message(message, PerformanceMode.ULTRA_FAST)
 
 
 def validate_secure(message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
-    """Secure validation with comprehensive safety checks."""
+    """Secure validation with comprehensive safety checks.
+    
+    Args:
+        message: Message in any supported format.
+        
+    Returns:
+        Validated WebSocket envelope using secure performance mode.
+    """
     return performance_processor.validate_message(message, PerformanceMode.SECURE)
 
 
 def get_performance_summary() -> dict[str, Any]:
-    """Get summary of performance characteristics and recommendations."""
+    """Get summary of performance characteristics and recommendations.
+    
+    Returns:
+        Dictionary containing performance mode descriptions, use cases,
+        trade-offs, and recommendations for different scenarios.
+    """
     return {
         "modes": {
             PerformanceMode.ULTRA_FAST: {

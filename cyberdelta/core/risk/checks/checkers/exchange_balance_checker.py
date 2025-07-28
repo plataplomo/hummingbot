@@ -77,7 +77,11 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     @property
     def name(self) -> str:
-        """Name of the checker."""
+        """Name of the checker.
+        
+        Returns:
+            The string 'exchange_balance'
+        """
         return "exchange_balance"
 
     async def _perform_check(
@@ -181,7 +185,15 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _estimate_required_balance(self, opportunity: ArbitrageOpportunity) -> Decimal:
-        """Estimate required balance for the opportunity."""
+        """Estimate required balance for the opportunity.
+        
+        Args:
+            opportunity: The arbitrage opportunity to estimate balance for.
+            
+        Returns:
+            Decimal: Estimated required balance including safety margin, never less than 
+                minimum USD balance.
+        """
         # Try to get size from opportunity
         estimated_size = None
 
@@ -223,7 +235,16 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
         required_balance: Decimal,
         exchange_type: str,
     ) -> CheckResult:
-        """Check balance for a specific exchange."""
+        """Check balance for a specific exchange.
+        
+        Args:
+            exchange: Exchange identifier to check.
+            required_balance: Required balance amount.
+            exchange_type: Type of exchange ("long" or "short").
+            
+        Returns:
+            CheckResult: Success if balance meets minimum threshold, failure otherwise.
+        """
         try:
             balance = await self._get_exchange_balance(exchange)
 
@@ -288,7 +309,14 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
             )
 
     async def _check_emergency_balances(self, exchanges: list[str]) -> CheckResult:
-        """Check for emergency balance thresholds."""
+        """Check for emergency balance thresholds.
+        
+        Args:
+            exchanges: List of exchange identifiers to check.
+            
+        Returns:
+            CheckResult: Failure if any exchange breaches emergency threshold, success otherwise.
+        """
         for exchange in exchanges:
             try:
                 balance = await self._get_exchange_balance(exchange)
@@ -323,7 +351,14 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
         return CheckResult.success("Emergency balance check passed")
 
     async def _get_exchange_balance(self, exchange: str) -> Decimal | None:
-        """Get balance for a specific exchange."""
+        """Get balance for a specific exchange.
+        
+        Args:
+            exchange: Exchange identifier.
+            
+        Returns:
+            Decimal | None: USD balance on the exchange, or None if unavailable.
+        """
         try:
             # According to the protocol, get_exchange_balance returns Decimal
             return self.portfolio_tracker.get_exchange_balance(exchange, "USD")
@@ -332,7 +367,11 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
             return None
 
     async def _get_total_capital(self) -> Decimal | None:
-        """Get total capital across all exchanges."""
+        """Get total capital across all exchanges.
+        
+        Returns:
+            Decimal | None: Total capital amount, or None if unavailable.
+        """
         try:
             total_capital = self.portfolio_tracker.get_total_capital()
             return Decimal(str(total_capital))
@@ -345,6 +384,9 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             min_ratio: Minimum balance ratio (0-1)
+            
+        Raises:
+            ExchangeBalanceError: If min_ratio is not between 0 and 1.
         """
         if min_ratio < 0 or min_ratio > 1:
             msg = "min_ratio must be between 0 and 1"
@@ -363,6 +405,9 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             margin: Safety margin (0-1)
+            
+        Raises:
+            ExchangeBalanceError: If margin is not between 0 and 1.
         """
         if margin < 0 or margin > 1:
             msg = "margin must be between 0 and 1"
@@ -381,6 +426,9 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             min_balance: Minimum balance in USD
+            
+        Raises:
+            ExchangeBalanceError: If min_balance is negative.
         """
         if min_balance < 0:
             msg = "min_balance must be non-negative"
@@ -399,6 +447,9 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             threshold: Emergency threshold as ratio of total capital
+            
+        Raises:
+            ExchangeBalanceError: If threshold is not between 0 and 1.
         """
         if threshold < 0 or threshold > 1:
             msg = "threshold must be between 0 and 1"
@@ -431,13 +482,25 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
         self.logger.info("Emergency checks", enable=enable)
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+        
+        Returns:
+            CheckResult: Skip result with appropriate message.
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+        
+        Args:
+            error: The exception that occurred.
+            execution_time: Time taken for the check in milliseconds.
+            
+        Returns:
+            CheckResult: Error result with exception details.
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

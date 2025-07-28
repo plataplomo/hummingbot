@@ -77,7 +77,11 @@ async def setup_websocket_connection(api: BackpackAPI) -> None:
 
 
 async def get_test_symbol(api: BackpackAPI) -> tuple[str, str]:
-    """Get test symbol following security rules."""
+    """Get test symbol following security rules.
+    
+    Returns:
+        Tuple of (rest_symbol, ws_symbol) where ws_symbol has underscores instead of slashes.
+    """
     try:
         # Use shared helper - TESTING_SECURITY_RULES.md mandatory practice #1
         symbol = await get_major_crypto_symbol(api, "SOL", "spot")
@@ -89,7 +93,11 @@ async def get_test_symbol(api: BackpackAPI) -> tuple[str, str]:
 
 
 async def fetch_rest_snapshot(api: BackpackAPI, symbol: str) -> OrderBook:
-    """Fetch REST orderbook snapshot following security rules."""
+    """Fetch REST orderbook snapshot following security rules.
+    
+    Returns:
+        OrderBook snapshot from REST API with validated bids and asks.
+    """
     try:
         rest_orderbook = await api.get_order_book(symbol=symbol)
 
@@ -112,7 +120,11 @@ def create_update_handler(
     collector: OrderBookCollector,
     transformer: BackpackDepthStateTransformer,
 ) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
-    """Create WebSocket update handler that uses the stateful transformer."""
+    """Create WebSocket update handler that uses the stateful transformer.
+    
+    Returns:
+        Async handler function that processes WebSocket contexts through the transformer pipeline.
+    """
 
     async def handler(context: WebSocketContextProtocol) -> None:
         """Handle depth updates through the full pipeline."""

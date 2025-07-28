@@ -27,7 +27,12 @@ class TestPositionReconciliationSystem:
 
     @pytest.fixture
     def config(self, mocker: MockerFixture) -> MagicMock:
-        """Create a mock config object that mimics the Pydantic AppSettings structure."""
+        """Create a mock config object that mimics the Pydantic AppSettings structure.
+
+        Returns:
+            MagicMock: A mock configuration object with required settings for
+                position reconciliation.
+        """
         # Create a mock for the position reconciliation settings
         mock_pos_recon_config = MagicMock()
         mock_pos_recon_config.enabled = True
@@ -52,7 +57,12 @@ class TestPositionReconciliationSystem:
         return mock_config
 
     def _create_test_positions(self) -> dict[str, list[DerivativePosition]]:
-        """Create test positions for hyperliquid and backpack."""
+        """Create test positions for hyperliquid and backpack.
+
+        Returns:
+            dict[str, list[DerivativePosition]]: Dictionary mapping exchange names to
+                lists of test positions.
+        """
         now = datetime.now(UTC)
         return {
             "hyperliquid": [
@@ -95,7 +105,12 @@ class TestPositionReconciliationSystem:
         }
 
     def _create_api_positions(self) -> dict[str, list[DerivativePosition]]:
-        """Create API positions with discrepancies for testing."""
+        """Create API positions with discrepancies for testing.
+
+        Returns:
+            dict[str, list[DerivativePosition]]: Dictionary mapping exchange names to
+                lists of API positions with intentional discrepancies.
+        """
         now = datetime.now(UTC)
         return {
             "hyperliquid": [
@@ -158,7 +173,11 @@ class TestPositionReconciliationSystem:
 
     @pytest.fixture
     def portfolio_tracker(self) -> MagicMock:
-        """Create a mock portfolio tracker for testing."""
+        """Create a mock portfolio tracker for testing.
+
+        Returns:
+            MagicMock: A configured mock portfolio tracker with test positions and API clients.
+        """
         tracker = MagicMock()
 
         # Create test positions
@@ -268,7 +287,11 @@ class TestPositionReconciliationSystem:
         config: MagicMock,
         portfolio_tracker: MagicMock,
     ) -> PositionReconciliationSystem:
-        """Create a PositionReconciliationSystem instance for testing."""
+        """Create a PositionReconciliationSystem instance for testing.
+
+        Returns:
+            PositionReconciliationSystem: A configured position reconciliation system for testing.
+        """
         # Note: API clients have moved to PortfolioOrchestrator
         return PositionReconciliationSystem(config, portfolio_tracker)
 

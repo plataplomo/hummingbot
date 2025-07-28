@@ -47,7 +47,11 @@ class ReconciliationDiscrepancyMetadata(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> ReconciliationDiscrepancyMetadata | None:
-        """Create metadata from dict, extracting known fields."""
+        """Create metadata from dict, extracting known fields.
+        
+        Returns:
+            ReconciliationDiscrepancyMetadata instance or None if data is empty.
+        """
         if not data:
             return None
 
@@ -124,7 +128,14 @@ class ReconciliationServiceConfiguration(ServiceConfiguration):
     )
     @classmethod
     def validate_decimal_fields(cls, v: Decimal | str | float) -> Decimal:
-        """Validate Decimal fields are positive and finite."""
+        """Validate Decimal fields are positive and finite.
+        
+        Returns:
+            Validated Decimal value.
+            
+        Raises:
+            ReconciliationValueError: If value is not positive or finite.
+        """
         decimal_v = Decimal(str(v)) if isinstance(v, (str, float, int)) else v
         # decimal_v is now guaranteed to be Decimal
 
@@ -154,7 +165,11 @@ class ReconciliationDiscrepancy:
     def validate_metadata(
         cls, v: dict[str, Any] | ReconciliationDiscrepancyMetadata | None
     ) -> ReconciliationDiscrepancyMetadata | None:
-        """Convert dict to ReconciliationDiscrepancyMetadata if needed."""
+        """Convert dict to ReconciliationDiscrepancyMetadata if needed.
+        
+        Returns:
+            ReconciliationDiscrepancyMetadata instance or None.
+        """
         if v is None:
             return None
         if isinstance(v, dict):
@@ -165,7 +180,14 @@ class ReconciliationDiscrepancy:
     @field_validator("type", mode="before")
     @classmethod
     def validate_type(cls, v: str) -> str:
-        """Validate discrepancy type."""
+        """Validate discrepancy type.
+        
+        Returns:
+            Validated discrepancy type string.
+            
+        Raises:
+            ReconciliationDiscrepancyTypeError: If type is not valid.
+        """
         valid_types = {"balance", "position", "order", "trade"}
         if v not in valid_types:
             raise ReconciliationDiscrepancyTypeError(invalid_type=v, valid_types=list(valid_types))
@@ -174,7 +196,14 @@ class ReconciliationDiscrepancy:
     @field_validator("severity", mode="before")
     @classmethod
     def validate_severity(cls, v: str) -> str:
-        """Validate severity level."""
+        """Validate severity level.
+        
+        Returns:
+            Validated severity level string.
+            
+        Raises:
+            ReconciliationSeverityError: If severity level is not valid.
+        """
         valid_severities = {"error", "warning", "info"}
         if v not in valid_severities:
             raise ReconciliationSeverityError(
@@ -282,6 +311,9 @@ class PortfolioReconciliationService(BasePortfolioService):
 
         Returns:
             ReconciliationResult with findings
+            
+        Raises:
+            RuntimeError: If service is not running.
         """
         if not self.is_running:
             raise RuntimeError
@@ -823,7 +855,11 @@ class PortfolioReconciliationService(BasePortfolioService):
     def _check_cross_exchange_positions(
         self, positions: dict[str, dict[str, DerivativePosition]]
     ) -> list[ReconciliationDiscrepancy]:
-        """Check position consistency across exchanges."""
+        """Check position consistency across exchanges.
+        
+        Returns:
+            List of cross-exchange position discrepancies.
+        """
         discrepancies: list[ReconciliationDiscrepancy] = []
 
         # Build symbol to exchanges mapping
@@ -842,7 +878,11 @@ class PortfolioReconciliationService(BasePortfolioService):
     def _build_symbol_exchange_map(
         self, positions: dict[str, dict[str, DerivativePosition]]
     ) -> dict[str, list[str]]:
-        """Build mapping of symbols to exchanges."""
+        """Build mapping of symbols to exchanges.
+        
+        Returns:
+            Dictionary mapping symbol names to lists of exchange IDs.
+        """
         symbol_exchanges: dict[str, list[str]] = {}
         for exchange_id, exchange_positions in positions.items():
             for symbol in exchange_positions:
@@ -854,7 +894,11 @@ class PortfolioReconciliationService(BasePortfolioService):
     def _create_multi_exchange_position_discrepancy(
         self, symbol: str, exchanges: list[str], positions: dict[str, dict[str, DerivativePosition]]
     ) -> ReconciliationDiscrepancy:
-        """Create discrepancy for positions on multiple exchanges."""
+        """Create discrepancy for positions on multiple exchanges.
+        
+        Returns:
+            ReconciliationDiscrepancy indicating multi-exchange position.
+        """
         position_sizes = {}
         for exchange_id in exchanges:
             position = positions[exchange_id][symbol]
@@ -874,7 +918,11 @@ class PortfolioReconciliationService(BasePortfolioService):
     def _check_cross_exchange_balances(
         self, balances: dict[str, dict[str, SpotBalance]]
     ) -> list[ReconciliationDiscrepancy]:
-        """Check balance distribution across exchanges."""
+        """Check balance distribution across exchanges.
+        
+        Returns:
+            List of cross-exchange balance discrepancies.
+        """
         discrepancies: list[ReconciliationDiscrepancy] = []
 
         # Build currency to exchanges mapping
@@ -893,7 +941,11 @@ class PortfolioReconciliationService(BasePortfolioService):
     def _build_currency_exchange_map(
         self, balances: dict[str, dict[str, SpotBalance]]
     ) -> dict[str, list[str]]:
-        """Build mapping of currencies to exchanges."""
+        """Build mapping of currencies to exchanges.
+        
+        Returns:
+            Dictionary mapping currency codes to lists of exchange IDs.
+        """
         currency_exchanges: dict[str, list[str]] = {}
         for exchange_id, exchange_balances in balances.items():
             for currency in exchange_balances:
@@ -905,7 +957,11 @@ class PortfolioReconciliationService(BasePortfolioService):
     def _check_currency_distribution(
         self, currency: str, exchanges: list[str], balances: dict[str, dict[str, SpotBalance]]
     ) -> list[ReconciliationDiscrepancy]:
-        """Check if currency is well distributed across exchanges."""
+        """Check if currency is well distributed across exchanges.
+        
+        Returns:
+            List of currency distribution discrepancies.
+        """
         discrepancies: list[ReconciliationDiscrepancy] = []
 
         # Calculate balance distribution

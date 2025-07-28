@@ -23,20 +23,32 @@ from cyberdelta.monitoring.performance_tracker import PerformanceTracker
 
 @pytest.fixture
 def temp_output_dir() -> Generator[str]:
-    """Create a temporary directory for test output."""
+    """Create a temporary directory for test output.
+    
+    Yields:
+        str: Path to temporary directory for test output.
+    """
     with tempfile.TemporaryDirectory() as tmpdir:
         yield tmpdir
 
 
 @pytest.fixture
 def performance_tracker(temp_output_dir: str) -> PerformanceTracker:
-    """Create a performance tracker instance with temporary output directory."""
+    """Create a performance tracker instance with temporary output directory.
+    
+    Returns:
+        PerformanceTracker: Configured performance tracker instance for testing.
+    """
     return PerformanceTracker(output_dir=temp_output_dir)
 
 
 @pytest.fixture
 def sample_trade() -> dict[str, Any]:
-    """Create sample trade data for testing."""
+    """Create sample trade data for testing.
+    
+    Returns:
+        dict[str, Any]: Sample trade data with all required fields for testing.
+    """
     return {
         "trade_id": "TEST001",
         "strategy_name": "test_strategy",
@@ -55,7 +67,11 @@ def sample_trade() -> dict[str, Any]:
 
 @pytest.fixture
 def sample_signal() -> dict[str, Any]:
-    """Create sample signal data for testing."""
+    """Create sample signal data for testing.
+    
+    Returns:
+        dict[str, Any]: Sample signal data with all required fields for testing.
+    """
     return {
         "signal_id": "SIG001",
         "strategy_name": "test_strategy",

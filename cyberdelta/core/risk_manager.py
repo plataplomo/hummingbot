@@ -112,7 +112,14 @@ class SizedOpportunity:
         )
 
     def __eq__(self, other: object) -> bool:
-        """Check equality with another SizedOpportunity."""
+        """Check equality with another SizedOpportunity.
+        
+        Args:
+            other: Object to compare with
+            
+        Returns:
+            True if objects are equal, False otherwise
+        """
         if not isinstance(other, SizedOpportunity):
             return NotImplemented
         return (
@@ -126,7 +133,11 @@ class SizedOpportunity:
         )
 
     def __hash__(self) -> int:
-        """Return hash value for the sized opportunity."""
+        """Return hash value for the sized opportunity.
+        
+        Returns:
+            Hash value for this sized opportunity
+        """
         return hash(
             (
                 self.opportunity,  # Relies on ArbitrageOpportunity
@@ -225,7 +236,8 @@ class RiskManager:
                 Must implement get_symbol_metrics(exchange: str, symbol: str).
 
         Raises:
-            ConfigError: If any required config value is missing or invalid.
+            RiskConfigError: If any required config value is missing or invalid during 
+                initialization.
 
         """
         self.app_settings: AppSettings = app_settings  # Assign config first
@@ -301,7 +313,7 @@ class RiskManager:
         """Load and validate all configuration values, storing them as attributes.
 
         Raises:
-            ConfigError: If any required value is missing or invalid.
+            RiskConfigError: If any required config value is missing or invalid during loading.
         """
         try:
             # General Risk Parameters - access through AppSettings structure
@@ -370,6 +382,13 @@ class RiskManager:
         """Calculate position size using Kelly Criterion.
 
         Assumes expected return and volatility are provided or can be derived.
+        
+        Args:
+            opportunity: Arbitrage opportunity to size
+            total_capital: Total available capital for allocation
+            
+        Returns:
+            Optimal position size based on Kelly Criterion
         """
         # Expected return (Net Funding Differential as a decimal)
         expected_return = opportunity.net_funding_differential
@@ -549,6 +568,12 @@ class RiskManager:
         """Check that all required fields are present and valid in the opportunity.
 
         Pydantic validation handles type constraints, but we need to check business logic.
+        
+        Args:
+            opportunity: Arbitrage opportunity to validate
+            
+        Returns:
+            True if all required fields are valid, False otherwise
         """
         # Check that symbol is not empty
         if not opportunity.symbol or not opportunity.symbol.strip():
@@ -584,11 +609,21 @@ class RiskManager:
         return True
 
     def _check_profitability(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check if the opportunity is profitable."""
+        """Check if the opportunity is profitable.
+        
+        Returns:
+            bool: True if the opportunity meets the minimum net funding differential,
+                False otherwise.
+        """
         return self.is_opportunity_profitable(opportunity)
 
     def _check_circuit_breaker(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check circuit breaker status for both exchanges."""
+        """Check circuit breaker status for both exchanges.
+        
+        Returns:
+            bool: True if both exchanges pass circuit breaker checks, False if either
+                exchange has a tripped circuit breaker.
+        """
         if not self.circuit_breaker_system:
             return True
         can_long, long_reason = self.circuit_breaker_system.can_execute(opportunity.long_exchange)
@@ -624,7 +659,12 @@ class RiskManager:
         return True
 
     def _check_price_sanity(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that long and short prices are positive and valid."""
+        """Check that long and short prices are positive and valid.
+        
+        Returns:
+            bool: True if both long and short prices are positive Decimals,
+                False if either price is invalid or non-positive.
+        """
         try:
             # Remove redundant None checks - Pydantic guarantees Decimal
             long_price = Decimal(str(opportunity.long_price))
@@ -664,7 +704,12 @@ class RiskManager:
         return True
 
     def _check_exchange_balances(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that both exchanges have sufficient available balance."""
+        """Check that both exchanges have sufficient available balance.
+        
+        Returns:
+            bool: True if both exchanges have sufficient balance for the opportunity,
+                False if either exchange has insufficient balance.
+        """
         # Default to USD for collateral asset since it's not in current config structure
         long_collateral_asset = "USD"
         short_collateral_asset = "USD"
@@ -751,7 +796,11 @@ class RiskManager:
         return long_exchange_ok and short_exchange_ok
 
     async def _check_leverage(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that portfolio leverage is within allowed limits."""
+        """Check that portfolio leverage is within allowed limits.
+        
+        Returns:
+            bool: True if leverage is within limits, False otherwise.
+        """
         total_capital = await self.portfolio_tracker.get_total_capital()
 
         if total_capital <= ZERO:
@@ -797,6 +846,13 @@ class RiskManager:
         self,
         proposed_size: Decimal,
     ) -> tuple[bool, str | None]:
+        """Check if proposed size exceeds max position size.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if constraint passed, False if exceeded
+                - Error message if constraint failed, None otherwise
+        """
         if proposed_size > self.max_position_size:
             return (
                 False,
@@ -812,6 +868,13 @@ class RiskManager:
         proposed_size: Decimal,
         total_capital: Decimal,
     ) -> tuple[bool, str | None]:
+        """Check if proposed size exceeds max relative position size.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if constraint passed, False if exceeded
+                - Error message if constraint failed, None otherwise
+        """
         max_relative_size = total_capital * self.max_single_position_exposure_ratio
         if proposed_size > max_relative_size:
             return (
@@ -827,6 +890,13 @@ class RiskManager:
         self,
         proposed_size: Decimal,
     ) -> tuple[bool, str | None]:
+        """Check if proposed size would exceed max total exposure.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if constraint passed, False if exceeded
+                - Error message if constraint failed, None otherwise
+        """
         # Use the direct method from portfolio tracker for current exposure
         current_exposure = await self.portfolio_tracker.get_total_exposure_usd()
         if (current_exposure + proposed_size) > self.max_total_exposure_usd:
@@ -844,6 +914,13 @@ class RiskManager:
         proposed_size: Decimal,
         total_capital: Decimal,
     ) -> tuple[bool, str | None]:
+        """Check if proposed size would exceed max leverage.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if constraint passed, False if exceeded
+                - Error message if constraint failed, None otherwise
+        """
         if total_capital > ZERO:
             # Corrected: Use await for calculate_total_exposure
             current_total_exposure = await self.calculate_total_exposure()
@@ -863,6 +940,13 @@ class RiskManager:
         opportunity: ArbitrageOpportunity,
         proposed_size: Decimal,
     ) -> tuple[bool, str | None]:
+        """Check if exchanges have sufficient balance for proposed size.
+        
+        Returns:
+            tuple[bool, str | None]: A tuple containing:
+                - True if both exchanges have sufficient balance, False otherwise
+                - Error message if insufficient balance, None otherwise
+        """
         long_ex = opportunity.long_exchange
         short_ex = opportunity.short_exchange
         # Use get_collateral_asset_for_exchange to find the correct asset
@@ -1140,7 +1224,9 @@ class RiskManager:
     def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal | None:
         """Retrieve validation metrics for funding rate predictions.
 
-        Returns a factor in [0, 1] if valid, or None if validation cannot be performed.
+        Returns:
+            Decimal | None: A validation factor in [0, 1] if valid metrics are available,
+                None if validation cannot be performed or validator is not configured.
         """
         if self.funding_rate_validator is None:
             self.logger.debug(
@@ -1441,7 +1527,11 @@ class RiskManager:
         return final_sized_opportunity
 
     async def _validate_opportunity_pipeline(self, opportunity: ArbitrageOpportunity) -> None:
-        """Run a series of checks on the opportunity. Raises ValidationError if any check fails."""
+        """Run a series of checks on the opportunity.
+        
+        Raises:
+            RiskCheckError: If any validation check fails (exchange balances or circuit breaker).
+        """
         self.logger.debug(
             "validating_opportunity_pipeline",
             symbol=opportunity.symbol,
@@ -1490,7 +1580,11 @@ class RiskManager:
         )
 
     async def size_opportunity(self, opportunity: ArbitrageOpportunity) -> SizedOpportunity | None:
-        """Calculate the optimal size for an arbitrage opportunity, considering risk limits."""
+        """Calculate the optimal size for an arbitrage opportunity, considering risk limits.
+        
+        Returns:
+            SizedOpportunity | None: The sized opportunity if all risk checks pass, None otherwise.
+        """
         self.logger.info(
             "risk_manager_sizing_start",
             symbol=opportunity.symbol,
@@ -1543,7 +1637,12 @@ class RiskManager:
         self,
         opportunity: ArbitrageOpportunity,
     ) -> tuple[Decimal, Decimal] | None:
-        """Validate opportunity and get validation factors."""
+        """Validate opportunity and get validation factors.
+        
+        Returns:
+            tuple[Decimal, Decimal] | None: Tuple of (long_validation_factor, 
+                short_validation_factor) or None if validation fails.
+        """
         try:
             # Perform initial validation steps (circuit breaker, balances, etc.)
             await self._validate_opportunity_pipeline(opportunity)
@@ -1624,7 +1723,11 @@ class RiskManager:
         long_validation_factor: Decimal,
         short_validation_factor: Decimal,
     ) -> SizedOpportunity | None:
-        """Calculate sized opportunity based on configured method."""
+        """Calculate sized opportunity based on configured method.
+        
+        Returns:
+            SizedOpportunity | None: The calculated sized opportunity or None if sizing fails.
+        """
         # Choose sizing method based on use_simple_sizing_path flag
         if self.use_simple_sizing_path:
             return await self._calculate_simple_size(
@@ -1648,7 +1751,11 @@ class RiskManager:
         long_validation_factor: Decimal,
         short_validation_factor: Decimal,
     ) -> SizedOpportunity | None:
-        """Calculate sized opportunity using Kelly criterion."""
+        """Calculate sized opportunity using Kelly criterion.
+        
+        Returns:
+            SizedOpportunity | None: The Kelly-sized opportunity or None if calculation fails.
+        """
         # Calculate Kelly size
         calculated_size_usd = self._calculate_kelly_size(opportunity, total_capital)
         if calculated_size_usd <= self.min_trade_size_usd:
@@ -1701,7 +1808,12 @@ class RiskManager:
         validation_factor: Decimal,
         symbol: str,
     ) -> Decimal | None:
-        """Apply validation factor to calculated size."""
+        """Apply validation factor to calculated size.
+        
+        Returns:
+            Decimal | None: The adjusted size after applying validation factor, or None if 
+                adjustment fails.
+        """
         if validation_factor < ONE:  # Apply reduction only if factor < 1
             self.logger.info(
                 "applying_validation_factor_kelly_path",
@@ -1737,7 +1849,12 @@ class RiskManager:
         final_size: Decimal,
         total_capital: Decimal,
     ) -> SizedOpportunity:
-        """Construct SizedOpportunity from calculated size."""
+        """Construct SizedOpportunity from calculated size.
+        
+        Returns:
+            SizedOpportunity: A new SizedOpportunity object with the calculated position sizes,
+                allocation percentage, and expected profit based on the final size.
+        """
         allocation_percentage = (final_size / total_capital) if total_capital > ZERO else ZERO
         # Re-calculate expected profit based on the final size
         expected_return_pct = opportunity.net_funding_differential
@@ -1760,7 +1877,12 @@ class RiskManager:
         opportunity: ArbitrageOpportunity,
         final_sized_opportunity: SizedOpportunity | None,
     ) -> SizedOpportunity | None:
-        """Log the final result and return it."""
+        """Log the final result and return it.
+        
+        Returns:
+            SizedOpportunity | None: The sized opportunity if successfully sized,
+                None if rejected by portfolio controls.
+        """
         logger.debug(
             "rm_size_opp_debug_after_controls",
             final_sized_opportunity=final_sized_opportunity,
@@ -1795,7 +1917,12 @@ class RiskManager:
         self,
         opportunities: list[ArbitrageOpportunity],
     ) -> list[SizedOpportunity]:
-        """Validate and size a list of opportunities."""
+        """Validate and size a list of opportunities.
+        
+        Returns:
+            list[SizedOpportunity]: List of successfully validated and sized opportunities.
+                Opportunities that fail validation or sizing are excluded.
+        """
         if not opportunities:
             return []
         self.logger.info(
@@ -1862,7 +1989,12 @@ class RiskManager:
         return validated_opportunities
 
     def _get_max_position_size_for_opportunity(self, opportunity: ArbitrageOpportunity) -> Decimal:
-        """Get max position size, potentially overridden by symbol-specific config."""
+        """Get max position size, potentially overridden by symbol-specific config.
+        
+        Returns:
+            Decimal: The maximum position size allowed for this opportunity.
+                Currently returns the global max position size.
+        """
         # Example: Check for symbol-specific override
         # if symbol_max_size is not None:
         # For now, always use global max position size
@@ -1876,7 +2008,12 @@ class RiskManager:
         return max_size
 
     async def check_drawdown(self) -> bool:
-        """Check if the current portfolio drawdown exceeds the limit."""
+        """Check if the current portfolio drawdown exceeds the limit.
+        
+        Returns:
+            bool: True if drawdown is within limits, False if drawdown exceeds limit
+                or drawdown information is unavailable.
+        """
         current_drawdown = await self.portfolio_tracker.get_current_drawdown()
         if current_drawdown is None:
             self.logger.warning(
@@ -1941,7 +2078,12 @@ class RiskManager:
         return total_exposure if found_position else ZERO  # Return 0 if no position found
 
     async def calculate_total_exposure(self) -> Decimal:
-        """Calculate the total USD exposure across all positions."""
+        """Calculate the total USD exposure across all positions.
+        
+        Returns:
+            Decimal: The sum of absolute USD values of all positions across all exchanges.
+                Returns ZERO if no positions exist.
+        """
         total_exposure = ZERO
         all_positions = self.portfolio_tracker.get_all_positions()
         if all_positions:  # Check if the list is not empty
@@ -1976,7 +2118,12 @@ class RiskManager:
         price: Decimal,
         leverage: Decimal,
     ) -> Decimal:
-        """Calculate the required margin for a position."""
+        """Calculate the required margin for a position.
+        
+        Returns:
+            Decimal: The required margin amount. If leverage is <= 0, returns full notional value.
+                Otherwise returns (size * price) / leverage.
+        """
         if leverage <= ZERO:
             return size * price  # 1x leverage requires full notional value
         return (size * price) / leverage
@@ -2043,7 +2190,12 @@ class RiskManager:
             return None
 
     def is_opportunity_profitable(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check if the opportunity meets the minimum net funding differential."""
+        """Check if the opportunity meets the minimum net funding differential.
+        
+        Returns:
+            bool: True if the opportunity's net funding differential is >= the minimum
+                required for sizing, False otherwise.
+        """
         # Pydantic model 'ArbitrageOpportunity' ensures net_funding_differential is Decimal.
         # Direct comparison is safe.
         nfd = opportunity.net_funding_differential
@@ -2068,7 +2220,11 @@ class RiskManager:
         return is_profitable
 
     def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:
-        """Adjust order size based on liquidity, order book depth, etc."""
+        """Adjust order size based on liquidity, order book depth, etc.
+        
+        Returns:
+            Decimal: The adjusted order size. Currently returns the requested size unchanged.
+        """
         # TODO: Implement logic based on order book, recent volume, etc.
         return requested_size  # No adjustment for now
 
@@ -2169,7 +2325,12 @@ class RiskManager:
         opportunity: ArbitrageOpportunity,
         proposed_size_usd: Decimal | None,
     ) -> bool:
-        """Check that the proposed trade does not exceed max portfolio exposure."""
+        """Check that the proposed trade does not exceed max portfolio exposure.
+        
+        Returns:
+            bool: True if the trade is within max exposure limits, False if it would
+                exceed limits or if total capital is zero/negative.
+        """
         if proposed_size_usd is None or proposed_size_usd <= ZERO:
             logger.debug("Proposed size is zero or None, skipping max exposure check.")
             return True
@@ -2223,7 +2384,12 @@ class RiskManager:
         return "USD"
 
     async def _check_exchange_balances_with_logs(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that both exchanges have sufficient available balance."""
+        """Check that both exchanges have sufficient available balance.
+        
+        Returns:
+            bool: True if both exchanges have sufficient balance above minimum requirements,
+                False if either exchange has insufficient balance or if an error occurs.
+        """
         # Default to USD for collateral asset since it's not in current config structure
         long_collateral_asset = "USD"
         short_collateral_asset = "USD"
@@ -2321,6 +2487,10 @@ class RiskManager:
         """Apply various risk constraints to the proposed trade size.
 
         This is a placeholder for where the actual method might be.
+        
+        Returns:
+            Decimal | None: The validated and possibly capped size if all constraints pass,
+                None if the size is rejected due to being below minimum or zero/negative.
         """
         # Placeholder: Actual start of the method might differ
 

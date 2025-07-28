@@ -24,7 +24,11 @@ class PortfolioIntegrityError(PortfolioError):
     """Base exception for portfolio data integrity and consistency errors."""
 
     def _get_default_error_code(self) -> str:
-        """Get default error code for validation exceptions."""
+        """Get default error code for validation exceptions.
+        
+        Returns:
+            str: Default error code in format 'VALID_<CLASSNAME>'
+        """
         return f"VALID_{self.__class__.__name__.upper()}"
 
 

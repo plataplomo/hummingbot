@@ -75,7 +75,21 @@ class TimeMockingAnalyzer(ast.NodeVisitor):
 
 
 def analyze_file(file_path: Path) -> dict[str, Any]:
-    """Analyze a single file for time mocking patterns."""
+    """Analyze a single file for time mocking patterns.
+
+    Returns:
+        Dictionary containing analysis results with keys:
+        - patterns: Dict of pattern types to sets of locations where found
+        - imports: Set of imported modules
+        - has_frozen_time: Whether file uses frozen_time fixture
+        - has_mock_time_patch: Whether file uses mock_time_patch fixture
+        - has_datetime_now: Whether file contains datetime.now() calls
+        - has_time_time: Whether file contains time.time() calls
+        - has_sleep: Whether file contains sleep calls
+        - has_timing_marker: Whether file has timing pytest markers
+        - needs_migration: Whether file needs migration to new time fixtures
+        - error: Error message if parsing failed (only present on error)
+    """
     try:
         content = file_path.read_text()
         tree = ast.parse(content, filename=str(file_path))

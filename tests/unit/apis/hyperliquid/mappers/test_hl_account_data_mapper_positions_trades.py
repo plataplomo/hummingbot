@@ -52,19 +52,31 @@ TransactionMapper = HyperliquidTransactionMapper
 
 @pytest.fixture
 def position_mapper() -> HyperliquidPositionMapper:
-    """Provide an instance of HyperliquidPositionMapper."""
+    """Provide an instance of HyperliquidPositionMapper.
+    
+    Returns:
+        HyperliquidPositionMapper: Instance of the position mapper for testing.
+    """
     return HyperliquidPositionMapper()
 
 
 @pytest.fixture
 def transaction_mapper() -> HyperliquidTransactionMapper:
-    """Provide an instance of HyperliquidTransactionMapper."""
+    """Provide an instance of HyperliquidTransactionMapper.
+    
+    Returns:
+        HyperliquidTransactionMapper: Instance of the transaction mapper for testing.
+    """
     return HyperliquidTransactionMapper()
 
 
 @pytest.fixture
 def raw_user_state_with_positions() -> HyperliquidRawClearinghouseState:
-    """Fixture for raw user state with ETH and BTC derivative positions."""
+    """Fixture for raw user state with ETH and BTC derivative positions.
+    
+    Returns:
+        HyperliquidRawClearinghouseState: Raw clearinghouse state with sample positions.
+    """
     eth_position_asset = HyperliquidRawAssetPosition(
         asset="ETH-PERP",
         position=HyperliquidRawPositionInfo(

@@ -327,6 +327,9 @@ class BackpackAccountSummaryService:
 
         Returns:
             MarginAccountSummary or None if collateral endpoint unavailable
+
+        Raises:
+            APIError: If data transformation fails or other API errors occur
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "_get_enhanced_account_info"
@@ -427,6 +430,9 @@ class BackpackAccountSummaryService:
 
         Returns:
             Basic MarginAccountSummary
+
+        Raises:
+            APIError: If API request fails, data transformation fails, or validation fails
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "_get_basic_account_info"
@@ -591,9 +597,6 @@ class BackpackAccountSummaryService:
 
         Returns:
             Validated collateral response
-
-        Raises:
-            APIError: If endpoint call fails or validation fails
         """
         try:
             # Build query parameters

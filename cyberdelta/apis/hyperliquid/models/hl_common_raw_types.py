@@ -58,7 +58,11 @@ def _wrap_validate_general_str(
     max_length: int | None = None,
     allow_empty: bool = False,
 ) -> str:
-    """General purpose wrapper for validating string fields."""
+    """General purpose wrapper for validating string fields.
+    
+    Returns:
+        The validated string value after processing through the handler.
+    """
     field_name = info.field_name or field_name_default
     s = validate_str_field(
         v,
@@ -74,7 +78,14 @@ def _wrap_validate_finite_decimal_str(
     handler: Callable[[object], str],
     info: ValidationInfo,
 ) -> str:
-    """Wrapper for validating strings that must represent finite decimal numbers."""
+    """Wrapper for validating strings that must represent finite decimal numbers.
+    
+    Returns:
+        The normalized finite decimal string value after validation.
+        
+    Raises:
+        DecimalFieldError: If the string cannot be parsed as a finite decimal.
+    """
     field_name = info.field_name or "finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
@@ -109,6 +120,13 @@ def _wrap_validate_lax_eth_address_str(
     NOTE: Relaxed validation based on test data mandate. Does NOT enforce hex or exact length 42.
     Used for addresses received from API responses.
     Now includes a min_length check to catch overly short invalid addresses.
+    
+    Returns:
+        The validated Ethereum address string.
+        
+    Raises:
+        RangeFieldError: If the address is too short (< 8 characters).
+        InvalidFormatError: If the address doesn't start with '0x'.
     """
     field_name = info.field_name or "eth_address_field"
 
@@ -147,6 +165,13 @@ def _wrap_validate_strict_eth_address_str(
 
     Must be 0x-prefixed, exactly 42 characters, and valid hexadecimal.
     Used for addresses provided as user input (e.g., in request payloads).
+    
+    Returns:
+        The validated strict Ethereum address string.
+        
+    Raises:
+        InvalidFormatError: If the address format is invalid or contains non-hex characters.
+        RangeFieldError: If the address is not exactly 42 characters long.
     """
     field_name = info.field_name or "strict_eth_address_field"
     s = validate_str_field(
@@ -187,7 +212,15 @@ def _wrap_validate_tx_hash_str(
     handler: Callable[[object], str],
     info: ValidationInfo,
 ) -> str:
-    """Wrapper for validating transaction hash strings (0x-prefixed, 66 chars, hex)."""
+    """Wrapper for validating transaction hash strings (0x-prefixed, 66 chars, hex).
+    
+    Returns:
+        The validated transaction hash string.
+        
+    Raises:
+        InvalidFormatError: If the hash doesn't start with '0x' or contains non-hex characters.
+        RangeFieldError: If the hash is not exactly 66 characters long.
+    """
     field_name = info.field_name or "tx_hash_field"
     # Step 1: Basic string validation (type, non-empty)
     # max_length is checked here, but exact length is checked later.
@@ -238,6 +271,13 @@ def _wrap_validate_raw_int(
     This is a `mode='before'` validator.
     Ensures the raw input is strictly `int` type (no coercion from str/float).
     Complies with RULE-ARCH-MODEL-DESIGN-V2 for Raw Models (Ints/Floats: Check isinstance).
+    
+    Returns:
+        The validated integer value.
+        
+    Raises:
+        TypeFieldError: If the input is not an integer type.
+        RangeFieldError: If the integer is negative when allow_negative is False.
     """
     field_name = info.field_name or field_name_default
     val_int: int
@@ -285,6 +325,12 @@ def _wrap_validate_strict_bool(
 
     Adheres to RULE-ARCH-MODEL-DESIGN-V2 (Raw Models: Booleans: Check isinstance(v, bool).
     Reject string coercion).
+    
+    Returns:
+        The validated boolean value.
+        
+    Raises:
+        TypeFieldError: If the input is not a boolean type.
     """
     field_name = info.field_name or "strict_bool_field"
     if not isinstance(v, bool):
@@ -315,7 +361,11 @@ def _wrap_validate_enum_str(
     field_name_default: str,
     allowed_values: set[str],
 ) -> str:
-    """General purpose wrapper for validating enum-like string fields."""
+    """General purpose wrapper for validating enum-like string fields.
+    
+    Returns:
+        The validated enum string value.
+    """
     field_name = info.field_name or field_name_default
     # First, ensure it passes basic string validation via the handler (if needed)
     # For simple enum, handler might just be `str`
@@ -339,7 +389,15 @@ def _wrap_validate_positive_finite_decimal_str(
     handler: Callable[[object], str],
     info: ValidationInfo,
 ) -> str:
-    """Wrapper for validating strings that must represent positive finite decimal numbers."""
+    """Wrapper for validating strings that must represent positive finite decimal numbers.
+    
+    Returns:
+        The validated positive finite decimal string.
+        
+    Raises:
+        DecimalFieldError: If the string cannot be parsed as a finite decimal.
+        RangeFieldError: If the decimal value is not positive.
+    """
     field_name = info.field_name or "positive_finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
@@ -364,7 +422,15 @@ def _wrap_validate_non_negative_finite_decimal_str(
     handler: Callable[[object], str],
     info: ValidationInfo,
 ) -> str:
-    """Wrapper for validating strings that must represent non-negative finite decimal numbers."""
+    """Wrapper for validating strings that must represent non-negative finite decimal numbers.
+    
+    Returns:
+        The validated non-negative finite decimal string.
+        
+    Raises:
+        DecimalFieldError: If the string cannot be parsed as a finite decimal.
+        RangeFieldError: If the decimal value is negative.
+    """
     field_name = info.field_name or "non_negative_finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
     d = parse_decimal_value(s, allow_none=True, field_name=field_name)
@@ -391,7 +457,15 @@ def _wrap_validate_non_negative_finite_decimal_str(
 
 
 def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) -> int:
-    """Validates raw input as a non-negative int, parsing from str if necessary."""
+    """Validates raw input as a non-negative int, parsing from str if necessary.
+    
+    Returns:
+        The validated non-negative integer value.
+        
+    Raises:
+        TypeFieldError: If the input cannot be converted to an integer.
+        RangeFieldError: If the integer value is negative.
+    """
     val_int: int
     if isinstance(raw_val, str):
         try:
@@ -431,7 +505,14 @@ def validate_and_return_finite_decimal_str(
     field_name: str,
     max_len: int = 64,
 ) -> str:
-    """Validates raw input as a non-empty string representing a finite decimal."""
+    """Validates raw input as a non-empty string representing a finite decimal.
+    
+    Returns:
+        The validated finite decimal string.
+        
+    Raises:
+        DecimalFieldError: If the string cannot be parsed as a finite decimal.
+    """
     # Use existing validate_str_field for initial string validation
     s = validate_str_field(raw_val, field_name=field_name, max_length=max_len, allow_empty=False)
     # Use existing parse_decimal_value for decimal properties
@@ -649,6 +730,16 @@ adhere to max_length=64.
 
 # Helper function for RawOptionalNonEmptyString128HL
 def _validate_optional_non_empty_str128(v: object, info: ValidationInfo) -> str | None:
+    """Validates an optional non-empty string with max length 128.
+    
+    Returns:
+        The validated string or None if input is None.
+        
+    Raises:
+        TypeFieldError: If the input is not a string or None.
+        InvalidFormatError: If the string is empty, whitespace-only, or has invalid UTF-8.
+        RangeFieldError: If the string exceeds 128 characters.
+    """
     if v is None:
         return None
     if not isinstance(v, str):
@@ -702,7 +793,15 @@ Used specifically where tests mandate this length (e.g., user fill cloid).
 
 # Define the new type
 def _str_only_validator(v: object) -> object:
-    """Type-specific validator that only handles str|None, letting unions try other types."""
+    """Type-specific validator that only handles str|None, letting unions try other types.
+    
+    Returns:
+        The validated string value or the original value if not a string.
+        
+    Raises:
+        InvalidFormatError: If the string is empty, whitespace-only, or has invalid UTF-8.
+        RangeFieldError: If the string exceeds 1024 characters.
+    """
     if v is None:
         return None
     # Let Pydantic's union mechanism handle non-string types by not validating them here
@@ -749,7 +848,15 @@ Used for error messages or optional long text fields.
 
 # --- Validator and Type for Hyperliquid Candle 's' (status) field ---
 def _validate_hl_candle_status_string(v: object, info: ValidationInfo) -> str:
-    """Validates the 's' field for Hyperliquid candles, ensuring non-empty/whitespace."""
+    """Validates the 's' field for Hyperliquid candles, ensuring non-empty/whitespace.
+    
+    Returns:
+        The validated candle status string.
+        
+    Raises:
+        TypeFieldError: If the input is not a string.
+        InvalidFormatError: If the string is empty or whitespace-only.
+    """
     # The field alias is 's' in HyperliquidRawCandleSnapshot.
     # We want the error message to specifically reference 's'.
     field_name_for_error = "s"
@@ -805,6 +912,14 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
     - Must be a 128-bit hex string (32 hex chars)
     - Must start with '0x' prefix
     - Total length must be exactly 34 characters (0x + 32 hex chars)
+    
+    Returns:
+        The validated client order ID string or None if input is None.
+        
+    Raises:
+        TypeFieldError: If the input is not a string or None.
+        InvalidFormatError: If the string format is invalid or contains non-hex characters.
+        RangeFieldError: If the string is not exactly 34 characters long.
     """
     if v is None:
         return None
@@ -1004,7 +1119,11 @@ KNOWN_EXCHANGE_STATUS_STRINGS = {"canceled", "modified", "success"}
 
 
 def _status_str_only_validator(v: object) -> object:
-    """Type-specific validator that only handles str, letting unions try other types."""
+    """Type-specific validator that only handles str, letting unions try other types.
+    
+    Returns:
+        The validated status string value or the original value if not a string.
+    """
     # Let Pydantic's union mechanism handle non-string types by not validating them here
     if not isinstance(v, str):
         return v  # Return as-is to let other union members be tried
@@ -1026,7 +1145,15 @@ RawStatusStringHL = Annotated[
 
 
 def _validate_timestamp_ms(value: str | float) -> int:
-    """Validate if the value is an integer and a plausible millisecond timestamp."""
+    """Validate if the value is an integer and a plausible millisecond timestamp.
+    
+    Returns:
+        The validated millisecond timestamp as an integer.
+        
+    Raises:
+        TypeFieldError: If the input is not an integer.
+        TimestampFieldError: If the timestamp is not positive.
+    """
     if not isinstance(value, int):
         raise TypeFieldError(
             field_name="timestamp_ms",
@@ -1055,7 +1182,14 @@ RawHlTimestampMsInt = Annotated[int, AfterValidator(_validate_timestamp_ms)]
 
 
 def _validate_coin_name(value: str) -> str:
-    """Validate coin name from Hyperliquid, typically a non-empty uppercase string."""
+    """Validate coin name from Hyperliquid, typically a non-empty uppercase string.
+    
+    Returns:
+        The validated coin name string.
+        
+    Raises:
+        InvalidFormatError: If the coin name is empty or whitespace-only.
+    """
     if not value or not value.strip():
         raise InvalidFormatError(
             field_name="coin_name",

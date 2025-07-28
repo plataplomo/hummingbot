@@ -77,7 +77,17 @@ class PerformanceMetrics(BaseModel):
     @field_validator("total_return", "total_return_percent", "annualized_return", mode="before")
     @classmethod
     def validate_finite_decimals(cls, v: Decimal | str | float) -> Decimal:
-        """Ensure all return metrics are finite."""
+        """Ensure all return metrics are finite.
+        
+        Args:
+            v: The value to validate as a finite decimal
+            
+        Returns:
+            The validated decimal value
+            
+        Raises:
+            InvalidCalculationInputError: If the value is not finite (e.g., infinity, NaN)
+        """
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise InvalidCalculationInputError(
@@ -88,7 +98,17 @@ class PerformanceMetrics(BaseModel):
     @field_validator("win_rate", mode="before")
     @classmethod
     def validate_win_rate(cls, v: Decimal | str | float | None) -> Decimal | None:
-        """Validate win rate is a valid percentage."""
+        """Validate win rate is a valid percentage.
+        
+        Args:
+            v: The win rate value to validate (should be between 0 and 1)
+            
+        Returns:
+            The validated win rate as a decimal, or None if input was None
+            
+        Raises:
+            InvalidCalculationInputError: If the win rate is not between 0 and 1
+        """
         if v is not None:
             value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
             if not (Decimal(0) <= value <= Decimal(1)):
@@ -119,7 +139,18 @@ class PerformanceInput(BaseModel):
     @field_validator("portfolio_values", mode="before")
     @classmethod
     def validate_portfolio_values(cls, v: list[Decimal | str | float | int]) -> list[Decimal]:
-        """Validate portfolio values are positive and finite."""
+        """Validate portfolio values are positive and finite.
+        
+        Args:
+            v: List of portfolio values to validate
+            
+        Returns:
+            List of validated Decimal portfolio values
+            
+        Raises:
+            CalculatorValidationError: If the portfolio values list is empty
+            InvalidCalculationInputError: If any value is not finite or not positive
+        """
         if not v:
             raise CalculatorValidationError(
                 field_name="portfolio_values", constraint="cannot be empty"
@@ -143,7 +174,19 @@ class PerformanceInput(BaseModel):
     @field_validator("timestamps", mode="before")
     @classmethod
     def validate_timestamps(cls, v: list[int] | None, info: ValidationInfo) -> list[int] | None:
-        """Validate timestamps if provided."""
+        """Validate timestamps if provided.
+        
+        Args:
+            v: List of timestamps to validate, or None
+            info: Validation context information
+            
+        Returns:
+            The validated list of timestamps, or None if input was None
+            
+        Raises:
+            CalculatorValidationError: If timestamps length doesn't match portfolio values
+            InvalidCalculationInputError: If any timestamp is negative
+        """
         if v is not None:
             portfolio_values = info.data.get("portfolio_values", [])
             if len(v) != len(portfolio_values):
@@ -167,7 +210,19 @@ class PerformanceInput(BaseModel):
     def validate_benchmark_values(
         cls, v: list[Decimal | str | float | int] | None, info: ValidationInfo
     ) -> list[Decimal] | None:
-        """Validate benchmark values if provided."""
+        """Validate benchmark values if provided.
+        
+        Args:
+            v: List of benchmark values to validate, or None
+            info: Validation context information
+            
+        Returns:
+            List of validated Decimal benchmark values, or None if input was None
+            
+        Raises:
+            CalculatorValidationError: If benchmark values length doesn't match portfolio values
+            InvalidCalculationInputError: If any value is not finite or not positive
+        """
         if v is not None:
             portfolio_values = info.data.get("portfolio_values", [])
             if len(v) != len(portfolio_values):
@@ -386,7 +441,14 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         return len(errors) == 0, errors
 
     def _calculate_returns(self, values: list[Decimal]) -> list[Decimal]:
-        """Calculate period returns from value series."""
+        """Calculate period returns from value series.
+        
+        Args:
+            values: List of portfolio values over time
+            
+        Returns:
+            List of period-over-period returns as decimals
+        """
         returns: list[Decimal] = []
         for i in range(1, len(values)):
             if values[i - 1] > 0:
@@ -397,7 +459,15 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         return returns
 
     def _calculate_annualized_return(self, total_return_percent: Decimal, days: int) -> Decimal:
-        """Calculate annualized return from total return."""
+        """Calculate annualized return from total return.
+        
+        Args:
+            total_return_percent: Total return as a percentage
+            days: Number of days in the period
+            
+        Returns:
+            Annualized return as a percentage
+        """
         if days <= 0:
             return Decimal(0)
 
@@ -413,7 +483,14 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
             return Decimal(0)
 
     def _calculate_volatility(self, returns: list[Decimal]) -> Decimal:
-        """Calculate annualized volatility from returns."""
+        """Calculate annualized volatility from returns.
+        
+        Args:
+            returns: List of period returns
+            
+        Returns:
+            Annualized volatility as a percentage
+        """
         if len(returns) < MIN_RETURNS_FOR_CALCULATION:
             return Decimal(0)
 
@@ -432,7 +509,15 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
     def _calculate_sharpe_ratio(
         self, returns: list[Decimal], risk_free_rate: Decimal
     ) -> Decimal | None:
-        """Calculate Sharpe ratio."""
+        """Calculate Sharpe ratio.
+        
+        Args:
+            returns: List of period returns
+            risk_free_rate: Annual risk-free rate as a decimal
+            
+        Returns:
+            Annualized Sharpe ratio, or None if insufficient data
+        """
         if len(returns) < MIN_RETURNS_FOR_CALCULATION:
             return None
 
@@ -463,7 +548,14 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         return None
 
     def _calculate_max_drawdown(self, values: list[Decimal]) -> tuple[Decimal, Decimal]:
-        """Calculate maximum drawdown in absolute and percentage terms."""
+        """Calculate maximum drawdown in absolute and percentage terms.
+        
+        Args:
+            values: List of portfolio values over time
+            
+        Returns:
+            Tuple of (absolute maximum drawdown, maximum drawdown percentage)
+        """
         max_drawdown = Decimal(0)
         max_drawdown_percent = Decimal(0)
         peak = values[0]
@@ -483,7 +575,15 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
     def _calculate_calmar_ratio(
         self, annualized_return: Decimal, max_drawdown_percent: Decimal
     ) -> Decimal | None:
-        """Calculate Calmar ratio (annualized return / max drawdown)."""
+        """Calculate Calmar ratio (annualized return / max drawdown).
+        
+        Args:
+            annualized_return: Annualized return as a percentage
+            max_drawdown_percent: Maximum drawdown as a percentage
+            
+        Returns:
+            Calmar ratio, or None if maximum drawdown is zero
+        """
         if max_drawdown_percent > 0:
             return annualized_return / max_drawdown_percent
         return None
@@ -491,7 +591,15 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
     def _calculate_sortino_ratio(
         self, returns: list[Decimal], risk_free_rate: Decimal
     ) -> Decimal | None:
-        """Calculate Sortino ratio (excess return / downside deviation)."""
+        """Calculate Sortino ratio (excess return / downside deviation).
+        
+        Args:
+            returns: List of period returns
+            risk_free_rate: Annual risk-free rate as a decimal
+            
+        Returns:
+            Annualized Sortino ratio, or None if insufficient data or zero downside deviation
+        """
         if len(returns) < MIN_RETURNS_FOR_CALCULATION:
             return None
 
@@ -519,7 +627,14 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
     def _calculate_trade_metrics(
         self, trade_returns: list[Decimal]
     ) -> tuple[Decimal, Decimal, Decimal, Decimal | None]:
-        """Calculate trade-based performance metrics."""
+        """Calculate trade-based performance metrics.
+        
+        Args:
+            trade_returns: List of individual trade returns
+            
+        Returns:
+            Tuple of (win_rate_percent, average_win, average_loss, profit_factor)
+        """
         if not trade_returns:
             return Decimal(0), Decimal(0), Decimal(0), None
 
@@ -547,7 +662,14 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
     def _calculate_var_metrics(
         self, returns: list[Decimal]
     ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
-        """Calculate Value at Risk and Expected Shortfall metrics."""
+        """Calculate Value at Risk and Expected Shortfall metrics.
+        
+        Args:
+            returns: List of period returns
+            
+        Returns:
+            Tuple of (VaR_95%, VaR_99%, Expected_Shortfall) or None values if insufficient data
+        """
         if len(returns) < MINIMUM_TRADES_FOR_STATS:  # Need sufficient data for meaningful VaR
             return None, None, None
 

@@ -143,15 +143,16 @@ class BackpackAPI(ExchangeAPI):
             exchange_secrets: Exchange secrets configuration model.
             authenticator: Optional authenticator instance for dependency injection
             error_mapper: Optional error mapper instance for dependency injection
-
             trading_data_mapper: Optional trading data mapper instance for dependency injection
             account_service: Optional account service instance for dependency injection
             trading_service: Optional trading service instance for dependency injection
             market_data_service: Optional market data service instance for dependency injection
 
         Raises:
-            ValueError: If testnet environment is requested but testnet URLs are not configured,
-                or if rate_limit_per_minute is not provided.
+            TestnetConfigurationError: If testnet environment is requested but testnet URLs are not
+                configured.
+            RateLimitConfigurationError: If rate_limit_per_minute is not provided in the exchange
+                configuration.
 
         """
         # Create the factory to handle component instantiation
@@ -266,7 +267,7 @@ class BackpackAPI(ExchangeAPI):
             BackpackRawWsSubscriptionRequest model
 
         Raises:
-            APIError: If authenticator is missing for private subscriptions
+            AuthenticatorNotConfiguredError: If authenticator is missing for private subscriptions
 
         """
         # Determine if this is a private topic that requires authentication
@@ -625,7 +626,7 @@ class BackpackAPI(ExchangeAPI):
             Order object if found, None otherwise
 
         Raises:
-            ValueError: If symbol parameter is not provided
+            RequiredParameterError: If symbol parameter is not provided
 
         """
         if args.symbol is None:
@@ -646,7 +647,7 @@ class BackpackAPI(ExchangeAPI):
             Order object with current status if found, None otherwise
 
         Raises:
-            ValueError: If symbol parameter is not provided
+            RequiredParameterError: If symbol parameter is not provided
 
         """
         if args.symbol is None:

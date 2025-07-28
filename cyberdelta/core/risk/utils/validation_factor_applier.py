@@ -13,12 +13,20 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 def _create_validation_factor_list() -> list["ValidationFactor"]:
-    """Create typed ValidationFactor list for dataclass fields."""
+    """Create typed ValidationFactor list for dataclass fields.
+    
+    Returns:
+        Empty list to be used as default factory for ValidationFactor lists.
+    """
     return []
 
 
 def _create_str_list() -> list[str]:
-    """Create typed string list for dataclass fields."""
+    """Create typed string list for dataclass fields.
+    
+    Returns:
+        Empty list to be used as default factory for string lists.
+    """
     return []
 
 
@@ -79,7 +87,12 @@ class ValidationFactor:
         return (self.adjusted_value - self.base_value) * self.weight
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+        
+        Returns:
+            Dictionary representation of the validation factor with all attributes
+            converted to JSON-serializable types.
+        """
         return {
             "factor_type": self.factor_type.value,
             "base_value": float(self.base_value),
@@ -139,11 +152,20 @@ class ValidationFactorResult:
     def get_significant_factors(
         self, threshold: Decimal = Decimal("0.05")
     ) -> list[ValidationFactor]:
-        """Get factors with significant impact."""
+        """Get factors with significant impact.
+        
+        Returns:
+            List of validation factors whose absolute impact exceeds the threshold.
+        """
         return [f for f in self.factors if abs(f.impact) > threshold]
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+        
+        Returns:
+            Dictionary containing all validation result data including base factor,
+            final factor, adjustments, factor breakdown, timestamps, and warnings.
+        """
         return {
             "base_factor": float(self.base_factor),
             "final_factor": float(self.final_factor),
@@ -332,7 +354,12 @@ class ValidationFactorApplier:
         return result
 
     def _calculate_spread_factor(self, opportunity: ArbitrageOpportunity) -> ValidationFactor:
-        """Calculate spread quality factor."""
+        """Calculate spread quality factor.
+        
+        Returns:
+            ValidationFactor representing the quality of the arbitrage spread,
+            with adjustments based on spread percentage thresholds.
+        """
         base_value = Decimal("1.0")
 
         # Get spread percentage
@@ -385,7 +412,12 @@ class ValidationFactorApplier:
             )
 
     def _calculate_exchange_factor(self, opportunity: ArbitrageOpportunity) -> ValidationFactor:
-        """Calculate exchange quality factor."""
+        """Calculate exchange quality factor.
+        
+        Returns:
+            ValidationFactor based on the quality scores of the exchanges involved
+            in the arbitrage opportunity.
+        """
         base_value = Decimal("1.0")
 
         # Get exchanges
@@ -413,7 +445,12 @@ class ValidationFactorApplier:
         )
 
     def _calculate_symbol_factor(self, opportunity: ArbitrageOpportunity) -> ValidationFactor:
-        """Calculate symbol risk factor."""
+        """Calculate symbol risk factor.
+        
+        Returns:
+            ValidationFactor representing the risk assessment of the trading symbol,
+            with higher scores for lower-risk assets.
+        """
         base_value = Decimal("1.0")
 
         # Get symbol
@@ -441,7 +478,12 @@ class ValidationFactorApplier:
         opportunity: ArbitrageOpportunity,
         market_data: dict[str, Any] | None,
     ) -> ValidationFactor:
-        """Calculate market conditions factor."""
+        """Calculate market conditions factor.
+        
+        Returns:
+            ValidationFactor adjusted for current market volatility and trends,
+            with lower values during high volatility periods.
+        """
         base_value = Decimal("1.0")
         adjusted_value = base_value
 
@@ -480,7 +522,12 @@ class ValidationFactorApplier:
         opportunity: ArbitrageOpportunity,
         check_results: list[CheckResult] | None,
     ) -> ValidationFactor:
-        """Calculate historical performance factor."""
+        """Calculate historical performance factor.
+        
+        Returns:
+            ValidationFactor based on the success rate of previous risk checks,
+            rewarding high check pass rates.
+        """
         base_value = Decimal("1.0")
         adjusted_value = base_value
 
@@ -521,7 +568,12 @@ class ValidationFactorApplier:
         opportunity: ArbitrageOpportunity,
         market_data: dict[str, Any] | None,
     ) -> ValidationFactor:
-        """Calculate liquidity factor."""
+        """Calculate liquidity factor.
+        
+        Returns:
+            ValidationFactor based on trading volume, with higher adjustments
+            for more liquid markets.
+        """
         base_value = Decimal("1.0")
         adjusted_value = base_value
 
@@ -556,7 +608,12 @@ class ValidationFactorApplier:
         )
 
     def _calculate_timing_factor(self) -> ValidationFactor:
-        """Calculate timing factor based on current time."""
+        """Calculate timing factor based on current time.
+        
+        Returns:
+            ValidationFactor adjusted for optimal trading hours, with slight
+            increases during peak hours and decreases during off-peak times.
+        """
         base_value = Decimal("1.0")
 
         current_hour = datetime.now(tz=UTC).hour
@@ -585,7 +642,12 @@ class ValidationFactorApplier:
         opportunity: ArbitrageOpportunity,
         market_data: dict[str, Any] | None,
     ) -> ValidationFactor:
-        """Calculate correlation factor."""
+        """Calculate correlation factor.
+        
+        Returns:
+            ValidationFactor based on asset correlation with major pairs,
+            favoring less correlated assets for diversification.
+        """
         base_value = Decimal("1.0")
         adjusted_value = base_value
 
@@ -610,7 +672,12 @@ class ValidationFactorApplier:
         )
 
     def _combine_factors(self, base_factor: Decimal, factors: list[ValidationFactor]) -> Decimal:
-        """Combine multiple factors into final factor."""
+        """Combine multiple factors into final factor.
+        
+        Returns:
+            Final validation factor calculated as weighted average of all individual
+            factors multiplied by the base factor.
+        """
         # Weighted average approach
         total_weight = sum(f.weight for f in factors)
 
@@ -624,7 +691,11 @@ class ValidationFactorApplier:
         return base_factor * (Decimal(str(weighted_sum)) / Decimal(str(total_weight)))
 
     def set_factor_weight(self, factor_type: FactorType, weight: Decimal) -> None:
-        """Set weight for a specific factor type."""
+        """Set weight for a specific factor type.
+        
+        Raises:
+            ValidationFactorError: If weight is not between 0 and 1.
+        """
         if weight < 0 or weight > 1:
             raise ValidationFactorError(ValidationFactorError.WEIGHT_OUT_OF_RANGE)
 
@@ -636,7 +707,11 @@ class ValidationFactorApplier:
         )
 
     def set_exchange_score(self, exchange: str, score: Decimal) -> None:
-        """Set quality score for an exchange."""
+        """Set quality score for an exchange.
+        
+        Raises:
+            ValidationFactorError: If score is not between 0 and 1.
+        """
         if score < 0 or score > 1:
             raise ValidationFactorError(ValidationFactorError.SCORE_OUT_OF_RANGE)
 
@@ -644,7 +719,11 @@ class ValidationFactorApplier:
         self.logger.info("Set exchange score", exchange=exchange, score=float(score))
 
     def set_symbol_risk_score(self, symbol: str, score: Decimal) -> None:
-        """Set risk score for a symbol."""
+        """Set risk score for a symbol.
+        
+        Raises:
+            ValidationFactorError: If score is not between 0 and 1.
+        """
         if score < 0 or score > 1:
             raise ValidationFactorError(ValidationFactorError.SCORE_OUT_OF_RANGE)
 
@@ -652,7 +731,12 @@ class ValidationFactorApplier:
         self.logger.info("Set symbol risk score", symbol=symbol, score=float(score))
 
     def get_applier_stats(self) -> dict[str, Any]:
-        """Get applier statistics."""
+        """Get applier statistics.
+        
+        Returns:
+            Dictionary containing current configuration including base factor,
+            bounds, weights, thresholds, and exchange/symbol counts.
+        """
         return {
             "base_validation_factor": float(self.base_validation_factor),
             "max_factor": float(self.max_factor),

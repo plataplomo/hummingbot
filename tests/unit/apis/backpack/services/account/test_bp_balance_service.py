@@ -38,31 +38,51 @@ from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
-    """Create a mock HTTP client requester."""
+    """Create a mock HTTP client requester.
+    
+    Returns:
+        AsyncMock: A mock instance of the HTTP client.
+    """
     return AsyncMock()
 
 
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
-    """Create a mock request builder."""
+    """Create a mock request builder.
+    
+    Returns:
+        MagicMock: A mock instance of BackpackAccountRequestBuilder.
+    """
     return MagicMock(spec=BackpackAccountRequestBuilder)
 
 
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
-    """Create a mock response handler."""
+    """Create a mock response handler.
+    
+    Returns:
+        MagicMock: A mock instance of BackpackAccountResponseHandler.
+    """
     return MagicMock(spec=BackpackAccountResponseHandler)
 
 
 @pytest.fixture
 def mock_mapper() -> MagicMock:
-    """Create a mock data mapper."""
+    """Create a mock data mapper.
+    
+    Returns:
+        MagicMock: A mock instance of BackpackBalanceMapper.
+    """
     return MagicMock(spec=BackpackBalanceMapper)
 
 
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
-    """Create a mock authenticator."""
+    """Create a mock authenticator.
+    
+    Returns:
+        MagicMock: A mock instance of authenticator.
+    """
     return MagicMock()
 
 
@@ -74,7 +94,11 @@ def balance_service(
     mock_mapper: MagicMock,
     mock_authenticator: MagicMock,
 ) -> BackpackBalanceService:
-    """Create a balance service instance with mocks."""
+    """Create a balance service instance with mocks.
+    
+    Returns:
+        BackpackBalanceService: Service instance configured with mock dependencies.
+    """
     return BackpackBalanceService(
         http_client_requester=mock_http_client,
         request_builder=mock_request_builder,
@@ -87,7 +111,11 @@ def balance_service(
 
 @pytest.fixture
 def mock_raw_balance() -> BackpackRawBalanceResponse:
-    """Create a mock raw balance."""
+    """Create a mock raw balance.
+    
+    Returns:
+        BackpackRawBalanceResponse: A mock balance response with test data.
+    """
     return BackpackRawBalanceResponse(
         available="1000.00",
         locked="100.00",
@@ -97,7 +125,11 @@ def mock_raw_balance() -> BackpackRawBalanceResponse:
 
 @pytest.fixture
 def mock_spot_balance() -> SpotBalance:
-    """Create a mock spot balance."""
+    """Create a mock spot balance.
+    
+    Returns:
+        SpotBalance: A mock spot balance for USDC.
+    """
     return SpotBalance(
         asset="USDC",
         total_quantity=Decimal("1100.00"),
@@ -114,7 +146,11 @@ def mock_spot_balance() -> SpotBalance:
 
 @pytest.fixture
 def mock_collateral_response() -> BackpackRawCollateralResponse:
-    """Create a mock collateral response."""
+    """Create a mock collateral response.
+    
+    Returns:
+        BackpackRawCollateralResponse: A mock collateral response with USDC data.
+    """
     return BackpackRawCollateralResponse.model_validate({
         "netEquity": "10000.00",
         "netEquityAvailable": "9000.00",

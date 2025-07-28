@@ -19,7 +19,17 @@ class BaseSizer(ABC):
     """Abstract base class for all position sizers."""
 
     def _to_decimal(self, value: ConfigValue) -> Decimal:
-        """Convert value to Decimal with validation."""
+        """Convert value to Decimal with validation.
+        
+        Args:
+            value: Value to convert to Decimal
+            
+        Returns:
+            Decimal representation of the value
+            
+        Raises:
+            SizingError: If value cannot be converted to Decimal
+        """
         if isinstance(value, Decimal):
             return value
         if isinstance(value, str):
@@ -283,7 +293,15 @@ class BaseSizer(ABC):
         return self._round_to_precision(constrained_size, self.position_precision)
 
     def _round_to_precision(self, value: Decimal, precision: int) -> Decimal:
-        """Round value to specified decimal precision."""
+        """Round value to specified decimal precision.
+        
+        Args:
+            value: Value to round
+            precision: Number of decimal places
+            
+        Returns:
+            Value rounded to specified decimal precision
+        """
         return value.quantize(Decimal(f"0.{'0' * precision}"))
 
     def enable(self) -> None:
@@ -348,6 +366,9 @@ class BaseSizer(ABC):
         Args:
             min_size: Minimum position size
             max_size: Maximum position size
+            
+        Raises:
+            SizingError: If min_size is greater than or equal to max_size
         """
         if min_size >= max_size:
             raise SizingError(SizingError.MIN_SIZE_MUST_BE_LESS_THAN_MAX_SIZE)
@@ -364,6 +385,9 @@ class BaseSizer(ABC):
         Args:
             min_allocation: Minimum allocation percentage
             max_allocation: Maximum allocation percentage
+            
+        Raises:
+            SizingError: If min_allocation >= max_allocation or allocations are not between 0 and 1
         """
         if min_allocation >= max_allocation:
             raise SizingError(SizingError.MIN_ALLOCATION_MUST_BE_LESS_THAN_MAX_ALLOCATION)
@@ -379,11 +403,19 @@ class BaseSizer(ABC):
         )
 
     def __str__(self) -> str:
-        """String representation of the sizer."""
+        """String representation of the sizer.
+        
+        Returns:
+            String representation showing class name, name, and enabled status
+        """
         return f"{self.__class__.__name__}(name={self.name}, enabled={self._enabled})"
 
     def __repr__(self) -> str:
-        """Detailed representation of the sizer."""
+        """Detailed representation of the sizer.
+        
+        Returns:
+            Detailed string representation showing class name, name, method, and enabled status
+        """
         return (
             f"{self.__class__.__name__}(name={self.name}, method={self.sizing_method}, "
             f"enabled={self._enabled})"

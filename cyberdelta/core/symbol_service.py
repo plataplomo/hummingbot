@@ -41,9 +41,6 @@ class UnifiedSymbolService:
 
         Returns:
             Exchange-specific symbol string (e.g., "BTC_PERP")
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         exchange_symbol = self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
         return exchange_symbol.value
@@ -57,9 +54,6 @@ class UnifiedSymbolService:
 
         Returns:
             Internal symbol string (e.g., "BTC")
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         internal_symbol = self.service.get_internal_symbol(exchange_symbol, exchange_id.value)
         return internal_symbol.value
@@ -75,9 +69,6 @@ class UnifiedSymbolService:
 
         Returns:
             ExchangeSymbol object with full metadata
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         return self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
 
@@ -92,9 +83,6 @@ class UnifiedSymbolService:
 
         Returns:
             InternalSymbol object with full metadata
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         return self.service.get_internal_symbol(exchange_symbol, exchange_id.value)
 
@@ -132,9 +120,6 @@ class UnifiedSymbolService:
             - max_order_size: Maximum order size
             - lot_size: Order size increment
             - supported_exchanges: List of exchanges supporting this symbol
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         unified = self.get_unified_symbol(internal_symbol)
         return {
@@ -195,9 +180,6 @@ class UnifiedSymbolService:
 
         Returns:
             Base asset name (e.g., "BTC" for "BTC_PERP")
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         unified = self.get_unified_symbol(internal_symbol)
         return unified.internal.base_asset
@@ -210,9 +192,6 @@ class UnifiedSymbolService:
 
         Returns:
             Quote asset name if available (e.g., "USDC" for "BTC_USDC"), None for perpetuals
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         unified = self.get_unified_symbol(internal_symbol)
         return unified.internal.quote_asset
@@ -226,9 +205,6 @@ class UnifiedSymbolService:
 
         Returns:
             Asset index if available, None otherwise
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
         """
         exchange_symbol = self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
         return exchange_symbol.asset_index
@@ -315,7 +291,11 @@ class _SymbolServiceSingleton:
 
     @classmethod
     def get_instance(cls) -> UnifiedSymbolService:
-        """Get or create the singleton instance."""
+        """Get or create the singleton instance.
+        
+        Returns:
+            The singleton UnifiedSymbolService instance
+        """
         if cls._instance is None:
             cls._instance = UnifiedSymbolService()
         return cls._instance

@@ -91,7 +91,15 @@ class ProfitabilityChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _get_spread_percentage(self, opportunity: ArbitrageOpportunity) -> Decimal | CheckResult:
-        """Get and validate spread percentage from opportunity."""
+        """Get and validate spread percentage from opportunity.
+
+        Args:
+            opportunity: The arbitrage opportunity to extract spread from
+
+        Returns:
+            Decimal | CheckResult: The spread percentage as Decimal if valid,
+                                   or CheckResult with failure details if invalid
+        """
         spread_percentage = getattr(opportunity, "spread_percentage", None)
         if spread_percentage is None:
             return CheckResult.failure(
@@ -120,7 +128,15 @@ class ProfitabilityChecker(TypedBaseChecker[CheckResult]):
     def _calculate_adjusted_spreads(
         self, spread_decimal: Decimal, details: dict[str, Any]
     ) -> tuple[Decimal, Decimal]:
-        """Calculate effective and risk-adjusted spreads."""
+        """Calculate effective and risk-adjusted spreads.
+
+        Args:
+            spread_decimal: Raw spread percentage as Decimal
+            details: Dictionary to store calculation details
+
+        Returns:
+            tuple[Decimal, Decimal]: Tuple of (effective_spread, risk_adjusted_spread)
+        """
         # Calculate effective spread after fees
         effective_spread = spread_decimal
         if self.include_fees:
@@ -145,7 +161,17 @@ class ProfitabilityChecker(TypedBaseChecker[CheckResult]):
     def _check_spread_thresholds(
         self, spread_decimal: Decimal, risk_adjusted_spread: Decimal, details: dict[str, Any]
     ) -> CheckResult | None:
-        """Check spread against minimum and maximum thresholds."""
+        """Check spread against minimum and maximum thresholds.
+
+        Args:
+            spread_decimal: Raw spread percentage
+            risk_adjusted_spread: Risk-adjusted spread percentage
+            details: Dictionary containing calculation details
+
+        Returns:
+            CheckResult | None: CheckResult with failure details if thresholds not met,
+                               None if all thresholds pass
+        """
         # Check minimum spread percentage
         if risk_adjusted_spread < self._min_profitability:
             return CheckResult.failure(
@@ -180,7 +206,16 @@ class ProfitabilityChecker(TypedBaseChecker[CheckResult]):
     def _check_profit_metrics(
         self, opportunity: ArbitrageOpportunity, details: dict[str, Any]
     ) -> CheckResult | None:
-        """Check optional profit metrics if available."""
+        """Check optional profit metrics if available.
+
+        Args:
+            opportunity: The arbitrage opportunity with optional profit fields
+            details: Dictionary to store profit metric details
+
+        Returns:
+            CheckResult | None: CheckResult with failure details if profit metrics fail,
+                               None if all available metrics pass
+        """
         # Check minimum profit in USD if available
         if opportunity.expected_profit is not None:
             try:
@@ -258,13 +293,25 @@ class ProfitabilityChecker(TypedBaseChecker[CheckResult]):
         self.logger.info("Disabled fee adjustment")
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+
+        Returns:
+            CheckResult: A CheckResult with SKIPPED status
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+
+        Args:
+            error: The exception that caused the check to fail
+            execution_time: Time taken for the check in milliseconds
+
+        Returns:
+            CheckResult: A CheckResult with ERROR status and error details
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

@@ -25,7 +25,11 @@ class HyperliquidMessageContext(WebSocketMessageContext[HyperliquidRawWebSocketE
 
     @computed_field
     def subscription_type(self) -> str | None:
-        """Extract subscription type if available."""
+        """Extract subscription type if available.
+
+        Returns:
+            None as Hyperliquid doesn't have subscription fields in the envelope.
+        """
         # Hyperliquid doesn't have a subscription field in the envelope
         # This is kept for potential future use
         return None

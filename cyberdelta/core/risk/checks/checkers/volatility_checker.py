@@ -132,7 +132,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _extract_opportunity_data(
         self, opportunity: ArbitrageOpportunity, details: dict[str, Any]
     ) -> tuple[str, Decimal] | tuple[str, CheckResult]:
-        """Extract and validate opportunity data."""
+        """Extract and validate opportunity data.
+        
+        Args:
+            opportunity: The arbitrage opportunity to process
+            details: Dictionary to update with extracted details
+            
+        Returns:
+            Tuple of (symbol, spread_decimal) on success, or (symbol, CheckResult) on failure
+        """
         symbol = getattr(opportunity, "symbol", "unknown")
         spread_percentage = getattr(opportunity, "spread_percentage", None)
 
@@ -161,7 +169,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _get_volatility_data(
         self, opportunity: ArbitrageOpportunity, details: dict[str, Any]
     ) -> tuple[list[Decimal] | None, Decimal | None]:
-        """Get historical and current volatility data."""
+        """Get historical and current volatility data.
+        
+        Args:
+            opportunity: The arbitrage opportunity
+            details: Dictionary to update with volatility details
+            
+        Returns:
+            Tuple of (historical_volatility, current_volatility)
+        """
         historical_volatility = self._get_historical_volatility(opportunity)
         current_volatility = self._calculate_current_volatility(opportunity, historical_volatility)
 
@@ -180,7 +196,18 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         historical_volatility: list[Decimal] | None,
         details: dict[str, Any],
     ) -> CheckResult | None:
-        """Perform all volatility checks, return CheckResult if any fail."""
+        """Perform all volatility checks, return CheckResult if any fail.
+        
+        Args:
+            symbol: Trading symbol
+            spread_decimal: Current spread as Decimal
+            current_volatility: Current volatility if available
+            historical_volatility: Historical volatility data
+            details: Dictionary to update with check details
+            
+        Returns:
+            CheckResult if any check fails, None if all pass
+        """
         # Check volatility bounds
         bounds_result = self._check_volatility_bounds(current_volatility, spread_decimal)
         if not bounds_result.passed:
@@ -243,7 +270,17 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
             self._update_volatility_history(symbol, current_volatility)
 
     def _to_decimal(self, value: Decimal | str | float) -> Decimal:
-        """Convert value to Decimal with validation."""
+        """Convert value to Decimal with validation.
+        
+        Args:
+            value: Value to convert to Decimal
+            
+        Returns:
+            Decimal representation of the value
+            
+        Raises:
+            VolatilityError: If value type cannot be converted
+        """
         if isinstance(value, Decimal):
             return value
         if isinstance(value, str):
@@ -259,7 +296,14 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _get_historical_volatility(self, opportunity: ArbitrageOpportunity) -> list[Decimal] | None:
-        """Get historical volatility data for the opportunity."""
+        """Get historical volatility data for the opportunity.
+        
+        Args:
+            opportunity: The arbitrage opportunity
+            
+        Returns:
+            List of historical volatility values or None if not available
+        """
         symbol = getattr(opportunity, "symbol", None)
         if not symbol:
             return None
@@ -270,7 +314,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _calculate_current_volatility(
         self, opportunity: ArbitrageOpportunity, historical_data: list[Decimal] | None
     ) -> Decimal | None:
-        """Calculate current volatility estimate."""
+        """Calculate current volatility estimate.
+        
+        Args:
+            opportunity: The arbitrage opportunity
+            historical_data: Historical volatility data if available
+            
+        Returns:
+            Current volatility estimate or None if not calculable
+        """
         # Try to get volatility from opportunity data
         if opportunity.volatility is not None:
             return opportunity.volatility  # Already Decimal type from Pydantic validation
@@ -303,7 +355,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _check_volatility_bounds(
         self, current_volatility: Decimal | None, spread: Decimal
     ) -> CheckResult:
-        """Check if volatility is within acceptable bounds."""
+        """Check if volatility is within acceptable bounds.
+        
+        Args:
+            current_volatility: Current volatility or None
+            spread: Current spread to use as proxy if volatility is None
+            
+        Returns:
+            CheckResult indicating success or failure with details
+        """
         # Use spread as proxy for volatility if current volatility is None
         volatility_proxy = spread if current_volatility is None else current_volatility
 
@@ -336,7 +396,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _check_basis_volatility(
         self, spread: Decimal, historical_data: list[Decimal] | None
     ) -> CheckResult:
-        """Check basis volatility using spread data."""
+        """Check basis volatility using spread data.
+        
+        Args:
+            spread: Current spread
+            historical_data: Historical volatility data if available
+            
+        Returns:
+            CheckResult indicating success or failure with details
+        """
         if spread > self.max_basis_volatility:
             return CheckResult.failure(
                 message=(
@@ -375,7 +443,16 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _check_volatility_stability(
         self, symbol: str, current_volatility: Decimal, historical_data: list[Decimal] | None
     ) -> CheckResult:
-        """Check volatility stability and detect spikes."""
+        """Check volatility stability and detect spikes.
+        
+        Args:
+            symbol: Trading symbol
+            current_volatility: Current volatility value
+            historical_data: Historical volatility data
+            
+        Returns:
+            CheckResult indicating success or failure with details
+        """
         if not historical_data or len(historical_data) < MIN_HISTORICAL_SAMPLES_FOR_STABILITY:
             return CheckResult.success("Insufficient historical data for stability check")
 
@@ -448,7 +525,14 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         return CheckResult.success("Volatility stability check passed")
 
     def _check_rolling_volatility(self, historical_data: list[Decimal]) -> CheckResult:
-        """Check rolling window volatility."""
+        """Check rolling window volatility.
+        
+        Args:
+            historical_data: Historical volatility data
+            
+        Returns:
+            CheckResult indicating success or failure with details
+        """
         if len(historical_data) < self.rolling_window_hours:
             return CheckResult.success("Insufficient data for rolling volatility check")
 
@@ -484,7 +568,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _detect_market_regime(
         self, current_volatility: Decimal, historical_data: list[Decimal] | None
     ) -> str:
-        """Detect current market regime based on volatility."""
+        """Detect current market regime based on volatility.
+        
+        Args:
+            current_volatility: Current volatility value
+            historical_data: Historical volatility data if available
+            
+        Returns:
+            Market regime string: 'high_volatility' or 'normal'
+        """
         if current_volatility > self.high_volatility_regime_threshold:
             return "high_volatility"
 
@@ -502,7 +594,15 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
     def _calculate_volatility_score(
         self, current_volatility: Decimal | None, historical_data: list[Decimal] | None
     ) -> float:
-        """Calculate a volatility health score (0-1, higher is better)."""
+        """Calculate a volatility health score (0-1, higher is better).
+        
+        Args:
+            current_volatility: Current volatility or None
+            historical_data: Historical volatility data if available
+            
+        Returns:
+            Volatility health score between 0 and 1
+        """
         if current_volatility is None:
             return NEUTRAL_VOLATILITY_SCORE
 
@@ -575,6 +675,9 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         Args:
             min_threshold: Minimum volatility threshold
             max_threshold: Maximum volatility threshold
+            
+        Raises:
+            VolatilityError: If min_threshold is not less than max_threshold
         """
         if min_threshold >= max_threshold:
             msg = "min_threshold must be less than max_threshold"
@@ -608,13 +711,25 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         )
 
     def _create_skip_result(self) -> CheckResult:
-        """Create result for skipped check."""
+        """Create result for skipped check.
+        
+        Returns:
+            CheckResult with skip status
+        """
         return CheckResult.skip(
             message=f"{self.CHECKER_NAME} check skipped (disabled)",
         )
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
-        """Create result for failed check."""
+        """Create result for failed check.
+        
+        Args:
+            error: The exception that occurred
+            execution_time: Time taken for the check in milliseconds
+            
+        Returns:
+            CheckResult with error status and details
+        """
         return CheckResult.error(
             message=f"{self.CHECKER_NAME} check error: {error}",
             details={"execution_time_ms": execution_time},

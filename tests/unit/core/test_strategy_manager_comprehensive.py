@@ -27,31 +27,51 @@ from cyberdelta.enums import OrderSide
 
 @pytest.fixture
 def mock_config() -> Mock:
-    """Create mock configuration for testing."""
+    """Create mock configuration for testing.
+    
+    Returns:
+        Mock: Mock AppSettings instance for testing.
+    """
     return Mock(spec=AppSettings)
 
 
 @pytest.fixture
 def mock_execution_handler() -> Mock:
-    """Create mock execution handler."""
+    """Create mock execution handler.
+    
+    Returns:
+        Mock: Mock ExecutionHandler instance for testing.
+    """
     return Mock(spec=ExecutionHandler)
 
 
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
-    """Create mock portfolio tracker."""
+    """Create mock portfolio tracker.
+    
+    Returns:
+        Mock: Mock PortfolioTracker instance for testing.
+    """
     return Mock(spec=PortfolioTracker)
 
 
 @pytest.fixture
 def mock_risk_manager() -> Mock:
-    """Create mock risk manager."""
+    """Create mock risk manager.
+    
+    Returns:
+        Mock: Mock RiskManager instance for testing.
+    """
     return Mock(spec=RiskManager)
 
 
 @pytest.fixture
 def mock_signal_queue() -> Mock:
-    """Create mock signal queue."""
+    """Create mock signal queue.
+    
+    Returns:
+        Mock: Mock PrioritySignalQueue instance with async add_signal method.
+    """
     queue = Mock(spec=PrioritySignalQueue)
     queue.add_signal = AsyncMock()
     return queue
@@ -65,7 +85,11 @@ def strategy_manager(
     mock_risk_manager: Mock,
     mock_signal_queue: Mock,
 ) -> StrategyManager:
-    """Create StrategyManager instance for testing."""
+    """Create StrategyManager instance for testing.
+    
+    Returns:
+        StrategyManager: Configured StrategyManager instance with mocked dependencies.
+    """
     return StrategyManager(
         config=mock_config,
         execution_handler=mock_execution_handler,
@@ -77,7 +101,11 @@ def strategy_manager(
 
 @pytest.fixture
 def mock_strategy() -> Mock:
-    """Create mock strategy for testing."""
+    """Create mock strategy for testing.
+    
+    Returns:
+        Mock: Mock Strategy instance with pre-configured attributes and methods.
+    """
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
     strategy.symbol = "BTC-PERP"
@@ -93,7 +121,11 @@ def mock_strategy() -> Mock:
 
 @pytest.fixture
 def sample_candle() -> Candle:
-    """Create sample candle for testing."""
+    """Create sample candle for testing.
+    
+    Returns:
+        Candle: Sample Candle instance with test data for BTC-PERP.
+    """
     return Candle(
         symbol="BTC-PERP",
         open=Decimal("50000.0"),
@@ -108,7 +140,11 @@ def sample_candle() -> Candle:
 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
-    """Create sample trade signal for testing."""
+    """Create sample trade signal for testing.
+    
+    Returns:
+        TradeSignal: Sample TradeSignal instance with test data for entering a long position.
+    """
     return TradeSignal(
         signal_id="test_signal_123",
         symbol="BTC-PERP",

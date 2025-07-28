@@ -74,11 +74,25 @@ class StateSnapshot[T: BaseModel](BaseModel):
     compressed: bool = False
 
     def get_entity(self, entity_id: str) -> T | None:
-        """Get entity by ID."""
+        """Get entity by ID.
+        
+        Args:
+            entity_id: Entity identifier.
+            
+        Returns:
+            T | None: Entity if found, None otherwise.
+        """
         return self.entities.get(entity_id)
 
     def has_entity(self, entity_id: str) -> bool:
-        """Check if entity exists."""
+        """Check if entity exists.
+        
+        Args:
+            entity_id: Entity identifier.
+            
+        Returns:
+            bool: True if entity exists, False otherwise.
+        """
         return entity_id in self.entities
 
 
@@ -103,7 +117,15 @@ class StateContainer[T: BaseModel](BaseModel):
     modification_count: int = 0
 
     def add(self, entity_id: str, entity: T) -> None:
-        """Add entity to container."""
+        """Add entity to container.
+        
+        Args:
+            entity_id: Entity identifier.
+            entity: Entity to add.
+            
+        Raises:
+            ContainerSizeLimitExceededError: If container has reached max_size.
+        """
         if self.max_size and len(self._entities) >= self.max_size:
             raise ContainerSizeLimitExceededError(max_size=self.max_size)
 
@@ -123,7 +145,14 @@ class StateContainer[T: BaseModel](BaseModel):
         self.modification_count += 1
 
     def remove(self, entity_id: str) -> T | None:
-        """Remove entity from container."""
+        """Remove entity from container.
+        
+        Args:
+            entity_id: Entity identifier.
+            
+        Returns:
+            T | None: Removed entity if found, None otherwise.
+        """
         entity = self._entities.pop(entity_id, None)
         if entity:
             # Record change
@@ -140,11 +169,22 @@ class StateContainer[T: BaseModel](BaseModel):
         return entity
 
     def get(self, entity_id: str) -> T | None:
-        """Get entity by ID."""
+        """Get entity by ID.
+        
+        Args:
+            entity_id: Entity identifier.
+            
+        Returns:
+            T | None: Entity if found, None otherwise.
+        """
         return self._entities.get(entity_id)
 
     def get_all(self) -> dict[str, T]:
-        """Get all entities."""
+        """Get all entities.
+        
+        Returns:
+            dict[str, T]: Copy of all entities mapping.
+        """
         return self._entities.copy()
 
     def clear(self) -> None:
@@ -154,7 +194,14 @@ class StateContainer[T: BaseModel](BaseModel):
         self.modification_count += 1
 
     def create_snapshot(self, snapshot_id: str) -> StateSnapshot[T]:
-        """Create snapshot of current state."""
+        """Create snapshot of current state.
+        
+        Args:
+            snapshot_id: Unique identifier for the snapshot.
+            
+        Returns:
+            StateSnapshot[T]: Created snapshot.
+        """
         snapshot = StateSnapshot(
             snapshot_id=snapshot_id,
             timestamp=0.0,  # Should be set by caller
@@ -166,7 +213,14 @@ class StateContainer[T: BaseModel](BaseModel):
         return snapshot
 
     def restore_snapshot(self, snapshot_id: str) -> bool:
-        """Restore state from snapshot."""
+        """Restore state from snapshot.
+        
+        Args:
+            snapshot_id: Identifier of snapshot to restore.
+            
+        Returns:
+            bool: True if restored successfully, False if snapshot not found.
+        """
         snapshot: StateSnapshot[T] | None = next(
             (s for s in self._snapshots if s.snapshot_id == snapshot_id), None
         )
@@ -225,7 +279,14 @@ class StateValidationResult(BaseModel):
     def validate_metadata(
         cls, v: dict[str, object] | StateValidationMetadata
     ) -> StateValidationMetadata:
-        """Convert dict to StateValidationMetadata if needed."""
+        """Convert dict to StateValidationMetadata if needed.
+        
+        Args:
+            v: Dictionary or StateValidationMetadata instance.
+            
+        Returns:
+            StateValidationMetadata: Validated metadata instance.
+        """
         if isinstance(v, StateValidationMetadata):
             return v
 
@@ -278,7 +339,11 @@ class StateSummary(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
-        """Convert to dictionary."""
+        """Convert to dictionary.
+        
+        Returns:
+            dict[str, object]: Dictionary representation of the summary.
+        """
         return {
             "timestamp": self.timestamp,
             "balance_count": self.balance_count,

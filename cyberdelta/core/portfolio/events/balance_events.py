@@ -47,7 +47,18 @@ class BalanceChange:
     @field_validator("exchange_id", "asset", "change_reason", mode="before")
     @classmethod
     def validate_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate string fields are non-empty."""
+        """Validate string fields are non-empty.
+        
+        Args:
+            v: The string value to validate
+            info: Validation context information
+            
+        Returns:
+            The validated and stripped string value
+            
+        Raises:
+            EmptyBalanceFieldError: If the string is empty or only whitespace
+        """
         if not v or not v.strip():
             raise EmptyBalanceFieldError(field_name=info.field_name or "balance_field")
         return v.strip()
@@ -55,7 +66,19 @@ class BalanceChange:
     @field_validator("previous_balance", "new_balance", mode="before")
     @classmethod
     def validate_balances(cls, v: Decimal, info: ValidationInfo) -> Decimal:
-        """Validate balance amounts are finite and non-negative."""
+        """Validate balance amounts are finite and non-negative.
+        
+        Args:
+            v: The decimal balance value to validate
+            info: Validation context information
+            
+        Returns:
+            The validated decimal balance value
+            
+        Raises:
+            NonFiniteBalanceError: If the balance is not finite (e.g., infinity, NaN)
+            NegativeBalanceError: If the balance is negative
+        """
         if not v.is_finite():
             raise NonFiniteBalanceError(field_name=info.field_name or "balance")
         if v < 0:
@@ -65,7 +88,14 @@ class BalanceChange:
     @field_validator("reference_id", mode="before")
     @classmethod
     def validate_reference_id(cls, v: str | None) -> str | None:
-        """Validate reference ID is either None or non-empty."""
+        """Validate reference ID is either None or non-empty.
+        
+        Args:
+            v: The reference ID value to validate
+            
+        Returns:
+            None if the reference ID is empty/whitespace, otherwise the original value
+        """
         if v is not None and not v.strip():
             return None
         return v
@@ -83,7 +113,17 @@ class BalanceSnapshot:
     @field_validator("exchange_id", mode="before")
     @classmethod
     def validate_exchange_id(cls, v: str) -> str:
-        """Validate exchange ID is non-empty."""
+        """Validate exchange ID is non-empty.
+        
+        Args:
+            v: The exchange ID to validate
+            
+        Returns:
+            The validated and stripped exchange ID
+            
+        Raises:
+            EmptyBalanceFieldError: If the exchange ID is empty or only whitespace
+        """
         if not v or not v.strip():
             raise EmptyBalanceFieldError(field_name="exchange_id")
         return v.strip()
@@ -91,7 +131,17 @@ class BalanceSnapshot:
     @field_validator("timestamp", mode="before")
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
-        """Validate timestamp is positive."""
+        """Validate timestamp is positive.
+        
+        Args:
+            v: The timestamp value to validate
+            
+        Returns:
+            The validated timestamp value
+            
+        Raises:
+            NonPositiveTimestampError: If the timestamp is zero or negative
+        """
         if v <= 0:
             raise NonPositiveTimestampError
         return v
@@ -99,7 +149,18 @@ class BalanceSnapshot:
     @field_validator("balances", mode="before")
     @classmethod
     def validate_balances_dict(cls, v: dict[str, Decimal]) -> dict[str, Decimal]:
-        """Validate all balances in the dictionary are finite and non-negative."""
+        """Validate all balances in the dictionary are finite and non-negative.
+        
+        Args:
+            v: Dictionary of asset balances to validate
+            
+        Returns:
+            The validated balances dictionary
+            
+        Raises:
+            NonFiniteBalanceError: If any balance is not finite (e.g., infinity, NaN)
+            NegativeBalanceError: If any balance is negative
+        """
         for asset, balance in v.items():
             if not balance.is_finite():
                 raise NonFiniteBalanceError(field_name=f"balance[{asset}]")
@@ -110,7 +171,18 @@ class BalanceSnapshot:
     @field_validator("total_value_usd", mode="before")
     @classmethod
     def validate_total_value(cls, v: Decimal | None) -> Decimal | None:
-        """Validate total value is finite if provided."""
+        """Validate total value is finite if provided.
+        
+        Args:
+            v: The total value in USD to validate, or None
+            
+        Returns:
+            The validated total value or None if not provided
+            
+        Raises:
+            NonFiniteBalanceError: If the total value is not finite (e.g., infinity, NaN)
+            NegativeBalanceError: If the total value is negative
+        """
         if v is not None:
             if not v.is_finite():
                 raise NonFiniteBalanceError(field_name="total_value_usd")
@@ -132,6 +204,9 @@ class BalanceUpdatedEvent(BasePortfolioEvent[BalanceChange]):
         Args:
             balance_change: The balance change details
             **kwargs: Additional metadata fields
+            
+        Returns:
+            A new BalanceUpdatedEvent instance with populated metadata
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(exchange_id=balance_change.exchange_id)
@@ -159,7 +234,11 @@ class BalanceUpdatedEvent(BasePortfolioEvent[BalanceChange]):
         return cls(event_type=EventType.BALANCE_UPDATED, data=balance_change, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize balance change data."""
+        """Serialize balance change data.
+        
+        Returns:
+            Dictionary containing serialized balance change information
+        """
         return {
             "exchange_id": self.data.exchange_id,
             "asset": self.data.asset,
@@ -188,6 +267,9 @@ class BalanceReconciledEvent(BasePortfolioEvent[BalanceSnapshot]):
             balance_snapshot: Current balance snapshot
             discrepancies: Any found discrepancies
             **kwargs: Additional metadata fields
+            
+        Returns:
+            A new BalanceReconciledEvent instance with populated metadata
         """
         # Build metadata with explicit fields first
         metadata = EventMetadata(exchange_id=balance_snapshot.exchange_id)
@@ -218,7 +300,11 @@ class BalanceReconciledEvent(BasePortfolioEvent[BalanceSnapshot]):
         )
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize balance snapshot data."""
+        """Serialize balance snapshot data.
+        
+        Returns:
+            Dictionary containing serialized balance snapshot information
+        """
         return {
             "exchange_id": self.data.exchange_id,
             "balances": {asset: str(balance) for asset, balance in self.data.balances.items()},
@@ -262,6 +348,9 @@ class BalanceErrorEvent(BasePortfolioEvent[BalanceErrorData]):
             error_message: Error message
             error_data: Additional error data
             **kwargs: Additional metadata fields
+            
+        Returns:
+            A new BalanceErrorEvent instance with populated error data and metadata
         """
         # Create BalanceErrorData
         data = BalanceErrorData(
@@ -296,7 +385,11 @@ class BalanceErrorEvent(BasePortfolioEvent[BalanceErrorData]):
         return cls(event_type=EventType.BALANCE_ERROR, data=data, metadata=metadata)
 
     def _serialize_data(self) -> dict[str, Any]:
-        """Serialize error data."""
+        """Serialize error data.
+        
+        Returns:
+            Dictionary containing serialized balance error information
+        """
         return {
             "exchange_id": self.data.exchange_id,
             "asset": self.data.asset,

@@ -100,13 +100,21 @@ class MemoryOptimizedBackpackEnvelope(MemoryOptimizedWebSocketEnvelope):
 
     @computed_field
     def routing_key(self) -> str:
-        """Get routing key for memory efficiency."""
+        """Get routing key for memory efficiency.
+        
+        Returns:
+            str: The routing key extracted from the stream (first part before dot)
+        """
         # Extract routing key from stream with minimal processing
         return self.stream.split(".", 1)[0]
 
     @computed_field
     def symbol(self) -> str | None:
-        """Get symbol for memory efficiency."""
+        """Get symbol for memory efficiency.
+        
+        Returns:
+            str | None: The symbol extracted from stream, or None if not found
+        """
         # Extract symbol from stream with minimal processing
         stream_parts = self.stream.split(".")
         if len(stream_parts) >= MIN_STREAM_PARTS:
@@ -117,7 +125,11 @@ class MemoryOptimizedBackpackEnvelope(MemoryOptimizedWebSocketEnvelope):
         return None
 
     def get_payload_size(self) -> int:
-        """Get payload size with minimal overhead."""
+        """Get payload size with minimal overhead.
+        
+        Returns:
+            int: Number of elements in the data payload
+        """
         data = self.data
         if isinstance(data, dict):
             return len(data)
@@ -139,19 +151,31 @@ class MemoryOptimizedHyperliquidEnvelope(MemoryOptimizedWebSocketEnvelope):
 
     @computed_field
     def routing_key(self) -> str:
-        """Get routing key for memory efficiency."""
+        """Get routing key for memory efficiency.
+        
+        Returns:
+            str: The channel name used as routing key
+        """
         return self.channel
 
     @computed_field
     def coin(self) -> str | None:
-        """Get coin with minimal processing."""
+        """Get coin with minimal processing.
+        
+        Returns:
+            str | None: The coin name from data, or None if not found or invalid type
+        """
         if isinstance(self.data, dict) and "coin" in self.data:
             coin_value: Any = self.data["coin"]
             return coin_value if isinstance(coin_value, str) else None
         return None
 
     def get_payload_size(self) -> int:
-        """Get payload size with minimal overhead."""
+        """Get payload size with minimal overhead.
+        
+        Returns:
+            int: Number of elements in the data payload
+        """
         data = self.data
         if isinstance(data, dict):
             return len(data)
@@ -176,13 +200,21 @@ class MemoryOptimizedMessageContext(BaseModel):
 
     @computed_field
     def is_private(self) -> bool:
-        """Determine if message is private."""
+        """Determine if message is private.
+        
+        Returns:
+            bool: True if message routing key contains private channel patterns
+        """
         private_patterns = {"account", "user", "order", "fill", "position"}
         return any(pattern in self.routing_key.lower() for pattern in private_patterns)
 
     @computed_field
     def priority(self) -> int:
-        """Get processing priority."""
+        """Get processing priority.
+        
+        Returns:
+            int: Processing priority (1=highest, 4=lowest) based on routing key
+        """
         # Simple priority calculation for memory efficiency
         if "fill" in self.routing_key or "trade" in self.routing_key:
             return 1  # Highest
@@ -211,19 +243,31 @@ class MemoryPool:
     def get_backpack_envelope(
         self, **data: Unpack[BackpackEnvelopeKwargs]
     ) -> MemoryOptimizedBackpackEnvelope:
-        """Create new Backpack envelope (pooling removed - incompatible with frozen models)."""
+        """Create new Backpack envelope (pooling removed - incompatible with frozen models).
+        
+        Returns:
+            MemoryOptimizedBackpackEnvelope: New envelope instance
+        """
         self._pool_stats["allocated"] += 1
         return MemoryOptimizedBackpackEnvelope(**data)
 
     def get_hyperliquid_envelope(
         self, **data: Unpack[HyperliquidEnvelopeKwargs]
     ) -> MemoryOptimizedHyperliquidEnvelope:
-        """Create new Hyperliquid envelope (pooling removed - incompatible with frozen models)."""
+        """Create new Hyperliquid envelope (pooling removed - incompatible with frozen models).
+        
+        Returns:
+            MemoryOptimizedHyperliquidEnvelope: New envelope instance
+        """
         self._pool_stats["allocated"] += 1
         return MemoryOptimizedHyperliquidEnvelope(**data)
 
     def get_context(self, **data: Unpack[MessageContextKwargs]) -> MemoryOptimizedMessageContext:
-        """Create new message context (pooling removed - incompatible with frozen models)."""
+        """Create new message context (pooling removed - incompatible with frozen models).
+        
+        Returns:
+            MemoryOptimizedMessageContext: New message context instance
+        """
         self._pool_stats["allocated"] += 1
         return MemoryOptimizedMessageContext(**data)
 
@@ -237,7 +281,11 @@ class MemoryPool:
         """No-op: context pooling removed (incompatible with frozen models)."""
 
     def get_stats(self) -> dict[str, Any]:
-        """Get memory pool statistics."""
+        """Get memory pool statistics.
+        
+        Returns:
+            dict[str, Any]: Dictionary containing pool statistics and performance metrics
+        """
         return {
             **self._pool_stats,
             "backpack_pool_size": len(self.backpack_pool),
@@ -276,6 +324,9 @@ def create_memory_optimized_envelope(
 
     Returns:
         Memory-optimized envelope instance from pool
+        
+    Raises:
+        ValueError: If exchange_type is not 'backpack' or 'hyperliquid'
     """
     if exchange_type == "backpack":
         return memory_pool.get_backpack_envelope(**raw_data)
@@ -332,7 +383,11 @@ if __name__ == "__main__":
     logger = get_logger(__name__)
 
     def benchmark_memory_optimization(iterations: int = 10000) -> dict[str, float]:
-        """Benchmark memory-optimized models vs standard models."""
+        """Benchmark memory-optimized models vs standard models.
+        
+        Returns:
+            dict[str, float]: Performance metrics including timing and improvement percentages
+        """
         # Sample data
         backpack_data: dict[str, Any] = {
             "stream": "depth.SOL_USDC",

@@ -37,42 +37,74 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.fixture
     def error_handler(self) -> AsyncMock:
-        """Create mock error handler."""
+        """Create mock error handler.
+        
+        Returns:
+            AsyncMock: Mock BaseErrorHandler instance for testing.
+        """
         return AsyncMock(spec=BaseErrorHandler)
 
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
-        """Create mock order book mapper."""
+        """Create mock order book mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidOrderBookMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidOrderBookMapper)
 
     @pytest.fixture
     def price_ticker_mapper(self) -> MagicMock:
-        """Create mock price ticker mapper."""
+        """Create mock price ticker mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidPriceTickerMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidPriceTickerMapper)
 
     @pytest.fixture
     def balance_mapper(self) -> MagicMock:
-        """Create mock balance mapper."""
+        """Create mock balance mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidBalanceMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidBalanceMapper)
 
     @pytest.fixture
     def position_mapper(self) -> MagicMock:
-        """Create mock position mapper."""
+        """Create mock position mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidPositionMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidPositionMapper)
 
     @pytest.fixture
     def order_mapper(self) -> MagicMock:
-        """Create mock order mapper."""
+        """Create mock order mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidOrderMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidOrderMapper)
 
     @pytest.fixture
     def transaction_mapper(self) -> MagicMock:
-        """Create mock transaction mapper."""
+        """Create mock transaction mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidTransactionMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidTransactionMapper)
 
     @pytest.fixture
     def historical_data_mapper(self) -> MagicMock:
-        """Create mock historical data mapper."""
+        """Create mock historical data mapper.
+        
+        Returns:
+            MagicMock: Mock HyperliquidHistoricalDataMapper instance for testing.
+        """
         return MagicMock(spec=HyperliquidHistoricalDataMapper)
 
     @pytest.fixture
@@ -87,7 +119,11 @@ class TestHyperliquidWebSocketRouter:
         transaction_mapper: MagicMock,
         historical_data_mapper: MagicMock,
     ) -> HyperliquidWebSocketRouter:
-        """Create router for testing."""
+        """Create router for testing.
+        
+        Returns:
+            HyperliquidWebSocketRouter: Configured router instance with mocked dependencies.
+        """
         # Create typed processor for testing
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)

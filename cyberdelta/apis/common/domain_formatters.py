@@ -103,7 +103,7 @@ class HyperliquidApiFormatter(ExchangeApiFormatter):
             Dictionary with Hyperliquid API format
 
         Raises:
-            ValueError: If symbol is not for Hyperliquid
+            InvalidExchangeSymbolError: If symbol is not for Hyperliquid exchange
         """
         if exchange_symbol.exchange_id != ExchangeName.HYPERLIQUID:
             raise InvalidExchangeSymbolError(ExchangeName.HYPERLIQUID, exchange_symbol.exchange_id)
@@ -130,6 +130,10 @@ class HyperliquidApiFormatter(ExchangeApiFormatter):
     def format_for_market_data(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for Hyperliquid market data requests.
 
+        Uses the base Hyperliquid API formatting and adds market data specific fields
+        if needed. The validation of exchange type is performed by the underlying
+        format_symbol_for_api method.
+
         Args:
             exchange_symbol: Domain object for Hyperliquid
 
@@ -147,6 +151,9 @@ class HyperliquidApiFormatter(ExchangeApiFormatter):
     @staticmethod
     def format_for_order_placement(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for Hyperliquid order placement.
+
+        Delegates to the base Hyperliquid API formatting which handles all
+        necessary validation and formatting for order placement.
 
         Args:
             exchange_symbol: Domain object for Hyperliquid
@@ -171,7 +178,7 @@ class BackpackApiFormatter(ExchangeApiFormatter):
             Dictionary with Backpack API format
 
         Raises:
-            ValueError: If symbol is not for Backpack
+            InvalidExchangeSymbolError: If symbol is not for Backpack exchange
         """
         if exchange_symbol.exchange_id != ExchangeName.BACKPACK:
             raise InvalidExchangeSymbolError(ExchangeName.BACKPACK, exchange_symbol.exchange_id)
@@ -198,6 +205,9 @@ class BackpackApiFormatter(ExchangeApiFormatter):
     def format_for_market_data(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for Backpack market data requests.
 
+        Delegates to the base Backpack API formatting which handles all
+        necessary validation and formatting for market data requests.
+
         Args:
             exchange_symbol: Domain object for Backpack
 
@@ -209,6 +219,9 @@ class BackpackApiFormatter(ExchangeApiFormatter):
     @staticmethod
     def format_for_order_placement(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for Backpack order placement.
+
+        Delegates to the base Backpack API formatting which handles all
+        necessary validation and formatting for order placement.
 
         Args:
             exchange_symbol: Domain object for Backpack
@@ -229,11 +242,8 @@ class BinanceApiFormatter(ExchangeApiFormatter):
         Args:
             exchange_symbol: Domain object for Binance
 
-        Returns:
-            Dictionary with Binance API format
-
         Raises:
-            ValueError: If symbol is not for Binance
+            BinanceNotSupportedError: If symbol is not for Binance
             NotImplementedError: Binance support not yet implemented
         """
         # Create a placeholder for Binance since it's not in ExchangeName enum yet
@@ -258,6 +268,10 @@ class DomainAwareApiFormatter:
     def format_for_api(cls, exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for appropriate exchange API.
 
+        Routes to the appropriate exchange-specific formatter based on the
+        exchange_id in the symbol. This provides a unified interface for
+        formatting symbols across different exchanges.
+
         Args:
             exchange_symbol: Domain object to format
 
@@ -265,7 +279,7 @@ class DomainAwareApiFormatter:
             Dictionary formatted for the symbol's exchange
 
         Raises:
-            ValueError: If exchange is not supported
+            UnsupportedExchangeError: If exchange is not supported
         """
         formatter_class = cls._FORMATTERS.get(exchange_symbol.exchange_id)
         if not formatter_class:
@@ -301,6 +315,10 @@ class DomainAwareApiFormatter:
     def format_for_market_data(cls, exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for market data requests.
 
+        Routes to the appropriate exchange-specific market data formatter based on
+        the exchange_id. Falls back to generic formatting if no specialized
+        formatter is available.
+
         Args:
             exchange_symbol: Domain object to format
 
@@ -319,6 +337,10 @@ class DomainAwareApiFormatter:
     @classmethod
     def format_for_order_placement(cls, exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
         """Format symbol for order placement requests.
+
+        Routes to the appropriate exchange-specific order placement formatter based on
+        the exchange_id. Falls back to generic formatting if no specialized
+        formatter is available.
 
         Args:
             exchange_symbol: Domain object to format
@@ -349,6 +371,9 @@ class DomainAwareApiFormatter:
 def format_symbol_for_api(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
     """Format ExchangeSymbol for its appropriate exchange API.
 
+    Convenience function that delegates to DomainAwareApiFormatter for
+    formatting symbols according to their exchange requirements.
+
     Args:
         exchange_symbol: Domain object to format
 
@@ -361,6 +386,9 @@ def format_symbol_for_api(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
 def format_symbol_for_market_data(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
     """Format ExchangeSymbol for market data requests.
 
+    Convenience function that delegates to DomainAwareApiFormatter for
+    formatting symbols specifically for market data API calls.
+
     Args:
         exchange_symbol: Domain object to format
 
@@ -372,6 +400,9 @@ def format_symbol_for_market_data(exchange_symbol: ExchangeSymbol) -> dict[str, 
 
 def format_symbol_for_order_placement(exchange_symbol: ExchangeSymbol) -> dict[str, Any]:
     """Format ExchangeSymbol for order placement requests.
+
+    Convenience function that delegates to DomainAwareApiFormatter for
+    formatting symbols specifically for order placement API calls.
 
     Args:
         exchange_symbol: Domain object to format
