@@ -20,7 +20,7 @@ from cyberdelta.enums import OrderSide, SignalType
 @pytest.fixture
 def engine() -> Engine:
     """Create an Engine instance for testing.
-    
+
     Returns:
         Engine: Trading engine instance configured for testing.
     """
@@ -30,7 +30,7 @@ def engine() -> Engine:
 @pytest.fixture
 def mock_strategy() -> Mock:
     """Create a mock strategy that behaves like the real Strategy interface.
-    
+
     Returns:
         Mock: Mock strategy object with proper interface methods.
     """
@@ -52,7 +52,7 @@ def mock_strategy() -> Mock:
 @pytest.fixture
 def sample_candle() -> Candle:
     """Create a valid Candle for testing.
-    
+
     Returns:
         Candle: Market candle data for BTC-PERP.
     """
@@ -71,7 +71,7 @@ def sample_candle() -> Candle:
 @pytest.fixture
 def sample_signal() -> TradeSignal:
     """Create a valid TradeSignal for testing.
-    
+
     Returns:
         TradeSignal: Trade signal for entering a long position.
     """

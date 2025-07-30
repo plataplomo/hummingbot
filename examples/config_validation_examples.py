@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def get_default_symbols_config() -> SmartSymbolsConfig:
     """Get default symbols configuration for examples.
-    
+
     Returns:
         SmartSymbolsConfig: Default symbols configuration with BTC and ETH.
     """

@@ -8,7 +8,6 @@ composite pattern.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING
 
 from cyberdelta.apis.backpack.mappers import (
     BackpackCandleMapper,
@@ -54,11 +53,9 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -180,17 +177,17 @@ class BackpackMarketDataService:
 
     # Price Ticker Operations
 
-    async def get_ticker(self, symbol: str) -> Ticker:
+    async def get_ticker(self, symbol: Symbol) -> Ticker:
         """Get ticker information for a symbol.
 
         Delegates to the price ticker service component.
-        
+
         Args:
             symbol: Trading symbol to get ticker information for
-            
+
         Returns:
             Ticker information containing price, volume, and other market data
-        
+
         """
         return await self._price_ticker_service.get_ticker(symbol)
 
@@ -198,44 +195,44 @@ class BackpackMarketDataService:
         """Get ticker information for all symbols.
 
         Delegates to the price ticker service component.
-        
+
         Returns:
             Dictionary mapping symbol names to their ticker information
-        
+
         """
         return await self._price_ticker_service.get_all_tickers()
 
     # Order Book Operations
 
-    async def get_order_book(self, symbol: str, limit: int | None = None) -> OrderBook:
+    async def get_order_book(self, symbol: Symbol, limit: int | None = None) -> OrderBook:
         """Get order book for a symbol.
 
         Delegates to the order book service component.
-        
+
         Args:
             symbol: Trading symbol to get order book for
             limit: Optional limit on number of bid/ask levels to return
-            
+
         Returns:
             Order book containing bid and ask levels
-        
+
         """
         return await self._order_book_service.get_order_book(symbol, limit)
 
     # Historical Data Operations
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = None) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = None) -> list[Trade]:
         """Get recent trades for a symbol.
 
         Delegates to the historical data service component.
-        
+
         Args:
             symbol: Trading symbol to get recent trades for
             limit: Optional limit on number of trades to return
-            
+
         Returns:
             List of recent trade records
-        
+
         """
         return await self._historical_data_service.get_recent_trades(symbol, limit)
 
@@ -243,13 +240,13 @@ class BackpackMarketDataService:
         """Get historical candle data.
 
         Delegates to the historical data service component.
-        
+
         Args:
             get_candles_args: Arguments specifying symbol, timeframe, and date range
-            
+
         Returns:
             List of historical candle/OHLCV data points
-        
+
         """
         return await self._historical_data_service.get_market_data(get_candles_args)
 
@@ -257,69 +254,71 @@ class BackpackMarketDataService:
         """Get historical market data (candlesticks) for a specific symbol.
 
         This is an alias for get_candles to maintain API compatibility.
-        
+
         Args:
             args: Arguments specifying symbol, timeframe, and date range
-            
+
         Returns:
             List of historical candle/OHLCV data points
-        
+
         """
         return await self.get_candles(args)
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate:
+    async def get_funding_rate(self, symbol: Symbol) -> FundingRate:
         """Get current funding rate for a specific symbol.
 
         Delegates to the market metadata service component.
-        
+
         Args:
             symbol: Trading symbol to get funding rate for
-            
+
         Returns:
             Current funding rate information for the symbol
-            
+
         Raises:
             APIError: If no funding rate is found for the specified symbol
-        
+
         """
         args = GetFundingRatesArgs(symbols=[symbol])
         rates = await self._market_metadata_service.get_funding_rates(args)
         if not rates:
             raise APIError(
                 code=APIErrorCode.INVALID_SYMBOL.value,
-                message=f"No funding rate found for symbol {symbol}",
+                message=f"No funding rate found for symbol {symbol.value}",
             )
         return rates[0]
 
     async def get_funding_rates(
-        self, get_funding_rates_args: GetFundingRatesArgs
+        self,
+        get_funding_rates_args: GetFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get funding rate information.
 
         Delegates to the market metadata service component.
-        
+
         Args:
             get_funding_rates_args: Arguments specifying symbols to get funding rates for
-            
+
         Returns:
             List of funding rate information for the specified symbols
-        
+
         """
         return await self._market_metadata_service.get_funding_rates(get_funding_rates_args)
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates for a specific symbol.
 
         Delegates to the market metadata service component.
-        
+
         Args:
             args: Arguments specifying symbol and date range for historical funding rates
-            
+
         Returns:
             List of historical funding rate records
-        
+
         """
         # For now, delegate to the current funding rates method
         # This would need proper historical implementation
@@ -332,13 +331,13 @@ class BackpackMarketDataService:
         """Get market metadata for a specific symbol.
 
         Delegates to the market metadata service component.
-        
+
         Args:
             args: Arguments specifying the symbol to get market metadata for
-            
+
         Returns:
             Market metadata including trading rules and specifications
-        
+
         """
         return await self._market_metadata_service.get_market(args)
 
@@ -346,13 +345,13 @@ class BackpackMarketDataService:
         """Get metadata for all available markets.
 
         Delegates to the market metadata service component.
-        
+
         Args:
             args: Arguments for filtering or configuring market metadata retrieval
-            
+
         Returns:
             List of market metadata for all available trading pairs
-        
+
         """
         return await self._market_metadata_service.get_markets(args)
 
@@ -360,12 +359,12 @@ class BackpackMarketDataService:
         """Get exchange market information.
 
         Delegates to the market metadata service component.
-        
+
         Args:
             get_exchange_info_args: Arguments for configuring exchange info retrieval
-            
+
         Returns:
             List of market information for all available trading pairs
-        
+
         """
         return await self._market_metadata_service.get_markets(get_exchange_info_args)

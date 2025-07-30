@@ -20,10 +20,10 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
     """Create a test AppSettings instance with minimal required fields.
-    
+
     Returns:
         AppSettings instance loaded from test configuration file.
-        
+
     Raises:
         RuntimeError: If test settings fail to load from configuration file.
     """
@@ -47,7 +47,7 @@ def create_test_opportunity(
     metadata: dict[str, Any] | None = None,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity instance with specified or default values.
     """
@@ -83,7 +83,7 @@ def create_test_context(
     metadata: dict[str, Any] | None = None,
 ) -> CheckContext:
     """Create a test check context.
-    
+
     Returns:
         CheckContext instance for testing validation checks.
     """

@@ -55,7 +55,7 @@ class MockPortfolioTracker:
 
     def get_total_capital(self) -> Decimal:
         """Get total available capital.
-        
+
         Returns:
             Total capital amount of 100000.
         """
@@ -63,11 +63,11 @@ class MockPortfolioTracker:
 
     def get_exchange_balance(self, exchange: str, asset: str) -> Decimal:
         """Get balance for specific exchange and asset.
-        
+
         Args:
             exchange: The exchange name.
             asset: The asset symbol.
-            
+
         Returns:
             Mock balance of 1000 for any exchange/asset combination.
         """
@@ -75,7 +75,7 @@ class MockPortfolioTracker:
 
     def get_all_positions(self) -> Sequence[tuple[str, Position]]:
         """Get all current positions.
-        
+
         Returns:
             Empty list of positions for testing.
         """
@@ -83,7 +83,7 @@ class MockPortfolioTracker:
 
     async def get_current_drawdown(self) -> Decimal | None:
         """Get current portfolio drawdown.
-        
+
         Returns:
             Fixed drawdown of 5% for testing.
         """
@@ -91,7 +91,7 @@ class MockPortfolioTracker:
 
     async def get_total_exposure_usd(self) -> Decimal:
         """Get total portfolio exposure in USD.
-        
+
         Returns:
             Total exposure of 5000 USD.
         """
@@ -99,10 +99,10 @@ class MockPortfolioTracker:
 
     def get_exchange_balances(self, exchange: str) -> list[SpotBalance]:
         """Get all exchange balances.
-        
+
         Args:
             exchange: The exchange name.
-            
+
         Returns:
             List containing a single USDC balance with 1000 total and 800 available.
         """
@@ -118,7 +118,7 @@ class MockPortfolioTracker:
 
     def get_total_portfolio_value(self) -> Decimal:
         """Get total portfolio value.
-        
+
         Returns:
             Total portfolio value of 50000.
         """
@@ -128,7 +128,7 @@ class MockPortfolioTracker:
 @pytest.fixture
 def global_risk_settings() -> GlobalRiskSettings:
     """Create GlobalRiskSettings for testing.
-    
+
     Returns:
         GlobalRiskSettings with constrained position and exposure limits.
     """
@@ -141,10 +141,10 @@ def global_risk_settings() -> GlobalRiskSettings:
 @pytest.fixture
 def constrained_app_settings(global_risk_settings: GlobalRiskSettings) -> AppSettings:
     """Create AppSettings with constrained GlobalRiskSettings.
-    
+
     Args:
         global_risk_settings: The global risk settings to use.
-        
+
     Returns:
         AppSettings configured with the provided global risk limits.
     """
@@ -171,7 +171,7 @@ def constrained_app_settings(global_risk_settings: GlobalRiskSettings) -> AppSet
 @pytest.fixture
 def mock_portfolio_tracker() -> MockPortfolioTracker:
     """Create mock portfolio tracker.
-    
+
     Returns:
         MockPortfolioTracker instance for testing.
     """
@@ -181,7 +181,7 @@ def mock_portfolio_tracker() -> MockPortfolioTracker:
 @pytest.fixture
 def high_value_opportunity() -> ArbitrageOpportunity:
     """Create a high-value arbitrage opportunity for testing constraints.
-    
+
     Returns:
         ArbitrageOpportunity with large price spread for constraint testing.
     """

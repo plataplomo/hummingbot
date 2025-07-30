@@ -146,7 +146,7 @@ class TestTradingDataMapperIntegration:
 
         # Both should produce similar core results
         assert result_raw.exchange_order_id == result_data.exchange_order_id
-        assert result_raw.symbol == result_data.symbol
+        assert result_raw.symbol.value == result_data.symbol.value
         assert result_raw.side == result_data.side
         assert result_raw.order_type == result_data.order_type
         assert result_raw.status == result_data.status
@@ -207,7 +207,7 @@ class TestTradingDataMapperIntegration:
 
         # Verify the result is a complete, valid Order
         assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.symbol == "SOL_USDC"
+        assert result.symbol.value == "SOL_USDC"
         assert result.quantity_requested > Decimal(0)
         assert result.quantity_filled == Decimal("1.0")
         assert result.average_fill_price == Decimal("3000.00")
@@ -254,7 +254,7 @@ class TestTradingDataMapperIntegration:
         # Verify all fields are correctly transformed
         assert result.exchange_order_id == "complex_order_123"
         assert result.client_order_id == "complex_client_456"
-        assert result.symbol == "BTC_USDC"
+        assert result.symbol.value == "BTC_USDC"
         assert result.side == OrderSide.SELL
         assert result.order_type == OrderType.STOP_MARKET
         assert result.status == OrderStatus.PARTIALLY_FILLED
@@ -379,7 +379,7 @@ class TestTradingDataMapperIntegration:
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # Symbol should be preserved exactly
-            assert result.symbol == symbol
+            assert result.symbol.value == symbol
             # Other core fields should be consistent
             assert result.side == OrderSide.BUY
             assert result.order_type == OrderType.LIMIT

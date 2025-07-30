@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from cyberdelta.core.symbols.models import Symbol
+
 
 class MidPrices(BaseModel):
     """Mid prices for multiple symbols from an exchange.
@@ -14,11 +16,11 @@ class MidPrices(BaseModel):
     for efficient batch price fetching and market order pricing.
     """
 
-    prices: dict[str, Decimal] = Field(description="Symbol to mid price mapping")
+    prices: dict[Symbol, Decimal] = Field(description="Symbol to mid price mapping")
     timestamp: datetime | None = Field(default=None, description="When prices were captured")
     exchange: str = Field(description="Source exchange name")
 
-    def get(self, symbol: str) -> Decimal | None:
+    def get(self, symbol: Symbol) -> Decimal | None:
         """Get mid price for symbol.
 
         Args:
@@ -29,7 +31,7 @@ class MidPrices(BaseModel):
         """
         return self.prices.get(symbol)
 
-    def symbols(self) -> list[str]:
+    def symbols(self) -> list[Symbol]:
         """Get list of available symbols.
 
         Returns:
@@ -45,7 +47,7 @@ class MidPrices(BaseModel):
         """
         return len(self.prices)
 
-    def has_symbol(self, symbol: str) -> bool:
+    def has_symbol(self, symbol: Symbol) -> bool:
         """Check if symbol exists in snapshot.
 
         Args:

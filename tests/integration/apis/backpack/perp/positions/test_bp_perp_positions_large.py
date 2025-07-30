@@ -136,7 +136,7 @@ class TestBackpackPerpLargePositions:
 
         Returns:
             The maximum order quantity validated by the exchange.
-            
+
         Raises:
             ValueError: If insufficient margin for minimum order size.
         """
@@ -174,7 +174,7 @@ class TestBackpackPerpLargePositions:
         self, api: BackpackAPI, symbol: str, account_summary: MarginAccountSummary
     ) -> Decimal:
         """Calculate maximum notional based on exchange limits.
-        
+
         Returns:
             Maximum notional value based on available equity and leverage limit.
         """
@@ -218,7 +218,7 @@ class TestBackpackPerpLargePositions:
         self, max_notional: Decimal, market_price: Decimal, constraints: dict[str, Any]
     ) -> Decimal:
         """Calculate maximum quantity respecting step size.
-        
+
         Returns:
             Maximum order quantity rounded down to respect step size constraints.
         """
@@ -265,10 +265,10 @@ class TestBackpackPerpLargePositions:
         market_price: Decimal,
     ) -> Decimal:
         """Validate test size by placing and canceling an order.
-        
+
         Returns:
             Validated test order size that was successfully placed and canceled.
-            
+
         Raises:
             ValueError: If test size is below minimum order requirements.
         """

@@ -15,7 +15,7 @@ class TestBackpackRateLimitStrategy:
     @pytest.fixture
     def mock_limiter(self) -> MagicMock:
         """Create a mock TokenBucketRateLimiterRuntime.
-        
+
         Returns:
             MagicMock configured as TokenBucketRateLimiterRuntime with async methods
         """
@@ -27,10 +27,10 @@ class TestBackpackRateLimitStrategy:
     @pytest.fixture
     def strategy(self, mock_limiter: MagicMock) -> BackpackRateLimitStrategy:
         """Create a BackpackRateLimitStrategy instance with mocked limiter.
-        
+
         Args:
             mock_limiter: Mock rate limiter to inject into strategy
-            
+
         Returns:
             BackpackRateLimitStrategy instance configured with mock limiter
         """

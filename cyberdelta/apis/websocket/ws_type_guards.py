@@ -220,7 +220,8 @@ class WebSocketTypeGuards:
 
     @staticmethod
     def has_required_envelope_fields(
-        data: object, required_fields: list[str]
+        data: object,
+        required_fields: list[str],
     ) -> TypeGuard[dict[str, Any]]:
         """Type guard for checking required envelope fields.
 

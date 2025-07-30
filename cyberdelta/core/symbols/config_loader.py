@@ -1,192 +1,178 @@
-"""Configuration-driven symbol registry loader for unified symbol system.
-
-This module loads unified symbols directly from configuration into the symbol registry,
-bypassing all legacy compatibility layers for optimal performance.
-"""
+"""Symbol Configuration Loader."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config import get_app_settings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols.exceptions import SymbolValidationError
-from cyberdelta.core.symbols.models import ExchangeSymbol, InternalSymbol, UnifiedSymbol
-from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.symbol_mapping import (
+    SymbolMappingErrorMessages,
+    SymbolMappingFieldError,
+)
+
+from .global_service import get_symbol_service
 
 
 if TYPE_CHECKING:
-    from cyberdelta.config.models.symbol_configs import UnifiedSymbolConfig
+    from cyberdelta.config.models.symbol_configs import (
+        SymbolGroupConfig,
+        SymbolMappingConfig,
+        SymbolMetadataConfig,
+    )
+
 
 logger = get_logger(__name__)
 
 
 class ConfigSymbolLoader:
-    """Loads symbols directly from configuration into the symbol service.
-
-    This class provides a clean, direct path from configuration to the symbol service
-    without going through legacy compatibility layers. It's designed for optimal
-    performance and simplicity in the new unified symbol system.
-    """
+    """Loads symbols from configuration."""
 
     def __init__(self) -> None:
-        """Initialize the configuration symbol loader."""
-        self.service: SymbolService = SymbolService()
-        self._loaded_symbols: set[str] = set()
+        """Initialize with global symbol service."""
+        self.service = get_symbol_service()
+        self._loaded_count = 0
 
     def load_symbols_from_config(self) -> int:
-        """Load all unified symbols from configuration into the service.
+        """Load all symbol groups from configuration.
 
         Returns:
-            Number of symbols successfully loaded
+            Number of symbols loaded
         """
         app_settings = get_app_settings()
-        unified_symbols = app_settings.unified_symbols
 
-        logger.info(
-            "Starting symbol loading from configuration", total_symbols=len(unified_symbols)
-        )
+        # Handle both old and new config attribute names
+        symbol_groups = getattr(app_settings, "symbol_groups", None)
+        if symbol_groups is None:
+            # Fallback to unified_symbols for compatibility
+            symbol_groups = getattr(app_settings, "unified_symbols", [])
 
-        loaded_count = 0
+        logger.info("loading_symbols_from_config", total_groups=len(symbol_groups))
 
-        for symbol_config in unified_symbols:
+        for symbol_group in symbol_groups:
             try:
-                unified_symbol = self._create_unified_symbol_from_config(symbol_config)
-                self.service.register_symbol(unified_symbol)
-                self._loaded_symbols.add(unified_symbol.internal.value)
-                loaded_count += 1
-
-                logger.debug(
-                    "Symbol loaded successfully",
-                    internal_symbol=unified_symbol.internal.value,
-                    exchange_count=len(unified_symbol.exchange_mappings),
-                )
-
+                self._load_symbol_group(symbol_group)
             except Exception as e:
                 logger.exception(
-                    "Failed to load symbol from configuration",
-                    symbol_config=(
-                        symbol_config.model_dump()
-                        if hasattr(symbol_config, "model_dump")
-                        else str(symbol_config)
-                    ),
+                    "failed_to_load_symbol_group", canonical=symbol_group.canonical, error=str(e)
+                )
+                continue
+
+        logger.info(
+            "symbols_loaded", loaded_count=self._loaded_count, total_groups=len(symbol_groups)
+        )
+
+        return self._loaded_count
+
+    def _load_symbol_group(self, symbol_group: SymbolGroupConfig) -> None:
+        """Load a symbol group (equivalent symbols across exchanges).
+
+        Args:
+            symbol_group: Symbol group configuration
+        """
+        # Process each exchange mapping
+        for mapping in symbol_group.mappings:
+            try:
+                self._load_symbol_mapping(mapping, symbol_group)
+            except (ValueError, KeyError, AttributeError) as e:
+                logger.warning(
+                    "failed_to_load_symbol_mapping",
+                    exchange=mapping.exchange,
+                    value=mapping.value,
                     error=str(e),
                 )
                 continue
 
-        logger.info(
-            "Symbol loading completed",
-            loaded_count=loaded_count,
-            total_symbols=len(unified_symbols),
-            success_rate=(
-                f"{(loaded_count / len(unified_symbols) * 100):.1f}%" if unified_symbols else "0%"
-            ),
-        )
-
-        return loaded_count
-
-    def _create_unified_symbol_from_config(self, config: UnifiedSymbolConfig) -> UnifiedSymbol:
-        """Create a UnifiedSymbol from configuration.
+    def _load_symbol_mapping(self, mapping: SymbolMappingConfig, group: SymbolGroupConfig) -> None:
+        """Load a single symbol from a mapping.
 
         Args:
-            config: Configuration for the unified symbol
-
-        Returns:
-            UnifiedSymbol instance
-
-        Raises:
-            SymbolValidationError: If symbol validation fails
+            mapping: Symbol mapping config
+            group: Parent symbol group
         """
-        # Create internal symbol
+        # Map exchange string to enum
         try:
-            market_type = MarketType(config.internal.market_type)
-        except ValueError as e:
-            raise SymbolValidationError(
-                symbol=config.internal.value,
-                reason=f"Invalid market type '{config.internal.market_type}'",
-            ) from e
+            exchange = ExchangeName(mapping.exchange.lower())
+        except ValueError:
+            logger.warning(
+                "unknown_exchange", exchange=mapping.exchange, symbol_value=mapping.value
+            )
+            return
 
-        internal_symbol = InternalSymbol(
-            value=config.internal.value,
-            base_asset=config.internal.base_asset,
-            quote_asset=config.internal.quote_asset,
-            market_type=market_type,
+        # Build metadata kwargs
+        metadata_kwargs = self._build_metadata_kwargs(exchange, mapping.metadata)
+
+        # Create symbol
+        asset_index = metadata_kwargs.get("asset_index")
+        symbol_id = metadata_kwargs.get("symbol_id")
+
+        symbol = self.service.create_symbol(
+            mapping.value, exchange, asset_index=asset_index, symbol_id=symbol_id
         )
 
-        # Create exchange mappings
-        exchange_mappings: dict[str, ExchangeSymbol] = {}
+        # Register for equivalence tracking
+        self.service.register_symbol(symbol)
+        self._loaded_count += 1
 
-        for exchange_id_str, exchange_config in config.exchange_mappings.items():
-            try:
-                exchange_id = ExchangeName(exchange_id_str.lower())
-            except ValueError:
-                logger.warning(
-                    "Skipping unknown exchange in symbol configuration",
-                    exchange_id=exchange_id_str,
-                    internal_symbol=config.internal.value,
-                )
-                continue
+        logger.debug(
+            "symbol_loaded",
+            value=symbol.value,
+            exchange=symbol.exchange.value,
+            canonical=group.canonical,
+            base_asset=group.base_asset,
+            metadata=metadata_kwargs,
+        )
 
-            # Convert symbol_id from str to int if provided
-            symbol_id = None
-            if exchange_config.symbol_id is not None:
-                try:
-                    symbol_id = int(exchange_config.symbol_id)
-                except ValueError:
-                    logger.warning(
-                        "invalid_symbol_id",
-                        symbol=config.internal.value,
-                        exchange=exchange_id,
-                        symbol_id=exchange_config.symbol_id,
-                        message="symbol_id must be numeric, ignoring",
-                    )
+    def _build_metadata_kwargs(
+        self, exchange: ExchangeName, metadata: SymbolMetadataConfig
+    ) -> dict[str, Any]:
+        """Build metadata kwargs for symbol creation.
 
-            exchange_symbol = ExchangeSymbol(
-                value=exchange_config.value,
-                exchange_id=exchange_id,
-                internal_symbol=internal_symbol,
-                asset_index=exchange_config.asset_index,
-                symbol_id=symbol_id,
-            )
-
-            exchange_mappings[exchange_id.value] = exchange_symbol
-
-        return UnifiedSymbol(internal=internal_symbol, exchange_mappings=exchange_mappings)
-
-    def get_loaded_symbols(self) -> set[str]:
-        """Get set of internal symbols that have been loaded.
+        Args:
+            exchange: Exchange enum
+            metadata: Metadata config
 
         Returns:
-            Set of internal symbol names that were successfully loaded
+            Kwargs for symbol metadata
         """
-        return self._loaded_symbols.copy()
+        kwargs: dict[str, Any] = {}
 
-    def clear_service(self) -> None:
-        """Clear all symbols from the service.
+        # Hyperliquid metadata
+        if exchange == ExchangeName.HYPERLIQUID:
+            if metadata.asset_index is not None:
+                kwargs["asset_index"] = metadata.asset_index
 
-        This is useful for testing or reloading symbols.
-        """
-        self.service.clear()
-        self._loaded_symbols.clear()
-        logger.info("Symbol service cleared")
+        # Backpack metadata
+        elif exchange == ExchangeName.BACKPACK:
+            if metadata.symbol_id is not None:
+                try:
+                    kwargs["symbol_id"] = int(metadata.symbol_id)
+                except ValueError as e:
+                    msg = f"{SymbolMappingErrorMessages.SYMBOL_ID_INVALID}: {metadata.symbol_id}"
+                    raise SymbolMappingFieldError(
+                        msg,
+                        field_name="symbol_id",
+                        field_value=metadata.symbol_id,
+                        exchange_id=exchange.value,
+                        original_exception=e,
+                    ) from e
+            else:
+                # Backpack requires symbol_id
+                raise SymbolMappingFieldError(
+                    SymbolMappingErrorMessages.SYMBOL_ID_REQUIRED_BACKPACK,
+                    field_name="symbol_id",
+                    exchange_id=exchange.value,
+                )
+
+        return kwargs
 
 
 def load_symbols_from_config() -> int:
-    """Convenience function to load symbols from configuration.
+    """Load all symbols from config.
 
     Returns:
-        Number of symbols successfully loaded
+        Number of symbols loaded
     """
     loader = ConfigSymbolLoader()
     return loader.load_symbols_from_config()
-
-
-def get_config_symbol_loader() -> ConfigSymbolLoader:
-    """Get a ConfigSymbolLoader instance.
-
-    Returns:
-        ConfigSymbolLoader instance
-    """
-    return ConfigSymbolLoader()

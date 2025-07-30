@@ -148,12 +148,18 @@ class HyperliquidTradeHistoryService:
             raise
         except TransformationError as e_transform:
             self._handle_transformation_error(
-                e_transform, "get_trade_history", status_code, raw_response_content
+                e_transform,
+                "get_trade_history",
+                status_code,
+                raw_response_content,
             )
             raise
         except ValidationError as e_val:
             self._handle_validation_error(
-                e_val, "get_trade_history", status_code, raw_response_content
+                e_val,
+                "get_trade_history",
+                status_code,
+                raw_response_content,
             )
             raise
         except (ValueError, TypeError) as e_service_logic:
@@ -161,7 +167,10 @@ class HyperliquidTradeHistoryService:
             raise
         except Exception as e_unexpected:
             self._handle_unexpected_error(
-                e_unexpected, "get_trade_history", status_code, raw_response_content
+                e_unexpected,
+                "get_trade_history",
+                status_code,
+                raw_response_content,
             )
             raise
         else:
@@ -269,7 +278,8 @@ class HyperliquidTradeHistoryService:
         )
 
     def _map_fills_to_internal_trades(
-        self, fills_response: HyperliquidRawUserFillsResponse
+        self,
+        fills_response: HyperliquidRawUserFillsResponse,
     ) -> list[Trade]:
         """Map raw fills to internal Trade models.
 
@@ -394,7 +404,9 @@ class HyperliquidTradeHistoryService:
         ) from e_val
 
     def _handle_service_logic_error(
-        self, e_service_logic: ValueError | TypeError, method_name: str
+        self,
+        e_service_logic: ValueError | TypeError,
+        method_name: str,
     ) -> None:
         """Handle service logic errors.
 

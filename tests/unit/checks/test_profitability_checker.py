@@ -20,7 +20,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
     """Create a test AppSettings instance with minimal required fields.
-    
+
     Returns:
         AppSettings: Configured AppSettings instance for ProfitabilityChecker testing.
     """
@@ -62,7 +62,7 @@ def create_test_opportunity(
     metadata: dict[str, Any] | None = None,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity: Configured test arbitrage opportunity with specified parameters.
     """
@@ -100,7 +100,7 @@ def create_test_context(
     metadata: dict[str, Any] | None = None,
 ) -> CheckContext:
     """Create a test check context.
-    
+
     Returns:
         CheckContext: Configured test check context for profitability checks.
     """

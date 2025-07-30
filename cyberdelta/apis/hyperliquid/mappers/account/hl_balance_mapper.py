@@ -25,6 +25,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import BalanceMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import HyperliquidSpotBalanceDetails, SpotBalance
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -43,7 +45,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
     # Protocol method implementations (delegated to common utilities)
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -55,30 +58,6 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
             Decimal: Parsed decimal value or default
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Args:
-            symbol: Exchange-specific symbol to normalize
-
-        Returns:
-            str: Normalized symbol for internal use
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Args:
-            symbol: Internal symbol to denormalize
-
-        Returns:
-            str: Exchange-specific symbol format
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -95,7 +74,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
     # Protocol-specific methods
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str, raw_user_state: HyperliquidRawClearinghouseState
+        asset_symbol: Symbol,
+        raw_user_state: HyperliquidRawClearinghouseState,
     ) -> SpotBalance:
         """Transform raw balance data to internal model.
 
@@ -108,14 +88,15 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         """
         # Get all balances and return the requested one
         balances = HyperliquidBalanceMapper.transform_raw_clearinghouse_state_to_spot_balances(
-            raw_user_state
+            raw_user_state,
         )
 
-        if asset_symbol not in balances:
+        asset_symbol_str = asset_symbol.value
+        if asset_symbol_str not in balances:
             # Return zero balance for missing assets
-            return HyperliquidBalanceMapper._create_zero_balance(asset_symbol)
+            return HyperliquidBalanceMapper._create_zero_balance(asset_symbol_str)
 
-        return balances[asset_symbol]
+        return balances[asset_symbol_str]
 
     @staticmethod
     def _create_zero_balance(asset_symbol: str) -> SpotBalance:
@@ -129,8 +110,13 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         """
         details = HyperliquidSpotBalanceDetails()
 
+        # Create domain symbol at entry point
+        exchange_symbol = exchanges.hyperliquid(
+            value=asset_symbol,
+        )
+
         balance_data = {
-            "asset": asset_symbol,
+            "asset": exchange_symbol,  # Domain object!
             "exchange": ExchangeName.HYPERLIQUID.value,
             "total_quantity": "0",
             "available_quantity": "0",
@@ -266,9 +252,14 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
             elif available_usdc > total_usdc:
                 available_usdc = total_usdc
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value="USDC",
+            )
+
             # Use secure_transform for type-safe model creation
             balance_data = {
-                "asset": "USDC",
+                "asset": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.HYPERLIQUID.value,
                 "total_quantity": str(total_usdc),
                 "available_quantity": str(available_usdc),
@@ -386,9 +377,14 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
             # Create HL-specific details
             details = HyperliquidSpotBalanceDetails()
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=asset_name,
+            )
+
             # Use secure_transform for type-safe model creation
             balance_data = {
-                "asset": asset_name,
+                "asset": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.HYPERLIQUID.value,
                 "total_quantity": str(size),
                 "available_quantity": str(size),  # Assume all available for spot

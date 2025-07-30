@@ -57,7 +57,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
     # Protocol method implementations - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -69,30 +70,6 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             Decimal: Parsed decimal value or default
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Args:
-            symbol: Exchange-specific symbol to normalize
-
-        Returns:
-            str: Normalized symbol for internal use
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Args:
-            symbol: Internal symbol to denormalize
-
-        Returns:
-            str: Exchange-specific symbol format
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -121,12 +98,13 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
         """
         # Delegate to existing method that matches git history business logic
         return HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-            raw_summary
+            raw_summary,
         )
 
     @staticmethod
     def _validate_margin_summary_data(
-        margin_summary: object, context: str
+        margin_summary: object,
+        context: str,
     ) -> HyperliquidRawMarginSummary:
         """Validate margin summary data.
 
@@ -156,7 +134,9 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
     @staticmethod
     def _validate_required_margin_fields(
-        account_value: object, total_margin_used: object, context: str
+        account_value: object,
+        total_margin_used: object,
+        context: str,
     ) -> tuple[object, object]:
         """Validate required margin fields.
 
@@ -184,7 +164,9 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
     @staticmethod
     def _validate_maintenance_margin_fields(
-        cross_mmr: object, withdrawable: object, context: str
+        cross_mmr: object,
+        withdrawable: object,
+        context: str,
     ) -> tuple[object, object]:
         """Validate maintenance margin fields.
 
@@ -265,7 +247,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
             # Validate margin summary data
             margin_summary = HyperliquidAccountSummaryMapper._validate_margin_summary_data(
-                margin_summary, "clearinghouse state"
+                margin_summary,
+                "clearinghouse state",
             )
 
             # Parse core margin fields
@@ -290,7 +273,9 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
             # Validate required margin fields
             HyperliquidAccountSummaryMapper._validate_required_margin_fields(
-                account_value, total_margin_used, "margin summary"
+                account_value,
+                total_margin_used,
+                "margin summary",
             )
 
             # Parse maintenance margin fields from the clearinghouse state
@@ -310,7 +295,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             # If isolated margin is not provided, use only cross margin
             # Ensure cross_mmr is not None after parsing and get validated value
             cross_mmr = HyperliquidAccountSummaryMapper._ensure_cross_mmr_not_none(
-                cross_mmr, clearinghouse_data.cross_maintenance_margin_used
+                cross_mmr,
+                clearinghouse_data.cross_maintenance_margin_used,
             )
 
             total_maintenance_margin = cross_mmr + (
@@ -326,7 +312,9 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
             # Validate maintenance margin fields
             HyperliquidAccountSummaryMapper._validate_maintenance_margin_fields(
-                cross_mmr, withdrawable, "margin summary"
+                cross_mmr,
+                withdrawable,
+                "margin summary",
             )
 
             # Calculate total unrealized PnL from derivative positions

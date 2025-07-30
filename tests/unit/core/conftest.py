@@ -111,7 +111,7 @@ def pt_config() -> PortfolioTrackerConfig:
 @pytest.fixture
 def mock_symbol_mapper() -> Mock:
     """Mock symbol mapper with standard mappings.
-    
+
     Returns:
         Mock: A mock symbol mapper instance for testing.
     """

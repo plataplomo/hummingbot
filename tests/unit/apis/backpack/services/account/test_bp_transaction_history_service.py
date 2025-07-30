@@ -39,7 +39,7 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
     """Create a mock HTTP client requester.
-    
+
     Returns:
         AsyncMock instance configured for HTTP client testing.
     """
@@ -49,7 +49,7 @@ def mock_http_client() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
     """Create a mock request builder.
-    
+
     Returns:
         MagicMock instance configured as BackpackTradingRequestBuilder.
     """
@@ -59,7 +59,7 @@ def mock_request_builder() -> MagicMock:
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
     """Create a mock response handler.
-    
+
     Returns:
         MagicMock instance configured as BackpackTradingResponseHandler.
     """
@@ -69,7 +69,7 @@ def mock_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper.
-    
+
     Returns:
         MagicMock instance configured as BackpackTransactionMapper.
     """
@@ -79,7 +79,7 @@ def mock_mapper() -> MagicMock:
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
     """Create a mock authenticator.
-    
+
     Returns:
         MagicMock instance for authentication testing.
     """
@@ -95,14 +95,14 @@ def transaction_history_service(
     mock_authenticator: MagicMock,
 ) -> BackpackTransactionHistoryService:
     """Create a transaction history service instance with mocks.
-    
+
     Args:
         mock_http_client: Mock HTTP client for API requests.
         mock_request_builder: Mock request builder for constructing requests.
         mock_response_handler: Mock response handler for processing responses.
         mock_mapper: Mock mapper for data transformation.
         mock_authenticator: Mock authenticator for authentication.
-        
+
     Returns:
         BackpackTransactionHistoryService instance configured with all mocks.
     """
@@ -119,7 +119,7 @@ def transaction_history_service(
 @pytest.fixture
 def mock_raw_order() -> BackpackRawOrderResponse:
     """Create a mock raw order.
-    
+
     Returns:
         BackpackRawOrderResponse instance with sample order data
     """
@@ -153,7 +153,7 @@ def mock_raw_order() -> BackpackRawOrderResponse:
 @pytest.fixture
 def mock_order() -> Order:
     """Create a mock order.
-    
+
     Returns:
         Order instance with sample data matching the mock_raw_order.
     """
@@ -181,7 +181,7 @@ def mock_order() -> Order:
 @pytest.fixture
 def mock_raw_fill() -> BackpackRawFillResponse:
     """Create a mock raw fill.
-    
+
     Returns:
         BackpackRawFillResponse instance with sample fill/trade data
     """
@@ -204,7 +204,7 @@ def mock_raw_fill() -> BackpackRawFillResponse:
 @pytest.fixture
 def mock_trade() -> Trade:
     """Create a mock trade.
-    
+
     Returns:
         Trade instance with sample data matching the mock_raw_fill.
     """

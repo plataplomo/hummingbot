@@ -31,7 +31,7 @@ pytestmark = pytest.mark.timing
 @pytest.fixture
 def mock_data_handler() -> MagicMock:
     """Create a mock DataHandler instance.
-    
+
     Returns:
         MagicMock: Mocked DataHandler with configured methods.
     """
@@ -48,7 +48,7 @@ def mock_data_handler() -> MagicMock:
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create a mock PortfolioTracker instance.
-    
+
     Returns:
         Mock: Mocked PortfolioTracker with test positions.
     """
@@ -88,7 +88,7 @@ def mock_portfolio_tracker() -> Mock:
 @pytest.fixture
 def mock_risk_manager() -> Mock:
     """Create a mock RiskManager instance.
-    
+
     Returns:
         Mock: Mocked RiskManager with sized opportunity responses.
     """
@@ -127,7 +127,7 @@ def mock_risk_manager() -> Mock:
 @pytest.fixture
 def strategy_params() -> dict[str, Any]:
     """Standard strategy parameters for testing.
-    
+
     Returns:
         dict[str, Any]: Test strategy configuration parameters.
     """
@@ -152,7 +152,7 @@ def funding_rate_strategy(
     strategy_params: dict[str, Any],
 ) -> FundingRateArbitrageStrategy:
     """Create a FundingRateArbitrageStrategy instance for testing.
-    
+
     Returns:
         FundingRateArbitrageStrategy: Configured strategy with mocked dependencies.
     """

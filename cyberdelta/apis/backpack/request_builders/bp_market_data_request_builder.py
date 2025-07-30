@@ -29,6 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.protocols.builder_protocols import MarketDataRequestBuilderProtocol
 from cyberdelta.apis.exceptions import MissingRequiredParameterError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 logger = get_logger(__name__)
@@ -65,7 +66,7 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         if not operation:
             raise NotImplementedError(
                 "Market data request builder requires 'operation' parameter for "
-                "generic build_request"
+                "generic build_request",
             )
 
         # Note: Market data request builders require specific parameters for each operation
@@ -85,52 +86,39 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
             # Market data operations require specific parameters not available in generic interface
             raise NotImplementedError(
                 f"Market data operation '{operation}' requires specific parameters not available "
-                f"in generic build_request interface. Use specific builder methods directly."
+                f"in generic build_request interface. Use specific builder methods directly.",
             )
         raise NotImplementedError(
-            f"Market data operation '{operation}' not supported by registry dispatch"
+            f"Market data operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
-    def format_symbol(symbol: str) -> str:
-        """Format symbol according to Backpack API requirements.
-
-        Args:
-            symbol: Raw symbol string
-
-        Returns:
-            Formatted symbol string
-        """
-        # Backpack expects symbols in uppercase with underscores (e.g., SOL_USDC)
-        return symbol.replace("-", "_").upper()
-
-    @staticmethod
-    def build_get_ticker_params(symbol: str) -> BackpackRawGetTickerParams:
+    def build_get_ticker_params(symbol: Symbol) -> BackpackRawGetTickerParams:
         """Build query parameters for fetching ticker data.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol domain object
 
         Returns:
             BackpackRawGetTickerParams: Validated query parameters
         """
         logger.debug(
             "building_get_ticker_params",
-            symbol=symbol,
+            symbol=symbol.value,
+            exchange_id=symbol.exchange.value,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
-        return BackpackRawGetTickerParams(symbol=formatted_symbol)
+        return BackpackRawGetTickerParams(symbol=str(symbol))
 
     @staticmethod
     def build_get_order_book_params(
-        symbol: str,
+        symbol: Symbol,
         depth: int | None = None,
     ) -> BackpackRawGetOrderBookParams:
         """Build query parameters for fetching order book data.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol domain object
             depth: Optional depth limit for order book levels
 
         Returns:
@@ -138,12 +126,12 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         """
         logger.debug(
             "building_get_order_book_params",
-            symbol=symbol,
+            symbol=symbol.value,
+            exchange_id=symbol.exchange.value,
             depth=depth,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
-        params_dict: dict[str, Any] = {"symbol": formatted_symbol}
+        params_dict: dict[str, Any] = {"symbol": str(symbol)}
 
         if depth is not None:
             params_dict["limit"] = depth
@@ -152,13 +140,13 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
     @staticmethod
     def build_get_recent_trades_params(
-        symbol: str,
+        symbol: Symbol,
         limit: int | None = None,
     ) -> BackpackRawGetRecentTradesParams:
         """Build query parameters for fetching recent trades.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol domain object
             limit: Optional limit on number of trades
 
         Returns:
@@ -166,12 +154,12 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         """
         logger.debug(
             "building_get_recent_trades_params",
-            symbol=symbol,
+            symbol=symbol.value,
+            exchange_id=symbol.exchange.value,
             limit=limit,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
-        params_dict: dict[str, Any] = {"symbol": formatted_symbol}
+        params_dict: dict[str, Any] = {"symbol": str(symbol)}
 
         if limit is not None:
             params_dict["limit"] = limit
@@ -189,44 +177,44 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         return BackpackRawGetMarketsParams()
 
     @staticmethod
-    def build_get_market_params(symbol: str) -> BackpackRawGetMarketParams:
+    def build_get_market_params(symbol: Symbol) -> BackpackRawGetMarketParams:
         """Build query parameters for fetching a specific market.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol domain object
 
         Returns:
             BackpackRawGetMarketParams: Validated query parameters
         """
         logger.debug(
             "building_get_market_params",
-            symbol=symbol,
+            symbol=symbol.value,
+            exchange_id=symbol.exchange.value,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
-        return BackpackRawGetMarketParams(symbol=formatted_symbol)
+        return BackpackRawGetMarketParams(symbol=str(symbol))
 
     @staticmethod
-    def build_get_funding_rate_params(symbol: str) -> BackpackRawGetFundingRateParams:
+    def build_get_funding_rate_params(symbol: Symbol) -> BackpackRawGetFundingRateParams:
         """Build query parameters for fetching current funding rate.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol domain object
 
         Returns:
             BackpackRawGetFundingRateParams: Validated query parameters
         """
         logger.debug(
             "building_get_funding_rate_params",
-            symbol=symbol,
+            symbol=symbol.value,
+            exchange_id=symbol.exchange.value,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
-        return BackpackRawGetFundingRateParams(symbol=formatted_symbol)
+        return BackpackRawGetFundingRateParams(symbol=str(symbol))
 
     @staticmethod
     def build_get_historical_funding_rates_params(
-        symbol: str,
+        symbol: Symbol,
         start_time: int | None = None,
         end_time: int | None = None,
         limit: int = 100,
@@ -234,7 +222,7 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         """Build query parameters for fetching historical funding rates.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol domain object
             start_time: Optional start timestamp (milliseconds)
             end_time: Optional end timestamp (milliseconds)
             limit: Maximum number of results (default 100)
@@ -244,15 +232,15 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         """
         logger.debug(
             "building_get_historical_funding_rates_params",
-            symbol=symbol,
+            symbol=symbol.value,
+            exchange_id=symbol.exchange.value,
             start_time=start_time,
             end_time=end_time,
             limit=limit,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
         params_dict: dict[str, Any] = {
-            "symbol": formatted_symbol,
+            "symbol": symbol.value,
             "limit": limit,
         }
 
@@ -265,7 +253,7 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
     @staticmethod
     def build_get_market_data_params(
-        symbol: str,
+        symbol: Symbol,
         interval: str,
         start_time: int,
         end_time: int | None = None,
@@ -329,9 +317,8 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
             )
             limit = BackpackMarketDataRequestBuilder.MAX_CANDLE_LIMIT
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
         params_dict: dict[str, Any] = {
-            "symbol": formatted_symbol,
+            "symbol": symbol.value,
             "interval": interval,
             "startTime": start_time // 1000,  # Convert milliseconds to seconds
             "limit": limit,
@@ -344,7 +331,7 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
     @staticmethod
     def build_get_historical_trades_params(
-        symbol: str,
+        symbol: Symbol,
         limit: int = 100,
         from_id: str | None = None,
     ) -> BackpackRawGetHistoricalTradesParams:
@@ -365,9 +352,8 @@ class BackpackMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
             from_id=from_id,
         )
 
-        formatted_symbol = BackpackMarketDataRequestBuilder.format_symbol(symbol)
         return BackpackRawGetHistoricalTradesParams(
-            symbol=formatted_symbol,
+            symbol=str(symbol),
             limit=limit,
             fromId=from_id,
         )

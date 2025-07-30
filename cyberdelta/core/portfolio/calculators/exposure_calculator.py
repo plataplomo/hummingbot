@@ -48,10 +48,10 @@ class ExposureMetrics:
     @classmethod
     def validate_finite_decimals(cls, v: Decimal | str | float) -> Decimal:
         """Ensure all decimal values are finite.
-        
+
         Returns:
             Validated finite Decimal value.
-            
+
         Raises:
             InvalidCalculationInputError: If decimal value is not finite.
         """
@@ -68,10 +68,10 @@ class ExposureMetrics:
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
         """Validate currency exposure values.
-        
+
         Returns:
             Dictionary with currency codes as keys and validated finite Decimal exposures.
-            
+
         Raises:
             InvalidCalculationInputError: If currency code is empty or exposure is not finite.
         """
@@ -127,10 +127,10 @@ class AggregateExposureMetrics:
     @classmethod
     def validate_exposure_decimals(cls, v: Decimal | str | float) -> Decimal:
         """Ensure exposure values are finite.
-        
+
         Returns:
             Validated finite Decimal value.
-            
+
         Raises:
             InvalidCalculationInputError: If exposure value is not finite.
         """
@@ -147,10 +147,10 @@ class AggregateExposureMetrics:
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
         """Validate currency exposure dictionary.
-        
+
         Returns:
             Dictionary with uppercase currency codes and validated finite exposures.
-            
+
         Raises:
             InvalidCalculationInputError: If currency code is empty or exposure is not finite.
         """
@@ -176,10 +176,10 @@ class AggregateExposureMetrics:
     @classmethod
     def validate_current_price(cls, v: Decimal | str | float) -> Decimal:
         """Validate current price is positive and finite.
-        
+
         Returns:
             Validated positive finite Decimal price.
-            
+
         Raises:
             InvalidCalculationInputError: If price is not finite or not positive.
         """
@@ -198,10 +198,10 @@ class AggregateExposureMetrics:
     @classmethod
     def validate_volatility(cls, v: Decimal | str | float | None) -> Decimal | None:
         """Validate volatility if provided.
-        
+
         Returns:
             Validated non-negative finite Decimal volatility or None if input is None.
-            
+
         Raises:
             InvalidCalculationInputError: If volatility is not finite, negative, or exceeds maximum.
         """
@@ -228,10 +228,10 @@ class AggregateExposureMetrics:
     @classmethod
     def validate_correlation_data(cls, v: dict[str, float] | None) -> dict[str, float] | None:
         """Validate correlation data if provided.
-        
+
         Returns:
             Validated correlation dictionary with values between -1 and 1, or None if input is None.
-            
+
         Raises:
             InvalidCalculationInputError: If any correlation value is not between -1 and 1.
         """
@@ -380,7 +380,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
         self, position: DerivativePosition, current_price: Decimal
     ) -> Decimal:
         """Calculate margin requirement for the position.
-        
+
         Returns:
             Required margin amount based on notional value and margin rate.
         """
@@ -393,7 +393,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
         self, position: DerivativePosition, current_price: Decimal, margin_requirement: Decimal
     ) -> Decimal | None:
         """Calculate liquidation price for the position.
-        
+
         Returns:
             Estimated liquidation price for the position, or None if position size is zero.
         """
@@ -410,7 +410,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
         self, notional_value: Decimal, volatility: Decimal, confidence_level: Decimal
     ) -> Decimal:
         """Calculate Value at Risk.
-        
+
         Returns:
             Value at Risk amount based on notional value, volatility, and confidence level.
         """
@@ -426,7 +426,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
         self, position: DerivativePosition, current_price: Decimal, stress_move: Decimal
     ) -> Decimal:
         """Calculate loss in stress scenario.
-        
+
         Returns:
             Estimated loss amount under specified stress market movement.
         """
@@ -441,7 +441,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
         self, position: DerivativePosition, current_price: Decimal
     ) -> dict[str, Decimal]:
         """Calculate currency exposures from the position.
-        
+
         Returns:
             Dictionary mapping currency codes to exposure amounts.
         """
@@ -463,7 +463,7 @@ class ExposureCalculator(TypedCalculator[ExposureInput, ExposureMetrics]):
         self, positions: list[DerivativePosition]
     ) -> AggregateExposureMetrics:
         """Calculate aggregate exposure for a portfolio of positions.
-        
+
         Returns:
             Aggregate exposure metrics including total gross/net exposure and currency breakdowns.
         """

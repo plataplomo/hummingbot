@@ -275,7 +275,9 @@ if __name__ == "__main__":
     configs = compare_config_performance()
 
     logger.info(
-        "configuration_performance_comparison", component="PerformanceConfigs", action="comparison"
+        "configuration_performance_comparison",
+        component="PerformanceConfigs",
+        action="comparison",
     )
 
     for config_name, characteristics in configs.items():

@@ -49,9 +49,11 @@ class TestBackpackBalancesPositive:
         for asset, balance in balances.items():
             assert isinstance(balance, SpotBalance)
             assert balance.exchange == "backpack"
-            assert isinstance(balance.asset, str)
-            assert len(balance.asset) > 0
-            assert balance.asset == asset  # Key should match asset in balance
+            assert hasattr(balance.asset, "value"), (
+                f"Expected Symbol object with value attribute, got {type(balance.asset)}"
+            )
+            assert len(balance.asset.value) > 0
+            assert balance.asset.value == asset  # Key should match asset symbol value
 
             # For positive balance tests, total should be > 0 for at least one asset
             assert isinstance(balance.total_quantity, Decimal)
@@ -114,7 +116,7 @@ class TestBackpackBalancesPositive:
 
         assert balance is not None, "Expected USDC balance to be present"
         assert isinstance(balance, SpotBalance)
-        assert balance.asset == "USDC"
+        assert balance.asset.value == "USDC"
         assert balance.exchange == "backpack"
 
         # Verify quantities

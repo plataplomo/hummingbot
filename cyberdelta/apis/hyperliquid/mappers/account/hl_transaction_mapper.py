@@ -30,6 +30,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TransactionMa
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Trade
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -48,37 +49,20 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
     # Protocol method implementations (delegated to common utilities)
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
-        
+
         Returns:
             Decimal: Parsed decimal value or default if parsing fails.
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-        
-        Returns:
-            str: Normalized symbol (e.g., 'BTC-USD' -> 'BTCUSD').
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-        
-        Returns:
-            str: Denormalized symbol for exchange (e.g., 'BTCUSD' -> 'BTC-USD').
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
-
-    @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
-        
+
         Returns:
             datetime | None: UTC datetime object or None if timestamp is None.
         """
@@ -154,10 +138,15 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
                 dir=getattr(raw_fill, "dir", None),
             )
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=raw_fill.coin,
+            )
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(getattr(raw_fill, "hash", f"fill_{raw_fill.time}_{raw_fill.coin}")),
-                "symbol": raw_fill.coin,
+                "symbol": exchange_symbol,  # Domain object!
                 "executed_at": executed_at.isoformat(),
                 "side": side.value,
                 "order_id": str(getattr(raw_fill, "oid", "unknown")),
@@ -273,10 +262,15 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
                 dir=getattr(raw_fill, "dir", None),
             )
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=raw_fill.coin,
+            )
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(raw_fill.tid),
-                "symbol": raw_fill.coin,
+                "symbol": exchange_symbol,  # Domain object!
                 "executed_at": executed_at.isoformat(),
                 "side": side.value,
                 "order_id": str(raw_fill.oid),
@@ -381,10 +375,15 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
                 dir=None,
             )
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=raw_fill.coin,
+            )
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": raw_fill.hash,
-                "symbol": raw_fill.coin,
+                "symbol": exchange_symbol,  # Domain object!
                 "executed_at": executed_at.isoformat(),
                 "side": side.value,
                 "order_id": str(raw_fill.oid),

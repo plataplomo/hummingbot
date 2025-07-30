@@ -25,7 +25,7 @@ def create_test_opportunity(
     short_funding_rate: float = -0.0001,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity: Configured test arbitrage opportunity for check pipeline tests.
     """
@@ -71,7 +71,7 @@ class MockChecker(BaseCheckerInterface):
 
     def validate(self, opportunity: ArbitrageOpportunity) -> CheckResult:
         """Mock validation method.
-        
+
         Returns:
             CheckResult: Mock check result based on configured behavior.
         """
@@ -101,7 +101,7 @@ class MockChecker(BaseCheckerInterface):
 
     async def check(self, opportunity: ArbitrageOpportunity, context: CheckContext) -> CheckResult:
         """Mock async check method.
-        
+
         Returns:
             CheckResult: Mock check result after optional delay.
         """

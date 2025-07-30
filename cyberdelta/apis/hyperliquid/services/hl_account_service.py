@@ -76,6 +76,8 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -231,24 +233,20 @@ class HyperliquidAccountService:
 
     async def get_balances(self) -> dict[str, SpotBalance]:
         """Retrieve all account balances.
-        
+
         Returns:
             Dictionary mapping asset symbols to their balance information
-        
+
         """
         return await self._balance_service.get_balances()
 
     # Position Operations
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Retrieve derivative positions, optionally filtered by symbol.
-        
-        Args:
-            symbol: Optional symbol to filter positions by
-            
+
         Returns:
-            List of derivative positions, filtered by symbol if provided
-        
+            list[DerivativePosition]: List of derivative positions
         """
         return await self._position_service.get_positions(symbol)
 
@@ -256,22 +254,22 @@ class HyperliquidAccountService:
 
     async def get_account_summary(self) -> MarginAccountSummary:
         """Retrieve general account information summary.
-        
+
         Returns:
             Account summary containing margin, equity, and other account metrics
-        
+
         """
         return await self._account_summary_service.get_account_summary()
 
     async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
         """Update account settings such as leverage limits.
-        
+
         Args:
             args: Settings update arguments
-            
+
         Raises:
             NotImplementedOperationError: This operation is not implemented
-        
+
         """
         raise NotImplementedOperationError(
             operation="update_account_settings",
@@ -283,13 +281,13 @@ class HyperliquidAccountService:
 
     async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
         """Retrieve historical order data.
-        
+
         Args:
             args: Arguments specifying date range and filtering options
-            
+
         Returns:
             List of historical order records
-        
+
         """
         return await self._order_history_service.get_order_history(args)
 
@@ -297,13 +295,13 @@ class HyperliquidAccountService:
 
     async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
         """Retrieve user trade history (fills).
-        
+
         Args:
             args: Arguments specifying date range and filtering options
-            
+
         Returns:
             List of trade history records (fills)
-        
+
         """
         return await self._trade_history_service.get_trade_history(args)
 
@@ -320,7 +318,7 @@ class HyperliquidAccountService:
 
         Returns:
             Transfer: Internal transfer model with Hyperliquid-specific details
-        
+
         """
         logger.info(
             "hyperliquid_internal_transfer_start",
@@ -380,7 +378,7 @@ class HyperliquidAccountService:
 
         Raises:
             InvalidEnumValueError: If account types are invalid for Hyperliquid
-        
+
         """
         valid_accounts = {"spot", "perp"}
 
@@ -416,12 +414,14 @@ class HyperliquidAccountService:
 
         Returns:
             Tuple of (raw response from Hyperliquid API, HTTP status code)
-        
+
         """
         try:
             # Build internal transfer payload using static method
+            # Convert asset string to Symbol object
+            asset_symbol = exchanges.hyperliquid(args.asset)
             transfer_payload = self._request_builder.build_internal_transfer_payload(
-                asset_symbol=args.asset,
+                asset_symbol=asset_symbol,
                 from_account_type=args.from_account_type,
                 to_account_type=args.to_account_type,
                 amount=args.amount,
@@ -457,7 +457,9 @@ class HyperliquidAccountService:
             return response_data, status_code
 
     async def _process_transfer_response(
-        self, raw_response: ParsedJsonResponse, status_code: int
+        self,
+        raw_response: ParsedJsonResponse,
+        status_code: int,
     ) -> HyperliquidRawUsdTransferResponse:
         """Process transfer response through response handler.
 
@@ -467,7 +469,7 @@ class HyperliquidAccountService:
 
         Returns:
             Validated HyperliquidRawUsdTransferResponse model
-        
+
         """
         try:
             # For transfer responses, the raw_response should be the direct API response
@@ -499,13 +501,13 @@ class HyperliquidAccountService:
 
     def _raise_none_response_error(self, status_code: int) -> NoReturn:
         """Raise ResponseParsingError for None response data.
-        
+
         Args:
             status_code: HTTP status code from the response
-            
+
         Raises:
             ResponseParsingError: Always raised to indicate None response data
-        
+
         """
         raise ResponseParsingError(
             url="/exchange",
@@ -515,13 +517,13 @@ class HyperliquidAccountService:
 
     async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
         """Initiate a withdrawal - NOT IMPLEMENTED.
-        
+
         Args:
             args: Withdrawal arguments
-            
+
         Raises:
             NotImplementedOperationError: This operation is not implemented
-        
+
         """
         raise NotImplementedOperationError(
             operation="withdraw",

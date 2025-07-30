@@ -58,7 +58,8 @@ logger = get_logger(__name__)
 
 
 class HyperliquidAccountResponseHandler(
-    HyperliquidResponseHandlerBase, AccountResponseHandlerProtocol
+    HyperliquidResponseHandlerBase,
+    AccountResponseHandlerProtocol,
 ):
     """Handles validation of account-related JSON responses from Hyperliquid API.
 
@@ -69,7 +70,11 @@ class HyperliquidAccountResponseHandler(
 
     # Base protocol method implementation
     def handle_response(
-        self, response: dict[str, object], status_code: int, headers: dict[str, str], context: str
+        self,
+        response: dict[str, object],
+        status_code: int,
+        headers: dict[str, str],
+        context: str,
     ) -> object:
         """Handle API response per base protocol.
 
@@ -81,7 +86,7 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Processed response object
-            
+
         Raises:
             APIError: If the context is unknown or response validation fails.
         """
@@ -129,7 +134,11 @@ class HyperliquidAccountResponseHandler(
             return HyperliquidRawUserStateResponse(**response_dict)
         except ValidationError as e:
             raise self._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e,
+                context,
+                raw_response_content,
+                status_code,
+                headers,
             ) from e
 
     # TODO: Re-enable when spot asset models are available
@@ -267,7 +276,8 @@ class HyperliquidAccountResponseHandler(
     # Protocol implementation methods
     @staticmethod
     def handle_get_user_state_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawClearinghouseState:
         """Handle user state response using protocol interface.
 
@@ -277,7 +287,7 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Validated Pydantic model containing user state data
-            
+
         Raises:
             APIError: If validation of the user state response fails.
         """
@@ -301,7 +311,8 @@ class HyperliquidAccountResponseHandler(
 
     @staticmethod
     def handle_get_clearinghouse_state_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawClearinghouseState:
         """Handle clearinghouse state response using protocol interface.
 
@@ -314,12 +325,14 @@ class HyperliquidAccountResponseHandler(
         """
         # Clearinghouse state uses the same model as user state
         return HyperliquidAccountResponseHandler.handle_get_user_state_response(
-            raw_response_content, status_code
+            raw_response_content,
+            status_code,
         )
 
     @staticmethod
     def handle_get_open_orders_response(
-        raw_response_content: ParsedJsonResponse, status_code: int
+        raw_response_content: ParsedJsonResponse,
+        status_code: int,
     ) -> HyperliquidRawOpenOrdersResponse:
         """Handle open orders response using protocol interface.
 
@@ -329,7 +342,7 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Validated Pydantic model containing order data
-            
+
         Raises:
             APIError: If validation of the open orders response fails.
         """
@@ -355,7 +368,8 @@ class HyperliquidAccountResponseHandler(
 
     @staticmethod
     def handle_get_user_fills_response(
-        raw_response_content: ParsedJsonResponse, status_code: int
+        raw_response_content: ParsedJsonResponse,
+        status_code: int,
     ) -> HyperliquidRawUserFillsResponse:
         """Handle user fills response using protocol interface.
 
@@ -365,7 +379,7 @@ class HyperliquidAccountResponseHandler(
 
         Returns:
             Validated Pydantic model containing fill data
-            
+
         Raises:
             APIError: If validation of the user fills response fails.
         """

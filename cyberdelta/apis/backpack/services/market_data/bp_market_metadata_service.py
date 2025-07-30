@@ -47,6 +47,8 @@ from cyberdelta.apis.models.service_args.market_data import (
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import FundingRate, Market
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -209,7 +211,7 @@ class BackpackMarketMetadataService:
             self._handle_market_exceptions(
                 e,
                 current_method,
-                symbol,
+                str(symbol),
                 status_code,
                 raw_response_content,
             )
@@ -307,7 +309,7 @@ class BackpackMarketMetadataService:
         else:
             return internal_markets
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate:
+    async def get_funding_rate(self, symbol: Symbol) -> FundingRate:
         """Retrieves the current funding rate for a specific symbol.
 
         Args:
@@ -319,23 +321,26 @@ class BackpackMarketMetadataService:
         Raises:
             APIError: If funding rate retrieval fails
         """
-        self._validate_funding_rate_symbol(symbol)
+        self._validate_funding_rate_symbol(symbol.value)
 
         try:
             logger.info(
                 "retrieving_funding_rate",
                 exchange=self._exchange_name,
-                symbol=symbol,
+                symbol=symbol.value,
                 message="Retrieving funding rate from exchange",
             )
 
             raw_funding_interval_rates = await self._fetch_funding_rate_data(symbol)
-            funding_rate = self._process_funding_rate_response(raw_funding_interval_rates, symbol)
+            funding_rate = self._process_funding_rate_response(
+                raw_funding_interval_rates,
+                symbol.value,
+            )
 
             logger.info(
                 "funding_rate_retrieved",
                 exchange=self._exchange_name,
-                symbol=symbol,
+                symbol=symbol.value,
                 rate=str(funding_rate.funding_rate),
                 message="Successfully retrieved funding rate",
             )
@@ -343,7 +348,7 @@ class BackpackMarketMetadataService:
         except APIError:
             raise
         except Exception as e:
-            self._handle_funding_rate_error(e, symbol)
+            self._handle_funding_rate_error(e, symbol.value)
             raise
         else:
             return funding_rate
@@ -371,6 +376,7 @@ class BackpackMarketMetadataService:
         if args.symbols is None:
             raise NullSymbolsError(current_method)
 
+        # No need to convert to strings anymore - work with Symbol objects directly
         self._validate_funding_rates_symbols(args.symbols, current_method)
 
         status_code: int = 0
@@ -411,22 +417,25 @@ class BackpackMarketMetadataService:
 
         return funding_rates
 
-    async def _fetch_funding_rate_data(self, symbol: str) -> list[BackpackRawFundingIntervalRate]:
+    async def _fetch_funding_rate_data(
+        self,
+        symbol: Symbol,
+    ) -> list[BackpackRawFundingIntervalRate]:
         """Fetch funding rate data from the API.
 
         Args:
-            symbol: Trading symbol
+            symbol: Symbol object
 
         Returns:
             list[BackpackRawFundingIntervalRate]: Raw funding rate data
         """
-        params = self._request_builder.build_get_funding_rate_params(symbol=symbol)
+        params = self._request_builder.build_get_funding_rate_params(symbol)
         endpoint_path = "/api/v1/fundingRates"
 
         logger.debug(
             "funding_rate_request",
             exchange=self._exchange_name,
-            symbol=symbol,
+            symbol=symbol.value,
             endpoint_path=endpoint_path,
             params=params,
             message="Requesting funding rate from endpoint",
@@ -445,7 +454,7 @@ class BackpackMarketMetadataService:
 
         validated_data = ensure_list_response(
             raw_data,
-            f"funding rate ({symbol})",
+            f"funding rate ({symbol.value})",
             status_code,
         )
 
@@ -478,11 +487,13 @@ class BackpackMarketMetadataService:
 
         # Use the first (most recent) funding rate
         most_recent_rate = raw_funding_interval_rates[0]
+        symbol_obj = exchanges.backpack(value=symbol)
         return self._funding_rate_mapper.transform_raw_funding_interval_rate_to_internal(
-            most_recent_rate, symbol
+            most_recent_rate,
+            symbol_obj,
         )
 
-    async def _fetch_individual_funding_rates(self, symbols: list[str]) -> list[FundingRate]:
+    async def _fetch_individual_funding_rates(self, symbols: list[Symbol]) -> list[FundingRate]:
         """Fetch funding rates individually for each symbol.
 
         Args:
@@ -505,11 +516,11 @@ class BackpackMarketMetadataService:
                 logger.warning(
                     "funding_rate_failed",
                     exchange=self._exchange_name,
-                    symbol=symbol,
+                    symbol=symbol.value,
                     error=str(e),
-                    message=f"Failed to get funding rate for {symbol}: {e}",
+                    message=f"Failed to get funding rate for {symbol.value}: {e}",
                 )
-                failed_symbols.append(symbol)
+                failed_symbols.append(symbol.value)
 
         if failed_symbols:
             logger.warning(
@@ -524,9 +535,10 @@ class BackpackMarketMetadataService:
 
         # If all symbols failed, raise an error
         if len(failed_symbols) == len(symbols) and symbols:
+            symbol_values = [symbol.value for symbol in symbols]
             raise APIError(
                 code=APIErrorCode.FUNDING_RATE_UNAVAILABLE.value,
-                message=f"Funding rates not available for symbols: {', '.join(symbols)}",
+                message=f"Funding rates not available for symbols: {', '.join(symbol_values)}",
             )
 
         return funding_rates
@@ -543,7 +555,7 @@ class BackpackMarketMetadataService:
         if not symbol:
             raise EmptySymbolError("get_funding_rate")
 
-    def _validate_funding_rates_symbols(self, symbols: list[str], current_method: str) -> None:
+    def _validate_funding_rates_symbols(self, symbols: list[Symbol], current_method: str) -> None:
         """Validate symbols list for funding rates request.
 
         Args:
@@ -558,7 +570,7 @@ class BackpackMarketMetadataService:
             raise EmptySymbolListError(current_method)
 
         for i, symbol in enumerate(symbols):
-            if not symbol:
+            if not symbol or not symbol.value:
                 raise EmptySymbolInListError(current_method, i)
 
     def _handle_market_exceptions(

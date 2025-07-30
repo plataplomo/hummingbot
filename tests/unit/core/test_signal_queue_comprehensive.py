@@ -23,7 +23,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock application settings.
-    
+
     Returns:
         Mock: Mocked AppSettings instance.
     """
@@ -33,7 +33,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
     """Create mock circuit breaker system.
-    
+
     Returns:
         Mock: Mocked CircuitBreakerSystem with configured methods.
     """
@@ -47,7 +47,7 @@ def mock_circuit_breaker_system() -> Mock:
 @pytest.fixture
 def signal_queue(mock_app_settings: Mock, mock_circuit_breaker_system: Mock) -> PrioritySignalQueue:
     """Create PrioritySignalQueue instance for testing.
-    
+
     Returns:
         PrioritySignalQueue: Queue instance with mocked dependencies.
     """
@@ -60,7 +60,7 @@ def signal_queue(mock_app_settings: Mock, mock_circuit_breaker_system: Mock) -> 
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
     """Create sample trade signal for testing.
-    
+
     Returns:
         TradeSignal: Sample BTC-PERP long entry signal.
     """
@@ -81,7 +81,7 @@ def sample_trade_signal() -> TradeSignal:
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     """Create sample arbitrage opportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with utility scores.
     """

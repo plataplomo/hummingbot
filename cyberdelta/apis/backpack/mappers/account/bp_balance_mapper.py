@@ -22,6 +22,8 @@ from cyberdelta.apis.exceptions.data_transformation import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackSpotBalanceDetails, SpotBalance
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -124,9 +126,14 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
             # Create BP-specific details
             details = BackpackSpotBalanceDetails()
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(
+                value=asset,
+            )
+
             # Use secure_transform for type-safe model creation
             balance_data = {
-                "asset": asset,
+                "asset": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.BACKPACK.value,
                 "total_quantity": str(total),
                 "available_quantity": str(available),
@@ -169,7 +176,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
 
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         raw: BackpackRawBalanceResponse,
     ) -> SpotBalance:
         """Transform a validated BackpackRawBalanceResponse object for a specific asset.
@@ -177,7 +184,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
         Converts the raw balance data into an internal SpotBalance domain model.
 
         Args:
-            asset_symbol: The symbol of the asset (e.g., 'USDC', 'SOL')
+            asset_symbol: The Symbol domain object of the asset
             raw: The validated raw balance data for the asset
 
         Returns:
@@ -189,7 +196,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
         try:
             logger.debug(
                 "transforming_raw_balance",
-                asset_symbol=asset_symbol,
+                asset_symbol=asset_symbol.value,
                 raw_available=raw.available,
                 raw_locked=raw.locked,
                 raw_staked=raw.staked,
@@ -200,17 +207,17 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
             parsed_available = parse_decimal_value(
                 raw.available,
                 allow_none=False,
-                field_name=f"{asset_symbol}_available",
+                field_name=f"{asset_symbol.value}_available",
             )
             parsed_locked = parse_decimal_value(
                 raw.locked,
                 allow_none=False,
-                field_name=f"{asset_symbol}_locked",
+                field_name=f"{asset_symbol.value}_locked",
             )
             parsed_staked = parse_decimal_value(
                 raw.staked,
                 allow_none=False,
-                field_name=f"{asset_symbol}_staked",
+                field_name=f"{asset_symbol.value}_staked",
             )
 
             available_typed = BackpackBalanceMapper._ensure_balance_field_not_none(
@@ -237,9 +244,12 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
                 lend_quantity=staked_typed if staked_typed > 0 else None,
             )
 
+            # Use the Symbol object directly (no need to create another)
+            exchange_symbol = asset_symbol
+
             # Use secure_transform for type-safe model creation
             balance_data = {
-                "asset": asset_symbol,
+                "asset": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.BACKPACK.value,
                 "total_quantity": str(total_balance),
                 "available_quantity": str(available_typed),
@@ -284,14 +294,14 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
 
     @staticmethod
     def create_balance_from_collateral(
-        symbol: str,
+        symbol: Symbol,
         collateral_data: BackpackRawCollateralAsset,
         exchange_name: str,
     ) -> SpotBalance:
         """Create a SpotBalance from collateral data when standard balance endpoint is unavailable.
 
         Args:
-            symbol: Asset symbol
+            symbol: Asset Symbol domain object
             collateral_data: Raw collateral data for the asset
             exchange_name: Exchange name
 
@@ -306,7 +316,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
         try:
             logger.debug(
                 "creating_balance_from_collateral",
-                symbol=symbol,
+                symbol=symbol.value,
                 total_quantity=collateral_data.total_quantity,
                 available_quantity=collateral_data.available_quantity,
                 message="Creating SpotBalance from collateral data",
@@ -314,7 +324,9 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
 
             # Parse quantities from collateral data
             total = parse_decimal_value(
-                collateral_data.total_quantity, allow_none=False, field_name="total_quantity"
+                collateral_data.total_quantity,
+                allow_none=False,
+                field_name="total_quantity",
             )
             available = parse_decimal_value(
                 collateral_data.available_quantity,
@@ -332,7 +344,9 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
                     field_name="open_order_quantity",
                 ),
                 lend_quantity=parse_decimal_value(
-                    collateral_data.lend_quantity, allow_none=True, field_name="lend_quantity"
+                    collateral_data.lend_quantity,
+                    allow_none=True,
+                    field_name="lend_quantity",
                 ),
                 collateral_weight=parse_decimal_value(
                     collateral_data.collateral_weight,
@@ -341,9 +355,12 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
                 ),
             )
 
+            # Use the Symbol object directly (no need to create another)
+            exchange_symbol = symbol
+
             # Use secure_transform for type-safe model creation
             balance_data = {
-                "asset": symbol,
+                "asset": exchange_symbol,  # Domain object!
                 "exchange": exchange_name,
                 "total_quantity": str(total),
                 "available_quantity": str(available),
@@ -387,7 +404,8 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -399,30 +417,6 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

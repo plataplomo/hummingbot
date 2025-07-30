@@ -102,7 +102,8 @@ class BackpackAccountStateService:
         )
 
     async def get_account_state(
-        self, subaccount_id: int | None = None
+        self,
+        subaccount_id: int | None = None,
     ) -> BackpackRawCollateralResponse:
         """Fetch the raw account state from the Backpack collateral API.
 
@@ -202,7 +203,8 @@ class BackpackAccountStateService:
             return raw_state
 
     async def _fetch_raw_account_state(
-        self, subaccount_id: int | None = None
+        self,
+        subaccount_id: int | None = None,
     ) -> BackpackRawCollateralResponse:
         """Fetch raw account state from the API.
 

@@ -47,6 +47,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -102,7 +103,7 @@ class HyperliquidTradingService:
             order_mapper: Optional order mapper implementing OrderMapperProtocol
             order_response_mapper: Optional order response mapper for order placement responses
             error_mapper: Optional error mapper for handling error responses
-            
+
         Raises:
             ServiceParameterError: If required parameters are missing or invalid.
         """
@@ -199,7 +200,7 @@ class HyperliquidTradingService:
 
     async def place_order(self, args: PlaceOrderArgs) -> Order:
         """Place a single order on the exchange.
-        
+
         Returns:
             Order: The placed order object.
         """
@@ -209,15 +210,15 @@ class HyperliquidTradingService:
 
     async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
         """Cancel a single order by ID.
-        
+
         Returns:
             CancelOrderResult: Result of the cancellation operation.
         """
         return await self._order_cancellation_service.cancel_order(args)
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders, optionally filtered by symbol.
-        
+
         Returns:
             list[CancelOrderResult]: Results of all cancellation operations.
         """
@@ -227,15 +228,15 @@ class HyperliquidTradingService:
 
     async def get_order(self, args: GetOrderArgs) -> Order | None:
         """Retrieve a specific order by ID.
-        
+
         Returns:
             Order | None: The order if found, None otherwise.
         """
         return await self._order_query_service.get_order(args)
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Retrieve all open orders, optionally filtered by symbol.
-        
+
         Returns:
             list[Order]: List of open orders.
         """
@@ -243,17 +244,19 @@ class HyperliquidTradingService:
 
     async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
         """Retrieve all open orders, optionally filtered by symbol (args version).
-        
+
         Returns:
-            list[Order]: List of open orders.
+            list[Order]: List of open orders
         """
-        return await self._order_query_service.get_open_orders(args.symbol)
+        return await self._order_query_service.get_open_orders(
+            args.symbol,
+        )
 
     # Batch Operations
 
     async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
         """Place multiple orders in a single batch request.
-        
+
         Returns:
             list[Order]: List of placed orders.
         """
@@ -261,7 +264,7 @@ class HyperliquidTradingService:
 
     async def cancel_batch_orders(self, args: list[CancelOrderArgs]) -> list[CancelOrderResult]:
         """Cancel multiple orders in a single batch request.
-        
+
         Returns:
             list[CancelOrderResult]: Results of all cancellation operations.
         """

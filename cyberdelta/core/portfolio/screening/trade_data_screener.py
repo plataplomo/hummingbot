@@ -202,9 +202,8 @@ class TradeDataScreener(BaseScreener):
         sanitized = trade
 
         # Clean trade data directly (Trade objects have known structure)
-        # Clean symbol
-        if sanitized.symbol:
-            sanitized.symbol = sanitized.symbol.strip().upper()
+        # Symbol is now an Symbol domain object, no cleaning needed
+        # Symbol validation happens at creation time
 
         # Clean exchange (Trade model uses 'exchange' field)
         if sanitized.exchange:
@@ -242,8 +241,8 @@ class TradeDataScreener(BaseScreener):
         errors: list[str] = []
 
         # Validate required Trade model fields directly
-        if not trade.symbol or not trade.symbol.strip():
-            errors.append("Required field symbol is missing or empty")
+        # Symbol is now an Symbol which is validated at creation
+        # No need to check if empty since Symbol.value has min_length=1
 
         # Trade model guarantees quantity is not None and > 0 via Field(gt=Decimal(0))
 

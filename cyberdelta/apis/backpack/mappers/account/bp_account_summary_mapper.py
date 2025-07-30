@@ -102,7 +102,7 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
             calculated_assets_value_spot = Decimal("0.0")
 
             for sb in internal_spot_balances:
-                if sb.asset.upper() in {"USD", "USDC", "USDT"}:
+                if sb.asset.value.upper() in {"USD", "USDC", "USDT"}:
                     calculated_total_equity += sb.total_quantity
                     calculated_available_equity += sb.total_quantity
                     calculated_assets_value_spot += sb.total_quantity
@@ -463,7 +463,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -475,30 +476,6 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

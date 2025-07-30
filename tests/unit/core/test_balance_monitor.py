@@ -19,7 +19,7 @@ from cyberdelta.core.portfolio_tracker import PortfolioTracker
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock app settings with balance monitoring configuration.
-    
+
     Returns:
         Mock: Mocked AppSettings with balance monitoring thresholds configured.
     """
@@ -49,7 +49,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create a mock portfolio tracker.
-    
+
     Returns:
         Mock: Mocked PortfolioTracker with default behavior configured.
     """
@@ -62,7 +62,7 @@ def mock_portfolio_tracker() -> Mock:
 @pytest.fixture
 def balance_monitor(mock_app_settings: Mock, mock_portfolio_tracker: Mock) -> BalanceMonitor:
     """Create a BalanceMonitor instance for testing.
-    
+
     Returns:
         BalanceMonitor: Instance configured with mock dependencies.
     """
@@ -72,7 +72,7 @@ def balance_monitor(mock_app_settings: Mock, mock_portfolio_tracker: Mock) -> Ba
 @pytest.fixture
 def sufficient_balance() -> SpotBalance:
     """Create a SpotBalance that meets minimum requirements.
-    
+
     Returns:
         SpotBalance: Balance with 200 USDC (above both exchange minimums).
     """
@@ -88,7 +88,7 @@ def sufficient_balance() -> SpotBalance:
 @pytest.fixture
 def low_balance() -> SpotBalance:
     """Create a SpotBalance that's low but above critical threshold.
-    
+
     Returns:
         SpotBalance: Balance with 120 USDC (above min but below low threshold).
     """
@@ -104,7 +104,7 @@ def low_balance() -> SpotBalance:
 @pytest.fixture
 def critical_balance() -> SpotBalance:
     """Create a SpotBalance that's critically low.
-    
+
     Returns:
         SpotBalance: Balance with 30 USDC (below minimum requirements).
     """

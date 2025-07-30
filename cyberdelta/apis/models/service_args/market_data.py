@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.models.service_args.common import validate_api_str_field
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import (
     IntegerConversionError,
     NegativeValueError,
@@ -27,17 +28,17 @@ class GetMarketDataArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str
+    symbol: Symbol
     timeframe: str
     limit: int = Field(default=100, gt=0)  # Limit must be positive
     start_time_ms: int | None = Field(default=None)
     end_time_ms: int | None = Field(default=None)
 
-    @field_validator("symbol", "timeframe", mode="before")
+    @field_validator("timeframe", mode="before")
     @classmethod
     def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with reasonable max length.
-        
+
         Returns:
             Validated string value.
         """
@@ -52,10 +53,10 @@ class GetMarketDataArgs(BaseModel):
     @classmethod
     def parse_limit_int(cls, v: object, info: ValidationInfo) -> int:
         """Parse limit field as positive integer.
-        
+
         Returns:
             Parsed integer value.
-            
+
         Raises:
             TypeFieldError: If input is not convertible to integer.
             IntegerConversionError: If value cannot be converted to integer.
@@ -78,10 +79,10 @@ class GetMarketDataArgs(BaseModel):
     @classmethod
     def parse_optional_timestamp_ms(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional timestamp milliseconds fields.
-        
+
         Returns:
             Parsed integer timestamp or None if input was None.
-            
+
         Raises:
             TypeFieldError: If input is not convertible to integer.
             IntegerConversionError: If value cannot be converted to integer.
@@ -110,10 +111,10 @@ class GetMarketDataArgs(BaseModel):
     @model_validator(mode="after")
     def check_time_range(self) -> "GetMarketDataArgs":
         """Validate time range logic.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             TimeRangeError: If start_time_ms is greater than or equal to end_time_ms.
         """
@@ -141,34 +142,29 @@ class GetFundingRatesArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbols: list[str] | None = Field(default=None)  # List of symbols, or None for all
+    symbols: list[Symbol] | None = Field(default=None)  # List of symbols, or None for all
 
     @field_validator("symbols", mode="before")
     @classmethod
-    def validate_symbols_list(cls, v: list[str] | None, info: ValidationInfo) -> list[str] | None:
-        """Validate symbols list contains valid non-empty strings.
-        
+    def validate_symbols_list(
+        cls,
+        v: list[Symbol] | None,
+        info: ValidationInfo,
+    ) -> list[Symbol] | None:
+        """Validate symbols list contains valid Symbol objects.
+
         Returns:
-            Validated list of symbol strings or None if input was None.
+            list[Symbol] | None: Validated symbols list or None
+
         """
         if v is None:
             return None  # Allowed
 
-        # v is already typed as list[str] so no isinstance check needed
         if not v:  # Empty list is passed through, service must decide if "all" or error
             return []
 
-        validated_symbols: list[str] = []
-        for i, item in enumerate(v):
-            # Ensure item is a non-empty string
-            item_str = validate_api_str_field(
-                str(item),
-                field_name=f"{info.field_name!s}[{i}]",
-                max_length=64,
-                allow_empty=False,
-            )
-            validated_symbols.append(item_str)
-        return validated_symbols
+        # Type is already guaranteed by Pydantic, just return the list
+        return list(v)
 
 
 class GetHistoricalFundingRatesArgs(BaseModel):
@@ -180,25 +176,10 @@ class GetHistoricalFundingRatesArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str  # Symbol is required for this endpoint on Backpack
+    symbol: Symbol  # Symbol is required for this endpoint on Backpack
     start_time: datetime | None = Field(default=None)
     end_time: datetime | None = Field(default=None)
     limit: int | None = Field(default=None, gt=0)
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_str(cls, v: object, info: ValidationInfo) -> str:
-        """Validate symbol is a non-empty string with max length.
-        
-        Returns:
-            Validated symbol string.
-        """
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
 
     @field_validator("start_time", "end_time", mode="before")
     @classmethod
@@ -208,7 +189,7 @@ class GetHistoricalFundingRatesArgs(BaseModel):
         info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC.
-        
+
         Returns:
             Parsed UTC datetime or None if input was None.
         """
@@ -220,10 +201,10 @@ class GetHistoricalFundingRatesArgs(BaseModel):
     @classmethod
     def parse_optional_positive_int(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional positive integer fields.
-        
+
         Returns:
             Parsed positive integer or None if input was None.
-            
+
         Raises:
             TypeFieldError: If input is not convertible to integer.
             IntegerConversionError: If value cannot be converted to integer.
@@ -244,10 +225,10 @@ class GetHistoricalFundingRatesArgs(BaseModel):
     @model_validator(mode="after")
     def check_time_range_logic(self) -> "GetHistoricalFundingRatesArgs":
         """Validate time range logic.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             TimeRangeError: If start_time is greater than or equal to end_time.
         """
@@ -270,22 +251,7 @@ class GetMarketArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
-        """Validate symbol is a non-empty string with max length 64.
-        
-        Returns:
-            Validated symbol string.
-        """
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
+    symbol: Symbol
 
 
 class GetMarketsArgs(BaseModel):
@@ -310,22 +276,7 @@ class GetTickerArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
-        """Validate symbol is a non-empty string with max length 64.
-        
-        Returns:
-            Validated symbol string.
-        """
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
+    symbol: Symbol
 
 
 class GetOrderBookArgs(BaseModel):
@@ -337,33 +288,18 @@ class GetOrderBookArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str
+    symbol: Symbol
     depth: int | None = Field(default=None, gt=0)
     limit: int | None = Field(default=None, gt=0)
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
-        """Validate symbol is a non-empty string with max length 64.
-        
-        Returns:
-            Validated symbol string.
-        """
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
 
     @field_validator("depth", "limit", mode="before")
     @classmethod
     def parse_optional_depth_int(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional depth field as positive integer.
-        
+
         Returns:
             Parsed positive integer or None if input was None.
-            
+
         Raises:
             TypeFieldError: If input is not convertible to integer.
             IntegerConversionError: If value cannot be converted to integer.
@@ -406,7 +342,7 @@ class GetL2BookArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str = Field(..., min_length=1, max_length=64)
+    symbol: Symbol = Field(...)
 
 
 class GetRecentTradesArgs(BaseModel):
@@ -414,5 +350,5 @@ class GetRecentTradesArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str = Field(..., min_length=1, max_length=64)
+    symbol: Symbol = Field(...)
     limit: int | None = Field(default=100, gt=0)

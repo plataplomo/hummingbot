@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import TimeRangeError
 
 
@@ -32,10 +33,10 @@ class HyperliquidGetOrderHistoryArgs(BaseModel):
     @model_validator(mode="after")
     def check_time_range(self) -> "HyperliquidGetOrderHistoryArgs":
         """Validate time range logic.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             TimeRangeError: If start_time_ms is greater than or equal to end_time_ms.
         """
@@ -79,7 +80,7 @@ class HyperliquidGetOpenOrdersArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str | None = Field(default=None, description="Optional symbol to filter orders")
+    symbol: Symbol | None = Field(default=None, description="Optional symbol to filter orders")
     wallet_address: str | None = Field(default=None, min_length=1, max_length=128)
 
 
@@ -108,7 +109,7 @@ class HyperliquidGetCandleSnapshotArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str = Field(..., min_length=1, max_length=64)
+    symbol: Symbol = Field(...)
     timeframe: str = Field(..., min_length=1, max_length=32)
     start_time_ms: int = Field(..., ge=0)
     end_time_ms: int = Field(..., ge=0)
@@ -116,10 +117,10 @@ class HyperliquidGetCandleSnapshotArgs(BaseModel):
     @model_validator(mode="after")
     def check_time_range(self) -> "HyperliquidGetCandleSnapshotArgs":
         """Validate time range logic.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             TimeRangeError: If start_time_ms is greater than or equal to end_time_ms.
         """

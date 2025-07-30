@@ -89,7 +89,7 @@ class TestStrategyFactoryInit:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing.
-        
+
         Returns:
             Mock: Mock AppSettings configuration with strategy settings.
         """
@@ -130,7 +130,7 @@ class TestValidateStrategyEnabled:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing.
-        
+
         Returns:
             Mock: Mock AppSettings configuration for validation tests.
         """
@@ -141,7 +141,7 @@ class TestValidateStrategyEnabled:
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance for testing.
-        
+
         Returns:
             StrategyFactory: Factory instance initialized with mock configuration.
         """
@@ -244,7 +244,7 @@ class TestCreateHLPerpBPSpotStrategy:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing.
-        
+
         Returns:
             Mock: Mock AppSettings configuration with HL perp BP spot strategy settings.
         """
@@ -266,7 +266,7 @@ class TestCreateHLPerpBPSpotStrategy:
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance for testing.
-        
+
         Returns:
             StrategyFactory: Factory instance for strategy creation tests.
         """
@@ -275,7 +275,7 @@ class TestCreateHLPerpBPSpotStrategy:
     @pytest.fixture
     def mock_data_handler(self) -> Mock:
         """Create a mock data handler.
-        
+
         Returns:
             Mock: Mock DataHandler instance for testing strategy creation.
         """
@@ -284,7 +284,7 @@ class TestCreateHLPerpBPSpotStrategy:
     @pytest.fixture
     def mock_portfolio_tracker(self) -> Mock:
         """Create a mock portfolio tracker.
-        
+
         Returns:
             Mock: Mock PortfolioTracker instance for testing strategy creation.
         """
@@ -293,7 +293,7 @@ class TestCreateHLPerpBPSpotStrategy:
     @pytest.fixture
     def mock_risk_manager(self) -> Mock:
         """Create a mock risk manager.
-        
+
         Returns:
             Mock: Mock RiskManager instance for testing strategy creation.
         """
@@ -522,7 +522,7 @@ class TestCreateStrategy:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing.
-        
+
         Returns:
             Mock: Mock AppSettings configuration with strategy settings.
         """
@@ -536,7 +536,7 @@ class TestCreateStrategy:
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance for testing.
-        
+
         Returns:
             StrategyFactory: Factory instance for strategy creation tests.
         """
@@ -545,7 +545,7 @@ class TestCreateStrategy:
     @pytest.fixture
     def mock_data_handler(self) -> Mock:
         """Create a mock data handler.
-        
+
         Returns:
             Mock: Mock DataHandler instance for testing strategy creation.
         """
@@ -554,7 +554,7 @@ class TestCreateStrategy:
     @pytest.fixture
     def mock_portfolio_tracker(self) -> Mock:
         """Create a mock portfolio tracker.
-        
+
         Returns:
             Mock: Mock PortfolioTracker instance for testing strategy creation.
         """
@@ -563,7 +563,7 @@ class TestCreateStrategy:
     @pytest.fixture
     def mock_risk_manager(self) -> Mock:
         """Create a mock risk manager.
-        
+
         Returns:
             Mock: Mock RiskManager instance for testing strategy creation.
         """
@@ -692,7 +692,7 @@ class TestConvertStrategyParamsToDict:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing.
-        
+
         Returns:
             Mock: Mock AppSettings configuration for parameter conversion tests.
         """
@@ -703,7 +703,7 @@ class TestConvertStrategyParamsToDict:
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance for testing.
-        
+
         Returns:
             StrategyFactory: Factory instance for parameter conversion tests.
         """
@@ -907,7 +907,7 @@ class TestGetAvailableStrategyTypes:
     @pytest.fixture
     def mock_config(self) -> Mock:
         """Create a mock configuration for testing.
-        
+
         Returns:
             Mock: Mock AppSettings configuration for strategy type queries.
         """
@@ -916,7 +916,7 @@ class TestGetAvailableStrategyTypes:
     @pytest.fixture
     def factory(self, mock_config: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance for testing.
-        
+
         Returns:
             StrategyFactory: Factory instance for testing available strategy types.
         """
@@ -957,7 +957,7 @@ class TestValidateStrategyConfig:
     @pytest.fixture
     def mock_config_enabled(self) -> Mock:
         """Create a mock configuration with enabled strategy.
-        
+
         Returns:
             Mock: Mock AppSettings with enabled strategy configuration.
         """
@@ -970,7 +970,7 @@ class TestValidateStrategyConfig:
     @pytest.fixture
     def mock_config_disabled(self) -> Mock:
         """Create a mock configuration with disabled strategy.
-        
+
         Returns:
             Mock: Mock AppSettings with disabled strategy configuration.
         """
@@ -983,7 +983,7 @@ class TestValidateStrategyConfig:
     @pytest.fixture
     def factory_enabled(self, mock_config_enabled: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance with enabled strategy.
-        
+
         Returns:
             StrategyFactory: Factory with enabled strategy configuration.
         """
@@ -992,7 +992,7 @@ class TestValidateStrategyConfig:
     @pytest.fixture
     def factory_disabled(self, mock_config_disabled: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance with disabled strategy.
-        
+
         Returns:
             StrategyFactory: Factory with disabled strategy configuration.
         """
@@ -1212,7 +1212,7 @@ class TestStrategyFactoryIntegration:
     @pytest.fixture
     def complete_mock_config(self) -> Mock:
         """Create a complete mock configuration for integration testing.
-        
+
         Returns:
             Mock: Complete mock AppSettings configuration for integration tests.
         """
@@ -1236,7 +1236,7 @@ class TestStrategyFactoryIntegration:
     @pytest.fixture
     def factory(self, complete_mock_config: Mock) -> StrategyFactory:
         """Create a StrategyFactory instance for integration testing.
-        
+
         Returns:
             StrategyFactory: Factory instance for integration testing workflow.
         """
@@ -1245,7 +1245,7 @@ class TestStrategyFactoryIntegration:
     @pytest.fixture
     def all_mocks(self) -> dict[str, Mock]:
         """Create all required mocks for strategy creation.
-        
+
         Returns:
             Dictionary containing all mock dependencies needed for strategy creation.
         """

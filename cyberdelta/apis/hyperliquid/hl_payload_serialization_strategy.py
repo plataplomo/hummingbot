@@ -20,7 +20,9 @@ class HyperliquidSerializationStrategy:
     """
 
     def serialize_model(
-        self, model: BaseModel, request_config: RequestConfiguration
+        self,
+        model: BaseModel,
+        request_config: RequestConfiguration,
     ) -> dict[str, Any]:
         """Serialize model using Hyperliquid's requirements.
 

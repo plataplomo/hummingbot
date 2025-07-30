@@ -145,7 +145,7 @@ class SchemaExporter:
                         "symbol": {
                             "description": "Trading pair symbol (e.g., BTC_USDC)",
                             "schema": {"type": "string"},
-                        }
+                        },
                     },
                     "subscribe": {
                         "summary": "Subscribe to order book depth updates",

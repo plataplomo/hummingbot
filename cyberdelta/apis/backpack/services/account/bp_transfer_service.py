@@ -35,6 +35,7 @@ from cyberdelta.apis.models.service_args.account import TransferArgs, WithdrawAr
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.exceptions.service_validation import (
     InvalidAccountTypeError,
     NetworkRequiredError,
@@ -310,8 +311,9 @@ class BackpackTransferService:
 
         # Build transfer payload
         # Account types are already validated by _validate_account_types
+        asset_symbol = exchanges.backpack(value=args.asset)
         payload = self._request_builder.build_internal_transfer_payload(
-            asset_symbol=args.asset,
+            asset_symbol=asset_symbol,
             amount=args.amount,
             from_wallet=args.from_account_type,
             to_wallet=args.to_account_type,
@@ -349,7 +351,8 @@ class BackpackTransferService:
         return validated_data, status_code
 
     async def _execute_withdrawal_request(
-        self, args: WithdrawArgs
+        self,
+        args: WithdrawArgs,
     ) -> tuple[ParsedJsonResponse, int]:
         """Execute the withdrawal API request.
 
@@ -369,8 +372,9 @@ class BackpackTransferService:
             raise NetworkRequiredError(operation="withdrawal")
 
         # Build withdrawal payload
+        asset_symbol = exchanges.backpack(value=args.asset)
         payload = self._request_builder.build_withdraw_payload(
-            asset_symbol=args.asset,
+            asset_symbol=asset_symbol,
             amount=args.amount,
             address=args.address,
             network=args.network,

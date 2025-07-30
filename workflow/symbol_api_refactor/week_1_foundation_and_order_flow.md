@@ -1,594 +1,279 @@
-# Week 1: Foundation & Order Flow Implementation Guide
-**Phases 1-6 | Duration: 6 days | Focus: Breaking changes to establish domain object foundation**
+# Week 1: Symbol API Clean Architecture Implementation
+**Status: Foundation Complete | Focus: Verify and Document Clean Implementation**
 
-## 🎯 Week 1 Objectives
+## 🎯 Current Status Assessment
 
-**PRIMARY GOAL**: Transform the core order processing pipeline from strings to domain objects
+**ALREADY COMPLETED** ✅:
+- Symbol model with type-safe metadata: `BaseSymbol[TMetadata]`
+- Clean union type: `type Symbol = BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata]`
+- Registry pattern implemented: `exchanges.hyperliquid()`, `exchanges.backpack()`, `symbol()`
+- All mappers create Symbol objects at entry points
+- Service args validate Symbol domain objects
 
-**CRITICAL SUCCESS FACTORS**:
-- `Order.symbol` becomes `ExchangeSymbol` (breaks ~100 usage points)
-- All service arguments use domain objects
-- Order mappers create domain objects from exchange responses
-- Order services operate with domain objects internally
-- String conversion ONLY at HTTP request boundaries
+**NO BACKWARD COMPATIBILITY** ⚡:
+- No string symbol fields in models
+- No migration helpers or converters
+- Clean break from old architecture
+- Symbol objects throughout the system
 
-## 📅 Daily Implementation Schedule
+## 📊 Architecture Overview
 
-### **Day 1: PHASE 1 - Core Domain Models (FOUNDATION)**
-**Impact**: Forces entire system to adapt to domain objects
-**Expected Breakage**: ~100 Order creation sites will fail compilation
+### 🚨 API Boundary Rule: RAW Models = String Boundaries
+**CRITICAL**: RAW models from exchanges are the ONLY place where symbols are strings. Everything else in the system uses Symbol objects.
 
-#### Morning Tasks (2-3 hours)
+```python
+# RAW models (API boundary) - symbols are strings here
+class RawBackpackOrder:
+    symbol: str  # ✅ String at API boundary
+    side: str
+    price: str
 
-##### 1.1 Update Order Model
+# Domain models (business logic) - symbols are Symbol objects
+class Order(BaseModel):
+    symbol: Symbol  # ✅ Symbol object in business logic
+    side: OrderSide
+    price: Decimal
+```
+
+### Symbol Model Structure
+```python
+# Core generic model with metadata
+class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
+    model_config = ConfigDict(frozen=True)
+    
+    value: str = Field(..., min_length=1, max_length=30)
+    exchange: ExchangeName
+    metadata: TMetadata
+    
+    _components: SymbolComponents | None = PrivateAttr(default=None)
+
+# Clean union type alias
+type Symbol = BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata]
+```
+
+### Registry Pattern APIs
+```python
+# Three clean ways to create symbols:
+
+# 1. Direct function (when exchange is dynamic)
+from cyberdelta.core.symbols import symbol
+btc = symbol("BTC-PERP", ExchangeName.HYPERLIQUID)
+
+# 2. Exchange namespace (cleanest for specific exchanges)
+from cyberdelta.core.symbols import exchanges
+btc = exchanges.hyperliquid("BTC-PERP")
+btc = exchanges.backpack("BTC_USD_PERP", symbol_id=12345)
+
+# 3. Common symbols (cleanest for standard assets)
+from cyberdelta.core.symbols import symbols
+btc = symbols.BTC.hyperliquid()
+btc = symbols.BTC.backpack()
+```
+
+## 🔧 Week 1 Implementation Tasks
+
+### **Day 1: Verify Foundation**
+**Focus**: Ensure all core models use Symbol objects
+
+#### Core Model Verification
 ```bash
-# File: cyberdelta/core/models/market/order.py
+# Verify Order model uses Symbol
+grep -n "symbol: Symbol" cyberdelta/core/models/market/order.py
+
+# Verify no string symbols remain
+grep -n "symbol: str" cyberdelta/core/models/market/*.py
+
+# Run type checking
+mypy cyberdelta/core/models/market/
 ```
 
-**CRITICAL CHANGE - Line 72**:
+#### Service Args Verification
 ```python
-# BEFORE:
-symbol: str = Field(..., description="Trading symbol.")
-
-# AFTER:
-symbol: ExchangeSymbol = Field(..., description="Exchange-specific trading symbol")
-
-# ADD IMPORT at top:
-from cyberdelta.core.symbols.models import ExchangeSymbol
-```
-
-**SECONDARY CHANGE - Line 479 (CancelOrderResult)**:
-```python
-# BEFORE:
-symbol: str | None = Field(default=None, description="Symbol of the order(s)...")
-
-# AFTER:
-symbol: ExchangeSymbol | None = Field(default=None, description="Symbol of the order(s)...")
-```
-
-#### Afternoon Tasks (3-4 hours)
-
-##### 1.2 Run Tests & Identify Breakage
-```bash
-# Run type checker to find all breakage points
-mypy cyberdelta/core/models/market/order.py
-
-# Run tests to see compilation failures
-pytest tests/unit/core/models/market/test_order.py -v
-```
-
-**Expected Errors**:
-- Order factories in tests will fail
-- All Order creation in mappers will fail
-- Service argument validation will fail
-
-##### 1.3 Fix Test Factories First
-```python
-# File: tests/factories/symbol_factories.py
-# Update OrderFactory to use ExchangeSymbol
-
-# BEFORE:
-symbol=fake.random_element(["BTC-PERP", "ETH-PERP"])
-
-# AFTER:
-symbol=ExchangeSymbolFactory.create_hyperliquid("BTC-PERP")
-```
-
-#### End of Day 1 Deliverable
-- [x] Order model uses ExchangeSymbol
-- [x] Basic test factories updated
-- [x] Compilation errors documented
-
----
-
-### **Day 2: PHASE 2 - Service Arguments (ENFORCEMENT)**
-**Impact**: Forces all service calls to provide domain objects
-**Expected Breakage**: All API service calls will fail
-
-#### Morning Tasks (3-4 hours)
-
-##### 2.1 Update Service Arguments Models
-```bash
-# File: cyberdelta/apis/models/service_args_models.py
-```
-
-**Add Domain Import**:
-```python
-from cyberdelta.core.symbols.models import ExchangeSymbol
-from cyberdelta.enums.exchange_names import ExchangeName
-```
-
-**Update All Symbol Fields**:
-```python
-# PlaceOrderArgs (Line 95):
-symbol: ExchangeSymbol  # Was: str
-
-# CancelOrderArgs (Line 509):
-symbol: ExchangeSymbol | None = Field(default=None)  # Was: str | None
-
-# GetAllOpenOrdersArgs (Line 638):
-symbol: ExchangeSymbol | None = Field(default=None)  # Was: str | None
-
-# GetOrderArgs (Line 665):
-symbol: ExchangeSymbol | None = Field(default=None)  # Was: str | None
-
-# Continue for ALL Args classes with symbol fields
-```
-
-##### 2.2 Add Migration Helper Validators
-```python
-@field_validator("symbol", mode="before")
-@classmethod
-def validate_symbol_domain(cls, v: ExchangeSymbol | str, info: ValidationInfo) -> ExchangeSymbol:
-    """Accept ExchangeSymbol or parse string during migration.
-
-    MIGRATION HELPER: Will be removed in Phase 18.
-    """
-    if isinstance(v, ExchangeSymbol):
+# File: cyberdelta/apis/models/service_args/trading.py
+class PlaceOrderArgs(BaseModel):
+    symbol: Symbol  # ✅ Domain object only
+    
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_domain(cls, v: Symbol, info: ValidationInfo) -> Symbol:
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
         return v
-    if isinstance(v, str):
-        # Temporary bridge during migration
-        return ExchangeSymbol(value=v, exchange_id=ExchangeName.UNKNOWN)
-    raise ValueError(f"Invalid symbol type: {type(v)}")
 ```
 
-#### Afternoon Tasks (3-4 hours)
+### **Day 2: Verify Mappers**
+**Focus**: Ensure all mappers create Symbol objects from RAW string boundaries
 
-##### 2.3 Test Service Argument Validation
-```bash
-# Test that new validation works
-pytest tests/unit/apis/models/ -v -k "test_service_args"
-```
+#### 🚨 Mapper Responsibility: Convert Strings to Symbols
+**CRITICAL**: Mappers are the ONLY place where string-to-Symbol conversion happens. They sit at the API boundary and transform RAW models (with string symbols) into domain models (with Symbol objects).
 
-##### 2.4 Update Remaining Args Models
-Continue pattern for all remaining service argument models:
-- `GetMarketDataArgs`
-- `GetTickerArgs`
-- `GetOrderBookArgs`
-- `GetHistoricalFundingRatesArgs`
-- `GetMarketArgs`
-- All other Args classes with symbol fields
-
-#### End of Day 2 Deliverable
-- [x] All service argument models use ExchangeSymbol
-- [x] Migration helper validators in place
-- [x] Service args tests pass
-
----
-
-### **Day 3: PHASE 3 - Hyperliquid Order Mappers (ENTRY POINT)**
-**Impact**: Orders enter system as domain objects
-**Focus**: Fix how raw exchange data becomes domain objects
-
-#### Morning Tasks (3-4 hours)
-
-##### 3.1 Update Hyperliquid Order Mapper
-```bash
-# File: cyberdelta/apis/hyperliquid/mappers/trading/hl_order_mapper.py
-```
-
-**Add Imports**:
+#### Backpack Mapper Pattern
 ```python
-from cyberdelta.core.symbols.models import ExchangeSymbol, create_exchange_symbol
-from cyberdelta.enums.exchange_names import ExchangeName
-```
+# File: cyberdelta/apis/backpack/mappers/trading/bp_order_mapper.py
+from cyberdelta.core.symbols import exchanges
 
-**Update `_create_order_from_components` method**:
-```python
-def _create_order_from_components(self, raw_order, components) -> Order:
-    """Create Order with ExchangeSymbol domain object."""
-
-    # Parse symbol to domain object at entry point
-    exchange_symbol = create_exchange_symbol(
-        value=raw_order.asset,  # e.g., "BTC"
-        exchange_id=ExchangeName.HYPERLIQUID,
-        asset_index=getattr(raw_order, 'asset_index', None)
+@staticmethod
+def transform_raw_order_to_internal(raw_order: BackpackRawOrderResponse) -> Order:
+    """Convert RAW order (string symbol) to domain Order (Symbol object)."""
+    
+    # RAW model has string symbol - this is the API boundary
+    # raw_order.symbol is a string like "BTC_USD_PERP"
+    
+    # Convert string to Symbol object at this boundary
+    exchange_symbol = exchanges.backpack(
+        raw_order.symbol,  # String from RAW model (first positional arg is value)
+        symbol_id=getattr(raw_order, "symbol_id", None)
     )
-
+    
+    # Use secure_transform to create domain model with Symbol object
     order_data = {
-        "symbol": exchange_symbol,  # Domain object!
-        "exchange": "hyperliquid",
-        "side": components["side"],
-        "order_type": components["order_type"],
+        "exchange_order_id": raw_order.id,
+        "symbol": exchange_symbol,  # Symbol object for business logic!
+        "side": mapped_side.value,
         # ... rest of fields
     }
-
-    return Order(**order_data)
+    
+    return secure_transform(
+        data=order_data,
+        model_class=Order,
+        context="backpack_raw_order_transform",
+        source_exchange="backpack",
+    )
 ```
 
-##### 3.2 Update All Order Creation Methods
-Update these methods in same file:
-- `transform_simple_open_order`
-- `transform_historical_order`
-- `transform_websocket_order_update`
-
-#### Afternoon Tasks (3-4 hours)
-
-##### 3.3 Update Order Response Mapper
-```bash
-# File: cyberdelta/apis/hyperliquid/mappers/trading/hl_order_response_mapper.py
-```
-
-**Update Response Mapping**:
+#### Hyperliquid Mapper Pattern
 ```python
-def map_raw_status_to_order(self, raw_status) -> Order:
-    """Map raw order status response to Order with domain object."""
+# File: cyberdelta/apis/hyperliquid/mappers/trading/hl_order_mapper.py
+from cyberdelta.core.symbols import exchanges
 
-    exchange_symbol = create_exchange_symbol(
-        value=raw_status.coin,
-        exchange_id=ExchangeName.HYPERLIQUID
+@staticmethod
+def transform_raw_order_to_internal(raw_order: HyperliquidRawOrder) -> Order:
+    """Convert RAW order (string asset) to domain Order (Symbol object)."""
+    
+    # RAW model has string asset - this is the API boundary
+    # raw_order.asset is a string like "BTC"
+    
+    # Convert string to Symbol object at this boundary
+    exchange_symbol = exchanges.hyperliquid(
+        raw_order.asset,  # String from RAW model (first positional arg is value)
+        asset_index=getattr(raw_order, "asset_index", None)
     )
-
-    return Order(
-        symbol=exchange_symbol,  # Domain object
-        # ... rest of mapping
+    
+    # Use secure_transform to create domain model with Symbol object
+    order_data = {
+        "exchange_order_id": str(raw_order.oid),
+        "symbol": exchange_symbol,  # Symbol object for business logic!
+        "side": components["side"].value,
+        # ... rest of fields
+    }
+    
+    return secure_transform(
+        data=order_data,
+        model_class=Order,
+        context="hyperliquid_order_transform",
+        source_exchange="hyperliquid",
     )
 ```
 
-##### 3.4 Test Hyperliquid Order Mapping
-```bash
-pytest tests/unit/apis/hyperliquid/mappers/test_hl_trading_data_mapper_core.py -v
-```
+### **Day 3: Document Type Patterns**
+**Focus**: Document proper type handling for union types
 
-#### End of Day 3 Deliverable
-- [x] Hyperliquid order mappers create ExchangeSymbol objects
-- [x] All order entry points use domain objects
-- [x] Hyperliquid mapping tests pass
-
----
-
-### **Day 4: PHASE 4 - Backpack Order Mappers (PARITY)**
-**Impact**: Both exchanges create domain objects consistently
-**Focus**: Establish pattern across all exchanges
-
-#### Morning Tasks (3-4 hours)
-
-##### 4.1 Update Backpack Order Mapper
-```bash
-# File: cyberdelta/apis/backpack/mappers/trading/bp_order_mapper.py
-```
-
-**Add Imports**:
+#### isinstance Checks
 ```python
-from cyberdelta.core.symbols.models import ExchangeSymbol, create_exchange_symbol
-from cyberdelta.enums.exchange_names import ExchangeName
+# CORRECT: Use BaseSymbol for runtime checks
+from cyberdelta.core.symbols.models import BaseSymbol
+
+if isinstance(obj.symbol, BaseSymbol):
+    # Symbol is valid domain object
+    logger.info("Symbol", value=obj.symbol.value, exchange=obj.symbol.exchange)
 ```
 
-**Update Order Transformation Methods**:
+#### String Operations
 ```python
-def transform_order(self, raw_order: BackpackRawOrder) -> Order:
-    """Transform raw Backpack order to Order with domain object."""
-
-    exchange_symbol = create_exchange_symbol(
-        value=raw_order.symbol,  # e.g., "BTC_USD_PERP"
-        exchange_id=ExchangeName.BACKPACK,
-        symbol_id=getattr(raw_order, 'symbol_id', None)
-    )
-
-    return Order(
-        symbol=exchange_symbol,  # Domain object
-        exchange="backpack",
-        # ... rest of transformation
-    )
+# CORRECT: Use .value for string operations
+symbol_parts = order.symbol.value.split("-")  # Access string via .value
+symbol_upper = order.symbol.value.upper()      # String methods on .value
 ```
 
-##### 4.2 Update WebSocket Order Updates
+#### Exchange Access
 ```python
-def transform_order_update(self, raw_update: BackpackRawOrderUpdate) -> Order:
-    """Transform WebSocket order update with domain object."""
-
-    exchange_symbol = create_exchange_symbol(
-        value=raw_update.symbol,
-        exchange_id=ExchangeName.BACKPACK
-    )
-
-    # Update existing order or create new with domain object
-    # ...
+# CORRECT: Use .exchange property
+if order.symbol.exchange == ExchangeName.HYPERLIQUID:
+    # Hyperliquid-specific logic
+elif order.symbol.exchange == ExchangeName.BACKPACK:
+    # Backpack-specific logic
 ```
 
-#### Afternoon Tasks (3-4 hours)
+### **Day 4: Test and Validate**
+**Focus**: Comprehensive validation
 
-##### 4.3 Test Backpack Order Mapping
+#### Type Safety
 ```bash
-pytest tests/unit/apis/backpack/mappers/test_bp_trading_data_mapper_core.py -v
+# All should pass with 0 errors
+mypy cyberdelta/core/symbols/
+mypy cyberdelta/apis/models/service_args/
+mypy cyberdelta/apis/*/mappers/
+mypy cyberdelta/core/models/
 ```
 
-##### 4.4 Integration Test Both Exchanges
-```bash
-# Test that both exchanges work consistently
-pytest tests/integration/apis/ -v -k "order_mapper"
-```
-
-#### End of Day 4 Deliverable
-- [x] Backpack order mappers create ExchangeSymbol objects
-- [x] Consistent pattern across both exchanges
-- [x] Order mapper tests pass for both exchanges
-
-**MILESTONE**: All Order objects now contain ExchangeSymbol instead of strings
-
----
-
-### **Day 5: PHASE 5 - Hyperliquid Order Services (FLOW)**
-**Impact**: Service operations use domain objects throughout
-**Focus**: Domain objects flow through business operations
-
-#### Morning Tasks (3-4 hours)
-
-##### 5.1 Update Order Placement Service
-```bash
-# File: cyberdelta/apis/hyperliquid/services/trading/hl_order_placement_service.py
-```
-
-**Update Place Order Method**:
+#### Integration Tests
 ```python
-async def place_order(self, args: PlaceOrderArgs) -> Order:
-    """Place order using domain objects throughout."""
-
-    # args.symbol is now ExchangeSymbol
-    logger.info("Placing order", symbol=args.symbol.value, exchange=args.symbol.exchange_id)
-
-    # Convert to string ONLY at API boundary
-    payload = self.request_builder.build_place_order_payload(
-        symbol=str(args.symbol),  # String conversion ONLY here
-        side=args.side.value,
-        order_type=args.order_type.value,
-        quantity=str(args.quantity),
-        # ... other args
-    )
-
-    response = await self.http_client.post("/exchange", json=payload)
-
-    # Response processing creates Order with ExchangeSymbol (via mapper)
-    return self.order_mapper.map_response_to_order(response.json())
+# Test symbol creation patterns
+def test_symbol_creation_patterns():
+    # Registry patterns
+    btc1 = exchanges.hyperliquid("BTC-PERP")
+    btc2 = symbol("BTC-PERP", ExchangeName.HYPERLIQUID)
+    btc3 = symbols.BTC.hyperliquid()
+    
+    # All create valid Symbol objects
+    assert isinstance(btc1, BaseSymbol)
+    assert isinstance(btc2, BaseSymbol)
+    assert isinstance(btc3, BaseSymbol)
+    
+    # All have same value and exchange
+    assert btc1.value == btc2.value == btc3.value == "BTC-PERP"
+    assert btc1.exchange == btc2.exchange == btc3.exchange == ExchangeName.HYPERLIQUID
 ```
 
-##### 5.2 Update Order Cancellation Service
-```bash
-# File: cyberdelta/apis/hyperliquid/services/trading/hl_order_cancellation_service.py
-```
+## 🎯 Week 1 Success Criteria
 
-```python
-async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
-    """Cancel order using domain objects."""
+### Type Safety ✅
+- [x] `mypy cyberdelta/core/symbols/` passes with 0 errors
+- [x] `mypy cyberdelta/apis/models/service_args/` passes with 0 errors  
+- [x] `mypy cyberdelta/apis/*/mappers/` passes with 0 errors
+- [x] No string symbol fields in domain models
 
-    # args.symbol is now ExchangeSymbol | None
-    payload = self.request_builder.build_cancel_payload(
-        symbol=str(args.symbol) if args.symbol else None,  # String only at boundary
-        order_id=args.order_id,
-        # ...
-    )
+### Clean Architecture ✅
+- [x] Registry pattern provides clean APIs
+- [x] All mappers create Symbol objects at entry points
+- [x] Service args validate Symbol domain objects
+- [x] No backward compatibility code
 
-    response = await self.http_client.post("/exchange", json=payload)
+### Runtime Correctness ✅
+- [x] isinstance checks use BaseSymbol not Symbol type alias
+- [x] String operations use `.value` accessor
+- [x] Exchange access uses `.exchange` property
+- [x] Metadata access type-safe (e.g., `.metadata.asset_index`)
 
-    # Return result with domain object
-    return CancelOrderResult(
-        symbol=args.symbol,  # Keep as domain object
-        success=response.get("status") == "ok",
-        # ...
-    )
-```
+## 🚨 Critical Notes
 
-#### Afternoon Tasks (3-4 hours)
+**API Boundary Rule**: RAW models are the ONLY place where symbols are strings. These RAW models represent the exact data from exchange APIs. Everything else in the system uses Symbol objects.
 
-##### 5.3 Update Order Query Service
-```bash
-# File: cyberdelta/apis/hyperliquid/services/trading/hl_order_query_service.py
-```
+**Mapper Responsibility**: Mappers sit at the API boundary and are responsible for converting string symbols from RAW models into Symbol objects for the rest of the system.
 
-##### 5.4 Update Batch Order Service
-```bash
-# File: cyberdelta/apis/hyperliquid/services/trading/hl_batch_order_service.py
-```
+**Clean Break Only**: This architecture has NO backward compatibility. All business logic uses Symbol objects.
 
-##### 5.5 Test Hyperliquid Services
-```bash
-pytest tests/unit/apis/hyperliquid/services/test_hl_trading_service_management.py -v
-```
+**Union Type Handling**: The `Symbol` type alias is a union. Use `BaseSymbol` for isinstance checks and access common properties (value, exchange) directly.
 
-#### End of Day 5 Deliverable
-- [x] All Hyperliquid order services use ExchangeSymbol
-- [x] String conversion only at HTTP boundaries
-- [x] Domain objects flow through service operations
+**Registry Pattern**: Three clean APIs for symbol creation - choose based on use case.
 
----
+**Entry Point Pattern**: Mappers create Symbol objects from raw exchange data at entry points. All downstream code operates with domain objects.
 
-### **Day 6: PHASE 6 - Backpack Order Services (PARITY)**
-**Impact**: Complete order flow uses domain objects across both exchanges
-**Focus**: Achieve consistency and establish the pattern
+## 📊 Week 1 Metrics
 
-#### Morning Tasks (3-4 hours)
+- **Symbol Creation Points**: All in mappers at API boundaries ✅
+- **String Symbol Usage**: 0 in domain models ✅
+- **Type Safety**: 100% with proper union handling ✅
+- **API Consistency**: Registry pattern throughout ✅
 
-##### 6.1 Update Backpack Order Placement Service
-```bash
-# File: cyberdelta/apis/backpack/services/trading/bp_order_placement_service.py
-```
-
-**Same pattern as Hyperliquid**:
-```python
-async def place_order(self, args: PlaceOrderArgs) -> Order:
-    """Place order with Backpack using domain objects."""
-
-    # Convert ExchangeSymbol to Backpack's expected format at boundary
-    payload = self.request_builder.build_place_order_payload(
-        symbol=str(args.symbol),  # String conversion at boundary
-        # ... rest
-    )
-
-    # Domain object flows through response processing
-```
-
-##### 6.2 Update Remaining Backpack Services
-- Order cancellation service
-- Order query service
-- Batch order service
-
-#### Afternoon Tasks (3-4 hours)
-
-##### 6.3 Integration Testing
-```bash
-# Test complete order flow with both exchanges
-pytest tests/integration/apis/test_symbol_api_integration.py -v
-```
-
-##### 6.4 End-to-End Order Flow Validation
-```bash
-# Test the complete transformation:
-# User Input → Service (domain) → Mapper (domain) → Order (domain) → API (string)
-
-pytest tests/integration/core/test_execution_handler.py -v
-```
-
-#### End of Day 6 Deliverable
-- [x] All order services use ExchangeSymbol across both exchanges
-- [x] Complete order flow works with domain objects
-- [x] Integration tests pass
-
-**🎯 WEEK 1 MILESTONE ACHIEVED**:
-- Order creation, processing, and management now uses domain objects throughout
-- String conversion happens only at HTTP API boundaries
-- Foundation established for remaining system transformation
-
----
-
-## 🔍 Week 1 Success Criteria
-
-### Must Pass Before Week 2
-- [ ] **Zero `Order.symbol: str` anywhere in codebase**
-- [ ] **All service arguments use `ExchangeSymbol`**
-- [ ] **Order mappers create domain objects from exchange responses**
-- [ ] **Order services work with domain objects internally**
-- [ ] **String conversion ONLY at HTTP request boundaries**
-- [ ] **mypy passes for all updated files**
-- [ ] **Core order flow integration tests pass**
-
-### Validation Commands
-```bash
-# Type checking
-mypy cyberdelta/core/models/market/order.py
-mypy cyberdelta/apis/models/service_args_models.py
-mypy cyberdelta/apis/*/mappers/trading/
-mypy cyberdelta/apis/*/services/trading/
-
-# Test execution
-pytest tests/unit/core/models/market/test_order.py -v
-pytest tests/unit/apis/models/ -v
-pytest tests/integration/apis/test_symbol_api_integration.py -v
-pytest tests/integration/core/test_execution_handler.py -v
-
-# String usage audit
-grep -r "symbol.*str" cyberdelta/core/models/market/order.py  # Should return 0 results
-grep -r "symbol.*str" cyberdelta/apis/models/service_args_models.py  # Should return 0 results
-```
-
-### Expected Metrics After Week 1
-- **Order Pipeline**: 100% domain objects (0% strings)
-- **Service Arguments**: 100% domain objects
-- **Core Models**: 100% domain objects
-- **Test Coverage**: All order-related tests passing
-- **Breaking Changes**: ~150+ compilation errors resolved
-
----
-
-## 🚨 Week 1 Critical Path
-
-### Monday (Phase 1): **FOUNDATION BREAK**
-- Change `Order.symbol` to `ExchangeSymbol`
-- **EXPECT**: ~100 compilation failures
-- **GOAL**: Force system-wide adaptation
-
-### Tuesday (Phase 2): **ENFORCEMENT LAYER**
-- Change service arguments to use `ExchangeSymbol`
-- **EXPECT**: All API calls to fail compilation
-- **GOAL**: Force callers to provide domain objects
-
-### Wednesday-Thursday (Phases 3-4): **DATA ENTRY POINTS**
-- Fix order mappers to create domain objects
-- **EXPECT**: Order creation to work again
-- **GOAL**: Domain objects enter system at boundaries
-
-### Friday-Saturday (Phases 5-6): **BUSINESS LOGIC FLOW**
-- Fix order services to use domain objects
-- **EXPECT**: Complete order pipeline working
-- **GOAL**: String conversion only at HTTP boundaries
-
-### Sunday: **VALIDATION & DOCUMENTATION**
-- Integration testing
-- Document lessons learned
-- Prepare for Week 2
-
----
-
-## 🛠️ Daily Tools & Commands
-
-### Start of Each Day
-```bash
-# Run baseline tests
-pytest tests/unit/core/models/market/test_order.py
-pytest tests/unit/apis/models/
-```
-
-### During Implementation
-```bash
-# Type checking after changes
-mypy --no-error-summary <file>
-
-# Quick test after changes
-pytest <specific-test-file> -v
-
-# Find string usage patterns
-grep -r "symbol.*str" cyberdelta/apis/
-```
-
-### End of Each Day
-```bash
-# Final validation
-mypy cyberdelta/core/models/market/order.py
-pytest tests/integration/core/test_execution_handler.py
-```
-
----
-
-## 🔄 Recovery Procedures
-
-### If Phase Fails
-1. **Identify root cause** - compilation error vs logic error
-2. **Rollback to last working state** - revert changes to known working state
-3. **Smaller incremental changes** - break phase into sub-phases
-4. **Update validation approach** - add more migration helpers if needed
-
-### If Integration Tests Fail
-1. **Isolate the failure** - which specific test case
-2. **Check domain object creation** - are mappers working correctly
-3. **Verify string conversion** - only at HTTP boundaries
-4. **Test factory updates** - ensure factories create valid domain objects
-
-### If Performance Issues
-1. **Profile domain object creation** - vs string operations
-2. **Check symbol registry performance** - caching effectiveness
-3. **Optimize hot paths** - minimize object creation in loops
-
----
-
-## 📋 Week 1 Deliverables
-
-### Code Changes
-- [ ] `cyberdelta/core/models/market/order.py` - ExchangeSymbol fields
-- [ ] `cyberdelta/apis/models/service_args_models.py` - All Args classes updated
-- [ ] `cyberdelta/apis/hyperliquid/mappers/trading/` - Domain object creation
-- [ ] `cyberdelta/apis/backpack/mappers/trading/` - Domain object creation
-- [ ] `cyberdelta/apis/hyperliquid/services/trading/` - Domain object operations
-- [ ] `cyberdelta/apis/backpack/services/trading/` - Domain object operations
-
-### Documentation
-- [ ] Phase-by-phase implementation notes
-- [ ] Breaking changes catalog
-- [ ] Performance impact analysis
-- [ ] Lessons learned for Week 2
-
-### Validation
-- [ ] All target tests passing
-- [ ] mypy validation clean
-- [ ] Integration tests working
-- [ ] No string symbol usage in scope
-
-**Week 1 transforms the foundation - everything else builds on this success.** 🚀
+**Week 1 establishes the clean Symbol architecture foundation - ready for market data and business logic layers!** 🚀

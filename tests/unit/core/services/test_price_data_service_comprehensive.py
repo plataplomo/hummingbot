@@ -22,7 +22,7 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock application settings.
-    
+
     Returns:
         Mock: Mocked AppSettings instance.
     """
@@ -32,7 +32,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_exchange_api() -> Mock:
     """Create mock exchange API client.
-    
+
     Returns:
         Mock: Mocked ExchangeAPI client with get_ticker method.
     """
@@ -44,7 +44,7 @@ def mock_exchange_api() -> Mock:
 @pytest.fixture
 def mock_api_clients() -> dict[str, AsyncMock]:
     """Create mock API clients dictionary.
-    
+
     Returns:
         dict[str, AsyncMock]: Dictionary of mocked API clients for hyperliquid and backpack.
     """
@@ -66,7 +66,7 @@ def price_service(
     mock_api_clients: dict[str, AsyncMock],
 ) -> PriceDataService:
     """Create PriceDataService instance for testing.
-    
+
     Returns:
         PriceDataService: Configured price data service with 30-second cache expiry.
     """
@@ -80,7 +80,7 @@ def price_service(
 @pytest.fixture
 def sample_ticker() -> Ticker:
     """Create sample ticker for testing.
-    
+
     Returns:
         Ticker: Sample BTC-PERP ticker with bid/ask spread.
     """
@@ -96,7 +96,7 @@ def sample_ticker() -> Ticker:
 @pytest.fixture
 def sample_ticker_with_mid_price() -> Ticker:
     """Create sample ticker with mid price for testing.
-    
+
     Returns:
         Ticker: Sample ETH-PERP ticker with bid/ask/mid price.
     """

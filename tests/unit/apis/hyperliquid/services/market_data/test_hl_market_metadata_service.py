@@ -39,7 +39,7 @@ from cyberdelta.core.models.market import Market
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
     """Create a mock HTTP requester.
-    
+
     Returns:
         AsyncMock: A mock instance of the HTTP requester.
     """
@@ -49,7 +49,7 @@ def mock_http_requester() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> Mock:
     """Create a mock request builder.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidMarketDataRequestBuilder.
     """
@@ -59,7 +59,7 @@ def mock_request_builder() -> Mock:
 @pytest.fixture
 def mock_response_handler() -> Mock:
     """Create a mock response handler.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidResponseHandler.
     """
@@ -69,7 +69,7 @@ def mock_response_handler() -> Mock:
 @pytest.fixture
 def mock_mapper() -> Mock:
     """Create a mock data mapper.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidMarketMetadataMapper.
     """
@@ -84,7 +84,7 @@ def market_metadata_service(
     mock_mapper: Mock,
 ) -> HyperliquidMarketMetadataService:
     """Create a market metadata service instance with mocks.
-    
+
     Returns:
         HyperliquidMarketMetadataService: Service instance configured with mock dependencies.
     """
@@ -100,7 +100,7 @@ def market_metadata_service(
 @pytest.fixture
 def mock_asset_definitions() -> list[HyperliquidRawAssetDefinition]:
     """Create mock asset definitions.
-    
+
     Returns:
         list[HyperliquidRawAssetDefinition]: A list of mock asset definitions for ETH, BTC, SOL.
     """
@@ -135,7 +135,7 @@ def mock_asset_definitions() -> list[HyperliquidRawAssetDefinition]:
 @pytest.fixture
 def mock_asset_ctxs() -> list[HyperliquidRawAssetCtx]:
     """Create mock asset contexts.
-    
+
     Returns:
         list[HyperliquidRawAssetCtx]: A list of mock asset contexts with market data.
     """
@@ -191,9 +191,9 @@ def mock_meta_and_asset_ctxs_response(
     mock_asset_ctxs: list[HyperliquidRawAssetCtx],
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
     """Create a mock meta and asset contexts response.
-    
+
     Returns:
-        HyperliquidRawMetaAndAssetCtxsResponse: Mock response containing metadata and 
+        HyperliquidRawMetaAndAssetCtxsResponse: Mock response containing metadata and
             asset contexts.
     """
     # HyperliquidRawMetaAndAssetCtxsResponse expects a list format [meta, assetCtxs]
@@ -210,7 +210,7 @@ def mock_meta_and_asset_ctxs_response(
 @pytest.fixture
 def mock_markets() -> list[Market]:
     """Create mock market objects.
-    
+
     Returns:
         list[Market]: A list of mock market objects for ETH, BTC, SOL.
     """

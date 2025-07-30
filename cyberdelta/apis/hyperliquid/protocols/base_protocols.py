@@ -21,7 +21,8 @@ class MapperProtocol(Protocol):
 
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -31,30 +32,6 @@ class MapperProtocol(Protocol):
 
         Returns:
             Parsed decimal value or default
-        """
-        ...
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Args:
-            symbol: The symbol to normalize
-
-        Returns:
-            Normalized symbol string
-        """
-        ...
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Args:
-            symbol: The symbol to denormalize
-
-        Returns:
-            Denormalized symbol string
         """
         ...
 
@@ -103,7 +80,11 @@ class ResponseHandlerProtocol(Protocol):
     """
 
     def handle_response(
-        self, response: dict[str, object], status_code: int, headers: dict[str, str], context: str
+        self,
+        response: dict[str, object],
+        status_code: int,
+        headers: dict[str, str],
+        context: str,
     ) -> object:
         """Handle API response.
 

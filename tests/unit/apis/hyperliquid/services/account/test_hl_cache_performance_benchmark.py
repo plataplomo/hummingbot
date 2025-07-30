@@ -60,7 +60,7 @@ EVICTION_TEST_SCENARIOS = [
 @pytest.fixture
 def mock_clearinghouse_state() -> HyperliquidRawClearinghouseState:
     """Create a mock clearinghouse state for testing.
-    
+
     Returns:
         HyperliquidRawClearinghouseState: Mock clearinghouse state with test data.
     """
@@ -107,7 +107,7 @@ def mock_clearinghouse_state() -> HyperliquidRawClearinghouseState:
 @pytest.fixture
 def cache_service() -> HyperliquidClearinghouseCacheService:
     """Create a cache service with 5-second TTL.
-    
+
     Returns:
         HyperliquidClearinghouseCacheService: Cache service instance for testing.
     """
@@ -121,7 +121,7 @@ def cache_service() -> HyperliquidClearinghouseCacheService:
 @pytest.fixture
 def test_user_address() -> ChecksumAddress:
     """Provide a test user address.
-    
+
     Returns:
         ChecksumAddress: Test user address for testing.
     """
@@ -131,7 +131,7 @@ def test_user_address() -> ChecksumAddress:
 @pytest.fixture
 def multiple_users() -> list[ChecksumAddress]:
     """Provide multiple test user addresses.
-    
+
     Returns:
         list[ChecksumAddress]: List of test user addresses for testing.
     """
@@ -141,7 +141,7 @@ def multiple_users() -> list[ChecksumAddress]:
 @pytest.fixture
 def mock_http_requester(frozen_time: FreezerProtocol) -> AsyncMock:
     """Create a mock HTTP requester for realistic trading scenarios.
-    
+
     Returns:
         AsyncMock: Mock HTTP requester with realistic response delays.
     """
@@ -412,7 +412,7 @@ class TestConcurrentPerformance:
 
     async def _access_cache(self, user_address: ChecksumAddress, count: int) -> int:
         """Helper to access cache for a user.
-        
+
         Returns:
             int: Number of cache hits during access attempts.
         """
@@ -429,7 +429,7 @@ class TestConcurrentPerformance:
         self, users: list[ChecksumAddress], accesses_per_user: int
     ) -> list[int]:
         """Run concurrent cache access tasks.
-        
+
         Returns:
             list[int]: List of cache hit counts from each user's access tasks.
         """

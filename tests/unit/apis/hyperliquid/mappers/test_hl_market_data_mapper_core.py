@@ -511,7 +511,7 @@ class TestCoreBusinessLogicValidation:
             "BTC-PERP",
             "SOL-PERP",
             "AVAX-PERP",
-            "LONG-SYMBOL-NAME-PERP",
+            "LONGNAME-PERP",  # Updated to stay within 20-char limit
         ]
 
         for symbol in symbol_test_cases:

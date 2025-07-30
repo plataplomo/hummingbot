@@ -66,6 +66,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -234,7 +235,7 @@ class BackpackAccountService:
 
     # Position Operations
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Retrieve derivative positions, optionally filtered by symbol.
 
         Delegates to the position service component.
@@ -322,9 +323,10 @@ class BackpackAccountService:
         raise NotImplementedError("Withdraw operation is not supported by Backpack exchange")
 
     async def update_account_settings(
-        self, update_account_settings_args: UpdateAccountSettingsArgs
+        self,
+        update_account_settings_args: UpdateAccountSettingsArgs,
     ) -> AccountSettings:
         """Update account settings is not supported by Backpack API."""
         raise NotImplementedError(
-            "Update account settings operation is not supported by Backpack exchange"
+            "Update account settings operation is not supported by Backpack exchange",
         )

@@ -24,7 +24,7 @@ class TestHyperliquidRateLimitStrategy:
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
         """Create a mock Hyperliquid configuration.
-        
+
         Returns:
             Mock ExchangeSpecificConfig with Hyperliquid-specific settings
         """
@@ -278,7 +278,7 @@ class TestHyperliquidRateLimitStrategyIntegration:
     @pytest.fixture
     def hl_config(self) -> ExchangeSpecificConfig:
         """Create a minimal real configuration.
-        
+
         Returns:
             Mock ExchangeSpecificConfig with minimal test settings
         """

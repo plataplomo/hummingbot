@@ -27,6 +27,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import BackpackOrderDetails, Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     DEFAULT_TEST_SYMBOL_SPOT,
@@ -100,7 +101,8 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving open orders for a specific symbol."""
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
         orders = await bp_api_for_test_env.get_all_open_orders(GetAllOpenOrdersArgs(symbol=symbol))
 
         assert isinstance(orders, list)
@@ -118,7 +120,8 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing a limit buy order with dynamic pricing."""
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
 
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
@@ -162,7 +165,8 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing a limit sell order with dynamic pricing."""
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
 
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
@@ -201,7 +205,8 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing an order with a custom client order ID and dynamic pricing."""
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
 
         # Generate deterministic client_order_id for VCR testing
         # Backpack requires client_order_id to be convertible to integer
@@ -259,7 +264,8 @@ class TestBackpackOrdersPositive:
     ) -> None:
         """Test cancelling a specific order by ID."""
         # First create an order to cancel
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         test_quantity = await get_minimal_order_size(
             bp_api_for_test_env,
@@ -298,7 +304,8 @@ class TestBackpackOrdersPositive:
     ) -> None:
         """Test cancelling all open orders."""
         # Create multiple orders
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
 
         # Buy order
         buy_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
@@ -357,7 +364,8 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test cancelling all orders for a specific symbol."""
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
 
         # Create orders for the symbol using dynamic pricing
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
@@ -429,7 +437,8 @@ class TestBackpackOrdersPositive:
         Raises:
             AssertionError: If order has unexpected status or authentication fails.
         """
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
 
         # Get dynamic test price and minimal order size
         # For post-only orders, we want a price that won't immediately fill

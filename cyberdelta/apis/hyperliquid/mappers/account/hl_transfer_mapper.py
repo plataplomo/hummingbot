@@ -123,7 +123,7 @@ class HyperliquidTransferMapper:
     @staticmethod
     def _get_current_timestamp() -> datetime:
         """Get current timestamp for transfers that don't return timestamps.
-        
+
         Returns:
             datetime: Current UTC datetime.
         """

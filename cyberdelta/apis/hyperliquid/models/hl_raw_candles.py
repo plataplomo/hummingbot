@@ -233,10 +233,14 @@ class HyperliquidRawWsCandle(BaseModel):
     t: RawTimestampMsInt = Field(description="Timestamp in milliseconds")
     T: RawTimestampMsInt = Field(description="Close timestamp in milliseconds")
     s: RawDefaultString = Field(
-        description="Symbol/coin (e.g., 'SOL', 'BTC')", min_length=1, max_length=24
+        description="Symbol/coin (e.g., 'SOL', 'BTC')",
+        min_length=1,
+        max_length=24,
     )
     i: RawDefaultString = Field(
-        description="Interval (e.g., '1m', '5m', '1h')", min_length=1, max_length=8
+        description="Interval (e.g., '1m', '5m', '1h')",
+        min_length=1,
+        max_length=8,
     )
     o: RawFiniteDecimalStr = Field(description="Open price")
     c: RawFiniteDecimalStr = Field(description="Close price")

@@ -74,7 +74,7 @@ class SimpleSizer(TypedBaseSizer):
 
         Returns:
             Base position size in USD
-            
+
         Raises:
             SizingError: If unknown sizing method is specified.
         """
@@ -272,7 +272,7 @@ class SimpleSizer(TypedBaseSizer):
 
         Args:
             method: Sizing method to use
-            
+
         Raises:
             SizingError: If method is not 'fixed_usd' or 'fixed_fraction'.
         """
@@ -287,7 +287,7 @@ class SimpleSizer(TypedBaseSizer):
 
         Args:
             amount: Fixed USD amount for sizing
-            
+
         Raises:
             SizingError: If amount is not positive.
         """
@@ -302,7 +302,7 @@ class SimpleSizer(TypedBaseSizer):
 
         Args:
             fraction: Fixed fraction of capital (0-1)
-            
+
         Raises:
             SizingError: If fraction is not between 0 and 1 (exclusive of 0, inclusive of 1).
         """

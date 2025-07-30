@@ -142,10 +142,10 @@ class BackpackRawWebSocketEnvelope(BaseModel):
         Supports:
         - Stream format: "depth.SOL_USDC"
         - String normalization: whitespace trimming, case normalization
-        
+
         Returns:
             str: Normalized and validated stream name
-            
+
         Raises:
             EmptyStringError: If stream value is None or empty
         """
@@ -167,7 +167,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _normalize_stream_format(cls, v: str) -> str:
         """Normalize stream format patterns for consistency.
-        
+
         Returns:
             str: Stream name with normalized format
         """
@@ -189,7 +189,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _normalize_depth_stream(cls, v: str) -> str:
         """Normalize depth stream format.
-        
+
         Returns:
             str: Normalized depth stream format
         """
@@ -207,7 +207,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _normalize_dotted_stream(cls, v: str) -> str:
         """Normalize dotted stream formats.
-        
+
         Returns:
             str: Normalized stream with proper format
         """
@@ -231,7 +231,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _normalize_basic_stream(cls, stream_type: str, parts: list[str]) -> str:
         """Normalize basic stream types.
-        
+
         Returns:
             str: Normalized basic stream format
         """
@@ -243,7 +243,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _normalize_kline_stream(cls, parts: list[str]) -> str:
         """Normalize k-line stream format.
-        
+
         Returns:
             str: Normalized k-line stream format
         """
@@ -254,7 +254,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _normalize_account_stream(cls, parts: list[str]) -> str:
         """Normalize account stream format.
-        
+
         Returns:
             str: Normalized account stream format
         """
@@ -290,10 +290,10 @@ class BackpackRawWebSocketEnvelope(BaseModel):
         - "account.positionUpdate.<symbol>" (single market)
         - "account.rfqUpdate" (all markets)
         - "account.rfqUpdate.<symbol>" (single market)
-        
+
         Returns:
             str: The validated stream name
-            
+
         Raises:
             ValueError: If stream format is invalid or cannot be empty
         """
@@ -339,7 +339,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
         """Wrap validator for data preprocessing with performance tracking.
 
         This validator provides monitoring and performance tracking during data validation.
-        
+
         Returns:
             dict[str, Any] | list[Any]: The validated data payload
         """
@@ -379,7 +379,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
     @classmethod
     def _validate_payload_size(cls, v: dict[str, Any] | list[Any]) -> None:
         """Validate payload size constraints.
-        
+
         Raises:
             ValueError: If payload exceeds maximum size limits
         """
@@ -396,10 +396,10 @@ class BackpackRawWebSocketEnvelope(BaseModel):
 
         This model validator performs cross-field validation to ensure
         stream type is consistent with data structure.
-        
+
         Returns:
             BackpackRawWebSocketEnvelope: The validated envelope instance
-            
+
         Raises:
             TypeError: If data type doesn't match expected type for stream
         """

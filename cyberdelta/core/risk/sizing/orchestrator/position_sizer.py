@@ -153,11 +153,11 @@ class PositionSizer:
         available_capital: Decimal,
     ) -> list[SizingResult]:
         """Size opportunities with equal capital allocation.
-        
+
         Args:
             opportunities: List of arbitrage opportunities to size.
             available_capital: Total available capital to allocate.
-            
+
         Returns:
             List of SizingResult objects with equal capital allocation.
         """
@@ -201,11 +201,11 @@ class PositionSizer:
         available_capital: Decimal,
     ) -> list[SizingResult]:
         """Size opportunities using Kelly-based allocation.
-        
+
         Args:
             opportunities: List of arbitrage opportunities to size.
             available_capital: Total available capital to allocate.
-            
+
         Returns:
             List of SizingResult objects with Kelly-based capital allocation.
         """
@@ -256,11 +256,11 @@ class PositionSizer:
         available_capital: Decimal,
     ) -> list[SizingResult]:
         """Size opportunities using risk-weighted allocation.
-        
+
         Args:
             opportunities: List of arbitrage opportunities to size.
             available_capital: Total available capital to allocate.
-            
+
         Returns:
             List of SizingResult objects with risk-weighted capital allocation.
         """
@@ -296,10 +296,10 @@ class PositionSizer:
 
     def _calculate_risk_score(self, opportunity: ArbitrageOpportunity) -> Decimal:
         """Calculate risk score for an opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity to calculate risk score for.
-            
+
         Returns:
             Risk score as a Decimal (higher value indicates higher risk).
         """
@@ -349,7 +349,7 @@ class PositionSizer:
 
     def _get_sizing_config(self) -> dict[str, Any]:
         """Get sizing configuration as dictionary.
-        
+
         Returns:
             Dictionary containing sizing configuration parameters.
         """
@@ -367,7 +367,7 @@ class PositionSizer:
 
     def _update_performance_metrics(self, result: SizingResult) -> None:
         """Update performance metrics.
-        
+
         Args:
             result: The sizing result to update metrics from.
         """
@@ -388,7 +388,7 @@ class PositionSizer:
 
     def set_sizer(self, sizer: OrchestratorSizer) -> None:
         """Set the active sizer strategy.
-        
+
         Args:
             sizer: The sizer strategy to use.
         """
@@ -397,7 +397,7 @@ class PositionSizer:
 
     def get_sizer(self) -> OrchestratorSizer:
         """Get the current sizer strategy.
-        
+
         Returns:
             The current sizer strategy instance.
         """
@@ -405,7 +405,7 @@ class PositionSizer:
 
     def get_performance_stats(self) -> dict[str, Any]:
         """Get performance statistics.
-        
+
         Returns:
             Dictionary containing performance statistics.
         """
@@ -441,10 +441,10 @@ class PositionSizer:
 
     def get_available_capital(self, total_capital: Decimal) -> Decimal:
         """Get available capital after reservations.
-        
+
         Args:
             total_capital: Total capital amount.
-            
+
         Returns:
             Available capital after subtracting reserved capital.
         """
@@ -472,7 +472,7 @@ class PositionSizer:
 
     def __str__(self) -> str:
         """String representation.
-        
+
         Returns:
             String representation of the PositionSizer.
         """
@@ -480,7 +480,7 @@ class PositionSizer:
 
     def __repr__(self) -> str:
         """Detailed representation.
-        
+
         Returns:
             Detailed string representation of the PositionSizer.
         """

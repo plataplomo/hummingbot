@@ -69,12 +69,16 @@ def safe_parse_timestamp(
     # Handle numeric timestamps (Unix time)
     if isinstance(value, (int, float)):
         return _parse_unix_timestamp(
-            value, validation_context.field_name, validation_context.context_description
+            value,
+            validation_context.field_name,
+            validation_context.context_description,
         )
 
     # Handle string timestamps - at this point value must be str
     return _parse_string_timestamp(
-        value, validation_context.field_name, validation_context.context_description
+        value,
+        validation_context.field_name,
+        validation_context.context_description,
     )
 
 
@@ -182,10 +186,10 @@ def _parse_unix_timestamp(
     context: str,
 ) -> datetime:
     """Parse Unix timestamp (auto-detecting seconds vs milliseconds).
-    
+
     Returns:
         Parsed datetime in UTC timezone.
-        
+
     Raises:
         APIError: If timestamp parsing fails or is out of reasonable range.
     """
@@ -231,10 +235,10 @@ def _parse_string_timestamp(
     context: str,
 ) -> datetime:
     """Parse string timestamp using common formats.
-    
+
     Returns:
         Parsed datetime in UTC timezone.
-        
+
     Raises:
         APIError: If string timestamp parsing fails or format is unrecognized.
     """
@@ -297,7 +301,7 @@ def _parse_string_timestamp(
 
 def _raise_unknown_format_error(format_type: str) -> NoReturn:
     """Raise ValueError for unknown format type.
-    
+
     Raises:
         ValueError: Always raised with unknown format type message.
     """
@@ -307,7 +311,7 @@ def _raise_unknown_format_error(format_type: str) -> NoReturn:
 
 def _raise_timestamp_range_error(timestamp_seconds: float) -> NoReturn:
     """Raise ValueError for timestamp out of range.
-    
+
     Raises:
         ValueError: Always raised with timestamp range error message.
     """

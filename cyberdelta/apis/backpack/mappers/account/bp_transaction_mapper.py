@@ -36,6 +36,7 @@ from cyberdelta.core.enums import (
 )
 from cyberdelta.core.models import BackpackOrderDetails, Order, Trade
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
@@ -58,7 +59,8 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
 
     @staticmethod
     def _ensure_trade_values_not_none(
-        price: Decimal | None, quantity: Decimal | None
+        price: Decimal | None,
+        quantity: Decimal | None,
     ) -> tuple[Decimal, Decimal]:
         """Ensure trade price and quantity are not None after parsing.
 
@@ -81,7 +83,9 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
 
     @staticmethod
     def _ensure_public_trade_fields_not_none(
-        price_dec: Decimal | None, quantity_dec: Decimal | None, timestamp: datetime | None
+        price_dec: Decimal | None,
+        quantity_dec: Decimal | None,
+        timestamp: datetime | None,
     ) -> None:
         """Ensure public trade required fields are not None after parsing.
 
@@ -426,7 +430,8 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             )
 
             price_typed, quantity_typed = BackpackTransactionMapper._ensure_trade_values_not_none(
-                price, quantity
+                price,
+                quantity,
             )
 
             # Check if price or quantity is zero - Trade model requires positive values
@@ -454,10 +459,15 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 system_order_type=None,  # Not available in fill data
             )
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw_fill.symbol,
+            )
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(raw_fill.trade_id),
-                "symbol": raw_fill.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "executed_at": executed_at.isoformat(),
                 "side": side.value,
                 "order_id": raw_fill.order_id,
@@ -572,7 +582,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 "exchange_order_id": raw.id,
                 "related_order_id": raw.relatedOrderId,
                 "exchange": ExchangeName.BACKPACK.value,
-                "symbol": raw.symbol,
+                "symbol": exchanges.backpack(value=raw.symbol),  # Domain object!
                 "side": BackpackTransactionMapper._map_side_to_internal(raw.side).value,
                 "order_type": BackpackTransactionMapper._map_type_to_internal(raw.orderType).value,
                 "status": BackpackTransactionMapper._map_status_to_internal(raw.status).value,
@@ -677,7 +687,9 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             timestamp = parse_datetime_utc(raw.time, field_name="time")
 
             BackpackTransactionMapper._ensure_public_trade_fields_not_none(
-                price_dec, quantity_dec, timestamp
+                price_dec,
+                quantity_dec,
+                timestamp,
             )
 
             # Backpack REST API for recent trades doesn't provide side
@@ -731,7 +743,8 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -743,30 +756,6 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

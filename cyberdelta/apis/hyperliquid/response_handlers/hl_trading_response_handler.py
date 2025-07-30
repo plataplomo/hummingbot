@@ -50,7 +50,8 @@ logger = get_logger(__name__)
 
 
 class HyperliquidTradingResponseHandler(
-    HyperliquidResponseHandlerBase, TradingResponseHandlerProtocol
+    HyperliquidResponseHandlerBase,
+    TradingResponseHandlerProtocol,
 ):
     """Handles validation of trading-related JSON responses from Hyperliquid API.
 
@@ -61,7 +62,11 @@ class HyperliquidTradingResponseHandler(
 
     # Base protocol method implementation
     def handle_response(
-        self, response: dict[str, object], status_code: int, headers: dict[str, str], context: str
+        self,
+        response: dict[str, object],
+        status_code: int,
+        headers: dict[str, str],
+        context: str,
     ) -> object:
         """Handle API response per base protocol.
 
@@ -110,7 +115,11 @@ class HyperliquidTradingResponseHandler(
             return HyperliquidRawExchangeResponse.model_validate(response_dict)
         except ValidationError as e:
             raise self._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e,
+                context,
+                raw_response_content,
+                status_code,
+                headers,
             ) from e
 
     def handle_info_open_orders_response(
@@ -180,7 +189,11 @@ class HyperliquidTradingResponseHandler(
             return HyperliquidRawUserFillsResponse(response_list)
         except ValidationError as e:
             raise self._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e,
+                context,
+                raw_response_content,
+                status_code,
+                headers,
             ) from e
 
     def handle_info_order_status_response(
@@ -264,13 +277,18 @@ class HyperliquidTradingResponseHandler(
             return HyperliquidRawHistoricalOrdersResponse(orders)
         except ValidationError as e:
             raise self._handle_validation_error(
-                e, context, raw_response_content, status_code, headers
+                e,
+                context,
+                raw_response_content,
+                status_code,
+                headers,
             ) from e
 
     # Protocol implementation methods
     @staticmethod
     def handle_place_order_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle order placement response using protocol interface.
 
@@ -304,7 +322,8 @@ class HyperliquidTradingResponseHandler(
 
     @staticmethod
     def handle_cancel_order_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle order cancellation response using protocol interface.
 
@@ -338,7 +357,8 @@ class HyperliquidTradingResponseHandler(
 
     @staticmethod
     def handle_cancel_all_orders_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle cancel all orders response using protocol interface.
 
@@ -372,7 +392,8 @@ class HyperliquidTradingResponseHandler(
 
     @staticmethod
     def handle_modify_order_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle order modification response using protocol interface.
 
@@ -386,5 +407,6 @@ class HyperliquidTradingResponseHandler(
         # Hyperliquid doesn't have direct order modification - it's cancel + place
         # So this would return the same exchange response
         return HyperliquidTradingResponseHandler.handle_place_order_response(
-            raw_response_content, status_code
+            raw_response_content,
+            status_code,
         )

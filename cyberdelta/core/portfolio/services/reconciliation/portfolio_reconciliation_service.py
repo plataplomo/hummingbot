@@ -48,7 +48,7 @@ class ReconciliationDiscrepancyMetadata(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> ReconciliationDiscrepancyMetadata | None:
         """Create metadata from dict, extracting known fields.
-        
+
         Returns:
             ReconciliationDiscrepancyMetadata instance or None if data is empty.
         """
@@ -129,10 +129,10 @@ class ReconciliationServiceConfiguration(ServiceConfiguration):
     @classmethod
     def validate_decimal_fields(cls, v: Decimal | str | float) -> Decimal:
         """Validate Decimal fields are positive and finite.
-        
+
         Returns:
             Validated Decimal value.
-            
+
         Raises:
             ReconciliationValueError: If value is not positive or finite.
         """
@@ -166,7 +166,7 @@ class ReconciliationDiscrepancy:
         cls, v: dict[str, Any] | ReconciliationDiscrepancyMetadata | None
     ) -> ReconciliationDiscrepancyMetadata | None:
         """Convert dict to ReconciliationDiscrepancyMetadata if needed.
-        
+
         Returns:
             ReconciliationDiscrepancyMetadata instance or None.
         """
@@ -181,10 +181,10 @@ class ReconciliationDiscrepancy:
     @classmethod
     def validate_type(cls, v: str) -> str:
         """Validate discrepancy type.
-        
+
         Returns:
             Validated discrepancy type string.
-            
+
         Raises:
             ReconciliationDiscrepancyTypeError: If type is not valid.
         """
@@ -197,10 +197,10 @@ class ReconciliationDiscrepancy:
     @classmethod
     def validate_severity(cls, v: str) -> str:
         """Validate severity level.
-        
+
         Returns:
             Validated severity level string.
-            
+
         Raises:
             ReconciliationSeverityError: If severity level is not valid.
         """
@@ -311,7 +311,7 @@ class PortfolioReconciliationService(BasePortfolioService):
 
         Returns:
             ReconciliationResult with findings
-            
+
         Raises:
             RuntimeError: If service is not running.
         """
@@ -531,7 +531,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=0.0,
                                 actual_value=float(entry_price) if entry_price else 0.0,
                                 exchange_id=exchange_id,
-                                symbol=symbol,
+                                symbol=str(symbol),
                             )
                         )
 
@@ -545,7 +545,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=1.0,  # Minimum expected price
                                 actual_value=float(entry_price) if entry_price else None,
                                 exchange_id=exchange_id,
-                                symbol=symbol,
+                                symbol=str(symbol),
                             )
                         )
 
@@ -559,7 +559,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=float(self.recon_config.max_position_size),
                                 actual_value=float(abs(size)),
                                 exchange_id=exchange_id,
-                                symbol=symbol,
+                                symbol=str(symbol),
                             )
                         )
 
@@ -576,7 +576,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                     expected_value=float(self.recon_config.max_position_value),
                                     actual_value=float(position_value),
                                     exchange_id=exchange_id,
-                                    symbol=symbol,
+                                    symbol=str(symbol),
                                     metadata={
                                         "position_size": float(size),
                                         "entry_price": float(entry_price),
@@ -593,7 +593,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             expected_value=None,
                             actual_value=None,
                             exchange_id=exchange_id,
-                            symbol=symbol,
+                            symbol=str(symbol),
                         )
                     )
 
@@ -628,7 +628,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=float(quantity),
                                 actual_value=float(filled_quantity),
                                 exchange_id=exchange_id,
-                                symbol=order.symbol,
+                                symbol=str(order.symbol),
                                 metadata={"order_id": order_id},
                             )
                         )
@@ -647,7 +647,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=float(quantity),
                                 actual_value=float(filled_quantity),
                                 exchange_id=exchange_id,
-                                symbol=order.symbol,
+                                symbol=str(order.symbol),
                                 metadata={"order_id": order_id, "status": status},
                             )
                         )
@@ -667,7 +667,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=1.0,  # Minimum expected price
                                 actual_value=float(price) if price else None,
                                 exchange_id=exchange_id,
-                                symbol=order.symbol,
+                                symbol=str(order.symbol),
                                 metadata={"order_id": order_id, "order_type": order_type},
                             )
                         )
@@ -690,7 +690,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                     expected_value=float(self.recon_config.max_order_age_seconds),
                                     actual_value=float(order_age),
                                     exchange_id=exchange_id,
-                                    symbol=order.symbol,
+                                    symbol=str(order.symbol),
                                     metadata={"order_id": order_id, "status": status},
                                 )
                             )
@@ -704,7 +704,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             expected_value=None,
                             actual_value=None,
                             exchange_id=exchange_id,
-                            symbol=order.symbol,
+                            symbol=str(order.symbol) if order.symbol else None,
                             metadata={"order_id": order_id},
                         )
                     )
@@ -743,7 +743,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             expected_value=1.0,
                             actual_value=float(price),
                             exchange_id=exchange_id,
-                            symbol=symbol,
+                            symbol=str(symbol),
                             metadata={"trade_id": trade.id},
                         )
                     )
@@ -757,7 +757,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             expected_value=1.0,
                             actual_value=float(quantity),
                             exchange_id=exchange_id,
-                            symbol=symbol,
+                            symbol=str(symbol),
                             metadata={"trade_id": trade.id},
                         )
                     )
@@ -772,7 +772,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                             expected_value=True,
                             actual_value=False,
                             exchange_id=exchange_id,
-                            symbol=symbol,
+                            symbol=str(symbol),
                             metadata={"trade_id": trade.id},
                         )
                     )
@@ -792,7 +792,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                                 expected_value=current_time,
                                 actual_value=trade.executed_at.timestamp(),
                                 exchange_id=exchange_id,
-                                symbol=symbol,
+                                symbol=str(symbol),
                                 metadata={"trade_id": trade.id},
                             )
                         )
@@ -806,7 +806,7 @@ class PortfolioReconciliationService(BasePortfolioService):
                         expected_value=None,
                         actual_value=None,
                         exchange_id=trade.exchange,
-                        symbol=trade.symbol,
+                        symbol=str(trade.symbol) if trade.symbol else None,
                         metadata={"trade_id": trade.id},
                     )
                 )
@@ -856,7 +856,7 @@ class PortfolioReconciliationService(BasePortfolioService):
         self, positions: dict[str, dict[str, DerivativePosition]]
     ) -> list[ReconciliationDiscrepancy]:
         """Check position consistency across exchanges.
-        
+
         Returns:
             List of cross-exchange position discrepancies.
         """
@@ -879,7 +879,7 @@ class PortfolioReconciliationService(BasePortfolioService):
         self, positions: dict[str, dict[str, DerivativePosition]]
     ) -> dict[str, list[str]]:
         """Build mapping of symbols to exchanges.
-        
+
         Returns:
             Dictionary mapping symbol names to lists of exchange IDs.
         """
@@ -895,7 +895,7 @@ class PortfolioReconciliationService(BasePortfolioService):
         self, symbol: str, exchanges: list[str], positions: dict[str, dict[str, DerivativePosition]]
     ) -> ReconciliationDiscrepancy:
         """Create discrepancy for positions on multiple exchanges.
-        
+
         Returns:
             ReconciliationDiscrepancy indicating multi-exchange position.
         """
@@ -919,7 +919,7 @@ class PortfolioReconciliationService(BasePortfolioService):
         self, balances: dict[str, dict[str, SpotBalance]]
     ) -> list[ReconciliationDiscrepancy]:
         """Check balance distribution across exchanges.
-        
+
         Returns:
             List of cross-exchange balance discrepancies.
         """
@@ -942,7 +942,7 @@ class PortfolioReconciliationService(BasePortfolioService):
         self, balances: dict[str, dict[str, SpotBalance]]
     ) -> dict[str, list[str]]:
         """Build mapping of currencies to exchanges.
-        
+
         Returns:
             Dictionary mapping currency codes to lists of exchange IDs.
         """
@@ -958,7 +958,7 @@ class PortfolioReconciliationService(BasePortfolioService):
         self, currency: str, exchanges: list[str], balances: dict[str, dict[str, SpotBalance]]
     ) -> list[ReconciliationDiscrepancy]:
         """Check if currency is well distributed across exchanges.
-        
+
         Returns:
             List of currency distribution discrepancies.
         """

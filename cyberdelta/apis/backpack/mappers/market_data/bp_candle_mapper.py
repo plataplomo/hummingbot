@@ -18,6 +18,7 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import CandleMapperProt
 from cyberdelta.apis.exceptions import CandleTransformationError, MissingRequiredFieldError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Candle
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -71,14 +72,14 @@ class BackpackCandleMapper(CandleMapperProtocol):
 
     @staticmethod
     def transform_raw_kline_to_internal(
-        symbol: str,
+        symbol: Symbol,
         interval: str,
         raw_kline: BackpackRawKlineResponse,
     ) -> Candle:
         """Transform a BackpackRawKlineResponse to an Internal Candle model.
 
         Args:
-            symbol: Symbol for the candle
+            symbol: Symbol domain object for the candle
             interval: Time interval for the candle
             raw_kline: Validated raw kline data from Backpack
 
@@ -90,16 +91,6 @@ class BackpackCandleMapper(CandleMapperProtocol):
 
         """
         try:
-            # Validate symbol format
-            if symbol and not BackpackCommonMappers.is_valid_symbol(symbol):
-                logger.warning(
-                    "invalid_symbol_format",
-                    symbol=symbol,
-                    expected_format="BASE_QUOTE",
-                    context="candle_transform",
-                    message="Invalid Backpack symbol format in candle data",
-                )
-
             # Parse OHLCV data using correct field names
             open_price = parse_decimal_value(
                 raw_kline.open_price,
@@ -125,7 +116,12 @@ class BackpackCandleMapper(CandleMapperProtocol):
 
             # Validate all OHLCV values are present
             BackpackCandleMapper._validate_candle_data(
-                open_price, high_price, low_price, close_price, volume, symbol
+                open_price,
+                high_price,
+                low_price,
+                close_price,
+                volume,
+                symbol.value,
             )
 
             # Parse timestamp from start_time_ms using common mapper utility
@@ -136,13 +132,16 @@ class BackpackCandleMapper(CandleMapperProtocol):
                 logger.warning(
                     "timestamp_conversion_failed",
                     start_time_ms=raw_kline.start_time_ms,
-                    symbol=symbol,
+                    symbol=symbol.value,
                     message="Failed to convert kline timestamp, using current time",
                 )
 
+            # Use the Symbol object directly (no need to create another)
+            exchange_symbol = symbol
+
             # Use secure_transform for type-safe model creation
             candle_data: dict[str, Any] = {
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "interval": interval,
                 "open_time": open_time.isoformat(),
                 "open": str(open_price),
@@ -162,7 +161,7 @@ class BackpackCandleMapper(CandleMapperProtocol):
         except Exception as e:
             raise CandleTransformationError(
                 reason=str(e),
-                symbol=symbol,
+                symbol=symbol.value,  # Convert Symbol to string for error
                 interval=interval,
                 original_error=e,
             ) from e
@@ -170,7 +169,8 @@ class BackpackCandleMapper(CandleMapperProtocol):
     # MapperProtocol methods
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely using BackpackCommonMappers.
 
@@ -182,30 +182,6 @@ class BackpackCandleMapper(CandleMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

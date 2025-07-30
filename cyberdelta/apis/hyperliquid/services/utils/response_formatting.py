@@ -13,6 +13,7 @@ from cyberdelta.apis.exceptions import InvalidBatchResponseError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
@@ -24,7 +25,7 @@ def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
 
     This helps pyright understand that after this check,
     the value is definitely a dict with string keys.
-    
+
     Returns:
         bool: True if value is a dict, False otherwise.
     """
@@ -33,7 +34,7 @@ def _is_dict_str_any(value: object) -> TypeGuard[dict[str, Any]]:
 
 def format_cancel_order_result(
     cancel_status: dict[str, Any],
-    symbol: str,
+    symbol: Symbol,
     order_id: str | None = None,
 ) -> CancelOrderResult:
     """Format cancellation status into CancelOrderResult.
@@ -86,7 +87,7 @@ def format_cancel_order_result(
 
 def format_batch_cancel_results(
     batch_statuses: list[dict[str, Any]],
-    symbols: list[str],
+    symbols: list[Symbol],
     order_ids: list[str] | None = None,
 ) -> list[CancelOrderResult]:
     """Format batch cancellation statuses into CancelOrderResult list.
@@ -340,7 +341,7 @@ def _parse_validated_decimal(value: object) -> Decimal | None:
 
     Returns:
         Parsed decimal value
-        
+
     Raises:
         TypeError: If value is not a decimal-compatible type (internal error).
     """
@@ -357,7 +358,7 @@ def _raise_invalid_decimal_type_error(value: object, field_name: str) -> None:
     Args:
         value: The invalid value
         field_name: Name of the field for error context
-        
+
     Raises:
         TypeError: Always raises with field-specific error message.
     """

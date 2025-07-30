@@ -28,6 +28,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketsArgs,
 )
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
+from cyberdelta.core.symbols import exchanges
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
 
 
@@ -47,21 +48,20 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with SOL_USDC_PERP returns valid Market model."""
-        args = GetMarketArgs(symbol="SOL_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "SOL_USDC_PERP", (
-            f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol}'"
+        assert market.symbol.value == "SOL_USDC_PERP", (
+            f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol.value}'"
         )
-        assert market.base_symbol == "SOL", (
-            f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
-        )
-        assert market.quote_symbol == "USDC", (
-            f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
+        # Symbol parsing is now handled by the Symbol object
+        assert "SOL" in market.symbol.value, f"Expected SOL in symbol, got '{market.symbol.value}'"
+        assert "USDC" in market.symbol.value, (
+            f"Expected USDC in symbol, got '{market.symbol.value}'"
         )
 
         # Perpetual contracts should have appropriate market type
@@ -159,21 +159,20 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with BTC_USDC_PERP returns valid Market model."""
-        args = GetMarketArgs(symbol="BTC_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("BTC_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "BTC_USDC_PERP", (
-            f"Expected symbol 'BTC_USDC_PERP', got '{market.symbol}'"
+        assert market.symbol.value == "BTC_USDC_PERP", (
+            f"Expected symbol 'BTC_USDC_PERP', got '{market.symbol.value}'"
         )
-        assert market.base_symbol == "BTC", (
-            f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
-        )
-        assert market.quote_symbol == "USDC", (
-            f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
+        # Symbol parsing is now handled by the Symbol object
+        assert "BTC" in market.symbol.value, f"Expected BTC in symbol, got '{market.symbol.value}'"
+        assert "USDC" in market.symbol.value, (
+            f"Expected USDC in symbol, got '{market.symbol.value}'"
         )
 
         # BTC perp should have positive tick and step sizes
@@ -198,21 +197,20 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with ETH_USDC_PERP returns valid Market model."""
-        args = GetMarketArgs(symbol="ETH_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("ETH_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "ETH_USDC_PERP", (
-            f"Expected symbol 'ETH_USDC_PERP', got '{market.symbol}'"
+        assert market.symbol.value == "ETH_USDC_PERP", (
+            f"Expected symbol 'ETH_USDC_PERP', got '{market.symbol.value}'"
         )
-        assert market.base_symbol == "ETH", (
-            f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
-        )
-        assert market.quote_symbol == "USDC", (
-            f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
+        # Symbol parsing is now handled by the Symbol object
+        assert "ETH" in market.symbol.value, f"Expected ETH in symbol, got '{market.symbol.value}'"
+        assert "USDC" in market.symbol.value, (
+            f"Expected USDC in symbol, got '{market.symbol.value}'"
         )
 
         # ETH perp market validation
@@ -229,7 +227,7 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with invalid perp symbol raises appropriate error."""
-        args = GetMarketArgs(symbol="INVALID_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("INVALID_PERP"))
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(args)
@@ -251,7 +249,7 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with non-existent but well-formed perp symbol."""
-        args = GetMarketArgs(symbol="NOTREAL_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("NOTREAL_USDC_PERP"))
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(args)
@@ -280,7 +278,7 @@ class TestBackpackPerpMarkets:
         perp_markets = [
             market
             for market in all_markets
-            if market.symbol.endswith("_PERP") or "perp" in market.market_type.lower()
+            if market.symbol.value.endswith("_PERP") or "perp" in market.market_type.lower()
         ]
 
         assert len(perp_markets) > 0, "Should return at least some perp markets"
@@ -291,29 +289,23 @@ class TestBackpackPerpMarkets:
             assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
             # Validate unique symbols
-            assert market.symbol not in symbols_seen, f"Duplicate symbol found: {market.symbol}"
-            symbols_seen.add(market.symbol)
+            assert market.symbol.value not in symbols_seen, (
+                f"Duplicate symbol found: {market.symbol.value}"
+            )
+            symbols_seen.add(market.symbol.value)
 
             # Validate it's actually a perp market
-            assert market.symbol.endswith("_PERP") or "perp" in market.market_type.lower(), (
-                f"Should only include perp symbols: {market.symbol}"
+            assert market.symbol.value.endswith("_PERP") or "perp" in market.market_type.lower(), (
+                f"Should only include perp symbols: {market.symbol.value}"
             )
 
             # Validate core fields are present and valid
-            assert isinstance(market.symbol, str), (
-                f"symbol should be str, got {type(market.symbol)}"
+            # Symbol parsing is now handled by the Symbol object
+            # base_symbol and quote_symbol are not separate fields in Market model
+            assert hasattr(market.symbol, "value"), (
+                f"symbol should have value attribute, got {type(market.symbol)}"
             )
-            assert len(market.symbol) > 0, "symbol should not be empty"
-
-            assert isinstance(market.base_symbol, str), (
-                f"base_symbol should be str, got {type(market.base_symbol)}"
-            )
-            assert len(market.base_symbol) > 0, "base_symbol should not be empty"
-
-            assert isinstance(market.quote_symbol, str), (
-                f"quote_symbol should be str, got {type(market.quote_symbol)}"
-            )
-            assert len(market.quote_symbol) > 0, "quote_symbol should not be empty"
+            assert len(market.symbol.value) > 0, "symbol value should not be empty"
 
             # Validate financial constraints for perp trading
             assert isinstance(market.tick_size, Decimal), (
@@ -340,7 +332,7 @@ class TestBackpackPerpMarkets:
             )
 
         # Should include common perp trading pairs
-        market_symbols = {market.symbol for market in perp_markets}
+        market_symbols = {market.symbol.value for market in perp_markets}
         common_perp_pairs = {"SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"}
         found_pairs = common_perp_pairs.intersection(market_symbols)
         assert len(found_pairs) > 0, (
@@ -359,15 +351,14 @@ class TestBackpackPerpMarkets:
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
 
-        perp_markets = [market for market in all_markets if market.symbol.endswith("_PERP")]
+        perp_markets = [market for market in all_markets if market.symbol.value.endswith("_PERP")]
 
         assert len(perp_markets) > 1, "Need multiple perp markets for consistency testing"
 
         # Verify all perp markets have the same structure (required fields)
         required_attrs = [
             "symbol",
-            "base_symbol",
-            "quote_symbol",
+            # base_symbol and quote_symbol removed - handled by Symbol object
             "market_type",
             "tick_size",
             "step_size",
@@ -398,7 +389,7 @@ class TestBackpackPerpMarkets:
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
 
-        perp_markets = [market for market in all_markets if market.symbol.endswith("_PERP")]
+        perp_markets = [market for market in all_markets if market.symbol.value.endswith("_PERP")]
 
         for market in perp_markets:
             # Validate tick_size precision for perp trading
@@ -463,7 +454,7 @@ class TestBackpackPerpMarkets:
         markets_args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(markets_args)
 
-        perp_markets = [market for market in all_markets if market.symbol.endswith("_PERP")]
+        perp_markets = [market for market in all_markets if market.symbol.value.endswith("_PERP")]
 
         assert len(perp_markets) > 0, "Should have at least one perp market for consistency testing"
 
@@ -481,9 +472,7 @@ class TestBackpackPerpMarkets:
         )
 
         # Compare core fields for consistency
-        assert individual_market.symbol == matching_market.symbol
-        assert individual_market.base_symbol == matching_market.base_symbol
-        assert individual_market.quote_symbol == matching_market.quote_symbol
+        assert individual_market.symbol.value == matching_market.symbol.value
         assert individual_market.market_type == matching_market.market_type
         assert individual_market.tick_size == matching_market.tick_size
         assert individual_market.step_size == matching_market.step_size
@@ -504,22 +493,16 @@ class TestBackpackPerpMarkets:
     ) -> None:
         """Test that perp Market models from Backpack satisfy business logic constraints."""
         # Test with a well-known perp symbol
-        args = GetMarketArgs(symbol="SOL_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate symbol parsing consistency for perp markets
-        if market.symbol.endswith("_PERP"):
-            # Remove _PERP suffix for parsing
-            base_symbol = market.symbol[:-5]  # Remove "_PERP"
-            parts = base_symbol.split("_")
-            if len(parts) == 2:  # base_quote format
-                assert market.base_symbol == parts[0], (
-                    f"base_symbol '{market.base_symbol}' should match first part of "
-                    f"symbol '{parts[0]}'"
-                )
-                assert market.quote_symbol == parts[1], (
-                    f"quote_symbol '{market.quote_symbol}' should match second part '{parts[1]}'"
-                )
+        if market.symbol.value.endswith("_PERP"):
+            # Symbol parsing is now handled by the Symbol object
+            # base_symbol and quote_symbol parsing not needed with new Symbol model
+            assert "_PERP" in market.symbol.value, (
+                f"Expected perp symbol to contain '_PERP', got '{market.symbol.value}'"
+            )
 
         # Validate trading constraints make sense for perp trading
         if market.min_price is not None and market.max_price is not None:
@@ -535,7 +518,7 @@ class TestBackpackPerpMarkets:
             )
 
         # Validate tick_size is reasonable relative to ACTUAL current prices
-        if market.quote_symbol == "USDC":
+        if "USDC" in market.symbol.value:
             # Get real current price to validate tick size makes sense
 
             current_price = await get_current_market_price(bp_api_for_test_env, market.symbol)
@@ -560,7 +543,7 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market characteristics related to leverage trading."""
-        args = GetMarketArgs(symbol="SOL_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         # Test precision requirements for leverage calculations
@@ -579,7 +562,9 @@ class TestBackpackPerpMarkets:
             # Test notional calculations with REAL market data
             # Get actual current market price - no hardcoded values allowed
 
-            actual_price = await get_current_market_price(bp_api_for_test_env, "SOL_USDC_PERP")
+            actual_price = await get_current_market_price(
+                bp_api_for_test_env, exchanges.backpack("SOL_USDC_PERP")
+            )
 
             # Use minimum quantity from market constraints - no hardcoded quantities
             test_quantity = market.step_size  # Use actual step size
@@ -617,7 +602,7 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market metadata supports funding rate awareness."""
-        args = GetMarketArgs(symbol="SOL_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         # Perp markets should have constraints suitable for funding rate periods
@@ -627,7 +612,7 @@ class TestBackpackPerpMarkets:
         # Get actual funding rate from exchange - no hardcoded rates
 
         funding_rates = await bp_api_for_test_env.get_funding_rates(
-            GetFundingRatesArgs(symbols=["SOL_USDC_PERP"]),
+            GetFundingRatesArgs(symbols=[exchanges.backpack("SOL_USDC_PERP")]),
         )
         assert len(funding_rates) > 0, "Should get funding rate data for SOL_USDC_PERP"
         funding_data = funding_rates[0]
@@ -638,7 +623,9 @@ class TestBackpackPerpMarkets:
 
         # Get real current price - no hardcoded prices
 
-        actual_price = await get_current_market_price(bp_api_for_test_env, "SOL_USDC_PERP")
+        actual_price = await get_current_market_price(
+            bp_api_for_test_env, exchanges.backpack("SOL_USDC_PERP")
+        )
         funding_payment = actual_price * actual_funding_rate
 
         # The funding payment should be a valid tradeable amount based on tick size

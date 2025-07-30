@@ -17,6 +17,8 @@ from cyberdelta.core.models.market.ticker import (
     HyperliquidTickerDetails,
     Ticker,
 )
+from cyberdelta.core.symbols.models import create_exchange_symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -25,7 +27,7 @@ pytestmark = pytest.mark.timing
 
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
-VALID_SYMBOL: str = "BTC-PERP"
+VALID_SYMBOL = create_exchange_symbol("BTC-PERP", ExchangeName.HYPERLIQUID)
 DEC_ZERO: Decimal = Decimal(0)
 DEC_ONE: Decimal = Decimal(1)
 DEC_NEG_ONE: Decimal = Decimal(-1)
@@ -101,15 +103,31 @@ class TestTicker:
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field (required, non-empty, length)."""
         with pytest.raises(EmptyStringError, match="String cannot be empty"):
-            Ticker(symbol="", exchange="test_exchange", timestamp=NOW)
+            Ticker(
+                symbol=create_exchange_symbol("", ExchangeName.HYPERLIQUID),
+                exchange="test_exchange",
+                timestamp=NOW,
+            )
         with pytest.raises(EmptyStringError, match="String cannot be empty"):
-            Ticker(symbol="   ", exchange="test_exchange", timestamp=NOW)
+            Ticker(
+                symbol=create_exchange_symbol("   ", ExchangeName.HYPERLIQUID),
+                exchange="test_exchange",
+                timestamp=NOW,
+            )
         with pytest.raises(
             TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
         ):
-            Ticker(symbol="A" * 65, exchange="test_exchange", timestamp=NOW)
+            Ticker(
+                symbol=create_exchange_symbol("A" * 65, ExchangeName.HYPERLIQUID),
+                exchange="test_exchange",
+                timestamp=NOW,
+            )
         # Valid symbol should pass
-        Ticker(symbol="VALID-SYM_123", exchange="test_exchange", timestamp=NOW)
+        Ticker(
+            symbol=create_exchange_symbol("VALID-SYM_123", ExchangeName.HYPERLIQUID),
+            exchange="test_exchange",
+            timestamp=NOW,
+        )
 
     def test_timestamp_validation(self) -> None:
         """Test timestamp validation (required, parsing, None handling)."""
@@ -233,7 +251,7 @@ class TestTicker:
         ticker = Ticker(symbol=VALID_SYMBOL, exchange="test_exchange", timestamp=NOW, price=DEC_ONE)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.symbol = "NEW-SYM"
+            ticker.symbol = create_exchange_symbol("NEW-SYM", ExchangeName.HYPERLIQUID)
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ticker.timestamp = NOW + timedelta(seconds=1)
         with pytest.raises(ValidationError, match="Instance is frozen"):
@@ -369,7 +387,7 @@ class TestTicker:
             trades=1500,
         )
         ticker = Ticker(
-            symbol="BTC_USDC",
+            symbol=create_exchange_symbol("BTC_USDC", ExchangeName.BACKPACK),
             exchange="backpack",
             timestamp=NOW,
             price=Decimal(30000),

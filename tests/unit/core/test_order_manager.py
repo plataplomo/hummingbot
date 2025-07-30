@@ -24,7 +24,7 @@ pytestmark = pytest.mark.timing
 @pytest.fixture
 def sample_order() -> Order:
     """Create a sample order for testing.
-    
+
     Returns:
         Order: A sample order instance for testing.
     """
@@ -53,7 +53,7 @@ def sample_order() -> Order:
 @pytest.fixture
 def sample_trade() -> Trade:
     """Create a sample trade for testing.
-    
+
     Returns:
         Trade: A sample trade instance for testing.
     """

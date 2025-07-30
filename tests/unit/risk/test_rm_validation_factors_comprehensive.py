@@ -22,7 +22,7 @@ def create_test_opportunity_with_exchanges(
     frozen_time: FreezerProtocol | None = None,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity with specified exchanges.
-    
+
     Returns:
         ArbitrageOpportunity: An arbitrage opportunity instance for testing.
     """

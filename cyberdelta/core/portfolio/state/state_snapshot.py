@@ -41,7 +41,7 @@ class SnapshotMetadata(BaseModel):
         cls, v: dict[str, str | int | float | bool]
     ) -> dict[str, str | int | float | bool]:
         """Validate tags contain only allowed types.
-        
+
         Returns:
             dict[str, str | int | float | bool]: The validated tags dictionary.
         """
@@ -405,7 +405,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def _convert_value(self, value: str | float | bool | object) -> str | int | float | bool:
         """Convert value to allowed types for strict typing.
-        
+
         Returns:
             str | int | float | bool: Converted value or 'None' string.
         """
@@ -566,7 +566,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __len__(self) -> int:
         """Get the number of state fields.
-        
+
         Returns:
             int: Number of state fields in the snapshot.
         """
@@ -574,7 +574,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __contains__(self, field_name: str) -> bool:
         """Check if a field exists in the snapshot state.
-        
+
         Returns:
             bool: True if field exists, False otherwise.
         """
@@ -582,7 +582,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __getitem__(self, field_name: str) -> str | int | float | bool | None:
         """Get a state field value by name.
-        
+
         Returns:
             str | int | float | bool | None: Field value or None if not found.
         """
@@ -590,7 +590,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __iter__(self) -> Generator[tuple[str, str | int | float | bool | None]]:
         """Iterate over state field names.
-        
+
         Yields:
             tuple[str, str | int | float | bool | None]: Field name and value pairs.
         """
@@ -599,7 +599,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __eq__(self, other: object) -> bool:
         """Check equality with another snapshot.
-        
+
         Returns:
             bool: True if snapshots are equal, False otherwise.
         """
@@ -614,7 +614,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __hash__(self) -> int:
         """Get hash of the snapshot.
-        
+
         Returns:
             int: Hash value based on snapshot ID, target state ID, and checksum.
         """
@@ -622,7 +622,7 @@ class StateSnapshot[T: BaseModel](BaseStateModel):
 
     def __repr__(self) -> str:
         """String representation.
-        
+
         Returns:
             str: String representation of the StateSnapshot object.
         """

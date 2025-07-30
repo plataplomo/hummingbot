@@ -37,6 +37,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetHistoricalFundingRatesArgs
 from cyberdelta.core.models import FundingRate
+from cyberdelta.core.symbols import exchanges
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 
@@ -56,8 +57,8 @@ def _validate_funding_rate(
         funding_rate_bounds: Min/max bounds from exchange
     """
     assert isinstance(funding_rate, FundingRate), f"Should be FundingRate model for {symbol}"
-    assert funding_rate.symbol == symbol, (
-        f"Symbol mismatch: expected {symbol}, got {funding_rate.symbol}"
+    assert funding_rate.symbol.value == symbol, (
+        f"Symbol mismatch: expected {symbol}, got {funding_rate.symbol.value}"
     )
 
     # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
@@ -109,7 +110,7 @@ async def test_hl_get_historical_funding_rates_btc_success(
     start_time = end_time - timedelta(hours=24)  # Last 24 hours
 
     args = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=start_time,
         end_time=end_time,
     )
@@ -133,7 +134,7 @@ async def test_hl_get_historical_funding_rates_btc_success(
             )
             assert hasattr(funding_rate, "symbol")
             assert hasattr(funding_rate, "funding_rate")
-            assert funding_rate.symbol == "BTC", f"Wrong symbol: {funding_rate.symbol}"
+            assert funding_rate.symbol.value == "BTC", f"Wrong symbol: {funding_rate.symbol.value}"
 
             # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
             if funding_rate.funding_rate is not None:
@@ -188,7 +189,7 @@ async def test_hl_get_historical_funding_rates_eth_success(
     start_time = end_time - timedelta(hours=24)
 
     args = GetHistoricalFundingRatesArgs(
-        symbol="ETH",
+        symbol=exchanges.hyperliquid("ETH"),
         start_time=start_time,
         end_time=end_time,
     )
@@ -206,7 +207,7 @@ async def test_hl_get_historical_funding_rates_eth_success(
 
         for funding_rate in funding_rates:
             assert isinstance(funding_rate, FundingRate), "Should be FundingRate model"
-            assert funding_rate.symbol == "ETH", f"Wrong symbol: {funding_rate.symbol}"
+            assert funding_rate.symbol.value == "ETH", f"Wrong symbol: {funding_rate.symbol.value}"
 
             # DEFENSIVE CHECK: None check required by RULE-RUNTIME-SAFETY-V4
             if funding_rate.funding_rate is not None:
@@ -256,7 +257,7 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
 
     for symbol in available_symbols:
         args = GetHistoricalFundingRatesArgs(
-            symbol=symbol,
+            symbol=exchanges.hyperliquid(symbol),
             start_time=start_time,
             end_time=end_time,
         )
@@ -306,7 +307,7 @@ async def test_hl_get_historical_funding_rates_edge_cases(
     start_time = end_time - timedelta(hours=1)
 
     args_invalid_symbol = GetHistoricalFundingRatesArgs(
-        symbol="NONEXISTENT",
+        symbol=exchanges.hyperliquid("NONEXISTENT"),
         start_time=start_time,
         end_time=end_time,
     )
@@ -328,7 +329,7 @@ async def test_hl_get_historical_funding_rates_edge_cases(
     future_end = future_start + timedelta(hours=1)
 
     args_future = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=future_start,
         end_time=future_end,
     )
@@ -354,7 +355,7 @@ async def test_hl_get_historical_funding_rates_edge_cases(
     long_end = datetime.now(UTC)
 
     args_long_range = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=long_start,
         end_time=long_end,
     )
@@ -416,7 +417,7 @@ async def test_hl_funding_rate_precision_and_calculations(
     start_time = end_time - timedelta(hours=4)
 
     args = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=start_time,
         end_time=end_time,
     )
@@ -479,7 +480,7 @@ async def test_hl_funding_rate_time_series_consistency(
     start_time = end_time - timedelta(hours=12)
 
     args = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=start_time,
         end_time=end_time,
     )
@@ -550,7 +551,7 @@ async def test_hl_funding_rate_boundary_conditions(
     start_time = end_time - timedelta(hours=1)
 
     args_min_range = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=start_time,
         end_time=end_time,
     )
@@ -562,7 +563,7 @@ async def test_hl_funding_rate_boundary_conditions(
     same_time = datetime.now(UTC)
     # Add 1 millisecond to end_time to satisfy validation
     args_same_time = GetHistoricalFundingRatesArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         start_time=same_time,
         end_time=same_time + timedelta(milliseconds=1),
     )
@@ -588,7 +589,7 @@ async def test_hl_funding_rate_boundary_conditions(
     # This should fail at validation time
     with pytest.raises(ValidationError) as exc_info:
         GetHistoricalFundingRatesArgs(
-            symbol="BTC",
+            symbol=exchanges.hyperliquid("BTC"),
             start_time=reversed_start,
             end_time=reversed_end,
         )

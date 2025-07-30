@@ -25,6 +25,8 @@ from cyberdelta.apis.exceptions import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails, FundingRate
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -122,7 +124,8 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
                 field_name="fundingRate",
             )
             BackpackFundingRateMapper._validate_funding_rate_data(
-                funding_rate, "BackpackRawFundingRateResponse"
+                funding_rate,
+                "BackpackRawFundingRateResponse",
             )
 
             # Parse timestamp
@@ -145,9 +148,14 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
             # Create BP-specific details
             details = BackpackFundingDetails()
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw_funding.symbol,
+            )
+
             # Use secure_transform for type-safe model creation
             funding_data: dict[str, Any] = {
-                "symbol": raw_funding.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "timestamp": timestamp.isoformat(),
                 "funding_rate": str(funding_rate),
                 "mark_price": str(mark_price) if mark_price is not None else None,
@@ -174,13 +182,13 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
     @staticmethod
     def transform_raw_funding_interval_rate_to_internal(
         raw_funding: BackpackRawFundingIntervalRate,
-        symbol: str,
+        symbol: Symbol,
     ) -> FundingRate:
         """Transform a BackpackRawFundingIntervalRate to an Internal FundingRate model.
 
         Args:
             raw_funding: Validated raw funding interval rate data from Backpack
-            symbol: Symbol for the funding rate
+            symbol: Symbol domain object for the funding rate
 
         Returns:
             FundingRate: Internal domain model with populated fields and BP details
@@ -197,26 +205,32 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
                 field_name="rate",
             )
             BackpackFundingRateMapper._validate_funding_rate_data(
-                funding_rate, "BackpackRawFundingIntervalRate"
+                funding_rate,
+                "BackpackRawFundingIntervalRate",
             )
 
             # Parse timestamp (time is now an ISO datetime string)
             timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
             BackpackFundingRateMapper._validate_funding_timestamp(
-                timestamp, "BackpackRawFundingIntervalRate"
+                timestamp,
+                "BackpackRawFundingIntervalRate",
             )
 
             # Ensure timestamp is not None after validation and get the validated value
             timestamp = BackpackFundingRateMapper._ensure_timestamp_not_none(
-                timestamp, raw_funding.time
+                timestamp,
+                raw_funding.time,
             )
+
+            # Use the Symbol object directly (no need to create another)
+            exchange_symbol = symbol
 
             # Create BP-specific details
             details = BackpackFundingDetails()
 
             # Use secure_transform for type-safe model creation
             funding_data: dict[str, Any] = {
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "timestamp": timestamp.isoformat(),
                 "funding_rate": str(funding_rate),
                 "mark_price": None,
@@ -236,14 +250,15 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
             raise FundingRateTransformationError(
                 source_type="BackpackRawFundingIntervalRate",
                 reason=str(e),
-                symbol=symbol,
+                symbol=symbol.value,  # Convert Symbol to string for error
                 original_error=e,
             ) from e
 
     # MapperProtocol methods
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely using BackpackCommonMappers.
 
@@ -255,30 +270,6 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

@@ -46,7 +46,7 @@ logger = get_logger(__name__)
 @pytest.fixture
 def trading_data_mapper() -> BackpackOrderMapper:
     """Provide an instance of BackpackOrderMapper.
-    
+
     Returns:
         BackpackOrderMapper instance for testing
     """
@@ -69,7 +69,7 @@ def create_raw_order(
     avg_fill_price: str | None = None,
 ) -> BackpackRawOrderResponse:
     """Create a BackpackRawOrderResponse with customizable parameters.
-    
+
     Args:
         side: Order side (Buy/Sell)
         status: Order status (NEW, FILLED, etc.)
@@ -84,7 +84,7 @@ def create_raw_order(
         created_at: Creation timestamp
         updated_at: Update timestamp
         avg_fill_price: Average fill price as string
-        
+
     Returns:
         BackpackRawOrderResponse with specified parameters
     """

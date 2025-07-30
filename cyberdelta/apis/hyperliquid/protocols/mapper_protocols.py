@@ -54,6 +54,7 @@ from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType
 
 
@@ -89,7 +90,8 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str, raw_user_state: HyperliquidRawClearinghouseState
+        asset_symbol: Symbol,
+        raw_user_state: HyperliquidRawClearinghouseState,
     ) -> SpotBalance:
         """Transform raw balance data to internal model.
 
@@ -423,7 +425,8 @@ class MarketMapperProtocol(MapperProtocol, Protocol):
 
     @staticmethod
     def transform_single_asset_to_market(
-        asset_def: "HyperliquidRawAssetDefinition", asset_ctx: HyperliquidRawAssetCtx | None = None
+        asset_def: "HyperliquidRawAssetDefinition",
+        asset_ctx: HyperliquidRawAssetCtx | None = None,
     ) -> Market:
         """Transform asset definition and context to market model.
 
@@ -716,7 +719,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
     @staticmethod
     def transform_raw_candle_snapshot_to_candles(
         raw_snapshot: HyperliquidRawCandleSnapshot,
-        symbol: str,
+        symbol: Symbol,
         interval: str,
     ) -> list[Candle]:
         """Transform raw candle snapshot data to internal candle models.

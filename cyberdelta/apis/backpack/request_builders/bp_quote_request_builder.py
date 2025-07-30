@@ -26,6 +26,7 @@ from cyberdelta.apis.exceptions import (
     MissingRequiredParameterError,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 
 
@@ -59,7 +60,7 @@ class BackpackQuoteRequestBuilder:
         operation = kwargs.get("operation")
         if not operation:
             raise NotImplementedError(
-                "Quote request builder requires 'operation' parameter for generic build_request"
+                "Quote request builder requires 'operation' parameter for generic build_request",
             )
 
         # Note: Quote request builders require specific parameters for each operation
@@ -77,24 +78,15 @@ class BackpackQuoteRequestBuilder:
             # Quote operations require specific parameters not available in generic interface
             raise NotImplementedError(
                 f"Quote operation '{operation}' requires specific parameters not available "
-                f"in generic build_request interface. Use specific builder methods directly."
+                f"in generic build_request interface. Use specific builder methods directly.",
             )
         raise NotImplementedError(
-            f"Quote operation '{operation}' not supported by registry dispatch"
+            f"Quote operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
-    def format_symbol(symbol: str) -> str:
-        """Ensure symbol is in the format X_Y (e.g., SOL_USDC).
-
-        Returns:
-            Symbol formatted with underscores and uppercase.
-        """
-        return symbol.replace("-", "_").upper()
-
-    @staticmethod
     def build_request_for_quote_payload(
-        symbol: str,
+        symbol: Symbol,
         quantity: Decimal | None = None,
         quote_quantity: Decimal | None = None,
         auto_accept_threshold: Decimal | None = None,
@@ -105,7 +97,7 @@ class BackpackQuoteRequestBuilder:
         """Build the payload for submitting a Request For Quote (RFQ).
 
         Args:
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
             quantity: Base quantity for the RFQ
             quote_quantity: Quote quantity for the RFQ
             auto_accept_threshold: Auto-accept threshold
@@ -131,14 +123,14 @@ class BackpackQuoteRequestBuilder:
 
         logger.debug(
             "building_request_for_quote_payload",
-            symbol=symbol,
+            symbol=symbol.value,
             quantity=str(quantity) if quantity else None,
             quote_quantity=str(quote_quantity) if quote_quantity else None,
             auto_accept_threshold=str(auto_accept_threshold) if auto_accept_threshold else None,
         )
 
         request_data: dict[str, Any] = {
-            "symbol": BackpackQuoteRequestBuilder.format_symbol(symbol),
+            "symbol": symbol.value,
         }
 
         if quantity is not None:

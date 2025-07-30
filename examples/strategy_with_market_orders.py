@@ -59,7 +59,7 @@ class MarketOrderStrategy(Strategy):
 
         This is where your strategy logic would determine when to trade.
         For this example, we'll create a simple signal.
-        
+
         Returns:
             list[TradeSignal]: List of generated trading signals with market
                 order flags and execution metadata.
@@ -88,7 +88,7 @@ class MarketOrderStrategy(Strategy):
 
     def _should_buy(self) -> bool:
         """Example condition check.
-        
+
         Returns:
             bool: True if strategy conditions indicate a buy signal should
                 be generated, False otherwise.
@@ -105,11 +105,11 @@ class MarketOrderStrategy(Strategy):
 
         This method shows how to handle signal execution with market orders
         in an exchange-agnostic way.
-        
+
         Args:
             signal: Trading signal to execute.
             exchange_api: Exchange API instance for order placement.
-            
+
         Returns:
             Order | None: Executed order object if successful, None if signal
                 doesn't use market orders or execution fails.
@@ -188,13 +188,13 @@ class ArbitrageStrategyWithMarketOrders(Strategy):
 
         The exchange-agnostic design allows us to execute the same
         market order logic on any exchange.
-        
+
         Args:
             opportunity: Dictionary containing arbitrage opportunity details
                 including symbol and quantity.
             buy_exchange: Name of exchange to execute buy order on.
             sell_exchange: Name of exchange to execute sell order on.
-            
+
         Returns:
             tuple[Order, Order]: Tuple of (buy_order, sell_order) representing
                 the executed arbitrage pair.
@@ -262,7 +262,7 @@ class MarketOrderEngine:
 
         This demonstrates how to integrate market orders into existing
         order routing logic.
-        
+
         Args:
             exchange: Name of the exchange to route the order to.
             symbol: Trading symbol for the order.
@@ -270,10 +270,10 @@ class MarketOrderEngine:
             quantity: Order quantity.
             order_type: Type of order (market or limit).
             price: Order price (required for limit orders).
-            
+
         Returns:
             Order: Executed order object with fill information.
-            
+
         Raises:
             ValueError: If the specified exchange is not configured.
         """

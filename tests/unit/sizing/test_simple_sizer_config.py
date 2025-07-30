@@ -32,7 +32,7 @@ def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
     """Create a test AppSettings instance with minimal required fields.
 
     Maps the config dict to proper AppSettings structure for simple sizer testing.
-    
+
     Returns:
         AppSettings: A configured AppSettings instance for testing.
     """

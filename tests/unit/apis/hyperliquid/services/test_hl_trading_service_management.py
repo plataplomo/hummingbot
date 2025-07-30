@@ -108,14 +108,12 @@ class TestHyperliquidTradingServiceManagement:
                 "cancels": [{"asset": 0, "cloid": "123"}, {"asset": 0, "cloid": "789"}],
             }
         }
-        mock_hl_request_builder.build_cancel_all_orders_payload.return_value = (
-            mock_cancel_payload
-        )
+        mock_hl_request_builder.build_cancel_all_orders_payload.return_value = mock_cancel_payload
 
         # Execute cancel_all_orders
         result = await hl_trading_service.cancel_all_orders(symbol=symbol)
 
-        # Verify the HTTP request was made to get orders  
+        # Verify the HTTP request was made to get orders
         # The business logic only makes one call when no open orders are found
         assert mock_http_client_requester.call_count == 1
 
@@ -179,9 +177,7 @@ class TestHyperliquidTradingServiceManagement:
                 "cancels": [{"asset": 0, "cloid": "111"}, {"asset": 1, "cloid": "222"}],
             }
         }
-        mock_hl_request_builder.build_cancel_all_orders_payload.return_value = (
-            mock_cancel_payload
-        )
+        mock_hl_request_builder.build_cancel_all_orders_payload.return_value = mock_cancel_payload
 
         # Execute cancel_all_orders without symbol filter
         result = await hl_trading_service.cancel_all_orders()

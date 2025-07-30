@@ -26,7 +26,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_cond
 
 def context_to_dict(context: WebSocketContextProtocol) -> dict[str, Any]:
     """Convert typed context to dict for testing.
-    
+
     Returns:
         Dictionary containing context attributes for test assertions.
     """
@@ -71,8 +71,12 @@ async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
     try:
         markets = await api.get_markets(GetMarketsArgs())
 
-        spot_symbols = [market.symbol for market in markets if not market.symbol.endswith("_PERP")]
-        perp_symbols = [market.symbol for market in markets if market.symbol.endswith("_PERP")]
+        spot_symbols = [
+            market.symbol for market in markets if not market.symbol.value.endswith("_PERP")
+        ]
+        perp_symbols = [
+            market.symbol for market in markets if market.symbol.value.endswith("_PERP")
+        ]
 
         if not spot_symbols:
             raise RuntimeError(

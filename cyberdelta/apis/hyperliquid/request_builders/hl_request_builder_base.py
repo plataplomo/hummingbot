@@ -30,10 +30,10 @@ class HyperliquidRequestBuilderBase:
     @staticmethod
     def _validate_decimal_input(value: Decimal) -> None:
         """Validate decimal input for wire format conversion.
-        
+
         Args:
             value: Decimal value to validate
-            
+
         Raises:
             DecimalFormatError: If the decimal value is not finite
             DecimalRangeError: If the decimal value is outside acceptable range
@@ -58,13 +58,13 @@ class HyperliquidRequestBuilderBase:
     @staticmethod
     def _format_and_validate_precision(value: Decimal) -> str:
         """Format decimal with precision validation.
-        
+
         Args:
             value: Decimal value to format
-            
+
         Returns:
             str: Formatted decimal string with 8 decimal places
-            
+
         Raises:
             DecimalFormatError: If the value cannot be converted to float
             PrecisionLossError: If formatting results in precision loss
@@ -90,14 +90,14 @@ class HyperliquidRequestBuilderBase:
     @staticmethod
     def _normalize_wire_format(rounded: str, original_value: Decimal) -> str:
         """Normalize wire format string with proper decimal handling.
-        
+
         Args:
             rounded: Formatted decimal string
             original_value: Original decimal value for error reporting
-            
+
         Returns:
             str: Normalized wire format string ready for API transmission
-            
+
         Raises:
             DecimalFormatError: If normalization fails
         """

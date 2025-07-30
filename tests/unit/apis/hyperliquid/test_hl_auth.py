@@ -28,7 +28,7 @@ VALID_CHAIN_ID = 1337
 @pytest.fixture
 def mock_account() -> MagicMock:
     """Fixture for a mocked eth_account.Account object.
-    
+
     Returns:
         Mock LocalAccount with test wallet address.
     """
@@ -40,7 +40,7 @@ def mock_account() -> MagicMock:
 @pytest.fixture
 def test_network_environment() -> NetworkEnvironment:
     """Fixture for a test network environment.
-    
+
     Returns:
         NetworkEnvironment configured for testnet.
     """
@@ -209,7 +209,7 @@ def authenticator_instance(
     test_network_environment: NetworkEnvironment,
 ) -> HyperliquidEip712Authenticator:
     """Fixture for a HyperliquidEip712Authenticator instance with a valid private key.
-    
+
     Returns:
         HyperliquidEip712Authenticator configured with test credentials.
     """
@@ -311,7 +311,7 @@ class TestHyperliquidEip712Authenticator:
         test_network_environment: NetworkEnvironment,
     ) -> HyperliquidEip712Authenticator:
         """Create authenticator instance using a mocked account object.
-        
+
         Returns:
             HyperliquidEip712Authenticator configured with mock account.
         """

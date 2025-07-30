@@ -164,13 +164,13 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _to_decimal(self, value: Decimal | str | float) -> Decimal:
         """Convert value to Decimal with validation.
-        
+
         Args:
             value: The value to convert to Decimal.
-            
+
         Returns:
             The value as a Decimal.
-            
+
         Raises:
             PriceSanityError: If the value type cannot be converted.
         """
@@ -190,11 +190,11 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _check_price_bounds(self, long_price: Decimal, short_price: Decimal) -> CheckResult:
         """Check if prices are within reasonable bounds.
-        
+
         Args:
             long_price: The long/buy price to check.
             short_price: The short/sell price to check.
-            
+
         Returns:
             CheckResult indicating whether prices are within bounds.
         """
@@ -221,11 +221,11 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _check_price_precision(self, long_price: Decimal, short_price: Decimal) -> CheckResult:
         """Check if prices have reasonable precision.
-        
+
         Args:
             long_price: The long/buy price to check.
             short_price: The short/sell price to check.
-            
+
         Returns:
             CheckResult indicating whether prices have acceptable precision.
         """
@@ -255,11 +255,11 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         short_price: Decimal,
     ) -> CheckResult:
         """Check if spread is within reasonable bounds.
-        
+
         Args:
             long_price: The long/buy price.
             short_price: The short/sell price.
-            
+
         Returns:
             CheckResult indicating whether spread is reasonable.
         """
@@ -293,12 +293,12 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         short_price: Decimal,
     ) -> CheckResult:
         """Check for price anomalies using historical data.
-        
+
         Args:
             symbol: The trading symbol.
             long_price: The long/buy price.
             short_price: The short/sell price.
-            
+
         Returns:
             CheckResult indicating whether any price anomalies were detected.
         """
@@ -365,7 +365,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _update_price_history(self, symbol: str, long_price: Decimal, short_price: Decimal) -> None:
         """Update price history for anomaly detection.
-        
+
         Args:
             symbol: The trading symbol.
             long_price: The long/buy price.
@@ -412,7 +412,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         Args:
             min_price: Minimum allowed price.
             max_price: Maximum allowed price.
-            
+
         Raises:
             PriceSanityError: If min_price is not less than max_price.
         """
@@ -435,7 +435,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         Args:
             min_spread: Minimum allowed spread percentage.
             max_spread: Maximum allowed spread percentage.
-            
+
         Raises:
             PriceSanityError: If min_spread is not less than max_spread.
         """
@@ -456,7 +456,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _create_skip_result(self) -> CheckResult:
         """Create result for skipped check.
-        
+
         Returns:
             CheckResult indicating the check was skipped.
         """
@@ -466,11 +466,11 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
         """Create result for failed check.
-        
+
         Args:
             error: The exception that occurred.
             execution_time: Time taken for execution in seconds.
-            
+
         Returns:
             CheckResult indicating the check encountered an error.
         """

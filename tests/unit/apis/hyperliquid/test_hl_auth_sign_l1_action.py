@@ -47,7 +47,7 @@ class TestHyperliquidSignL1Action:
     @pytest.fixture
     def test_network_environment(self) -> NetworkEnvironment:
         """Fixture for a test network environment.
-        
+
         Returns:
             NetworkEnvironment: Test network environment configuration.
         """
@@ -62,7 +62,7 @@ class TestHyperliquidSignL1Action:
         self, test_network_environment: NetworkEnvironment
     ) -> HyperliquidEip712Authenticator:
         """Create an authenticator instance with a valid private key.
-        
+
         Returns:
             HyperliquidEip712Authenticator: Configured authenticator for testing.
         """
@@ -75,7 +75,7 @@ class TestHyperliquidSignL1Action:
     @pytest.fixture
     def sample_order_action(self) -> dict[str, Any]:
         """Sample order action payload.
-        
+
         Returns:
             dict[str, Any]: Sample order action payload for testing.
         """

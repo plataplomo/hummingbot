@@ -9,20 +9,8 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TypeGuard, TypeVar
 
-from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
 from cyberdelta.apis.exceptions.field_validation import FieldError
-from cyberdelta.apis.exceptions.service import ServiceParameterError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.exceptions import (
-    SymbolError,
-    SymbolNotFoundError,
-    SymbolRegistryError,
-    SymbolValidationError,
-)
-from cyberdelta.exceptions.field_validation import (
-    FieldError as CoreFieldError,
-    TypeFieldError,
-)
 
 
 logger = get_logger(__name__)
@@ -52,7 +40,8 @@ class BackpackCommonMappers:
 
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -78,69 +67,6 @@ class BackpackCommonMappers:
                 message="Failed to parse decimal value, using default",
             )
             return default
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format for Backpack API using the new symbol system.
-
-        Args:
-            symbol: The symbol to normalize
-
-        Returns:
-            Normalized symbol in Backpack format
-        """
-        if not symbol:
-            return symbol
-
-        try:
-            symbol_service = get_symbol_integration_service()
-            return symbol_service.normalize_symbol(symbol, "backpack")
-        except (
-            SymbolError,
-            SymbolNotFoundError,
-            SymbolRegistryError,
-            SymbolValidationError,
-            ServiceParameterError,
-            CoreFieldError,
-            TypeFieldError,
-            ValueError,
-            KeyError,
-        ) as e:
-            logger.debug(
-                "symbol_normalization_fallback",
-                symbol=symbol,
-                error=str(e),
-                error_type=type(e).__name__,
-                message="Failed to normalize symbol using service, using fallback",
-            )
-            # Fallback to legacy normalization
-            # Convert to uppercase and replace common separators
-            return symbol.upper().replace("/", "_").replace("-", "_")
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert Backpack symbol format to internal format.
-
-        Converts underscore-separated symbols to slash-separated format.
-
-        Args:
-            symbol: Backpack format symbol (e.g., BTC_USDC or BTC_USDC_PERP)
-
-        Returns:
-            Internal format symbol (e.g., BTC/USDC or BTC/USDC/PERP)
-        """
-        if not symbol or "_" not in symbol:
-            return symbol
-
-        # Handle PERP symbols specially
-        if symbol.endswith("_PERP"):
-            # For PERP symbols, keep the PERP suffix as is
-            parts = symbol.split("_")
-            if len(parts) == BackpackCommonMappers.EXPECTED_PERP_SYMBOL_PARTS:
-                return f"{parts[0]}/{parts[1]}/{parts[2]}"
-
-        # Replace underscore with slash for internal format
-        return symbol.replace("_", "/")
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -214,7 +140,8 @@ class BackpackCommonMappers:
 
     @staticmethod
     def ensure_list(
-        value: object | None, default: list[object] | None = None
+        value: object | None,
+        default: list[object] | None = None,
     ) -> list[object] | None:
         """Ensure value is a list.
 
@@ -295,59 +222,3 @@ class BackpackCommonMappers:
         if client_order_id:
             return f"client: {client_order_id}"
         return "unknown"
-
-    @staticmethod
-    def is_valid_symbol(symbol: str) -> bool:
-        """Check if symbol format is valid for Backpack using the new symbol system.
-
-        Args:
-            symbol: The symbol to validate
-
-        Returns:
-            True if symbol is valid
-        """
-        if not symbol:
-            return False
-
-        try:
-            symbol_service = get_symbol_integration_service()
-            return symbol_service.validate_symbol(symbol, "backpack")
-        except (
-            SymbolError,
-            SymbolNotFoundError,
-            SymbolRegistryError,
-            SymbolValidationError,
-            ServiceParameterError,
-            CoreFieldError,
-            TypeFieldError,
-            ValueError,
-            KeyError,
-        ) as e:
-            logger.debug(
-                "symbol_validation_fallback",
-                symbol=symbol,
-                error=str(e),
-                error_type=type(e).__name__,
-                message="Failed to validate symbol using service, using fallback",
-            )
-            # Fallback to legacy validation
-            # Backpack symbols should contain underscore and be uppercase
-            parts = symbol.split("_")
-
-            # Accept both spot (BASE_QUOTE) and perp (BASE_QUOTE_PERP) formats
-            is_spot = (
-                len(parts) == BackpackCommonMappers.EXPECTED_SYMBOL_PARTS
-                and all(part.isalnum() and part.isupper() for part in parts)
-                and len(parts[0]) > 0
-                and len(parts[1]) > 0
-            )
-
-            is_perp = (
-                len(parts) == BackpackCommonMappers.EXPECTED_PERP_SYMBOL_PARTS
-                and all(part.isalnum() and part.isupper() for part in parts)
-                and len(parts[0]) > 0
-                and len(parts[1]) > 0
-                and parts[2] == "PERP"
-            )
-
-            return is_spot or is_perp

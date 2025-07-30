@@ -67,36 +67,41 @@ class ValidationContext(BaseModel):
     )
 
     null_policy: NullPolicy = Field(
-        default=NullPolicy.REJECT, description="Policy for handling null/None values"
+        default=NullPolicy.REJECT,
+        description="Policy for handling null/None values",
     )
 
     range_policy: RangePolicy = Field(
-        default=RangePolicy.ANY, description="Policy for numeric range validation"
+        default=RangePolicy.ANY,
+        description="Policy for numeric range validation",
     )
 
     precision_policy: PrecisionPolicy = Field(
-        default=PrecisionPolicy.PRESERVE, description="Policy for decimal precision handling"
+        default=PrecisionPolicy.PRESERVE,
+        description="Policy for decimal precision handling",
     )
 
     string_policy: StringPolicy = Field(
-        default=StringPolicy.REQUIRE_CONTENT, description="Policy for string validation"
+        default=StringPolicy.REQUIRE_CONTENT,
+        description="Policy for string validation",
     )
 
     timestamp_policy: TimestampPolicy = Field(
-        default=TimestampPolicy.ALLOW_FUTURE, description="Policy for timestamp validation"
+        default=TimestampPolicy.ALLOW_FUTURE,
+        description="Policy for timestamp validation",
     )
 
     @field_validator("field_name", "context_description")
     @classmethod
     def validate_descriptive_fields(cls, v: str) -> str:
         """Ensure field names and context descriptions are meaningful.
-        
+
         Args:
             v: The field value to validate
-            
+
         Returns:
             The validated field value
-            
+
         Raises:
             ValidationRangeError: If the field contains leading/trailing whitespace
         """
@@ -122,7 +127,7 @@ class ValidationContext(BaseModel):
     @model_validator(mode="after")
     def validate_policy_consistency(self) -> ValidationContext:
         """Ensure validation policies are consistent.
-        
+
         Returns:
             The validated ValidationContext instance
         """
@@ -164,7 +169,7 @@ class ValidationContext(BaseModel):
 
     def to_legacy_booleans(self) -> dict[str, bool]:
         """Convert to legacy boolean format for backward compatibility.
-        
+
         Returns:
             Dictionary mapping legacy boolean parameter names to their values
         """
@@ -192,10 +197,10 @@ class NumericValidationContext(ValidationContext):
     @model_validator(mode="after")
     def validate_numeric_constraints(self) -> NumericValidationContext:
         """Validate numeric constraints are consistent.
-        
+
         Returns:
             The validated NumericValidationContext instance
-            
+
         Raises:
             ValidationRangeError: If min_value > max_value or if range policy conflicts with bounds
         """
@@ -241,16 +246,17 @@ class StringValidationContext(ValidationContext):
     max_length: int | None = Field(default=None, gt=0, description="Maximum string length")
 
     pattern: str | None = Field(
-        default=None, description="Regular expression pattern for validation"
+        default=None,
+        description="Regular expression pattern for validation",
     )
 
     @model_validator(mode="after")
     def validate_string_constraints(self) -> StringValidationContext:
         """Validate string constraints are consistent.
-        
+
         Returns:
             The validated StringValidationContext instance
-            
+
         Raises:
             ValidationRangeError: If min_length > max_length
         """
@@ -293,7 +299,8 @@ class ErrorMappingContext(BaseModel):
     field_name: str = Field(default="error", description="Field name for error context")
 
     context_description: str = Field(
-        default="error_mapping", description="Context description for error mapping"
+        default="error_mapping",
+        description="Context description for error mapping",
     )
 
     def should_include_error_data(self, data_state: DataPresenceState) -> bool:

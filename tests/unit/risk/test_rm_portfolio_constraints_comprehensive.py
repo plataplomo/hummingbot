@@ -20,7 +20,7 @@ def create_test_opportunity(
     expected_profit_usd: Decimal = Decimal(100),
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity: An arbitrage opportunity instance for testing.
     """

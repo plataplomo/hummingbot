@@ -44,7 +44,7 @@ class TestBackpackOrderBookModelCreation:
 
     async def _setup_orderbook_connection(self, api: BackpackAPI) -> str:
         """Set up connection and get test symbol for orderbook testing.
-        
+
         Returns:
             The WebSocket-formatted symbol (with underscores instead of slashes).
         """
@@ -73,7 +73,7 @@ class TestBackpackOrderBookModelCreation:
         self, received_orderbooks: list[OrderBook]
     ) -> MessageHandler:
         """Create handler that extracts OrderBook from context.
-        
+
         Returns:
             Message handler function that processes WebSocket contexts and extracts OrderBooks.
         """

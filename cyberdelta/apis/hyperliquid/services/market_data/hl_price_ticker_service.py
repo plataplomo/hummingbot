@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, NoReturn
+from typing import NoReturn
 
 from pydantic import ValidationError
 
@@ -39,11 +39,9 @@ from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import FundingRate, Ticker
 from cyberdelta.core.models.market.mid_prices import MidPrices
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -248,13 +246,13 @@ class HyperliquidPriceTickerService:
         else:
             return validated_raw_meta_and_asset_ctxs
 
-    async def get_ticker(self, symbol: str) -> Ticker | None:
+    async def get_ticker(self, symbol: Symbol) -> Ticker | None:
         """Retrieve the latest ticker/context information for a specific symbol.
 
         Fetches all asset contexts and finds the specific one for the requested symbol.
 
         Args:
-            symbol: The trading symbol (e.g., "ETH")
+            symbol: The Symbol domain object
 
         Returns:
             Ticker object if the symbol is found, otherwise None.
@@ -266,8 +264,8 @@ class HyperliquidPriceTickerService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_ticker"
 
-        # Validate symbol
-        self._validate_symbol(symbol, current_method)
+        # Validate symbol object directly
+        self._validate_symbol(symbol.value, current_method)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -279,6 +277,7 @@ class HyperliquidPriceTickerService:
                 exchange=self._exchange_name,
                 method=current_method,
                 symbol=symbol,
+                symbol_exchange=symbol.exchange.value,
                 message="Fetching ticker data for symbol",
             )
 
@@ -293,10 +292,10 @@ class HyperliquidPriceTickerService:
                 # The asset contexts are in the same order as the universe
                 universe = all_contexts_response.meta.universe
                 for i, asset_def in enumerate(universe):
-                    if asset_def.name == symbol and i < len(all_contexts_response.asset_ctxs):
+                    if asset_def.name == symbol.value and i < len(all_contexts_response.asset_ctxs):
                         asset_ctx = all_contexts_response.asset_ctxs[i]
                         # Create a copy with the name field populated for the mapper
-                        asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
+                        asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol.value})
 
                         ticker = self._mapper.transform_raw_asset_ctx_to_ticker(asset_ctx_with_name)
 
@@ -305,6 +304,7 @@ class HyperliquidPriceTickerService:
                             exchange=self._exchange_name,
                             method=current_method,
                             symbol=symbol,
+                            symbol_exchange=symbol.exchange.value,
                             price=ticker.price if ticker else None,
                             message="Successfully retrieved ticker data",
                         )
@@ -554,14 +554,14 @@ class HyperliquidPriceTickerService:
             error_msg = f"[{current_method}] 'symbol' cannot be empty or whitespace only."
             raise ValueError(error_msg)
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
+    async def get_funding_rate(self, symbol: Symbol) -> FundingRate | None:
         """Retrieve the current funding rate information for a specific perpetual contract symbol.
 
         This is typically part of the broader asset context. It calls get_all_asset_contexts
         and extracts the relevant context.
 
         Args:
-            symbol: The perpetual contract symbol (e.g., "ETH").
+            symbol: The Symbol domain object for the perpetual contract.
 
         Returns:
             A FundingRate object if the symbol is found, otherwise None.
@@ -574,7 +574,8 @@ class HyperliquidPriceTickerService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_funding_rate"
 
-        self._validate_symbol(symbol, current_method)
+        # Validate symbol object directly
+        self._validate_symbol(symbol.value, current_method)
 
         try:
             # Get funding rate from asset contexts
@@ -588,6 +589,7 @@ class HyperliquidPriceTickerService:
                 action=current_method,
                 exchange=self._exchange_name,
                 symbol=symbol,
+                symbol_exchange=symbol.exchange.value,
                 error=str(e),
                 message=f"Unexpected service failure for {symbol}: {e}",
             )
@@ -597,11 +599,11 @@ class HyperliquidPriceTickerService:
                 original_exception=e,
             ) from e
 
-    async def _get_funding_rate_from_contexts(self, symbol: str) -> FundingRate | None:
+    async def _get_funding_rate_from_contexts(self, symbol: Symbol) -> FundingRate | None:
         """Get funding rate for symbol from asset contexts.
-        
+
         Returns:
-            FundingRate | None: Funding rate if found, None otherwise.
+            FundingRate | None: The funding rate or None if not found
         """
         all_contexts_response = await self.get_all_asset_contexts_raw()
         if (
@@ -613,10 +615,10 @@ class HyperliquidPriceTickerService:
             # The asset contexts are in the same order as the universe
             universe = all_contexts_response.meta.universe
             for i, asset_def in enumerate(universe):
-                if asset_def.name == symbol and i < len(all_contexts_response.asset_ctxs):
+                if asset_def.name == symbol.value and i < len(all_contexts_response.asset_ctxs):
                     asset_ctx = all_contexts_response.asset_ctxs[i]
                     # Create a copy with the name field populated for the mapper
-                    asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol})
+                    asset_ctx_with_name = asset_ctx.model_copy(update={"name": symbol.value})
                     return self._historical_data_mapper.transform_raw_asset_ctx_to_funding_rate(
                         asset_ctx_with_name,
                     )
@@ -625,8 +627,8 @@ class HyperliquidPriceTickerService:
             "funding_rate_not_found",
             action="_get_funding_rate_from_contexts",
             exchange=self._exchange_name,
-            symbol=symbol,
-            message=f"Symbol {symbol} not found in universe or no funding rate available",
+            symbol=symbol.value,
+            message=f"Symbol {symbol.value} not found in universe or no funding rate available",
         )
         return None
 
@@ -635,7 +637,7 @@ class HyperliquidPriceTickerService:
 
         Args:
             status_code: HTTP status code
-            
+
         Raises:
             APIError: Always raises with INVALID_RESPONSE code.
         """

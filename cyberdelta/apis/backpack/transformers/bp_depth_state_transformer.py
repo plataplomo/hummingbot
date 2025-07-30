@@ -21,6 +21,8 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketE
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 
 
 if TYPE_CHECKING:
@@ -134,7 +136,11 @@ class OrderBookState:
         return True
 
     def _is_finite_and_log(
-        self, value: Decimal, value_str: str, side_name: str, value_type: str
+        self,
+        value: Decimal,
+        value_str: str,
+        side_name: str,
+        value_type: str,
     ) -> bool:
         """Check if a decimal value is finite and log error if not.
 
@@ -199,13 +205,13 @@ class OrderBookState:
                     added_levels.append(f"{price}:{qty}")
                 book_side[price] = qty
 
-    def to_orderbook(self, symbol: str, order_book_mapper: OrderBookMapperProtocol) -> OrderBook:
+    def to_orderbook(self, symbol: Symbol, order_book_mapper: OrderBookMapperProtocol) -> OrderBook:
         """Convert current state to immutable OrderBook domain model.
 
         Uses the injected mapper to ensure consistency with other orderbook transformations.
 
         Args:
-            symbol: The trading symbol for this orderbook
+            symbol: The trading symbol domain object for this orderbook
             order_book_mapper: The mapper to use for OrderBook creation
 
         Returns:
@@ -227,7 +233,7 @@ class OrderBookState:
             T=int(self.last_update_time.timestamp() * 1000),
         )
 
-        # Use the mapper to create the OrderBook
+        # Use the mapper to create the OrderBook - symbol is already a Symbol object
         return order_book_mapper.transform_ws_depth_event_to_internal(symbol, synthetic_event)
 
     def __eq__(self, other: object) -> bool:
@@ -281,11 +287,11 @@ class BackpackDepthStateTransformer:
             order_book_mapper: Mapper for creating OrderBook domain models
         """
         self.order_book_mapper = order_book_mapper
-        self.states: dict[str, OrderBookState] = {}
+        self.states: dict[Symbol, OrderBookState] = {}
         self.emission_strategy: str = "always"  # Options: "always", "on_change", "throttled"
 
         # Deduplication tracking for emission efficiency using hashes
-        self.last_emitted_state_hashes: dict[str, int] = {}
+        self.last_emitted_state_hashes: dict[Symbol, int] = {}
 
         # Statistics for monitoring
         self._stats = {
@@ -376,7 +382,7 @@ class BackpackDepthStateTransformer:
 
         return None
 
-    def _extract_symbol(self, context: WebSocketContextProtocol | None) -> str:
+    def _extract_symbol(self, context: WebSocketContextProtocol | None) -> Symbol:
         """Extract symbol using exchange-agnostic protocol methods only.
 
         This method follows architectural principles:
@@ -401,13 +407,13 @@ class BackpackDepthStateTransformer:
 
         # Method 1: Direct symbol access (protocol-defined)
         if context.symbol:
-            return context.symbol
+            return exchanges.backpack(context.symbol)
 
         # Method 2: Transformer params (protocol-defined)
         try:
             transformer_params = context.get_transformer_params()
             if "symbol" in transformer_params:
-                return transformer_params["symbol"]
+                return exchanges.backpack(transformer_params["symbol"])
         except (AttributeError, TypeError, KeyError):
             pass
 
@@ -418,7 +424,8 @@ class BackpackDepthStateTransformer:
             if envelope and isinstance(envelope, BackpackRawWebSocketEnvelope):
                 stream = envelope.stream  # Type-safe access via protocol
                 if "." in stream:
-                    return stream.split(".")[1]  # Extract symbol part
+                    symbol_str = stream.split(".")[1]  # Extract symbol part
+                    return exchanges.backpack(symbol_str)
         except (AttributeError, TypeError, ValueError, IndexError):
             pass
 
@@ -471,14 +478,17 @@ class BackpackDepthStateTransformer:
         return hash(state)
 
     def _should_emit(
-        self, state: OrderBookState, event: BackpackRawDepthUpdateEvent, symbol: str
+        self,
+        state: OrderBookState,
+        event: BackpackRawDepthUpdateEvent,
+        symbol: Symbol,
     ) -> bool:
         """Determine if we should emit an OrderBook event.
 
         Args:
             state: The current orderbook state
             event: The event that was just processed
-            symbol: The symbol for this orderbook state
+            symbol: The Symbol object for this orderbook state
 
         Returns:
             True if an OrderBook should be emitted, False otherwise
@@ -515,7 +525,7 @@ class BackpackDepthStateTransformer:
 
         return False
 
-    def get_full_orderbook(self, symbol: str) -> OrderBook | None:
+    def get_full_orderbook(self, symbol: Symbol) -> OrderBook | None:
         """Get the complete current orderbook state for a symbol.
 
         This returns the full accumulated orderbook state at the current point in time,
@@ -549,15 +559,15 @@ class BackpackDepthStateTransformer:
         else:
             return orderbook
 
-    def get_tracked_symbols(self) -> list[str]:
+    def get_tracked_symbols(self) -> list[Symbol]:
         """Get list of symbols currently being tracked by the transformer.
 
         Returns:
-            List of symbol strings that have active orderbook state
+            List of Symbol objects that have active orderbook state
         """
         return list(self.states.keys())
 
-    def has_symbol_state(self, symbol: str) -> bool:
+    def has_symbol_state(self, symbol: Symbol) -> bool:
         """Check if the transformer is tracking state for a symbol.
 
         Args:

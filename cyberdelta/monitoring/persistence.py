@@ -17,7 +17,7 @@ type SerializableData = dict[str, Any] | list[Any]
 
 def _is_dict_data(value: object) -> TypeGuard[dict[str, Any]]:
     """Senior-level TypeGuard for dictionary data validation.
-    
+
     Returns:
         TypeGuard[dict[str, Any]]: True if value is a dictionary, False otherwise.
     """
@@ -26,7 +26,7 @@ def _is_dict_data(value: object) -> TypeGuard[dict[str, Any]]:
 
 def _is_list_data(value: object) -> TypeGuard[list[Any]]:
     """Senior-level TypeGuard for list data validation.
-    
+
     Returns:
         TypeGuard[list[Any]]: True if value is a list, False otherwise.
     """
@@ -244,7 +244,7 @@ class PerformanceDataPersistence:
         loaded_data: dict[str, Any] | list[Any],
     ) -> dict[str, Any] | list[Any]:
         """Post-process returns data to convert timestamp keys back to datetime objects.
-        
+
         Returns:
             dict[str, Any] | list[Any]: Processed data with datetime objects restored.
         """
@@ -273,7 +273,7 @@ class PerformanceDataPersistence:
         self, ts_str: object, val: object
     ) -> tuple[datetime, Decimal] | None:
         """Process a single timestamp-value pair.
-        
+
         Returns:
             tuple[datetime, Decimal] | None: Processed pair or None if invalid.
         """
@@ -304,7 +304,7 @@ class PerformanceDataPersistence:
         loaded_data: dict[str, Any] | list[Any],
     ) -> dict[str, Any] | list[Any]:
         """Post-process list-based data to convert datetime fields in each item.
-        
+
         Returns:
             dict[str, Any] | list[Any]: Processed data with datetime fields converted.
         """
@@ -412,7 +412,7 @@ class PerformanceDataPersistence:
 
     def load_trades(self) -> list[dict[str, Any]]:
         """Load trades data.
-        
+
         Returns:
             list[dict[str, Any]]: List of trade dictionaries.
         """
@@ -427,7 +427,7 @@ class PerformanceDataPersistence:
 
     def load_signals(self) -> list[dict[str, Any]]:
         """Load signals data.
-        
+
         Returns:
             list[dict[str, Any]]: List of signal dictionaries.
         """
@@ -442,7 +442,7 @@ class PerformanceDataPersistence:
 
     def load_funding_rates(self) -> list[dict[str, Any]]:
         """Load funding rates data.
-        
+
         Returns:
             list[dict[str, Any]]: List of funding rate dictionaries.
         """

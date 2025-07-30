@@ -31,7 +31,7 @@ T = TypeVar("T", bound=object)
 # Type-preserving factory functions
 def _health_status_dict_factory() -> dict[str, HealthStatus]:
     """Factory function that preserves dict[str, HealthStatus] type information.
-    
+
     Returns:
         Empty dictionary typed as dict[str, HealthStatus]
     """
@@ -67,13 +67,13 @@ class HealthCheckDetails(BaseModel):
     @classmethod
     def validate_metrics(cls, v: float | str) -> float:
         """Validate metric values are finite and reasonable.
-        
+
         Args:
             v: Metric value to validate
-            
+
         Returns:
             Validated float value
-            
+
         Raises:
             HealthCheckValidationError: If value is negative or exceeds reasonable limits
         """
@@ -98,13 +98,13 @@ class HealthCheckDetails(BaseModel):
     @classmethod
     def validate_counts(cls, v: str | float) -> int:
         """Validate count values are non-negative.
-        
+
         Args:
             v: Count value to validate
-            
+
         Returns:
             Validated integer count
-            
+
         Raises:
             HealthCheckValidationError: If count is negative
         """
@@ -139,7 +139,7 @@ class HealthCheckResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation.
-        
+
         Returns:
             Dictionary with all health check result fields
         """
@@ -212,7 +212,7 @@ class HealthCheckService:
 
     async def check_all(self) -> dict[str, HealthCheckResult]:
         """Check health of all registered services.
-        
+
         Returns:
             Dictionary mapping service names to their health check results
         """
@@ -249,7 +249,7 @@ class HealthCheckService:
 
     async def get_aggregate_status(self) -> HealthCheckResult:
         """Get aggregated health status of all services.
-        
+
         Returns:
             Aggregate health check result combining all service statuses
         """
@@ -299,11 +299,11 @@ class HealthCheckService:
         self, service_name: str, service: HealthCheckable
     ) -> HealthCheckResult:
         """Check health of a single service.
-        
+
         Args:
             service_name: Name of the service to check
             service: The service instance to check
-            
+
         Returns:
             Health check result for the service
         """
@@ -363,7 +363,7 @@ class BaseHealthCheckMixin:
 
     async def check_health(self) -> HealthCheckResult:
         """Check service health including dependencies.
-        
+
         Returns:
             Health check result with service and dependency statuses
         """
@@ -417,7 +417,7 @@ class BaseHealthCheckMixin:
         """Check internal health of the service.
 
         Override this method to implement custom health checks.
-        
+
         Returns:
             Tuple of (is_healthy, optional_message)
         """
@@ -440,7 +440,7 @@ class BaseHealthCheckMixin:
         """Get additional health details.
 
         Override this method to provide custom health details.
-        
+
         Returns:
             Health check details with metrics and uptime
         """
@@ -473,10 +473,10 @@ class BaseHealthCheckMixin:
 
     def _safely_get_metrics(self, get_metrics_attr: Callable[[], object]) -> object | None:
         """Safely call get_metrics method.
-        
+
         Args:
             get_metrics_attr: Callable to get metrics
-            
+
         Returns:
             Metrics object or None if error occurs
         """
@@ -511,10 +511,10 @@ class BaseHealthCheckMixin:
 
     def _safe_int_convert(self, value: object) -> int:
         """Safely convert value to int with fallback.
-        
+
         Args:
             value: Value to convert to integer
-            
+
         Returns:
             Integer value or 0 if conversion fails
         """
@@ -539,17 +539,17 @@ class BaseHealthCheckMixin:
 
 def create_health_check_decorator() -> Callable[[type[T]], type[T]]:
     """Create a decorator that adds health check capability to a class.
-    
+
     Returns:
         Decorator function that adds BaseHealthCheckMixin to a class
     """
 
     def health_check_decorator(cls: type[T]) -> type[T]:
         """Add health check capability to a class.
-        
+
         Args:
             cls: Class to enhance with health check capability
-            
+
         Returns:
             New class with health check functionality
         """

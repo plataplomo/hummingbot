@@ -21,6 +21,7 @@ from pydantic_core.core_schema import ValidationInfo
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions import (
     DecimalFiniteError,
@@ -49,7 +50,7 @@ class DerivativePosition(BaseModel):
 
     Core Fields:
         exchange (str): The name of the exchange (e.g., 'backpack', 'hyperliquid').
-        symbol (str): Trading symbol (e.g., 'BTC-PERP').
+        symbol (Symbol): Exchange-specific trading symbol domain object.
         side (OrderSide): Net side (long/buy or short/sell) of the position.
         size (Decimal): Net quantity held (positive for long, negative for short, zero if flat).
         entry_price (Decimal | None): Average entry price if the position is open (> 0),
@@ -77,7 +78,7 @@ class DerivativePosition(BaseModel):
     """
 
     exchange: str
-    symbol: str
+    symbol: Symbol
     side: OrderSide
     size: Decimal  # Can be positive, negative, or zero
     entry_price: Decimal | None = Field(default=None)  # Validated > 0 if size != 0 later
@@ -98,10 +99,10 @@ class DerivativePosition(BaseModel):
 
     # --- Field Validators ---
 
-    @field_validator("exchange", "symbol", mode="before")
+    @field_validator("exchange", mode="before")
     @classmethod
-    def validate_required_strings(cls, v: object, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty, reasonable length.
+    def validate_exchange_string(cls, v: object, info: ValidationInfo) -> str:
+        """Validate exchange field is non-empty, reasonable length.
 
         Args:
             v: The value to validate
@@ -120,6 +121,26 @@ class DerivativePosition(BaseModel):
             raise FieldNameMissingError
         # Assuming validate_str_field internally handles None check if required
         return validate_str_field(v, field_name=field_name, max_length=64)
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_domain(cls, v: object) -> Symbol:
+        """Validate symbol field is Symbol domain object.
+
+        Args:
+            v: The value to validate
+
+        Returns:
+            Validated Symbol
+
+        Raises:
+            TypeError: If not a Symbol
+        """
+        if not isinstance(v, BaseSymbol):
+            raise TypeFieldError(
+                field_name="symbol", expected_type="Symbol", actual_type=type(v).__name__
+            )
+        return v
 
     @field_validator("strategy_name", "signal_id", mode="before")
     @classmethod

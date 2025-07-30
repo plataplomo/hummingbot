@@ -42,10 +42,10 @@ class TestHyperliquidOrderBookModelCreation:
 
     async def _setup_hl_orderbook_connection(self, api: HyperliquidAPI) -> str:
         """Set up Hyperliquid connection and get test symbol for orderbook testing.
-        
+
         Args:
             api: HyperliquidAPI instance to connect
-            
+
         Returns:
             Symbol string for testing orderbook functionality
         """
@@ -62,10 +62,10 @@ class TestHyperliquidOrderBookModelCreation:
         self, received_orderbooks: list[OrderBook]
     ) -> MessageHandler:
         """Create handler that extracts OrderBook from Hyperliquid context.
-        
+
         Args:
             received_orderbooks: List to store received OrderBook instances
-            
+
         Returns:
             Async message handler function for processing orderbook updates
         """

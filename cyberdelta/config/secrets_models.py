@@ -93,11 +93,11 @@ class TelegramSecrets(BaseModel):
     @classmethod
     def validate_chat_id(cls, v: object, info: ValidationInfo) -> str:
         """Validate chat_id is a non-empty string.
-        
+
         Args:
             v: Value to validate.
             info: Pydantic validation context.
-            
+
         Returns:
             str: Validated chat ID string.
         """
@@ -153,11 +153,11 @@ class SecretsConfig(BaseModel):
         info: ValidationInfo,
     ) -> dict[str, AnyExchangeSecrets]:
         """Validate exchange dictionary keys are valid strings.
-        
+
         Args:
             v: Dictionary of exchange names to secrets.
             info: Pydantic validation context.
-            
+
         Returns:
             dict[str, AnyExchangeSecrets]: Validated exchanges dictionary.
         """
@@ -183,10 +183,10 @@ class SecretsConfig(BaseModel):
         Ensures that each exchange uses the correct auth_type and has valid credentials.
         Basic presence checks are performed here; deeper cryptographic validation is
         performed in the respective API component factories.
-        
+
         Returns:
             Self: The validated instance.
-            
+
         Raises:
             InvalidAuthTypeError: If exchange has wrong authentication type.
             EmptySecretError: If required secrets are empty.

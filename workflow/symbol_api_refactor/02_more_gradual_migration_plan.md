@@ -108,14 +108,25 @@ class Order(BaseModel):
     # Note: We use ExchangeSymbol not UnifiedSymbol because orders are exchange-specific
 ```
 
-#### 1.2 Update Service Arguments
+#### 1.2 Update Service Arguments (REORGANIZED INTO MODULES)
+**NOTE: Service args now split across 6 domain-specific modules**
+
 ```python
-# cyberdelta/apis/models/service_args_models.py
+# cyberdelta/apis/models/service_args/trading.py
 class PlaceOrderArgs(BaseModel):
     # CHANGE THIS:
     symbol: str  # DELETE
     # TO THIS:
     symbol: ExchangeSymbol
+
+# cyberdelta/apis/models/service_args/market_data.py
+class GetTickerArgs(BaseModel):
+    # CHANGE THIS:
+    symbol: str  # DELETE
+    # TO THIS:
+    symbol: ExchangeSymbol
+
+# Plus: account.py, hyperliquid.py, backpack.py, internal.py
 ```
 
 **Why Start Here**: Every other component depends on these models. Changing them first forces all other code to adapt.

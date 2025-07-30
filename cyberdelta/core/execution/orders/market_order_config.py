@@ -87,7 +87,7 @@ class MarketOrderConfig(BaseModel):
     @classmethod
     def validate_percentage(cls, v: Decimal) -> Decimal:
         """Validate percentage values are finite and positive.
-        
+
         Returns:
             Decimal: Validated finite positive percentage value.
 
@@ -105,7 +105,7 @@ class MarketOrderConfig(BaseModel):
     @classmethod
     def validate_slippage_map(cls, v: dict[str, Decimal]) -> dict[str, Decimal]:
         """Validate all slippage values in the symbol map.
-        
+
         Returns:
             dict[str, Decimal]: Validated slippage mapping with required 'default' entry.
 

@@ -129,10 +129,11 @@ class HyperliquidOrderHistoryService:
                 return []
 
             raw_historical_order_responses = self._process_order_history_response(
-                raw_data, status_code
+                raw_data,
+                status_code,
             )
             internal_orders = self._map_historical_orders_to_internal(
-                raw_historical_order_responses
+                raw_historical_order_responses,
             )
 
             # Filter by time range since historicalOrders endpoint doesn't support time filtering
@@ -151,7 +152,10 @@ class HyperliquidOrderHistoryService:
                     if order.created_at and args.start_time <= order.created_at <= args.end_time
                 ]
 
-            filtered_orders = self._filter_orders_by_symbol(internal_orders, args.symbol)
+            filtered_orders = self._filter_orders_by_symbol(
+                internal_orders,
+                str(args.symbol) if args.symbol else None,
+            )
 
             logger.info(
                 "order_history_retrieved",
@@ -165,12 +169,18 @@ class HyperliquidOrderHistoryService:
             raise
         except TransformationError as e_transform:
             self._handle_transformation_error(
-                e_transform, "get_order_history", status_code, raw_response_content
+                e_transform,
+                "get_order_history",
+                status_code,
+                raw_response_content,
             )
             raise
         except ValidationError as e_val:
             self._handle_validation_error(
-                e_val, "get_order_history", status_code, raw_response_content
+                e_val,
+                "get_order_history",
+                status_code,
+                raw_response_content,
             )
             raise
         except (ValueError, TypeError) as e_service_logic:
@@ -178,7 +188,10 @@ class HyperliquidOrderHistoryService:
             raise
         except Exception as e_unexpected:
             self._handle_unexpected_error(
-                e_unexpected, "get_order_history", status_code, raw_response_content
+                e_unexpected,
+                "get_order_history",
+                status_code,
+                raw_response_content,
             )
             raise
         else:
@@ -263,7 +276,9 @@ class HyperliquidOrderHistoryService:
         )
 
     def _process_order_history_response(
-        self, raw_data: ParsedJsonResponse, status_code: int
+        self,
+        raw_data: ParsedJsonResponse,
+        status_code: int,
     ) -> list[HyperliquidRawHistoricalOrderResponse]:
         """Process the order history response.
 
@@ -290,7 +305,8 @@ class HyperliquidOrderHistoryService:
         return raw_historical_order_responses
 
     def _map_historical_orders_to_internal(
-        self, raw_historical_order_responses: list[HyperliquidRawHistoricalOrderResponse]
+        self,
+        raw_historical_order_responses: list[HyperliquidRawHistoricalOrderResponse],
     ) -> list[Order]:
         """Map raw historical order responses to internal Order models.
 
@@ -306,7 +322,7 @@ class HyperliquidOrderHistoryService:
                     **response.order.model_dump(),
                     status=response.status,
                     statusTimestamp=response.status_timestamp,
-                )
+                ),
             )
             for response in raw_historical_order_responses
         ]
@@ -322,7 +338,7 @@ class HyperliquidOrderHistoryService:
             list[Order]: Filtered orders
         """
         if symbol:
-            filtered = [order for order in orders if order.symbol == symbol]
+            filtered = [order for order in orders if order.symbol.value == symbol]
             logger.debug(
                 "orders_filtered_by_symbol",
                 exchange=self._exchange_name,
@@ -342,13 +358,13 @@ class HyperliquidOrderHistoryService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors.
-        
+
         Args:
             e_transform: The transformation error that occurred
             method_name: The name of the method where the error occurred
             status_code: HTTP status code from the response
             raw_response_content: Raw response content for debugging
-            
+
         Raises:
             APIError: Always raises an APIError with transformation details
         """
@@ -375,13 +391,13 @@ class HyperliquidOrderHistoryService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors.
-        
+
         Args:
             e_val: The validation error that occurred
             method_name: The name of the method where the error occurred
             status_code: HTTP status code from the response
             raw_response_content: Raw response content for debugging
-            
+
         Raises:
             APIError: Always raises an APIError with validation details
         """
@@ -401,14 +417,16 @@ class HyperliquidOrderHistoryService:
         ) from e_val
 
     def _handle_service_logic_error(
-        self, e_service_logic: ValueError | TypeError, method_name: str
+        self,
+        e_service_logic: ValueError | TypeError,
+        method_name: str,
     ) -> None:
         """Handle service logic errors.
-        
+
         Args:
             e_service_logic: The ValueError or TypeError that occurred
             method_name: The name of the method where the error occurred
-            
+
         Raises:
             APIError: Raises APIError for internal service errors
         """
@@ -438,13 +456,13 @@ class HyperliquidOrderHistoryService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors.
-        
+
         Args:
             e_unexpected: The unexpected exception that occurred
             method_name: The name of the method where the error occurred
             status_code: HTTP status code from the response
             raw_response_content: Raw response content for debugging
-            
+
         Raises:
             APIError: Always raises an APIError with error details
         """

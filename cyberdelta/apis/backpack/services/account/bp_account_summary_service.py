@@ -46,6 +46,7 @@ from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArg
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import AccountSettings, MarginAccountSummary
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response, is_list_response
 
 
@@ -248,12 +249,13 @@ class BackpackAccountSummaryService:
             # Create AccountSettings with appropriate leverage handling
             if leverage_int is not None:
                 account_settings = DomainAccountSettings(
-                    leverage_limit=leverage_int, automation_policy=automation_policy
+                    leverage_limit=leverage_int,
+                    automation_policy=automation_policy,
                 )
             else:
                 # If leverage not specified, use domain default (10) - user only updating automation
                 account_settings = DomainAccountSettings(
-                    automation_policy=automation_policy
+                    automation_policy=automation_policy,
                     # leverage_limit will use Field default of 10
                 )
 
@@ -583,7 +585,8 @@ class BackpackAccountSummaryService:
                 message="Failed to fetch account summary",
             )
             raise APIError(
-                message=f"Failed to fetch account summary: {e}", code=APIErrorCode.UNKNOWN.value
+                message=f"Failed to fetch account summary: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e
 
     async def _get_raw_collateral_response(
@@ -601,7 +604,7 @@ class BackpackAccountSummaryService:
         try:
             # Build query parameters
             query_params = self._request_builder.build_collateral_query_params(
-                str(subaccount_id) if subaccount_id is not None else None
+                str(subaccount_id) if subaccount_id is not None else None,
             )
 
             # Make HTTP request
@@ -695,11 +698,13 @@ class BackpackAccountSummaryService:
                 message="Failed to fetch balances",
             )
             raise APIError(
-                message=f"Failed to fetch balances: {e}", code=APIErrorCode.UNKNOWN.value
+                message=f"Failed to fetch balances: {e}",
+                code=APIErrorCode.UNKNOWN.value,
             ) from e
 
     async def _get_raw_positions_list(
-        self, symbol: str | None = None
+        self,
+        symbol: str | None = None,
     ) -> list[BackpackRawPositionResponse]:
         """Helper to fetch and validate raw current open positions list.
 
@@ -719,7 +724,8 @@ class BackpackAccountSummaryService:
             )
 
         endpoint_path = "/api/v1/position"
-        params = self._request_builder.build_get_positions_params(symbol)
+        symbol_obj = exchanges.backpack(value=symbol) if symbol else None
+        params = self._request_builder.build_get_positions_params(symbol_obj)
 
         logger.debug(
             "requesting_raw_positions",
@@ -760,14 +766,14 @@ class BackpackAccountSummaryService:
             if is_dict_response(raw_data):
                 return self._response_handler.handle_get_positions_response(
                     raw_data,
-                    symbol,
+                    symbol_obj,
                     status_code,
                 )
             if is_list_response(raw_data):
                 # Must be list type after validation
                 return self._response_handler.handle_get_positions_response(
                     raw_data,
-                    symbol,
+                    symbol_obj,
                     status_code,
                 )
             # This should never happen after validation
@@ -786,7 +792,9 @@ class BackpackAccountSummaryService:
             raise
 
     def _validate_collateral_response(
-        self, raw_data: ParsedJsonResponse | None, status_code: int
+        self,
+        raw_data: ParsedJsonResponse | None,
+        status_code: int,
     ) -> None:
         """Validate collateral response data.
 
@@ -806,7 +814,9 @@ class BackpackAccountSummaryService:
             )
 
     def _validate_positions_response_type(
-        self, raw_data: ParsedJsonResponse, status_code: int
+        self,
+        raw_data: ParsedJsonResponse,
+        status_code: int,
     ) -> None:
         """Validate positions response type.
 

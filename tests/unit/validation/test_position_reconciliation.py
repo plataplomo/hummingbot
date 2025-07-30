@@ -31,7 +31,7 @@ from cyberdelta.validation.position_reconciliation import (
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock app settings for testing.
-    
+
     Returns:
         Mock AppSettings with configured safety systems.
     """
@@ -46,7 +46,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create mock portfolio tracker.
-    
+
     Returns:
         Mock PortfolioTracker with configured methods.
     """
@@ -63,7 +63,7 @@ def reconciliation_system(
     mock_app_settings: Mock, mock_portfolio_tracker: Mock
 ) -> PositionReconciliationSystem:
     """Create PositionReconciliationSystem instance for testing.
-    
+
     Returns:
         Configured PositionReconciliationSystem instance.
     """
@@ -73,7 +73,7 @@ def reconciliation_system(
 @pytest.fixture
 def sample_api_position() -> DerivativePosition:
     """Create sample API position for testing.
-    
+
     Returns:
         Sample DerivativePosition representing API data.
     """
@@ -93,7 +93,7 @@ def sample_api_position() -> DerivativePosition:
 @pytest.fixture
 def sample_local_position() -> DerivativePosition:
     """Create sample local position for testing.
-    
+
     Returns:
         Sample DerivativePosition representing local tracker data.
     """

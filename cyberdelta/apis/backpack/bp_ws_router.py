@@ -83,7 +83,7 @@ class TransformationError(ValueError):
 
 
 class BackpackWebSocketRouter(
-    BaseWebSocketRouter[BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse]
+    BaseWebSocketRouter[BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse],
 ):
     """Full-featured Backpack WebSocket router using new architecture.
 
@@ -224,7 +224,8 @@ class BackpackWebSocketRouter(
         return None
 
     def _extract_routing_key_from_envelope(
-        self, envelope: BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse
+        self,
+        envelope: BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse,
     ) -> str | None:
         """Extract routing key from validated Backpack WebSocket message envelope.
 
@@ -276,7 +277,8 @@ class BackpackWebSocketRouter(
             return stream_or_topic
 
     def _extract_payload_from_envelope(
-        self, envelope: BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse
+        self,
+        envelope: BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse,
     ) -> dict[str, Any]:
         """Extract payload from validated Backpack WebSocket message envelope.
 
@@ -341,7 +343,8 @@ class BackpackWebSocketRouter(
         # Simple private streams like "fills", "orders" are allowed without dots
         if topic not in {"fills", "orders", "liquidation"} and "." not in topic:
             raise UnsupportedWebSocketTopicError(
-                topic, supported_formats=["type.symbol", "fills", "orders", "liquidation"]
+                topic,
+                supported_formats=["type.symbol", "fills", "orders", "liquidation"],
             )
 
         # Additional validation for topics with symbols

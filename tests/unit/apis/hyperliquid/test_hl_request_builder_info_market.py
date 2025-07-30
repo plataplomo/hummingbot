@@ -27,7 +27,7 @@ class TestHyperliquidMarketDataRequestBuilder:
     @pytest.fixture
     def builder(self) -> HyperliquidMarketDataRequestBuilder:
         """Create a HyperliquidMarketDataRequestBuilder instance.
-        
+
         Returns:
             HyperliquidMarketDataRequestBuilder: A market data request builder for testing.
         """
@@ -36,7 +36,7 @@ class TestHyperliquidMarketDataRequestBuilder:
     @pytest.fixture
     def symbol(self) -> str:
         """Provide a test symbol.
-        
+
         Returns:
             str: A test symbol string for testing.
         """

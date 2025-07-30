@@ -33,7 +33,7 @@ class TestPortfolioOrchestrator:
     @pytest.fixture
     def app_settings(self) -> MagicMock:
         """Create mock app settings.
-        
+
         Returns:
             Mock AppSettings instance for testing.
         """
@@ -44,7 +44,7 @@ class TestPortfolioOrchestrator:
     @pytest.fixture
     def portfolio_tracker(self) -> MagicMock:
         """Create mock portfolio tracker.
-        
+
         Returns:
             Mock PortfolioTracker instance with async methods configured.
         """
@@ -59,7 +59,7 @@ class TestPortfolioOrchestrator:
     @pytest.fixture
     def mock_api_clients(self) -> dict[str, AsyncMock]:
         """Create mock API clients.
-        
+
         Returns:
             Dictionary mapping exchange names to mock API client instances.
         """
@@ -92,7 +92,7 @@ class TestPortfolioOrchestrator:
         mock_api_clients: dict[str, AsyncMock],
     ) -> PortfolioOrchestrator:
         """Create PortfolioOrchestrator instance.
-        
+
         Returns:
             Configured PortfolioOrchestrator instance for testing.
         """

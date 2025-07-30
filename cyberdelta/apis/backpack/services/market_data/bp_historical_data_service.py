@@ -47,6 +47,7 @@ from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Trade
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -119,7 +120,7 @@ class BackpackHistoricalDataService:
         self._candle_mapper = candle_mapper or BackpackCandleMapper()
         self._funding_rate_mapper = funding_rate_mapper or BackpackFundingRateMapper()
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 100) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 100) -> list[Trade]:
         """Retrieves recent trades for a specific symbol.
 
         Args:
@@ -165,7 +166,10 @@ class BackpackHistoricalDataService:
             # Type narrowing after validation ensures raw_data_list is not None
             validated_data = raw_data_list
             trades = self._process_recent_trades_response(
-                validated_data, symbol, status_code, headers
+                validated_data,
+                symbol,
+                status_code,
+                headers,
             )
 
             logger.info(
@@ -181,7 +185,7 @@ class BackpackHistoricalDataService:
             self._handle_recent_trades_exceptions(
                 e,
                 current_method,
-                symbol,
+                symbol.value,  # Convert Symbol to string for error handler
                 status_code,
                 raw_response_content,
             )
@@ -247,7 +251,7 @@ class BackpackHistoricalDataService:
             raise self._create_market_data_api_error(
                 e_transform,
                 current_method,
-                args.symbol,
+                str(args.symbol),
                 status_code,
                 raw_response_content,
                 "Failed to process/transform exchange data.",
@@ -257,7 +261,7 @@ class BackpackHistoricalDataService:
             raise self._create_market_data_api_error(
                 e_val,
                 current_method,
-                args.symbol,
+                str(args.symbol),
                 status_code,
                 raw_response_content,
                 "Internal data validation failed.",
@@ -267,7 +271,7 @@ class BackpackHistoricalDataService:
             raise self._create_market_data_api_error(
                 e_service_logic,
                 current_method,
-                args.symbol,
+                str(args.symbol),
                 status_code,
                 raw_response_content,
                 "Service internal logic error.",
@@ -277,7 +281,7 @@ class BackpackHistoricalDataService:
             raise self._create_market_data_api_error(
                 e_unexpected,
                 current_method,
-                args.symbol,
+                str(args.symbol),
                 status_code,
                 raw_response_content,
                 "Unexpected service failure.",
@@ -288,7 +292,7 @@ class BackpackHistoricalDataService:
 
     async def _execute_recent_trades_request(
         self,
-        symbol: str,
+        symbol: Symbol,
         limit: int | None,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Execute the recent trades API request.
@@ -306,7 +310,7 @@ class BackpackHistoricalDataService:
         logger.debug(
             "recent_trades_request",
             exchange=self._exchange_name,
-            symbol=symbol,
+            symbol=symbol.value,
             limit=limit,
             endpoint_path=endpoint_path,
             params=params,
@@ -329,7 +333,7 @@ class BackpackHistoricalDataService:
     def _process_recent_trades_response(
         self,
         raw_data_list: ParsedJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[Trade]:
@@ -345,7 +349,9 @@ class BackpackHistoricalDataService:
             list[Trade]: Processed trades
         """
         validated_list = ensure_list_response(
-            raw_data_list, f"recent trades ({symbol})", status_code
+            raw_data_list,
+            f"recent trades ({symbol})",
+            status_code,
         )
 
         raw_trades_list: list[BackpackRawRecentPublicTrade] = (
@@ -417,7 +423,7 @@ class BackpackHistoricalDataService:
     def _process_market_data_response(
         self,
         raw_data: ParsedJsonResponse | None,
-        symbol: str,
+        symbol: Symbol,
         interval: str,
         status_code: int,
         headers: Mapping[str, str],
@@ -426,7 +432,7 @@ class BackpackHistoricalDataService:
 
         Args:
             raw_data: Raw response data
-            symbol: Trading symbol
+            symbol: Trading symbol object
             interval: Timeframe/interval
             status_code: HTTP status code
             headers: Response headers
@@ -436,7 +442,7 @@ class BackpackHistoricalDataService:
         """
         validated_data = ensure_list_response(
             raw_data,
-            f"market data ({symbol}, {interval})",
+            f"market data ({symbol.value}, {interval})",
             status_code,
         )
 
@@ -456,7 +462,10 @@ class BackpackHistoricalDataService:
         ]
 
     def _validate_recent_trades_params(
-        self, symbol: str, limit: int | None, current_method: str
+        self,
+        symbol: Symbol,
+        limit: int | None,
+        current_method: str,
     ) -> None:
         """Validate recent trades parameters.
 
@@ -475,7 +484,9 @@ class BackpackHistoricalDataService:
             raise InvalidLimitError(current_method, limit)
 
     def _validate_and_prepare_timeframe(
-        self, timeframe: str, current_method: str
+        self,
+        timeframe: str,
+        current_method: str,
     ) -> BackpackTimeframe:
         """Validate and prepare the timeframe parameter.
 
@@ -491,7 +502,9 @@ class BackpackHistoricalDataService:
         """
         if not self._is_valid_backpack_timeframe(timeframe):
             raise UnsupportedIntervalError(
-                current_method, timeframe, ["1m", "5m", "15m", "1h", "4h", "1d"]
+                current_method,
+                timeframe,
+                ["1m", "5m", "15m", "1h", "4h", "1d"],
             )
         return timeframe
 
@@ -616,7 +629,9 @@ class BackpackHistoricalDataService:
         )
 
     def _validate_trades_response(
-        self, raw_data_list: ParsedJsonResponse | None, status_code: int
+        self,
+        raw_data_list: ParsedJsonResponse | None,
+        status_code: int,
     ) -> None:
         """Validate trades response data.
 

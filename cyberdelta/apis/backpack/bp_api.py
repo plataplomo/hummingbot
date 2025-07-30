@@ -91,6 +91,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.market import Candle, Market, OrderBook
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.symbols.models import Symbol
 
 
 logger = get_logger(__name__)
@@ -312,7 +313,7 @@ class BackpackAPI(ExchangeAPI):
 
     # --- Market Data Methods --- #
 
-    async def get_ticker(self, symbol: str) -> Ticker:
+    async def get_ticker(self, symbol: Symbol) -> Ticker:
         """Get ticker information for a specific symbol.
 
         Args:
@@ -324,7 +325,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_ticker(symbol)
 
-    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook:
+    async def get_order_book(self, symbol: Symbol, depth: int = 20) -> OrderBook:
         """Get order book for a specific symbol.
 
         Args:
@@ -337,7 +338,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_order_book(symbol, depth)
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 50) -> list[Trade]:
         """Get recent trades for a specific symbol.
 
         Args:
@@ -350,7 +351,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_recent_trades(symbol, limit)
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate:
+    async def get_funding_rate(self, symbol: Symbol) -> FundingRate:
         """Get current funding rate for a specific symbol.
 
         Args:
@@ -409,7 +410,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.account_service.get_balances()
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Get derivative positions.
 
         Args:
@@ -447,7 +448,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.trading_service.cancel_order(args)
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Get all open orders.
 
         Args:
@@ -536,9 +537,9 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.account_service.withdraw(args)
 
-    async def subscribe_to_order_book(self, symbol: str) -> None:
+    async def subscribe_to_order_book(self, symbol: Symbol) -> None:
         """Subscribe to order book updates for a symbol."""
-        topic = f"depth.{symbol}"
+        topic = f"depth.{symbol.value}"
         logger.debug(
             "backpack_orderbook_subscription_prepared",
             exchange=self.exchange_name,
@@ -548,9 +549,9 @@ class BackpackAPI(ExchangeAPI):
             message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
         )
 
-    async def subscribe_to_ticker(self, symbol: str) -> None:
+    async def subscribe_to_ticker(self, symbol: Symbol) -> None:
         """Subscribe to ticker updates for a symbol."""
-        topic = f"ticker.{symbol}"
+        topic = f"ticker.{symbol.value}"
         logger.debug(
             "backpack_ticker_subscription_prepared",
             exchange=self.exchange_name,
@@ -560,10 +561,10 @@ class BackpackAPI(ExchangeAPI):
             message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
         )
 
-    async def subscribe_to_trades(self, symbol: str) -> None:
+    async def subscribe_to_trades(self, symbol: Symbol) -> None:
         """Subscribe to public trade updates for a symbol."""
         # NOTE: Backpack uses "trade" (singular) not "trades" for the stream name
-        topic = f"trade.{symbol}"
+        topic = f"trade.{symbol.value}"
         logger.debug(
             "backpack_trades_subscription_prepared",
             exchange=self.exchange_name,
@@ -702,7 +703,7 @@ class BackpackAPI(ExchangeAPI):
             List of all open orders
 
         """
-        # Convert GetAllOpenOrdersArgs to simple parameter
+        # Extract Symbol object from args
         symbol = args.symbol if args else None
         return await self.trading_service.get_open_orders(symbol)
 
@@ -748,7 +749,7 @@ class BackpackAPI(ExchangeAPI):
         """Close the API client and clean up resources."""
         await super().close()
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders.
 
         Returns:

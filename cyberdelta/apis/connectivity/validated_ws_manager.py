@@ -147,10 +147,10 @@ class WebSocketMessageConfig(BaseModel):
     @classmethod
     def validate_max_message_size(cls, v: int) -> int:
         """Validate message size is within reasonable bounds.
-        
+
         Returns:
             int: The validated message size.
-            
+
         Raises:
             MessageSizeTooSmallError: If message size is below minimum.
             MessageSizeTooBigError: If message size exceeds maximum.
@@ -165,10 +165,10 @@ class WebSocketMessageConfig(BaseModel):
     @classmethod
     def validate_max_nesting_depth(cls, v: int) -> int:
         """Validate nesting depth is reasonable.
-        
+
         Returns:
             int: The validated nesting depth.
-            
+
         Raises:
             NestingDepthTooSmallError: If nesting depth is below 1.
             NestingDepthTooBigError: If nesting depth exceeds maximum.
@@ -183,10 +183,10 @@ class WebSocketMessageConfig(BaseModel):
     @classmethod
     def validate_max_array_length(cls, v: int) -> int:
         """Validate array length limit.
-        
+
         Returns:
             int: The validated array length limit.
-            
+
         Raises:
             ArrayLengthTooSmallError: If array length is below 1.
             ArrayLengthTooBigError: If array length exceeds maximum.
@@ -212,7 +212,8 @@ class WebSocketPreValidator:
         self.logger = get_logger(__name__)
 
     def validate(
-        self, data: dict[str, Any] | list[Any] | str | float | bool | None
+        self,
+        data: dict[str, Any] | list[Any] | str | float | bool | None,
     ) -> dict[str, Any] | list[Any]:
         """Validate the structure of parsed JSON data.
 
@@ -253,7 +254,9 @@ class WebSocketPreValidator:
         return data
 
     def _calculate_depth(
-        self, obj: dict[str, Any] | list[Any] | str | float | bool | None, current_depth: int = 0
+        self,
+        obj: dict[str, Any] | list[Any] | str | float | bool | None,
+        current_depth: int = 0,
     ) -> int:
         """Calculate the maximum nesting depth of an object.
 
@@ -279,7 +282,8 @@ class WebSocketPreValidator:
         return current_depth
 
     def _check_array_lengths(
-        self, obj: dict[str, Any] | list[Any] | str | float | bool | None
+        self,
+        obj: dict[str, Any] | list[Any] | str | float | bool | None,
     ) -> None:
         """Check that all arrays are within length limits.
 

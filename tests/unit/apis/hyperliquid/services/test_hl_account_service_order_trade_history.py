@@ -30,7 +30,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
     def create_account_service(self) -> HyperliquidAccountService:
         """Create a minimal account service for testing.
-        
+
         Returns:
             HyperliquidAccountService: An account service instance for testing.
         """

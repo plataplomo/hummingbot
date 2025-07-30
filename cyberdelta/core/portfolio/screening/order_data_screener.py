@@ -264,8 +264,8 @@ class OrderDataScreener(BaseScreener):
 
     def _clean_basic_order_fields(self, order: Order) -> None:
         """Clean basic string fields."""
-        if order.symbol:
-            order.symbol = order.symbol.strip().upper()
+        # Symbol is now an Symbol domain object, no cleaning needed
+        # Symbol validation happens at creation time
 
         if order.exchange:
             order.exchange = order.exchange.strip().lower()
@@ -324,8 +324,8 @@ class OrderDataScreener(BaseScreener):
         if not order.client_order_id.strip():
             errors.append("Required field client_order_id is empty")
 
-        if not order.symbol.strip():
-            errors.append("Required field symbol is empty")
+        # Symbol is now an Symbol which is validated at creation
+        # No need to check if empty since Symbol.value has min_length=1
 
         # side, order_type, status are enums and required - no None check needed
         # quantity_requested is required with gt=Decimal(0) - always positive
@@ -701,10 +701,10 @@ class OrderDataScreener(BaseScreener):
 
     def _validate_order_value(self, order: Order) -> tuple[list[str], list[str]]:
         """Validate order value calculations.
-        
+
         Args:
             order: Order object to validate
-            
+
         Returns:
             Tuple of (validation errors, warnings) for order value
         """
@@ -736,10 +736,10 @@ class OrderDataScreener(BaseScreener):
 
     def _validate_order_quantities(self, order: Order) -> list[str]:
         """Validate order quantity relationships.
-        
+
         Args:
             order: Order object to validate
-            
+
         Returns:
             List of validation errors for quantity relationships
         """
@@ -764,10 +764,10 @@ class OrderDataScreener(BaseScreener):
 
     def _validate_order_type_price_relationship(self, order: Order) -> tuple[list[str], list[str]]:
         """Validate order type and price relationship.
-        
+
         Args:
             order: Order object to validate
-            
+
         Returns:
             Tuple of (validation errors, warnings) for order type/price relationship
         """
@@ -786,10 +786,10 @@ class OrderDataScreener(BaseScreener):
 
     def _validate_order_timestamps(self, order: Order) -> list[str]:
         """Validate order timestamp consistency.
-        
+
         Args:
             order: Order object to validate
-            
+
         Returns:
             List of validation errors for timestamp consistency
         """

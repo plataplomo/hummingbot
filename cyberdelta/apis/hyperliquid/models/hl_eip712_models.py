@@ -77,7 +77,7 @@ class HyperliquidUsdClassTransferTypes(BaseModel):
     EIP712Domain: list[EIP712TypeField]
     # Note: Field name uses literal string to match SDK exactly
     HyperliquidTransaction_UsdClassTransfer: list[EIP712TypeField] = Field(
-        alias="HyperliquidTransaction:UsdClassTransfer"
+        alias="HyperliquidTransaction:UsdClassTransfer",
     )
 
     model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)

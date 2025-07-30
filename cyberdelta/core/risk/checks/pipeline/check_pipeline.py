@@ -82,7 +82,7 @@ class CheckPipeline:
         self, checkers_to_run: list[PipelineChecker], opportunity: ArbitrageOpportunity
     ) -> tuple[list[CheckResult], dict[str, int]]:
         """Execute checkers and return results with counts.
-        
+
         Returns:
             Tuple of (list of check results, dictionary of result counts).
         """
@@ -131,7 +131,7 @@ class CheckPipeline:
         self, checker: PipelineChecker, opportunity: ArbitrageOpportunity
     ) -> CheckContext:
         """Create check context for a checker.
-        
+
         Returns:
             CheckContext instance for the given checker and opportunity.
         """
@@ -156,7 +156,7 @@ class CheckPipeline:
         self, gather_result: CheckResult | BaseException, checker: PipelineChecker
     ) -> CheckResult:
         """Process a result from asyncio.gather.
-        
+
         Returns:
             CheckResult, either the original result or an error result if an exception occurred.
         """
@@ -175,7 +175,7 @@ class CheckPipeline:
         counts: dict[str, int],
     ) -> CheckResult:
         """Build the final pipeline result.
-        
+
         Returns:
             CheckResult representing the overall pipeline execution result.
         """
@@ -301,7 +301,7 @@ class CheckPipeline:
 
     def __str__(self) -> str:
         """String representation of the pipeline.
-        
+
         Returns:
             String representation showing the number of checkers.
         """
@@ -309,7 +309,7 @@ class CheckPipeline:
 
     def __repr__(self) -> str:
         """Detailed representation of the pipeline.
-        
+
         Returns:
             Detailed string representation including checker names.
         """

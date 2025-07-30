@@ -48,7 +48,7 @@ HyperliquidResponseHandler = HyperliquidTradingResponseHandler
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
     """Create a mock HTTP requester.
-    
+
     Returns:
         AsyncMock: A mock instance of the HTTP requester.
     """
@@ -58,7 +58,7 @@ def mock_http_requester() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> Mock:
     """Create a mock request builder.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidTradingRequestBuilder.
     """
@@ -68,7 +68,7 @@ def mock_request_builder() -> Mock:
 @pytest.fixture
 def mock_response_handler() -> Mock:
     """Create a mock response handler.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidTradingResponseHandler.
     """
@@ -78,7 +78,7 @@ def mock_response_handler() -> Mock:
 @pytest.fixture
 def mock_mapper() -> Mock:
     """Create a mock data mapper.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidOrderMapper.
     """
@@ -88,7 +88,7 @@ def mock_mapper() -> Mock:
 @pytest.fixture
 def mock_error_mapper() -> Mock:
     """Create a mock error mapper.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidErrorMapper.
     """
@@ -98,7 +98,7 @@ def mock_error_mapper() -> Mock:
 @pytest.fixture
 def mock_authenticator() -> Mock:
     """Create a mock authenticator.
-    
+
     Returns:
         Mock: A mock instance of IAuthenticator.
     """
@@ -115,7 +115,7 @@ def order_query_service(
     mock_authenticator: Mock,
 ) -> HyperliquidOrderQueryService:
     """Create an order query service instance with mocks.
-    
+
     Returns:
         HyperliquidOrderQueryService: Service instance configured with mock dependencies.
     """
@@ -135,7 +135,7 @@ def order_query_service(
 @pytest.fixture
 def mock_open_order() -> Order:
     """Create a mock open order.
-    
+
     Returns:
         Order: A mock open order for BTC-USD.
     """
@@ -162,7 +162,7 @@ def mock_open_order() -> Order:
 @pytest.fixture
 def mock_filled_order() -> Order:
     """Create a mock filled order.
-    
+
     Returns:
         Order: A mock filled order for ETH-USD.
     """
@@ -190,7 +190,7 @@ def mock_filled_order() -> Order:
 @pytest.fixture
 def mock_trade() -> Trade:
     """Create a mock trade.
-    
+
     Returns:
         Trade: A mock trade for BTC-USD.
     """

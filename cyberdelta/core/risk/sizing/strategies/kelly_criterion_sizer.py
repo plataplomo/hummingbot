@@ -213,7 +213,7 @@ class KellyCriterionSizer(TypedBaseSizer):
         self, obj: ArbitrageOpportunity, attr_name: str
     ) -> Decimal | None:
         """Extract volatility from object attribute.
-        
+
         Returns:
             Decimal | None: The extracted volatility value or None if not found.
         """
@@ -226,7 +226,7 @@ class KellyCriterionSizer(TypedBaseSizer):
         self, value: str | float | Decimal | list[Any] | dict[str, Any] | None
     ) -> Decimal | None:
         """Parse and validate volatility value.
-        
+
         Returns:
             Decimal | None: Parsed and bounded volatility value or None.
         """
@@ -242,7 +242,7 @@ class KellyCriterionSizer(TypedBaseSizer):
 
     def _estimate_volatility_from_spread(self, opportunity: ArbitrageOpportunity) -> Decimal | None:
         """Estimate volatility from spread percentage.
-        
+
         Returns:
             Decimal | None: Estimated volatility based on spread or None.
         """
@@ -301,7 +301,7 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Returns:
             Kelly fraction
-            
+
         Raises:
             KellyCalculationError: If volatility is invalid (zero or negative).
         """
@@ -372,7 +372,7 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Returns:
             Kelly fraction
-            
+
         Raises:
             KellyCalculationError: If win probability is out of valid range (0-1).
         """
@@ -406,7 +406,7 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Args:
             multiplier: Kelly multiplier (0-1)
-            
+
         Raises:
             KellyCalculationError: If multiplier is out of valid range (0-1).
         """
@@ -422,7 +422,7 @@ class KellyCriterionSizer(TypedBaseSizer):
         Args:
             min_allocation: Minimum Kelly allocation
             max_allocation: Maximum Kelly allocation
-            
+
         Raises:
             KellyCalculationError: If min_allocation >= max_allocation.
         """
@@ -443,7 +443,7 @@ class KellyCriterionSizer(TypedBaseSizer):
         Args:
             min_volatility: Minimum volatility
             max_volatility: Maximum volatility
-            
+
         Raises:
             VolatilityCalculationError: If min_volatility >= max_volatility.
         """
@@ -465,7 +465,7 @@ class KellyCriterionSizer(TypedBaseSizer):
 
         Args:
             rate: Annual risk-free rate
-            
+
         Raises:
             KellyCalculationError: If rate is negative.
         """

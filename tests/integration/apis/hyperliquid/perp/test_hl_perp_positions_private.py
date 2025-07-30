@@ -28,6 +28,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -76,8 +77,8 @@ class TestHyperliquidPerpPositionsPrivate:
         assert test_position.exchange == "hyperliquid", (
             f"Position.exchange should be 'hyperliquid', got {test_position.exchange}"
         )
-        assert test_position.symbol == test_symbol, (
-            f"Position symbol should match traded asset, got {test_position.symbol}"
+        assert test_position.symbol.value == test_symbol, (
+            f"Position symbol should match traded asset, got {test_position.symbol.value}"
         )
 
         # Validate Decimal precision for financial fields
@@ -152,7 +153,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Define order parameters to open a position
         place_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,  # Market order for immediate position opening
             quantity=minimal_quantity,
@@ -171,7 +172,7 @@ class TestHyperliquidPerpPositionsPrivate:
         # Find the position for the traded asset
         test_position = None
         for position in positions:
-            if position.symbol == test_symbol:
+            if position.symbol.value == test_symbol:
                 test_position = position
                 break
 
@@ -187,7 +188,7 @@ class TestHyperliquidPerpPositionsPrivate:
             close_quantity = abs(test_position.size)
 
             close_args = PlaceOrderArgs(
-                symbol=test_symbol,
+                symbol=exchanges.hyperliquid(test_symbol),
                 side=close_side,
                 order_type=OrderType.MARKET,
                 quantity=close_quantity,
@@ -230,7 +231,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 1: First open a position
         open_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=minimal_quantity,
@@ -244,7 +245,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_open = await hl_api_for_test_env.get_positions()
         test_position_after_open = None
         for position in positions_after_open:
-            if position.symbol == test_symbol and position.size != Decimal(0):
+            if position.symbol.value == test_symbol and position.size != Decimal(0):
                 test_position_after_open = position
                 break
 
@@ -256,7 +257,7 @@ class TestHyperliquidPerpPositionsPrivate:
             close_quantity = abs(test_position_after_open.size)
 
             close_args = PlaceOrderArgs(
-                symbol=test_symbol,
+                symbol=exchanges.hyperliquid(test_symbol),
                 side=close_side,
                 order_type=OrderType.MARKET,
                 quantity=close_quantity,
@@ -270,7 +271,7 @@ class TestHyperliquidPerpPositionsPrivate:
             positions_after_close = await hl_api_for_test_env.get_positions()
             test_position_after_close = None
             for position in positions_after_close:
-                if position.symbol == test_symbol:
+                if position.symbol.value == test_symbol:
                     test_position_after_close = position
                     break
 
@@ -325,7 +326,7 @@ class TestHyperliquidPerpPositionsPrivate:
         )
 
         large_position_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=large_quantity,
@@ -389,7 +390,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Test very small position size
         small_position_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=small_quantity,
@@ -404,7 +405,7 @@ class TestHyperliquidPerpPositionsPrivate:
             positions = await hl_api_for_test_env.get_positions()
             test_position = None
             for position in positions:
-                if position.symbol == test_symbol and position.size != Decimal(0):
+                if position.symbol.value == test_symbol and position.size != Decimal(0):
                     test_position = position
                     break
 
@@ -426,7 +427,7 @@ class TestHyperliquidPerpPositionsPrivate:
                         OrderSide.SELL if test_position.size > Decimal(0) else OrderSide.BUY
                     )
                     close_args = PlaceOrderArgs(
-                        symbol=test_symbol,
+                        symbol=exchanges.hyperliquid(test_symbol),
                         side=close_side,
                         order_type=OrderType.MARKET,
                         quantity=abs(test_position.size),
@@ -472,7 +473,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Create order with non-existent asset to open position
         invalid_asset_args = PlaceOrderArgs(
-            symbol="INVALID_POSITION_ASSET",  # Non-existent asset
+            symbol=exchanges.hyperliquid("INVALID_POS_ASSET"),  # Non-existent asset (≤30 chars)
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=minimal_quantity,  # Use real exchange quantity constraints
@@ -529,7 +530,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 1: Open initial position
         initial_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=minimal_quantity,
@@ -543,7 +544,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_initial = await hl_api_for_test_env.get_positions()
         initial_position = None
         for position in positions_after_initial:
-            if position.symbol == test_symbol and position.size != Decimal(0):
+            if position.symbol.value == test_symbol and position.size != Decimal(0):
                 initial_position = position
                 break
 
@@ -552,7 +553,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 2: Add to position
         add_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,  # Same side to add to position
             order_type=OrderType.MARKET,
             quantity=additional_quantity,
@@ -566,7 +567,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_add = await hl_api_for_test_env.get_positions()
         test_position = None
         for position in positions_after_add:
-            if position.symbol == test_symbol and position.size != Decimal(0):
+            if position.symbol.value == test_symbol and position.size != Decimal(0):
                 test_position = position
                 break
 
@@ -605,7 +606,7 @@ class TestHyperliquidPerpPositionsPrivate:
         # Step 4: Clean up - close entire position
         if test_position:
             close_args = PlaceOrderArgs(
-                symbol=test_symbol,
+                symbol=exchanges.hyperliquid(test_symbol),
                 side=OrderSide.SELL,
                 order_type=OrderType.MARKET,
                 quantity=abs(test_position.size),

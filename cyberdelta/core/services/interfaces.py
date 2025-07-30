@@ -66,10 +66,10 @@ class ExecutionResult:
     @classmethod
     def success_result(cls, data: object = None) -> ExecutionResult:
         """Create a successful result.
-        
+
         Args:
             data: Optional data to include in the result
-            
+
         Returns:
             ExecutionResult: A successful execution result
         """
@@ -78,10 +78,10 @@ class ExecutionResult:
     @classmethod
     def error_result(cls, error: ExecutionError) -> ExecutionResult:
         """Create an error result.
-        
+
         Args:
             error: The execution error to wrap
-            
+
         Returns:
             ExecutionResult: An error execution result
         """
@@ -96,13 +96,13 @@ class ExecutionResult:
         recoverable: bool = False,
     ) -> ExecutionResult:
         """Create error result from an exception.
-        
+
         Args:
             exc: The exception that occurred
             error_type: The type of execution error
             context: Additional context for the error
             recoverable: Whether the error is recoverable
-            
+
         Returns:
             ExecutionResult: An error execution result from the exception
         """
@@ -414,7 +414,7 @@ class BaseService:
 
     def _get_default_logger(self) -> Any:  # noqa: ANN401
         """Get default logger instance.
-        
+
         Returns:
             Any: Logger instance for this service class
         """
@@ -451,10 +451,10 @@ class BaseAsyncService(BaseService):
 
     def _create_background_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
         """Create and track a background task.
-        
+
         Args:
             coro: The coroutine to run as a background task
-            
+
         Returns:
             asyncio.Task[Any]: The created and tracked background task
         """

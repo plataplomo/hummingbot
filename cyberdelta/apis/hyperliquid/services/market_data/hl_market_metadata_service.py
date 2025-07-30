@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from cyberdelta.apis.base.infrastructure_config_domain import (
     RequestAuthMode,
@@ -35,9 +35,6 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Market
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -193,14 +190,14 @@ class HyperliquidMarketMetadataService:
             all_markets = await self.get_markets(GetMarketsArgs())
 
             # Find the specific market (will raise if not found)
-            market = self._find_market_or_raise(symbol, all_markets)
+            market = self._find_market_or_raise(symbol.value, all_markets)
 
             logger.info(
                 "market_metadata_retrieved",
                 exchange=self._exchange_name,
                 method=current_method,
                 symbol=symbol,
-                market_name=getattr(cast(object, market), "name", None),
+                market_name=getattr(cast("object", market), "name", None),
                 message="Successfully retrieved market metadata for symbol",
             )
         except APIError:
@@ -310,12 +307,12 @@ class HyperliquidMarketMetadataService:
             SymbolNotFoundError: If symbol not found in available markets
         """
         for market in all_markets:
-            if market.symbol == symbol:
+            if market.symbol.value == symbol:
                 logger.debug(
                     "market_found",
                     exchange=self._exchange_name,
                     symbol=symbol,
-                    market_name=getattr(cast(object, market), "name", None),
+                    market_name=getattr(cast("object", market), "name", None),
                     message="Market found for symbol",
                 )
                 return market
@@ -333,6 +330,6 @@ class HyperliquidMarketMetadataService:
 
         raise SymbolNotFoundError(
             symbol=symbol,
-            available_symbols=available_symbols,
+            available_symbols=[s.value for s in available_symbols],  # Convert Symbols to strings
             exchange=self._exchange_name,
         )

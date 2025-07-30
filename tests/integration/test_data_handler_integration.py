@@ -27,7 +27,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 @pytest.fixture
 def mock_symbol_mapper() -> MagicMock:
     """Provide a MagicMock for SymbolService that maps symbols to themselves.
-    
+
     Returns:
         MagicMock: A mock symbol service for testing.
     """
@@ -54,7 +54,7 @@ class TestDataHandlerIntegration:
         mock_symbol_mapper: MagicMock,
     ) -> DataHandler:
         """Create a DataHandler instance with mocked dependencies.
-        
+
         Returns:
             DataHandler: A data handler instance with mocked dependencies for testing.
         """

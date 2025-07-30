@@ -12,7 +12,7 @@ class MarketOrderError(Exception):
     @classmethod
     def disabled_error(cls) -> "MarketOrderError":
         """Create error for disabled market orders.
-        
+
         Returns:
             MarketOrderError: Error instance for disabled market orders
         """
@@ -21,7 +21,7 @@ class MarketOrderError(Exception):
     @classmethod
     def timeout_error(cls, timeout_seconds: int) -> "MarketOrderError":
         """Create error for market order timeout.
-        
+
         Returns:
             MarketOrderError: Error instance for timeout
         """
@@ -30,7 +30,7 @@ class MarketOrderError(Exception):
     @classmethod
     def no_orders_error(cls) -> "MarketOrderError":
         """Create error when no orders were executed.
-        
+
         Returns:
             MarketOrderError: Error instance for no orders executed
         """
@@ -39,7 +39,7 @@ class MarketOrderError(Exception):
     @classmethod
     def invalid_price_error(cls, price: object) -> "MarketOrderError":
         """Create error for invalid aggressive price.
-        
+
         Returns:
             MarketOrderError: Error instance for invalid price
         """
@@ -48,7 +48,7 @@ class MarketOrderError(Exception):
     @classmethod
     def no_order_book_error(cls, symbol: str) -> "MarketOrderError":
         """Create error when no order book is available.
-        
+
         Returns:
             MarketOrderError: Error instance for missing order book
         """
@@ -144,7 +144,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def empty_symbol_error(cls) -> "MarketOrderParameterError":
         """Create error for empty symbol.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for empty symbol
         """
@@ -153,7 +153,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def invalid_quantity_error(cls) -> "MarketOrderParameterError":
         """Create error for invalid quantity.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for invalid quantity
         """
@@ -162,7 +162,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def infinite_quantity_error(cls) -> "MarketOrderParameterError":
         """Create error for infinite quantity.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for infinite quantity
         """
@@ -171,7 +171,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def finite_decimal_error(cls) -> "MarketOrderParameterError":
         """Create error for non-finite decimal.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for non-finite decimal
         """
@@ -180,7 +180,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def positive_error(cls) -> "MarketOrderParameterError":
         """Create error for non-positive value.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for non-positive value
         """
@@ -189,7 +189,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def slippage_default_error(cls) -> "MarketOrderParameterError":
         """Create error for missing default in slippage map.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for missing default slippage
         """
@@ -198,7 +198,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def slippage_invalid_error(cls, symbol: str, slippage: object) -> "MarketOrderParameterError":
         """Create error for invalid slippage value.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for invalid slippage
         """
@@ -207,7 +207,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def config_disabled_error(cls) -> "MarketOrderParameterError":
         """Create error for disabled configuration.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for disabled configuration
         """
@@ -216,7 +216,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def config_slippage_error(cls) -> "MarketOrderParameterError":
         """Create error for invalid slippage configuration.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for invalid slippage config
         """
@@ -225,7 +225,7 @@ class MarketOrderParameterError(ValueError):
     @classmethod
     def config_deviation_error(cls) -> "MarketOrderParameterError":
         """Create error for invalid price deviation configuration.
-        
+
         Returns:
             MarketOrderParameterError: Error instance for invalid deviation config
         """

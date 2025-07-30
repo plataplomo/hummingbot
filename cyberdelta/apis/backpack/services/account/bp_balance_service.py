@@ -37,6 +37,7 @@ from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -202,13 +203,14 @@ class BackpackBalanceService:
         internal_balances: dict[str, SpotBalance] = {}
         if account_state.collateral:
             for collateral_asset in account_state.collateral:
-                symbol = collateral_asset.symbol
+                symbol_str = collateral_asset.symbol
+                symbol = exchanges.backpack(value=symbol_str)
                 balance = self._mapper.create_balance_from_collateral(
                     symbol=symbol,
                     collateral_data=collateral_asset,
                     exchange_name=self._exchange_name,
                 )
-                internal_balances[symbol] = balance
+                internal_balances[symbol_str] = balance
 
         logger.info(
             "balances_retrieved_from_shared_state",
@@ -221,7 +223,8 @@ class BackpackBalanceService:
         return internal_balances
 
     async def _enhance_balances_with_shared_state(
-        self, balances: dict[str, SpotBalance]
+        self,
+        balances: dict[str, SpotBalance],
     ) -> dict[str, SpotBalance]:
         """Enhance balance data with collateral information from shared state.
 
@@ -351,7 +354,8 @@ class BackpackBalanceService:
 
             # Handle response
             raw_balances = self._response_handler.handle_get_balances_response(
-                raw_data, status_code
+                raw_data,
+                status_code,
             )
 
             if not raw_balances:
@@ -399,20 +403,22 @@ class BackpackBalanceService:
         internal_balances: dict[str, SpotBalance] = {}
         transform_errors: list[str] = []
 
-        for symbol, raw_balance in raw_balances.items():
+        for symbol_str, raw_balance in raw_balances.items():
             try:
+                symbol = exchanges.backpack(value=symbol_str)
                 internal_balance = self._mapper.transform_raw_balance_to_internal(
-                    symbol, raw_balance
+                    symbol,
+                    raw_balance,
                 )
-                internal_balances[symbol] = internal_balance
+                internal_balances[symbol_str] = internal_balance
 
             except TransformationError as e:
-                error_msg = f"Failed to transform balance for {symbol}: {e}"
+                error_msg = f"Failed to transform balance for {symbol_str}: {e}"
                 transform_errors.append(error_msg)
                 logger.exception(
                     "balance_transform_error",
                     exchange=self._exchange_name,
-                    symbol=symbol,
+                    symbol=symbol_str,
                     error=str(e),
                     message=error_msg,
                 )
@@ -594,13 +600,14 @@ class BackpackBalanceService:
                     # Create balances from collateral data
                     balances: dict[str, SpotBalance] = {}
                     for collateral_data in collateral_response.collateral:
-                        symbol = collateral_data.symbol
+                        symbol_str = collateral_data.symbol
+                        symbol = exchanges.backpack(value=symbol_str)
                         balance = self._mapper.create_balance_from_collateral(
                             symbol=symbol,
                             collateral_data=collateral_data,
                             exchange_name=self._exchange_name,
                         )
-                        balances[symbol] = balance
+                        balances[symbol_str] = balance
                     recovery_result = balances
                 else:
                     recovery_result = None

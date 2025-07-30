@@ -59,7 +59,7 @@ def _wrap_validate_general_str(
     allow_empty: bool = False,
 ) -> str:
     """General purpose wrapper for validating string fields.
-    
+
     Returns:
         The validated string value after processing through the handler.
     """
@@ -79,10 +79,10 @@ def _wrap_validate_finite_decimal_str(
     info: ValidationInfo,
 ) -> str:
     """Wrapper for validating strings that must represent finite decimal numbers.
-    
+
     Returns:
         The normalized finite decimal string value after validation.
-        
+
     Raises:
         DecimalFieldError: If the string cannot be parsed as a finite decimal.
     """
@@ -120,10 +120,10 @@ def _wrap_validate_lax_eth_address_str(
     NOTE: Relaxed validation based on test data mandate. Does NOT enforce hex or exact length 42.
     Used for addresses received from API responses.
     Now includes a min_length check to catch overly short invalid addresses.
-    
+
     Returns:
         The validated Ethereum address string.
-        
+
     Raises:
         RangeFieldError: If the address is too short (< 8 characters).
         InvalidFormatError: If the address doesn't start with '0x'.
@@ -165,10 +165,10 @@ def _wrap_validate_strict_eth_address_str(
 
     Must be 0x-prefixed, exactly 42 characters, and valid hexadecimal.
     Used for addresses provided as user input (e.g., in request payloads).
-    
+
     Returns:
         The validated strict Ethereum address string.
-        
+
     Raises:
         InvalidFormatError: If the address format is invalid or contains non-hex characters.
         RangeFieldError: If the address is not exactly 42 characters long.
@@ -213,10 +213,10 @@ def _wrap_validate_tx_hash_str(
     info: ValidationInfo,
 ) -> str:
     """Wrapper for validating transaction hash strings (0x-prefixed, 66 chars, hex).
-    
+
     Returns:
         The validated transaction hash string.
-        
+
     Raises:
         InvalidFormatError: If the hash doesn't start with '0x' or contains non-hex characters.
         RangeFieldError: If the hash is not exactly 66 characters long.
@@ -271,10 +271,10 @@ def _wrap_validate_raw_int(
     This is a `mode='before'` validator.
     Ensures the raw input is strictly `int` type (no coercion from str/float).
     Complies with RULE-ARCH-MODEL-DESIGN-V2 for Raw Models (Ints/Floats: Check isinstance).
-    
+
     Returns:
         The validated integer value.
-        
+
     Raises:
         TypeFieldError: If the input is not an integer type.
         RangeFieldError: If the integer is negative when allow_negative is False.
@@ -325,10 +325,10 @@ def _wrap_validate_strict_bool(
 
     Adheres to RULE-ARCH-MODEL-DESIGN-V2 (Raw Models: Booleans: Check isinstance(v, bool).
     Reject string coercion).
-    
+
     Returns:
         The validated boolean value.
-        
+
     Raises:
         TypeFieldError: If the input is not a boolean type.
     """
@@ -362,7 +362,7 @@ def _wrap_validate_enum_str(
     allowed_values: set[str],
 ) -> str:
     """General purpose wrapper for validating enum-like string fields.
-    
+
     Returns:
         The validated enum string value.
     """
@@ -390,10 +390,10 @@ def _wrap_validate_positive_finite_decimal_str(
     info: ValidationInfo,
 ) -> str:
     """Wrapper for validating strings that must represent positive finite decimal numbers.
-    
+
     Returns:
         The validated positive finite decimal string.
-        
+
     Raises:
         DecimalFieldError: If the string cannot be parsed as a finite decimal.
         RangeFieldError: If the decimal value is not positive.
@@ -423,10 +423,10 @@ def _wrap_validate_non_negative_finite_decimal_str(
     info: ValidationInfo,
 ) -> str:
     """Wrapper for validating strings that must represent non-negative finite decimal numbers.
-    
+
     Returns:
         The validated non-negative finite decimal string.
-        
+
     Raises:
         DecimalFieldError: If the string cannot be parsed as a finite decimal.
         RangeFieldError: If the decimal value is negative.
@@ -458,10 +458,10 @@ def _wrap_validate_non_negative_finite_decimal_str(
 
 def validate_and_parse_raw_non_negative_int(raw_val: object, field_name: str) -> int:
     """Validates raw input as a non-negative int, parsing from str if necessary.
-    
+
     Returns:
         The validated non-negative integer value.
-        
+
     Raises:
         TypeFieldError: If the input cannot be converted to an integer.
         RangeFieldError: If the integer value is negative.
@@ -506,10 +506,10 @@ def validate_and_return_finite_decimal_str(
     max_len: int = 64,
 ) -> str:
     """Validates raw input as a non-empty string representing a finite decimal.
-    
+
     Returns:
         The validated finite decimal string.
-        
+
     Raises:
         DecimalFieldError: If the string cannot be parsed as a finite decimal.
     """
@@ -731,10 +731,10 @@ adhere to max_length=64.
 # Helper function for RawOptionalNonEmptyString128HL
 def _validate_optional_non_empty_str128(v: object, info: ValidationInfo) -> str | None:
     """Validates an optional non-empty string with max length 128.
-    
+
     Returns:
         The validated string or None if input is None.
-        
+
     Raises:
         TypeFieldError: If the input is not a string or None.
         InvalidFormatError: If the string is empty, whitespace-only, or has invalid UTF-8.
@@ -794,10 +794,10 @@ Used specifically where tests mandate this length (e.g., user fill cloid).
 # Define the new type
 def _str_only_validator(v: object) -> object:
     """Type-specific validator that only handles str|None, letting unions try other types.
-    
+
     Returns:
         The validated string value or the original value if not a string.
-        
+
     Raises:
         InvalidFormatError: If the string is empty, whitespace-only, or has invalid UTF-8.
         RangeFieldError: If the string exceeds 1024 characters.
@@ -849,10 +849,10 @@ Used for error messages or optional long text fields.
 # --- Validator and Type for Hyperliquid Candle 's' (status) field ---
 def _validate_hl_candle_status_string(v: object, info: ValidationInfo) -> str:
     """Validates the 's' field for Hyperliquid candles, ensuring non-empty/whitespace.
-    
+
     Returns:
         The validated candle status string.
-        
+
     Raises:
         TypeFieldError: If the input is not a string.
         InvalidFormatError: If the string is empty or whitespace-only.
@@ -912,10 +912,10 @@ def _validate_optional_cloid(v: object, info: ValidationInfo) -> str | None:
     - Must be a 128-bit hex string (32 hex chars)
     - Must start with '0x' prefix
     - Total length must be exactly 34 characters (0x + 32 hex chars)
-    
+
     Returns:
         The validated client order ID string or None if input is None.
-        
+
     Raises:
         TypeFieldError: If the input is not a string or None.
         InvalidFormatError: If the string format is invalid or contains non-hex characters.
@@ -1120,7 +1120,7 @@ KNOWN_EXCHANGE_STATUS_STRINGS = {"canceled", "modified", "success"}
 
 def _status_str_only_validator(v: object) -> object:
     """Type-specific validator that only handles str, letting unions try other types.
-    
+
     Returns:
         The validated status string value or the original value if not a string.
     """
@@ -1146,10 +1146,10 @@ RawStatusStringHL = Annotated[
 
 def _validate_timestamp_ms(value: str | float) -> int:
     """Validate if the value is an integer and a plausible millisecond timestamp.
-    
+
     Returns:
         The validated millisecond timestamp as an integer.
-        
+
     Raises:
         TypeFieldError: If the input is not an integer.
         TimestampFieldError: If the timestamp is not positive.
@@ -1183,10 +1183,10 @@ RawHlTimestampMsInt = Annotated[int, AfterValidator(_validate_timestamp_ms)]
 
 def _validate_coin_name(value: str) -> str:
     """Validate coin name from Hyperliquid, typically a non-empty uppercase string.
-    
+
     Returns:
         The validated coin name string.
-        
+
     Raises:
         InvalidFormatError: If the coin name is empty or whitespace-only.
     """

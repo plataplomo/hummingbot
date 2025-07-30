@@ -19,7 +19,7 @@ class TestUnifiedSymbolService:
     @pytest.fixture
     def mock_service(self) -> Mock:
         """Create a mock symbol service.
-        
+
         Returns:
             Mock: Mock instance of SymbolService for testing.
         """
@@ -28,7 +28,7 @@ class TestUnifiedSymbolService:
     @pytest.fixture
     def service(self, mock_service: Mock) -> UnifiedSymbolService:
         """Create a UnifiedSymbolService with mocked service.
-        
+
         Returns:
             UnifiedSymbolService: Service instance with mocked dependencies for testing.
         """
@@ -38,7 +38,7 @@ class TestUnifiedSymbolService:
     @pytest.fixture
     def sample_symbols(self) -> dict[str, Any]:
         """Create sample symbols for testing.
-        
+
         Returns:
             dict[str, Any]: Dictionary containing sample symbol objects for testing.
         """

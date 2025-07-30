@@ -57,7 +57,7 @@ class ValidationMiddleware:
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
         """Decorator to validate trades.
-        
+
         Returns:
             Decorator function that adds trade validation to async methods.
         """
@@ -91,7 +91,7 @@ class ValidationMiddleware:
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
         """Decorator to validate balances.
-        
+
         Returns:
             Decorator function that adds balance validation to async methods.
         """
@@ -125,7 +125,7 @@ class ValidationMiddleware:
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
         """Decorator to validate positions.
-        
+
         Returns:
             Decorator function that adds position validation to async methods.
         """
@@ -159,7 +159,7 @@ class ValidationMiddleware:
         self, fail_on_error: bool | None = None
     ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
         """Decorator to validate batch of trades.
-        
+
         Returns:
             Decorator function that adds batch trade validation to async methods.
         """
@@ -193,7 +193,7 @@ class ValidationMiddleware:
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> Trade | None:
         """Extract trade from function arguments.
-        
+
         Returns:
             Trade object if found in arguments, None otherwise.
         """
@@ -213,7 +213,7 @@ class ValidationMiddleware:
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> SpotBalance | None:
         """Extract balance from function arguments.
-        
+
         Returns:
             SpotBalance object if found in arguments, None otherwise.
         """
@@ -233,7 +233,7 @@ class ValidationMiddleware:
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> DerivativePosition | None:
         """Extract position from function arguments.
-        
+
         Returns:
             DerivativePosition object if found in arguments, None otherwise.
         """
@@ -251,7 +251,7 @@ class ValidationMiddleware:
 
     def _is_trade_list(self, obj: object) -> TypeGuard[list[Trade]]:
         """Type guard for list of trades.
-        
+
         Returns:
             True if obj is a non-empty list of Trade objects, False otherwise.
         """
@@ -269,7 +269,7 @@ class ValidationMiddleware:
         self, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> list[Trade] | None:
         """Extract list of trades from function arguments.
-        
+
         Returns:
             List of Trade objects if found in arguments, None otherwise.
         """
@@ -312,7 +312,7 @@ class ValidationMiddleware:
 
 def create_validation_mixin(validation_service: PortfolioValidationService) -> type[Any]:
     """Create a mixin class for adding validation capabilities.
-    
+
     Returns:
         ValidationMixin class configured with the provided validation service.
     """
@@ -339,7 +339,7 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
 
         async def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
             """Validate a trade.
-            
+
             Returns:
                 Validation result containing the validated trade and any issues found.
             """
@@ -347,7 +347,7 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
 
         async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
             """Validate a balance.
-            
+
             Returns:
                 Validation result containing the validated balance and any issues found.
             """
@@ -357,7 +357,7 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
             self, position: DerivativePosition
         ) -> ValidationResult[DerivativePosition]:
             """Validate a position.
-            
+
             Returns:
                 Validation result containing the validated position and any issues found.
             """
@@ -365,7 +365,7 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
 
         def get_validation_statistics(self) -> dict[str, Any]:
             """Get validation statistics.
-            
+
             Returns:
                 Dictionary containing validation statistics from the service.
             """
@@ -379,7 +379,7 @@ def validate_trade_input(
     validation_service: PortfolioValidationService, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for validating trade inputs.
-    
+
     Returns:
         Decorator function that validates trade inputs before method execution.
     """
@@ -391,7 +391,7 @@ def validate_balance_input(
     validation_service: PortfolioValidationService, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for validating balance inputs.
-    
+
     Returns:
         Decorator function that validates balance inputs before method execution.
     """
@@ -403,7 +403,7 @@ def validate_position_input(
     validation_service: PortfolioValidationService, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for validating position inputs.
-    
+
     Returns:
         Decorator function that validates position inputs before method execution.
     """
@@ -419,7 +419,7 @@ async def validate_data_integrity(
     positions: list[DerivativePosition] | None = None,
 ) -> dict[str, ValidationResult[Any]]:
     """Validate data integrity for multiple data types.
-    
+
     Returns:
         Dictionary mapping data type names to their validation results.
     """
@@ -465,7 +465,7 @@ def create_validation_report(
     validation_results: dict[str, ValidationResult[Any]],
 ) -> dict[str, Any]:
     """Create a comprehensive validation report.
-    
+
     Returns:
         Dictionary containing timestamp, overall validity status, data type summaries,
         and issue counts by severity.

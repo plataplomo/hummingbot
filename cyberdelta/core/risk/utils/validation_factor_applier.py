@@ -14,7 +14,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 def _create_validation_factor_list() -> list["ValidationFactor"]:
     """Create typed ValidationFactor list for dataclass fields.
-    
+
     Returns:
         Empty list to be used as default factory for ValidationFactor lists.
     """
@@ -23,7 +23,7 @@ def _create_validation_factor_list() -> list["ValidationFactor"]:
 
 def _create_str_list() -> list[str]:
     """Create typed string list for dataclass fields.
-    
+
     Returns:
         Empty list to be used as default factory for string lists.
     """
@@ -88,7 +88,7 @@ class ValidationFactor:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary.
-        
+
         Returns:
             Dictionary representation of the validation factor with all attributes
             converted to JSON-serializable types.
@@ -153,7 +153,7 @@ class ValidationFactorResult:
         self, threshold: Decimal = Decimal("0.05")
     ) -> list[ValidationFactor]:
         """Get factors with significant impact.
-        
+
         Returns:
             List of validation factors whose absolute impact exceeds the threshold.
         """
@@ -161,7 +161,7 @@ class ValidationFactorResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary.
-        
+
         Returns:
             Dictionary containing all validation result data including base factor,
             final factor, adjustments, factor breakdown, timestamps, and warnings.
@@ -355,7 +355,7 @@ class ValidationFactorApplier:
 
     def _calculate_spread_factor(self, opportunity: ArbitrageOpportunity) -> ValidationFactor:
         """Calculate spread quality factor.
-        
+
         Returns:
             ValidationFactor representing the quality of the arbitrage spread,
             with adjustments based on spread percentage thresholds.
@@ -413,7 +413,7 @@ class ValidationFactorApplier:
 
     def _calculate_exchange_factor(self, opportunity: ArbitrageOpportunity) -> ValidationFactor:
         """Calculate exchange quality factor.
-        
+
         Returns:
             ValidationFactor based on the quality scores of the exchanges involved
             in the arbitrage opportunity.
@@ -446,7 +446,7 @@ class ValidationFactorApplier:
 
     def _calculate_symbol_factor(self, opportunity: ArbitrageOpportunity) -> ValidationFactor:
         """Calculate symbol risk factor.
-        
+
         Returns:
             ValidationFactor representing the risk assessment of the trading symbol,
             with higher scores for lower-risk assets.
@@ -479,7 +479,7 @@ class ValidationFactorApplier:
         market_data: dict[str, Any] | None,
     ) -> ValidationFactor:
         """Calculate market conditions factor.
-        
+
         Returns:
             ValidationFactor adjusted for current market volatility and trends,
             with lower values during high volatility periods.
@@ -523,7 +523,7 @@ class ValidationFactorApplier:
         check_results: list[CheckResult] | None,
     ) -> ValidationFactor:
         """Calculate historical performance factor.
-        
+
         Returns:
             ValidationFactor based on the success rate of previous risk checks,
             rewarding high check pass rates.
@@ -569,7 +569,7 @@ class ValidationFactorApplier:
         market_data: dict[str, Any] | None,
     ) -> ValidationFactor:
         """Calculate liquidity factor.
-        
+
         Returns:
             ValidationFactor based on trading volume, with higher adjustments
             for more liquid markets.
@@ -609,7 +609,7 @@ class ValidationFactorApplier:
 
     def _calculate_timing_factor(self) -> ValidationFactor:
         """Calculate timing factor based on current time.
-        
+
         Returns:
             ValidationFactor adjusted for optimal trading hours, with slight
             increases during peak hours and decreases during off-peak times.
@@ -643,7 +643,7 @@ class ValidationFactorApplier:
         market_data: dict[str, Any] | None,
     ) -> ValidationFactor:
         """Calculate correlation factor.
-        
+
         Returns:
             ValidationFactor based on asset correlation with major pairs,
             favoring less correlated assets for diversification.
@@ -673,7 +673,7 @@ class ValidationFactorApplier:
 
     def _combine_factors(self, base_factor: Decimal, factors: list[ValidationFactor]) -> Decimal:
         """Combine multiple factors into final factor.
-        
+
         Returns:
             Final validation factor calculated as weighted average of all individual
             factors multiplied by the base factor.
@@ -692,7 +692,7 @@ class ValidationFactorApplier:
 
     def set_factor_weight(self, factor_type: FactorType, weight: Decimal) -> None:
         """Set weight for a specific factor type.
-        
+
         Raises:
             ValidationFactorError: If weight is not between 0 and 1.
         """
@@ -708,7 +708,7 @@ class ValidationFactorApplier:
 
     def set_exchange_score(self, exchange: str, score: Decimal) -> None:
         """Set quality score for an exchange.
-        
+
         Raises:
             ValidationFactorError: If score is not between 0 and 1.
         """
@@ -720,7 +720,7 @@ class ValidationFactorApplier:
 
     def set_symbol_risk_score(self, symbol: str, score: Decimal) -> None:
         """Set risk score for a symbol.
-        
+
         Raises:
             ValidationFactorError: If score is not between 0 and 1.
         """
@@ -732,7 +732,7 @@ class ValidationFactorApplier:
 
     def get_applier_stats(self) -> dict[str, Any]:
         """Get applier statistics.
-        
+
         Returns:
             Dictionary containing current configuration including base factor,
             bounds, weights, thresholds, and exchange/symbol counts.

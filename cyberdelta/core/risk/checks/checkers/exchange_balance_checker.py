@@ -78,7 +78,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
     @property
     def name(self) -> str:
         """Name of the checker.
-        
+
         Returns:
             The string 'exchange_balance'
         """
@@ -186,12 +186,12 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     def _estimate_required_balance(self, opportunity: ArbitrageOpportunity) -> Decimal:
         """Estimate required balance for the opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity to estimate balance for.
-            
+
         Returns:
-            Decimal: Estimated required balance including safety margin, never less than 
+            Decimal: Estimated required balance including safety margin, never less than
                 minimum USD balance.
         """
         # Try to get size from opportunity
@@ -236,12 +236,12 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
         exchange_type: str,
     ) -> CheckResult:
         """Check balance for a specific exchange.
-        
+
         Args:
             exchange: Exchange identifier to check.
             required_balance: Required balance amount.
             exchange_type: Type of exchange ("long" or "short").
-            
+
         Returns:
             CheckResult: Success if balance meets minimum threshold, failure otherwise.
         """
@@ -310,10 +310,10 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     async def _check_emergency_balances(self, exchanges: list[str]) -> CheckResult:
         """Check for emergency balance thresholds.
-        
+
         Args:
             exchanges: List of exchange identifiers to check.
-            
+
         Returns:
             CheckResult: Failure if any exchange breaches emergency threshold, success otherwise.
         """
@@ -352,10 +352,10 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     async def _get_exchange_balance(self, exchange: str) -> Decimal | None:
         """Get balance for a specific exchange.
-        
+
         Args:
             exchange: Exchange identifier.
-            
+
         Returns:
             Decimal | None: USD balance on the exchange, or None if unavailable.
         """
@@ -368,7 +368,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     async def _get_total_capital(self) -> Decimal | None:
         """Get total capital across all exchanges.
-        
+
         Returns:
             Decimal | None: Total capital amount, or None if unavailable.
         """
@@ -384,7 +384,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             min_ratio: Minimum balance ratio (0-1)
-            
+
         Raises:
             ExchangeBalanceError: If min_ratio is not between 0 and 1.
         """
@@ -405,7 +405,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             margin: Safety margin (0-1)
-            
+
         Raises:
             ExchangeBalanceError: If margin is not between 0 and 1.
         """
@@ -426,7 +426,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             min_balance: Minimum balance in USD
-            
+
         Raises:
             ExchangeBalanceError: If min_balance is negative.
         """
@@ -447,7 +447,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
         Args:
             threshold: Emergency threshold as ratio of total capital
-            
+
         Raises:
             ExchangeBalanceError: If threshold is not between 0 and 1.
         """
@@ -483,7 +483,7 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     def _create_skip_result(self) -> CheckResult:
         """Create result for skipped check.
-        
+
         Returns:
             CheckResult: Skip result with appropriate message.
         """
@@ -493,11 +493,11 @@ class ExchangeBalanceChecker(TypedBaseChecker[CheckResult]):
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
         """Create result for failed check.
-        
+
         Args:
             error: The exception that occurred.
             execution_time: Time taken for the check in milliseconds.
-            
+
         Returns:
             CheckResult: Error result with exception details.
         """

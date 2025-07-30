@@ -381,11 +381,11 @@ class BalanceDataScreener(BaseScreener):
 
     def _validate_amount_sign(self, field_name: str, amount: Decimal) -> list[str]:
         """Validate amount sign (zero/negative checks).
-        
+
         Args:
             field_name: Name of the field being validated
             amount: Amount value to validate
-            
+
         Returns:
             List of validation errors for amount sign issues
         """
@@ -406,11 +406,11 @@ class BalanceDataScreener(BaseScreener):
 
     def _validate_amount_range(self, field_name: str, amount: Decimal) -> list[str]:
         """Validate amount is within allowed range.
-        
+
         Args:
             field_name: Name of the field being validated
             amount: Amount value to validate
-            
+
         Returns:
             List of validation errors for amount range issues
         """
@@ -427,11 +427,11 @@ class BalanceDataScreener(BaseScreener):
 
     def _validate_amount_precision(self, field_name: str, amount: Decimal) -> list[str]:
         """Validate amount precision.
-        
+
         Args:
             field_name: Name of the field being validated
             amount: Amount value to validate
-            
+
         Returns:
             List of warnings for amount precision issues
         """

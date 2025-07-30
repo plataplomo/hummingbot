@@ -19,6 +19,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.exceptions.field_validation import DecimalFiniteError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
@@ -57,9 +58,7 @@ class Market(BaseModel):
 
     """
 
-    symbol: str
-    base_symbol: str
-    quote_symbol: str
+    symbol: Symbol
     market_type: str
     tick_size: Decimal = Field(gt=Decimal(0))
     step_size: Decimal = Field(gt=Decimal(0))
@@ -74,10 +73,22 @@ class Market(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_field(cls, v: Symbol) -> Symbol:
+        """Validate symbol field is Symbol domain object.
+
+        Returns:
+            Validated Symbol object.
+
+        Raises:
+            ValueError: If not a Symbol object.
+        """
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
+
     @field_validator(
-        "symbol",
-        "base_symbol",
-        "quote_symbol",
         "market_type",
         "status",
         mode="before",

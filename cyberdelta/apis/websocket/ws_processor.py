@@ -49,7 +49,9 @@ class MessageTransformer(Protocol[T_contra, U_co]):
     """Protocol for transforming validated WebSocket messages to domain models."""
 
     def transform(
-        self, validated: T_contra, context: WebSocketContextProtocol | None = None
+        self,
+        validated: T_contra,
+        context: WebSocketContextProtocol | None = None,
     ) -> U_co:
         """Transform validated WebSocket message to domain model.
 
@@ -245,7 +247,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         message_type: str,
     ) -> T | None:
         """Validate payload with Pydantic model.
-        
+
         Returns:
             Validated Pydantic model instance, or None if validation fails.
         """
@@ -283,7 +285,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         message_type: str,
     ) -> U | list[U] | None:
         """Transform validated message to domain model.
-        
+
         Returns:
             Transformed domain model(s), or None if transformation fails.
         """
@@ -326,10 +328,10 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         message_type: str,
     ) -> bool:
         """Handle domain model with message handler.
-        
+
         Returns:
             True if handling succeeded, False if it failed.
-            
+
         Raises:
             CancelledError: If the async operation is cancelled.
             KeyboardInterrupt: If interrupted by user signal.

@@ -66,7 +66,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     def _is_trade(self, obj: object) -> TypeGuard[Trade]:
         """Type guard for Trade objects.
-        
+
         Returns:
             TypeGuard[Trade]: True if obj is a Trade instance.
         """
@@ -76,7 +76,7 @@ class TestHyperliquidAllStreamModelConversions:
         self, obj: object
     ) -> TypeGuard[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]:
         """Type guard for Hyperliquid order/fill objects.
-        
+
         Returns:
             True if obj is an order or fill update.
         """
@@ -84,7 +84,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     def _extract_trades(self, items: SupportsIteration) -> list[Trade]:
         """Extract Trade objects from iterable with proper typing.
-        
+
         Returns:
             list[Trade]: List of Trade objects filtered from the input iterable.
         """
@@ -95,9 +95,9 @@ class TestHyperliquidAllStreamModelConversions:
         self, items: SupportsIteration
     ) -> list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]:
         """Extract order/fill objects from iterable with proper typing.
-        
+
         Returns:
-            list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]: List of 
+            list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent]: List of
                 order/fill objects.
         """
         result: list[HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent] = [
@@ -113,7 +113,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     async def _get_hl_test_symbol(self, api: HyperliquidAPI) -> str:
         """Get the most active test symbol (typically BTC) from Hyperliquid markets.
-        
+
         Returns:
             str: The most active trading symbol.
         """
@@ -121,7 +121,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     async def _create_l2book_handler(self, received_orderbooks: list[OrderBook]) -> MessageHandler:
         """Create handler for l2Book stream messages.
-        
+
         Returns:
             MessageHandler: Handler function for l2Book stream messages.
         """
@@ -236,7 +236,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     async def _create_hl_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
         """Create handler for Hyperliquid trades stream messages.
-        
+
         Returns:
             MessageHandler: Handler function for trades stream messages.
         """
@@ -318,7 +318,7 @@ class TestHyperliquidAllStreamModelConversions:
         key: str,
     ) -> bool:
         """Process a list of potential Hyperliquid trade objects.
-        
+
         Returns:
             bool: True if any trades were found and processed.
         """
@@ -530,7 +530,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     async def _create_user_events_handler(self, received_orders: list[Any]) -> MessageHandler:
         """Create handler for user events stream messages.
-        
+
         Returns:
             MessageHandler: Handler function for user events stream messages.
         """
@@ -605,7 +605,7 @@ class TestHyperliquidAllStreamModelConversions:
         key: str,
     ) -> bool:
         """Process a list of potential order objects.
-        
+
         Returns:
             bool: True if any orders were found and processed.
         """
@@ -707,10 +707,10 @@ class TestHyperliquidAllStreamModelConversions:
         self, order: HyperliquidRawWsOrderUpdate | HyperliquidRawWsFillEvent
     ) -> str:
         """Extract symbol from order model.
-        
+
         Returns:
             str: The symbol/coin from the order model.
-            
+
         Raises:
             AssertionError: If order model is missing coin/symbol attribute.
         """
@@ -876,7 +876,7 @@ class TestHyperliquidAllStreamModelConversions:
         self, hl_api_for_test_env: HyperliquidAPI
     ) -> tuple[str, dict[str, list[Any]]]:
         """Set up WebSocket connection and get test symbol for HL stream integration.
-        
+
         Returns:
             tuple[str, dict[str, list[Any]]]: Test symbol and stream results dictionary.
         """
@@ -902,7 +902,7 @@ class TestHyperliquidAllStreamModelConversions:
         self, stream_type: str, stream_results: dict[str, list[Any]]
     ) -> MessageHandler:
         """Create handler for specific Hyperliquid stream type.
-        
+
         Returns:
             MessageHandler: Handler function for the specified stream type.
         """
@@ -1104,7 +1104,7 @@ class TestHyperliquidAllStreamModelConversions:
         self, stream_type: str, model_data: dict[str, dict[str, Any]]
     ) -> MessageHandler:
         """Create handler that tracks Hyperliquid model data for consistency.
-        
+
         Returns:
             MessageHandler: Handler function that tracks model data for consistency checks.
         """

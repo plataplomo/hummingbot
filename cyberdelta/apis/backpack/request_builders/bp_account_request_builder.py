@@ -46,6 +46,7 @@ from cyberdelta.apis.models.service_args.internal import (
     GetMaxWithdrawalQuantityArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 
 
@@ -79,7 +80,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         operation = kwargs.get("operation")
         if not operation:
             raise NotImplementedError(
-                "Account request builder requires 'operation' parameter for generic build_request"
+                "Account request builder requires 'operation' parameter for generic build_request",
             )
 
         # Note: Account request builders require specific parameters for each operation
@@ -100,10 +101,10 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
             # Account operations require specific parameters not available in generic interface
             raise NotImplementedError(
                 f"Account operation '{operation}' requires specific parameters not available "
-                f"in generic build_request interface. Use specific builder methods directly."
+                f"in generic build_request interface. Use specific builder methods directly.",
             )
         raise NotImplementedError(
-            f"Account operation '{operation}' not supported by registry dispatch"
+            f"Account operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
@@ -117,7 +118,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         return BackpackRawGetBalancesParams()
 
     @staticmethod
-    def build_get_positions_params(symbol: str | None) -> BackpackRawGetPositionsParams:
+    def build_get_positions_params(symbol: Symbol | None) -> BackpackRawGetPositionsParams:
         """Build query parameters for fetching account positions.
 
         Args:
@@ -147,7 +148,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
 
     @staticmethod
     def build_withdraw_payload(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         network: str,
         address: str,
         amount: Decimal,
@@ -158,7 +159,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         """Build the request payload for withdrawing assets.
 
         Args:
-            asset_symbol: Asset to withdraw
+            asset_symbol: Asset Symbol object to withdraw
             network: Blockchain network
             address: Destination address
             amount: Amount to withdraw
@@ -171,14 +172,14 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         """
         logger.debug(
             "building_withdraw_payload",
-            asset=asset_symbol,
+            asset=asset_symbol.value,
             network=network,
             address=address,
             amount=str(amount),
         )
 
         request_dict: dict[str, Any] = {
-            "symbol": asset_symbol,
+            "symbol": asset_symbol.value,
             "address": address,
             "blockchain": network,
             "quantity": str(amount),
@@ -195,7 +196,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
 
     @staticmethod
     def build_internal_transfer_payload(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         from_wallet: str,
         to_wallet: str,
         amount: Decimal,
@@ -204,7 +205,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         """Build the request payload for internal transfers.
 
         Args:
-            asset_symbol: Asset to transfer
+            asset_symbol: Asset Symbol object to transfer
             from_wallet: Source wallet type
             to_wallet: Destination wallet type
             amount: Amount to transfer
@@ -235,7 +236,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
 
         logger.debug(
             "building_internal_transfer_payload",
-            asset=asset_symbol,
+            asset=asset_symbol.value,
             from_wallet=from_wallet,
             to_wallet=to_wallet,
             amount=str(amount),
@@ -243,7 +244,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         )
 
         request_dict: dict[str, Any] = {
-            "symbol": asset_symbol,
+            "symbol": asset_symbol.value,
             "fromAccount": from_wallet,
             "toAccount": to_wallet,
             "quantity": str(amount),
@@ -255,11 +256,11 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         return BackpackRawInternalTransferRequest(**request_dict)
 
     @staticmethod
-    def build_convert_dust_payload(asset_symbol: str) -> BackpackRawAccountConvertDustRequest:
+    def build_convert_dust_payload(asset_symbol: Symbol) -> BackpackRawAccountConvertDustRequest:
         """Build the request payload for converting dust to USDC.
 
         Args:
-            asset_symbol: Asset to convert
+            asset_symbol: Asset Symbol object to convert
 
         Returns:
             BackpackRawAccountConvertDustRequest: Validated request payload
@@ -269,7 +270,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         """
         logger.debug(
             "building_convert_dust_payload",
-            asset=asset_symbol,
+            asset=asset_symbol.value,
         )
 
         # Validate the asset symbol before creating the model
@@ -277,26 +278,28 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         try:
             # The Pydantic model will validate the symbol at runtime
             # mypy cannot know this validation happens, but it does
-            return BackpackRawAccountConvertDustRequest.model_validate({"symbol": asset_symbol})
+            return BackpackRawAccountConvertDustRequest.model_validate({
+                "symbol": asset_symbol.value,
+            })
         except ValidationError as e:
             raise InvalidParameterTypeError(
                 parameter_name="asset_symbol",
                 expected_type="supported asset symbol",
                 actual_type="unsupported asset symbol",
-                value=asset_symbol,
+                value=asset_symbol.value,
             ) from e
 
     @staticmethod
     def build_borrow_lend_payload(
         operation: Literal["BORROW", "REPAY", "LEND", "REDEEM"],
-        asset_symbol: str,
+        asset_symbol: Symbol,
         amount: Decimal,
     ) -> BackpackRawBorrowLendExecuteRequest:
         """Build the request payload for borrowing/lending operations.
 
         Args:
             operation: Type of operation
-            asset_symbol: Asset to operate on
+            asset_symbol: Asset Symbol object to operate on
             amount: Amount for the operation
 
         Returns:
@@ -308,7 +311,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         logger.debug(
             "building_borrow_lend_payload",
             operation=operation,
-            asset=asset_symbol,
+            asset=asset_symbol.value,
             amount=str(amount),
         )
 
@@ -325,7 +328,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
             # Use model_validate to handle runtime validation
             return BackpackRawBorrowLendExecuteRequest.model_validate({
                 "side": operation_mapping[operation],
-                "symbol": asset_symbol,
+                "symbol": asset_symbol.value,
                 "quantity": str(amount),
             })
         except ValidationError as e:
@@ -333,7 +336,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
                 parameter_name="operation_parameters",
                 expected_type="valid borrow/lend parameters",
                 actual_type="invalid parameters",
-                value=f"operation={operation}, asset={asset_symbol}, amount={amount}",
+                value=f"operation={operation}, asset={asset_symbol.value}, amount={amount}",
             ) from e
 
     @staticmethod
@@ -422,7 +425,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
             symbol=args.symbol,
         )
 
-        return BackpackRawMaxBorrowQuantityParams(symbol=args.symbol)
+        return BackpackRawMaxBorrowQuantityParams(symbol=str(args.symbol))
 
     @staticmethod
     def build_max_order_quantity_params(
@@ -446,7 +449,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         side_str = "Bid" if args.side == OrderSide.BUY else "Ask"
 
         return BackpackRawMaxOrderQuantityParams(
-            symbol=args.symbol,
+            symbol=str(args.symbol),
             side=side_str,
             price=str(args.price) if args.price is not None else None,
             reduceOnly=args.reduce_only,
@@ -472,7 +475,7 @@ class BackpackAccountRequestBuilder(AccountRequestBuilderProtocol):
         )
 
         return BackpackRawMaxWithdrawalQuantityParams(
-            symbol=args.symbol,
+            symbol=str(args.symbol),
             autoBorrow=args.auto_borrow,
             autoLendRedeem=args.auto_lend_redeem,
         )

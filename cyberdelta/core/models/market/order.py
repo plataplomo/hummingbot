@@ -33,6 +33,7 @@ from cyberdelta.core.enums import (
     TriggerType,
 )
 from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
@@ -69,7 +70,7 @@ class Order(BaseModel):
         description="ID of related order (e.g., parent, trigger target).",
     )
     exchange: str = Field(..., description="Name of the exchange.")
-    symbol: str = Field(..., description="Trading symbol.")
+    symbol: Symbol = Field(..., description="Exchange-specific trading symbol")
     side: OrderSide
     order_type: OrderType
     status: OrderStatus = Field(default=OrderStatus.NEW, description="Current status of the order.")
@@ -183,7 +184,7 @@ class Order(BaseModel):
 
         return validate_str_field(v, field_name=field_name, max_length=128)
 
-    @field_validator("symbol", "exchange", mode="before")
+    @field_validator("exchange", mode="before")
     @classmethod
     def validate_required_str_short(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields with shorter length limits.
@@ -202,6 +203,24 @@ class Order(BaseModel):
         if field_name is None:
             raise FieldNameMissingError
         return validate_str_field(v, field_name=field_name, max_length=64)
+
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol_domain(cls, v: Symbol, info: ValidationInfo) -> Symbol:
+        """Validate symbol field is Symbol domain object.
+
+        Args:
+            v: The Symbol value to validate
+
+        Returns:
+            Validated Symbol
+
+        Raises:
+            ValueError: If not an Symbol
+        """
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
 
     @field_validator("average_fill_price", mode="before")
     @classmethod
@@ -578,7 +597,7 @@ class BackpackOrderDetails(BaseModel):
 class CancelOrderResult(BaseModel):
     """Represents the result of a cancel order operation."""
 
-    symbol: str | None = Field(
+    symbol: Symbol | None = Field(
         default=None,
         description="Symbol of the order(s) targeted for cancellation.",
     )

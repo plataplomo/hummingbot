@@ -233,7 +233,9 @@ class SymbolNotFoundError(MarketDataServiceError):
         if available_symbols:
             max_displayed_symbols = 10
             displayed_symbols = available_symbols[:max_displayed_symbols]
-            message += f". Available symbols: {', '.join(displayed_symbols)}"
+            # Convert Symbol objects to strings for display
+            symbol_strings = [str(sym) for sym in displayed_symbols]
+            message += f". Available symbols: {', '.join(symbol_strings)}"
             if len(available_symbols) > max_displayed_symbols:
                 remaining_count = len(available_symbols) - max_displayed_symbols
                 message += f" (and {remaining_count} more)"

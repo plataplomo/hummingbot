@@ -31,6 +31,7 @@ from cyberdelta.apis.websocket.ws_processor import (
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.core.symbols import exchanges
 
 
 # Type alias for envelope that can be either validated model or dict
@@ -98,7 +99,10 @@ class BackpackDepthTransformer:
 
         """
         # Extract symbol from context or validated envelope
-        symbol = self._extract_symbol_from_context(validated, context)
+        symbol_str = self._extract_symbol_from_context(validated, context)
+
+        # Convert string symbol to Symbol object for the mapper
+        symbol = exchanges.backpack(symbol_str)
 
         # Use existing mapper to transform to internal model
         return self.order_book_mapper.transform_ws_depth_event_to_internal(
@@ -107,7 +111,9 @@ class BackpackDepthTransformer:
         )
 
     def _extract_symbol_from_context(
-        self, validated: BackpackRawDepthUpdateEvent, context: WebSocketContextProtocol | None
+        self,
+        validated: BackpackRawDepthUpdateEvent,
+        context: WebSocketContextProtocol | None,
     ) -> str:
         """Extract symbol from context or validated envelope.
 
@@ -152,7 +158,9 @@ class BackpackTickerTransformer:
         self.ticker_mapper = ticker_mapper
 
     def transform(
-        self, validated: BackpackRawTickerEvent, context: WebSocketContextProtocol | None = None
+        self,
+        validated: BackpackRawTickerEvent,
+        context: WebSocketContextProtocol | None = None,
     ) -> Ticker:
         """Transform validated ticker event to Ticker.
 
@@ -276,7 +284,8 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         )
 
     def _extract_topic_from_object_envelope(
-        self, envelope: BackpackRawWebSocketEnvelope
+        self,
+        envelope: BackpackRawWebSocketEnvelope,
     ) -> str | None:
         """Extract topic from object-style envelope.
 
@@ -324,7 +333,8 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
             return topic_type
 
     def _extract_routing_key_from_envelope(
-        self, envelope: BackpackRawWebSocketEnvelope
+        self,
+        envelope: BackpackRawWebSocketEnvelope,
     ) -> str | None:
         """Extract routing key from validated envelope for processor lookup.
 
@@ -344,7 +354,8 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         return None
 
     def _extract_payload_from_envelope(
-        self, envelope: BackpackRawWebSocketEnvelope
+        self,
+        envelope: BackpackRawWebSocketEnvelope,
     ) -> dict[str, Any] | list[Any]:
         """Extract the payload data from the validated envelope.
 

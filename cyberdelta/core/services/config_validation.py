@@ -152,7 +152,7 @@ class ExecutionConfigValidator(BaseService):
         self, exec_settings: ExecutionSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate retry-related settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -190,7 +190,7 @@ class ExecutionConfigValidator(BaseService):
         self, exec_settings: ExecutionSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate slippage-related settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -215,7 +215,7 @@ class ExecutionConfigValidator(BaseService):
         self, exec_settings: ExecutionSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate other execution settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -249,7 +249,7 @@ class ExecutionConfigValidator(BaseService):
         self, comp_settings: ExecutionCompensationSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate compensation-specific settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -271,7 +271,7 @@ class ExecutionConfigValidator(BaseService):
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate exchange configuration settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -312,7 +312,7 @@ class ExecutionConfigValidator(BaseService):
         self, exchange_id: str, exchange_config: ExchangeSpecificConfig
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate settings for a single exchange.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -354,7 +354,7 @@ class ExecutionConfigValidator(BaseService):
         self, exchange_id: str, exchange_config: ExchangeSpecificConfig
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate exchange-specific rate limiting configuration.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -394,7 +394,7 @@ class ExecutionConfigValidator(BaseService):
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate risk management settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -430,7 +430,7 @@ class ExecutionConfigValidator(BaseService):
         self, risk_settings: RiskSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate global risk settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -475,7 +475,7 @@ class ExecutionConfigValidator(BaseService):
         self, risk_settings: RiskSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate position sizing settings.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -516,7 +516,7 @@ class ExecutionConfigValidator(BaseService):
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate cross-dependencies between configuration sections.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -546,7 +546,7 @@ class ExecutionConfigValidator(BaseService):
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate strategy-exchange dependencies.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """
@@ -607,7 +607,7 @@ class ExecutionConfigValidator(BaseService):
         self, settings: AppSettings
     ) -> tuple[list[str], list[str], list[str]]:
         """Validate balance monitoring dependencies.
-        
+
         Returns:
             Tuple of (errors, warnings, critical_errors) lists
         """

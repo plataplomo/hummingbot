@@ -95,7 +95,7 @@ class TestWebSocketMetricsCollector:
     @pytest.fixture
     def collector(self) -> WebSocketMetricsCollector:
         """Create a test metrics collector.
-        
+
         Returns:
             WebSocketMetricsCollector instance configured for testing
         """

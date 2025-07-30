@@ -9,6 +9,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import exchanges
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 
@@ -35,7 +36,7 @@ async def test_hl_get_perp_market_data_btc_1h_success(
     start_time = end_time - 3600
 
     args = GetMarketDataArgs(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC"),
         timeframe="1h",
         start_time_ms=start_time * 1000,
         end_time_ms=end_time * 1000,
@@ -74,7 +75,7 @@ async def test_hl_get_perp_market_data_btc_1h_success(
             assert candle.close > Decimal(0)
             assert candle.volume >= Decimal(0)
 
-            assert candle.symbol == "BTC", f"Wrong symbol: {candle.symbol}"
+            assert candle.symbol.value == "BTC", f"Wrong symbol: {candle.symbol.value}"
 
 
 @pytest.mark.parametrize(
@@ -97,7 +98,7 @@ async def test_hl_get_perp_market_data_eth_1h_success(
     start_time = end_time - 3600
 
     args = GetMarketDataArgs(
-        symbol="ETH",
+        symbol=exchanges.hyperliquid("ETH"),
         timeframe="1h",
         start_time_ms=start_time * 1000,
         end_time_ms=end_time * 1000,
@@ -110,7 +111,7 @@ async def test_hl_get_perp_market_data_eth_1h_success(
     if len(candles) > 0:
         for candle in candles:
             assert isinstance(candle, Candle), "Should be Candle model"
-            assert candle.symbol == "ETH", f"Wrong symbol: {candle.symbol}"
+            assert candle.symbol.value == "ETH", f"Wrong symbol: {candle.symbol.value}"
 
             # Validate ETH price using current market data instead of hardcoded value
             # Get current market price to validate historical candle is reasonable

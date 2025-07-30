@@ -29,7 +29,7 @@ from cyberdelta.enums import OrderSide, SignalType
 @pytest.fixture
 def mock_execution_handler() -> Mock:
     """Create mock execution handler.
-    
+
     Returns:
         Mock: Mock ExecutionHandler instance for testing.
     """
@@ -42,7 +42,7 @@ def mock_execution_handler() -> Mock:
 @pytest.fixture
 def mock_risk_manager() -> Mock:
     """Create mock risk manager.
-    
+
     Returns:
         Mock: Mock RiskManager instance for testing.
     """
@@ -59,7 +59,7 @@ class FakeSignalQueue:
 
     async def add_signal(self, signal: TradeSignal) -> bool:
         """Record the signal and return success.
-        
+
         Returns:
             bool: True if signal was added successfully.
         """
@@ -74,7 +74,7 @@ class FakeSignalQueue:
 
     def get_added_signals(self) -> list[TradeSignal]:
         """Get all signals that were added.
-        
+
         Returns:
             list[TradeSignal]: Copy of all added signals.
         """
@@ -88,7 +88,7 @@ class FakeSignalQueue:
 @pytest.fixture
 def mock_signal_queue() -> Mock:
     """Create mock signal queue that tracks added signals.
-    
+
     Returns:
         Mock: Mock PrioritySignalQueue with signal tracking capabilities.
     """
@@ -130,7 +130,7 @@ def strategy_manager(
     mock_signal_queue: Mock,
 ) -> StrategyManager:
     """Create StrategyManager instance for testing.
-    
+
     Returns:
         StrategyManager: Configured StrategyManager instance with mocked dependencies.
     """
@@ -146,7 +146,7 @@ def strategy_manager(
 @pytest.fixture
 def mock_strategy() -> Mock:
     """Create mock strategy for testing.
-    
+
     Returns:
         Mock: Mock Strategy instance with pre-configured attributes and methods.
     """
@@ -167,7 +167,7 @@ def mock_strategy() -> Mock:
 @pytest.fixture
 def sample_candle() -> Candle:
     """Create sample candle for testing.
-    
+
     Returns:
         Candle: Sample Candle instance with test data for BTC-PERP.
     """
@@ -186,7 +186,7 @@ def sample_candle() -> Candle:
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
     """Create sample trade signal for testing.
-    
+
     Returns:
         TradeSignal: Sample TradeSignal instance with test data for entering a long position.
     """

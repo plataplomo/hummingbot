@@ -361,10 +361,10 @@ class TestHyperliquidWebSocketSubscriptions:
             channel: str,
         ) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
             """Create handler for specific channel.
-            
+
             Args:
                 channel: The channel name to handle messages for
-                
+
             Returns:
                 Async handler function for processing WebSocket messages
             """
@@ -547,10 +547,10 @@ class TestHyperliquidWebSocketSubscriptions:
 
         def state_handler(topic: str) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
             """Create state tracking handler.
-            
+
             Args:
                 topic: The subscription topic to track state for
-                
+
             Returns:
                 Async handler function that tracks subscription state
             """

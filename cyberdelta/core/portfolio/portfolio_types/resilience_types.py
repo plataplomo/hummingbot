@@ -54,7 +54,7 @@ class ResilienceError(BaseModel):
 
     def to_exception(self) -> Exception:
         """Convert to appropriate exception type.
-        
+
         Returns:
             Exception: ServiceTimeoutError for timeout errors, ServiceUnavailableError
                 for circuit breaker and service unavailable errors, or RuntimeError
@@ -107,7 +107,7 @@ class ResilienceResult[T](BaseModel):
         degraded: bool = False,
     ) -> ResilienceResult[T]:
         """Create a successful result.
-        
+
         Returns:
             ResilienceResult[T]: A successful result containing the provided value.
         """
@@ -126,7 +126,7 @@ class ResilienceResult[T](BaseModel):
         metrics: ResilienceMetrics,
     ) -> ResilienceResult[T]:
         """Create a failed result.
-        
+
         Returns:
             ResilienceResult[T]: A failed result containing the error information.
         """
@@ -140,10 +140,10 @@ class ResilienceResult[T](BaseModel):
 
     def unwrap(self) -> T:
         """Get the value or raise the error.
-        
+
         Returns:
             T: The successful value if the result is successful.
-        
+
         Raises:
             ResilienceResultError: If the result has no value or error.
         """
@@ -155,7 +155,7 @@ class ResilienceResult[T](BaseModel):
 
     def unwrap_or(self, default: T) -> T:
         """Get the value or return default.
-        
+
         Returns:
             T: The successful value if the result is successful, otherwise the default.
         """
@@ -165,7 +165,7 @@ class ResilienceResult[T](BaseModel):
 
     def map(self, func: Callable[[T], U]) -> ResilienceResult[U]:
         """Transform the value if successful.
-        
+
         Returns:
             ResilienceResult[U]: A new result with the transformed value if successful,
                 or a failed result if the transformation fails or the original result failed.

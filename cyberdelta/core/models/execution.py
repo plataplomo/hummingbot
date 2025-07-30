@@ -76,7 +76,7 @@ class TradeExecution(BaseModel):
     @computed_field
     def duration_seconds(self) -> float | None:
         """Calculate execution duration in seconds.
-        
+
         Returns:
             float | None: Duration in seconds if both start and end time are set, None otherwise.
         """
@@ -87,7 +87,7 @@ class TradeExecution(BaseModel):
     @computed_field
     def is_completed(self) -> bool:
         """Check if execution is in a completed state.
-        
+
         Returns:
             bool: True if status is COMPLETED, FAILED, or REJECTED.
         """
@@ -100,7 +100,7 @@ class TradeExecution(BaseModel):
     @computed_field
     def has_fills(self) -> bool:
         """Check if execution has any fills.
-        
+
         Returns:
             bool: True if either long or short fill quantity is non-zero.
         """
@@ -108,7 +108,7 @@ class TradeExecution(BaseModel):
 
     def model_dump_execution_summary(self) -> dict[str, Any]:
         """Export execution summary for logging/monitoring.
-        
+
         Returns:
             dict[str, Any]: Summary dict containing id, status, symbol, exchanges, duration,
                 pnl, error, and fill status.
@@ -131,7 +131,7 @@ class TradeExecution(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for backwards compatibility.
-        
+
         Returns:
             dict[str, Any]: Full dictionary representation including opportunity details
                 and execution state.

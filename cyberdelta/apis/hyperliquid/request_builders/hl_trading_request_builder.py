@@ -14,7 +14,6 @@ Focused on:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 from eth_typing import ChecksumAddress
 
@@ -62,11 +61,9 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -76,7 +73,8 @@ MAX_BATCH_SIZE = 100  # Conservative batch size limit
 
 
 class HyperliquidTradingRequestBuilder(
-    HyperliquidRequestBuilderBase, TradingRequestBuilderProtocol
+    HyperliquidRequestBuilderBase,
+    TradingRequestBuilderProtocol,
 ):
     """Focused request builder for Hyperliquid trading operations.
 
@@ -112,7 +110,8 @@ class HyperliquidTradingRequestBuilder(
                 and isinstance(asset_index, (int, str))
             ):
                 return self.build_place_order_payload_with_args(
-                    order_args, int(asset_index)
+                    order_args,
+                    int(asset_index),
                 ).model_dump(mode="json", by_alias=True)
         elif request_type == "cancel_order":
             cancel_args = kwargs.get("cancel_args")
@@ -123,7 +122,9 @@ class HyperliquidTradingRequestBuilder(
                 and isinstance(asset_index, (int, str))
             ):
                 return self.build_cancel_order_payload_with_args(
-                    cancel_args, int(asset_index), 0
+                    cancel_args,
+                    int(asset_index),
+                    0,
                 ).model_dump(mode="json", by_alias=True)
 
         # Default to empty request
@@ -148,7 +149,7 @@ class HyperliquidTradingRequestBuilder(
             HyperliquidRawOrderItemSpec: Validated Raw order specification
 
         Raises:
-            MissingRequiredParameterError: If required price is missing for market orders or 
+            MissingRequiredParameterError: If required price is missing for market orders or
                 stop_price for stop orders
             InvalidEnumValueError: If order_type is not a supported OrderType value
         """
@@ -360,7 +361,8 @@ class HyperliquidTradingRequestBuilder(
         )
 
         return HyperliquidRawOpenOrdersRequestPayload(
-            type="openOrders", user=args.wallet_address or ""
+            type="openOrders",
+            user=args.wallet_address or "",
         )
 
     @staticmethod
@@ -465,7 +467,7 @@ class HyperliquidTradingRequestBuilder(
             # Get TIF for this specific order if provided
             tif_str = None
             if tif_mapping:
-                tif_str = tif_mapping.get(args.symbol)
+                tif_str = tif_mapping.get(str(args.symbol))
 
             # Use the extracted helper method to build each order spec
             order_spec = self._build_order_item_spec(args, asset_index, tif_str)
@@ -557,7 +559,7 @@ class HyperliquidTradingRequestBuilder(
     # Protocol implementation methods
     @staticmethod
     def build_place_order_payload(
-        symbol: str,
+        symbol: Symbol,
         order_type: OrderType,
         order_side: OrderSide,
         quantity: Decimal,
@@ -568,7 +570,7 @@ class HyperliquidTradingRequestBuilder(
         """Build order placement payload using protocol interface.
 
         Args:
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
             order_type: Type of order (limit, market, etc.)
             order_side: Side of order (buy/sell)
             quantity: Order quantity
@@ -584,7 +586,7 @@ class HyperliquidTradingRequestBuilder(
         """
         logger.debug(
             "building_place_order_payload_protocol",
-            symbol=symbol,
+            symbol=symbol.value,
             order_type=order_type.value,
             order_side=order_side.value,
             quantity=str(quantity),
@@ -638,12 +640,15 @@ class HyperliquidTradingRequestBuilder(
         )
 
     @staticmethod
-    def build_cancel_order_payload(order_id: str, symbol: str) -> HyperliquidApiCancelOrderRequest:
+    def build_cancel_order_payload(
+        order_id: str,
+        symbol: Symbol,
+    ) -> HyperliquidApiCancelOrderRequest:
         """Build order cancellation payload using protocol interface.
 
         Args:
             order_id: The order ID to cancel
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
 
         Returns:
             Validated Pydantic model containing order cancellation payload
@@ -654,7 +659,7 @@ class HyperliquidTradingRequestBuilder(
         logger.debug(
             "building_cancel_order_payload_protocol",
             order_id=order_id,
-            symbol=symbol,
+            symbol=symbol.value,
             message="Building cancel order payload via protocol",
         )
 
@@ -675,19 +680,19 @@ class HyperliquidTradingRequestBuilder(
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> HyperliquidApiCancelOrderRequest:
         """Build cancel all orders payload using protocol interface.
 
         Args:
-            symbol: Optional symbol to cancel orders for (None for all symbols)
+            symbol: Optional Symbol object to cancel orders for (None for all symbols)
 
         Returns:
             Validated Pydantic model containing cancel all orders payload
         """
         logger.debug(
             "building_cancel_all_orders_payload_protocol",
-            symbol=symbol,
+            symbol=symbol.value if symbol else None,
             message="Building cancel all orders payload via protocol",
         )
 
@@ -698,7 +703,10 @@ class HyperliquidTradingRequestBuilder(
 
     @staticmethod
     def build_modify_order_payload(
-        order_id: str, symbol: str, quantity: Decimal | None = None, price: Decimal | None = None
+        order_id: str,
+        symbol: Symbol,
+        quantity: Decimal | None = None,
+        price: Decimal | None = None,
     ) -> HyperliquidApiPlaceOrderRequest:
         """Build order modification payload using protocol interface.
 
@@ -707,7 +715,7 @@ class HyperliquidTradingRequestBuilder(
 
         Args:
             order_id: The order ID to modify
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
             quantity: New quantity (None to keep current)
             price: New price (None to keep current)
 
@@ -717,7 +725,7 @@ class HyperliquidTradingRequestBuilder(
         logger.debug(
             "building_modify_order_payload_protocol",
             order_id=order_id,
-            symbol=symbol,
+            symbol=symbol.value,
             quantity=str(quantity) if quantity else None,
             price=str(price) if price else None,
             message="Building modify order payload via protocol",

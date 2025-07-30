@@ -39,7 +39,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock app settings for testing.
-    
+
     Returns:
         Mock: Mock AppSettings instance with configured exchange settings.
     """
@@ -58,7 +58,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create mock portfolio tracker for testing.
-    
+
     Returns:
         Mock: Mock PortfolioTracker instance for testing.
     """
@@ -68,7 +68,7 @@ def mock_portfolio_tracker() -> Mock:
 @pytest.fixture
 def mock_symbol_service() -> Mock:
     """Create mock symbol service for testing.
-    
+
     Returns:
         Mock: Mock SymbolService instance with default symbol mapping behavior.
     """
@@ -81,7 +81,7 @@ def mock_symbol_service() -> Mock:
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
     """Create mock circuit breaker system for testing.
-    
+
     Returns:
         Mock: Mock CircuitBreakerSystem instance that allows all operations by default.
     """
@@ -100,7 +100,7 @@ def execution_handler(
     mock_circuit_breaker_system: Mock,
 ) -> ExecutionHandler:
     """Create an ExecutionHandler instance for testing.
-    
+
     Returns:
         ExecutionHandler: Configured ExecutionHandler instance with mocked dependencies.
     """
@@ -115,7 +115,7 @@ def execution_handler(
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     """Create a sample ArbitrageOpportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Sample ArbitrageOpportunity instance with test data.
     """
@@ -137,7 +137,7 @@ def sample_sized_opportunity(
     sample_arbitrage_opportunity: ArbitrageOpportunity,
 ) -> SizedOpportunity:
     """Create a sample SizedOpportunity for testing.
-    
+
     Returns:
         SizedOpportunity: Sample SizedOpportunity instance with test data.
     """
@@ -155,7 +155,7 @@ def sample_sized_opportunity(
 @pytest.fixture
 def mock_exchange_api() -> Mock:
     """Create mock exchange API for testing.
-    
+
     Returns:
         Mock: Mock ExchangeAPI instance with async methods mocked.
     """

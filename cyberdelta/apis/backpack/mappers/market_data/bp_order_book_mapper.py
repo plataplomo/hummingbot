@@ -22,6 +22,7 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderBookMapperP
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -38,13 +39,13 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
 
     @staticmethod
     def transform_raw_order_book_to_internal(
-        symbol: str,
+        symbol: Symbol,
         raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
         """Transform a BackpackRawOrderBook to an Internal OrderBook model.
 
         Args:
-            symbol: Symbol for the order book
+            symbol: Symbol object for the order book
             raw_book: Validated raw order book data from Backpack
 
         Returns:
@@ -79,9 +80,12 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
+            # Symbol is already a domain object, use it directly
+            exchange_symbol = symbol
+
             # Use secure_transform for type-safe model creation
             orderbook_data: dict[str, Any] = {
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "bids": [(str(price), str(size)) for price, size in bids],
                 "asks": [(str(price), str(size)) for price, size in asks],
                 "timestamp": timestamp.isoformat(),
@@ -98,19 +102,19 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             raise OrderBookTransformationError(
                 source_type="BackpackRawOrderBook",
                 reason=str(e),
-                symbol=symbol,
+                symbol=symbol.value,  # Convert Symbol to string for error
                 original_error=e,
             ) from e
 
     @staticmethod
     def transform_ws_depth_event_to_internal(
-        symbol: str,
+        symbol: Symbol,
         raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
         """Transform a BackpackRawDepthUpdateEvent to an Internal OrderBook model.
 
         Args:
-            symbol: Symbol for the order book
+            symbol: Symbol domain object for the order book
             raw_depth: Validated raw depth update event data from Backpack WebSocket
 
         Returns:
@@ -126,10 +130,14 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             if raw_depth.bids is not None:
                 for bid_level in raw_depth.bids:
                     price = parse_decimal_value(
-                        bid_level[0], allow_none=False, field_name="bid_price"
+                        bid_level[0],
+                        allow_none=False,
+                        field_name="bid_price",
                     )
                     size = parse_decimal_value(
-                        bid_level[1], allow_none=False, field_name="bid_size"
+                        bid_level[1],
+                        allow_none=False,
+                        field_name="bid_size",
                     )
                     bids.append((price, size))
 
@@ -138,10 +146,14 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             if raw_depth.asks is not None:
                 for ask_level in raw_depth.asks:
                     price = parse_decimal_value(
-                        ask_level[0], allow_none=False, field_name="ask_price"
+                        ask_level[0],
+                        allow_none=False,
+                        field_name="ask_price",
                     )
                     size = parse_decimal_value(
-                        ask_level[1], allow_none=False, field_name="ask_size"
+                        ask_level[1],
+                        allow_none=False,
+                        field_name="ask_size",
                     )
                     asks.append((price, size))
 
@@ -155,9 +167,12 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
+            # Symbol is already a domain object, use it directly
+            exchange_symbol = symbol
+
             # Use secure_transform for type-safe model creation
             orderbook_data: dict[str, Any] = {
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "bids": [(str(price), str(size)) for price, size in bids],
                 "asks": [(str(price), str(size)) for price, size in asks],
                 "timestamp": timestamp.isoformat(),
@@ -174,14 +189,15 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             raise OrderBookTransformationError(
                 source_type="BackpackRawDepthUpdateEvent",
                 reason=str(e),
-                symbol=symbol,
+                symbol=symbol.value,  # Convert Symbol to string for error
                 original_error=e,
             ) from e
 
     # MapperProtocol methods
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely using BackpackCommonMappers.
 
@@ -193,30 +209,6 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

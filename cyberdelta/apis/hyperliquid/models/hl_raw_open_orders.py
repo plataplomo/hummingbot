@@ -302,7 +302,9 @@ class HyperliquidRawOrderSpec(BaseModel):
     @field_validator("order_type")
     @classmethod
     def _validate_order_type_non_empty(
-        cls, value: dict[str, object], info: ValidationInfo
+        cls,
+        value: dict[str, object],
+        info: ValidationInfo,
     ) -> dict[str, object]:
         if not value:
             field_name = info.field_name or "order_type"
@@ -312,7 +314,9 @@ class HyperliquidRawOrderSpec(BaseModel):
     @field_validator("trigger", mode="before")
     @classmethod
     def _validate_trigger_details_non_empty(
-        cls, value: object, info: ValidationInfo
+        cls,
+        value: object,
+        info: ValidationInfo,
     ) -> dict[str, object] | None:
         if value is None:
             return None

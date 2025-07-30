@@ -40,6 +40,9 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
 from cyberdelta.apis.hyperliquid.services.trading.hl_base_trading_service import (
     HyperliquidBaseTradingService,
 )
+from cyberdelta.apis.hyperliquid.services.trading.hl_symbol_aware_mixin import (
+    SymbolAwareMixin,
+)
 from cyberdelta.apis.hyperliquid.services.utils.order_validation import (
     map_time_in_force_to_hyperliquid,
     validate_batch_orders,
@@ -65,7 +68,7 @@ HttpClientRequesterSig = Callable[
 ]
 
 
-class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
+class HyperliquidOrderPlacementService(HyperliquidBaseTradingService, SymbolAwareMixin):
     """Focused service for Hyperliquid order placement operations.
 
     Handles validation, processing, and transformation of order placement requests
@@ -239,15 +242,21 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
         tif_mapping: dict[str, str | None] = {}
 
         for order_args in orders:
-            asset_index = await self._get_asset_index_callable(order_args.symbol)
+            # Use Symbol-aware method to get asset index
+            symbol = order_args.symbol
+            asset_index = await self.get_asset_index_for_symbol(
+                symbol,
+                self._get_asset_index_callable,
+            )
             if asset_index is None:
-                raise SymbolNotFoundError(symbol=order_args.symbol, exchange="Hyperliquid")
+                raise SymbolNotFoundError(symbol=symbol.value, exchange="Hyperliquid")
 
             orders_with_indices.append((order_args, asset_index))
 
             # Build time-in-force mapping
             if order_args.time_in_force:
-                tif_key = f"{order_args.symbol}_{order_args.time_in_force.value}"
+                # Use Symbol object for mapping key to preserve type info
+                tif_key = f"{symbol.value}_{order_args.time_in_force.value}"
                 tif_mapping[tif_key] = map_time_in_force_to_hyperliquid(order_args.time_in_force)
 
         return orders_with_indices, tif_mapping
@@ -334,7 +343,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
         Raises:
             APIError: If no status data is present in the response
         """
-        action_description = f"place order {order_args.symbol}"
+        action_description = f"place order {order_args.symbol.value}"
 
         # Extract the actual status from the nested response structure
         response_data = raw_exchange_response.response_data
@@ -398,7 +407,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
         timestamp = datetime.now(UTC)
 
         for i, (order_args, _original_index) in enumerate(orders_with_indices):
-            action_description = f"place batch order {i} ({order_args.symbol})"
+            action_description = f"place batch order {i} ({order_args.symbol.value})"
 
             processed_status = process_exchange_status(
                 response_list[i],
@@ -475,22 +484,23 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
             if self._order_book_service is None:
                 self._raise_order_book_service_missing_error()
 
+            # Get order book using Symbol
             order_book = await self._order_book_service.get_order_book(args.symbol)
 
             if order_book is None:
-                self._raise_order_book_fetch_error(args.symbol)
+                self._raise_order_book_fetch_error(args.symbol.value)
 
             # Extract aggressive price - use multiple levels if needed to ensure fill
             # WARNING: This uses up to 3 price levels to ensure IOC orders fill
             if args.side == OrderSide.BUY:
                 if not order_book.asks:
-                    self._raise_no_ask_levels_error(args.symbol)
+                    self._raise_no_ask_levels_error(args.symbol.value)
                 # Use the 3rd ask level (or best available) to ensure aggressive fill
                 ask_index = min(2, len(order_book.asks) - 1)  # Index 2 = 3rd level
                 aggressive_price = order_book.asks[ask_index][0]
             else:  # SELL
                 if not order_book.bids:
-                    self._raise_no_bid_levels_error(args.symbol)
+                    self._raise_no_bid_levels_error(args.symbol.value)
                 # Use the 3rd bid level (or best available) to ensure aggressive fill
                 bid_index = min(2, len(order_book.bids) - 1)  # Index 2 = 3rd level
                 aggressive_price = order_book.bids[bid_index][0]
@@ -511,7 +521,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
             logger.info(
                 "market_order_converted_to_ioc_limit",
                 method=current_method,
-                symbol=args.symbol,
+                symbol=args.symbol.value,  # Use domain object's value for logging
                 side=args.side.value,
                 quantity=str(args.quantity),
                 aggressive_price=str(aggressive_price),
@@ -527,7 +537,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService):
             api_error = self._handle_service_error(
                 error,
                 current_method,
-                f"thin market order for {args.symbol}",
+                f"thin market order for {args.symbol.value}",
             )
             raise api_error from error
 

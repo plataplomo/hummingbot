@@ -58,7 +58,7 @@ def create_mock_opportunity(
     timestamp: datetime | None = None,
 ) -> ArbitrageOpportunity:
     """Create mock opportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Mock arbitrage opportunity with specified parameters.
     """
@@ -90,7 +90,7 @@ def create_mock_signal(
     expiration: datetime | None = None,
 ) -> TradeSignal:
     """Create mock signal for testing.
-    
+
     Returns:
         TradeSignal: Mock trade signal with specified parameters.
     """
@@ -111,7 +111,7 @@ def create_mock_signal(
 @pytest.fixture
 def strategy() -> FundingRateArbitrageStrategy:
     """Create a FundingRateArbitrageStrategy instance for testing.
-    
+
     Returns:
         FundingRateArbitrageStrategy: Configured strategy instance with mock dependencies.
     """
@@ -138,7 +138,7 @@ def strategy() -> FundingRateArbitrageStrategy:
 
 def fake_get_position(ex: str, sym: str) -> PositionType:
     """Return fake position data based on exchange and symbol combination.
-    
+
     Returns:
         PositionType: Mock derivative position for the given exchange/symbol, or None if not found.
     """
@@ -171,7 +171,7 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
 
 def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
     """Return fake ticker data for testing different exchange and symbol combinations.
-    
+
     Returns:
         Ticker | None: Mock ticker data for the given exchange/symbol, or None if not found.
     """
@@ -201,7 +201,7 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
 
 def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | None:
     """Return fake funding rate data for testing different exchange and symbol combinations.
-    
+
     Returns:
         FundingRate | None: Mock funding rate data for the given exchange/symbol,
             or None if not found.
@@ -473,7 +473,7 @@ class CandleKwargs(TypedDict, total=False):
 
 def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
     """Create mock candle for testing.
-    
+
     Returns:
         Candle: Mock candle with specified or default parameters.
     """
@@ -513,7 +513,7 @@ class TickerKwargs(TypedDict, total=False):
 
 def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
     """Create mock ticker for testing.
-    
+
     Returns:
         Ticker: Mock ticker with specified or default parameters.
     """
@@ -556,10 +556,10 @@ class FundingRateKwargs(TypedDict, total=False):
 
 def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate:
     """Create mock funding rate for testing.
-    
+
     Returns:
         FundingRate: Mock funding rate with specified or default parameters.
-        
+
     Raises:
         ValueError: If required fields (symbol or timestamp) are missing or invalid.
     """

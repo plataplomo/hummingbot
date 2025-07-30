@@ -12,7 +12,7 @@ from cyberdelta.core.portfolio.events.base.base_event import (
     BasePortfolioEvent,
     EventMetadata,
     EventMetadataKwargsWithoutExchange,
-    EventMetadataKwargsWithoutExchangeSymbol,
+    EventMetadataKwargsWithoutSymbol,
     EventType,
 )
 from cyberdelta.core.portfolio.exceptions import (
@@ -48,10 +48,10 @@ class PositionData:
     @classmethod
     def validate_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty.
-        
+
         Returns:
             str: The validated and trimmed string value.
-            
+
         Raises:
             EmptyPositionFieldError: If the field is empty or contains only whitespace.
         """
@@ -63,10 +63,10 @@ class PositionData:
     @classmethod
     def validate_side(cls, v: str) -> str:
         """Validate position side is LONG or SHORT.
-        
+
         Returns:
             str: The validated side in uppercase (LONG or SHORT).
-            
+
         Raises:
             InvalidPositionSideError: If the side is not LONG or SHORT.
         """
@@ -78,10 +78,10 @@ class PositionData:
     @classmethod
     def validate_prices(cls, v: Decimal) -> Decimal:
         """Validate prices are finite and positive.
-        
+
         Returns:
             Decimal: The validated price.
-            
+
         Raises:
             NonFinitePriceError: If the price is not finite (inf/nan).
             NonPositivePriceError: If the price is zero or negative.
@@ -96,10 +96,10 @@ class PositionData:
     @classmethod
     def validate_decimals(cls, v: Decimal) -> Decimal:
         """Validate decimal values are finite.
-        
+
         Returns:
             Decimal: The validated decimal value.
-            
+
         Raises:
             NonFiniteFinancialValueError: If the value is not finite (inf/nan).
         """
@@ -111,10 +111,10 @@ class PositionData:
     @classmethod
     def validate_margin_used(cls, v: Decimal | None) -> Decimal | None:
         """Validate margin used is finite and non-negative if provided.
-        
+
         Returns:
             Decimal | None: The validated margin value or None.
-            
+
         Raises:
             NonFiniteMarginError: If the margin is not finite (inf/nan).
             NegativeMarginError: If the margin is negative.
@@ -130,10 +130,10 @@ class PositionData:
     @classmethod
     def validate_leverage(cls, v: Decimal | None) -> Decimal | None:
         """Validate leverage is finite and positive if provided.
-        
+
         Returns:
             Decimal | None: The validated leverage value or None.
-            
+
         Raises:
             NonFiniteLeverageError: If the leverage is not finite (inf/nan).
             NonPositiveLeverageError: If the leverage is zero or negative.
@@ -163,7 +163,7 @@ class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
             position: The opened position data
             opening_trade_id: ID of trade that opened position
             **kwargs: Additional metadata fields
-            
+
         Returns:
             PositionOpenedEvent: The created position opened event.
         """
@@ -193,7 +193,7 @@ class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize position data.
-        
+
         Returns:
             dict[str, Any]: Serialized position data with all fields as strings.
         """
@@ -233,7 +233,7 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
             previous_size: Previous position size
             size_change: Change in position size
             **kwargs: Additional metadata fields
-            
+
         Returns:
             PositionUpdatedEvent: The created position updated event.
         """
@@ -266,7 +266,7 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize position data.
-        
+
         Returns:
             dict[str, Any]: Serialized position data with all fields as strings.
         """
@@ -306,7 +306,7 @@ class PositionClosedEvent(BasePortfolioEvent[PositionData]):
             close_reason: Reason for closure (e.g., "manual", "stop_loss", "liquidation")
             final_pnl: Final realized P&L
             **kwargs: Additional metadata fields
-            
+
         Returns:
             PositionClosedEvent: The created position closed event.
         """
@@ -340,7 +340,7 @@ class PositionClosedEvent(BasePortfolioEvent[PositionData]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize position data.
-        
+
         Returns:
             dict[str, Any]: Serialized position data with all fields as strings.
         """
@@ -383,7 +383,7 @@ class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
         error_type: str,
         error_message: str,
         error_data: dict[str, Any] | None = None,
-        **kwargs: Unpack[EventMetadataKwargsWithoutExchangeSymbol],
+        **kwargs: Unpack[EventMetadataKwargsWithoutSymbol],
     ) -> PositionErrorEvent:
         """Create a position error event with proper initialization.
 
@@ -395,7 +395,7 @@ class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
             error_message: Error message
             error_data: Additional error data
             **kwargs: Additional metadata fields
-            
+
         Returns:
             PositionErrorEvent: The created position error event.
         """
@@ -432,7 +432,7 @@ class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize error data.
-        
+
         Returns:
             dict[str, Any]: Serialized error data including all error details.
         """

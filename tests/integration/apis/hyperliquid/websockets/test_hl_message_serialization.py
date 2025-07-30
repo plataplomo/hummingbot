@@ -97,7 +97,7 @@ class TestHyperliquidMessageSerializationIntegration:
 
         Returns:
             str: The symbol of the most active trading pair.
-            
+
         Raises:
             ConnectionError: If network connectivity issues occur.
         """
@@ -226,7 +226,7 @@ class TestHyperliquidMessageSerializationIntegration:
         self, received_messages: list[dict[str, Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create message handler for L2Book serialization testing.
-        
+
         Returns:
             Callable: Async message handler function for L2Book processing.
         """
@@ -377,7 +377,7 @@ class TestHyperliquidMessageSerializationIntegration:
         self, received_messages: list[dict[str, Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create message handler for allMids serialization testing.
-        
+
         Returns:
             Callable: Async message handler function for allMids processing.
         """
@@ -511,7 +511,7 @@ class TestHyperliquidMessageSerializationIntegration:
         self, received_envelopes: list[dict[str, Any]]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create message handler for envelope integrity testing.
-        
+
         Returns:
             Callable: Async message handler function for envelope validation.
         """
@@ -753,7 +753,7 @@ class TestHyperliquidMessageSerializationIntegration:
         self, received_messages: list[dict[str, Any]], precision_tests_passed: list[int]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create message handler for precision testing.
-        
+
         Returns:
             Callable: Async message handler function for precision testing.
         """

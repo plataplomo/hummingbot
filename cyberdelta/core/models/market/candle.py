@@ -26,6 +26,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
     DecimalFiniteError,
@@ -60,7 +61,7 @@ class Candle(BaseModel):
 
     """
 
-    symbol: str
+    symbol: Symbol
     interval: str
     open_time: datetime
     # Prices must be strictly positive
@@ -75,19 +76,24 @@ class Candle(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_symbol(cls, v: object) -> str:
-        """Validate the 'symbol' field.
-        
+    def validate_symbol(cls, v: Symbol) -> Symbol:
+        """Validate the 'symbol' field is a Symbol domain object.
+
         Returns:
-            str: The validated symbol string.
+            Symbol: The validated Symbol object.
+
+        Raises:
+            ValueError: If not a Symbol object.
         """
-        return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
 
     @field_validator("interval", mode="before")
     @classmethod
     def validate_interval(cls, v: object) -> str:
         """Validate the 'interval' field.
-        
+
         Returns:
             str: The validated interval string.
         """
@@ -98,10 +104,10 @@ class Candle(BaseModel):
     @classmethod
     def validate_open_time(cls, v: datetime | float | str | None) -> datetime:
         """Validate and parse the 'open_time' field to a required UTC datetime object.
-        
+
         Returns:
             datetime: The parsed UTC datetime object.
-            
+
         Raises:
             DateTimeFieldError: If open_time is missing or invalid.
         """
@@ -162,10 +168,10 @@ class Candle(BaseModel):
     @model_validator(mode="after")
     def check_ohlc_consistency(self) -> Self:
         """Validate the logical consistency of OHLC prices (high >= low, etc.).
-        
+
         Returns:
             Self: The validated Candle instance.
-            
+
         Raises:
             OHLCConsistencyError: If OHLC prices are logically inconsistent.
         """

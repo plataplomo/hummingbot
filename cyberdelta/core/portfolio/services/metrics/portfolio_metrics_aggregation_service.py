@@ -46,7 +46,7 @@ logger = get_logger(__name__)
 # Type-preserving factory functions for dataclass fields
 def _str_any_dict_factory() -> dict[str, Any]:
     """Factory function that preserves dict[str, Any] type information.
-    
+
     Returns:
         Empty dictionary with dict[str, Any] type.
     """
@@ -55,7 +55,7 @@ def _str_any_dict_factory() -> dict[str, Any]:
 
 def _str_decimal_dict_factory() -> dict[str, Decimal]:
     """Factory function that preserves dict[str, Decimal] type information.
-    
+
     Returns:
         Empty dictionary with dict[str, Decimal] type.
     """
@@ -64,7 +64,7 @@ def _str_decimal_dict_factory() -> dict[str, Decimal]:
 
 def _nested_decimal_dict_factory() -> dict[str, dict[str, Decimal]]:
     """Factory function that preserves dict[str, dict[str, Decimal]] type information.
-    
+
     Returns:
         Empty dictionary with dict[str, dict[str, Decimal]] type.
     """
@@ -73,7 +73,7 @@ def _nested_decimal_dict_factory() -> dict[str, dict[str, Decimal]]:
 
 def _metric_snapshot_list_factory() -> list[Any]:
     """Factory function that preserves list[MetricSnapshot] type information.
-    
+
     Returns:
         Empty list with list[MetricSnapshot] type.
     """
@@ -82,7 +82,7 @@ def _metric_snapshot_list_factory() -> list[Any]:
 
 def _str_float_dict_factory() -> dict[str, float]:
     """Factory function that preserves dict[str, float] type information.
-    
+
     Returns:
         Empty dictionary with dict[str, float] type.
     """
@@ -91,7 +91,7 @@ def _str_float_dict_factory() -> dict[str, float]:
 
 def _str_metrics_trend_dict_factory() -> dict[str, Any]:
     """Factory function that preserves dict[str, MetricsTrend] type information.
-    
+
     Returns:
         Empty dictionary with dict[str, MetricsTrend] type.
     """
@@ -100,7 +100,7 @@ def _str_metrics_trend_dict_factory() -> dict[str, Any]:
 
 def _dict_any_list_factory() -> list[dict[str, Any]]:
     """Factory function that preserves list[dict[str, Any]] type information.
-    
+
     Returns:
         Empty list with list[dict[str, Any]] type.
     """
@@ -109,7 +109,7 @@ def _dict_any_list_factory() -> list[dict[str, Any]]:
 
 def _aggregated_metrics_list_factory() -> list[Any]:
     """Factory function that preserves list[AggregatedMetrics] type information.
-    
+
     Returns:
         Empty list with list[AggregatedMetrics] type.
     """
@@ -232,7 +232,7 @@ class MetricSeries:
 
     def add_snapshot(self, snapshot: MetricSnapshot) -> None:
         """Add a snapshot to the series.
-        
+
         Args:
             snapshot: The metric snapshot to add.
         """
@@ -450,7 +450,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _initialize_internal(self) -> None:
         """Initialize the metrics aggregation service.
-        
+
         Creates metric series for each type and period combination,
         initializes current snapshots and aggregated metrics,
         and starts background calculation tasks.
@@ -482,7 +482,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _shutdown_internal(self) -> None:
         """Shutdown the metrics aggregation service.
-        
+
         Cancels background calculation and cleanup tasks gracefully.
         """
         # Cancel background tasks
@@ -507,7 +507,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         portfolio_state_manager: PortfolioStateManager | None = None,
     ) -> None:
         """Set service dependencies.
-        
+
         Args:
             pnl_calculator: Calculator for realized P&L metrics.
             exposure_calculator: Calculator for portfolio exposure metrics.
@@ -525,14 +525,14 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, period: AggregationPeriod = AggregationPeriod.REALTIME, base_currency: str = "USD"
     ) -> AggregatedMetrics:
         """Calculate comprehensive aggregated metrics.
-        
+
         Args:
             period: The aggregation period for metrics.
             base_currency: The base currency for value calculations.
-            
+
         Returns:
             Aggregated portfolio metrics for the specified period.
-            
+
         Raises:
             ValueError: If calculation parameters are invalid.
             TypeError: If data types are incorrect.
@@ -627,15 +627,15 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         base_currency: str = "USD",
     ) -> MetricsReport:
         """Generate comprehensive metrics report.
-        
+
         Args:
             period: The aggregation period for the report.
             lookback_days: Number of days to include in historical analysis.
             base_currency: The base currency for value calculations.
-            
+
         Returns:
             Comprehensive metrics report with historical data and analysis.
-            
+
         Raises:
             ValueError: If report parameters are invalid.
             TypeError: If data types are incorrect.
@@ -718,16 +718,16 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         end_time: float | None = None,
     ) -> MetricSeries:
         """Get metric series for specific type and period.
-        
+
         Args:
             metric_type: The type of metric to retrieve.
             period: The aggregation period for the series.
             start_time: Optional start time filter (Unix timestamp).
             end_time: Optional end time filter (Unix timestamp).
-            
+
         Returns:
             Time series of metric snapshots, optionally filtered by time range.
-            
+
         Raises:
             ValueError: If the requested metric type and period combination doesn't exist.
         """
@@ -763,10 +763,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def get_current_metrics(self, base_currency: str = "USD") -> AggregatedMetrics:
         """Get current real-time metrics.
-        
+
         Args:
             base_currency: The base currency for value calculations.
-            
+
         Returns:
             Current aggregated portfolio metrics in real-time.
         """
@@ -774,7 +774,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def get_metrics_statistics(self) -> dict[str, Any]:
         """Get service statistics.
-        
+
         Returns:
             Dictionary containing service statistics including:
             - metric_series_count: Number of metric series being tracked
@@ -800,7 +800,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _run_calculation_loop(self) -> None:
         """Background task for periodic metric calculations.
-        
+
         Runs continuously until cancelled, calculating metrics for all
         configured aggregation periods at the specified interval.
         """
@@ -823,7 +823,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _run_cleanup_loop(self) -> None:
         """Background task for cleaning up old data.
-        
+
         Runs hourly to remove metric snapshots older than the
         configured retention period.
         """
@@ -840,7 +840,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _cleanup_old_data(self) -> None:
         """Clean up old metric data.
-        
+
         Removes snapshots older than the retention period and
         maintains calculation time history within limits.
         """
@@ -882,10 +882,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     def _validate_positions_data(self, positions: list[Any]) -> None:
         """Validate that positions data is sufficient for calculations.
-        
+
         Args:
             positions: List of positions to validate.
-            
+
         Raises:
             NoPositionsDataError: If positions list is empty.
         """
@@ -894,7 +894,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     def _validate_balance_manager_available(self) -> None:
         """Validate that balance manager is available.
-        
+
         Raises:
             PortfolioStateManagerUnavailableError: If portfolio state manager is not available.
         """
@@ -903,11 +903,11 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _calculate_pnl_metrics(self, metrics: AggregatedMetrics, base_currency: str) -> None:
         """Calculate P&L metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
-            
+
         Raises:
             PortfolioStateManagerUnavailableError: If portfolio state manager is not available.
             ServiceUnavailableError: If required service is unavailable.
@@ -953,11 +953,11 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, metrics: AggregatedMetrics, base_currency: str
     ) -> None:
         """Calculate exposure metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
-            
+
         Raises:
             PortfolioStateManagerUnavailableError: If required service is not available.
             ServiceUnavailableError: If required service is unavailable.
@@ -1031,7 +1031,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, metrics: AggregatedMetrics, base_currency: str
     ) -> None:
         """Calculate performance metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
@@ -1068,7 +1068,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _calculate_risk_metrics(self, metrics: AggregatedMetrics, base_currency: str) -> None:
         """Calculate risk metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
@@ -1084,11 +1084,11 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, metrics: AggregatedMetrics, base_currency: str
     ) -> None:
         """Calculate volume metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
-            
+
         Raises:
             PortfolioStateManagerUnavailableError: If portfolio state manager is not available.
             ServiceUnavailableError: If required service is unavailable.
@@ -1122,11 +1122,11 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, metrics: AggregatedMetrics, base_currency: str
     ) -> None:
         """Calculate allocation metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
-            
+
         Raises:
             PortfolioStateManagerUnavailableError: If portfolio state manager is not available.
             ServiceUnavailableError: If required service is unavailable.
@@ -1164,10 +1164,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, positions: list[DerivativePosition]
     ) -> dict[str, Decimal]:
         """Calculate allocation by exchange.
-        
+
         Args:
             positions: List of derivative positions.
-            
+
         Returns:
             Dictionary mapping exchange IDs to allocation values.
         """
@@ -1187,10 +1187,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, positions: list[DerivativePosition]
     ) -> dict[str, Decimal]:
         """Calculate allocation by symbol.
-        
+
         Args:
             positions: List of derivative positions.
-            
+
         Returns:
             Dictionary mapping symbols to allocation values.
         """
@@ -1208,7 +1208,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _calculate_currency_allocation(self) -> dict[str, Decimal]:
         """Calculate allocation by currency.
-        
+
         Returns:
             Dictionary mapping currency codes to allocation values.
         """
@@ -1242,7 +1242,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         total_account_value: Decimal,
     ) -> None:
         """Convert allocation values to percentages.
-        
+
         Args:
             exchange_allocation: Dictionary of exchange allocations to convert.
             symbol_allocation: Dictionary of symbol allocations to convert.
@@ -1261,7 +1261,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, metrics: AggregatedMetrics, base_currency: str
     ) -> None:
         """Calculate correlation metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
@@ -1274,7 +1274,7 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, metrics: AggregatedMetrics, base_currency: str
     ) -> None:
         """Calculate liquidity metrics.
-        
+
         Args:
             metrics: The aggregated metrics object to update.
             base_currency: The base currency for calculations.
@@ -1288,13 +1288,13 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, period: AggregationPeriod, start_time: float, end_time: float, base_currency: str
     ) -> list[AggregatedMetrics]:
         """Get historical aggregated metrics.
-        
+
         Args:
             period: The aggregation period to retrieve.
             start_time: Start time for historical data (Unix timestamp).
             end_time: End time for historical data (Unix timestamp).
             base_currency: The base currency for values.
-            
+
         Returns:
             List of historical aggregated metrics within the time range.
         """
@@ -1305,10 +1305,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, historical_metrics: list[AggregatedMetrics]
     ) -> dict[str, MetricsTrend]:
         """Calculate trend analysis.
-        
+
         Args:
             historical_metrics: List of historical metrics for analysis.
-            
+
         Returns:
             Dictionary mapping metric names to their trend analysis.
         """
@@ -1319,10 +1319,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, historical_metrics: list[AggregatedMetrics]
     ) -> dict[str, dict[str, Decimal]]:
         """Calculate performance attribution by exchange.
-        
+
         Args:
             historical_metrics: List of historical metrics for attribution.
-            
+
         Returns:
             Nested dictionary of exchange performance attribution.
         """
@@ -1333,10 +1333,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, historical_metrics: list[AggregatedMetrics]
     ) -> dict[str, dict[str, Decimal]]:
         """Calculate performance attribution by symbol.
-        
+
         Args:
             historical_metrics: List of historical metrics for attribution.
-            
+
         Returns:
             Nested dictionary of symbol performance attribution.
         """
@@ -1347,10 +1347,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, historical_metrics: list[AggregatedMetrics]
     ) -> dict[str, Any]:
         """Calculate comprehensive risk analysis.
-        
+
         Args:
             historical_metrics: List of historical metrics for risk analysis.
-            
+
         Returns:
             Dictionary containing various risk metrics and analysis.
         """
@@ -1361,10 +1361,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, current_metrics: AggregatedMetrics
     ) -> list[dict[str, Any]]:
         """Generate risk alerts based on current metrics.
-        
+
         Args:
             current_metrics: Current aggregated metrics to analyze.
-            
+
         Returns:
             List of risk alert dictionaries.
         """
@@ -1375,10 +1375,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, historical_metrics: list[AggregatedMetrics]
     ) -> dict[str, Any]:
         """Calculate data quality metrics.
-        
+
         Args:
             historical_metrics: List of historical metrics to assess.
-            
+
         Returns:
             Dictionary containing data quality scores.
         """
@@ -1387,10 +1387,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _get_all_positions(self) -> list[DerivativePosition]:
         """Get all positions from portfolio state manager.
-        
+
         Returns:
             List of all non-zero derivative positions across all exchanges.
-            
+
         Raises:
             PortfolioStateManagerUnavailableError: If portfolio state manager is not available.
             InsufficientCalculationDataError: If data retrieval fails.
@@ -1420,13 +1420,13 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _calculate_total_account_value(self, base_currency: str) -> Decimal:
         """Calculate total account value across all exchanges.
-        
+
         Args:
             base_currency: The base currency for value calculation.
-            
+
         Returns:
             Total account value in the specified base currency.
-            
+
         Raises:
             PortfolioStateManagerUnavailableError: If portfolio state manager is not available.
             InsufficientCalculationDataError: If calculation fails.
@@ -1465,10 +1465,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
         self, historical_metrics: list[AggregatedMetrics]
     ) -> dict[str, float]:
         """Calculate coverage metrics.
-        
+
         Args:
             historical_metrics: List of historical metrics to analyze.
-            
+
         Returns:
             Dictionary containing coverage percentages for different dimensions.
         """
@@ -1477,10 +1477,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     async def _generate_summary(self, report: MetricsReport) -> dict[str, Any]:
         """Generate report summary.
-        
+
         Args:
             report: The metrics report to summarize.
-            
+
         Returns:
             Dictionary containing key summary statistics from the report.
         """
@@ -1496,10 +1496,10 @@ class PortfolioMetricsAggregationService(BasePortfolioService):
 
     def _metrics_to_dict(self, metrics: AggregatedMetrics) -> dict[str, Any]:
         """Convert aggregated metrics to dictionary.
-        
+
         Args:
             metrics: The aggregated metrics to convert.
-            
+
         Returns:
             Dictionary representation of the metrics with numeric values as floats.
         """

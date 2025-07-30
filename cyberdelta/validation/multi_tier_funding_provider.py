@@ -33,10 +33,10 @@ logger = get_logger(__name__)
 
 def _is_config_dict(value: object) -> TypeGuard[dict[str, Any]]:
     """Senior-level TypeGuard for configuration dictionary validation.
-    
+
     Args:
         value: The value to check.
-        
+
     Returns:
         TypeGuard indicating if value is a dict[str, Any].
     """
@@ -45,10 +45,10 @@ def _is_config_dict(value: object) -> TypeGuard[dict[str, Any]]:
 
 def _safe_repr(value: object) -> str:
     """Senior-level safe representation function for logging unknown types.
-    
+
     Args:
         value: The value to convert to string representation.
-        
+
     Returns:
         Safe string representation of the value.
     """
@@ -649,7 +649,7 @@ class MultiTierFundingProvider:
 
         Returns:
             IntegratedFundingData object
-            
+
         Raises:
             NoValidWeightedDataError: If no valid weighted data is available
 
@@ -881,12 +881,12 @@ class MultiTierFundingProvider:
         default: float,
     ) -> float:
         """Safely get and validate a float config value.
-        
+
         Args:
             config_dict: Configuration dictionary.
             key: Key to look up in the config.
             default: Default value if key not found or invalid.
-            
+
         Returns:
             The float value from config or default.
         """
@@ -918,12 +918,12 @@ class MultiTierFundingProvider:
 
     def _validate_int_config(self, config_dict: dict[str, Any], key: str, default: int) -> int:
         """Safely get and validate an integer config value.
-        
+
         Args:
             config_dict: Configuration dictionary.
             key: Key to look up in the config.
             default: Default value if key not found or invalid.
-            
+
         Returns:
             The integer value from config or default.
         """

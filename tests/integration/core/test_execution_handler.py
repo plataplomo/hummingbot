@@ -896,7 +896,7 @@ class TestExecutionHandler:
 
         Returns:
             Order: Configured order object based on exchange and side parameters.
-            
+
         Raises:
             ValueError: If unexpected exchange/side combination is provided.
         """

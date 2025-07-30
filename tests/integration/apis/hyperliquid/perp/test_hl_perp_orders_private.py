@@ -36,6 +36,7 @@ from cyberdelta.core.enums import (
     OrderStatus,
 )
 from cyberdelta.core.models.market.order import CancelOrderResult, Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -304,7 +305,7 @@ class TestHyperliquidPerpOrdersPrivate:
 
         # Create order with non-existent asset but using realistic price/quantity values
         invalid_asset_args = PlaceOrderArgs(
-            symbol="INVALID_ASSET_XYZ",  # Non-existent asset
+            symbol=exchanges.hyperliquid("INVALID_ASSET_XYZ"),  # Non-existent asset
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=test_quantity,  # Use realistic quantity
@@ -810,7 +811,9 @@ class TestHyperliquidPerpOrdersPrivate:
 
         if order_placed:
             # Execute cancel_all_orders for a different symbol
-            cancel_results = await hl_api_for_test_env.cancel_all_orders(symbol="NONEXISTENT")
+            cancel_results = await hl_api_for_test_env.cancel_all_orders(
+                symbol=exchanges.hyperliquid("NONEXISTENT")
+            )
 
             # Should return empty list since no orders match the filter
             assert isinstance(cancel_results, list), (

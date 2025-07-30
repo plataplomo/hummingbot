@@ -3,6 +3,7 @@
 Focuses on validation, parsing, immutability, and the Core+Details pattern.
 """
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -16,6 +17,7 @@ from cyberdelta.core.models.spot_balance import (
     HyperliquidSpotBalanceDetails,
     SpotBalance,
 )
+from cyberdelta.core.symbols.models import ExchangeSymbol
 from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 
 
@@ -42,15 +44,18 @@ def valid_bp_spot_details_data() -> dict[str, Any]:
 
 
 @pytest.fixture
-def base_spot_balance_data() -> dict[str, Any]:
+def base_spot_balance_data(backpack_symbol: Callable[[str], ExchangeSymbol]) -> dict[str, Any]:
     """Provide a dictionary with valid core data for SpotBalance creation.
+
+    Args:
+        backpack_symbol: Factory fixture for creating Backpack symbols
 
     Returns:
         Dictionary containing valid SpotBalance core data.
     """
     return {
         "exchange": "backpack",
-        "asset": "SOL",
+        "asset": backpack_symbol("SOL"),
         "timestamp": datetime.now(UTC),
         "total_quantity": Decimal("10.5"),
         "available_quantity": Decimal("7.0"),  # total - open_order - lend
@@ -64,7 +69,7 @@ def test_spot_balance_creation_required_only(base_spot_balance_data: dict[str, A
     """Test successful creation with only required core fields."""
     balance = SpotBalance(**base_spot_balance_data)
     assert balance.exchange == "backpack"
-    assert balance.asset == "SOL"
+    assert balance.asset.value == "SOL"
     assert isinstance(balance.timestamp, datetime)
     assert balance.total_quantity == Decimal("10.5")
     assert balance.available_quantity == Decimal("7.0")
@@ -215,7 +220,9 @@ def test_spot_balance_extra_fields(base_spot_balance_data: dict[str, Any]) -> No
 # --- SpotBalance Immutability Test ---
 
 
-def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> None:
+def test_spot_balance_immutability(
+    base_spot_balance_data: dict[str, Any], backpack_symbol: Callable[[str], ExchangeSymbol]
+) -> None:
     """Test that the core SpotBalance model is immutable (frozen=True)."""
     balance = SpotBalance(**base_spot_balance_data)
     original_total = balance.total_quantity
@@ -229,7 +236,7 @@ def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> No
     logger = get_logger(__name__)
     original_asset = balance.asset
     try:
-        balance.asset = "NEWASSET"
+        balance.asset = backpack_symbol("NEWASSET")
         if balance.asset != original_asset:
             logger.warning(
                 "immutability_test_warning",
@@ -244,7 +251,7 @@ def test_spot_balance_immutability(base_spot_balance_data: dict[str, Any]) -> No
     except (ValueError, TypeError, AttributeError) as e:
         pytest.fail(f"object.__setattr__ raised unexpected exception on frozen model: {e}")
     # Verify original value or log warning if changed
-    assert isinstance(balance.asset, str)
+    assert balance.asset == original_asset
 
 
 # --- BackpackSpotBalanceDetails Tests ---

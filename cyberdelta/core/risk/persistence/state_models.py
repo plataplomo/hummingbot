@@ -11,7 +11,7 @@ from cyberdelta.core.risk.orchestrator.risk_manager_orchestrator import Processi
 
 def _create_str_any_dict() -> dict[str, Any]:
     """Create typed dict for dataclass fields.
-    
+
     Returns:
         Empty dictionary with string keys and any values for dataclass default factory.
     """
@@ -20,7 +20,7 @@ def _create_str_any_dict() -> dict[str, Any]:
 
 def _create_str_int_dict() -> dict[str, int]:
     """Create typed string to int dict for dataclass fields.
-    
+
     Returns:
         Empty dictionary with string keys and integer values for dataclass default factory.
     """
@@ -29,7 +29,7 @@ def _create_str_int_dict() -> dict[str, int]:
 
 def _create_str_str_dict() -> dict[str, str]:
     """Create typed string to string dict for dataclass fields.
-    
+
     Returns:
         Empty dictionary with string keys and string values for dataclass default factory.
     """
@@ -60,7 +60,7 @@ class CheckResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the check result.
         """
@@ -76,7 +76,7 @@ class CheckResult:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CheckResult":
         """Create from dictionary.
-        
+
         Returns:
             CheckResult instance created from dictionary data.
         """
@@ -107,7 +107,7 @@ class SizingResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the sizing result.
         """
@@ -127,7 +127,7 @@ class SizingResult:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SizingResult":
         """Create from dictionary.
-        
+
         Returns:
             SizingResult instance created from dictionary data.
         """
@@ -159,7 +159,7 @@ class ConstraintResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the constraint result.
         """
@@ -176,7 +176,7 @@ class ConstraintResult:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ConstraintResult":
         """Create from dictionary.
-        
+
         Returns:
             ConstraintResult instance created from dictionary data.
         """
@@ -211,7 +211,7 @@ class PerformanceMetrics:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the performance metrics.
         """
@@ -234,7 +234,7 @@ class PerformanceMetrics:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "PerformanceMetrics":
         """Create from dictionary.
-        
+
         Returns:
             PerformanceMetrics instance created from dictionary data.
         """
@@ -286,7 +286,7 @@ class RiskManagerState:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the risk manager state.
         """
@@ -310,7 +310,7 @@ class RiskManagerState:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RiskManagerState":
         """Create from dictionary.
-        
+
         Returns:
             RiskManagerState instance created from dictionary data.
         """
@@ -351,7 +351,7 @@ class StateSnapshot:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization.
-        
+
         Returns:
             Dictionary representation of the state snapshot.
         """
@@ -371,7 +371,7 @@ class StateSnapshot:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "StateSnapshot":
         """Create from dictionary.
-        
+
         Returns:
             StateSnapshot instance created from dictionary data.
         """

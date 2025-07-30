@@ -21,6 +21,7 @@ from cyberdelta.apis.backpack.mappers import BackpackOrderMapper
 from cyberdelta.apis.backpack.protocols.builder_protocols import TradingRequestBuilderProtocol
 from cyberdelta.apis.backpack.protocols.handler_protocols import TradingResponseHandlerProtocol
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
+from cyberdelta.apis.backpack.services.trading.bp_symbol_aware_mixin import SymbolAwareMixin
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 from cyberdelta.apis.base.infrastructure_config_domain import (
     RequestAuthMode,
@@ -51,7 +52,7 @@ HttpClientRequesterSig = Callable[
 ]
 
 
-class BackpackOrderPlacementService:
+class BackpackOrderPlacementService(SymbolAwareMixin):
     """Focused service for Backpack order placement operations.
 
     Handles validation, processing, and transformation of order placement requests
@@ -120,7 +121,7 @@ class BackpackOrderPlacementService:
             raise self._create_place_order_api_error(
                 e_transform,
                 current_method,
-                args.symbol,
+                args.symbol.value,  # Use Symbol.value for error context
                 status_code,
                 raw_response_content,
                 "Failed to process/transform exchange data.",
@@ -130,7 +131,7 @@ class BackpackOrderPlacementService:
             raise self._create_place_order_api_error(
                 e_val,
                 current_method,
-                args.symbol,
+                args.symbol.value,  # Use Symbol.value for error context
                 status_code,
                 raw_response_content,
                 "Internal data validation failed.",
@@ -140,7 +141,7 @@ class BackpackOrderPlacementService:
             raise self._create_place_order_api_error(
                 e_service_logic,
                 current_method,
-                args.symbol,
+                args.symbol.value,  # Use Symbol.value for error context
                 status_code,
                 raw_response_content,
                 "Service internal logic error.",
@@ -150,7 +151,7 @@ class BackpackOrderPlacementService:
             raise self._create_place_order_api_error(
                 e_unexpected,
                 current_method,
-                args.symbol,
+                args.symbol.value,  # Use Symbol.value for error context
                 status_code,
                 raw_response_content,
                 "Unexpected service failure.",
@@ -180,11 +181,14 @@ class BackpackOrderPlacementService:
                 code=APIErrorCode.AUTHENTICATION_FAILED.value,
             )
 
+        # Log with full symbol metadata for debugging
+        symbol_metadata = self.get_symbol_metadata(args.symbol)
         logger.info(
             "placing_order",
             exchange=self._exchange_name,
             method=current_method,
-            symbol=args.symbol,
+            symbol=args.symbol.value,
+            symbol_metadata=symbol_metadata,
             side=args.side.value,
             order_type=args.order_type.value,
             message="Placing order on exchange",
@@ -192,7 +196,7 @@ class BackpackOrderPlacementService:
 
         # Build request parameters using the OrderExecution domain object from args
         request_params = self._request_builder.build_place_order_payload(
-            symbol=args.symbol,
+            symbol=args.symbol,  # Pass Symbol object directly
             order_type=args.order_type,
             order_side=args.side,
             quantity=args.quantity,
@@ -298,7 +302,7 @@ class BackpackOrderPlacementService:
             "order_params_validated",
             exchange=self._exchange_name,
             method=current_method,
-            symbol=args.symbol,
+            symbol=args.symbol.value,  # Use domain object's value for logging
             message="Order parameters validated successfully",
         )
 

@@ -18,6 +18,7 @@ from pydantic import (
 )
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
     DecimalFiniteError,
@@ -58,14 +59,14 @@ class BackpackSpotBalanceDetails(BaseModel):
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse optional decimal, allowing None but ensuring finite if present.
-        
+
         Args:
             v: Value to parse.
             info: Pydantic validation context.
-            
+
         Returns:
             Decimal | None: Parsed decimal if valid, None if input is None.
-            
+
         Raises:
             FieldNameMissingError: If field name is not available in validation context.
             DecimalFiniteError: If parsed decimal is not finite.
@@ -97,7 +98,7 @@ class SpotBalance(BaseModel):
 
     Core Fields:
         exchange (str): Required exchange name.
-        asset (str): Required asset symbol.
+        asset (Symbol): Exchange-specific asset symbol domain object.
         timestamp (datetime): Required snapshot timestamp (UTC).
         total_quantity (Decimal): Required total quantity (>= 0).
         available_quantity (Decimal): Required available quantity (>= 0).
@@ -114,7 +115,7 @@ class SpotBalance(BaseModel):
 
     # --- Core Required Fields ---
     exchange: str
-    asset: str
+    asset: Symbol
     timestamp: datetime
     total_quantity: Decimal = Field(ge=Decimal(0))
     available_quantity: Decimal = Field(ge=Decimal(0))
@@ -126,25 +127,32 @@ class SpotBalance(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
     # --- Field Validators ---
-    @field_validator("exchange", "asset", mode="before")
+    @field_validator("exchange", mode="before")
     @classmethod
-    def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty, reasonable length.
-        
-        Args:
-            v: String value to validate.
-            info: Pydantic validation context.
-            
-        Returns:
-            str: Validated string.
-            
-        Raises:
-            FieldNameMissingError: If field name is not available in validation context.
-        """
+    def validate_exchange_string(cls, v: str, info: ValidationInfo) -> str:
+        """Validate exchange field is non-empty, reasonable length."""
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
         return validate_str_field(v, field_name=field_name, max_length=64)
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def validate_asset_domain(cls, v: Symbol) -> Symbol:
+        """Validate asset field is Symbol domain object.
+
+        Args:
+            v: The Symbol value to validate
+
+        Returns:
+            Validated Symbol
+
+        Raises:
+            ValueError: If not an Symbol
+        """
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Asset must be Symbol, got {type(v).__name__}")
+        return v
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -154,14 +162,14 @@ class SpotBalance(BaseModel):
         info: ValidationInfo,
     ) -> datetime:
         """Parse required datetime, ensuring UTC.
-        
+
         Args:
             v: Value to parse as datetime.
             info: Pydantic validation context.
-            
+
         Returns:
             datetime: Parsed UTC datetime.
-            
+
         Raises:
             FieldNameMissingError: If field name is not available in validation context.
             DateTimeFieldError: If datetime parsing fails or returns None.
@@ -186,14 +194,14 @@ class SpotBalance(BaseModel):
         info: ValidationInfo,
     ) -> Decimal:
         """Parse required decimal, ensuring finite and non-negative via Field.
-        
+
         Args:
             v: Value to parse as decimal.
             info: Pydantic validation context.
-            
+
         Returns:
             Decimal: Parsed finite decimal.
-            
+
         Raises:
             FieldNameMissingError: If field name is not available in validation context.
             DecimalFiniteError: If parsed decimal is not finite.

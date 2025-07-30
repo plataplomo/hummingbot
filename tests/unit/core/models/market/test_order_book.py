@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.factories.symbol_factories import ExchangeSymbolFactory
 
 
 pytestmark = pytest.mark.timing
@@ -21,11 +22,16 @@ pytestmark = pytest.mark.timing
 class TestOrderBook:
     """Unit tests for the cyberdelta.core.models.market.order_book.OrderBook model."""
 
-    def test_minimal_creation(self) -> None:
+    @pytest.fixture
+    def btc_symbol(self) -> Any:
+        """Fixture providing a BTC exchange symbol."""
+        return ExchangeSymbolFactory.create_hyperliquid_btc_perp()
+
+    def test_minimal_creation(self, btc_symbol: Any) -> None:
         """Test creating an OrderBook with minimal valid data (empty bids/asks)."""
         now = datetime.now(UTC)
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=[], asks=[])
-        assert ob.symbol == "BTC-PERP"
+        ob = OrderBook(symbol=btc_symbol, timestamp=now, bids=[], asks=[])
+        assert ob.symbol == btc_symbol
         assert ob.timestamp == now
         assert ob.bids == []
         assert ob.asks == []

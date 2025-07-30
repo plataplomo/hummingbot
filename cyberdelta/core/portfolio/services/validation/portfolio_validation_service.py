@@ -61,10 +61,10 @@ class TradeValidator:
 
     def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
         """Validate a single trade.
-        
+
         Args:
             trade: The trade to validate.
-            
+
         Returns:
             ValidationResult containing the trade and any validation issues found.
         """
@@ -93,7 +93,7 @@ class TradeValidator:
             )
 
         # Validate symbol format
-        if len(trade.symbol) < self.MIN_SYMBOL_LENGTH:
+        if len(trade.symbol.value) < self.MIN_SYMBOL_LENGTH:
             issues.append(
                 ValidationIssue(
                     severity=ValidationSeverity.ERROR,
@@ -151,10 +151,10 @@ class BalanceValidator:
 
     def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
         """Validate a single balance.
-        
+
         Args:
             balance: The spot balance to validate.
-            
+
         Returns:
             ValidationResult containing the balance and any validation issues found.
         """
@@ -232,10 +232,10 @@ class PositionValidator:
         self, position: DerivativePosition
     ) -> ValidationResult[DerivativePosition]:
         """Validate a single position.
-        
+
         Args:
             position: The derivative position to validate.
-            
+
         Returns:
             ValidationResult containing the position and any validation issues found.
         """
@@ -351,10 +351,10 @@ class PortfolioValidationService:
 
     async def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
         """Validate a trade.
-        
+
         Args:
             trade: The trade to validate.
-            
+
         Returns:
             ValidationResult containing the trade and any validation issues found.
         """
@@ -364,10 +364,10 @@ class PortfolioValidationService:
 
     async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
         """Validate a balance.
-        
+
         Args:
             balance: The spot balance to validate.
-            
+
         Returns:
             ValidationResult containing the balance and any validation issues found.
         """
@@ -379,10 +379,10 @@ class PortfolioValidationService:
         self, position: DerivativePosition
     ) -> ValidationResult[DerivativePosition]:
         """Validate a position.
-        
+
         Args:
             position: The derivative position to validate.
-            
+
         Returns:
             ValidationResult containing the position and any validation issues found.
         """
@@ -392,10 +392,10 @@ class PortfolioValidationService:
 
     async def validate_batch_trades(self, trades: list[Trade]) -> ValidationResult[list[Trade]]:
         """Validate a batch of trades.
-        
+
         Args:
             trades: List of trades to validate.
-            
+
         Returns:
             ValidationResult containing all trades and accumulated validation issues.
         """
@@ -409,7 +409,7 @@ class PortfolioValidationService:
 
     async def validate_portfolio_state(self) -> ValidationResult[PortfolioState]:
         """Validate overall portfolio state using state container.
-        
+
         Returns:
             ValidationResult containing the portfolio state and any validation issues found.
         """
@@ -514,10 +514,10 @@ class PortfolioValidationService:
         self, portfolio_state: PortfolioState
     ) -> list[ValidationIssue]:
         """Validate cross-component consistency.
-        
+
         Args:
             portfolio_state: The portfolio state to validate for cross-consistency.
-            
+
         Returns:
             List of validation issues found during cross-consistency checks.
         """
@@ -530,7 +530,7 @@ class PortfolioValidationService:
 
     def _record_validation(self, validation_type: str, result: ValidationResult[Any]) -> None:
         """Record validation statistics.
-        
+
         Args:
             validation_type: Type of validation being recorded (e.g., 'trade', 'balance').
             result: The validation result to record.
@@ -549,7 +549,7 @@ class PortfolioValidationService:
 
     def get_validation_stats(self) -> ValidationStatistics:
         """Get validation statistics.
-        
+
         Returns:
             ValidationStatistics containing validation counts and recent issues.
         """

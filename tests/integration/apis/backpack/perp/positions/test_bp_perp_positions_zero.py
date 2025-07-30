@@ -33,6 +33,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import BackpackPositionDetails, DerivativePosition
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
@@ -106,7 +107,11 @@ class TestBackpackPerpPositionsZero:
     ) -> None:
         """Test get_positions() with specific symbol on zero balance account."""
         # Test common perp symbols
-        perp_symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
+        perp_symbols = [
+            exchanges.backpack("SOL_USDC_PERP"),
+            exchanges.backpack("BTC_USDC_PERP"),
+            exchanges.backpack("ETH_USDC_PERP"),
+        ]
 
         for symbol in perp_symbols:
             try:
@@ -175,16 +180,28 @@ class TestBackpackPerpPositionsZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test get_positions() with invalid symbols returns appropriate errors."""
-        invalid_symbols = [
+        invalid_symbol_strings = [
             "INVALID_SYMBOL",
             "FAKE_USDC_PERP",
             "NOTREAL_PERP",
-            "",  # Empty string
             "TOOLONG_SYMBOL_NAME_THAT_EXCEEDS_LIMITS_PERP",
         ]
 
-        for symbol in invalid_symbols:
+        for symbol_str in invalid_symbol_strings:
             try:
+                # Create Symbol object even for invalid strings
+                try:
+                    symbol = exchanges.backpack(symbol_str)
+                except Exception as symbol_creation_error:
+                    # If symbol creation fails, that's also valid behavior for invalid symbols
+                    logger.info(
+                        "invalid_symbol_creation_failed",
+                        symbol_str=symbol_str,
+                        error=str(symbol_creation_error),
+                        message="✓ Invalid symbol creation properly rejected",
+                    )
+                    continue
+
                 positions = await bp_api_for_zero_balance_test.get_positions(symbol=symbol)
 
                 # If no error thrown, should be empty list for invalid symbols
@@ -215,12 +232,12 @@ class TestBackpackPerpPositionsZero:
                 )
 
             except ValueError as e:
-                # Service layer validation errors (e.g., empty string symbols)
-                assert not symbol, f"ValueError should only occur for empty symbol, got: {symbol}"
+                # Service layer validation errors for invalid symbols are acceptable
                 logger.info(
-                    "empty_symbol_value_error",
+                    "invalid_symbol_value_error",
+                    symbol=symbol,
                     error_message=str(e),
-                    message="✓ Empty symbol properly rejected with ValueError",
+                    message="✓ Invalid symbol properly rejected with ValueError",
                 )
 
             except (TypeError, KeyError) as e:

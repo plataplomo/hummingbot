@@ -95,7 +95,7 @@ class RiskManagerStateManager:
 
     def _init_storage(self) -> None:
         """Initialize the storage backend.
-        
+
         Raises:
             RiskConfigError: If unsupported storage type is specified
         """
@@ -369,7 +369,7 @@ class RiskManagerStateManager:
         execution_metrics: dict[str, float] | None = None,
     ) -> StateSnapshot:
         """Create a point-in-time snapshot.
-        
+
         Returns:
             StateSnapshot containing current processing state
         """
@@ -393,7 +393,7 @@ class RiskManagerStateManager:
 
     def get_current_state(self) -> RiskManagerState | None:
         """Get the current risk manager state.
-        
+
         Returns:
             Current state if active session exists, None otherwise
         """
@@ -401,7 +401,7 @@ class RiskManagerStateManager:
 
     def get_session_history(self, session_id: str) -> RiskManagerState | None:
         """Get historical state for a specific session.
-        
+
         Returns:
             Historical state data for the session, None if not found
         """
@@ -415,7 +415,7 @@ class RiskManagerStateManager:
         limit: int = 100,
     ) -> list[CheckResult]:
         """Get historical check results.
-        
+
         Returns:
             List of check results matching the specified criteria
         """
@@ -427,7 +427,7 @@ class RiskManagerStateManager:
         since: datetime | None = None,
     ) -> dict[str, Any]:
         """Get performance summary statistics.
-        
+
         Returns:
             Dictionary containing performance metrics and statistics
         """
@@ -480,7 +480,7 @@ class RiskManagerStateManager:
 
     def cleanup_old_data(self, before_date: datetime | None = None) -> int:
         """Clean up old historical data.
-        
+
         Returns:
             Number of records deleted
         """
@@ -510,7 +510,7 @@ class RiskManagerStateManager:
         include_snapshots: bool = True,
     ) -> None:
         """Export state data to JSON file.
-        
+
         Raises:
             RiskConfigError: If no session ID is provided and no active session exists
         """
@@ -739,7 +739,7 @@ class RiskManagerStateManager:
 
     def _load_state(self, session_id: str) -> RiskManagerState | None:
         """Load state from SQLite.
-        
+
         Returns:
             Loaded state data if found, None otherwise
         """
@@ -769,7 +769,7 @@ class RiskManagerStateManager:
         limit: int,
     ) -> list[CheckResult]:
         """Load check results from SQLite.
-        
+
         Returns:
             List of check results matching the query criteria
         """
@@ -819,7 +819,7 @@ class RiskManagerStateManager:
 
     def _cleanup_sqlite_data(self, before_date: datetime) -> int:
         """Clean up old SQLite data.
-        
+
         Returns:
             Number of records deleted from SQLite database
         """
@@ -876,7 +876,7 @@ class RiskManagerStateManager:
 
     def _cleanup_json_data(self, before_date: datetime) -> int:
         """Clean up old JSON data.
-        
+
         Returns:
             Number of records deleted from JSON storage
         """
@@ -885,7 +885,7 @@ class RiskManagerStateManager:
 
     def _cleanup_memory_data(self, before_date: datetime) -> int:
         """Clean up old memory data.
-        
+
         Returns:
             Number of records deleted from memory storage
         """

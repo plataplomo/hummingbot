@@ -53,6 +53,7 @@ from cyberdelta.core.models import (
     Withdrawal,
 )
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols.models import Symbol
 
 
 # Type alias for raw JSON responses
@@ -68,21 +69,24 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
 
     @staticmethod
     def transform_balance_data_to_spot_balance(
-        asset: str, total_balance: str, available_balance: str
+        asset: str,
+        total_balance: str,
+        available_balance: str,
     ) -> SpotBalance:
         """Transform balance data to internal SpotBalance model."""
         ...
 
     @staticmethod
     def transform_raw_balance_to_internal(
-        asset_symbol: str, raw: BackpackRawBalanceResponse
+        asset_symbol: Symbol,
+        raw: BackpackRawBalanceResponse,
     ) -> SpotBalance:
         """Transform validated BackpackRawBalance to SpotBalance."""
         ...
 
     @staticmethod
     def create_balance_from_collateral(
-        symbol: str,
+        symbol: Symbol,
         collateral_data: BackpackRawCollateralAsset,
         exchange_name: str,
     ) -> SpotBalance:
@@ -137,7 +141,8 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
 
     @staticmethod
     def transform_account_settings_update_to_internal(
-        args: UpdateAccountSettingsArgs, exchange_name: str
+        args: UpdateAccountSettingsArgs,
+        exchange_name: str,
     ) -> AccountSettings:
         """Transform account settings updates to internal model."""
         ...
@@ -217,7 +222,7 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
     @staticmethod
     def transform_order_data_to_internal(
         order_id: str,
-        symbol: str,
+        symbol: Symbol,
         side: str,
         order_type: str,
         status: str,
@@ -262,7 +267,8 @@ class TickerMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_ticker_to_internal(
-        raw_ticker: BackpackRawTickerResponse, symbol_override: str | None = None
+        raw_ticker: BackpackRawTickerResponse,
+        symbol_override: str | None = None,
     ) -> Ticker:
         """Transform comprehensive ticker data from REST API."""
         ...
@@ -282,14 +288,16 @@ class OrderBookMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_order_book_to_internal(
-        symbol: str, raw_book: BackpackRawOrderBook
+        symbol: Symbol,
+        raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
         """Transform REST order book data to internal OrderBook."""
         ...
 
     @staticmethod
     def transform_ws_depth_event_to_internal(
-        symbol: str, raw_depth: BackpackRawDepthUpdateEvent
+        symbol: Symbol,
+        raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
         """Transform WebSocket depth updates to OrderBook."""
         ...
@@ -309,7 +317,8 @@ class TradeMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_recent_trade_to_internal(
-        raw_trade: BackpackRawRecentPublicTrade, symbol: str
+        raw_trade: BackpackRawRecentPublicTrade,
+        symbol: Symbol,
     ) -> Trade:
         """Transform recent trades with side determination."""
         ...
@@ -329,7 +338,9 @@ class CandleMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_kline_to_internal(
-        symbol: str, interval: str, raw_kline: BackpackRawKlineResponse
+        symbol: Symbol,
+        interval: str,
+        raw_kline: BackpackRawKlineResponse,
     ) -> Candle:
         """Transform BackpackRawKlineResponse to internal Candle model."""
         ...
@@ -351,7 +362,8 @@ class FundingRateMapperProtocol(MarketDataMapperProtocol, Protocol):
 
     @staticmethod
     def transform_raw_funding_interval_rate_to_internal(
-        raw_funding: BackpackRawFundingIntervalRate, symbol: str
+        raw_funding: BackpackRawFundingIntervalRate,
+        symbol: Symbol,
     ) -> FundingRate:
         """Transform interval-based funding rate data."""
         ...

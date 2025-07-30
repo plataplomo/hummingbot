@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 def _is_api_clients_dict(value: object) -> TypeGuard[dict[str, ExchangeAPI]]:
     """Senior-level TypeGuard for API clients dictionary validation.
-    
+
     Returns:
         TypeGuard[dict[str, ExchangeAPI]]: True if value is a dict, allowing type narrowing.
     """
@@ -36,7 +36,7 @@ def _is_api_clients_dict(value: object) -> TypeGuard[dict[str, ExchangeAPI]]:
 
 def _is_discrepancy_list(value: object) -> TypeGuard[list[Any]]:
     """TypeGuard to verify value is a list for type narrowing.
-    
+
     Returns:
         TypeGuard[list[Any]]: True if value is a list, allowing type narrowing.
     """
@@ -336,7 +336,7 @@ class PositionReconciliationSystem:
 
     def _get_discrepancy_details(self, results: dict[str, Any]) -> list[DiscrepancyDetail] | None:
         """Extract and validate discrepancy details from results.
-        
+
         Returns:
             list[DiscrepancyDetail] | None: List of validated discrepancy details if available,
                 empty list if no discrepancies, None if discrepancies have invalid format.
@@ -404,7 +404,7 @@ class PositionReconciliationSystem:
         symbol: str,
     ) -> Decimal | None:
         """Parse exchange value from discrepancy detail.
-        
+
         Returns:
             Decimal | None: The parsed exchange value as Decimal if successful,
                 None if exchange_value is missing or cannot be parsed.
@@ -488,7 +488,7 @@ class PositionReconciliationSystem:
         local_position: DerivativePosition | None,
     ) -> datetime:
         """Get appropriate timestamp for correction.
-        
+
         Returns:
             datetime: The API position timestamp if available, otherwise local position
                 timestamp if available, otherwise current UTC time.
@@ -544,7 +544,7 @@ class PositionReconciliationSystem:
         api_position: DerivativePosition,
     ) -> DerivativePosition:
         """Create position from full API data.
-        
+
         Returns:
             DerivativePosition: A new position object with data from API position,
                 using the exchange_value as size and determining side from its sign.
@@ -578,7 +578,7 @@ class PositionReconciliationSystem:
         timestamp: datetime,
     ) -> DerivativePosition:
         """Create minimal position when API data is not available.
-        
+
         Returns:
             DerivativePosition: A minimal position object with only essential fields
                 populated, side determined from exchange_value sign.
@@ -714,7 +714,7 @@ class PositionReconciliationSystem:
         results_timestamp_dt: datetime,
     ) -> bool:
         """Check if historical record matches the current discrepancy being corrected.
-        
+
         Returns:
             bool: True if all fields match (exchange, symbol, timestamp, type, detail)
                 and record is not already marked as corrected.
@@ -754,7 +754,7 @@ class PositionReconciliationSystem:
 
     def get_reconciliation_report(self) -> dict[str, Any]:
         """Generate a summary report of position reconciliation.
-        
+
         Returns:
             dict[str, Any]: A report containing:
                 - period: time range of the report
@@ -840,7 +840,7 @@ class PositionReconciliationSystem:
 
     async def run_reconciliation(self, force_run: bool = False) -> dict[str, Any]:
         """Run the reconciliation process if the interval has passed or forced.
-        
+
         Returns:
             dict[str, Any]: Reconciliation results containing:
                 - success: bool indicating overall success
@@ -956,7 +956,7 @@ class PositionReconciliationSystem:
 
     async def _reconcile_exchange(self, exchange: str) -> dict[str, Any]:
         """Reconcile positions for a single exchange.
-        
+
         Returns:
             dict[str, Any]: Reconciliation results containing success status, timestamp,
                 discrepancies list, and error information if any issues occurred.
@@ -1051,7 +1051,7 @@ class PositionReconciliationSystem:
         local_positions: dict[str, Any],
     ) -> dict[str, Any]:
         """Reconcile positions for a given exchange.
-        
+
         Returns:
             dict[str, Any]: Comprehensive reconciliation results including success status,
                 timestamp, list of discrepancies found, symbols checked count, and
@@ -1125,7 +1125,7 @@ class PositionReconciliationSystem:
 
     def _initialize_reconciliation_results(self, now: datetime) -> dict[str, Any]:
         """Initialize the reconciliation results structure.
-        
+
         Returns:
             dict[str, Any]: Base reconciliation results dictionary with default values
                 for success, timestamp, discrepancies, symbols_checked, has_discrepancies,
@@ -1148,7 +1148,7 @@ class PositionReconciliationSystem:
         local_positions: dict[str, Any],
     ) -> list[Awaitable[list[HistoricalDiscrepancyRecord]]]:
         """Create reconciliation tasks for all symbols.
-        
+
         Returns:
             list[Awaitable[list[HistoricalDiscrepancyRecord]]]: List of async tasks,
                 each returning historical discrepancy records for a symbol.
@@ -1190,9 +1190,9 @@ class PositionReconciliationSystem:
         local_pos_raw: object,
     ) -> tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]:
         """Parse API and local positions for a symbol.
-        
+
         Returns:
-            tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]: 
+            tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]:
                 Tuple containing parsed API position (or error dict) and parsed local
                 position (or error dict, or None if no local position exists).
         """
@@ -1330,7 +1330,7 @@ class PositionReconciliationSystem:
         overall_results: dict[str, Any],
     ) -> list[HistoricalDiscrepancyRecord]:
         """Process the results from symbol reconciliation tasks.
-        
+
         Returns:
             list[HistoricalDiscrepancyRecord]: Aggregated list of all discrepancy records
                 from successful reconciliation tasks, with exceptions logged and handled.
@@ -1472,7 +1472,7 @@ class PositionReconciliationSystem:
         api_positions: dict[str, Any],
     ) -> dict[str, DerivativePosition]:
         """Build a map of API positions for corrections.
-        
+
         Returns:
             dict[str, DerivativePosition]: Map of symbol to DerivativePosition for
                 valid API positions that can be used for position corrections.
@@ -1551,7 +1551,7 @@ class PositionReconciliationSystem:
         parsed_local_pos: ParsedPosition | ErrorDict | None,
     ) -> list[HistoricalDiscrepancyRecord]:
         """Handle parsing errors for API and local positions.
-        
+
         Returns:
             list[HistoricalDiscrepancyRecord]: List containing a single error record
                 if parsing errors were found, empty list if no parsing errors occurred.
@@ -1592,7 +1592,7 @@ class PositionReconciliationSystem:
         local_pos_data: ParsedPosition | None,
     ) -> list[HistoricalDiscrepancyRecord]:
         """Handle discrepancies related to position existence.
-        
+
         Returns:
             list[HistoricalDiscrepancyRecord]: List of discrepancy records for cases where
                 positions exist in one system but not the other, or are flat in one system.
@@ -1641,7 +1641,7 @@ class PositionReconciliationSystem:
         local_pos_data: ParsedPosition,
     ) -> list[HistoricalDiscrepancyRecord]:
         """Compare attributes of two non-flat positions.
-        
+
         Returns:
             list[HistoricalDiscrepancyRecord]: List of discrepancy records for differences
                 in size, entry price, or mark price between API and local positions.
@@ -1691,7 +1691,7 @@ class PositionReconciliationSystem:
         local_pos_data: ParsedPosition,
     ) -> bool:
         """Determine if entry prices should be compared.
-        
+
         Returns:
             bool: True if positions have same side, non-zero size, and matching sizes.
         """
@@ -1707,7 +1707,7 @@ class PositionReconciliationSystem:
         local_pos_data: ParsedPosition,
     ) -> bool:
         """Determine if mark prices should be compared.
-        
+
         Returns:
             bool: True if mark prices differ and position size is non-zero.
         """
@@ -1721,7 +1721,7 @@ class PositionReconciliationSystem:
         local_positions: dict[str, Any],
     ) -> dict[str, Any]:
         """Compare positions between API and local state.
-        
+
         Returns:
             dict[str, Any]: Comparison results containing:
                 - success: bool (always True for successful comparison)
@@ -1773,7 +1773,7 @@ class PositionReconciliationSystem:
         exchange_id_placeholder: str,
     ) -> list[Awaitable[list[HistoricalDiscrepancyRecord]]]:
         """Create reconciliation tasks for all symbols.
-        
+
         Returns:
             list[Awaitable[list[HistoricalDiscrepancyRecord]]]: List of async tasks for
                 reconciling each symbol's positions.
@@ -1804,7 +1804,7 @@ class PositionReconciliationSystem:
         self, local_pos_raw: object, symbol_key: str
     ) -> DerivativePosition | None:
         """Validate and return local position if valid.
-        
+
         Returns:
             DerivativePosition | None: The position if it's a valid DerivativePosition instance,
                 None if invalid type or None.
@@ -1826,7 +1826,7 @@ class PositionReconciliationSystem:
 
     def _parse_comparison_api_position(self, api_pos_raw: object) -> ParsedPosition:
         """Parse API position data into ParsedPosition format.
-        
+
         Returns:
             ParsedPosition: Dictionary with position attributes. If api_pos_raw is None,
                 returns a zero position with default values.
@@ -1861,7 +1861,7 @@ class PositionReconciliationSystem:
         self, parsed_local_pos_input: DerivativePosition | None
     ) -> ParsedPosition | None:
         """Parse local position data into ParsedPosition format.
-        
+
         Returns:
             ParsedPosition | None: Dictionary with position attributes if input is valid,
                 None if input is None.
@@ -1887,7 +1887,7 @@ class PositionReconciliationSystem:
         overall_results: dict[str, Any],
     ) -> list[HistoricalDiscrepancyRecord]:
         """Process reconciliation task results and handle errors.
-        
+
         Returns:
             list[HistoricalDiscrepancyRecord]: Aggregated list of all discrepancy records
                 from successful tasks. Tasks that raised exceptions are logged but excluded.

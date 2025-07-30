@@ -102,7 +102,7 @@ class PortfolioStateManager:
 
     async def initialize(self) -> None:
         """Initialize the portfolio state manager.
-        
+
         Raises:
             StateManagerInitializationFailedError: If initialization fails.
         """
@@ -167,7 +167,7 @@ class PortfolioStateManager:
 
         Returns:
             True if update was successful
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
         """
@@ -233,7 +233,7 @@ class PortfolioStateManager:
 
         Returns:
             True if update was successful
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
         """
@@ -302,7 +302,7 @@ class PortfolioStateManager:
 
         Returns:
             True if update was successful
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
         """
@@ -369,7 +369,7 @@ class PortfolioStateManager:
 
         Returns:
             True if trade was processed successfully
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
         """
@@ -464,7 +464,7 @@ class PortfolioStateManager:
 
         Returns:
             Dictionary of balances
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
             StateOperationFailedError: If operation fails.
@@ -486,7 +486,7 @@ class PortfolioStateManager:
 
         Returns:
             Dictionary of positions
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
             StateOperationFailedError: If operation fails.
@@ -508,7 +508,7 @@ class PortfolioStateManager:
 
         Returns:
             Dictionary of orders
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
             StateOperationFailedError: If operation fails.
@@ -528,7 +528,7 @@ class PortfolioStateManager:
 
         Returns:
             Complete portfolio state with typed data
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
             StateOperationFailedError: If operation fails.
@@ -565,7 +565,7 @@ class PortfolioStateManager:
 
         Returns:
             Validation result
-            
+
         Raises:
             StateManagerNotInitializedError: If manager is not initialized.
         """
@@ -637,7 +637,7 @@ class PortfolioStateManager:
 
     def __str__(self) -> str:
         """String representation.
-        
+
         Returns:
             Human-readable string representation of the state manager.
         """

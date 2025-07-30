@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import Any, NoReturn
 
 from pydantic import ValidationError
 
@@ -33,11 +33,10 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderBookMapp
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Trade
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -77,14 +76,14 @@ class HyperliquidOrderBookService:
         self._mapper = mapper
         self._exchange_name = exchange_name
 
-    async def get_order_book(self, symbol: str) -> OrderBook | None:
+    async def get_order_book(self, symbol: Symbol) -> OrderBook | None:
         """Retrieve the order book for a specific symbol using a POST request to /info.
 
         Uses payload: {"type": "l2Book", "coin": "SYMBOL"} to get L2 order book data
         with bid and ask levels.
 
         Args:
-            symbol: The trading symbol (e.g., "ETH")
+            symbol: The Symbol domain object
 
         Returns:
             OrderBook object or None if the symbol is not found
@@ -95,8 +94,8 @@ class HyperliquidOrderBookService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_book"
 
-        # Validate symbol
-        self._validate_symbol(symbol, current_method)
+        # Validate symbol object directly
+        self._validate_symbol(symbol.value, current_method)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -108,14 +107,15 @@ class HyperliquidOrderBookService:
                 exchange=self._exchange_name,
                 method=current_method,
                 symbol=symbol,
+                symbol_exchange=symbol.exchange.value,
                 message="Fetching L2 order book data for symbol",
             )
 
-            # Core operational logic
+            # Core operational logic - symbol is already domain object
             endpoint_path = "/info"
             try:
                 request_payload_model = self._request_builder.build_l2_book_request_payload(
-                    GetL2BookArgs(symbol=symbol),
+                    GetL2BookArgs(symbol=symbol),  # Use domain object directly
                 )
             except Exception as e:
                 # Wrap request builder exceptions in APIError
@@ -178,7 +178,7 @@ class HyperliquidOrderBookService:
 
             validated_raw_book = self._response_handler.handle_info_l2_book_response(
                 validated_response,
-                symbol=symbol,
+                symbol=symbol,  # Pass Symbol object directly
                 status_code=status_code,
                 headers=headers,
             )
@@ -263,29 +263,29 @@ class HyperliquidOrderBookService:
         else:
             return order_book
 
-    async def get_recent_trades(self, symbol: str) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol) -> list[Trade]:
         """Retrieve recent public trades for a specific symbol using a POST request to /info.
 
         Uses payload: {"type": "recentTrades", "coin": "SYMBOL"} to get recent public trades.
 
         Args:
-            symbol: The trading symbol (e.g., "ETH")
+            symbol: The Symbol domain object
 
         Returns:
             List of Trade objects. The number of trades is determined by the Hyperliquid API
 
         Raises:
             APIError: If the API request fails or the response is invalid
-            ValueError: If symbol is invalid (empty or whitespace)
+            TypeError: If service logic encounters type errors
+            ValueError: If service logic encounters value errors
             TransformationError: If data transformation fails
             ValidationError: If data validation fails
-            TypeError: If data type validation fails
         """
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_recent_trades"
 
-        # Input validation
-        if not symbol:
+        # Validate symbol object directly
+        if not symbol.value:
             error_msg = "'symbol' must be a non-empty string."
             raise ValueError(error_msg)
 
@@ -306,7 +306,7 @@ class HyperliquidOrderBookService:
                 raw_response_content_parsed,
                 status_code,
                 headers,
-            ) = await self._fetch_recent_trades_data(symbol)
+            ) = await self._fetch_recent_trades_data(symbol.value)
 
             validated_response = self._validate_response_not_none(
                 raw_response_content_parsed,
@@ -317,12 +317,15 @@ class HyperliquidOrderBookService:
 
             validated_raw_trades = self._process_recent_trades_response(
                 validated_response,
-                symbol,
+                symbol.value,
                 status_code,
                 headers,
             )
 
-            internal_trades = self._map_recent_trades_to_internal(validated_raw_trades, symbol)
+            internal_trades = self._map_recent_trades_to_internal(
+                validated_raw_trades,
+                symbol.value,
+            )
 
             logger.info(
                 "recent_trades_retrieved",
@@ -339,7 +342,7 @@ class HyperliquidOrderBookService:
         except TransformationError as error:
             self._handle_recent_trades_transformation_error(
                 error,
-                symbol,
+                symbol.value,
                 status_code,
                 raw_response_content,
             )
@@ -347,18 +350,18 @@ class HyperliquidOrderBookService:
         except ValidationError as error:
             self._handle_recent_trades_validation_error(
                 error,
-                symbol,
+                symbol.value,
                 status_code,
                 raw_response_content,
             )
             raise  # Re-raise after handling
         except (ValueError, TypeError) as error:
-            self._handle_recent_trades_service_logic_error(error, symbol)
+            self._handle_recent_trades_service_logic_error(error, symbol.value)
             raise  # Re-raise after handling
         except Exception as error:
             self._handle_recent_trades_unexpected_error(
                 error,
-                symbol,
+                symbol.value,
                 status_code,
                 raw_response_content,
             )
@@ -382,8 +385,10 @@ class HyperliquidOrderBookService:
             APIError: If API request fails
         """
         endpoint_path = "/info"
+
+        exchange_symbol = exchanges.hyperliquid(value=symbol)
         request_payload_model = self._request_builder.build_recent_trades_request_payload(
-            GetRecentTradesArgs(symbol=symbol),
+            GetRecentTradesArgs(symbol=exchange_symbol),
         )
         request_payload_data: dict[str, Any] = request_payload_model.model_dump(
             by_alias=True,
@@ -690,7 +695,9 @@ class HyperliquidOrderBookService:
         ) from error
 
     def _raise_invalid_l2book_response_type_error(
-        self, validated_response: object, status_code: int
+        self,
+        validated_response: object,
+        status_code: int,
     ) -> NoReturn:
         """Raise an APIError for invalid l2Book response type.
 

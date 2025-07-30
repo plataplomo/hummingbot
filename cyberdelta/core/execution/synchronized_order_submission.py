@@ -112,7 +112,7 @@ class ExecutionResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary.
-        
+
         Returns:
             Dictionary representation of the synchronized execution result
         """
@@ -240,7 +240,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
         """Verify local order details.
-        
+
         Returns:
             tuple[Order | None, bool, str | None]: A tuple containing:
                 - The local order object if found, None otherwise
@@ -310,7 +310,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
         """Verify API order details.
-        
+
         Returns:
             tuple[Order | None, bool, str | None]: A tuple containing:
                 - The API order object if found, None otherwise
@@ -393,7 +393,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[bool, str | None]:
         """Verify API order properties match expected details.
-        
+
         Returns:
             tuple[bool, str | None]: A tuple containing:
                 - True if all properties match, False otherwise
@@ -535,7 +535,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
         """Verify local order state.
-        
+
         Returns:
             tuple[Order | None, bool, str | None]: A tuple containing:
                 - The local order object if found, None otherwise
@@ -568,7 +568,7 @@ class OrderVerifier:
         verification_details: dict[str, Any],
     ) -> dict[str, Any]:
         """Handle case where API client is not found.
-        
+
         Returns:
             dict[str, Any]: A verification result dictionary with timestamp, success=False,
                 error message about missing API client, and the current verification details.
@@ -602,7 +602,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
         """Fetch order from exchange API.
-        
+
         Returns:
             tuple[Order | None, bool, str | None]: A tuple containing:
                 - The API order object if successfully fetched, None otherwise
@@ -611,7 +611,9 @@ class OrderVerifier:
         """
         api_order: Order | None = None
         try:
-            symbol_for_api_call = local_order.symbol if local_order else None
+            symbol_for_api_call = (
+                str(local_order.symbol) if local_order and local_order.symbol else None
+            )
             if not symbol_for_api_call and local_order:
                 logger.warning(
                     "local_order_no_symbol",
@@ -673,18 +675,41 @@ class OrderVerifier:
         symbol_for_api_call: str | None,
     ) -> Order | None:
         """Call the appropriate API method to fetch order.
-        
+
         Returns:
             Order | None: The order object if successfully fetched, None otherwise.
-            
+
         Raises:
             RequiredFieldError: If required fields are missing for the API call.
         """
         if hasattr(api_client, "get_order_status"):
+            from cyberdelta.core.symbols import exchanges
+            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+
+            exchange_symbol = None
+            if symbol_for_api_call:
+                exchange_name = (
+                    ExchangeName.HYPERLIQUID
+                    if exchange.lower() == "hyperliquid"
+                    else ExchangeName.BACKPACK
+                )
+                # Dynamically call the appropriate exchange method
+                if exchange_name == ExchangeName.HYPERLIQUID:
+                    exchange_symbol = exchanges.hyperliquid(
+                        value=symbol_for_api_call, exchange_id=exchange_name
+                    )
+                elif exchange_name == ExchangeName.BACKPACK:
+                    exchange_symbol = exchanges.backpack(
+                        value=symbol_for_api_call, exchange_id=exchange_name
+                    )
+                else:
+                    raise ValueError(f"Unsupported exchange: {exchange_name}")
+
             return await api_client.get_order_status(
                 GetOrderArgs(
                     order_id=order_id,
-                    symbol=symbol_for_api_call,
+                    symbol=exchange_symbol,
                 ),
             )
         if hasattr(api_client, "get_order"):
@@ -696,10 +721,33 @@ class OrderVerifier:
                 preferred_method="get_order_status",
                 fallback_method="get_order",
             )
+            from cyberdelta.core.symbols import exchanges
+            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+
+            exchange_symbol = None
+            if symbol_for_api_call:
+                exchange_name = (
+                    ExchangeName.HYPERLIQUID
+                    if exchange.lower() == "hyperliquid"
+                    else ExchangeName.BACKPACK
+                )
+                # Dynamically call the appropriate exchange method
+                if exchange_name == ExchangeName.HYPERLIQUID:
+                    exchange_symbol = exchanges.hyperliquid(
+                        value=symbol_for_api_call, exchange_id=exchange_name
+                    )
+                elif exchange_name == ExchangeName.BACKPACK:
+                    exchange_symbol = exchanges.backpack(
+                        value=symbol_for_api_call, exchange_id=exchange_name
+                    )
+                else:
+                    raise ValueError(f"Unsupported exchange: {exchange_name}")
+
             return await api_client.get_order(
                 GetOrderArgs(
                     order_id=order_id,
-                    symbol=symbol_for_api_call,
+                    symbol=exchange_symbol,
                 ),
             )
         logger.error(
@@ -723,7 +771,7 @@ class OrderVerifier:
         verification_error: str | None,
     ) -> tuple[bool, str | None]:
         """Verify order statuses match expected values.
-        
+
         Returns:
             tuple[bool, str | None]: A tuple containing:
                 - True if statuses match expectations, False otherwise
@@ -1206,7 +1254,7 @@ class SynchronizedOrderSubmissionService:
         opportunity: OpportunityType,
     ) -> dict[str, Any]:
         """Perform pre-execution verification checks.
-        
+
         Returns:
             dict[str, Any]: A verification result dictionary containing:
                 - 'verified': bool indicating if all checks passed
@@ -1271,7 +1319,7 @@ class SynchronizedOrderSubmissionService:
         error_msg: str,
     ) -> tuple[bool, str]:
         """Verify circuit breakers for both legs.
-        
+
         Returns:
             tuple[bool, str]: A tuple containing:
                 - True if all circuit breaker checks passed, False otherwise
@@ -1337,7 +1385,7 @@ class SynchronizedOrderSubmissionService:
         error_msg: str,
     ) -> tuple[bool, str]:
         """Verify market conditions.
-        
+
         Returns:
             tuple[bool, str]: A tuple containing:
                 - True if market conditions are acceptable, False otherwise
@@ -1372,7 +1420,7 @@ class SynchronizedOrderSubmissionService:
         error_msg: str,
     ) -> tuple[bool, str]:
         """Verify balances.
-        
+
         Returns:
             tuple[bool, str]: A tuple containing:
                 - True if balance verification passed, False otherwise
@@ -1400,7 +1448,7 @@ class SynchronizedOrderSubmissionService:
 
     async def verify_market_conditions(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify market conditions (e.g., price spreads, volatility).
-        
+
         Returns:
             dict[str, Any]: Verification results containing:
                 - 'verified': bool (always True in placeholder implementation)
@@ -1417,7 +1465,7 @@ class SynchronizedOrderSubmissionService:
 
     async def verify_balances(self, opportunity: OpportunityType) -> dict[str, Any]:
         """Verify sufficient balances are available on both exchanges.
-        
+
         Returns:
             dict[str, Any]: Balance verification results containing:
                 - 'verified': bool (always True in placeholder implementation)
@@ -1485,7 +1533,7 @@ class SynchronizedOrderSubmissionService:
         result: ExecutionResult,
     ) -> ExecutionResult:
         """Execute the first leg of the sequential order.
-        
+
         Returns:
             ExecutionResult: The updated execution result with:
                 - first_exchange set
@@ -1533,7 +1581,7 @@ class SynchronizedOrderSubmissionService:
         result: ExecutionResult,
     ) -> ExecutionResult:
         """Place and verify the first order.
-        
+
         Returns:
             ExecutionResult: The updated execution result with:
                 - first_order_id populated if order was successfully placed
@@ -1605,7 +1653,7 @@ class SynchronizedOrderSubmissionService:
         result: ExecutionResult,
     ) -> ExecutionResult:
         """Wait for the first order to fill.
-        
+
         Returns:
             ExecutionResult: The updated execution result with:
                 - first_fill details if order filled successfully
@@ -1639,7 +1687,7 @@ class SynchronizedOrderSubmissionService:
         result: ExecutionResult,
     ) -> ExecutionResult:
         """Execute the second leg of the sequential order.
-        
+
         Returns:
             ExecutionResult: The updated execution result with second order details
                 and status reflecting the outcome of the second leg execution.
@@ -1685,7 +1733,7 @@ class SynchronizedOrderSubmissionService:
         result: ExecutionResult,
     ) -> ExecutionResult:
         """Place and verify the second order.
-        
+
         Returns:
             ExecutionResult: The updated execution result with:
                 - status set to COMPLETED if both orders succeeded
@@ -1766,7 +1814,7 @@ class SynchronizedOrderSubmissionService:
         result: ExecutionResult,
     ) -> ExecutionResult:
         """Wait for the second order to fill.
-        
+
         Returns:
             ExecutionResult: The updated execution result with:
                 - second_fill details if order filled
@@ -1789,11 +1837,11 @@ class SynchronizedOrderSubmissionService:
 
     def _prepare_order(self, opportunity: OpportunityType, leg_type: str) -> Order:
         """Prepare an Order object for a specific leg of the opportunity.
-        
+
         Returns:
             Order: A new Order object configured for the specified leg (long or short)
                 with appropriate symbol, side, quantity, price, and exchange.
-                
+
         Raises:
             OrderParameterError: If required fields are missing or invalid in the opportunity data.
         """
@@ -1860,9 +1908,26 @@ class SynchronizedOrderSubmissionService:
         order_type = OrderType.MARKET
 
         # Create the Order object using correct field names
+        from cyberdelta.core.symbols import exchanges
+        from cyberdelta.core.symbols.models import create_exchange_symbol
+        from cyberdelta.enums.exchange_names import ExchangeName
+
+        exchange_name = (
+            ExchangeName.HYPERLIQUID
+            if exchange_val.lower() == "hyperliquid"
+            else ExchangeName.BACKPACK
+        )
+        # Dynamically call the appropriate exchange method
+        if exchange_name == ExchangeName.HYPERLIQUID:
+            exchange_symbol = exchanges.hyperliquid(value=symbol_val, exchange_id=exchange_name)
+        elif exchange_name == ExchangeName.BACKPACK:
+            exchange_symbol = exchanges.backpack(value=symbol_val, exchange_id=exchange_name)
+        else:
+            raise ValueError(f"Unsupported exchange: {exchange_name}")
+
         return Order(
             exchange=exchange_val,  # Added
-            symbol=symbol_val,
+            symbol=exchange_symbol,
             side=OrderSide.BUY if leg_type == "long" else OrderSide.SELL,
             order_type=order_type,
             quantity_requested=quantity_dec,
@@ -1882,7 +1947,7 @@ class SynchronizedOrderSubmissionService:
         execution_context: ExecutionContext,
     ) -> dict[str, Any]:
         """Execute trades simultaneously with verification (less common for arbitrage).
-        
+
         Returns:
             dict[str, Any]: Post-execution verification results containing:
                 - 'verified': bool indicating if all verifications passed
@@ -1914,7 +1979,7 @@ class SynchronizedOrderSubmissionService:
         execution_result: ExecutionResult,
     ) -> dict[str, Any]:
         """Verify positions, fills, and orders after execution.
-        
+
         Returns:
             dict[str, Any]: Verification results containing:
                 - 'verified': bool indicating if all verifications passed
@@ -1974,7 +2039,7 @@ class SynchronizedOrderSubmissionService:
         overall_success: bool,
     ) -> bool:
         """Verify positions step.
-        
+
         Returns:
             bool: True if position verification succeeded or overall_success was already True,
                 False if position verification failed.
@@ -2010,7 +2075,7 @@ class SynchronizedOrderSubmissionService:
         overall_success: bool,
     ) -> bool:
         """Verify fills step.
-        
+
         Returns:
             bool: True if fill verification succeeded or overall_success was already True,
                 False if fill verification failed.
@@ -2043,7 +2108,7 @@ class SynchronizedOrderSubmissionService:
         overall_success: bool,
     ) -> bool:
         """Verify orders step.
-        
+
         Returns:
             bool: True if order verification succeeded or overall_success was already True,
                 False if order verification failed.

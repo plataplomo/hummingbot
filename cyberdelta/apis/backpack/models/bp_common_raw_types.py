@@ -5,7 +5,6 @@ encountered in Backpack API responses. These types will centralize validation lo
 for raw models, ensuring consistency and adhering to project rules.
 """
 
-import asyncio
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Annotated
@@ -15,7 +14,6 @@ from pydantic import BeforeValidator, ValidationInfo
 from cyberdelta.apis.backpack.bp_api_errors import BackpackAPIErrorCode
 from cyberdelta.apis.base.validation_contexts import ValidationContext
 from cyberdelta.apis.base.validation_policies import StringPolicy
-from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
 from cyberdelta.apis.exceptions.parsing import (
     ClientIdFormatError,
     KlineTypeError,
@@ -23,18 +21,9 @@ from cyberdelta.apis.exceptions.parsing import (
     NonNullableFieldError,
     TimestampYearRangeError,
 )
-from cyberdelta.apis.exceptions.service import ServiceParameterError
-from cyberdelta.core.symbols.exceptions import (
-    SymbolError,
-    SymbolNotFoundError,
-    SymbolRegistryError,
-    SymbolValidationError,
-)
-from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     BooleanFieldError,
     DecimalFieldError,
-    FieldError as CoreFieldError,
     RangeFieldError,
     TimestampFieldError,
     TypeFieldError,
@@ -1116,10 +1105,11 @@ type RawBpNonEmptyStringMax32 = Annotated[
 
 
 def _validate_raw_symbol_string_max_len(v: object, info: ValidationInfo, max_length: int) -> str:
-    """Validate a symbol string with integer support using the new symbol system.
+    """Validate a symbol string with integer support.
 
-    Backpack WebSocket can send symbol as integer in some cases, so we convert it to string
-    and validate using the unified symbol system.
+    Backpack WebSocket can send symbol as integer in some cases, so we convert it to string.
+    This is a RAW model validator - it only ensures data is in the right format,
+    not that it's a valid symbol.
 
     Args:
         v: Raw input value to validate
@@ -1136,48 +1126,14 @@ def _validate_raw_symbol_string_max_len(v: object, info: ValidationInfo, max_len
     field_name = info.field_name or f"raw_symbol_string_max{max_length}_field"
 
     # Special handling for symbol field: Backpack WebSocket can send symbols as integers
-    if field_name in {"symbol", "s"}:
-        try:
-            # Use new symbol system for WebSocket validation
-            symbol_service = get_symbol_integration_service()
-
-            # Validate using the new system with integer support
-            # Convert v to str or int for validation
-            symbol_value = v if isinstance(v, (str, int)) else str(v)
-
-            return asyncio.run(
-                symbol_service.validate_websocket_symbol(
-                    symbol_value, field_name, ExchangeName.BACKPACK
-                )
-            )
-
-        except (
-            SymbolError,
-            SymbolNotFoundError,
-            SymbolRegistryError,
-            SymbolValidationError,
-            ServiceParameterError,
-            CoreFieldError,
-            TypeFieldError,
-            ValueError,
-            KeyError,
-            RuntimeError,
-        ):
-            # Fallback to legacy validation
-            if isinstance(v, int):
-                # Convert integer to string for symbol
-                v = str(v)
-            elif not isinstance(v, str):
-                raise TypeFieldError(
-                    field_name=field_name,
-                    expected_type="string or integer",
-                    actual_type=type(v).__name__,
-                    actual_value=v,
-                ) from None
+    if field_name in {"symbol", "s"} and isinstance(v, int):
+        # Convert integer to string for symbol
+        v = str(v)
     elif not isinstance(v, str):
+        expected_type = "string or integer" if field_name in {"symbol", "s"} else "string"
         raise TypeFieldError(
             field_name=field_name,
-            expected_type="string",
+            expected_type=expected_type,
             actual_type=type(v).__name__,
             actual_value=v,
         )

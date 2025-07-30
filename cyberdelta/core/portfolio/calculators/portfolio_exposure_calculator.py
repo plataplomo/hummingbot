@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 def _risk_limit_breach_list_factory() -> list[RiskLimitBreach]:
     """Factory function that preserves list[RiskLimitBreach] type information.
-    
+
     Returns:
         Empty list of RiskLimitBreach objects for use as default factory.
     """
@@ -48,10 +48,10 @@ class RiskLimitBreach:
     @classmethod
     def validate_values(cls, v: float | str | Decimal) -> float:
         """Validate limit values are finite.
-        
+
         Returns:
             Validated float value within reasonable bounds.
-            
+
         Raises:
             InvalidCalculationInputError: If value is not finite or not within reasonable bounds.
         """
@@ -64,7 +64,7 @@ class RiskLimitBreach:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary.
-        
+
         Returns:
             Dictionary representation of the risk limit breach with all attributes.
         """
@@ -162,10 +162,10 @@ class PortfolioExposure:
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
         """Ensure decimal values are finite.
-        
+
         Returns:
             Validated finite Decimal value.
-            
+
         Raises:
             InvalidCalculationInputError: If decimal value is not finite.
         """
@@ -188,10 +188,10 @@ class PortfolioExposure:
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
         """Validate dictionaries with decimal values.
-        
+
         Returns:
             Dictionary with string keys and validated finite Decimal values.
-            
+
         Raises:
             InvalidCalculationInputError: If any value is not finite or negative.
         """
@@ -213,10 +213,10 @@ class PortfolioExposure:
     @classmethod
     def validate_count_dict(cls, v: dict[str, int]) -> dict[str, int]:
         """Validate position count dictionary.
-        
+
         Returns:
             Validated dictionary with non-negative integer counts.
-            
+
         Raises:
             InvalidCalculationInputError: If any count is negative.
         """
@@ -231,7 +231,7 @@ class PortfolioExposure:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary.
-        
+
         Returns:
             Dictionary representation of portfolio exposure with all metrics
             and breakdowns converted to JSON-serializable types.
@@ -468,7 +468,7 @@ class PortfolioExposureCalculator:
 
     def _parse_base_asset(self, symbol: str) -> str:
         """Extract base asset from symbol.
-        
+
         Returns:
             Base asset symbol after removing common suffixes and quote currencies.
         """
@@ -490,7 +490,7 @@ class PortfolioExposureCalculator:
         total_exposure: Decimal,
     ) -> dict[str, Decimal]:
         """Calculate concentration metrics.
-        
+
         Returns:
             Dictionary containing largest position weight, top 5 concentration,
             and Herfindahl concentration index.
@@ -530,7 +530,7 @@ class PortfolioExposureCalculator:
         var_ratio: Decimal,
     ) -> dict[str, Decimal]:
         """Calculate risk scores (0-100, higher is riskier).
-        
+
         Returns:
             Dictionary containing leverage, concentration, VaR, and overall risk scores.
         """
@@ -566,7 +566,7 @@ class PortfolioExposureCalculator:
         self, gross_exposure: Decimal, net_exposure: Decimal
     ) -> list[RiskLimitBreach]:
         """Check exposure limits.
-        
+
         Returns:
             List of risk limit breaches for gross and net exposure violations.
         """
@@ -604,7 +604,7 @@ class PortfolioExposureCalculator:
         self, max_leverage: Decimal, portfolio_var_95: Decimal
     ) -> list[RiskLimitBreach]:
         """Check leverage and VaR limits.
-        
+
         Returns:
             List of risk limit breaches for leverage and VaR violations.
         """
@@ -641,7 +641,7 @@ class PortfolioExposureCalculator:
         total_exposure: Decimal,
     ) -> tuple[list[RiskLimitBreach], list[str]]:
         """Check concentration limits.
-        
+
         Returns:
             Tuple of (breached limits list, warnings list) for concentration violations.
         """
@@ -693,7 +693,7 @@ class PortfolioExposureCalculator:
         total_exposure: Decimal,
     ) -> tuple[list[RiskLimitBreach], list[str]]:
         """Check risk limits and generate warnings.
-        
+
         Returns:
             Tuple of (all breached limits, all warnings) from all risk checks.
         """
@@ -721,7 +721,7 @@ class PortfolioExposureCalculator:
 
     def _create_empty_portfolio_exposure(self) -> PortfolioExposure:
         """Create empty portfolio exposure object.
-        
+
         Returns:
             PortfolioExposure instance with all metrics set to zero for empty portfolio.
         """

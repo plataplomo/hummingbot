@@ -146,7 +146,8 @@ class BackpackRawFillsList(RootModel[list[BackpackRawFillResponse]]):
     def __getitem__(self, item: slice) -> list[BackpackRawFillResponse]: ...
 
     def __getitem__(
-        self, item: int | slice
+        self,
+        item: int | slice,
     ) -> BackpackRawFillResponse | list[BackpackRawFillResponse]:
         """Return a fill by index or a slice of fills for list-like access."""
         return self.root[item]

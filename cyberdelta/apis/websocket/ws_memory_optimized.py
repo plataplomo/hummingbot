@@ -101,7 +101,7 @@ class MemoryOptimizedBackpackEnvelope(MemoryOptimizedWebSocketEnvelope):
     @computed_field
     def routing_key(self) -> str:
         """Get routing key for memory efficiency.
-        
+
         Returns:
             str: The routing key extracted from the stream (first part before dot)
         """
@@ -111,7 +111,7 @@ class MemoryOptimizedBackpackEnvelope(MemoryOptimizedWebSocketEnvelope):
     @computed_field
     def symbol(self) -> str | None:
         """Get symbol for memory efficiency.
-        
+
         Returns:
             str | None: The symbol extracted from stream, or None if not found
         """
@@ -126,7 +126,7 @@ class MemoryOptimizedBackpackEnvelope(MemoryOptimizedWebSocketEnvelope):
 
     def get_payload_size(self) -> int:
         """Get payload size with minimal overhead.
-        
+
         Returns:
             int: Number of elements in the data payload
         """
@@ -152,7 +152,7 @@ class MemoryOptimizedHyperliquidEnvelope(MemoryOptimizedWebSocketEnvelope):
     @computed_field
     def routing_key(self) -> str:
         """Get routing key for memory efficiency.
-        
+
         Returns:
             str: The channel name used as routing key
         """
@@ -161,7 +161,7 @@ class MemoryOptimizedHyperliquidEnvelope(MemoryOptimizedWebSocketEnvelope):
     @computed_field
     def coin(self) -> str | None:
         """Get coin with minimal processing.
-        
+
         Returns:
             str | None: The coin name from data, or None if not found or invalid type
         """
@@ -172,7 +172,7 @@ class MemoryOptimizedHyperliquidEnvelope(MemoryOptimizedWebSocketEnvelope):
 
     def get_payload_size(self) -> int:
         """Get payload size with minimal overhead.
-        
+
         Returns:
             int: Number of elements in the data payload
         """
@@ -201,7 +201,7 @@ class MemoryOptimizedMessageContext(BaseModel):
     @computed_field
     def is_private(self) -> bool:
         """Determine if message is private.
-        
+
         Returns:
             bool: True if message routing key contains private channel patterns
         """
@@ -211,7 +211,7 @@ class MemoryOptimizedMessageContext(BaseModel):
     @computed_field
     def priority(self) -> int:
         """Get processing priority.
-        
+
         Returns:
             int: Processing priority (1=highest, 4=lowest) based on routing key
         """
@@ -241,10 +241,11 @@ class MemoryPool:
         self._pool_stats = {"allocated": 0, "reused": 0, "pool_hits": 0, "pool_misses": 0}
 
     def get_backpack_envelope(
-        self, **data: Unpack[BackpackEnvelopeKwargs]
+        self,
+        **data: Unpack[BackpackEnvelopeKwargs],
     ) -> MemoryOptimizedBackpackEnvelope:
         """Create new Backpack envelope (pooling removed - incompatible with frozen models).
-        
+
         Returns:
             MemoryOptimizedBackpackEnvelope: New envelope instance
         """
@@ -252,10 +253,11 @@ class MemoryPool:
         return MemoryOptimizedBackpackEnvelope(**data)
 
     def get_hyperliquid_envelope(
-        self, **data: Unpack[HyperliquidEnvelopeKwargs]
+        self,
+        **data: Unpack[HyperliquidEnvelopeKwargs],
     ) -> MemoryOptimizedHyperliquidEnvelope:
         """Create new Hyperliquid envelope (pooling removed - incompatible with frozen models).
-        
+
         Returns:
             MemoryOptimizedHyperliquidEnvelope: New envelope instance
         """
@@ -264,7 +266,7 @@ class MemoryPool:
 
     def get_context(self, **data: Unpack[MessageContextKwargs]) -> MemoryOptimizedMessageContext:
         """Create new message context (pooling removed - incompatible with frozen models).
-        
+
         Returns:
             MemoryOptimizedMessageContext: New message context instance
         """
@@ -282,7 +284,7 @@ class MemoryPool:
 
     def get_stats(self) -> dict[str, Any]:
         """Get memory pool statistics.
-        
+
         Returns:
             dict[str, Any]: Dictionary containing pool statistics and performance metrics
         """
@@ -311,7 +313,8 @@ memory_pool = MemoryPool()
 
 
 def create_memory_optimized_envelope(
-    raw_data: dict[str, Any], exchange_type: str
+    raw_data: dict[str, Any],
+    exchange_type: str,
 ) -> MemoryOptimizedBackpackEnvelope | MemoryOptimizedHyperliquidEnvelope:
     """Create memory-optimized envelope using pool allocation.
 
@@ -324,7 +327,7 @@ def create_memory_optimized_envelope(
 
     Returns:
         Memory-optimized envelope instance from pool
-        
+
     Raises:
         ValueError: If exchange_type is not 'backpack' or 'hyperliquid'
     """
@@ -384,7 +387,7 @@ if __name__ == "__main__":
 
     def benchmark_memory_optimization(iterations: int = 10000) -> dict[str, float]:
         """Benchmark memory-optimized models vs standard models.
-        
+
         Returns:
             dict[str, float]: Performance metrics including timing and improvement percentages
         """

@@ -48,7 +48,7 @@ class BackpackRawAccount(BaseModel):
     @classmethod
     def validate_id_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the id is a non-empty UTF-8 string of max 128 chars.
-        
+
         Args:
             v: Value to validate
             info: Pydantic validation information
@@ -63,7 +63,7 @@ class BackpackRawAccount(BaseModel):
     @classmethod
     def validate_email_str(cls, v: object, info: ValidationInfo) -> str:
         """Validates that the email is a non-empty UTF-8 string of max 254 chars.
-        
+
         Args:
             v: Value to validate
             info: Pydantic validation information
@@ -80,7 +80,7 @@ class BackpackRawAccount(BaseModel):
         """Validates status as a string with proper format and allowed enum values.
 
         Checks non-empty, max 32 chars, valid UTF-8, and in allowed enum values.
-        
+
         Args:
             v: Value to validate
             info: Pydantic validation information
@@ -121,7 +121,7 @@ class BackpackRawBalanceResponse(BaseModel):
         """Validates that the value is a non-empty string representing a finite decimal.
 
         Validates max 64 chars and ensures it's parseable as a finite decimal.
-        
+
         Args:
             v: Value to validate
             info: Pydantic validation information

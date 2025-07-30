@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
@@ -26,9 +25,6 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import MarginAccountSummary
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 

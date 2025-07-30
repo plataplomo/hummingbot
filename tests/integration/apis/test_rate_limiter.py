@@ -207,7 +207,7 @@ class TestTokenBucketRateLimiterRuntimeIPBan:
         limiter: TokenBucketRateLimiterRuntime,
     ) -> None:
         """Test acquire when IP ban has already expired.
-        
+
         Raises:
             AssertionError: If IP ban is not cleared after expiration.
         """

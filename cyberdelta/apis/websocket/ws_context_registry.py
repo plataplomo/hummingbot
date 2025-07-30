@@ -56,7 +56,8 @@ class WebSocketContextRegistry:
         self._envelope_validators[exchange_type] = envelope_validator
 
     def get_context_type(
-        self, exchange_type: ExchangeType
+        self,
+        exchange_type: ExchangeType,
     ) -> type[WebSocketMessageContext[Any]] | None:
         """Get the context type for an exchange.
 
@@ -69,7 +70,8 @@ class WebSocketContextRegistry:
         return self._context_types.get(exchange_type)
 
     def get_envelope_validator(
-        self, exchange_type: ExchangeType
+        self,
+        exchange_type: ExchangeType,
     ) -> Callable[[dict[str, Any]], BaseModel] | None:
         """Get the envelope validator for an exchange.
 

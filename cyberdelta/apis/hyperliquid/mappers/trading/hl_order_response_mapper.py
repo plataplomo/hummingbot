@@ -49,37 +49,20 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
     # Protocol method implementations - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
-        
+
         Returns:
             Decimal: Parsed decimal value or default if parsing fails.
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-        
-        Returns:
-            str: Normalized symbol (e.g., 'BTC-USD' -> 'BTCUSD').
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-        
-        Returns:
-            str: Denormalized symbol for exchange (e.g., 'BTCUSD' -> 'BTC-USD').
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
-
-    @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
-        
+
         Returns:
             datetime | None: UTC datetime object or None if timestamp is None.
         """
@@ -109,14 +92,16 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
             if "resting" in processed_status:
                 resting_data = processed_status["resting"]
                 return HyperliquidOrderResponseMapper.transform_resting_order_to_internal(
-                    resting_data, order_args
+                    resting_data,
+                    order_args,
                 )
 
             # Handle filled orders
             if "filled" in processed_status:
                 filled_data = processed_status["filled"]
                 return HyperliquidOrderResponseMapper.transform_filled_order_to_internal(
-                    filled_data, order_args
+                    filled_data,
+                    order_args,
                 )
 
             # Handle error statuses
@@ -126,7 +111,9 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
 
             # Handle other statuses - create minimal order from args
             return HyperliquidOrderResponseMapper._create_order_from_args(
-                order_args, processed_status, timestamp
+                order_args,
+                processed_status,
+                timestamp,
             )
 
         except Exception as e:
@@ -217,7 +204,7 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
 
         Args:
             error_message: Error message from the exchange
-            
+
         Raises:
             OrderError: Always raises with mapped error code.
         """
@@ -325,8 +312,9 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
         # Look for order ID in various possible locations
         exchange_order_id = str(
             processed_status.get(
-                "oid", processed_status.get("orderId", processed_status.get("id", ""))
-            )
+                "oid",
+                processed_status.get("orderId", processed_status.get("id", "")),
+            ),
         )
 
         # Default to NEW status for unclear statuses

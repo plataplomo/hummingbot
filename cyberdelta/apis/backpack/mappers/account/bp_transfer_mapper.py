@@ -70,7 +70,8 @@ class BackpackTransferMapper(TransferMapperProtocol):
 
     @staticmethod
     def _ensure_transfer_id_not_empty(
-        transfer_id: str | None, raw_response: dict[str, Any]
+        transfer_id: str | None,
+        raw_response: dict[str, Any],
     ) -> None:
         """Ensure transfer ID is not empty after extraction.
 
@@ -445,7 +446,8 @@ class BackpackTransferMapper(TransferMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -457,30 +459,6 @@ class BackpackTransferMapper(TransferMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

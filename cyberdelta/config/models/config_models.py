@@ -42,7 +42,7 @@ from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig
 
 # Import symbol configs from separate module to avoid circular imports
 from cyberdelta.config.models.symbol_configs import (
-    UnifiedSymbolConfig,
+    SymbolGroupConfig,
 )
 
 
@@ -1116,14 +1116,13 @@ class AppSettings(BaseModel):
 
     @property
     @computed_field
-    def unified_symbols(self) -> list[UnifiedSymbolConfig]:
-        """Generate unified symbols from smart configuration.
+    def symbol_groups(self) -> list[SymbolGroupConfig]:
+        """Generate symbol groups from smart configuration.
 
-        CLEAN BREAK: This computed property maintains compatibility with existing
-        ConfigSymbolLoader while using the new smart configuration internally.
+        Uses the new unified symbol architecture with SymbolGroupConfig.
         """
         generator = SmartSymbolGenerator(self.symbols)
-        return generator.generate_unified_symbols()
+        return generator.generate_symbol_groups()
 
     @field_validator("exchanges", mode="before")
     @classmethod

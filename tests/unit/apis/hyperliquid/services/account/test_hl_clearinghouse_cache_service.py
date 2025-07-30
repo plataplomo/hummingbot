@@ -45,7 +45,7 @@ THREAD_SAFETY_SCENARIOS = [
 @pytest.fixture
 def cache_service() -> HyperliquidClearinghouseCacheService:
     """Provide a default cache service instance for tests.
-    
+
     Returns:
         HyperliquidClearinghouseCacheService: Cache service with default configuration.
     """
@@ -55,7 +55,7 @@ def cache_service() -> HyperliquidClearinghouseCacheService:
 @pytest.fixture
 def mock_clearinghouse_state() -> MagicMock:
     """Provide a mock clearinghouse state for tests.
-    
+
     Returns:
         MagicMock: Mock clearinghouse state object for testing.
     """
@@ -65,7 +65,7 @@ def mock_clearinghouse_state() -> MagicMock:
 @pytest.fixture
 def test_user_address() -> ChecksumAddress:
     """Provide a test user address.
-    
+
     Returns:
         ChecksumAddress: A valid Ethereum address for testing.
     """
@@ -75,7 +75,7 @@ def test_user_address() -> ChecksumAddress:
 @pytest.fixture
 def test_user_address_2() -> ChecksumAddress:
     """Provide a second test user address.
-    
+
     Returns:
         ChecksumAddress: A second valid Ethereum address for testing.
     """
@@ -85,7 +85,7 @@ def test_user_address_2() -> ChecksumAddress:
 @pytest.fixture
 def multiple_user_addresses() -> list[ChecksumAddress]:
     """Provide multiple test user addresses.
-    
+
     Returns:
         list[ChecksumAddress]: List of valid Ethereum addresses for testing.
     """

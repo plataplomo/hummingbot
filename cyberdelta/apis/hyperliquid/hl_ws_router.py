@@ -305,7 +305,8 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         )
 
     def _extract_routing_key_from_envelope(
-        self, envelope: HyperliquidWebSocketMessage
+        self,
+        envelope: HyperliquidWebSocketMessage,
     ) -> str | None:
         """Extract routing key from validated Hyperliquid WebSocket message envelope.
 
@@ -376,7 +377,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return None
 
     def _handle_market_data_routing(
-        self, envelope: HyperliquidWebSocketMessage, channel: str
+        self,
+        envelope: HyperliquidWebSocketMessage,
+        channel: str,
     ) -> str:
         """Handle routing for market data channels (l2Book, trades).
 
@@ -459,7 +462,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return None
 
     def _match_candle_topic_by_interval(
-        self, subscribed_topics: set[str], interval: str
+        self,
+        subscribed_topics: set[str],
+        interval: str,
     ) -> str | None:
         """Match candle topic by interval from subscribed topics.
 
@@ -520,7 +525,8 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return None
 
     def _extract_payload_from_envelope(
-        self, envelope: HyperliquidWebSocketMessage
+        self,
+        envelope: HyperliquidWebSocketMessage,
     ) -> dict[str, Any] | list[Any]:
         """Extract payload from validated Hyperliquid WebSocket message envelope.
 
@@ -719,7 +725,8 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             )
 
         payload = HyperliquidRawWsUserEventsSubscriptionPayload(
-            type="userEvents", user=user_address.strip()
+            type="userEvents",
+            user=user_address.strip(),
         )
 
         return HyperliquidRawWsSubscribeRequest(
@@ -765,7 +772,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self._candle_subscriptions["candle"].add(candle_topic)
 
         payload = HyperliquidRawWsCandleSubscriptionPayload(
-            type="candle", coin=clean_coin, interval=interval.strip()
+            type="candle",
+            coin=clean_coin,
+            interval=interval.strip(),
         )
 
         return HyperliquidRawWsSubscribeRequest(
@@ -806,7 +815,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         return self.construct_trades_subscription_payload(coin)
 
     def _handle_user_events_topic(
-        self, topic: str, wallet_address: str | None
+        self,
+        topic: str,
+        wallet_address: str | None,
     ) -> HyperliquidRawWsSubscribeRequest:
         """Handle userEvents topic subscription.
 

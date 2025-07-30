@@ -318,3 +318,7 @@ class SymbolMappingErrorMessages:
     DUPLICATE_INTERNAL = "Duplicate internal symbol for exchange"
     DUPLICATE_EXCHANGE = "Exchange symbol already maps to different internal symbol"
     SYMBOL_PAIR_FAILED = "Symbol pair validation failed"
+
+    # Metadata validation errors
+    SYMBOL_ID_INVALID = "Invalid symbol_id"
+    SYMBOL_ID_REQUIRED_BACKPACK = "Backpack symbols require symbol_id"

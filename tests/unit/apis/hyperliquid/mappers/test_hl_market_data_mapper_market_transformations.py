@@ -40,7 +40,7 @@ Mapper = HyperliquidMarketMetadataMapper
 @pytest.fixture
 def mapper() -> HyperliquidMarketMetadataMapper:
     """Provide an instance of HyperliquidMarketMetadataMapper.
-    
+
     Returns:
         HyperliquidMarketMetadataMapper instance for testing.
     """
@@ -54,7 +54,7 @@ def create_asset_definition(
     sz_decimals: int = 4,
 ) -> HyperliquidRawAssetDefinition:
     """Create a HyperliquidRawAssetDefinition for testing.
-    
+
     Returns:
         HyperliquidRawAssetDefinition with specified or default values.
     """
@@ -77,7 +77,7 @@ def create_asset_ctx(
     impact_px: str | None = "3000.25",
 ) -> HyperliquidRawAssetCtx:
     """Create a HyperliquidRawAssetCtx for testing.
-    
+
     Returns:
         HyperliquidRawAssetCtx with specified or default values.
     """
@@ -102,7 +102,7 @@ def create_meta_and_asset_ctxs_response(
     asset_ctxs: list[HyperliquidRawAssetCtx] | None = None,
 ) -> HyperliquidRawMetaAndAssetCtxsResponse:
     """Create a HyperliquidRawMetaAndAssetCtxsResponse for testing.
-    
+
     Returns:
         HyperliquidRawMetaAndAssetCtxsResponse with test data.
     """

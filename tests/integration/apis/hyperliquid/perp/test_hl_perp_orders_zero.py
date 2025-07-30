@@ -25,6 +25,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.apis.models.service_args.trading import (
     GetOrderArgs,
     GetOrderHistoryArgs,
@@ -88,7 +89,9 @@ class TestHyperliquidPerpOrdersZero:
                 )
 
                 # Validate core order fields
-                assert isinstance(retrieved_order.symbol, str), "symbol must be string"
+                assert isinstance(retrieved_order.symbol, BaseSymbol), (
+                    "symbol must be Symbol object"
+                )
                 assert retrieved_order.side in [OrderSide.BUY, OrderSide.SELL], (
                     "side must be valid OrderSide"
                 )
@@ -145,7 +148,7 @@ class TestHyperliquidPerpOrdersZero:
             )
 
             # Validate order fields
-            assert isinstance(sample_order.symbol, str), "symbol must be string"
+            assert isinstance(sample_order.symbol, BaseSymbol), "symbol must be Symbol object"
             assert sample_order.side in [OrderSide.BUY, OrderSide.SELL], (
                 "side must be valid OrderSide"
             )
@@ -196,7 +199,7 @@ class TestHyperliquidPerpOrdersZero:
             )
 
             # Validate required fields
-            assert isinstance(sample_order.symbol, str), "symbol must be string"
+            assert isinstance(sample_order.symbol, BaseSymbol), "symbol must be Symbol object"
             assert sample_order.side in [OrderSide.BUY, OrderSide.SELL], (
                 "side must be valid OrderSide"
             )

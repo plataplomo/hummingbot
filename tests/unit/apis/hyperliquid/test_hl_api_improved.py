@@ -29,7 +29,7 @@ class TestHyperliquidAPIImproved:
     @pytest.fixture
     def mock_dependencies(self) -> dict[str, MagicMock]:
         """Create all mock dependencies for API testing.
-        
+
         Returns:
             Dictionary containing all mocked dependencies keyed by service name
         """
@@ -87,12 +87,12 @@ class TestHyperliquidAPIImproved:
         mock_dependencies: dict[str, MagicMock],
     ) -> Callable[..., HyperliquidAPI]:
         """Factory to create HyperliquidAPI instances with mock dependencies.
-        
+
         Args:
             active_hl_config: Exchange configuration
             active_hl_secrets: Authentication secrets
             mock_dependencies: Dictionary of mocked services
-            
+
         Returns:
             Factory function that creates HyperliquidAPI instances
         """

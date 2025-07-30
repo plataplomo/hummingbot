@@ -16,7 +16,7 @@ from .base import BaseStateModel, ValidationResult
 # Typed factory functions to avoid Unknown type inference
 def _trades_factory() -> list[Trade]:
     """Factory function for list[Trade].
-    
+
     Returns:
         list[Trade]: Empty list of trades.
     """
@@ -25,7 +25,7 @@ def _trades_factory() -> list[Trade]:
 
 def _orders_factory() -> list[Order]:
     """Factory function for list[Order].
-    
+
     Returns:
         list[Order]: Empty list of orders.
     """
@@ -290,7 +290,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_basic_fields(self) -> ValidationResult:
         """Validate basic required fields.
-        
+
         Returns:
             ValidationResult: Result indicating if basic fields are valid.
         """
@@ -306,7 +306,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_financial_metrics(self) -> ValidationResult:
         """Validate financial consistency.
-        
+
         Returns:
             ValidationResult: Result indicating if financial metrics are consistent.
         """
@@ -322,7 +322,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_counts(self) -> ValidationResult:
         """Validate position and order counts.
-        
+
         Returns:
             ValidationResult: Result indicating if counts are valid.
         """
@@ -341,7 +341,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_risk_metrics(self) -> ValidationResult:
         """Validate risk metrics.
-        
+
         Returns:
             ValidationResult: Result indicating if risk metrics are within bounds.
         """
@@ -357,7 +357,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_exchange_summaries(self) -> ValidationResult:
         """Validate exchange summary data.
-        
+
         Returns:
             ValidationResult: Result indicating if exchange summaries are valid.
         """
@@ -392,7 +392,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_component_health(self) -> ValidationResult:
         """Validate component health data.
-        
+
         Returns:
             ValidationResult: Result indicating if component health is acceptable.
         """
@@ -425,7 +425,7 @@ class PortfolioState(PortfolioStateData):
 
     def _validate_cross_consistency(self) -> ValidationResult:
         """Validate cross-data consistency.
-        
+
         Returns:
             ValidationResult: Result indicating if data is internally consistent.
         """

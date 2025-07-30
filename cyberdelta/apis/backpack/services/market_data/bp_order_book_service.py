@@ -35,6 +35,7 @@ from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, Inv
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import OrderBook
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -82,11 +83,11 @@ class BackpackOrderBookService:
         self._exchange_name = exchange_name
         self._order_book_mapper = order_book_mapper or BackpackOrderBookMapper()
 
-    async def get_order_book(self, symbol: str, limit: int | None = 20) -> OrderBook:
+    async def get_order_book(self, symbol: Symbol, limit: int | None = 20) -> OrderBook:
         """Retrieves the order book for a specific symbol.
 
         Args:
-            symbol: The trading symbol to get order book for
+            symbol: The Symbol domain object
             limit: Maximum number of price levels per side (default: 20)
 
         Returns:
@@ -103,7 +104,7 @@ class BackpackOrderBookService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_order_book"
 
-        if not symbol:
+        if not symbol or not symbol.value:
             raise EmptySymbolError(current_method)
         if limit is not None and limit <= 0:
             raise InvalidLimitError(current_method, limit)
@@ -119,7 +120,8 @@ class BackpackOrderBookService:
                 "retrieving_order_book",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol,
+                symbol=symbol.value,
+                symbol_exchange=symbol.exchange.value,
                 limit=limit,
                 message="Retrieving order book from exchange",
             )
@@ -130,7 +132,7 @@ class BackpackOrderBookService:
             logger.debug(
                 "order_book_request",
                 exchange=self._exchange_name,
-                symbol=symbol,
+                symbol=symbol.value,
                 limit=limit,
                 endpoint_path=endpoint_path,
                 params=params,
@@ -179,7 +181,8 @@ class BackpackOrderBookService:
                 "order_book_retrieved",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol,
+                symbol=symbol.value,
+                symbol_exchange=symbol.exchange.value,
                 bid_levels=len(internal_order_book.bids),
                 ask_levels=len(internal_order_book.asks),
                 best_bid=str(internal_order_book.bids[0][0]) if internal_order_book.bids else None,
@@ -190,7 +193,7 @@ class BackpackOrderBookService:
             logger.debug(
                 "order_book_mapped",
                 exchange=self._exchange_name,
-                symbol=symbol,
+                symbol=symbol.value,
                 internal_order_book=internal_order_book,
                 message="Mapped order book to internal model",
             )
@@ -203,7 +206,7 @@ class BackpackOrderBookService:
                 "transform_error",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol,
+                symbol=symbol.value,
                 error=str(e_transform),
                 message="Failed to transform exchange data",
             )

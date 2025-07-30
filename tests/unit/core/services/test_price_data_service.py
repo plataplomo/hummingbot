@@ -23,7 +23,7 @@ class TestPriceDataService:
     @pytest.fixture
     def app_settings(self) -> MagicMock:
         """Create mock app settings.
-        
+
         Returns:
             MagicMock: Mock AppSettings instance for testing.
         """
@@ -34,7 +34,7 @@ class TestPriceDataService:
     @pytest.fixture
     def mock_api_clients(self) -> dict[str, AsyncMock]:
         """Create mock API clients.
-        
+
         Returns:
             dict[str, AsyncMock]: Dictionary of mock API clients for testing.
         """
@@ -57,7 +57,7 @@ class TestPriceDataService:
         mock_api_clients: dict[str, AsyncMock],
     ) -> PriceDataService:
         """Create PriceDataService instance.
-        
+
         Returns:
             PriceDataService: Configured price data service instance for testing.
         """

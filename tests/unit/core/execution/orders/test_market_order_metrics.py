@@ -23,7 +23,7 @@ class TestMarketOrderExecutionMetric:
     @pytest.fixture
     def filled_buy_metric(self) -> MarketOrderExecutionMetric:
         """Create a filled buy order metric for testing.
-        
+
         Returns:
             MarketOrderExecutionMetric: A filled buy order metric for testing.
         """
@@ -243,7 +243,7 @@ class TestMarketOrderMetrics:
     @pytest.fixture
     def metrics_tracker(self) -> MarketOrderMetrics:
         """Create a MarketOrderMetrics instance for testing.
-        
+
         Returns:
             MarketOrderMetrics: A market order metrics tracker for testing.
         """

@@ -42,7 +42,7 @@ class CacheEntry[V]:
 
     def is_expired(self) -> bool:
         """Check if entry has expired.
-        
+
         Returns:
             True if the entry has expired, False otherwise
         """
@@ -378,7 +378,7 @@ class MemoryCacheService[K, V]:
 
         Args:
             new_max_size: New maximum cache size
-            
+
         Raises:
             CacheSizeMustBePositiveError: If new_max_size is not positive
         """
@@ -402,7 +402,7 @@ class MemoryCacheService[K, V]:
 
     def _ensure_running(self) -> None:
         """Raise an error if the service is not running.
-        
+
         Raises:
             ServiceNotRunningError: If the cache service is not running
         """

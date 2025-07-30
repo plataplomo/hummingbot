@@ -38,6 +38,7 @@ from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -103,11 +104,11 @@ class BackpackPositionService:
         # Provide sensible default if mapper not injected
         self._mapper = mapper or BackpackPositionMapper()
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Fetch derivative positions, optionally filtered by symbol.
 
         Args:
-            symbol: Optional symbol to filter positions (e.g., "SOL-PERP")
+            symbol: Optional Symbol object to filter positions
 
         Returns:
             List of DerivativePosition objects
@@ -145,7 +146,8 @@ class BackpackPositionService:
             return internal_positions
 
     async def _get_raw_positions_list(
-        self, symbol: str | None = None
+        self,
+        symbol: Symbol | None = None,
     ) -> list[BackpackRawPositionResponse]:
         """Fetch raw position data from the API.
 
@@ -188,7 +190,9 @@ class BackpackPositionService:
 
             # Handle response
             raw_positions = self._response_handler.handle_get_positions_response(
-                raw_data, symbol, status_code
+                raw_data,
+                symbol,
+                status_code,
             )
 
             if not raw_positions:
@@ -206,7 +210,7 @@ class BackpackPositionService:
                 filtered_positions = [
                     pos
                     for pos in raw_positions
-                    if pos.symbol and pos.symbol.upper() == symbol.upper()
+                    if pos.symbol and pos.symbol.upper() == symbol.value.upper()
                 ]
 
                 logger.debug(
@@ -243,7 +247,7 @@ class BackpackPositionService:
     async def _transform_raw_positions(
         self,
         raw_positions: list[BackpackRawPositionResponse],
-        symbol: str | None,
+        symbol: Symbol | None,
     ) -> list[DerivativePosition]:
         """Transform raw position data to internal models.
 
@@ -286,7 +290,7 @@ class BackpackPositionService:
 
         return internal_positions
 
-    def _validate_position_symbol(self, symbol: str | None, method_name: str) -> None:
+    def _validate_position_symbol(self, symbol: Symbol | None, method_name: str) -> None:
         """Validate position symbol parameter.
 
         Args:
@@ -296,7 +300,7 @@ class BackpackPositionService:
         Raises:
             EmptyStringParameterError: If symbol is empty string
         """
-        if symbol is not None and not symbol:
+        if symbol is not None and not symbol.value:
             raise EmptyStringParameterError(
                 parameter_name="symbol",
                 method_name=method_name,
@@ -306,7 +310,7 @@ class BackpackPositionService:
         self,
         error: ValueError,
         current_method: str,
-        symbol: str | None,
+        symbol: Symbol | None,
     ) -> list[DerivativePosition]:
         """Handle ValueError during position operations.
 
@@ -340,7 +344,7 @@ class BackpackPositionService:
         self,
         error: Exception,
         current_method: str,
-        symbol: str | None,
+        symbol: Symbol | None,
     ) -> list[DerivativePosition]:
         """Handle exceptions during position operations.
 

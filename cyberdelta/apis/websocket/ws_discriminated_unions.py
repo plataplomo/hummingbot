@@ -35,7 +35,8 @@ class DiscriminatedBackpackEnvelope(BackpackRawWebSocketEnvelope):
     """
 
     envelope_type: Literal["backpack"] = Field(
-        default="backpack", description="Discriminator field for fast union validation"
+        default="backpack",
+        description="Discriminator field for fast union validation",
     )
 
     model_config = ConfigDict(
@@ -53,7 +54,8 @@ class DiscriminatedHyperliquidEnvelope(HyperliquidRawWebSocketEnvelope):
     """Hyperliquid envelope with discriminator for ultra-fast validation."""
 
     envelope_type: Literal["hyperliquid"] = Field(
-        default="hyperliquid", description="Discriminator field for fast union validation"
+        default="hyperliquid",
+        description="Discriminator field for fast union validation",
     )
 
     model_config = ConfigDict(
@@ -217,7 +219,9 @@ T = TypeVar("T")
 
 
 def benchmark_validation[T](
-    validator_func: Callable[[dict[str, Any]], T], raw_data: dict[str, Any], iterations: int = 1000
+    validator_func: Callable[[dict[str, Any]], T],
+    raw_data: dict[str, Any],
+    iterations: int = 1000,
 ) -> tuple[T, float]:
     """Benchmark validation performance.
 

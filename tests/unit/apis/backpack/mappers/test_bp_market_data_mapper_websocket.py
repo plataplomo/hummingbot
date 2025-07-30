@@ -35,7 +35,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 @pytest.fixture
 def ticker_mapper() -> BackpackTickerMapper:
     """Fixture providing a BackpackTickerMapper instance.
-    
+
     Returns:
         BackpackTickerMapper: Instance for testing ticker transformations.
     """
@@ -45,7 +45,7 @@ def ticker_mapper() -> BackpackTickerMapper:
 @pytest.fixture
 def order_book_mapper() -> BackpackOrderBookMapper:
     """Fixture providing a BackpackOrderBookMapper instance.
-    
+
     Returns:
         BackpackOrderBookMapper: Instance for testing order book transformations.
     """
@@ -55,7 +55,7 @@ def order_book_mapper() -> BackpackOrderBookMapper:
 @pytest.fixture
 def trade_mapper() -> BackpackTradeMapper:
     """Fixture providing a BackpackTradeMapper instance.
-    
+
     Returns:
         BackpackTradeMapper: Instance for testing trade transformations.
     """
@@ -65,7 +65,7 @@ def trade_mapper() -> BackpackTradeMapper:
 @pytest.fixture
 def test_timestamp_ms() -> int:
     """Fixture providing a consistent test timestamp in milliseconds.
-    
+
     Returns:
         int: Timestamp in milliseconds (2024-01-15T10:30:00Z).
     """
@@ -84,7 +84,7 @@ def create_raw_ticker_event(
     event_time: int = 1705314600000,
 ) -> BackpackRawTickerEvent:
     """Create BackpackRawTickerEvent instances for WebSocket testing.
-    
+
     Returns:
         BackpackRawTickerEvent: Raw ticker event with specified parameters.
     """
@@ -147,7 +147,7 @@ def create_raw_trade_event(
     trade_time: int = 1705314600000,
 ) -> BackpackRawPublicTradeEvent:
     """Create BackpackRawPublicTradeEvent instances for WebSocket testing.
-    
+
     Returns:
         BackpackRawPublicTradeEvent: Raw trade event with specified parameters.
     """

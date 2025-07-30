@@ -78,13 +78,13 @@ class PerformanceMetrics(BaseModel):
     @classmethod
     def validate_finite_decimals(cls, v: Decimal | str | float) -> Decimal:
         """Ensure all return metrics are finite.
-        
+
         Args:
             v: The value to validate as a finite decimal
-            
+
         Returns:
             The validated decimal value
-            
+
         Raises:
             InvalidCalculationInputError: If the value is not finite (e.g., infinity, NaN)
         """
@@ -99,13 +99,13 @@ class PerformanceMetrics(BaseModel):
     @classmethod
     def validate_win_rate(cls, v: Decimal | str | float | None) -> Decimal | None:
         """Validate win rate is a valid percentage.
-        
+
         Args:
             v: The win rate value to validate (should be between 0 and 1)
-            
+
         Returns:
             The validated win rate as a decimal, or None if input was None
-            
+
         Raises:
             InvalidCalculationInputError: If the win rate is not between 0 and 1
         """
@@ -140,13 +140,13 @@ class PerformanceInput(BaseModel):
     @classmethod
     def validate_portfolio_values(cls, v: list[Decimal | str | float | int]) -> list[Decimal]:
         """Validate portfolio values are positive and finite.
-        
+
         Args:
             v: List of portfolio values to validate
-            
+
         Returns:
             List of validated Decimal portfolio values
-            
+
         Raises:
             CalculatorValidationError: If the portfolio values list is empty
             InvalidCalculationInputError: If any value is not finite or not positive
@@ -175,14 +175,14 @@ class PerformanceInput(BaseModel):
     @classmethod
     def validate_timestamps(cls, v: list[int] | None, info: ValidationInfo) -> list[int] | None:
         """Validate timestamps if provided.
-        
+
         Args:
             v: List of timestamps to validate, or None
             info: Validation context information
-            
+
         Returns:
             The validated list of timestamps, or None if input was None
-            
+
         Raises:
             CalculatorValidationError: If timestamps length doesn't match portfolio values
             InvalidCalculationInputError: If any timestamp is negative
@@ -211,14 +211,14 @@ class PerformanceInput(BaseModel):
         cls, v: list[Decimal | str | float | int] | None, info: ValidationInfo
     ) -> list[Decimal] | None:
         """Validate benchmark values if provided.
-        
+
         Args:
             v: List of benchmark values to validate, or None
             info: Validation context information
-            
+
         Returns:
             List of validated Decimal benchmark values, or None if input was None
-            
+
         Raises:
             CalculatorValidationError: If benchmark values length doesn't match portfolio values
             InvalidCalculationInputError: If any value is not finite or not positive
@@ -442,10 +442,10 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
 
     def _calculate_returns(self, values: list[Decimal]) -> list[Decimal]:
         """Calculate period returns from value series.
-        
+
         Args:
             values: List of portfolio values over time
-            
+
         Returns:
             List of period-over-period returns as decimals
         """
@@ -460,11 +460,11 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
 
     def _calculate_annualized_return(self, total_return_percent: Decimal, days: int) -> Decimal:
         """Calculate annualized return from total return.
-        
+
         Args:
             total_return_percent: Total return as a percentage
             days: Number of days in the period
-            
+
         Returns:
             Annualized return as a percentage
         """
@@ -484,10 +484,10 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
 
     def _calculate_volatility(self, returns: list[Decimal]) -> Decimal:
         """Calculate annualized volatility from returns.
-        
+
         Args:
             returns: List of period returns
-            
+
         Returns:
             Annualized volatility as a percentage
         """
@@ -510,11 +510,11 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         self, returns: list[Decimal], risk_free_rate: Decimal
     ) -> Decimal | None:
         """Calculate Sharpe ratio.
-        
+
         Args:
             returns: List of period returns
             risk_free_rate: Annual risk-free rate as a decimal
-            
+
         Returns:
             Annualized Sharpe ratio, or None if insufficient data
         """
@@ -549,10 +549,10 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
 
     def _calculate_max_drawdown(self, values: list[Decimal]) -> tuple[Decimal, Decimal]:
         """Calculate maximum drawdown in absolute and percentage terms.
-        
+
         Args:
             values: List of portfolio values over time
-            
+
         Returns:
             Tuple of (absolute maximum drawdown, maximum drawdown percentage)
         """
@@ -576,11 +576,11 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         self, annualized_return: Decimal, max_drawdown_percent: Decimal
     ) -> Decimal | None:
         """Calculate Calmar ratio (annualized return / max drawdown).
-        
+
         Args:
             annualized_return: Annualized return as a percentage
             max_drawdown_percent: Maximum drawdown as a percentage
-            
+
         Returns:
             Calmar ratio, or None if maximum drawdown is zero
         """
@@ -592,11 +592,11 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         self, returns: list[Decimal], risk_free_rate: Decimal
     ) -> Decimal | None:
         """Calculate Sortino ratio (excess return / downside deviation).
-        
+
         Args:
             returns: List of period returns
             risk_free_rate: Annual risk-free rate as a decimal
-            
+
         Returns:
             Annualized Sortino ratio, or None if insufficient data or zero downside deviation
         """
@@ -628,10 +628,10 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         self, trade_returns: list[Decimal]
     ) -> tuple[Decimal, Decimal, Decimal, Decimal | None]:
         """Calculate trade-based performance metrics.
-        
+
         Args:
             trade_returns: List of individual trade returns
-            
+
         Returns:
             Tuple of (win_rate_percent, average_win, average_loss, profit_factor)
         """
@@ -663,10 +663,10 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         self, returns: list[Decimal]
     ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
         """Calculate Value at Risk and Expected Shortfall metrics.
-        
+
         Args:
             returns: List of period returns
-            
+
         Returns:
             Tuple of (VaR_95%, VaR_99%, Expected_Shortfall) or None values if insufficient data
         """

@@ -35,7 +35,7 @@ REASONABLE_VALUE_MAX = 1e15  # Maximum reasonable financial value
 # Typed model factories for Pydantic
 def _report_section_list_factory() -> list[ReportSection]:
     """Factory function that preserves list[ReportSection] type information.
-    
+
     Returns:
         Empty list with proper ReportSection type annotation.
     """
@@ -44,7 +44,7 @@ def _report_section_list_factory() -> list[ReportSection]:
 
 def _decimal_dict_factory() -> dict[str, Decimal]:
     """Factory function that preserves dict[str, Decimal] type information.
-    
+
     Returns:
         Empty dictionary with proper Decimal value type annotation.
     """
@@ -72,7 +72,7 @@ logger = get_logger(__name__)
 # Type-preserving factory functions
 def _chart_data_factory() -> list[dict[str, float | str]]:
     """Factory function that preserves chart data type information.
-    
+
     Returns:
         Empty list with proper chart data type annotation.
     """
@@ -81,7 +81,7 @@ def _chart_data_factory() -> list[dict[str, float | str]]:
 
 def _table_data_factory() -> list[list[str | float | int]]:
     """Factory function that preserves table data type information.
-    
+
     Returns:
         Empty list with proper table data type annotation.
     """
@@ -90,7 +90,7 @@ def _table_data_factory() -> list[list[str | float | int]]:
 
 def _position_data_factory() -> list[PositionData]:
     """Factory function that preserves list[PositionData] type information.
-    
+
     Returns:
         Empty list with proper PositionData type annotation.
     """
@@ -99,7 +99,7 @@ def _position_data_factory() -> list[PositionData]:
 
 def _chart_data_list_factory() -> list[ChartData]:
     """Factory function that preserves list[ChartData] type information.
-    
+
     Returns:
         Empty list with proper ChartData type annotation.
     """
@@ -108,7 +108,7 @@ def _chart_data_list_factory() -> list[ChartData]:
 
 def _table_data_list_factory() -> list[TableData]:
     """Factory function that preserves list[TableData] type information.
-    
+
     Returns:
         Empty list with proper TableData type annotation.
     """
@@ -117,7 +117,7 @@ def _table_data_list_factory() -> list[TableData]:
 
 def _analytics_alert_factory() -> list[AnalyticsAlert]:
     """Factory function that preserves list[AnalyticsAlert] type information.
-    
+
     Returns:
         Empty list with proper AnalyticsAlert type annotation.
     """
@@ -181,13 +181,13 @@ class ReportFilters:
     @classmethod
     def validate_dates(cls, v: str | None) -> str | None:
         """Validate date format if provided.
-        
+
         Args:
             v: Date string to validate
-            
+
         Returns:
             Validated and stripped date string, or None if input was None/empty.
-            
+
         Raises:
             StateValidationError: If date string is too short (less than 8 characters).
         """
@@ -218,10 +218,10 @@ class ReportMetadata:
     @classmethod
     def validate_tags(cls, v: list[str] | None) -> list[str]:
         """Validate tags are non-empty strings.
-        
+
         Args:
             v: List of tag strings to validate
-            
+
         Returns:
             List of non-empty, stripped tag strings.
         """
@@ -244,13 +244,13 @@ class PortfolioSummaryData:
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
         """Validate decimal values are finite.
-        
+
         Args:
             v: Value to convert and validate as Decimal
-            
+
         Returns:
             Validated finite Decimal value.
-            
+
         Raises:
             AnalyticsValueError: If value is not finite.
         """
@@ -276,13 +276,13 @@ class PositionData:
     @classmethod
     def validate_decimals(cls, v: Decimal | str | float) -> Decimal:
         """Validate decimal values are finite.
-        
+
         Args:
             v: Value to convert and validate as Decimal
-            
+
         Returns:
             Validated finite Decimal value.
-            
+
         Raises:
             AnalyticsValueError: If value is not finite.
         """
@@ -311,13 +311,13 @@ class PerformanceMetricsData:
     @classmethod
     def validate_metrics(cls, v: float | str) -> float:
         """Validate metrics are finite.
-        
+
         Args:
             v: Metric value to validate
-            
+
         Returns:
             Validated finite float value within reasonable bounds.
-            
+
         Raises:
             AnalyticsValueError: If value is not finite or outside reasonable range.
         """
@@ -344,13 +344,13 @@ class RiskMetricsData:
     @classmethod
     def validate_risk_metrics(cls, v: float | str | Decimal) -> float:
         """Validate risk metrics are finite and positive.
-        
+
         Args:
             v: Risk metric value to validate
-            
+
         Returns:
             Validated non-negative finite float value.
-            
+
         Raises:
             AnalyticsValueError: If value is negative, infinite, or unreasonable.
         """
@@ -385,13 +385,13 @@ class AttributionData:
         cls, v: dict[str, Decimal | str | float | int]
     ) -> dict[str, Decimal]:
         """Validate attribution dictionaries have finite decimal values.
-        
+
         Args:
             v: Dictionary with string keys and numeric values to validate
-            
+
         Returns:
             Dictionary with string keys and validated finite Decimal values.
-            
+
         Raises:
             AnalyticsValueError: If any value is not finite.
         """
@@ -423,13 +423,13 @@ class ChartData:
     @classmethod
     def validate_chart_type(cls, v: str) -> str:
         """Validate chart type is one of allowed values.
-        
+
         Args:
             v: Chart type string to validate
-            
+
         Returns:
             Validated lowercase chart type string.
-            
+
         Raises:
             AnalyticsTypeError: If chart type is not in valid types list.
         """
@@ -453,13 +453,13 @@ class TableData:
     @classmethod
     def validate_headers(cls, v: list[str]) -> list[str]:
         """Validate headers are non-empty strings.
-        
+
         Args:
             v: List of header strings to validate
-            
+
         Returns:
             List of non-empty, stripped header strings.
-            
+
         Raises:
             AnalyticsRequiredFieldError: If headers list is empty.
         """
@@ -487,13 +487,13 @@ class RawDataCollection:
     @classmethod
     def validate_balances(cls, v: dict[str, Decimal | str | float | int]) -> dict[str, Decimal]:
         """Validate balance values are finite decimals.
-        
+
         Args:
             v: Dictionary with string keys and numeric balance values
-            
+
         Returns:
             Dictionary with string keys and validated finite Decimal values.
-            
+
         Raises:
             AnalyticsValueError: If any balance value is not finite.
         """
@@ -533,13 +533,13 @@ class ReportConfiguration:
     @classmethod
     def validate_time_period(cls, v: str) -> str:
         """Validate time period is one of allowed values.
-        
+
         Args:
             v: Time period string to validate
-            
+
         Returns:
             Validated time period string.
-            
+
         Raises:
             AnalyticsTypeError: If time period is not in valid periods list.
         """
@@ -565,13 +565,13 @@ class ReportSection:
     @classmethod
     def validate_content_type(cls, v: str) -> str:
         """Validate content type is one of allowed values.
-        
+
         Args:
             v: Content type string to validate
-            
+
         Returns:
             Validated content type string.
-            
+
         Raises:
             AnalyticsTypeError: If content type is not in valid types list.
         """
@@ -658,13 +658,13 @@ class AnalyticsAlert:
     @classmethod
     def validate_alert_type(cls, v: str) -> str:
         """Validate alert type is non-empty.
-        
+
         Args:
             v: Alert type string to validate
-            
+
         Returns:
             Validated non-empty, stripped alert type string.
-            
+
         Raises:
             AnalyticsRequiredFieldError: If alert type is empty or whitespace only.
         """
@@ -687,13 +687,13 @@ class AnalyticsStatistics:
     @classmethod
     def validate_statistics(cls, v: float | str | Decimal) -> float:
         """Validate statistics are finite.
-        
+
         Args:
             v: Statistical value to validate
-            
+
         Returns:
             Validated finite float value within reasonable bounds.
-            
+
         Raises:
             AnalyticsValueError: If value is not finite or outside reasonable range.
         """
@@ -721,10 +721,10 @@ class AnalyticsResults:
         cls, v: dict[str, str | int | float | bool]
     ) -> dict[str, str | int | float | bool]:
         """Validate result data contains only basic types.
-        
+
         Args:
             v: Result data dictionary to validate
-            
+
         Returns:
             Validated result data dictionary with basic types.
         """
@@ -783,13 +783,13 @@ class DashboardMetrics:
     @classmethod
     def validate_pnl_metrics(cls, v: float | str | Decimal) -> float:
         """Validate P&L metrics are finite.
-        
+
         Args:
             v: P&L metric value to validate
-            
+
         Returns:
             Validated finite float value within reasonable bounds.
-            
+
         Raises:
             AnalyticsValueError: If value is not finite or outside reasonable range.
         """
@@ -1007,17 +1007,17 @@ class PortfolioAnalyticsService(BasePortfolioService):
         custom_config: dict[str, object] | None = None,
     ) -> PortfolioReport:
         """Generate a portfolio report.
-        
+
         Args:
             report_type: Type of report to generate
             output_format: Output format for the report (default: JSON)
             time_period: Time period for the report (default: "daily")
             base_currency: Base currency for calculations (default: "USD")
             custom_config: Optional custom configuration parameters
-            
+
         Returns:
             Generated portfolio report with all sections and metrics.
-            
+
         Raises:
             ValueError: If configuration parameters are invalid.
             TypeError: If parameter types are incorrect.
@@ -1131,15 +1131,15 @@ class PortfolioAnalyticsService(BasePortfolioService):
         parameters: dict[str, object] | None = None,
     ) -> AnalyticsResult:
         """Calculate specific analytics.
-        
+
         Args:
             analytics_type: Type of analytics to calculate
             base_currency: Base currency for calculations (default: "USD")
             parameters: Optional calculation parameters
-            
+
         Returns:
             Analytics result with calculated metrics and statistics.
-            
+
         Raises:
             ValueError: If parameters or calculation inputs are invalid.
             TypeError: If parameter types are incorrect.
@@ -1183,10 +1183,10 @@ class PortfolioAnalyticsService(BasePortfolioService):
 
     def _get_cached_result(self, cache_key: str) -> AnalyticsResult | None:
         """Get cached result if available and valid.
-        
+
         Args:
             cache_key: Cache key for the analytics result
-            
+
         Returns:
             Cached analytics result if available and not expired, None otherwise.
         """
@@ -1251,10 +1251,10 @@ class PortfolioAnalyticsService(BasePortfolioService):
 
     async def get_dashboard_data(self, dashboard_id: str = "main") -> DashboardData:
         """Get dashboard data.
-        
+
         Args:
             dashboard_id: Identifier for the dashboard (default: "main")
-            
+
         Returns:
             Dashboard data with current metrics, charts, and summaries.
         """
@@ -1303,11 +1303,11 @@ class PortfolioAnalyticsService(BasePortfolioService):
         self, report_type: ReportType | None = None, limit: int | None = None
     ) -> list[PortfolioReport]:
         """Get report history.
-        
+
         Args:
             report_type: Optional filter by report type
             limit: Optional limit on number of reports returned
-            
+
         Returns:
             List of historical reports, sorted by generation time (newest first).
         """
@@ -1328,7 +1328,7 @@ class PortfolioAnalyticsService(BasePortfolioService):
 
     async def get_analytics_statistics(self) -> dict[str, object]:
         """Get analytics service statistics.
-        
+
         Returns:
             Dictionary containing service statistics including report counts,
             cache metrics, and performance data.

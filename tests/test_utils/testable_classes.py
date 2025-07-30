@@ -41,7 +41,7 @@ class TestableExecutionHandler(ExecutionHandler):
         is_long_leg: bool = True,
     ) -> Order | None:
         """Wrapper that exposes _place_order_with_retry for testing.
-        
+
         Returns:
             Order | None: Placed order if successful, None if failed or service unavailable.
         """
@@ -71,7 +71,7 @@ class TestableExecutionHandler(ExecutionHandler):
         client_order_id: str | None = None,
     ) -> Order | None:
         """Wrapper that exposes _get_order_status for testing.
-        
+
         Returns:
             Order | None: Order status if found, None if not found or service unavailable.
         """
@@ -90,7 +90,7 @@ class TestableExecutionHandler(ExecutionHandler):
         quantity: Decimal,
     ) -> bool:
         """Test wrapper for _compensate_position.
-        
+
         Returns:
             bool: True if compensation successful, False otherwise or service unavailable.
         """

@@ -78,7 +78,7 @@ class TestHyperliquidWebSocketMarketData:
         self, hl_api: HyperliquidAPI
     ) -> tuple[str, list[OrderBook], asyncio.Event]:
         """Setup L2 book test environment.
-        
+
         Returns:
             Tuple of (test_symbol, received_orderbooks list, data_received event).
         """
@@ -92,7 +92,7 @@ class TestHyperliquidWebSocketMarketData:
         self, test_symbol: str, received_orderbooks: list[OrderBook], data_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create L2 book handler with validation.
-        
+
         Returns:
             Async handler function that processes L2 book WebSocket messages.
         """
@@ -217,7 +217,7 @@ class TestHyperliquidWebSocketMarketData:
         self, test_symbol: str, received_trades: list[Trade], trade_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create trades handler with validation.
-        
+
         Returns:
             Async handler function that processes trades WebSocket messages.
         """
@@ -294,7 +294,7 @@ class TestHyperliquidWebSocketMarketData:
         self, received_mids: list[dict[str, Decimal]], mids_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create allmids handler with validation.
-        
+
         Returns:
             Async handler function that processes allmids WebSocket messages.
         """

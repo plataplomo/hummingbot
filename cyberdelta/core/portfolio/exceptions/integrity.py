@@ -25,7 +25,7 @@ class PortfolioIntegrityError(PortfolioError):
 
     def _get_default_error_code(self) -> str:
         """Get default error code for validation exceptions.
-        
+
         Returns:
             str: Default error code in format 'VALID_<CLASSNAME>'
         """

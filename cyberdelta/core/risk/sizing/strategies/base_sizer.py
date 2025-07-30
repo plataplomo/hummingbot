@@ -20,13 +20,13 @@ class BaseSizer(ABC):
 
     def _to_decimal(self, value: ConfigValue) -> Decimal:
         """Convert value to Decimal with validation.
-        
+
         Args:
             value: Value to convert to Decimal
-            
+
         Returns:
             Decimal representation of the value
-            
+
         Raises:
             SizingError: If value cannot be converted to Decimal
         """
@@ -294,11 +294,11 @@ class BaseSizer(ABC):
 
     def _round_to_precision(self, value: Decimal, precision: int) -> Decimal:
         """Round value to specified decimal precision.
-        
+
         Args:
             value: Value to round
             precision: Number of decimal places
-            
+
         Returns:
             Value rounded to specified decimal precision
         """
@@ -366,7 +366,7 @@ class BaseSizer(ABC):
         Args:
             min_size: Minimum position size
             max_size: Maximum position size
-            
+
         Raises:
             SizingError: If min_size is greater than or equal to max_size
         """
@@ -385,7 +385,7 @@ class BaseSizer(ABC):
         Args:
             min_allocation: Minimum allocation percentage
             max_allocation: Maximum allocation percentage
-            
+
         Raises:
             SizingError: If min_allocation >= max_allocation or allocations are not between 0 and 1
         """
@@ -404,7 +404,7 @@ class BaseSizer(ABC):
 
     def __str__(self) -> str:
         """String representation of the sizer.
-        
+
         Returns:
             String representation showing class name, name, and enabled status
         """
@@ -412,7 +412,7 @@ class BaseSizer(ABC):
 
     def __repr__(self) -> str:
         """Detailed representation of the sizer.
-        
+
         Returns:
             Detailed string representation showing class name, name, method, and enabled status
         """

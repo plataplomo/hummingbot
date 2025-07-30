@@ -32,6 +32,7 @@ from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -113,7 +114,7 @@ class BackpackOrderCancellationService:
                 e_transform,
                 current_method,
                 args.order_id,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
                 "Failed to process/transform exchange data.",
@@ -124,7 +125,7 @@ class BackpackOrderCancellationService:
                 e_val,
                 current_method,
                 args.order_id,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
                 "Internal data validation failed.",
@@ -143,7 +144,7 @@ class BackpackOrderCancellationService:
                 e_service_logic,
                 current_method,
                 args.order_id,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
                 "Service internal logic error.",
@@ -154,7 +155,7 @@ class BackpackOrderCancellationService:
                 e_unexpected,
                 current_method,
                 args.order_id,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
                 "Unexpected service failure.",
@@ -188,7 +189,9 @@ class BackpackOrderCancellationService:
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to request builder
         if args.symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="cancel order"
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel order",
             )
 
         logger.info(
@@ -196,14 +199,14 @@ class BackpackOrderCancellationService:
             exchange=self._exchange_name,
             method=current_method,
             order_id=args.order_id,
-            symbol=args.symbol,
+            symbol=str(args.symbol),  # String conversion at HTTP boundary
             message="Cancelling order on exchange",
         )
 
         # Build request parameters
         endpoint = "/api/v1/order"
         payload = self._request_builder.build_cancel_order_payload(
-            symbol=args.symbol,  # Now guaranteed to be str, not str | None
+            symbol=args.symbol,  # Pass Symbol object directly
             order_id=args.order_id,
         )
 
@@ -232,7 +235,7 @@ class BackpackOrderCancellationService:
             exchange=self._exchange_name,
             method=current_method,
             order_id=args.order_id,
-            symbol=args.symbol,
+            symbol=str(args.symbol),  # String conversion at HTTP boundary
             status=result.status.value,
             message="Successfully cancelled order",
         )
@@ -251,12 +254,15 @@ class BackpackOrderCancellationService:
         """
         # Extract validated fields from Pydantic model
         order_id = args.order_id
-        symbol = args.symbol
+        # Convert Symbol to string for HTTP request
+        symbol = str(args.symbol) if args.symbol else None  # String conversion at boundary
 
         # For Backpack, symbol is required
         if symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="cancel order"
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel order",
             )
 
         # Business Logic Pre-Validation (moved from RequestBuilder)
@@ -284,7 +290,7 @@ class BackpackOrderCancellationService:
         raw_data: ParsedJsonResponse | None,
         status_code: int,
         order_id: str,
-        symbol: str | None,
+        symbol: Symbol | None,
     ) -> CancelOrderResult:
         """Process the cancel order API response.
 
@@ -311,7 +317,9 @@ class BackpackOrderCancellationService:
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to response handler
         if symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="cancel order response processing"
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel order response processing",
             )
 
         return self._response_handler.handle_cancel_order_response(

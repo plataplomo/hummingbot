@@ -39,7 +39,7 @@ from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
     """Create a mock HTTP client requester.
-    
+
     Returns:
         AsyncMock: A mock instance of the HTTP client.
     """
@@ -49,7 +49,7 @@ def mock_http_client() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
     """Create a mock request builder.
-    
+
     Returns:
         MagicMock: A mock instance of BackpackAccountRequestBuilder.
     """
@@ -59,7 +59,7 @@ def mock_request_builder() -> MagicMock:
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
     """Create a mock response handler.
-    
+
     Returns:
         MagicMock: A mock instance of BackpackAccountResponseHandler.
     """
@@ -69,7 +69,7 @@ def mock_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper.
-    
+
     Returns:
         MagicMock: A mock instance of BackpackBalanceMapper.
     """
@@ -79,7 +79,7 @@ def mock_mapper() -> MagicMock:
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
     """Create a mock authenticator.
-    
+
     Returns:
         MagicMock: A mock instance of authenticator.
     """
@@ -95,7 +95,7 @@ def balance_service(
     mock_authenticator: MagicMock,
 ) -> BackpackBalanceService:
     """Create a balance service instance with mocks.
-    
+
     Returns:
         BackpackBalanceService: Service instance configured with mock dependencies.
     """
@@ -112,7 +112,7 @@ def balance_service(
 @pytest.fixture
 def mock_raw_balance() -> BackpackRawBalanceResponse:
     """Create a mock raw balance.
-    
+
     Returns:
         BackpackRawBalanceResponse: A mock balance response with test data.
     """
@@ -126,7 +126,7 @@ def mock_raw_balance() -> BackpackRawBalanceResponse:
 @pytest.fixture
 def mock_spot_balance() -> SpotBalance:
     """Create a mock spot balance.
-    
+
     Returns:
         SpotBalance: A mock spot balance for USDC.
     """
@@ -147,7 +147,7 @@ def mock_spot_balance() -> SpotBalance:
 @pytest.fixture
 def mock_collateral_response() -> BackpackRawCollateralResponse:
     """Create a mock collateral response.
-    
+
     Returns:
         BackpackRawCollateralResponse: A mock collateral response with USDC data.
     """

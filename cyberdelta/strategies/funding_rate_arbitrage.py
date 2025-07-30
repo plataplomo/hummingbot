@@ -197,7 +197,7 @@ class FundingRateArbitrageStrategy(Strategy):
         max_retries: int = 3,
     ) -> FundingRate | None:
         """Get funding rate with exponential backoff retry.
-        
+
         Returns:
             FundingRate object if successful, None if all retries failed.
         """
@@ -262,7 +262,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
     def _should_fetch_hyperliquid_funding(self, current_rate: FundingRate | None) -> bool:
         """Check if Hyperliquid funding rates need to be fetched.
-        
+
         Returns:
             True if funding rates should be fetched, False otherwise.
         """
@@ -339,7 +339,7 @@ class FundingRateArbitrageStrategy(Strategy):
         max_history: int,
     ) -> ArbitrageOpportunity | None:
         """Process the arbitrage opportunity with valid funding rate.
-        
+
         Returns:
             ArbitrageOpportunity if profitable opportunity found, None otherwise.
         """
@@ -428,7 +428,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
     def _get_and_validate_prices(self) -> tuple[Decimal, Decimal, Ticker, Ticker] | None:
         """Get and validate prices for perp and spot markets.
-        
+
         Returns:
             Tuple of (perp_price, spot_price, perp_ticker, spot_ticker) if successful,
             None if any required data is missing.
@@ -497,7 +497,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
     def _is_valid_funding_rate(self, nfd: Decimal | None) -> bool:
         """Validate funding rate and check if it meets threshold.
-        
+
         Returns:
             True if funding rate is valid and meets minimum threshold, False otherwise.
         """
@@ -530,7 +530,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
     def _calculate_profit_and_costs(self, nfd: Decimal) -> tuple[Decimal, float] | None:
         """Calculate expected profit and utility score.
-        
+
         Returns:
             Tuple of (expected_profit, utility_score) if profitable, None otherwise.
         """
@@ -589,7 +589,7 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_side: str,
     ) -> tuple[Decimal, Decimal] | None:
         """Get entry prices for long and short positions.
-        
+
         Returns:
             Tuple of (long_price, short_price) if prices available, None otherwise.
         """
@@ -633,7 +633,7 @@ class FundingRateArbitrageStrategy(Strategy):
         short_price: Decimal,
     ) -> ArbitrageOpportunity:
         """Create the arbitrage opportunity object.
-        
+
         Returns:
             ArbitrageOpportunity object with all calculated parameters.
         """
@@ -835,7 +835,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
     async def evaluate_entry_opportunity(self) -> list[TradeSignal] | None:
         """Core logic to check for opportunities and generate trading signals.
-        
+
         Returns:
             List of TradeSignal objects if opportunities found, None otherwise.
         """
@@ -955,7 +955,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None,
     ) -> bool:
         """Determine if rebalancing is needed based on current positions and market prices.
-        
+
         Returns:
             True if positions need rebalancing, False otherwise.
         """
@@ -1070,7 +1070,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_entry: Ticker | None = None,  # ADDED param
     ) -> list[TradeSignal]:
         """Generate entry signals for a given opportunity.
-        
+
         Returns:
             List of TradeSignal objects for entering positions.
         """
@@ -1224,7 +1224,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None,
     ) -> list[TradeSignal]:
         """Generate rebalancing signals based on current positions and target delta.
-        
+
         Returns:
             List of TradeSignal objects for rebalancing positions.
         """
@@ -1290,7 +1290,7 @@ class FundingRateArbitrageStrategy(Strategy):
         self,
     ) -> tuple[DerivativePosition, DerivativePosition, str] | None:
         """Get and validate perp and spot positions.
-        
+
         Returns:
             Tuple of (perp_position, spot_position, spot_symbol) if valid positions exist,
             None otherwise.
@@ -1334,7 +1334,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_ticker_live: Ticker | None,
     ) -> tuple[Decimal, Decimal] | None:
         """Get and validate live prices for rebalancing.
-        
+
         Returns:
             Tuple of (perp_price, spot_price) if both prices available, None otherwise.
         """
@@ -1379,7 +1379,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_price: Decimal,
     ) -> Decimal:
         """Calculate net exposure across perp and spot positions.
-        
+
         Returns:
             Net exposure value in base currency units.
         """
@@ -1398,7 +1398,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_price: Decimal,
     ) -> bool:
         """Determine if rebalancing is needed based on net exposure.
-        
+
         Returns:
             True if net exposure exceeds rebalance threshold, False otherwise.
         """
@@ -1454,7 +1454,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_symbol: str,
     ) -> TradeSignal | None:
         """Create a rebalance signal based on net exposure.
-        
+
         Returns:
             TradeSignal for rebalancing if needed, None if exposure is within tolerance.
         """

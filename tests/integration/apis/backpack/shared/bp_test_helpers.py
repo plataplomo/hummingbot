@@ -18,6 +18,8 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMa
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.core.symbols.models import BaseSymbol, BackpackMetadata, Symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums import OrderSide
 
 
@@ -151,13 +153,14 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
             symbols = [
                 market.symbol
                 for market in all_markets
-                if not market.symbol.endswith("_PERP") and "perp" not in market.market_type.lower()
+                if not market.symbol.value.endswith("_PERP")
+                and "perp" not in market.market_type.lower()
             ]
         elif market_type == "perp":
             symbols = [
                 market.symbol
                 for market in all_markets
-                if market.symbol.endswith("_PERP") or "perp" in market.market_type.lower()
+                if market.symbol.value.endswith("_PERP") or "perp" in market.market_type.lower()
             ]
         else:  # "all"
             symbols = [market.symbol for market in all_markets]
@@ -358,12 +361,12 @@ def validate_symbol_format(symbol: str, exchange_name: str = "backpack") -> bool
     return True  # Default to permissive for unknown exchanges
 
 
-async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
+async def get_symbol_tick_size(api: BackpackAPI, symbol: Symbol) -> Decimal:
     """Get the tick size (price precision) for a symbol using public API.
 
     Args:
         api: Backpack API instance
-        symbol: Trading symbol (e.g., "SOL-USDC", "BTC-USDC", "SOL_USDC_PERP")
+        symbol: Symbol object
 
     Returns:
         Tick size for the symbol (price precision)
@@ -372,7 +375,9 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
         RuntimeError: If symbol is not found or API call fails.
 
     Example:
-        >>> tick_size = await get_symbol_tick_size(api, "SOL-USDC")
+        >>> tick_size = await get_symbol_tick_size(
+        ...     api, exchanges.backpack("SOL-USDC")
+        ... )
         >>> # Returns Decimal("0.01") for 2 decimal places
     """
     try:
@@ -396,12 +401,12 @@ async def get_symbol_tick_size(api: BackpackAPI, symbol: str) -> Decimal:
         ) from e
 
 
-async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
+async def get_symbol_step_size(api: BackpackAPI, symbol: Symbol) -> Decimal:
     """Get the step size (quantity precision) for a symbol using public API.
 
     Args:
         api: Backpack API instance
-        symbol: Trading symbol (e.g., "SOL-USDC", "BTC-USDC", "SOL_USDC_PERP")
+        symbol: Symbol object
 
     Returns:
         Step size for the symbol (quantity precision)
@@ -430,12 +435,12 @@ async def get_symbol_step_size(api: BackpackAPI, symbol: str) -> Decimal:
         ) from e
 
 
-async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Decimal]:
+async def get_market_constraints(api: BackpackAPI, symbol: Symbol) -> dict[str, Decimal]:
     """Get market constraints for a symbol.
 
     Args:
         api: Backpack API instance
-        symbol: Trading symbol
+        symbol: Symbol object
 
     Returns:
         Dict containing market constraints:
@@ -450,6 +455,7 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
         RuntimeError: If API call fails or constraints cannot be retrieved.
     """
     try:
+        # Use Symbol object directly for the new API
         market = await api.get_market(GetMarketArgs(symbol=symbol))
 
         constraints = {
@@ -469,7 +475,7 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
     except (APIError, ValueError, TypeError, KeyError) as e:
         # NO FALLBACK VALUES - This is a trading engine!
         raise RuntimeError(
-            f"Failed to get market constraints for {symbol}: {e}. "
+            f"Failed to get market constraints for {symbol.value}: {e}. "
             "This test requires real market data and cannot use default values.",
         ) from e
     else:
@@ -481,12 +487,12 @@ async def get_market_constraints(api: BackpackAPI, symbol: str) -> dict[str, Dec
 # =============================================================================
 
 
-async def get_current_market_price(api: BackpackAPI, symbol: str) -> Decimal:
+async def get_current_market_price(api: BackpackAPI, symbol: Symbol) -> Decimal:
     """Get the current market price for a symbol.
 
     Args:
         api: Backpack API instance
-        symbol: Trading symbol
+        symbol: Symbol object
 
     Returns:
         Current market price
@@ -511,7 +517,7 @@ async def get_current_market_price(api: BackpackAPI, symbol: str) -> Decimal:
 
 async def get_dynamic_test_price(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
     tolerance_percent: Decimal = Decimal(5),
 ) -> Decimal:
@@ -523,7 +529,7 @@ async def get_dynamic_test_price(
 
     Args:
         api: Backpack API instance
-        symbol: Trading symbol (e.g., "SOL-USDC", "BTC-USDC")
+        symbol: Symbol object
         side: Order side (BUY or SELL)
         tolerance_percent: Percentage away from market price (default 5%)
 
@@ -536,10 +542,13 @@ async def get_dynamic_test_price(
 
     Example:
         >>> # For SOL-USDC at $150, BUY side with 5% tolerance
-        >>> price = await get_dynamic_test_price(api, "SOL-USDC", OrderSide.BUY)
+        >>> price = await get_dynamic_test_price(
+        ...     api, exchanges.backpack("SOL-USDC"), OrderSide.BUY
+        ... )
         >>> # Returns ~$142.50 (5% below market, quantized to tick size)
     """
     try:
+        # symbol is already a Symbol object
         ticker: Ticker = await api.get_ticker(symbol)
 
         market_price = None
@@ -867,7 +876,7 @@ async def validate_order_constraints(
 # =============================================================================
 
 
-def is_perp_symbol(symbol: str) -> bool:
+def is_perp_symbol(symbol: Symbol) -> bool:
     """Check if a symbol is a perpetual futures symbol.
 
     Args:
@@ -876,10 +885,10 @@ def is_perp_symbol(symbol: str) -> bool:
     Returns:
         True if symbol is a perp market
     """
-    return "_PERP" in symbol.upper()
+    return "_PERP" in symbol.value.upper()
 
 
-def is_spot_symbol(symbol: str) -> bool:
+def is_spot_symbol(symbol: Symbol) -> bool:
     """Check if a symbol is a spot trading symbol.
 
     Args:
@@ -891,40 +900,42 @@ def is_spot_symbol(symbol: str) -> bool:
     return not is_perp_symbol(symbol)
 
 
-def get_base_quote_assets(symbol: str) -> tuple[str, str]:
+def get_base_quote_assets(symbol: Symbol) -> tuple[str, str]:
     """Extract base and quote assets from a trading symbol.
 
     Args:
-        symbol: Trading symbol (e.g., "SOL_USDC", "BTC_USDC_PERP")
+        symbol: Trading symbol (e.g., exchanges.backpack("SOL_USDC"), exchanges.backpack("BTC_USDC_PERP"))
 
     Returns:
         Tuple of (base_asset, quote_asset)
 
     Example:
-        >>> get_base_quote_assets("SOL_USDC")
+        >>> get_base_quote_assets(exchanges.backpack("SOL_USDC"))
         ("SOL", "USDC")
-        >>> get_base_quote_assets("BTC_USDC_PERP")
+        >>> get_base_quote_assets(exchanges.backpack("BTC_USDC_PERP"))
         ("BTC", "USDC")
     """
+    symbol_str = symbol.value
+
     # Handle perp symbols
     if is_perp_symbol(symbol):
         # Remove _PERP suffix and split
-        base_symbol = symbol.replace("_PERP", "")
+        base_symbol = symbol_str.replace("_PERP", "")
         if "_" in base_symbol:
             parts = base_symbol.split("_")
             return parts[0], parts[1]
 
     # Handle spot symbols (Backpack uses underscores)
-    if "_" in symbol:
-        parts = symbol.split("_")
+    if "_" in symbol_str:
+        parts = symbol_str.split("_")
         return parts[0], parts[1]
-    if "-" in symbol:
+    if "-" in symbol_str:
         # Legacy support for dash format
-        parts = symbol.split("-")
+        parts = symbol_str.split("-")
         return parts[0], parts[1]
 
     # Fallback
-    return symbol, "USDC"
+    return symbol_str, "USDC"
 
 
 def generate_deterministic_client_order_id(test_name: str, symbol: str, side: str) -> str:
@@ -978,7 +989,6 @@ COMMON_PERP_SYMBOLS = [
 DEFAULT_TEST_SYMBOL_SPOT = "SOL_USDC"
 DEFAULT_TEST_SYMBOL_PERP = "SOL_USDC_PERP"
 
-# Named test symbols for better readability
 TEST_SYMBOL_SOL_USDC = "SOL_USDC"
 TEST_SYMBOL_BTC_USDC = "BTC_USDC"
 TEST_SYMBOL_ETH_USDC = "ETH_USDC"

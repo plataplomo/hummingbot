@@ -67,6 +67,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetRecentTradesArgs,
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType
 
 
@@ -160,7 +161,7 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_internal_transfer_payload(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         from_account_type: str,
         to_account_type: str,
         amount: Decimal,
@@ -189,7 +190,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_place_order_payload(
-        symbol: str,
+        symbol: Symbol,
         order_type: OrderType,
         order_side: OrderSide,
         quantity: Decimal,
@@ -214,7 +215,10 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         ...
 
     @staticmethod
-    def build_cancel_order_payload(order_id: str, symbol: str) -> HyperliquidApiCancelOrderRequest:
+    def build_cancel_order_payload(
+        order_id: str,
+        symbol: Symbol,
+    ) -> HyperliquidApiCancelOrderRequest:
         """Build order cancellation payload.
 
         Args:
@@ -228,7 +232,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> HyperliquidApiCancelOrderRequest:
         """Build cancel all orders payload.
 
@@ -242,7 +246,10 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_modify_order_payload(
-        order_id: str, symbol: str, quantity: Decimal | None = None, price: Decimal | None = None
+        order_id: str,
+        symbol: Symbol,
+        quantity: Decimal | None = None,
+        price: Decimal | None = None,
     ) -> HyperliquidApiPlaceOrderRequest:
         """Build order modification payload.
 
@@ -447,7 +454,7 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         ...
 
     @staticmethod
-    def build_get_l2_book_params(symbol: str) -> HyperliquidRawL2BookRequestPayload:
+    def build_get_l2_book_params(symbol: Symbol) -> HyperliquidRawL2BookRequestPayload:
         """Build parameters for L2 order book retrieval.
 
         Args:
@@ -459,7 +466,7 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         ...
 
     @staticmethod
-    def build_get_recent_trades_params(symbol: str) -> HyperliquidRawRecentTradesRequestPayload:
+    def build_get_recent_trades_params(symbol: Symbol) -> HyperliquidRawRecentTradesRequestPayload:
         """Build parameters for recent trades retrieval.
 
         Args:
@@ -472,7 +479,10 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_get_candles_params(
-        symbol: str, interval: str, start_time: int | None = None, end_time: int | None = None
+        symbol: Symbol,
+        interval: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> HyperliquidRawCandleSnapshotRequestPayload:
         """Build parameters for candle data retrieval.
 
@@ -489,7 +499,9 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_get_funding_history_params(
-        symbol: str, start_time: int | None = None, end_time: int | None = None
+        symbol: Symbol,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> HyperliquidRawFundingHistoryRequestPayload:
         """Build parameters for funding history retrieval.
 

@@ -20,7 +20,7 @@ class TestHyperliquidRequestBuilderRegistry:
     @pytest.fixture
     def registry(self) -> HyperliquidRequestBuilderRegistry:
         """Create a fresh registry instance for testing.
-        
+
         Returns:
             HyperliquidRequestBuilderRegistry: A fresh registry instance for testing.
         """
@@ -29,7 +29,7 @@ class TestHyperliquidRequestBuilderRegistry:
     @pytest.fixture
     def mock_builder(self) -> MagicMock:
         """Create a mock request builder that implements IRequestBuilder protocol.
-        
+
         Returns:
             MagicMock: A mock request builder instance for testing.
         """

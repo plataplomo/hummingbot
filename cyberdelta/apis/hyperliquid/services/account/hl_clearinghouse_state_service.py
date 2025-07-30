@@ -128,7 +128,7 @@ class HyperliquidClearinghouseStateService:
 
         # Check cache first
         cached_state = self._cache_service.get_cached_state(
-            ChecksumAddress(HexAddress(HexStr(self._wallet_address)))
+            ChecksumAddress(HexAddress(HexStr(self._wallet_address))),
         )
         if cached_state is not None:
             logger.debug(
@@ -176,12 +176,14 @@ class HyperliquidClearinghouseStateService:
                 self._raise_invalid_response_type_error(raw_data, status_code)
 
             clearinghouse_state = self._response_handler.handle_get_user_state_response(
-                raw_response_content=raw_data, status_code=status_code
+                raw_response_content=raw_data,
+                status_code=status_code,
             )
 
             # Cache the fresh state
             self._cache_service.cache_state(
-                ChecksumAddress(HexAddress(HexStr(self._wallet_address))), clearinghouse_state
+                ChecksumAddress(HexAddress(HexStr(self._wallet_address))),
+                clearinghouse_state,
             )
 
             logger.debug(

@@ -20,7 +20,8 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+
+# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
@@ -1431,7 +1432,18 @@ class DataHandler:
                 symbols=symbols,
                 message="Fetching funding rates",
             )
-            rates = await client.get_funding_rates(GetFundingRatesArgs(symbols=symbols))
+            # Convert string symbols to Symbol objects
+            from cyberdelta.core.symbols.api import symbol as create_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+
+            exchange_name = (
+                ExchangeName.HYPERLIQUID if exchange_id == "hyperliquid" else ExchangeName.BACKPACK
+            )
+            exchange_symbols = [
+                create_symbol(value=symbol, exchange=exchange_name) for symbol in symbols
+            ]
+
+            rates = await client.get_funding_rates(GetFundingRatesArgs(symbols=exchange_symbols))
 
             # Update cache with fresh data
             for rate in rates:

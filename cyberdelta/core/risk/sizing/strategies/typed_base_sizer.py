@@ -243,7 +243,7 @@ class TypedBaseSizer(ABC):
 
     def _round_to_precision(self, value: Decimal, precision: int) -> Decimal:
         """Round value to specified decimal precision.
-        
+
         Returns:
             Decimal: Rounded value with specified precision.
         """
@@ -251,7 +251,7 @@ class TypedBaseSizer(ABC):
 
     def _to_decimal(self, value: str | float | Decimal) -> Decimal:
         """Convert value to Decimal with validation.
-        
+
         Returns:
             Decimal: Converted decimal value.
         """
@@ -268,7 +268,7 @@ class TypedBaseSizer(ABC):
         Args:
             min_size: Minimum position size
             max_size: Maximum position size
-            
+
         Raises:
             SizingError: If min_size is not less than max_size.
         """
@@ -283,7 +283,7 @@ class TypedBaseSizer(ABC):
 
     def __str__(self) -> str:
         """String representation of the sizer.
-        
+
         Returns:
             str: String representation with class name and sizer name.
         """
@@ -291,7 +291,7 @@ class TypedBaseSizer(ABC):
 
     def __repr__(self) -> str:
         """Detailed representation of the sizer.
-        
+
         Returns:
             str: Detailed representation with class name, sizer name, and sizing method.
         """

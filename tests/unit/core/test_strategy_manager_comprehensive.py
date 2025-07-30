@@ -28,7 +28,7 @@ from cyberdelta.enums import OrderSide
 @pytest.fixture
 def mock_config() -> Mock:
     """Create mock configuration for testing.
-    
+
     Returns:
         Mock: Mock AppSettings instance for testing.
     """
@@ -38,7 +38,7 @@ def mock_config() -> Mock:
 @pytest.fixture
 def mock_execution_handler() -> Mock:
     """Create mock execution handler.
-    
+
     Returns:
         Mock: Mock ExecutionHandler instance for testing.
     """
@@ -48,7 +48,7 @@ def mock_execution_handler() -> Mock:
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create mock portfolio tracker.
-    
+
     Returns:
         Mock: Mock PortfolioTracker instance for testing.
     """
@@ -58,7 +58,7 @@ def mock_portfolio_tracker() -> Mock:
 @pytest.fixture
 def mock_risk_manager() -> Mock:
     """Create mock risk manager.
-    
+
     Returns:
         Mock: Mock RiskManager instance for testing.
     """
@@ -68,7 +68,7 @@ def mock_risk_manager() -> Mock:
 @pytest.fixture
 def mock_signal_queue() -> Mock:
     """Create mock signal queue.
-    
+
     Returns:
         Mock: Mock PrioritySignalQueue instance with async add_signal method.
     """
@@ -86,7 +86,7 @@ def strategy_manager(
     mock_signal_queue: Mock,
 ) -> StrategyManager:
     """Create StrategyManager instance for testing.
-    
+
     Returns:
         StrategyManager: Configured StrategyManager instance with mocked dependencies.
     """
@@ -102,7 +102,7 @@ def strategy_manager(
 @pytest.fixture
 def mock_strategy() -> Mock:
     """Create mock strategy for testing.
-    
+
     Returns:
         Mock: Mock Strategy instance with pre-configured attributes and methods.
     """
@@ -122,7 +122,7 @@ def mock_strategy() -> Mock:
 @pytest.fixture
 def sample_candle() -> Candle:
     """Create sample candle for testing.
-    
+
     Returns:
         Candle: Sample Candle instance with test data for BTC-PERP.
     """
@@ -141,7 +141,7 @@ def sample_candle() -> Candle:
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
     """Create sample trade signal for testing.
-    
+
     Returns:
         TradeSignal: Sample TradeSignal instance with test data for entering a long position.
     """

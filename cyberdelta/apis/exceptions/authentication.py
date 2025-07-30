@@ -76,7 +76,10 @@ class AuthenticationPreparationError(APIError):
     """Raised when authentication preparation fails."""
 
     def __init__(
-        self, operation: str, reason: str, original_error: Exception | None = None
+        self,
+        operation: str,
+        reason: str,
+        original_error: Exception | None = None,
     ) -> None:
         """Initialize authentication preparation error.
 

@@ -60,7 +60,8 @@ class RateLimitConfig(BaseModel):
     burst_size: int = Field(gt=0, description="Maximum burst size")
     window_size_seconds: int = Field(default=60, gt=0, description="Window size for sliding window")
     message_types: list[str] = Field(
-        default_factory=list, description="Message types this limit applies to"
+        default_factory=list,
+        description="Message types this limit applies to",
     )
     enabled: bool = True
 
@@ -68,10 +69,10 @@ class RateLimitConfig(BaseModel):
     @classmethod
     def burst_size_must_be_reasonable(cls, v: int, info: ValidationInfo) -> int:
         """Validate burst size is reasonable compared to rate.
-        
+
         Returns:
             The validated burst size value.
-            
+
         Raises:
             BurstSizeTooLargeError: If burst size exceeds 10 times the requests per second.
         """
@@ -92,7 +93,8 @@ class RateLimitResult(BaseModel):
     remaining: int = Field(ge=0, description="Remaining requests in current window")
     reset_time: datetime = Field(description="When the limit resets")
     retry_after_seconds: float | None = Field(
-        default=None, description="Seconds to wait before retry"
+        default=None,
+        description="Seconds to wait before retry",
     )
     current_rate: float = Field(ge=0, description="Current request rate")
 
@@ -133,7 +135,7 @@ class TokenBucket:
 
     def time_until_available(self) -> float:
         """Get seconds until next token is available.
-        
+
         Returns:
             Time in seconds until next token becomes available.
         """
@@ -143,7 +145,7 @@ class TokenBucket:
 
     def current_rate(self) -> float:
         """Get current request rate (same as configured rate for token bucket).
-        
+
         Returns:
             Current request rate per second.
         """
@@ -186,7 +188,7 @@ class SlidingWindowCounter:
 
     def time_until_available(self) -> float:
         """Get seconds until oldest request expires.
-        
+
         Returns:
             Time in seconds until oldest request expires from the window.
         """
@@ -198,7 +200,7 @@ class SlidingWindowCounter:
 
     def current_rate(self) -> float:
         """Get current request rate per second.
-        
+
         Returns:
             Current request rate based on requests in the sliding window.
         """
@@ -232,7 +234,7 @@ class WebSocketRateLimiter:
 
         Returns:
             Configured limiter instance
-            
+
         Raises:
             UnsupportedAlgorithmError: If the algorithm is not supported.
         """
@@ -269,7 +271,10 @@ class WebSocketRateLimiter:
         return "global"
 
     def check_rate_limit(
-        self, connection_id: str, message_type: str | None = None, user_id: str | None = None
+        self,
+        connection_id: str,
+        message_type: str | None = None,
+        user_id: str | None = None,
     ) -> RateLimitResult:
         """Check if request is within rate limits.
 
@@ -380,7 +385,10 @@ class WebSocketRateLimiter:
         return stats
 
     def reset_limiter(
-        self, connection_id: str, message_type: str | None = None, user_id: str | None = None
+        self,
+        connection_id: str,
+        message_type: str | None = None,
+        user_id: str | None = None,
     ) -> None:
         """Reset specific limiters.
 

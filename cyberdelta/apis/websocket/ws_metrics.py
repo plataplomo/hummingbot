@@ -143,7 +143,7 @@ class WebSocketMetricsCollector:
                     "message_type": message_type,
                     "status": "success" if result.is_successful else "error",
                 },
-            )
+            ),
         )
 
         self._time_series.append(
@@ -154,7 +154,7 @@ class WebSocketMetricsCollector:
                 value=processing_time_ms,
                 unit=MetricUnit.MILLISECONDS,
                 labels={"exchange": self.exchange_name, "message_type": message_type},
-            )
+            ),
         )
 
         self._time_series.append(
@@ -165,7 +165,7 @@ class WebSocketMetricsCollector:
                 value=float(message_size),
                 unit=MetricUnit.BYTES,
                 labels={"exchange": self.exchange_name, "message_type": message_type},
-            )
+            ),
         )
 
         # Cleanup old data periodically
@@ -206,7 +206,7 @@ class WebSocketMetricsCollector:
                     "message_type": message_type or "unknown",
                     "details": error_details or "",
                 },
-            )
+            ),
         )
 
     def record_connection_event(self, event_type: str) -> None:
@@ -223,7 +223,7 @@ class WebSocketMetricsCollector:
                 value=1,
                 unit=MetricUnit.COUNT,
                 labels={"exchange": self.exchange_name, "event_type": event_type},
-            )
+            ),
         )
 
     def get_summary(self, message_type: str | None = None) -> dict[str, MetricSummary]:
@@ -241,7 +241,10 @@ class WebSocketMetricsCollector:
         if message_type:
             count = self._message_counts.get(message_type, 0)
             summaries["message_count"] = MetricSummary(
-                metric_name="message_count", count=count, total=float(count), unit=MetricUnit.COUNT
+                metric_name="message_count",
+                count=count,
+                total=float(count),
+                unit=MetricUnit.COUNT,
             )
         else:
             total_count = sum(self._message_counts.values())
@@ -363,7 +366,7 @@ class WebSocketMetricsCollector:
         for message_type, count in self._message_counts.items():
             lines.append(
                 f'websocket_messages_total{{exchange="{self.exchange_name}",'
-                f'message_type="{message_type}"}} {count} {timestamp}'
+                f'message_type="{message_type}"}} {count} {timestamp}',
             )
 
         # Error counts
@@ -375,7 +378,7 @@ class WebSocketMetricsCollector:
             error_type, message_type = error_key.split(":", 1)
             lines.append(
                 f'websocket_errors_total{{exchange="{self.exchange_name}",'
-                f'error_type="{error_type}",message_type="{message_type}"}} {count} {timestamp}'
+                f'error_type="{error_type}",message_type="{message_type}"}} {count} {timestamp}',
             )
 
         # Processing time histogram

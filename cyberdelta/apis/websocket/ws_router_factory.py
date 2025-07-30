@@ -71,7 +71,8 @@ class RouterConfiguration:
         return self
 
     def with_envelope_validator(
-        self, validator: Callable[[dict[str, Any]], Any]
+        self,
+        validator: Callable[[dict[str, Any]], Any],
     ) -> RouterConfiguration:
         """Configure envelope validator.
 
@@ -378,15 +379,26 @@ def auto_configure_router(
     # Create configuration based on recommended mode
     if recommended_mode == PerformanceMode.HIGH_FREQUENCY:
         return create_high_frequency_router(
-            exchange_name, exchange_type, error_handler, envelope_validator, message_rate_per_second
+            exchange_name,
+            exchange_type,
+            error_handler,
+            envelope_validator,
+            message_rate_per_second,
         )
     if recommended_mode == PerformanceMode.ULTRA_LOW_LATENCY:
         return create_ultra_low_latency_router(
-            exchange_name, exchange_type, error_handler, envelope_validator
+            exchange_name,
+            exchange_type,
+            error_handler,
+            envelope_validator,
         )
     if recommended_mode == PerformanceMode.MEMORY_OPTIMIZED:
         return create_memory_optimized_router(
-            exchange_name, exchange_type, error_handler, envelope_validator, memory_limit_mb
+            exchange_name,
+            exchange_type,
+            error_handler,
+            envelope_validator,
+            memory_limit_mb,
         )
     return create_standard_router(exchange_name, exchange_type, error_handler, envelope_validator)
 

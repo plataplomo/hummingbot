@@ -31,6 +31,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.backpack.protocols.base_protocols import ResponseHandlerProtocol
 from cyberdelta.core.models import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 
 
 # Type alias for raw JSON responses
@@ -54,35 +55,41 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_balances_response(
-        raw_response_content: RawJsonResponse, status_code: int
+        raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> dict[str, BackpackRawBalanceResponse]:
         """Validate GET /capital endpoint response."""
         ...
 
     @staticmethod
     def handle_get_positions_response(
-        raw_response_content: dict[str, Any] | list[Any], symbol: str | None, status_code: int
+        raw_response_content: dict[str, Any] | list[Any],
+        symbol: Symbol | None,
+        status_code: int,
     ) -> list[BackpackRawPositionResponse]:
         """Validate positions response."""
         ...
 
     @staticmethod
     def handle_get_account_info_response(
-        raw_response_content: RawJsonResponse, status_code: int
+        raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> BackpackRawAccountSummaryResponse:
         """Validate account summary information."""
         ...
 
     @staticmethod
     def handle_withdraw_response(
-        raw_response_content: RawJsonResponse, status_code: int
+        raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> BackpackRawWithdrawalResponse:
         """Validate withdrawal operation response."""
         ...
 
     @staticmethod
     def handle_transfer_response(
-        raw_response_content: dict[str, Any] | list[Any] | str, status_code: int
+        raw_response_content: dict[str, Any] | list[Any] | str,
+        status_code: int,
     ) -> dict[str, Any] | list[Any] | str:
         """Validate internal capital transfer response."""
         ...
@@ -100,7 +107,7 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_max_borrow_quantity_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawMaxBorrowQuantity:
@@ -110,7 +117,7 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_max_order_quantity_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         side: str,
         status_code: int,
         headers: Mapping[str, str],
@@ -121,7 +128,7 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_max_withdrawal_quantity_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawMaxWithdrawalQuantity:
@@ -140,7 +147,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_ticker_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawTickerResponse:
@@ -150,7 +157,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_order_book_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawOrderBook:
@@ -160,7 +167,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_recent_trades_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawRecentPublicTrade]:
@@ -170,7 +177,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_funding_rate_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRateResponse:
@@ -179,7 +186,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_markets_response(
-        raw_response_content: RawJsonResponse, status_code: int
+        raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> list[BackpackRawMarketResponse]:
         """Validate list of all available markets."""
         ...
@@ -187,7 +195,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_market_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawMarketResponse:
@@ -197,7 +205,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_market_data_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         timeframe: str,
         status_code: int,
         headers: Mapping[str, str],
@@ -208,7 +216,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_historical_trades_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawPublicTrade]:
@@ -218,7 +226,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_current_funding_rate_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRateResponse:
@@ -228,7 +236,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     @staticmethod
     def handle_get_historical_funding_rates_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawFundingIntervalRate]:
@@ -246,56 +254,71 @@ class TradingResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_place_order_response(
-        raw_response_content: RawJsonResponse, status_code: int
+        raw_response_content: RawJsonResponse,
+        status_code: int,
     ) -> BackpackRawOrderResponse:
         """Validate order placement response."""
         ...
 
     @staticmethod
     def handle_cancel_order_response(
-        raw_response_content: RawJsonResponse, order_id: str, symbol: str
+        raw_response_content: RawJsonResponse,
+        order_id: str,
+        symbol: Symbol,
     ) -> CancelOrderResult:
         """Validate order cancellation response."""
         ...
 
     @staticmethod
     def handle_get_open_orders_response(
-        raw_response_content: list[Any], symbol: str | None, status_code: int
+        raw_response_content: list[Any],
+        symbol: Symbol | None,
+        status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate list of open orders."""
         ...
 
     @staticmethod
     def handle_get_order_history_response(
-        raw_response_content: RawJsonResponse, symbol: str | None, status_code: int
+        raw_response_content: RawJsonResponse,
+        symbol: Symbol | None,
+        status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate historical order data."""
         ...
 
     @staticmethod
     def handle_get_trade_history_response(
-        raw_response_content: RawJsonResponse, symbol: str | None, status_code: int
+        raw_response_content: RawJsonResponse,
+        symbol: Symbol | None,
+        status_code: int,
     ) -> list[BackpackRawPublicTrade]:
         """Validate user's trade history."""
         ...
 
     @staticmethod
     def handle_get_fills_response(
-        raw_response_content: RawJsonResponse, symbol: str | None, status_code: int
+        raw_response_content: RawJsonResponse,
+        symbol: Symbol | None,
+        status_code: int,
     ) -> list[BackpackRawFillResponse]:
         """Validate fills history."""
         ...
 
     @staticmethod
     def handle_get_order_status_response(
-        raw_response_content: RawJsonResponse, identifier: str, status_code: int
+        raw_response_content: RawJsonResponse,
+        identifier: str,
+        status_code: int,
     ) -> BackpackRawOrderResponse:
         """Validate single order status query."""
         ...
 
     @staticmethod
     def handle_cancel_all_orders_response(
-        raw_response_content: list[Any], symbol: str | None, status_code: int
+        raw_response_content: list[Any],
+        symbol: Symbol | None,
+        status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate response from DELETE /api/v1/orders/cancelAll."""
         ...

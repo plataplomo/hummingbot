@@ -31,6 +31,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -130,7 +131,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
 
             # Define order parameters using dynamic values
             place_args = PlaceOrderArgs(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,
@@ -146,8 +147,8 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             assert placed_order.exchange == "hyperliquid", (
                 f"Order.exchange should be 'hyperliquid', got {placed_order.exchange}"
             )
-            assert placed_order.symbol == symbol, (
-                f"Order symbol should match request, got {placed_order.symbol}"
+            assert placed_order.symbol.value == symbol, (
+                f"Order symbol should match request, got {placed_order.symbol.value}"
             )
             assert placed_order.side == OrderSide.BUY, (
                 f"Order side should match request, got {placed_order.side}"
@@ -247,7 +248,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 )
 
                 place_args = PlaceOrderArgs(
-                    symbol=symbol,
+                    symbol=exchanges.hyperliquid(symbol),
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=test_quantity,

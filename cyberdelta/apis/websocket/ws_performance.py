@@ -228,7 +228,7 @@ class OptimizedProcessor[T: BaseModel]:
 
     def _get_cache_key(self, payload: dict[str, Any]) -> str:
         """Generate cache key for payload.
-        
+
         Returns:
             String hash key for the payload.
         """
@@ -236,7 +236,7 @@ class OptimizedProcessor[T: BaseModel]:
 
     def _check_cache(self, payload: dict[str, Any]) -> T | None:
         """Check if payload is in cache.
-        
+
         Returns:
             Cached validated model if found, None otherwise.
         """
@@ -256,7 +256,7 @@ class OptimizedProcessor[T: BaseModel]:
 
     def _validate_with_msgspec(self, payload: dict[str, Any]) -> T | None:
         """Try to validate using msgspec.
-        
+
         Returns:
             Validated model if msgspec validation succeeds, None if it fails.
         """
@@ -266,7 +266,7 @@ class OptimizedProcessor[T: BaseModel]:
         try:
             json_bytes = self.msgspec_encoder.encode(payload)
             decoded = self.msgspec_decoder.decode(json_bytes)
-            return cast(T, decoded)
+            return cast("T", decoded)
         except (ImportError, AttributeError, TypeError, ValueError) as e:
             logger = get_logger("OptimizedProcessor")
             logger.debug("msgspec validation failed, falling back to Pydantic", error=str(e))
@@ -274,10 +274,10 @@ class OptimizedProcessor[T: BaseModel]:
 
     def _validate_with_pydantic(self, payload: dict[str, Any]) -> T:
         """Validate using Pydantic with error conversion.
-        
+
         Returns:
             Validated Pydantic model instance.
-            
+
         Raises:
             ValidationError: If Pydantic validation fails.
         """
@@ -291,7 +291,7 @@ class OptimizedProcessor[T: BaseModel]:
                 and isinstance(e, msgspec.ValidationError)
             ):
                 error_details = [
-                    {"type": "value_error", "loc": (), "msg": str(e), "input": payload}
+                    {"type": "value_error", "loc": (), "msg": str(e), "input": payload},
                 ]
                 raise ValidationError(error_details, self.raw_model) from e
             raise

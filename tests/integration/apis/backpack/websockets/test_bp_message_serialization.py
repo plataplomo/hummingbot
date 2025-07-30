@@ -71,7 +71,8 @@ class TestBackpackWebSocketIntegration:
             str: The symbol of the preferred or first available market.
         """
         test_symbol: str = next(
-            (m.symbol for m in markets if m.base_symbol == "SOL"), markets[0].symbol
+            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
+            markets[0].symbol.value,
         )
         return self._convert_symbol_format(test_symbol)
 
@@ -99,11 +100,16 @@ class TestBackpackWebSocketIntegration:
         """
         test_symbol: str = next(
             (
-                m.symbol
+                m.symbol.value
                 for m in markets
-                if m.base_symbol == "SOL" and m.quote_symbol == "USDC" and m.market_type == "Spot"
+                if m.symbol.base_asset == "SOL"
+                and m.symbol.quote_asset == "USDC"
+                and m.market_type == "Spot"
             ),
-            next((m.symbol for m in markets if m.market_type == "Spot"), markets[0].symbol),
+            next(
+                (m.symbol.value for m in markets if m.market_type == "Spot"),
+                markets[0].symbol.value,
+            ),
         )
         return self._convert_symbol_format(test_symbol)
 
@@ -241,7 +247,7 @@ class TestBackpackWebSocketIntegration:
             # Verify it's a proper Ticker object with expected fields
             assert hasattr(ticker, "symbol"), "Ticker should have symbol attribute"
             assert hasattr(ticker, "price"), "Ticker should have price attribute"
-            assert ticker.symbol == test_symbol, f"Symbol should be {test_symbol}"
+            assert ticker.symbol.value == test_symbol, f"Symbol should be {test_symbol}"
             assert ticker.price > 0, "Price should be positive"
 
         # Check what the handler actually received
@@ -687,7 +693,10 @@ class TestBackpackWebSocketIntegration:
         if not markets:
             pytest.fail("No markets available for testing")
 
-        test_symbol = next((m.symbol for m in markets if m.base_symbol == "SOL"), markets[0].symbol)
+        test_symbol = next(
+            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
+            markets[0].symbol.value,
+        )
         # Convert internal format to Backpack format
         test_symbol = self._convert_symbol_format(test_symbol)
 
@@ -841,7 +850,10 @@ class TestBackpackWebSocketIntegration:
             pytest.fail("No markets available for testing")
 
         # Use most liquid market
-        test_symbol = next((m.symbol for m in markets if m.base_symbol == "SOL"), markets[0].symbol)
+        test_symbol = next(
+            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
+            markets[0].symbol.value,
+        )
         # Convert internal format to Backpack format
         test_symbol = self._convert_symbol_format(test_symbol)
 
@@ -971,7 +983,8 @@ class TestBackpackWebSocketIntegration:
 
         # Test 3: High-frequency subscription/unsubscription
         liquid_symbol = next(
-            (m.symbol for m in markets if m.base_symbol == "SOL"), markets[0].symbol
+            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
+            markets[0].symbol.value,
         )
         # Convert internal format to Backpack format
         liquid_symbol = self._convert_symbol_format(liquid_symbol)

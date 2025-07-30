@@ -47,7 +47,7 @@ class TestBackpackProcessorPipeline:
 
     def _extract_envelope_data(self, context: WebSocketContextProtocol) -> dict[str, Any] | None:
         """Extract data from validated envelope if present.
-        
+
         Returns:
             Dictionary containing stream data and domain model, or None if no valid envelope.
         """
@@ -85,7 +85,7 @@ class TestBackpackProcessorPipeline:
 
     async def _setup_market_test(self, bp_api: BackpackAPI) -> str:
         """Helper to setup market testing and return symbol.
-        
+
         Returns:
             Symbol string of the first available market.
         """
@@ -445,7 +445,7 @@ class TestBackpackProcessorPipeline:
 
     async def _get_test_symbol(self, bp_api_for_test_env: BackpackAPI) -> str:
         """Get a symbol for testing.
-        
+
         Returns:
             Symbol string of the first available market.
         """
@@ -462,7 +462,7 @@ class TestBackpackProcessorPipeline:
         symbol: str,
     ) -> tuple[float, float]:
         """Calculate and log performance metrics.
-        
+
         Returns:
             Tuple of (total_time, messages_per_second).
         """

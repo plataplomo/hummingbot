@@ -61,6 +61,7 @@ from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 
@@ -135,7 +136,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         results = await self._cancel_orders_core([args], current_method)
         return results[0]
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders, optionally filtered by symbol.
 
         Args:
@@ -210,7 +211,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects
-            
+
         Raises:
             APIError: If API request fails.
             TransformationError: If data transformation fails.
@@ -254,7 +255,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
-            
+
         Raises:
             APIError: If response is invalid.
         """
@@ -304,7 +305,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
                 f"Maximum is {HYPERLIQUID_MAX_BATCH_SIZE}"
             )
             logger.error(
-                "cancel_batch_size_exceeded", method=current_method, count=len(cancel_args)
+                "cancel_batch_size_exceeded",
+                method=current_method,
+                count=len(cancel_args),
             )
             raise ValueError(error_msg)
 
@@ -315,7 +318,10 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             except ValueError as e:
                 error_msg = f"[{current_method}] Cancel args {i} validation failed: {e}"
                 logger.exception(
-                    "cancel_args_validation_failed", method=current_method, index=i, error=str(e)
+                    "cancel_args_validation_failed",
+                    method=current_method,
+                    index=i,
+                    error=str(e),
                 )
                 raise ValueError(error_msg) from e
 
@@ -342,7 +348,8 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         if not args.order_id:
             raise MissingRequiredParameterError(
-                parameter_name="order_id", operation="order cancellation"
+                parameter_name="order_id",
+                operation="order cancellation",
             )
 
         # Convert string order_id to int for Hyperliquid API
@@ -353,7 +360,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         except ValueError as e:
             self._raise_invalid_integer_error(args.order_id, e)
 
-        return args.symbol, order_id_int
+        # Convert Symbol to string for internal processing
+        symbol_str = str(args.symbol)  # String conversion at boundary
+        return symbol_str, order_id_int
 
     async def _prepare_cancel_data(
         self,
@@ -390,7 +399,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             Validated cancellation request payload model
-            
+
         Raises:
             APIError: If asset index cannot be found for symbol.
         """
@@ -398,7 +407,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         # Convert to format expected by request builder: [(order_id, asset_index, symbol)]
         formatted_items: list[tuple[str, int, str]] = []
         for symbol, order_id in cancel_items:
-            # Get the correct asset index for the symbol
+            # Get the correct asset index for the symbol (symbol is already string)
             asset_index = await self._get_asset_index_callable(symbol)
             if asset_index is None:
                 raise APIError(
@@ -428,7 +437,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of processed CancelOrderResult objects
-            
+
         Raises:
             APIError: If response is empty or invalid.
         """
@@ -468,18 +477,21 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List containing single processed CancelOrderResult object
-            
+
         Raises:
             EmptyResponseError: If response is empty.
             ServiceParameterError: If response contains errors.
         """
-        action_description = f"cancel order {cancel_args.order_id} ({cancel_args.symbol})"
+        symbol_value = cancel_args.symbol.value if cancel_args.symbol else "None"
+        action_description = f"cancel order {cancel_args.order_id} ({symbol_value})"
 
         # Extract the actual status from the nested response structure
         response_data = raw_exchange_response.response_data
         if not response_data or not response_data.statuses:
             raise EmptyResponseError(
-                response_type="status data", operation=action_description, exchange="hyperliquid"
+                response_type="status data",
+                operation=action_description,
+                exchange="hyperliquid",
             )
 
         # Process the status using utility functions
@@ -502,7 +514,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             )
         result = format_cancel_order_result(
             processed_status,
-            cancel_args.symbol,
+            cancel_args.symbol,  # Pass Symbol directly
             str(cancel_args.order_id) if cancel_args.order_id else None,
         )
 
@@ -523,7 +535,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Returns:
             List of processed CancelOrderResult objects
-            
+
         Raises:
             APIError: If batch response validation fails.
         """
@@ -546,11 +558,12 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         # Process each cancellation result
         batch_statuses: list[dict[str, Any]] = []
-        symbols: list[str] = []
+        symbols: list[Symbol] = []
         order_ids: list[str] = []
 
         for i, cancel_args_item in enumerate(cancel_args):
-            action_description = f"cancel batch order {i} ({cancel_args_item.symbol})"
+            symbol_value = cancel_args_item.symbol.value if cancel_args_item.symbol else "None"
+            action_description = f"cancel batch order {i} ({symbol_value})"
 
             # Process the status for this cancellation
             processed_status = process_exchange_status(
@@ -559,8 +572,9 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             )
 
             batch_statuses.append(processed_status)
-            # symbol is validated to be non-empty in validation step
-            symbols.append(cancel_args_item.symbol or "")
+            # Collect Symbol objects for batch results formatting
+            if cancel_args_item.symbol:
+                symbols.append(cancel_args_item.symbol)
             order_ids.append(str(cancel_args_item.order_id))
 
         # Format batch results using utility function
@@ -588,7 +602,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         # Additional validation would go here (wallet address, etc.)
         logger.debug("cancel_all_orders_prerequisites_validated")
 
-    async def _get_open_orders_for_cancellation(self, symbol: str | None) -> list[Order]:
+    async def _get_open_orders_for_cancellation(self, symbol: Symbol | None) -> list[Order]:
         """Get open orders for cancellation.
 
         Args:
@@ -655,7 +669,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
 
         Args:
             order_id: The invalid order ID
-            
+
         Raises:
             ServiceParameterError: Always raised with appropriate error message.
         """
@@ -670,14 +684,16 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         )
 
     def _raise_invalid_integer_error(
-        self, order_id: str | int, original_error: ValueError
+        self,
+        order_id: str | int,
+        original_error: ValueError,
     ) -> NoReturn:
         """Raise ServiceParameterError for invalid order ID format.
 
         Args:
             order_id: The invalid order ID
             original_error: The original ValueError from conversion
-            
+
         Raises:
             ServiceParameterError: Always raised with appropriate error message.
         """

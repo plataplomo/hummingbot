@@ -10,13 +10,9 @@ import json
 import time
 from datetime import datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, computed_field
-
-
-if TYPE_CHECKING:
-    pass
 
 
 # Import UTC timezone
@@ -69,7 +65,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     @computed_field
     def topic(self) -> str | None:
         """Extract topic with proper typing based on exchange.
-        
+
         Returns:
             str | None: Topic/stream name from message envelope, or None if not available.
         """
@@ -81,7 +77,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     @computed_field
     def is_private_message(self) -> bool:
         """Determine if message is private based on routing key.
-        
+
         Returns:
             bool: True if message contains private data (account, user, balance, orders, fills).
         """
@@ -91,7 +87,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     @computed_field
     def message_size_bytes(self) -> int:
         """Calculate message size for monitoring.
-        
+
         Returns:
             int: Message size in bytes after JSON serialization, or 0 if serialization fails.
 
@@ -118,9 +114,9 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     @computed_field
     def processing_priority(self) -> int:
         """Compute processing priority (1=highest, 5=lowest).
-        
+
         Returns:
-            int: Priority level - 1 for trades/user events, 2 for order books, 
+            int: Priority level - 1 for trades/user events, 2 for order books,
                 3 for tickers/stats, 4 for everything else.
         """
         # High priority for trades and user events
@@ -138,7 +134,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     @computed_field
     def processing_duration_ms(self) -> float:
         """Calculate processing duration in milliseconds.
-        
+
         Returns:
             float: Time elapsed since processing started, in milliseconds.
         """
@@ -156,7 +152,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     def get_transformer_params(self) -> dict[str, str]:
         """Get parameters needed by transformers for this exchange.
-        
+
         Returns:
             dict[str, str]: Empty dict in base implementation. Exchange-specific contexts
                 should override this method to provide appropriate parameters.
@@ -165,7 +161,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     def get_symbol_param(self) -> dict[str, str] | None:
         """Get symbol parameter if applicable to this exchange.
-        
+
         Returns:
             dict[str, str] | None: None in base implementation. Exchange-specific contexts
                 should override this method if they support symbol parameters.
@@ -174,7 +170,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     def get_coin_param(self) -> dict[str, str] | None:
         """Get coin parameter if applicable to this exchange.
-        
+
         Returns:
             dict[str, str] | None: None in base implementation. Exchange-specific contexts
                 should override this method if they support coin parameters.

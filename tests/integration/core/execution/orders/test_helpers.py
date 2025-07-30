@@ -648,7 +648,7 @@ class MarketOrderTestHelpers:
         Args:
             exchange_api: Exchange API instance
             symbol: Symbol to clean up
-            
+
         Raises:
             RuntimeError: If cleanup operations fail or encounter critical errors.
         """

@@ -9,7 +9,8 @@ import aiohttp
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.common import APIError, APIErrorCode, MessageHandler
-from cyberdelta.apis.common.symbol_integration import get_symbol_integration_service
+
+# Removed get_symbol_integration_service import - no longer needed with new Symbol system
 from cyberdelta.apis.connectivity.connectivity_models import HttpClientConfig
 from cyberdelta.apis.connectivity.http_client import (
     HttpClient,
@@ -76,8 +77,10 @@ from cyberdelta.core.models.market.order import (
     Order,
 )
 from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.core.symbols.exceptions import SymbolError
-from cyberdelta.enums.exchange_names import ExchangeName
+
+# Removed SymbolError import - no longer needed with new Symbol system
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import HyperliquidMetadata, Symbol
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
@@ -481,47 +484,55 @@ class HyperliquidAPI(ExchangeAPI):
         """
         # Try new symbol system first
         try:
-            symbol_service = get_symbol_integration_service()
+            # Create symbol object - if asset_index was provided during creation,
+            # it will be available
+            symbol_obj = exchanges.hyperliquid(symbol)
 
-            # Get internal symbol from exchange symbol
-            internal_symbol = await symbol_service.get_internal_symbol(
-                symbol, ExchangeName.HYPERLIQUID
-            )
+            # Check if this is a Hyperliquid symbol with asset_index
+            if (
+                isinstance(symbol_obj.metadata, HyperliquidMetadata)
+                and symbol_obj.metadata.asset_index is not None
+            ):
+                return symbol_obj.metadata.asset_index
 
-            # Get exchange symbol with asset index
-            exchange_symbol = await symbol_service.get_exchange_symbol(
-                internal_symbol.value, ExchangeName.HYPERLIQUID
-            )
+            # If asset_index is None, we need to fetch it from the market metadata
+            # Use the same logic as the legacy indexer but integrated with the symbol system
+            return await self._fetch_asset_index_from_api(symbol)
 
-            # Return asset index if available
-            if hasattr(exchange_symbol, "asset_index") and exchange_symbol.asset_index is not None:
-                return exchange_symbol.asset_index
-
-        except SymbolError as e:
-            # Symbol not found in new system, fall back to legacy
+        except (ValueError, KeyError, AttributeError) as e:
+            # Symbol creation or metadata access error, fall back to legacy asset indexer
             logger.debug(
                 "symbol_system_fallback_to_legacy",
                 symbol=symbol,
                 error=str(e),
-                reason="symbol_error",
-            )
-        except (
-            ValueError,
-            KeyError,
-            AttributeError,
-            TypeError,
-            RuntimeError,
-        ) as e:
-            # Any other error, fall back to legacy
-            logger.debug(
-                "symbol_system_fallback_to_legacy",
-                symbol=symbol,
-                error=str(e),
-                reason="unexpected_error",
+                reason="symbol_system_error",
             )
 
         # Fallback to legacy asset indexer
         return await self._asset_indexer.get_asset_index_or_none(symbol)
+
+    async def _fetch_asset_index_from_api(self, symbol: str) -> int | None:
+        """Fetch asset index from API by delegating to the legacy asset indexer.
+
+        This method will eventually be replaced when the Symbol system fully integrates
+        asset index resolution, but for now it provides a bridge.
+
+        Returns:
+            Asset index for the symbol, or None if not found.
+        """
+        try:
+            # Delegate to the asset indexer for now - this avoids circular dependencies
+            # and reuses the existing logic for fetching from /info endpoint
+            return await self._asset_indexer.get_asset_index_or_none(symbol)
+
+        except (APIError, ValueError) as e:
+            logger.debug(
+                "fetch_asset_index_from_api_error",
+                symbol=symbol,
+                error=str(e),
+                reason="asset_indexer_error",
+            )
+            return None
 
     def _update_rate_limit_from_headers(
         self,
@@ -602,7 +613,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.account_service.get_balances()
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Get derivative positions.
 
         Args:
@@ -632,7 +643,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.account_service.update_account_settings(args=args)
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Get all open orders.
 
         Args:
@@ -643,7 +654,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.trading_service.get_open_orders(symbol=symbol)
 
-    async def get_ticker(self, symbol: str) -> Ticker | None:
+    async def get_ticker(self, symbol: Symbol) -> Ticker | None:
         """Get ticker information for a specific symbol.
 
         Args:
@@ -654,7 +665,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_ticker(symbol=symbol)
 
-    async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook | None:
+    async def get_order_book(self, symbol: Symbol, depth: int | None = None) -> OrderBook | None:
         """Get order book for a specific symbol.
 
         Args:
@@ -666,7 +677,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_order_book(symbol=symbol)
 
-    async def get_recent_trades(self, symbol: str, limit: int | None = 50) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 50) -> list[Trade]:
         """Get recent trades for a specific symbol.
 
         Args:
@@ -744,7 +755,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.trading_service.cancel_order(args=args)
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all orders for a given symbol, or all if symbol is None.
 
         Args:
@@ -919,7 +930,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.account_service.withdraw(args)
 
-    async def subscribe_to_order_book(self, symbol: str) -> None:
+    async def subscribe_to_order_book(self, symbol: Symbol) -> None:
         """Prepare subscription to order book updates for a symbol.
 
         Args:
@@ -929,7 +940,7 @@ class HyperliquidAPI(ExchangeAPI):
             Actual subscription with a handler is done via self.subscribe().
         """
         # Hyperliquid topic format: "l2Book:SYMBOL"
-        topic = f"l2Book:{symbol}"
+        topic = f"l2Book:{symbol.value}"
         logger.debug(
             "hyperliquid_orderbook_subscription_prepared",
             exchange=self.exchange_name,
@@ -943,7 +954,7 @@ class HyperliquidAPI(ExchangeAPI):
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
 
-    async def subscribe_to_ticker(self, symbol: str) -> None:
+    async def subscribe_to_ticker(self, symbol: Symbol) -> None:
         """Prepare subscription to ticker updates for a symbol.
 
         Args:
@@ -960,17 +971,18 @@ class HyperliquidAPI(ExchangeAPI):
             "hyperliquid_ticker_stream_not_available",
             exchange=self.exchange_name,
             symbol=symbol,
-            alternative_streams=["allMids", f"l2Book:{symbol}"],
+            alternative_streams=["allMids", f"l2Book:{symbol.value}"],
             recommendation="use_allmids_or_orderbook",
             message=(
-                f"[{self.exchange_name}] Hyperliquid does not have a direct 'ticker:{symbol}' "
+                f"[{self.exchange_name}] Hyperliquid does not have a direct "
+                f"'ticker:{symbol.value}' "
                 f"stream. Consider subscribing to 'allMids' for all mid prices, or "
-                f"'l2Book:{symbol}' and derive ticker data."
+                f"'l2Book:{symbol.value}' and derive ticker data."
             ),
         )
         # No direct topic construction for a non-existent stream type.
 
-    async def subscribe_to_trades(self, symbol: str) -> None:
+    async def subscribe_to_trades(self, symbol: Symbol) -> None:
         """Prepare subscription to public trade updates for a symbol.
 
         Args:
@@ -980,7 +992,7 @@ class HyperliquidAPI(ExchangeAPI):
             Actual subscription with a handler is done via self.subscribe().
         """
         # Hyperliquid topic format: "trades:SYMBOL"
-        topic = f"trades:{symbol}"
+        topic = f"trades:{symbol.value}"
         logger.debug(
             "hyperliquid_trades_subscription_prepared",
             exchange=self.exchange_name,

@@ -229,7 +229,7 @@ class TradeManager(TypedStateManager[TradeState]):
                     additional_data={
                         "trade_id": trade.id,
                         "exchange": trade.exchange,
-                        "symbol": trade.symbol,
+                        "symbol": str(trade.symbol),
                     },
                 ),
             )

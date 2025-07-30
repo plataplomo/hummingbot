@@ -78,7 +78,7 @@ class HyperliquidRawAllMidsRequestPayload(BaseModel):
 
 
 class HyperliquidRawAllMidsWrapper(
-    RootModel[dict[Literal["mids"], dict[RawAssetString64HL, RawFiniteDecimalStr]]]
+    RootModel[dict[Literal["mids"], dict[RawAssetString64HL, RawFiniteDecimalStr]]],
 ):
     """RootModel for WebSocket allMids messages.
 
@@ -123,6 +123,8 @@ class HyperliquidRawAllMids(RootModel[dict[RawAssetString64HL, RawFiniteDecimalS
         if not isinstance(v, dict):
             field_name = info.field_name or "all_mids_response"
             raise TypeFieldError(
-                field_name=field_name, expected_type="dict", actual_type=type(v).__name__
+                field_name=field_name,
+                expected_type="dict",
+                actual_type=type(v).__name__,
             )
         return cast("dict[str, object]", v)

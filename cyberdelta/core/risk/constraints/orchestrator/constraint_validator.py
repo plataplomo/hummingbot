@@ -90,7 +90,7 @@ class ConstraintValidator:
 
     def _create_position_config(self) -> dict[str, Any]:
         """Create position constraint configuration from AppSettings.
-        
+
         Returns:
             Dictionary containing position constraint configuration settings
         """
@@ -111,7 +111,7 @@ class ConstraintValidator:
 
     def _create_portfolio_config(self) -> dict[str, Any]:
         """Create portfolio constraint configuration from AppSettings.
-        
+
         Returns:
             Dictionary containing portfolio constraint configuration settings
         """
@@ -125,7 +125,7 @@ class ConstraintValidator:
 
     def _create_exchange_config(self) -> dict[str, Any]:
         """Create exchange constraint configuration from AppSettings.
-        
+
         Returns:
             Dictionary containing exchange constraint configuration settings
         """
@@ -140,7 +140,7 @@ class ConstraintValidator:
 
     def _create_leverage_config(self) -> dict[str, Any]:
         """Create leverage constraint configuration from AppSettings.
-        
+
         Returns:
             Dictionary containing leverage constraint configuration settings
         """
@@ -214,7 +214,7 @@ class ConstraintValidator:
         context: ConstraintContext,
     ) -> list[ConstraintResult]:
         """Validate with fail-fast strategy.
-        
+
         Returns:
             List of constraint validation results, stops at first failure
         """
@@ -285,7 +285,7 @@ class ConstraintValidator:
         context: ConstraintContext,
     ) -> list[ConstraintResult]:
         """Validate with all validators.
-        
+
         Returns:
             List of constraint validation results from all enabled validators
         """
@@ -340,7 +340,7 @@ class ConstraintValidator:
 
     def _aggregate_results(self, results: list[ConstraintResult]) -> ConstraintResult:
         """Aggregate validation results.
-        
+
         Returns:
             Single aggregated constraint result with combined status and violations
         """
@@ -435,7 +435,7 @@ class ConstraintValidator:
 
     def get_validator(self, validator_name: str) -> ConstraintInterface | None:
         """Get a validator by name.
-        
+
         Returns:
             Validator instance if found, None otherwise
         """
@@ -473,7 +473,7 @@ class ConstraintValidator:
 
     def get_performance_stats(self) -> dict[str, Any]:
         """Get performance statistics.
-        
+
         Returns:
             Dictionary containing validation performance statistics
         """
@@ -495,7 +495,7 @@ class ConstraintValidator:
 
     def get_validator_stats(self) -> dict[str, Any]:
         """Get validator statistics.
-        
+
         Returns:
             Dictionary containing statistics for each validator
         """
@@ -517,7 +517,7 @@ class ConstraintValidator:
 
     def get_config(self) -> dict[str, Any]:
         """Get configuration as dictionary for backward compatibility.
-        
+
         Returns:
             Dictionary containing complete validator configuration
         """
@@ -552,7 +552,7 @@ class ConstraintValidator:
 
     def __str__(self) -> str:
         """String representation.
-        
+
         Returns:
             Human-readable string representation of the validator
         """
@@ -560,7 +560,7 @@ class ConstraintValidator:
 
     def __repr__(self) -> str:
         """Detailed representation.
-        
+
         Returns:
             Detailed string representation suitable for debugging
         """

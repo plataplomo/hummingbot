@@ -44,7 +44,7 @@ class ConstraintViolation:
     @property
     def is_blocking(self) -> bool:
         """Check if violation is blocking.
-        
+
         Returns:
             True if severity is ERROR or CRITICAL, False otherwise
         """
@@ -52,7 +52,7 @@ class ConstraintViolation:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert violation to dictionary.
-        
+
         Returns:
             dict[str, Any]: Dictionary representation of the constraint violation.
         """
@@ -94,10 +94,10 @@ class PositionConstraint:
 
     def validate_size(self, size: Decimal) -> list[ConstraintViolation]:
         """Validate position size.
-        
+
         Args:
             size: The position size to validate.
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if size is outside allowed range.
         """
@@ -135,10 +135,10 @@ class PositionConstraint:
 
     def validate_allocation(self, allocation: Decimal) -> list[ConstraintViolation]:
         """Validate allocation percentage.
-        
+
         Args:
             allocation: The allocation percentage to validate (as decimal, e.g., 0.15 for 15%).
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if allocation is outside allowed range.
         """
@@ -201,11 +201,11 @@ class PortfolioConstraint:
         self, current_allocation: Decimal, new_allocation: Decimal
     ) -> list[ConstraintViolation]:
         """Validate total portfolio allocation.
-        
+
         Args:
             current_allocation: Current portfolio allocation percentage.
             new_allocation: Additional allocation to be added.
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if total allocation exceeds maximum.
         """
@@ -233,12 +233,12 @@ class PortfolioConstraint:
         self, symbol: str, current_allocation: Decimal, new_allocation: Decimal
     ) -> list[ConstraintViolation]:
         """Validate symbol concentration.
-        
+
         Args:
             symbol: The symbol to validate concentration for.
             current_allocation: Current allocation to this symbol.
             new_allocation: Additional allocation to be added.
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if symbol concentration exceeds maximum.
         """
@@ -267,12 +267,12 @@ class PortfolioConstraint:
         self, exchange: str, current_allocation: Decimal, new_allocation: Decimal
     ) -> list[ConstraintViolation]:
         """Validate exchange concentration.
-        
+
         Args:
             exchange: The exchange to validate concentration for.
             current_allocation: Current allocation to this exchange.
             new_allocation: Additional allocation to be added.
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if exchange concentration exceeds maximum.
         """
@@ -319,12 +319,12 @@ class ExchangeConstraint:
 
     def validate_exchange_allowed(self, exchange: str) -> list[ConstraintViolation]:
         """Validate exchange is allowed.
-        
+
         Args:
             exchange: The exchange identifier to validate.
-            
+
         Returns:
-            list[ConstraintViolation]: List of violations if exchange is blocked or not 
+            list[ConstraintViolation]: List of violations if exchange is blocked or not
                 in allowed list.
         """
         violations: list[ConstraintViolation] = []
@@ -357,11 +357,11 @@ class ExchangeConstraint:
 
     def validate_order_size(self, exchange: str, order_size: Decimal) -> list[ConstraintViolation]:
         """Validate order size for exchange.
-        
+
         Args:
             exchange: The exchange to validate order size for.
             order_size: The order size to validate.
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if order size is outside exchange limits.
         """
@@ -429,11 +429,11 @@ class LeverageConstraint:
         self, current_leverage: Decimal, additional_leverage: Decimal
     ) -> list[ConstraintViolation]:
         """Validate total leverage.
-        
+
         Args:
             current_leverage: Current total leverage.
             additional_leverage: Additional leverage to be added.
-            
+
         Returns:
             list[ConstraintViolation]: List of violations if total leverage exceeds maximum.
         """
@@ -459,13 +459,13 @@ class LeverageConstraint:
 
     def validate_symbol_leverage(self, symbol: str, leverage: Decimal) -> list[ConstraintViolation]:
         """Validate symbol-specific leverage.
-        
+
         Args:
             symbol: The symbol to validate leverage for.
             leverage: The leverage amount to validate.
-            
+
         Returns:
-            list[ConstraintViolation]: List of violations if leverage exceeds 
+            list[ConstraintViolation]: List of violations if leverage exceeds
                 symbol-specific maximum.
         """
         violations: list[ConstraintViolation] = []
@@ -494,13 +494,13 @@ class LeverageConstraint:
         self, exchange: str, leverage: Decimal
     ) -> list[ConstraintViolation]:
         """Validate exchange-specific leverage.
-        
+
         Args:
             exchange: The exchange to validate leverage for.
             leverage: The leverage amount to validate.
-            
+
         Returns:
-            list[ConstraintViolation]: List of violations if leverage exceeds 
+            list[ConstraintViolation]: List of violations if leverage exceeds
                 exchange-specific maximum.
         """
         violations: list[ConstraintViolation] = []

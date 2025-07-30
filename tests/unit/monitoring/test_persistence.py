@@ -23,7 +23,7 @@ from cyberdelta.monitoring.persistence import PerformanceDataPersistence
 @pytest.fixture
 def temp_output_dir() -> Generator[str]:
     """Create a temporary directory for test output.
-    
+
     Yields:
         str: Path to temporary directory for test output.
     """
@@ -34,7 +34,7 @@ def temp_output_dir() -> Generator[str]:
 @pytest.fixture
 def persistence(temp_output_dir: str) -> PerformanceDataPersistence:
     """Create a persistence instance with temporary output directory.
-    
+
     Returns:
         PerformanceDataPersistence: Persistence instance configured with temp directory.
     """
@@ -44,7 +44,7 @@ def persistence(temp_output_dir: str) -> PerformanceDataPersistence:
 @pytest.fixture
 def sample_returns_data() -> dict[datetime, Decimal]:
     """Create sample returns data for testing.
-    
+
     Returns:
         dict[datetime, Decimal]: Dictionary mapping timestamps to return values.
     """
@@ -58,7 +58,7 @@ def sample_returns_data() -> dict[datetime, Decimal]:
 @pytest.fixture
 def sample_trades_data() -> list[dict[str, Any]]:
     """Create sample trades data for testing.
-    
+
     Returns:
         list[dict[str, Any]]: List of trade dictionaries with sample data.
     """
@@ -83,7 +83,7 @@ def sample_trades_data() -> list[dict[str, Any]]:
 @pytest.fixture
 def sample_signals_data() -> list[dict[str, Any]]:
     """Create sample signals data for testing.
-    
+
     Returns:
         list[dict[str, Any]]: List of signal dictionaries with sample data.
     """
@@ -103,7 +103,7 @@ def sample_signals_data() -> list[dict[str, Any]]:
 @pytest.fixture
 def sample_funding_rates_data() -> list[dict[str, Any]]:
     """Create sample funding rates data for testing.
-    
+
     Returns:
         list[dict[str, Any]]: List of funding rate dictionaries with sample data.
     """

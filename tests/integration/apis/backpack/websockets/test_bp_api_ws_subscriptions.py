@@ -43,8 +43,12 @@ async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
     try:
         markets = await api.get_markets(GetMarketsArgs())
 
-        spot_symbols = [market.symbol for market in markets if not market.symbol.endswith("_PERP")]
-        perp_symbols = [market.symbol for market in markets if market.symbol.endswith("_PERP")]
+        spot_symbols = [
+            market.symbol for market in markets if not market.symbol.value.endswith("_PERP")
+        ]
+        perp_symbols = [
+            market.symbol for market in markets if market.symbol.value.endswith("_PERP")
+        ]
 
         if not spot_symbols:
             raise RuntimeError(

@@ -258,91 +258,108 @@ class HyperliquidAPIComponentsFactory:
     # Account Mappers (4 overloads)
     @overload
     def get_shared_component(
-        self, component_name: Literal["account_summary_mapper"]
+        self,
+        component_name: Literal["account_summary_mapper"],
     ) -> HyperliquidAccountSummaryMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["balance_mapper"]
+        self,
+        component_name: Literal["balance_mapper"],
     ) -> HyperliquidBalanceMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["position_mapper"]
+        self,
+        component_name: Literal["position_mapper"],
     ) -> HyperliquidPositionMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["transaction_mapper"]
+        self,
+        component_name: Literal["transaction_mapper"],
     ) -> HyperliquidTransactionMapper: ...
 
     # Market Data Mappers (4 overloads)
     @overload
     def get_shared_component(
-        self, component_name: Literal["order_book_mapper"]
+        self,
+        component_name: Literal["order_book_mapper"],
     ) -> HyperliquidOrderBookMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["price_ticker_mapper"]
+        self,
+        component_name: Literal["price_ticker_mapper"],
     ) -> HyperliquidPriceTickerMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["historical_data_mapper"]
+        self,
+        component_name: Literal["historical_data_mapper"],
     ) -> HyperliquidHistoricalDataMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["market_metadata_mapper"]
+        self,
+        component_name: Literal["market_metadata_mapper"],
     ) -> HyperliquidMarketMetadataMapper: ...
 
     # Trading Mappers (3 overloads)
     @overload
     def get_shared_component(
-        self, component_name: Literal["order_mapper"]
+        self,
+        component_name: Literal["order_mapper"],
     ) -> HyperliquidOrderMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["order_response_mapper"]
+        self,
+        component_name: Literal["order_response_mapper"],
     ) -> HyperliquidOrderResponseMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["trading_enum_mapper"]
+        self,
+        component_name: Literal["trading_enum_mapper"],
     ) -> HyperliquidTradingEnumMapper: ...
 
     # Request Builders (3 overloads)
     @overload
     def get_shared_component(
-        self, component_name: Literal["account_request_builder"]
+        self,
+        component_name: Literal["account_request_builder"],
     ) -> HyperliquidAccountRequestBuilder: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["market_data_request_builder"]
+        self,
+        component_name: Literal["market_data_request_builder"],
     ) -> HyperliquidMarketDataRequestBuilder: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["trading_request_builder"]
+        self,
+        component_name: Literal["trading_request_builder"],
     ) -> HyperliquidTradingRequestBuilder: ...
 
     # Response Handlers (3 overloads)
     @overload
     def get_shared_component(
-        self, component_name: Literal["account_response_handler"]
+        self,
+        component_name: Literal["account_response_handler"],
     ) -> HyperliquidAccountResponseHandler: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["market_data_response_handler"]
+        self,
+        component_name: Literal["market_data_response_handler"],
     ) -> HyperliquidMarketDataResponseHandler: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["trading_response_handler"]
+        self,
+        component_name: Literal["trading_response_handler"],
     ) -> HyperliquidTradingResponseHandler: ...
 
     # Implementation for all overloads
@@ -385,7 +402,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _get_component_config(self) -> dict[ComponentName, dict[str, Any]]:
         """Get component configuration mapping.
-        
+
         Returns:
             Dictionary mapping component names to their configuration including
             registry keys, expected types, and factory methods.
@@ -491,10 +508,10 @@ class HyperliquidAPIComponentsFactory:
 
     def _create_component(self, component_name: ComponentName) -> AnyComponent:
         """Create component based on component name.
-        
+
         Returns:
             The created component instance (mapper, builder, or handler).
-            
+
         Raises:
             ValueError: If component name is unknown or creation fails.
         """
@@ -518,7 +535,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _try_create_mapper(self, component_name: ComponentName) -> MapperComponent | None:
         """Try to create a mapper component.
-        
+
         Returns:
             The created mapper component if component_name matches a mapper type,
             None otherwise.
@@ -539,7 +556,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _try_create_account_mapper(self, component_name: ComponentName) -> MapperComponent | None:
         """Try to create an account mapper component.
-        
+
         Returns:
             The created account mapper if component_name matches an account mapper type,
             None otherwise.
@@ -556,7 +573,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _try_create_market_mapper(self, component_name: ComponentName) -> MapperComponent | None:
         """Try to create a market data mapper component.
-        
+
         Returns:
             The created market data mapper if component_name matches a market mapper type,
             None otherwise.
@@ -573,7 +590,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _try_create_trading_mapper(self, component_name: ComponentName) -> MapperComponent | None:
         """Try to create a trading mapper component.
-        
+
         Returns:
             The created trading mapper if component_name matches a trading mapper type,
             None otherwise.
@@ -588,7 +605,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _try_create_builder(self, component_name: ComponentName) -> BuilderComponent | None:
         """Try to create a builder component.
-        
+
         Returns:
             The created request builder if component_name matches a builder type,
             None otherwise.
@@ -603,7 +620,7 @@ class HyperliquidAPIComponentsFactory:
 
     def _try_create_handler(self, component_name: ComponentName) -> HandlerComponent | None:
         """Try to create a handler component.
-        
+
         Returns:
             The created response handler if component_name matches a handler type,
             None otherwise.
@@ -822,7 +839,7 @@ class HyperliquidAPIComponentsFactory:
     # Decomposed mapper creation methods
     def create_balance_mapper(self) -> BalanceMapperProtocol:
         """Create a HyperliquidBalanceMapper instance.
-        
+
         Returns:
             A new HyperliquidBalanceMapper instance that implements BalanceMapperProtocol.
         """
@@ -830,7 +847,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_position_mapper(self) -> PositionMapperProtocol:
         """Create a HyperliquidPositionMapper instance.
-        
+
         Returns:
             A new HyperliquidPositionMapper instance that implements PositionMapperProtocol.
         """
@@ -838,7 +855,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_account_summary_mapper(self) -> AccountSummaryMapperProtocol:
         """Create a HyperliquidAccountSummaryMapper instance.
-        
+
         Returns:
             A new HyperliquidAccountSummaryMapper instance that implements
             AccountSummaryMapperProtocol.
@@ -847,7 +864,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_transaction_mapper(self) -> TransactionMapperProtocol:
         """Create a HyperliquidTransactionMapper instance.
-        
+
         Returns:
             A new HyperliquidTransactionMapper instance that implements TransactionMapperProtocol.
         """
@@ -855,7 +872,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_order_book_mapper(self) -> OrderBookMapperProtocol:
         """Create a HyperliquidOrderBookMapper instance.
-        
+
         Returns:
             A new HyperliquidOrderBookMapper instance that implements OrderBookMapperProtocol.
         """
@@ -863,7 +880,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_price_ticker_mapper(self) -> PriceTickerMapperProtocol:
         """Create a HyperliquidPriceTickerMapper instance.
-        
+
         Returns:
             A new HyperliquidPriceTickerMapper instance that implements PriceTickerMapperProtocol.
         """
@@ -871,7 +888,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_historical_data_mapper(self) -> HistoricalDataMapperProtocol:
         """Create a HyperliquidHistoricalDataMapper instance.
-        
+
         Returns:
             A new HyperliquidHistoricalDataMapper instance that implements
             HistoricalDataMapperProtocol.
@@ -880,7 +897,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_market_metadata_mapper(self) -> MarketMetadataMapperProtocol:
         """Create a HyperliquidMarketMetadataMapper instance.
-        
+
         Returns:
             A new HyperliquidMarketMetadataMapper instance that implements
             MarketMetadataMapperProtocol.
@@ -889,7 +906,7 @@ class HyperliquidAPIComponentsFactory:
 
     def create_trading_enum_mapper(self) -> TradingEnumMapperProtocol:
         """Create a HyperliquidTradingEnumMapper instance.
-        
+
         Returns:
             A new HyperliquidTradingEnumMapper instance that implements TradingEnumMapperProtocol.
         """

@@ -35,7 +35,9 @@ from cyberdelta.core.services.interfaces import (
     OrderRequest,
     OrderServiceConfig,
 )
+from cyberdelta.core.symbols.api import symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -97,10 +99,10 @@ class OrderManagementService(BaseAsyncService, IOrderService):
 
     def _check_circuit_breaker(self, exchange_id: str) -> ExecutionResult | None:
         """Check circuit breaker and return error result if tripped.
-        
+
         Args:
             exchange_id: Exchange identifier to check
-            
+
         Returns:
             ExecutionResult with error if circuit breaker is tripped, None otherwise
         """
@@ -128,11 +130,11 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self, request: OrderRequest, api_client: ExchangeAPI
     ) -> ExecutionResult:
         """Execute order placement with retry logic.
-        
+
         Args:
             request: Order placement request
             api_client: Exchange API client
-            
+
         Returns:
             ExecutionResult with order information or error details
         """
@@ -168,13 +170,13 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self, request: OrderRequest, api_client: ExchangeAPI, attempt: int, start_time: float
     ) -> ExecutionResult | None:
         """Attempt a single order placement.
-        
+
         Args:
             request: Order placement request
             api_client: Exchange API client
             attempt: Current attempt number
             start_time: Start time of the operation
-            
+
         Returns:
             ExecutionResult with order information if successful, None if failed
         """
@@ -212,12 +214,12 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self, error: APIError, request: OrderRequest, attempt: int
     ) -> ExecutionResult | None:
         """Handle API error and determine if retry should occur.
-        
+
         Args:
             error: The API error that occurred
             request: Order placement request
             attempt: Current attempt number
-            
+
         Returns:
             ExecutionResult with error details if no retry should occur, None to continue retrying
         """
@@ -253,11 +255,11 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self, last_exception: Exception | None, exchange_id: str
     ) -> ExecutionResult:
         """Handle the case when all retries are exhausted.
-        
+
         Args:
             last_exception: The last exception that occurred
             exchange_id: Exchange identifier
-            
+
         Returns:
             ExecutionResult with error details for exhausted retries
         """
@@ -495,8 +497,17 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         # Remove None values to avoid API issues
         filtered_args = {k: v for k, v in order_args.items() if v is not None}
 
+        # Create Symbol from string symbol
+        # TODO: OrderRequest should be updated to use Symbol
+        exchange_name = (
+            ExchangeName.HYPERLIQUID
+            if api_client.exchange_name == "hyperliquid"
+            else ExchangeName.BACKPACK
+        )
+        exchange_symbol = symbol(value=str(filtered_args["symbol"]), exchange=exchange_name)
+
         place_order_args = PlaceOrderArgs(
-            symbol=str(filtered_args["symbol"]),
+            symbol=exchange_symbol,
             side=OrderSide(filtered_args["side"]),
             order_type=OrderType(filtered_args["order_type"]),
             quantity=Decimal(str(filtered_args["quantity"])),
@@ -546,13 +557,19 @@ class OrderManagementService(BaseAsyncService, IOrderService):
             APIError: If status check fails
         """
         # Prepare arguments for status check
-        args = {"order_id": order_id}
+        # Create Symbol from string if symbol is provided
+        exchange_symbol = None
         if symbol:
-            args["symbol"] = symbol
-        if client_order_id:
-            args["client_order_id"] = client_order_id
+            exchange_name = (
+                ExchangeName.HYPERLIQUID
+                if api_client.exchange_name == "hyperliquid"
+                else ExchangeName.BACKPACK
+            )
+            exchange_symbol = symbol(value=str(symbol), exchange=exchange_name)
 
-        get_order_args = GetOrderArgs(**args)
+        get_order_args = GetOrderArgs(
+            order_id=order_id, symbol=exchange_symbol, client_order_id=client_order_id
+        )
 
         # Get order status through API client
         result = await api_client.get_order_status(get_order_args)
@@ -580,13 +597,19 @@ class OrderManagementService(BaseAsyncService, IOrderService):
             True if cancellation was successful
         """
         # Prepare arguments for cancellation
-        args = {"order_id": order_id}
+        # Create Symbol from string if symbol is provided
+        exchange_symbol = None
         if symbol:
-            args["symbol"] = symbol
-        if client_order_id:
-            args["client_order_id"] = client_order_id
+            exchange_name = (
+                ExchangeName.HYPERLIQUID
+                if api_client.exchange_name == "hyperliquid"
+                else ExchangeName.BACKPACK
+            )
+            exchange_symbol = symbol(value=str(symbol), exchange=exchange_name)
 
-        cancel_order_args = CancelOrderArgs(**args)
+        cancel_order_args = CancelOrderArgs(
+            order_id=order_id, symbol=exchange_symbol, client_order_id=client_order_id
+        )
 
         # Cancel order through API client
         result = await api_client.cancel_order(cancel_order_args)

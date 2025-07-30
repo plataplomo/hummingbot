@@ -207,7 +207,7 @@ class TestExecutionContext:
     @pytest.fixture
     def mock_opportunity(self) -> Mock:
         """Create a mock arbitrage opportunity.
-        
+
         Returns:
             Mock: Mock ArbitrageOpportunity instance with configured test data.
         """
@@ -281,7 +281,7 @@ class TestOrderVerifier:
     @pytest.fixture
     def mock_config(self) -> dict[str, Any]:
         """Create a mock configuration.
-        
+
         Returns:
             dict[str, Any]: Mock configuration dictionary for order verification.
         """
@@ -295,7 +295,7 @@ class TestOrderVerifier:
     @pytest.fixture
     def mock_portfolio_tracker(self) -> Mock:
         """Create a mock portfolio tracker.
-        
+
         Returns:
             Mock: Mock PortfolioTracker instance for order verification tests.
         """
@@ -304,7 +304,7 @@ class TestOrderVerifier:
     @pytest.fixture
     def mock_exchange_adapters(self) -> dict[str, Mock]:
         """Create mock exchange adapters.
-        
+
         Returns:
             dict[str, Mock]: Dictionary of mock exchange adapters with configured async methods.
         """
@@ -331,7 +331,7 @@ class TestOrderVerifier:
         mock_exchange_adapters: dict[str, ExchangeAPI],
     ) -> OrderVerifier:
         """Create an OrderVerifier instance for testing.
-        
+
         Returns:
             OrderVerifier: Configured OrderVerifier instance for verification tests.
         """
@@ -344,7 +344,7 @@ class TestOrderVerifier:
     @pytest.fixture
     def sample_order(self) -> Order:
         """Create a sample order for testing.
-        
+
         Returns:
             Order: Sample Order instance configured for verification tests.
         """
@@ -654,7 +654,7 @@ class TestExecutionCoordinator:
     @pytest.fixture
     def mock_config(self) -> dict[str, Any]:
         """Create a mock configuration.
-        
+
         Returns:
             dict[str, Any]: Mock configuration dictionary for execution coordination.
         """
@@ -668,7 +668,7 @@ class TestExecutionCoordinator:
     @pytest.fixture
     def execution_coordinator(self, mock_config: dict[str, Any]) -> ExecutionCoordinator:
         """Create an ExecutionCoordinator instance for testing.
-        
+
         Returns:
             ExecutionCoordinator: Configured ExecutionCoordinator instance for coordination tests.
         """
@@ -677,7 +677,7 @@ class TestExecutionCoordinator:
     @pytest.fixture
     def mock_opportunity(self) -> Mock:
         """Create a mock arbitrage opportunity.
-        
+
         Returns:
             Mock: Mock ArbitrageOpportunity instance with configured test data.
         """
@@ -873,7 +873,7 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def mock_config(self) -> dict[str, Any]:
         """Create a mock configuration.
-        
+
         Returns:
             dict[str, Any]: Mock configuration dictionary for synchronized order submission.
         """
@@ -891,7 +891,7 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def mock_exchange_adapters(self) -> dict[str, ExchangeAPI]:
         """Create mock exchange adapters.
-        
+
         Returns:
             Dictionary of mock exchange adapters with configured async methods.
         """
@@ -914,7 +914,7 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def mock_circuit_breaker(self) -> Mock:
         """Create a mock circuit breaker system.
-        
+
         Returns:
             Mock: Mock CircuitBreakerSystem instance configured for execution.
         """
@@ -925,7 +925,7 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def mock_position_reconciliation(self) -> Mock:
         """Create a mock position reconciliation system.
-        
+
         Returns:
             Mock: Mock PositionReconciliationSystem instance for execution testing.
         """
@@ -934,7 +934,7 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def mock_portfolio_tracker(self) -> Mock:
         """Create a mock portfolio tracker.
-        
+
         Returns:
             Mock: Mock PortfolioTracker instance for synchronized order submission tests.
         """
@@ -950,7 +950,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_portfolio_tracker: Mock,
     ) -> SynchronizedOrderSubmissionService:
         """Create a SynchronizedOrderSubmissionService instance for testing.
-        
+
         Returns:
             SynchronizedOrderSubmissionService: Configured service instance for submission tests.
         """
@@ -965,7 +965,7 @@ class TestSynchronizedOrderSubmissionService:
     @pytest.fixture
     def mock_opportunity(self) -> Mock:
         """Create a mock arbitrage opportunity.
-        
+
         Returns:
             Mock: Mock ArbitrageOpportunity instance with configured test data.
         """
@@ -1158,7 +1158,7 @@ class TestSynchronizedOrderSubmissionIntegration:
     @pytest.fixture
     def complete_service_setup(self) -> dict[str, Any]:
         """Create a complete service setup for integration testing.
-        
+
         Returns:
             Dictionary containing fully configured service and all mock dependencies.
         """
@@ -1232,7 +1232,7 @@ class TestSynchronizedOrderSubmissionIntegration:
     @pytest.fixture
     def integration_opportunity(self) -> Mock:
         """Create a complete opportunity for integration testing.
-        
+
         Returns:
             Mock: Mock ArbitrageOpportunity instance configured for integration tests.
         """

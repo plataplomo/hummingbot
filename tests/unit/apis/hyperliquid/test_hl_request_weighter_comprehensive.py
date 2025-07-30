@@ -21,7 +21,7 @@ class TestHyperliquidRequestWeighter:
     @pytest.fixture
     def mock_info_weights(self) -> dict[str, int]:
         """Create mock info request type weights.
-        
+
         Returns:
             dict[str, int]: Mapping of request types to their IP weights.
         """
@@ -36,7 +36,7 @@ class TestHyperliquidRequestWeighter:
     @pytest.fixture
     def valid_exchange_config(self, mock_info_weights: dict[str, int]) -> ExchangeSpecificConfig:
         """Create valid exchange configuration for testing.
-        
+
         Returns:
             ExchangeSpecificConfig: Mock exchange configuration with test weights.
         """
@@ -51,7 +51,7 @@ class TestHyperliquidRequestWeighter:
         self, valid_exchange_config: ExchangeSpecificConfig
     ) -> Callable[..., HyperliquidRequestWeighter]:
         """Factory to create weighter instances with optional config overrides.
-        
+
         Returns:
             Callable[..., HyperliquidRequestWeighter]: Factory function that creates
                 weighter instances.

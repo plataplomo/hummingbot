@@ -18,6 +18,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import Ticker
+from cyberdelta.core.symbols import exchanges
 
 
 # Mark all tests in this file
@@ -39,12 +40,12 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_ticker() with SOL_USDC_PERP returns valid Ticker model."""
-        ticker = await bp_api_for_test_env.get_ticker("SOL_USDC_PERP")
+        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("SOL_USDC_PERP"))
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == "SOL_USDC_PERP", (
-            f"Expected symbol 'SOL_USDC_PERP', got '{ticker.symbol}'"
+        assert ticker.symbol.value == "SOL_USDC_PERP", (
+            f"Expected symbol 'SOL_USDC_PERP', got '{ticker.symbol.value}'"
         )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
@@ -74,12 +75,12 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_ticker() with BTC_USDC_PERP returns valid Ticker model."""
-        ticker = await bp_api_for_test_env.get_ticker("BTC_USDC_PERP")
+        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("BTC_USDC_PERP"))
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == "BTC_USDC_PERP", (
-            f"Expected symbol 'BTC_USDC_PERP', got '{ticker.symbol}'"
+        assert ticker.symbol.value == "BTC_USDC_PERP", (
+            f"Expected symbol 'BTC_USDC_PERP', got '{ticker.symbol.value}'"
         )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
@@ -111,10 +112,12 @@ class TestBackpackPerpTickers:
         symbol: str,
     ) -> None:
         """Test perp ticker data types and validation across symbols."""
-        ticker = await bp_api_for_test_env.get_ticker(symbol)
+        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack(symbol))
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
-        assert ticker.symbol == symbol, f"Expected symbol '{symbol}', got '{ticker.symbol}'"
+        assert ticker.symbol.value == symbol, (
+            f"Expected symbol '{symbol}', got '{ticker.symbol.value}'"
+        )
 
         assert isinstance(ticker.price, Decimal), f"Price should be Decimal for {symbol}"
         assert ticker.price > Decimal(0), f"Price should be positive for {symbol}"
@@ -145,7 +148,7 @@ class TestBackpackPerpTickers:
     ) -> None:
         """Test BackpackAPI.get_ticker() with invalid perp symbol raises appropriate error."""
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.get_ticker("INVALID_PERP")
+            await bp_api_for_test_env.get_ticker(exchanges.backpack("INVALID_PERP"))
 
         error = exc_info.value
         assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
@@ -162,7 +165,7 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp ticker precision and decimal operations."""
-        ticker = await bp_api_for_test_env.get_ticker("SOL_USDC_PERP")
+        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("SOL_USDC_PERP"))
 
         assert isinstance(ticker.price, Decimal), "Price should be Decimal type"
 
@@ -190,10 +193,10 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp-specific ticker features like funding rates."""
-        ticker = await bp_api_for_test_env.get_ticker("SOL_USDC_PERP")
+        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("SOL_USDC_PERP"))
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
-        assert ticker.symbol == "SOL_USDC_PERP", "Should be perp symbol"
+        assert ticker.symbol.value == "SOL_USDC_PERP", "Should be perp symbol"
 
         # Note: funding_rate and next_funding_time are not available in the Backpack ticker model
         # These would be separate API calls to get_funding_rate() method

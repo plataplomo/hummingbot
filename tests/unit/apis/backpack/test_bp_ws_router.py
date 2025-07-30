@@ -28,7 +28,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def error_handler(self) -> AsyncMock:
         """Create mock error handler.
-        
+
         Returns:
             AsyncMock: Mock BaseErrorHandler instance for testing.
         """
@@ -37,7 +37,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
         """Create mock order book mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackOrderBookMapper instance for testing.
         """
@@ -46,7 +46,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def ticker_mapper(self) -> MagicMock:
         """Create mock ticker mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackTickerMapper instance for testing.
         """
@@ -55,7 +55,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def trade_mapper(self) -> MagicMock:
         """Create mock trade mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackTradeMapper instance for testing.
         """
@@ -64,7 +64,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def balance_mapper(self) -> MagicMock:
         """Create mock balance mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackBalanceMapper instance for testing.
         """
@@ -73,7 +73,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def position_mapper(self) -> MagicMock:
         """Create mock position mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackPositionMapper instance for testing.
         """
@@ -82,7 +82,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def order_mapper(self) -> MagicMock:
         """Create mock order mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackOrderMapper instance for testing.
         """
@@ -91,7 +91,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def transaction_mapper(self) -> MagicMock:
         """Create mock transaction mapper.
-        
+
         Returns:
             MagicMock: Mock BackpackTransactionMapper instance for testing.
         """
@@ -110,7 +110,7 @@ class TestBackpackWebSocketRouter:
         transaction_mapper: MagicMock,
     ) -> BackpackWebSocketRouter:
         """Create router for testing.
-        
+
         Returns:
             BackpackWebSocketRouter: Configured router instance with mocked dependencies.
         """

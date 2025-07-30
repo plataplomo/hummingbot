@@ -168,7 +168,7 @@ class StateContainer[T: BaseStateModel](BaseStateModel):
 
     def get_state_count(self) -> int:
         """Get the number of stored states.
-        
+
         Returns:
             Number of states currently stored in the container
         """
@@ -176,7 +176,7 @@ class StateContainer[T: BaseStateModel](BaseStateModel):
 
     def get_state_keys(self) -> list[str]:
         """Get all state keys.
-        
+
         Returns:
             List of all state keys in the container
         """
@@ -184,10 +184,10 @@ class StateContainer[T: BaseStateModel](BaseStateModel):
 
     def has_state(self, key: str) -> bool:
         """Check if a state key exists.
-        
+
         Args:
             key: State key to check
-            
+
         Returns:
             True if the key exists in the container, False otherwise
         """

@@ -23,6 +23,7 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.margin_account import MarginAccountSummary
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 
 
@@ -62,7 +63,7 @@ class HyperliquidTestHelpers:
             markets = await api.get_markets(GetMarketsArgs())
             if markets:
                 # Extract symbols from markets data
-                symbols = [market.symbol for market in markets][:limit]
+                symbols = [market.symbol.value for market in markets][:limit]
                 if symbols:
                     return symbols
 
@@ -72,7 +73,8 @@ class HyperliquidTestHelpers:
 
             for symbol in common_symbols:
                 try:
-                    market = await api.get_market(GetMarketArgs(symbol=symbol))
+                    symbol_obj = exchanges.hyperliquid(symbol)
+                    market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
                     if market:
                         available_symbols.append(symbol)
                         if len(available_symbols) >= limit:
@@ -117,7 +119,11 @@ class HyperliquidTestHelpers:
             RuntimeError: If market data retrieval fails or required fields are missing.
         """
         try:
-            market = await api.get_market(GetMarketArgs(symbol=symbol))
+            if isinstance(symbol, str):
+                symbol_obj = exchanges.hyperliquid(symbol)
+            else:
+                symbol_obj = symbol
+            market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
             if not market:
                 raise RuntimeError(
                     f"Failed to get market data for {symbol}. "
@@ -168,12 +174,16 @@ class HyperliquidTestHelpers:
         """
         try:
             # Try ticker first (most current)
-            ticker = await api.get_ticker(symbol)
+            if isinstance(symbol, str):
+                symbol_obj = exchanges.hyperliquid(symbol)
+            else:
+                symbol_obj = symbol
+            ticker = await api.get_ticker(symbol_obj)
             if ticker and ticker.price:
                 return ticker.price
 
             # Fallback to market details with mark price
-            market = await api.get_market(GetMarketArgs(symbol=symbol))
+            market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
             if market and market.hl_details and market.hl_details.mark_price:
                 return market.hl_details.mark_price
 
@@ -210,7 +220,11 @@ class HyperliquidTestHelpers:
         """
         try:
             # Get market information to understand funding rate constraints
-            market = await api.get_market(GetMarketArgs(symbol=symbol))
+            if isinstance(symbol, str):
+                symbol_obj = exchanges.hyperliquid(symbol)
+            else:
+                symbol_obj = symbol
+            market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
             if not market:
                 raise RuntimeError(
                     f"Failed to get market data for {symbol}. "
@@ -228,7 +242,7 @@ class HyperliquidTestHelpers:
 
             try:
                 args = GetHistoricalFundingRatesArgs(
-                    symbol=symbol,
+                    symbol=symbol_obj,
                     start_time=start_time,
                     end_time=end_time,
                 )
@@ -518,11 +532,11 @@ class HyperliquidTestHelpers:
     @staticmethod
     def _calculate_initial_quantity(constraints: dict[str, Decimal], price: Decimal) -> Decimal:
         """Calculate initial quantity based on minimum requirements.
-        
+
         Args:
             constraints: Market constraints dictionary containing min_quantity and step_size
             price: Order price for notional value calculation
-            
+
         Returns:
             Decimal: Initial quantity rounded to valid step size
         """

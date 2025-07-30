@@ -5,7 +5,6 @@ to provide a unified interface for market data access.
 """
 
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING
 
 from cyberdelta.apis.hyperliquid.mappers import (
     HyperliquidHistoricalDataMapper,
@@ -46,11 +45,8 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market import Candle, Market
 from cyberdelta.core.models.market.mid_prices import MidPrices
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
-
-
-if TYPE_CHECKING:
-    pass
 
 
 logger = get_logger(__name__)
@@ -147,25 +143,19 @@ class HyperliquidMarketDataService:
 
     # Price Ticker Operations
 
-    async def get_ticker(self, symbol: str) -> Ticker | None:
+    async def get_ticker(self, symbol: Symbol) -> Ticker | None:
         """Retrieve the latest ticker information for a specific symbol.
 
-        Args:
-            symbol: The trading symbol to get ticker data for
-
         Returns:
-            Ticker object with current price and market info, or None if not found
+            Ticker | None: The ticker data or None if not available
         """
         return await self._price_ticker_service.get_ticker(symbol)
 
-    async def get_funding_rate(self, symbol: str) -> FundingRate | None:
+    async def get_funding_rate(self, symbol: Symbol) -> FundingRate | None:
         """Retrieve the current funding rate for a specific perpetual contract symbol.
 
-        Args:
-            symbol: The perpetual contract symbol to get funding rate for
-
         Returns:
-            FundingRate object with current funding rate info, or None if not found
+            FundingRate | None: The funding rate or None if not available
         """
         return await self._price_ticker_service.get_funding_rate(symbol)
 
@@ -190,32 +180,27 @@ class HyperliquidMarketDataService:
 
     # Order Book Operations
 
-    async def get_order_book(self, symbol: str) -> OrderBook | None:
+    async def get_order_book(self, symbol: Symbol) -> OrderBook | None:
         """Retrieve the order book for a specific symbol.
 
-        Args:
-            symbol: The trading symbol to get order book for
-
         Returns:
-            OrderBook object with current bids and asks, or None if not found
+            OrderBook | None: The order book or None if not available
         """
         return await self._order_book_service.get_order_book(symbol)
 
-    async def get_recent_trades(self, symbol: str) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol) -> list[Trade]:
         """Retrieve recent public trades for a specific symbol.
 
-        Args:
-            symbol: The trading symbol to get recent trades for
-
         Returns:
-            List of Trade objects representing recent executed trades
+            list[Trade]: List of recent trades
         """
         return await self._order_book_service.get_recent_trades(symbol)
 
     # Historical Data Operations
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Retrieve historical funding rates for a specific symbol and time range.
 

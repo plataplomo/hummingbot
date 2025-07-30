@@ -30,7 +30,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 @pytest.fixture
 def setup_dependencies() -> dict[str, MagicMock]:
     """Set up test dependencies.
-    
+
     Returns:
         dict[str, MagicMock]: Dictionary of mock dependencies for testing.
     """
@@ -52,7 +52,7 @@ def strategy_with_risk_manager(
     setup_dependencies: dict[str, MagicMock],
 ) -> FundingRateArbitrageStrategy:
     """Create strategy instance with risk manager.
-    
+
     Returns:
         FundingRateArbitrageStrategy: Strategy configured with risk management.
     """
@@ -78,7 +78,7 @@ def strategy_without_risk_manager(
     setup_dependencies: dict[str, MagicMock],
 ) -> FundingRateArbitrageStrategy:
     """Create strategy instance without risk manager.
-    
+
     Returns:
         FundingRateArbitrageStrategy: Strategy configured without risk management.
     """
@@ -102,7 +102,7 @@ def strategy_without_risk_manager(
 @pytest.fixture
 def mock_opportunity() -> ArbitrageOpportunity:
     """Create a mock opportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Mock arbitrage opportunity with test data.
     """

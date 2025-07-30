@@ -43,7 +43,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
     """Create a test AppSettings instance with minimal required fields.
-    
+
     Returns:
         AppSettings: Configured test AppSettings instance with all required fields populated.
     """
@@ -176,7 +176,7 @@ def create_test_opportunity(
     short_funding_rate: float = -0.0001,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity: A configured test arbitrage opportunity with the specified parameters.
     """
@@ -228,7 +228,7 @@ class MockSizer(BaseSizerInterface):
 
     async def size(self, opportunity: ArbitrageOpportunity, context: SizingContext) -> SizingResult:
         """Mock size calculation.
-        
+
         Returns:
             SizingResult: Mock sizing result with configurable status and position size.
         """

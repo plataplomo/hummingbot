@@ -48,7 +48,7 @@ class SizingResult:
     @property
     def success(self) -> bool:
         """Check if sizing was successful.
-        
+
         Returns:
             True if status is SUCCESS, False otherwise
         """
@@ -57,7 +57,7 @@ class SizingResult:
     @property
     def failed(self) -> bool:
         """Check if sizing failed.
-        
+
         Returns:
             True if status is FAILED, False otherwise
         """
@@ -66,7 +66,7 @@ class SizingResult:
     @property
     def insufficient_capital(self) -> bool:
         """Check if sizing failed due to insufficient capital.
-        
+
         Returns:
             True if status is INSUFFICIENT_CAPITAL, False otherwise
         """
@@ -75,7 +75,7 @@ class SizingResult:
     @property
     def constraints_violated(self) -> bool:
         """Check if sizing failed due to constraint violations.
-        
+
         Returns:
             True if status is CONSTRAINTS_VIOLATED, False otherwise
         """
@@ -84,7 +84,7 @@ class SizingResult:
     @property
     def error(self) -> bool:
         """Check if sizing failed due to error.
-        
+
         Returns:
             True if status is ERROR, False otherwise
         """
@@ -107,7 +107,7 @@ class SizingResult:
         risk_adjusted_size: Decimal | None = None,
     ) -> "SizingResult":
         """Create a successful sizing result.
-        
+
         Args:
             position_size_usd: The calculated position size in USD.
             allocation_percentage: The position allocation as a percentage of available capital.
@@ -121,7 +121,7 @@ class SizingResult:
             volatility: Optional volatility measure.
             kelly_fraction: Optional Kelly criterion fraction.
             risk_adjusted_size: Optional risk-adjusted position size.
-            
+
         Returns:
             SizingResult: A successful sizing result with SUCCESS status.
         """
@@ -149,12 +149,12 @@ class SizingResult:
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
         """Create a failed sizing result.
-        
+
         Args:
             message: Failure reason message.
             details: Optional additional failure details.
             execution_time_ms: Optional execution time in milliseconds.
-            
+
         Returns:
             SizingResult: A failed sizing result with FAILED status and zero position size.
         """
@@ -176,13 +176,13 @@ class SizingResult:
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
         """Create an insufficient capital result.
-        
+
         Args:
             required_capital: Capital required for the position.
             available_capital: Capital currently available.
             message: Optional custom message, defaults to a descriptive message.
             execution_time_ms: Optional execution time in milliseconds.
-            
+
         Returns:
             SizingResult: A sizing result with INSUFFICIENT_CAPITAL status and zero position size.
         """
@@ -210,12 +210,12 @@ class SizingResult:
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
         """Create a constraint violation result.
-        
+
         Args:
             violated_constraints: List of constraint names that were violated.
             message: Optional custom message, defaults to listing the violations.
             execution_time_ms: Optional execution time in milliseconds.
-            
+
         Returns:
             SizingResult: A sizing result with CONSTRAINTS_VIOLATED status and zero position size.
         """
@@ -238,12 +238,12 @@ class SizingResult:
         execution_time_ms: float | None = None,
     ) -> "SizingResult":
         """Create an error result.
-        
+
         Args:
             message: Error message describing what went wrong.
             details: Optional additional error details.
             execution_time_ms: Optional execution time in milliseconds.
-            
+
         Returns:
             SizingResult: A sizing result with ERROR status and zero position size.
         """
@@ -258,7 +258,7 @@ class SizingResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary.
-        
+
         Returns:
             dict[str, Any]: Dictionary representation with all sizing result fields.
         """
@@ -304,11 +304,11 @@ class SizingContext:
 
     def get_config_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
         """Get a configuration value.
-        
+
         Args:
             key: Configuration key to look up.
             default: Default value if key not found.
-            
+
         Returns:
             ConfigValue: The configuration value or default if not found.
         """
@@ -319,11 +319,11 @@ class SizingContext:
 
     def get_metadata_value(self, key: str, default: ConfigValue = None) -> ConfigValue:
         """Get a metadata value.
-        
+
         Args:
             key: Metadata key to look up.
             default: Default value if key not found.
-            
+
         Returns:
             ConfigValue: The metadata value or default if not found.
         """
@@ -368,7 +368,7 @@ class SizedOpportunity:
     @property
     def total_size_usd(self) -> Decimal:
         """Total position size in USD.
-        
+
         Returns:
             Sum of long and short position sizes
         """
@@ -377,7 +377,7 @@ class SizedOpportunity:
     @property
     def is_valid(self) -> bool:
         """Check if the sized opportunity is valid.
-        
+
         Returns:
             True if sizing successful and both positions have positive size
         """
@@ -386,7 +386,7 @@ class SizedOpportunity:
     @property
     def allocation_percentage(self) -> Decimal:
         """Allocation percentage from sizing result.
-        
+
         Returns:
             Position allocation as percentage of available capital
         """
@@ -395,7 +395,7 @@ class SizedOpportunity:
     @property
     def symbol(self) -> str:
         """Symbol from the opportunity.
-        
+
         Returns:
             Trading symbol or 'unknown' if not available
         """
@@ -404,7 +404,7 @@ class SizedOpportunity:
     @property
     def long_exchange(self) -> str:
         """Long exchange from the opportunity.
-        
+
         Returns:
             Exchange name for long position or 'unknown' if not available
         """
@@ -413,7 +413,7 @@ class SizedOpportunity:
     @property
     def short_exchange(self) -> str:
         """Short exchange from the opportunity.
-        
+
         Returns:
             Exchange name for short position or 'unknown' if not available
         """
@@ -421,7 +421,7 @@ class SizedOpportunity:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert sized opportunity to dictionary.
-        
+
         Returns:
             dict[str, Any]: Dictionary representation of the sized opportunity including all fields.
         """
@@ -455,16 +455,16 @@ class SizedOpportunity:
         sizing_method: str | None = None,
     ) -> "SizedOpportunity":
         """Create SizedOpportunity from sizing result.
-        
+
         Args:
             opportunity: The arbitrage opportunity to size.
             sizing_result: The successful sizing result.
             sizing_method: Optional name of the sizing method used.
-            
+
         Returns:
-            SizedOpportunity: A new sized opportunity with position sizes split equally 
+            SizedOpportunity: A new sized opportunity with position sizes split equally
                 between long and short.
-            
+
         Raises:
             SizingError: If sizing_result is not successful.
         """

@@ -46,7 +46,7 @@ class MockWebSocketConnectionAdapter:
 
     async def connect(self) -> bool:
         """Simulate connection establishment.
-        
+
         Returns:
             True if connection successful, False otherwise.
         """
@@ -89,7 +89,7 @@ class MockWebSocketConnectionAdapter:
 
     async def is_healthy(self) -> bool:
         """Simulate health check.
-        
+
         Returns:
             True if connection is healthy, False otherwise.
         """
@@ -106,7 +106,7 @@ class MockWebSocketConnectionAdapter:
 
     async def send_message(self, message: dict[str, Any]) -> bool:
         """Simulate message sending.
-        
+
         Returns:
             True if message sent successfully, False otherwise.
         """
@@ -178,7 +178,7 @@ class MockWebSocketConnectionAdapter:
 
     def get_stats(self) -> dict[str, Any]:
         """Get mock adapter statistics.
-        
+
         Returns:
             Dictionary containing adapter statistics and state.
         """
@@ -248,7 +248,7 @@ class FlakeyMockAdapter(MockWebSocketConnectionAdapter):
 
     async def is_healthy(self) -> bool:
         """Simulate intermittent health check failures.
-        
+
         Returns:
             True if connection is healthy, False if health check fails.
         """

@@ -23,7 +23,7 @@ T = TypeVar("T")
 
 def _is_sized_data(value: object) -> TypeGuard[Sized]:
     """Senior-level TypeGuard to safely narrow types for data collection counting.
-    
+
     Returns:
         TypeGuard[Sized]: True if the value has a __len__ method, False otherwise.
     """

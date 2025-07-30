@@ -62,7 +62,7 @@ class InMemoryStateContainer:
 
     async def get_balances(self, exchange: ExchangeName) -> dict[str, SpotBalance]:
         """Get balances for an exchange.
-        
+
         Returns:
             Dictionary mapping asset symbols to their SpotBalance objects.
         """
@@ -70,7 +70,7 @@ class InMemoryStateContainer:
 
     async def get_positions(self, exchange: ExchangeName) -> dict[str, DerivativePosition]:
         """Get positions for an exchange.
-        
+
         Returns:
             Dictionary mapping symbols to their DerivativePosition objects.
         """
@@ -78,7 +78,7 @@ class InMemoryStateContainer:
 
     async def get_orders(self, exchange: ExchangeName) -> list[Order]:
         """Get orders for an exchange.
-        
+
         Returns:
             List of Order objects for the specified exchange.
         """
@@ -88,7 +88,7 @@ class InMemoryStateContainer:
         self, exchange: ExchangeName, balances: dict[str, SpotBalance]
     ) -> StateUpdateResult:
         """Update balances for an exchange.
-        
+
         Returns:
             StateUpdateResult indicating success and update statistics.
         """
@@ -103,7 +103,7 @@ class InMemoryStateContainer:
         self, exchange: ExchangeName, positions: dict[str, DerivativePosition]
     ) -> StateUpdateResult:
         """Update positions for an exchange.
-        
+
         Returns:
             StateUpdateResult indicating success and update statistics.
         """
@@ -116,7 +116,7 @@ class InMemoryStateContainer:
 
     async def add_trade(self, exchange: ExchangeName, trade: Trade) -> StateUpdateResult:
         """Add a trade for an exchange.
-        
+
         Returns:
             StateUpdateResult indicating success and update statistics.
         """
@@ -127,7 +127,7 @@ class InMemoryStateContainer:
 
     async def create_snapshot(self, exchange: ExchangeName) -> PortfolioSnapshot:
         """Create a portfolio snapshot for an exchange.
-        
+
         Returns:
             PortfolioSnapshot containing current state of balances, positions, and orders.
         """
@@ -232,7 +232,7 @@ class AdvancedPortfolioStrategy:
 
     async def execute_rebalancing_strategy(self) -> dict[str, Any]:
         """Execute portfolio rebalancing with advanced risk management.
-        
+
         Returns:
             Dictionary containing rebalancing results, trade execution status, and metrics.
         """
@@ -271,7 +271,7 @@ class AdvancedPortfolioStrategy:
 
     async def _calculate_current_allocations(self) -> dict[str, Decimal]:
         """Calculate current portfolio allocations.
-        
+
         Returns:
             dict[str, Decimal]: Mapping of symbols to their allocation percentages.
         """
@@ -308,7 +308,7 @@ class AdvancedPortfolioStrategy:
         self, current_allocations: dict[str, Decimal]
     ) -> list[dict[str, Any]]:
         """Determine trades needed for rebalancing.
-        
+
         Returns:
             list[dict[str, Any]]: List of trade specifications for rebalancing.
         """
@@ -359,7 +359,7 @@ class AdvancedPortfolioStrategy:
         self, trades: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         """Execute rebalancing trades with risk management.
-        
+
         Returns:
             list[dict[str, Any]]: List of executed trade results.
         """
@@ -419,7 +419,7 @@ class AdvancedPortfolioStrategy:
 
     async def _perform_risk_check(self, trade_spec: dict[str, Any]) -> dict[str, Any]:
         """Perform comprehensive risk check before trade execution.
-        
+
         Returns:
             dict[str, Any]: Risk check results including validation status.
         """
@@ -474,7 +474,7 @@ class AdvancedPortfolioStrategy:
 
     async def _create_trade_from_spec(self, trade_spec: dict[str, Any]) -> Trade:
         """Create a trade object from trade specification.
-        
+
         Returns:
             Trade: Created trade object.
         """
@@ -495,7 +495,7 @@ class AdvancedPortfolioStrategy:
 
     async def _execute_trade_with_resilience(self, trade: Trade) -> bool:
         """Execute trade with full resilience and validation.
-        
+
         Returns:
             bool: True if trade executed successfully, False otherwise.
         """
@@ -539,7 +539,7 @@ class AdvancedPortfolioStrategy:
 
     async def execute_risk_monitoring_strategy(self) -> dict[str, Any]:
         """Execute continuous risk monitoring strategy.
-        
+
         Returns:
             Dictionary containing risk monitoring results, violations, and portfolio metrics.
         """
@@ -666,7 +666,7 @@ class AdvancedPortfolioStrategy:
 
     async def execute_performance_analysis(self) -> dict[str, Any]:
         """Execute comprehensive performance analysis.
-        
+
         Returns:
             Dictionary containing performance metrics, validation statistics, and resilience status.
         """
@@ -732,10 +732,10 @@ class AdvancedIntegrationDemo:
 
     def _get_app_settings(self) -> AppSettings:
         """Get app settings for example.
-        
+
         Returns:
             AppSettings: Application settings instance.
-            
+
         Raises:
             RuntimeError: If settings cannot be created.
         """
@@ -758,7 +758,7 @@ class AdvancedIntegrationDemo:
 
     def _create_example_config(self) -> dict[str, Any]:
         """Create configuration for advanced features.
-        
+
         Returns:
             dict[str, Any]: Configuration dictionary for advanced features.
         """
@@ -812,7 +812,7 @@ class AdvancedIntegrationDemo:
 
     def _create_in_memory_container(self) -> object:
         """Create in-memory state container for examples.
-        
+
         Returns:
             object: In-memory state container instance.
         """
@@ -865,7 +865,7 @@ class AdvancedIntegrationDemo:
 
     async def _setup_initial_portfolio_state(self) -> None:
         """Setup initial portfolio state for demonstration.
-        
+
         Raises:
             ValueError: If balance update validation fails.
         """
@@ -935,7 +935,7 @@ class AdvancedIntegrationDemo:
 
     def _raise_strategy_not_initialized(self) -> None:
         """Raise strategy initialization error.
-        
+
         Raises:
             StrategyNotInitializedError: Always raises this error.
         """

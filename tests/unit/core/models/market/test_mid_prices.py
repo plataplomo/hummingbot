@@ -138,7 +138,7 @@ class TestMidPricesSymbolLookup:
     @pytest.fixture
     def sample_mid_prices(self) -> MidPrices:
         """Create sample MidPrices instance for testing.
-        
+
         Returns:
             MidPrices: A sample mid prices instance for testing.
         """

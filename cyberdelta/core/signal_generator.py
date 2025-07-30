@@ -24,7 +24,8 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
     FundingRate,
     Ticker,
 )
-from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+
+# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 

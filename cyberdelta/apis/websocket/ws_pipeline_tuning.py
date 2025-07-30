@@ -95,7 +95,7 @@ class PerformanceMetrics:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary format.
-        
+
         Returns:
             Dictionary representation of performance metrics
         """
@@ -128,7 +128,7 @@ class OptimizationResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert optimization result to dictionary format.
-        
+
         Returns:
             Dictionary representation of optimization result
         """
@@ -172,10 +172,10 @@ class PerformanceMonitor:
     @contextmanager
     def measure_validation(self) -> Iterator[None]:
         """Context manager for measuring validation performance.
-        
+
         Yields:
             None - used as context manager
-            
+
         Raises:
             ValidationError: Re-raised from validation failures
         """
@@ -200,7 +200,7 @@ class PerformanceMonitor:
     @contextmanager
     def measure_processing(self) -> Iterator[None]:
         """Context manager for measuring processing performance.
-        
+
         Yields:
             None - used as context manager
         """
@@ -217,7 +217,7 @@ class PerformanceMonitor:
 
     def record_memory_usage(self, memory_mb: float) -> None:
         """Record current memory usage.
-        
+
         Args:
             memory_mb: Memory usage in megabytes
         """
@@ -226,7 +226,7 @@ class PerformanceMonitor:
 
     def get_current_metrics(self) -> PerformanceMetrics:
         """Get current performance metrics.
-        
+
         Returns:
             Current performance metrics calculated from recent measurements
         """
@@ -259,7 +259,7 @@ class PerformanceMonitor:
 
     def get_metrics_history(self) -> list[PerformanceMetrics]:
         """Get historical metrics.
-        
+
         Returns:
             List of historical performance metrics
         """
@@ -268,7 +268,7 @@ class PerformanceMonitor:
 
     def detect_bottlenecks(self) -> dict[str, Any]:
         """Detect performance bottlenecks in the pipeline.
-        
+
         Returns:
             Dictionary of detected bottlenecks with severity and recommendations
         """
@@ -319,7 +319,7 @@ class PerformanceMonitor:
 
     def reset_counters(self) -> None:
         """Reset all performance counters.
-        
+
         Clears all historical data and resets counters to initial state.
         """
         with self._lock:
@@ -377,7 +377,9 @@ class OptimizationEngine:
         """
         # Get baseline metrics
         baseline_metrics = self._benchmark_configuration(
-            model_type, ConfigurationContext.PRODUCTION, test_data
+            model_type,
+            ConfigurationContext.PRODUCTION,
+            test_data,
         )
 
         best_metrics = baseline_metrics
@@ -454,13 +456,13 @@ class OptimizationEngine:
         iterations: int = 100,
     ) -> PerformanceMetrics:
         """Benchmark a specific configuration.
-        
+
         Args:
             model_type: Model type to benchmark
             context: Configuration context to test
             test_data: Test data for benchmarking
             iterations: Number of iterations to run
-            
+
         Returns:
             Performance metrics for the configuration
         """
@@ -500,13 +502,14 @@ class OptimizationEngine:
         )
 
     def _get_contexts_for_objective(
-        self, objective: OptimizationObjective
+        self,
+        objective: OptimizationObjective,
     ) -> list[ConfigurationContext]:
         """Get configuration contexts to try for optimization objective.
-        
+
         Args:
             objective: Optimization objective to get contexts for
-            
+
         Returns:
             List of configuration contexts ordered by likelihood of success
         """
@@ -549,12 +552,12 @@ class OptimizationEngine:
         objective: OptimizationObjective,
     ) -> bool:
         """Check if candidate metrics are better for the objective.
-        
+
         Args:
             candidate: Candidate metrics to evaluate
             current_best: Current best metrics
             objective: Optimization objective to optimize for
-            
+
         Returns:
             True if candidate is better than current best for the objective
         """
@@ -589,12 +592,12 @@ class OptimizationEngine:
         objective: OptimizationObjective,
     ) -> float:
         """Calculate improvement percentage for the objective.
-        
+
         Args:
             baseline: Baseline performance metrics
             optimized: Optimized performance metrics
             objective: Optimization objective
-            
+
         Returns:
             Improvement percentage (positive means better)
         """
@@ -618,14 +621,16 @@ class OptimizationEngine:
         return 0.0
 
     def _optimize_for_speed(
-        self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
+        self,
+        model_type: type[BaseModel],
+        current_metrics: PerformanceMetrics,
     ) -> OptimizationResult:
         """Optimize configuration for speed.
-        
+
         Args:
             model_type: Model type to optimize
             current_metrics: Current performance metrics
-            
+
         Returns:
             Optimization result with speed-optimized configuration
         """
@@ -653,14 +658,16 @@ class OptimizationEngine:
         )
 
     def _optimize_for_memory(
-        self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
+        self,
+        model_type: type[BaseModel],
+        current_metrics: PerformanceMetrics,
     ) -> OptimizationResult:
         """Optimize configuration for memory usage.
-        
+
         Args:
             model_type: Model type to optimize
             current_metrics: Current performance metrics
-            
+
         Returns:
             Optimization result with memory-optimized configuration
         """
@@ -685,14 +692,16 @@ class OptimizationEngine:
         )
 
     def _optimize_for_reliability(
-        self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
+        self,
+        model_type: type[BaseModel],
+        current_metrics: PerformanceMetrics,
     ) -> OptimizationResult:
         """Optimize configuration for reliability.
-        
+
         Args:
             model_type: Model type to optimize
             current_metrics: Current performance metrics
-            
+
         Returns:
             Optimization result with reliability-optimized configuration
         """
@@ -719,14 +728,16 @@ class OptimizationEngine:
         )
 
     def _optimize_for_throughput(
-        self, model_type: type[BaseModel], current_metrics: PerformanceMetrics
+        self,
+        model_type: type[BaseModel],
+        current_metrics: PerformanceMetrics,
     ) -> OptimizationResult:
         """Optimize configuration for throughput.
-        
+
         Args:
             model_type: Model type to optimize
             current_metrics: Current performance metrics
-            
+
         Returns:
             Optimization result with throughput-optimized configuration
         """
@@ -752,7 +763,7 @@ class OptimizationEngine:
 
     def get_optimization_history(self) -> list[OptimizationResult]:
         """Get history of optimizations applied.
-        
+
         Returns:
             Copy of optimization history list
         """
@@ -838,14 +849,16 @@ class PipelineTuner:
         }
 
     def _generate_recommendations(
-        self, metrics: PerformanceMetrics, bottlenecks: dict[str, Any]
+        self,
+        metrics: PerformanceMetrics,
+        bottlenecks: dict[str, Any],
     ) -> list[str]:
         """Generate optimization recommendations.
-        
+
         Args:
             metrics: Current performance metrics
             bottlenecks: Detected bottlenecks
-            
+
         Returns:
             List of optimization recommendations
         """
@@ -853,7 +866,7 @@ class PipelineTuner:
 
         if bottlenecks.get("high_validation_time"):
             recommendations.append(
-                "Consider switching to high-frequency or memory-optimized configuration"
+                "Consider switching to high-frequency or memory-optimized configuration",
             )
 
         if bottlenecks.get("high_error_rate"):
@@ -867,14 +880,14 @@ class PipelineTuner:
 
         if not bottlenecks:
             recommendations.append(
-                "Pipeline performance is optimal. No immediate optimizations needed."
+                "Pipeline performance is optimal. No immediate optimizations needed.",
             )
 
         return recommendations
 
     def get_optimization_summary(self) -> dict[str, Any]:
         """Get summary of optimization capabilities and status.
-        
+
         Returns:
             Dictionary containing optimization status and capabilities
         """
@@ -899,7 +912,7 @@ pipeline_tuner = PipelineTuner()
 # Convenience functions
 def analyze_pipeline_performance() -> dict[str, Any]:
     """Analyze current pipeline performance.
-    
+
     Returns:
         Comprehensive performance analysis dictionary
     """
@@ -908,10 +921,10 @@ def analyze_pipeline_performance() -> dict[str, Any]:
 
 def tune_for_speed(model_type: type[BaseModel]) -> OptimizationResult:
     """Tune pipeline for maximum speed.
-    
+
     Args:
         model_type: Model type to optimize for speed
-        
+
     Returns:
         Optimization result with speed-focused configuration
     """
@@ -920,10 +933,10 @@ def tune_for_speed(model_type: type[BaseModel]) -> OptimizationResult:
 
 def tune_for_memory(model_type: type[BaseModel]) -> OptimizationResult:
     """Tune pipeline for minimal memory usage.
-    
+
     Args:
         model_type: Model type to optimize for memory usage
-        
+
     Returns:
         Optimization result with memory-focused configuration
     """
@@ -932,10 +945,10 @@ def tune_for_memory(model_type: type[BaseModel]) -> OptimizationResult:
 
 def tune_for_throughput(model_type: type[BaseModel]) -> OptimizationResult:
     """Tune pipeline for maximum throughput.
-    
+
     Args:
         model_type: Model type to optimize for throughput
-        
+
     Returns:
         Optimization result with throughput-focused configuration
     """
@@ -961,7 +974,9 @@ if __name__ == "__main__":
         timestamp: float = Field(...)
 
     logger.info(
-        "pipeline_tuning_demonstration", component="PipelineTuning", action="optimization_demo"
+        "pipeline_tuning_demonstration",
+        component="PipelineTuning",
+        action="optimization_demo",
     )
 
     # Generate test data
@@ -1010,7 +1025,9 @@ if __name__ == "__main__":
         logger.warning("bottlenecks_detected")
         for bottleneck, details in analysis["bottlenecks"].items():
             logger.warning(
-                "bottleneck_details", bottleneck=bottleneck, severity=details["severity"]
+                "bottleneck_details",
+                bottleneck=bottleneck,
+                severity=details["severity"],
             )
     else:
         logger.info("no_bottlenecks_detected")

@@ -47,7 +47,7 @@ class TestHyperliquidInternalUsdTransfers:
 
     async def _get_initial_usdc_balance(self, hl_api: HyperliquidAPI) -> Decimal:
         """Get initial USDC balance and validate it exists.
-        
+
         Returns:
             Decimal: The initial USDC balance.
         """

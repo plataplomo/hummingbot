@@ -36,6 +36,7 @@ from cyberdelta.apis.models.service_args.trading import GetOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -111,13 +112,17 @@ class BackpackOrderQueryService:
         try:
             order = await self._execute_get_order_request(args, current_method)
         except APIError as e:
-            order = self._handle_get_order_api_error(e, identifier, args.symbol)
+            order = self._handle_get_order_api_error(
+                e,
+                identifier,
+                args.symbol.value if args.symbol else None,
+            )
         except TransformationError as e_transform:
             raise self._create_get_order_api_error(
                 e_transform,
                 current_method,
                 identifier,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
                 "Failed to process/transform exchange data.",
@@ -128,7 +133,7 @@ class BackpackOrderQueryService:
                 e_val,
                 current_method,
                 identifier,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
                 "Internal data validation failed.",
@@ -139,7 +144,7 @@ class BackpackOrderQueryService:
                 e_service_logic,
                 current_method,
                 identifier,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 status_code,
                 raw_response_content,
             )
@@ -148,7 +153,7 @@ class BackpackOrderQueryService:
                 e_unexpected,
                 current_method,
                 identifier,
-                args.symbol,
+                args.symbol.value if args.symbol else None,  # Use domain object's value
                 0,
                 None,
                 "Unexpected service failure.",
@@ -163,12 +168,12 @@ class BackpackOrderQueryService:
             # This should never happen after _validate_order_exists
             raise OrderNotFoundError(
                 order_id=identifier,
-                symbol=args.symbol,
+                symbol=str(args.symbol),  # String conversion at HTTP boundary
                 exchange=self._exchange_name,
             )
         return order
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Get all open orders, optionally filtered by symbol.
 
         Retrieves all currently open orders for the account. Orders can be
@@ -190,12 +195,12 @@ class BackpackOrderQueryService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_open_orders"
 
-        if symbol is not None and not symbol:
+        if symbol is not None and (not symbol or not symbol.value):
             raise MissingRequiredFieldError(
                 field="symbol",
                 exchange="Backpack",
                 operation="get all open orders",
-                reason="must be a non-empty string when provided",
+                reason="must be a valid Symbol object with non-empty value when provided",
             )
 
         # Initialize context for error handling
@@ -212,7 +217,7 @@ class BackpackOrderQueryService:
                 "transformation_error",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol or "all",
+                symbol=symbol.value if symbol else "all",
                 error=str(e_transform),
                 message="Failed to transform exchange data for open orders",
             )
@@ -228,7 +233,7 @@ class BackpackOrderQueryService:
                 "validation_error",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol or "all",
+                symbol=symbol.value if symbol else "all",
                 error=str(e_val),
                 message="Internal data validation failed for open orders",
             )
@@ -252,7 +257,7 @@ class BackpackOrderQueryService:
                 "service_logic_error",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol or "all",
+                symbol=symbol.value if symbol else "all",
                 error=str(e_service_logic),
                 message="Service internal logic error for open orders",
             )
@@ -268,7 +273,7 @@ class BackpackOrderQueryService:
                 "unexpected_error",
                 exchange=self._exchange_name,
                 method=current_method,
-                symbol=symbol or "all",
+                symbol=symbol.value if symbol else "all",
                 error=str(e_unexpected),
                 message="Unexpected service failure for open orders",
             )
@@ -309,7 +314,9 @@ class BackpackOrderQueryService:
         # DEFENSIVE CHECK: Ensure symbol is not None before passing to request builder
         if args.symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="get order"
+                field="symbol",
+                exchange="Backpack",
+                operation="get order",
             )
 
         logger.info(
@@ -323,7 +330,7 @@ class BackpackOrderQueryService:
 
         endpoint = f"/api/v1/order/{identifier}"
         params = self._request_builder.build_get_order_params(
-            symbol=args.symbol,  # Now guaranteed to be str, not str | None
+            symbol=args.symbol,  # Pass Symbol object directly
         )  # Symbol is a query param
 
         raw_data, status_code, _ = await self._http_client_requester(
@@ -337,7 +344,12 @@ class BackpackOrderQueryService:
             ),
         )
 
-        order = self._process_get_order_response(raw_data, status_code, identifier, args.symbol)
+        order = self._process_get_order_response(
+            raw_data,
+            status_code,
+            identifier,
+            str(args.symbol) if args.symbol else None,
+        )
 
         if order:
             logger.info(
@@ -345,7 +357,7 @@ class BackpackOrderQueryService:
                 exchange=self._exchange_name,
                 method=current_method,
                 order_id=identifier,
-                symbol=args.symbol,
+                symbol=str(args.symbol),  # String conversion at HTTP boundary
                 status=order.status.value,
                 message="Successfully retrieved order",
             )
@@ -354,7 +366,7 @@ class BackpackOrderQueryService:
 
     async def _execute_get_open_orders_request(
         self,
-        symbol: str | None,
+        symbol: Symbol | None,
         current_method: str,
     ) -> list[Order]:
         """Execute the get open orders API request and process the response.
@@ -379,7 +391,7 @@ class BackpackOrderQueryService:
             "querying_open_orders",
             exchange=self._exchange_name,
             method=current_method,
-            symbol=symbol or "all",
+            symbol=symbol.value if symbol else "all",
             message="Querying open orders on exchange",
         )
 
@@ -403,7 +415,7 @@ class BackpackOrderQueryService:
 
         validated_data = ensure_list_response(
             raw_data,
-            f"get open orders for {symbol or 'all'}",
+            f"get open orders for {symbol.value if symbol else 'all'}",
             status_code,
         )
 
@@ -441,7 +453,9 @@ class BackpackOrderQueryService:
         # Backpack requires symbol for its GET /order/{id} endpoint
         if args.symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="get order"
+                field="symbol",
+                exchange="Backpack",
+                operation="get order",
             )
         if not args.symbol:
             raise MissingRequiredFieldError(
@@ -476,7 +490,9 @@ class BackpackOrderQueryService:
                 else args.order_id
             )
             raise OrderNotFoundError(
-                order_id=identifier, symbol=args.symbol, exchange=self._exchange_name
+                order_id=identifier,
+                symbol=str(args.symbol) if args.symbol else None,
+                exchange=self._exchange_name,
             )
 
     def _determine_order_identifier(self, args: GetOrderArgs) -> str:
@@ -591,10 +607,10 @@ class BackpackOrderQueryService:
             symbol: Trading symbol
             status_code: HTTP status code
             raw_response_content: Raw response content
-        
+
         Notes:
-            This method always raises an exception. It re-raises ValueError 
-            for input validation errors and wraps other service logic errors 
+            This method always raises an exception. It re-raises ValueError
+            for input validation errors and wraps other service logic errors
             as APIError.
         """
         # Check if this is from our own input parameter validation

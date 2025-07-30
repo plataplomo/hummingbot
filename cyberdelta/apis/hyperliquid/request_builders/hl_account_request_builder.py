@@ -58,6 +58,7 @@ from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidWithdrawL1Args,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 logger = get_logger(__name__)
@@ -67,7 +68,8 @@ PRECISION_TOLERANCE = 1e-12  # Tolerance for floating point precision checks
 
 
 class HyperliquidAccountRequestBuilder(
-    HyperliquidRequestBuilderBase, AccountRequestBuilderProtocol
+    HyperliquidRequestBuilderBase,
+    AccountRequestBuilderProtocol,
 ):
     """Focused request builder for Hyperliquid account operations.
 
@@ -94,12 +96,12 @@ class HyperliquidAccountRequestBuilder(
         if request_type == "user_state":
             user = kwargs.get("user", "")
             return self.build_get_user_state_params(
-                ChecksumAddress(HexAddress(HexStr(str(user))))
+                ChecksumAddress(HexAddress(HexStr(str(user)))),
             ).model_dump(mode="json", by_alias=True)
         if request_type in {"open_orders", "frontend_open_orders"}:
             user = kwargs.get("user", "")
             return self.build_get_open_orders_params(
-                ChecksumAddress(HexAddress(HexStr(str(user))))
+                ChecksumAddress(HexAddress(HexStr(str(user)))),
             ).model_dump(mode="json", by_alias=True)
         if request_type == "order_status":
             # No specific order status method available, return empty dict
@@ -107,12 +109,13 @@ class HyperliquidAccountRequestBuilder(
         if request_type == "user_fills":
             user = kwargs.get("user", "")
             return self.build_get_user_fills_params(
-                ChecksumAddress(HexAddress(HexStr(str(user))))
+                ChecksumAddress(HexAddress(HexStr(str(user)))),
             ).model_dump(mode="json", by_alias=True)
         if request_type == "historical_orders":
             user = kwargs.get("user", "")
             return self.build_historical_orders_payload(str(user)).model_dump(
-                mode="json", by_alias=True
+                mode="json",
+                by_alias=True,
             )
         # Default to empty request
         return {}
@@ -187,7 +190,7 @@ class HyperliquidAccountRequestBuilder(
 
     @staticmethod
     def build_internal_transfer_payload(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         from_account_type: str,
         to_account_type: str,
         amount: Decimal,
@@ -198,7 +201,7 @@ class HyperliquidAccountRequestBuilder(
         and returns Raw Pydantic model for internal transfers within same wallet.
 
         Args:
-            asset_symbol: Asset to transfer (must be "USDC" for Hyperliquid)
+            asset_symbol: Asset Symbol object to transfer (must be "USDC" for Hyperliquid)
             from_account_type: Source account type ("spot" or "perp")
             to_account_type: Destination account type ("spot" or "perp")
             amount: Transfer amount (positive decimal)
@@ -211,7 +214,7 @@ class HyperliquidAccountRequestBuilder(
         """
         logger.debug(
             "building_internal_transfer_payload",
-            asset=asset_symbol,
+            asset=asset_symbol.value,
             from_account=from_account_type,
             to_account=to_account_type,
             amount=str(amount),
@@ -219,10 +222,10 @@ class HyperliquidAccountRequestBuilder(
         )
 
         # Validate asset - Hyperliquid internal transfers only support USDC
-        if asset_symbol.upper() != "USDC":
+        if asset_symbol.value.upper() != "USDC":
             raise InvalidEnumValueError(
                 parameter_name="asset_symbol",
-                value=asset_symbol,
+                value=asset_symbol.value,
                 valid_values=["USDC"],
                 enum_type="supported_assets",
             )

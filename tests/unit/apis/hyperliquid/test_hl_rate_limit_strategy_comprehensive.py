@@ -25,7 +25,7 @@ class TestHyperliquidRateLimitStrategy:
     @pytest.fixture
     def mock_address_action_config(self) -> AddressActionSafetyNetConfig:
         """Create mock address action safety net configuration.
-        
+
         Returns:
             AddressActionSafetyNetConfig instance with test rate limit.
         """
@@ -36,7 +36,7 @@ class TestHyperliquidRateLimitStrategy:
         self, mock_address_action_config: AddressActionSafetyNetConfig
     ) -> ExchangeSpecificConfig:
         """Create valid exchange configuration for testing.
-        
+
         Returns:
             Mock ExchangeSpecificConfig with test rate limits.
         """
@@ -48,7 +48,7 @@ class TestHyperliquidRateLimitStrategy:
     @pytest.fixture
     def request_context_factory(self) -> Callable[..., RateLimitRequestContext]:
         """Factory to create RateLimitRequestContext instances.
-        
+
         Returns:
             Factory function that creates RateLimitRequestContext with customizable parameters.
         """
@@ -72,7 +72,7 @@ class TestHyperliquidRateLimitStrategy:
         self, valid_exchange_config: ExchangeSpecificConfig
     ) -> Callable[..., HyperliquidRateLimitStrategy]:
         """Factory to create strategy instances with optional config overrides.
-        
+
         Returns:
             Factory function that creates HyperliquidRateLimitStrategy instances.
         """

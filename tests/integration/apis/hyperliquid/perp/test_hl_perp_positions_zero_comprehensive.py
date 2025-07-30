@@ -27,6 +27,7 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.core.models.derivative_position import DerivativePosition
+from cyberdelta.core.symbols.models import BaseSymbol
 
 
 # Mark all tests in this file as integration tests
@@ -74,9 +75,13 @@ class TestHyperliquidPositionsZeroComprehensive:
             )
 
             # Validate symbol format (Hyperliquid uses asset names like "BTC", "ETH", "PURP")
-            assert isinstance(position.symbol, str), f"Position {i} symbol must be string"
-            assert len(position.symbol) > 0, f"Position {i} symbol cannot be empty"
-            assert len(position.symbol) <= 10, f"Position {i} symbol should be reasonable length"
+            assert isinstance(position.symbol, BaseSymbol), (
+                f"Position {i} symbol must be Symbol object"
+            )
+            assert len(position.symbol.value) > 0, f"Position {i} symbol cannot be empty"
+            assert len(position.symbol.value) <= 10, (
+                f"Position {i} symbol should be reasonable length"
+            )
 
             # Validate timestamp recency
             assert position.timestamp is not None, f"Position {i} must have timestamp"

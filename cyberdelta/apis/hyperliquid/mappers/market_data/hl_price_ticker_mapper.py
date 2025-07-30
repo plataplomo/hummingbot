@@ -34,6 +34,8 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.models.market.mid_prices import MidPrices
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -52,37 +54,20 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
     # Protocol method implementations - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
-        
+
         Returns:
             Decimal: Parsed decimal value or default if parsing fails.
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-        
-        Returns:
-            str: Normalized symbol (e.g., 'BTC-USD' -> 'BTCUSD').
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-        
-        Returns:
-            str: Denormalized symbol for exchange (e.g., 'BTCUSD' -> 'BTC-USD').
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
-
-    @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
-        
+
         Returns:
             datetime | None: UTC datetime object or None if timestamp is None.
         """
@@ -146,6 +131,24 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
         return mark_px, name
 
     @staticmethod
+    def _validate_symbol_name(name: str | None, context: str) -> str:
+        """Validate symbol name is not None.
+
+        Args:
+            name: Symbol name to validate
+            context: Context for error messages
+
+        Returns:
+            Validated symbol name
+
+        Raises:
+            MissingRequiredFieldError: If name is None
+        """
+        if name is None:
+            raise MissingRequiredFieldError("name", context)
+        return name
+
+    @staticmethod
     def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
         """Transforms a HyperliquidRawAssetCtx to an Internal Ticker model.
 
@@ -173,7 +176,9 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
 
             # Validate asset context data
             HyperliquidPriceTickerMapper._validate_asset_ctx_data(
-                raw_asset_ctx.mark_px, raw_asset_ctx.name, "HyperliquidRawAssetCtx"
+                raw_asset_ctx.mark_px,
+                raw_asset_ctx.name,
+                "HyperliquidRawAssetCtx",
             )
 
             mark_px = parse_decimal_value(
@@ -194,9 +199,19 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             # Get current timestamp for ticker timestamp
             timestamp = datetime.now(UTC)
 
+            # Create domain symbol at entry point
+            symbol_name = HyperliquidPriceTickerMapper._validate_symbol_name(
+                raw_asset_ctx.name,
+                "HyperliquidRawAssetCtx",
+            )
+
+            exchange_symbol = exchanges.hyperliquid(
+                value=symbol_name,  # e.g., "BTC"
+            )
+
             # Use secure_transform for type-safe model creation
             ticker_data = {
-                "symbol": raw_asset_ctx.name,
+                "symbol": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.HYPERLIQUID.value,
                 "timestamp": timestamp.isoformat(),
                 "price": str(mark_px),  # Using mark_px as the last price
@@ -270,29 +285,29 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             )
 
             # The raw model already has validated the structure
-            # We just need to convert string prices to Decimal
-            prices: dict[str, Decimal] = {}
+            # Create domain symbols and convert string prices to Decimal
+            prices: dict[Symbol, Decimal] = {}
             for symbol, price_str in raw_all_mids.root.items():
+                # Create domain symbol for each symbol
+                exchange_symbol = exchanges.hyperliquid(
+                    value=symbol,  # e.g., "BTC"
+                )
+
                 # Use our standard decimal parsing utility
                 decimal_price = parse_decimal_value(
                     price_str,
                     allow_none=False,
                     field_name=f"mid_price[{symbol}]",
                 )
-                prices[symbol] = decimal_price
 
-            # Use secure_transform for type-safe model creation
-            mid_prices_data = {
-                "prices": {symbol: str(price) for symbol, price in prices.items()},
-                "timestamp": datetime.now(UTC).isoformat(),
-                "exchange": ExchangeName.HYPERLIQUID.value,
-            }
+                # Use Symbol object as key
+                prices[exchange_symbol] = decimal_price
 
-            mid_prices = secure_transform(
-                data=mid_prices_data,
-                model_class=MidPrices,
-                context="hyperliquid_all_mids_transform",
-                source_exchange="hyperliquid",
+            # Create MidPrices directly since Symbol objects can't be serialized as dict keys
+            mid_prices = MidPrices(
+                prices=prices,  # dict[Symbol, Decimal]
+                timestamp=datetime.now(UTC),
+                exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(

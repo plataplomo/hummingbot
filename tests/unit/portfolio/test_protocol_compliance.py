@@ -46,7 +46,7 @@ class ProtocolComplianceTester:
     @staticmethod
     def verify_protocol(instance: object, protocol: type) -> None:
         """Verify that an instance implements all required protocol methods.
-        
+
         Raises:
             AssertionError: If instance doesn't implement required protocol methods.
         """

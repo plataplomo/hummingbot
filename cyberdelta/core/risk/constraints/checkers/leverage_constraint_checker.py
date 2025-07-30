@@ -52,11 +52,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def _config_to_decimal(self, key: str, default: Decimal) -> Decimal:
         """Convert config value to Decimal safely.
-        
+
         Args:
             key: Configuration key to look up
             default: Default value if key not found
-            
+
         Returns:
             Decimal value from config or default
         """
@@ -71,11 +71,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         self, key: str, default: dict[str, Decimal]
     ) -> dict[str, Decimal]:
         """Convert config value to dict[str, Decimal] safely.
-        
+
         Args:
             key: Configuration key to look up
             default: Default dictionary if key not found
-            
+
         Returns:
             Dictionary mapping strings to Decimal values
         """
@@ -158,11 +158,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         context: ConstraintContext,
     ) -> list[ConstraintViolation]:
         """Validate leverage constraints.
-        
+
         Args:
             opportunity: Sized trading opportunity to validate
             context: Current constraint context
-            
+
         Returns:
             List of constraint violations found
         """
@@ -203,11 +203,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         self, opportunity: SizedOpportunity, context: ConstraintContext
     ) -> Decimal:
         """Calculate leverage for the position.
-        
+
         Args:
             opportunity: Sized trading opportunity
             context: Current constraint context with available capital
-            
+
         Returns:
             Calculated leverage ratio as Decimal
         """
@@ -223,12 +223,12 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         position_leverage: Decimal,
     ) -> list[ConstraintViolation]:
         """Validate total leverage constraints.
-        
+
         Args:
             opportunity: Sized trading opportunity
             context: Current constraint context
             position_leverage: Calculated leverage for this position
-            
+
         Returns:
             List of total leverage constraint violations
         """
@@ -253,12 +253,12 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         position_leverage: Decimal,
     ) -> list[ConstraintViolation]:
         """Validate net leverage constraints.
-        
+
         Args:
             opportunity: Sized trading opportunity
             context: Current constraint context
             position_leverage: Calculated leverage for this position
-            
+
         Returns:
             List of net leverage constraint violations
         """
@@ -295,11 +295,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         position_leverage: Decimal,
     ) -> list[ConstraintViolation]:
         """Validate symbol-specific leverage constraints.
-        
+
         Args:
             opportunity: Sized trading opportunity
             position_leverage: Calculated leverage for this position
-            
+
         Returns:
             List of symbol-specific leverage constraint violations
         """
@@ -322,12 +322,12 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         position_leverage: Decimal,
     ) -> list[ConstraintViolation]:
         """Validate exchange-specific leverage constraints.
-        
+
         Args:
             opportunity: Sized trading opportunity
             context: Current constraint context
             position_leverage: Calculated leverage for this position
-            
+
         Returns:
             List of exchange-specific leverage constraint violations
         """
@@ -352,11 +352,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         position_leverage: Decimal,
     ) -> list[ConstraintViolation]:
         """Validate volatility-based leverage constraints.
-        
+
         Args:
             opportunity: Sized trading opportunity
             position_leverage: Calculated leverage for this position
-            
+
         Returns:
             List of volatility-based leverage constraint violations
         """
@@ -402,10 +402,10 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def _get_volatility_range(self, volatility: Decimal) -> str:
         """Get volatility range for a given volatility value.
-        
+
         Args:
             volatility: Volatility value as Decimal
-            
+
         Returns:
             Volatility range category: 'low', 'medium', 'high', or 'extreme'
         """
@@ -419,11 +419,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def set_total_leverage_limit(self, max_total: Decimal, max_net: Decimal) -> None:
         """Set total leverage limits.
-        
+
         Args:
             max_total: Maximum total leverage allowed
             max_net: Maximum net leverage allowed
-            
+
         Raises:
             LeverageConstraintError: If leverage limits are not positive
         """
@@ -437,11 +437,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def set_symbol_leverage_limit(self, symbol: str, max_leverage: Decimal) -> None:
         """Set leverage limit for a specific symbol.
-        
+
         Args:
             symbol: Trading symbol
             max_leverage: Maximum leverage allowed for this symbol
-            
+
         Raises:
             LeverageConstraintError: If leverage limit is not positive
         """
@@ -455,11 +455,11 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def set_exchange_leverage_limit(self, exchange: str, max_leverage: Decimal) -> None:
         """Set leverage limit for a specific exchange.
-        
+
         Args:
             exchange: Exchange name
             max_leverage: Maximum leverage allowed for this exchange
-            
+
         Raises:
             LeverageConstraintError: If leverage limit is not positive
         """
@@ -473,10 +473,10 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def set_volatility_leverage_limits(self, volatility_limits: dict[str, Decimal]) -> None:
         """Set volatility-based leverage limits.
-        
+
         Args:
             volatility_limits: Dictionary mapping volatility ranges to leverage limits
-            
+
         Raises:
             LeverageConstraintError: If any leverage limit is not positive
         """
@@ -492,10 +492,10 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def get_leverage_limit_for_symbol(self, symbol: str) -> Decimal:
         """Get leverage limit for a specific symbol.
-        
+
         Args:
             symbol: Trading symbol
-            
+
         Returns:
             Maximum leverage allowed for the symbol
         """
@@ -505,10 +505,10 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def get_leverage_limit_for_exchange(self, exchange: str) -> Decimal:
         """Get leverage limit for a specific exchange.
-        
+
         Args:
             exchange: Exchange name
-            
+
         Returns:
             Maximum leverage allowed for the exchange
         """
@@ -518,10 +518,10 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def get_leverage_limit_for_volatility(self, volatility: Decimal) -> Decimal:
         """Get leverage limit for a specific volatility level.
-        
+
         Args:
             volatility: Volatility value as Decimal
-            
+
         Returns:
             Maximum leverage allowed for the volatility level
         """
@@ -532,7 +532,7 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
     def get_constraint_stats(self) -> dict[str, Any]:
         """Get constraint statistics.
-        
+
         Returns:
             Dictionary containing all leverage constraint limits and settings
         """

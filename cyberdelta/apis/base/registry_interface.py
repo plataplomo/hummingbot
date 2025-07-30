@@ -87,11 +87,11 @@ class BaseComponentRegistry(IComponentRegistry[T]):
 
     def register(self, name: str, component: T) -> None:
         """Register a component with the given name.
-        
+
         Args:
             name: Unique identifier for the component
             component: The component instance to register
-            
+
         Raises:
             ValueError: If name is already registered
         """
@@ -103,13 +103,13 @@ class BaseComponentRegistry(IComponentRegistry[T]):
 
     def get(self, name: str) -> T:
         """Retrieve a component by name.
-        
+
         Args:
             name: Identifier of the component to retrieve
-            
+
         Returns:
             The registered component
-            
+
         Raises:
             KeyError: If name is not registered
         """
@@ -122,10 +122,10 @@ class BaseComponentRegistry(IComponentRegistry[T]):
 
     def is_registered(self, name: str) -> bool:
         """Check if a component is registered.
-        
+
         Args:
             name: Identifier to check
-            
+
         Returns:
             True if component is registered, False otherwise
         """
@@ -133,7 +133,7 @@ class BaseComponentRegistry(IComponentRegistry[T]):
 
     def list_registered(self) -> list[str]:
         """List all registered component names.
-        
+
         Returns:
             List of registered component identifiers
         """
@@ -141,13 +141,13 @@ class BaseComponentRegistry(IComponentRegistry[T]):
 
     def unregister(self, name: str) -> T:
         """Unregister and return a component.
-        
+
         Args:
             name: Identifier of the component to unregister
-            
+
         Returns:
             The unregistered component
-            
+
         Raises:
             KeyError: If name is not registered
         """
@@ -167,10 +167,10 @@ class BaseComponentRegistry(IComponentRegistry[T]):
 
     def __contains__(self, name: str) -> bool:
         """Check if component is registered using 'in' operator.
-        
+
         Args:
             name: Identifier to check
-            
+
         Returns:
             True if component is registered, False otherwise
         """

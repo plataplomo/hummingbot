@@ -15,6 +15,7 @@ from typing import Any, TypeGuard
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.core.enums import SignalType
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
@@ -46,7 +47,7 @@ class TradeSignal(BaseModel):
 
     Fields:
         signal_id (str): Unique identifier (UUID).
-        symbol (str): Trading symbol (e.g., 'BTC-PERP').
+        symbol (Symbol): Trading symbol object.
         signal_type (SignalType): Type of signal (e.g., ENTRY, EXIT).
         side (OrderSide): Buy or sell.
         price (Decimal): Required signal price (must be positive).
@@ -70,7 +71,7 @@ class TradeSignal(BaseModel):
     """
 
     signal_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    symbol: str
+    symbol: Symbol
     signal_type: SignalType
     side: OrderSide
     price: Decimal = Field(..., gt=Decimal(0))  # Required, Positive
@@ -88,7 +89,22 @@ class TradeSignal(BaseModel):
 
     # --- Field Validators --- Field Validators --- Field Validators ---
 
-    @field_validator("symbol", "source_strategy", mode="before")
+    @field_validator("symbol", mode="before")
+    @classmethod
+    def validate_symbol(cls, v: Symbol) -> Symbol:
+        """Validate symbol field is Symbol domain object.
+
+        Returns:
+            Symbol: The validated Symbol object.
+
+        Raises:
+            ValueError: If not a Symbol object.
+        """
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
+
+    @field_validator("source_strategy", mode="before")
     @classmethod
     def validate_optional_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate optional string fields are non-empty, reasonable length.
@@ -108,10 +124,8 @@ class TradeSignal(BaseModel):
         if field_name is None:
             raise FieldNameMissingError
 
-        # symbol is required (will fail if v is None), source_strategy is optional
+        # source_strategy is optional
         if v is None:
-            if field_name == "symbol":
-                raise RequiredFieldError(field_name=field_name)
             return None  # Allow None for optional fields like source_strategy
 
         return validate_str_field(v, field_name=field_name, max_length=64)

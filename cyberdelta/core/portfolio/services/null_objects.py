@@ -141,7 +141,7 @@ class NullStateManager(StateManagerProtocol):
 
     async def process_trade(self, trade: Trade) -> bool:
         """Always return True (success) but do nothing.
-        
+
         Returns:
             bool: Always True indicating successful processing
         """
@@ -305,7 +305,7 @@ class NullResilienceService:
         **kwargs: object,
     ) -> object:
         """Execute function directly without resilience.
-        
+
         Returns:
             object: Result of the function execution
         """
@@ -337,7 +337,7 @@ class NullValidationService:
 
     async def validate_trade(self, trade: Trade) -> ValidationResult[Trade]:
         """Always return valid.
-        
+
         Returns:
             ValidationResult[Trade]: Successful validation result for the trade
         """
@@ -345,7 +345,7 @@ class NullValidationService:
 
     async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
         """Always return valid.
-        
+
         Returns:
             ValidationResult[SpotBalance]: Successful validation result for the balance
         """
@@ -355,7 +355,7 @@ class NullValidationService:
         self, position: DerivativePosition
     ) -> ValidationResult[DerivativePosition]:
         """Always return valid.
-        
+
         Returns:
             ValidationResult[DerivativePosition]: Successful validation result for the position
         """
@@ -363,7 +363,7 @@ class NullValidationService:
 
     async def validate_portfolio_state(self) -> ValidationResult[object]:
         """Always return valid.
-        
+
         Returns:
             ValidationResult[object]: Successful validation result for the portfolio state
         """
@@ -373,7 +373,7 @@ class NullValidationService:
 # Factory functions for creating null objects
 def create_null_balance_manager() -> BalanceManagerProtocol:
     """Create null balance manager.
-    
+
     Returns:
         BalanceManagerProtocol: Null balance manager instance
     """
@@ -382,7 +382,7 @@ def create_null_balance_manager() -> BalanceManagerProtocol:
 
 def create_null_position_manager() -> PositionManagerProtocol:
     """Create null position manager.
-    
+
     Returns:
         PositionManagerProtocol: Null position manager instance
     """
@@ -391,7 +391,7 @@ def create_null_position_manager() -> PositionManagerProtocol:
 
 def create_null_order_manager() -> OrderManagerProtocol:
     """Create null order manager.
-    
+
     Returns:
         OrderManagerProtocol: Null order manager instance
     """
@@ -400,7 +400,7 @@ def create_null_order_manager() -> OrderManagerProtocol:
 
 def create_null_state_manager() -> StateManagerProtocol:
     """Create null state manager.
-    
+
     Returns:
         StateManagerProtocol: Null state manager instance
     """
@@ -409,7 +409,7 @@ def create_null_state_manager() -> StateManagerProtocol:
 
 def create_null_portfolio_manager() -> PortfolioManagerProtocol[None]:
     """Create null portfolio manager.
-    
+
     Returns:
         PortfolioManagerProtocol[None]: Null portfolio manager instance
     """
@@ -418,7 +418,7 @@ def create_null_portfolio_manager() -> PortfolioManagerProtocol[None]:
 
 def create_null_resilience_service() -> NullResilienceService:
     """Create null resilience service.
-    
+
     Returns:
         NullResilienceService: Null resilience service instance
     """
@@ -427,7 +427,7 @@ def create_null_resilience_service() -> NullResilienceService:
 
 def create_null_validation_service() -> NullValidationService:
     """Create null validation service.
-    
+
     Returns:
         NullValidationService: Null validation service instance
     """

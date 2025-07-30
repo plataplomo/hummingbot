@@ -135,7 +135,8 @@ class CachingConfiguration(BaseModel):
     )
 
     policy: CachingPolicy = Field(
-        default=CachingPolicy.ENABLED, description="Caching policy determining cache behavior"
+        default=CachingPolicy.ENABLED,
+        description="Caching policy determining cache behavior",
     )
 
     duration_seconds: float = Field(
@@ -148,13 +149,13 @@ class CachingConfiguration(BaseModel):
     @model_validator(mode="after")
     def validate_caching_consistency(self) -> CachingConfiguration:
         """Validate caching configuration consistency.
-        
+
         Returns:
             Self if all validation checks pass
-            
+
         Raises:
             CachingPolicyError: If caching policy and duration are inconsistent
-        
+
         """
         # Development caching should be short duration
         if (
@@ -181,26 +182,28 @@ class CachingConfiguration(BaseModel):
         # Disabled caching ignores duration
         if self.policy == CachingPolicy.DISABLED:
             warnings.warn(
-                "Cache duration ignored when caching is DISABLED", UserWarning, stacklevel=2
+                "Cache duration ignored when caching is DISABLED",
+                UserWarning,
+                stacklevel=2,
             )
 
         return self
 
     def is_enabled(self) -> bool:
         """Check if caching is enabled.
-        
+
         Returns:
             True if caching policy is not DISABLED, False otherwise
-        
+
         """
         return self.policy != CachingPolicy.DISABLED
 
     def get_effective_duration(self) -> float:
         """Get effective cache duration based on policy.
-        
+
         Returns:
             Effective cache duration in seconds, adjusted based on caching policy
-        
+
         """
         if self.policy == CachingPolicy.DISABLED:
             return 0.0
@@ -249,19 +252,19 @@ class RegistrationConfiguration(BaseModel):
 
     def should_auto_register(self) -> bool:
         """Check if automatic registration is enabled.
-        
+
         Returns:
             True if automatic registration is enabled, False for manual mode
-        
+
         """
         return self.mode != RegistrationMode.MANUAL
 
     def should_register_defaults(self) -> bool:
         """Check if default components should be registered.
-        
+
         Returns:
             True if default components should be registered based on the mode
-        
+
         """
         return self.mode in {
             RegistrationMode.DEFAULT_COMPONENTS,
@@ -288,27 +291,30 @@ class SystemConfiguration(BaseModel):
     )
 
     validation_mode: ValidationMode = Field(
-        default=ValidationMode.STANDARD, description="Validation mode for data processing"
+        default=ValidationMode.STANDARD,
+        description="Validation mode for data processing",
     )
 
     memory_strategy: MemoryStrategy = Field(
-        default=MemoryStrategy.STANDARD, description="Memory management strategy"
+        default=MemoryStrategy.STANDARD,
+        description="Memory management strategy",
     )
 
     observability_level: ObservabilityLevel = Field(
-        default=ObservabilityLevel.BASIC, description="Observability level for monitoring"
+        default=ObservabilityLevel.BASIC,
+        description="Observability level for monitoring",
     )
 
     @model_validator(mode="after")
     def validate_configuration_consistency(self) -> SystemConfiguration:
         """Ensure configuration settings are internally consistent.
-        
+
         Returns:
             Self if all configuration settings are consistent
-            
+
         Raises:
             PerformanceProfileError: If performance profile conflicts with other settings
-        
+
         """
         # Ultra-fast profile should not have strict validation
         if (
@@ -480,10 +486,10 @@ class WebSocketConfiguration(BaseModel):
     @model_validator(mode="after")
     def validate_websocket_consistency(self) -> WebSocketConfiguration:
         """Validate WebSocket configuration consistency.
-        
+
         Returns:
             Self if all WebSocket configuration settings are consistent
-        
+
         """
         # High-performance systems should have memory optimization
         if (
@@ -595,28 +601,34 @@ class RequestConfiguration(BaseModel):
     )
 
     auth_mode: RequestAuthMode = Field(
-        default=RequestAuthMode.UNSIGNED, description="Authentication mode for the request"
+        default=RequestAuthMode.UNSIGNED,
+        description="Authentication mode for the request",
     )
 
     serialization_mode: SerializationMode = Field(
-        default=SerializationMode.STANDARD, description="Serialization mode for request data"
+        default=SerializationMode.STANDARD,
+        description="Serialization mode for request data",
     )
 
     endpoint_group: str = Field(
-        default="default", description="Endpoint group for rate limiting and categorization"
+        default="default",
+        description="Endpoint group for rate limiting and categorization",
     )
 
     request_weight: int = Field(
-        default=1, ge=1, le=100, description="Weight of the request for rate limiting"
+        default=1,
+        ge=1,
+        le=100,
+        description="Weight of the request for rate limiting",
     )
 
     @model_validator(mode="after")
     def validate_request_consistency(self) -> RequestConfiguration:
         """Validate request configuration consistency.
-        
+
         Returns:
             Self if all request configuration settings are consistent
-        
+
         """
         # High weight requests should generally be signed
         if (
@@ -746,31 +758,35 @@ class SecurityPolicy(BaseModel):
     )
 
     threat_model: SecurityThreatModel = Field(
-        default=SecurityThreatModel.STANDARD, description="Security threat model for operations"
+        default=SecurityThreatModel.STANDARD,
+        description="Security threat model for operations",
     )
 
     monitoring_level: MonitoringLevel = Field(
-        default=MonitoringLevel.BASIC, description="Monitoring level for security events"
+        default=MonitoringLevel.BASIC,
+        description="Monitoring level for security events",
     )
 
     audit_level: AuditLevel = Field(
-        default=AuditLevel.DISABLED, description="Audit level for security operations"
+        default=AuditLevel.DISABLED,
+        description="Audit level for security operations",
     )
 
     source_exchange: str | None = Field(
-        default=None, description="Source exchange for context-aware security"
+        default=None,
+        description="Source exchange for context-aware security",
     )
 
     @model_validator(mode="after")
     def validate_security_consistency(self) -> SecurityPolicy:
         """Ensure security settings provide adequate protection.
-        
+
         Returns:
             Self if all security settings are consistent and adequate
-            
+
         Raises:
             ThreatModelError: If threat model requirements are not met by other settings
-        
+
         """
         # Paranoid threat model requires comprehensive monitoring and auditing
         if self.threat_model == SecurityThreatModel.PARANOID:
@@ -831,10 +847,10 @@ class SecurityPolicy(BaseModel):
 
     def get_legacy_flags(self) -> dict[str, bool]:
         """Convert to legacy boolean flags for backward compatibility.
-        
+
         Returns:
             Dictionary mapping legacy flag names to boolean values
-        
+
         """
         return {
             "enable_monitoring": self.monitoring_level.is_enabled,

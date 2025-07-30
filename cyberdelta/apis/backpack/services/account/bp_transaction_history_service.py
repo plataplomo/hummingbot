@@ -291,7 +291,7 @@ class BackpackTransactionHistoryService:
 
         # Build request parameters
         params = self._request_builder.build_get_order_history_params(
-            symbol=args.symbol,
+            symbol=args.symbol,  # Pass Symbol object directly
             start_time=start_time_ms,
             end_time=end_time_ms,
             limit=args.limit or 100,
@@ -346,7 +346,7 @@ class BackpackTransactionHistoryService:
 
         # Build request parameters (using fills endpoint)
         params = self._request_builder.build_get_trade_history_params(
-            symbol=args.symbol,
+            symbol=args.symbol,  # Pass Symbol object directly
             limit=args.limit or 100,
             start_time=None,  # Not in current service signature
             end_time=None,  # Not in current service signature
@@ -404,7 +404,7 @@ class BackpackTransactionHistoryService:
         raw_orders_list: list[BackpackRawOrderResponse] = (
             self._response_handler.handle_get_order_history_response(
                 raw_data,
-                args.symbol,
+                args.symbol,  # Pass Symbol object directly
                 status_code,
             )
         )
@@ -457,7 +457,7 @@ class BackpackTransactionHistoryService:
         # Use fills handler since we're calling /wapi/v1/history/fills
         raw_fills_list = self._response_handler.handle_get_fills_response(
             raw_data,
-            args.symbol,
+            args.symbol,  # Pass Symbol object directly
             status_code,
         )
 

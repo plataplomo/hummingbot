@@ -41,7 +41,7 @@ from cyberdelta.exceptions.service_validation import (
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
     """Create a mock HTTP client requester.
-    
+
     Returns:
         AsyncMock: Mock HTTP client for testing.
     """
@@ -51,7 +51,7 @@ def mock_http_client() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
     """Create a mock request builder.
-    
+
     Returns:
         MagicMock: Mock BackpackAccountRequestBuilder instance for testing.
     """
@@ -61,7 +61,7 @@ def mock_request_builder() -> MagicMock:
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
     """Create a mock response handler.
-    
+
     Returns:
         MagicMock: Mock BackpackAccountResponseHandler instance for testing.
     """
@@ -71,7 +71,7 @@ def mock_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper.
-    
+
     Returns:
         MagicMock: Mock BackpackTransferMapper instance for testing.
     """
@@ -81,7 +81,7 @@ def mock_mapper() -> MagicMock:
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
     """Create a mock authenticator.
-    
+
     Returns:
         MagicMock: Mock authenticator instance for testing.
     """
@@ -97,7 +97,7 @@ def transfer_service(
     mock_authenticator: MagicMock,
 ) -> BackpackTransferService:
     """Create a transfer service instance with mocks.
-    
+
     Returns:
         BackpackTransferService: Configured service instance with mocked dependencies.
     """
@@ -114,7 +114,7 @@ def transfer_service(
 @pytest.fixture
 def mock_raw_withdrawal_response() -> BackpackRawWithdrawalResponse:
     """Create a mock raw withdrawal response.
-    
+
     Returns:
         BackpackRawWithdrawalResponse: Mock withdrawal response with test data.
     """
@@ -134,7 +134,7 @@ def mock_raw_withdrawal_response() -> BackpackRawWithdrawalResponse:
 @pytest.fixture
 def mock_transfer() -> Transfer:
     """Create a mock transfer.
-    
+
     Returns:
         Transfer: Mock Transfer instance with test data.
     """
@@ -151,7 +151,7 @@ def mock_transfer() -> Transfer:
 @pytest.fixture
 def mock_withdrawal() -> Withdrawal:
     """Create a mock withdrawal.
-    
+
     Returns:
         Withdrawal: Mock Withdrawal instance with test data.
     """

@@ -82,6 +82,7 @@ from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.models.operations import Transfer, Withdrawal
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -175,7 +176,7 @@ class ExchangeAPI(ABC):
         loop: asyncio.AbstractEventLoop | None,
     ) -> asyncio.AbstractEventLoop:
         """Setup the event loop for the exchange API.
-        
+
         Returns:
             asyncio.AbstractEventLoop: The event loop to use (provided loop, existing loop,
                 or new loop).
@@ -206,7 +207,7 @@ class ExchangeAPI(ABC):
         exchange_config: ExchangeSpecificConfig | None,
     ) -> RateLimitStrategy | None:
         """Setup rate limiting strategy.
-        
+
         Returns:
             RateLimitStrategy | None: The rate limiting strategy to use, or None if not configured.
         """
@@ -231,10 +232,10 @@ class ExchangeAPI(ABC):
         exchange_config: ExchangeSpecificConfig,
     ) -> RateLimitStrategy:
         """Create a default rate limiting strategy.
-        
+
         Returns:
             RateLimitStrategy: A new SimpleTokenBucketStrategy instance.
-            
+
         Raises:
             RequiredParameterError: If rate_limit_per_minute is None in the exchange config.
         """
@@ -266,11 +267,11 @@ class ExchangeAPI(ABC):
 
     def _setup_http_client(self, http_client: HttpClient | None) -> tuple[str, HttpClient]:
         """Setup HTTP client and return endpoint and client.
-        
+
         Returns:
             tuple[str, HttpClient]: A tuple containing the REST endpoint URL and the HTTP
                 client instance.
-            
+
         Raises:
             RequiredParameterError: If required configuration parameters are missing.
         """
@@ -305,7 +306,7 @@ class ExchangeAPI(ABC):
 
     def _build_http_config_data(self) -> dict[str, Any]:
         """Build HTTP client configuration data from config model.
-        
+
         Returns:
             dict[str, Any]: Configuration dictionary for HTTP client initialization.
         """
@@ -338,7 +339,7 @@ class ExchangeAPI(ABC):
         exchange_config: ExchangeSpecificConfig | None,
     ) -> tuple[str | None, WebSocketManager | None]:
         """Setup WebSocket manager and return endpoint and manager.
-        
+
         Returns:
             tuple[str | None, WebSocketManager | None]: A tuple containing the WebSocket
                 endpoint URL (or None if not configured) and the WebSocket manager instance
@@ -359,7 +360,7 @@ class ExchangeAPI(ABC):
 
     def _validate_ws_endpoint(self) -> str | None:
         """Validate and return WebSocket endpoint.
-        
+
         Returns:
             str | None: The WebSocket endpoint URL if configured, None otherwise.
         """
@@ -391,7 +392,7 @@ class ExchangeAPI(ABC):
         exchange_config: ExchangeSpecificConfig | None,
     ) -> WebSocketManager:
         """Create WebSocket manager instance.
-        
+
         Returns:
             WebSocketManager: A new WebSocket manager instance configured for the exchange.
         """
@@ -411,7 +412,7 @@ class ExchangeAPI(ABC):
 
     def _build_ws_config_data(self, ws_endpoint: str) -> dict[str, Any]:
         """Build WebSocket configuration data from config model.
-        
+
         Returns:
             dict[str, Any]: Configuration dictionary for WebSocket manager initialization.
         """
@@ -434,7 +435,7 @@ class ExchangeAPI(ABC):
         exchange_config: ExchangeSpecificConfig | None,
     ) -> TokenBucketRateLimiterRuntime | None:
         """Create WebSocket rate limiter if needed.
-        
+
         Returns:
             TokenBucketRateLimiterRuntime | None: A rate limiter instance for WebSocket messages
                 if configured, None otherwise.
@@ -466,7 +467,7 @@ class ExchangeAPI(ABC):
     @property
     def is_connected(self) -> bool:
         """Returns whether the WebSocket connection is active via WebSocketManager.
-        
+
         Returns:
             bool: True if WebSocket is connected, False otherwise.
         """
@@ -551,10 +552,10 @@ class ExchangeAPI(ABC):
         request_config: RequestConfiguration,
     ) -> dict[str, Any] | None:
         """Prepare data for HttpClient - handle Pydantic model serialization.
-        
+
         Returns:
             dict[str, Any] | None: Serialized data ready for HTTP request, or None if no data.
-            
+
         Raises:
             InvalidParameterTypeError: If data is not a BaseModel, dict, or None.
         """
@@ -599,7 +600,7 @@ class ExchangeAPI(ABC):
         request_config: RequestConfiguration,
     ) -> tuple[ParsedJsonResponse | None, int, Mapping[str, str]]:
         """Execute the HTTP request and return response data.
-        
+
         Returns:
             tuple[ParsedJsonResponse | None, int, Mapping[str, str]]: A tuple containing
                 the parsed response content, HTTP status code, and response headers.
@@ -627,7 +628,7 @@ class ExchangeAPI(ABC):
         request_url: str,
     ) -> APIError:
         """Handle HTTP request failed errors.
-        
+
         Returns:
             APIError: A mapped APIError instance with exchange-specific error details.
         """
@@ -664,7 +665,7 @@ class ExchangeAPI(ABC):
 
     def _handle_client_error(self, e_client: Exception, method: str, request_url: str) -> APIError:
         """Handle client errors (timeout, connection issues).
-        
+
         Returns:
             APIError: A mapped APIError instance for service unavailable conditions.
         """
@@ -695,7 +696,7 @@ class ExchangeAPI(ABC):
         request_url: str,
     ) -> APIError:
         """Handle unexpected errors.
-        
+
         Returns:
             APIError: A mapped APIError instance for internal server error conditions.
         """
@@ -750,7 +751,7 @@ class ExchangeAPI(ABC):
         original_exception: Exception | None = None,
     ) -> APIError:
         """Maps an HTTP error response to an APIError using the configured error_mapper.
-        
+
         Returns:
             APIError: A mapped APIError instance with exchange-specific error details.
         """
@@ -840,7 +841,7 @@ class ExchangeAPI(ABC):
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a specific WebSocket topic/channel and send subscription.
-        
+
         Raises:
             ValueError: If the subscription payload cannot be constructed for the topic.
             APIError: If there's an error sending the subscription request.
@@ -1006,12 +1007,12 @@ class ExchangeAPI(ABC):
     # --- Core Data Fetching --- #
 
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Ticker | None:
+    async def get_ticker(self, symbol: Symbol) -> Ticker | None:
         """Retrieve the latest ticker information for a specific symbol."""
         raise NotImplementedError
 
     @abstractmethod
-    async def get_order_book(self, symbol: str, depth: int = 20) -> OrderBook | None:
+    async def get_order_book(self, symbol: Symbol, depth: int = 20) -> OrderBook | None:
         """Retrieves the order book for a specific symbol."""
         raise NotImplementedError
 
@@ -1101,7 +1102,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Fetch current open positions, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -1150,7 +1151,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all orders for a given symbol, or all if symbol is None.
 
         Args:
@@ -1223,7 +1224,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Fetch all currently open orders, optionally filtered by symbol."""
         raise NotImplementedError
 
@@ -1285,7 +1286,7 @@ class ExchangeAPI(ABC):
     # --- WebSocket Connection Management Methods ---
     async def connect_websocket(self) -> None:
         """Establishes a WebSocket connection with the exchange.
-        
+
         Raises:
             APIError: If WebSocket is not configured or connection fails.
         """

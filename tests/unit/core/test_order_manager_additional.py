@@ -34,7 +34,7 @@ def create_trade(
     is_maker: bool = False,
 ) -> Trade:
     """Helper function to create a Trade with valid defaults.
-    
+
     Returns:
         Trade: A trade instance with the specified parameters.
     """
@@ -57,7 +57,7 @@ def create_trade(
 @pytest.fixture
 def base_order() -> Order:
     """Create a base order for testing.
-    
+
     Returns:
         Order: A base order instance for testing.
     """

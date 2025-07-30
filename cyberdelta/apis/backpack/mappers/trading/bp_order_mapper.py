@@ -33,6 +33,8 @@ from cyberdelta.core.enums import (
 )
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import BackpackOrderDetails
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
@@ -121,7 +123,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
         # Check systemOrderType for triggered stop orders
         if raw_order and raw_order.systemOrderType:
             result = BackpackOrderMapper._check_system_order_type(
-                bp_type_lower, raw_order.systemOrderType.lower()
+                bp_type_lower,
+                raw_order.systemOrderType.lower(),
             )
             if result:
                 return result
@@ -150,11 +153,11 @@ class BackpackOrderMapper(OrderMapperProtocol):
     @staticmethod
     def _check_system_order_type(bp_type_lower: str, system_type: str) -> OrderType | None:
         """Check systemOrderType for stop/take profit orders.
-        
+
         Args:
             bp_type_lower: Lowercased order type string
             system_type: System order type field from Backpack
-            
+
         Returns:
             OrderType enum if system type indicates stop/take profit order, None otherwise
         """
@@ -173,13 +176,13 @@ class BackpackOrderMapper(OrderMapperProtocol):
     @staticmethod
     def _check_triggered_order(raw_order: BackpackRawOrderResponse) -> OrderType | None:
         """Check if order was a triggered stop/take profit order.
-        
+
         This method analyzes the raw order data to determine if it was triggered
         as a stop loss or take profit order by examining the trigger price fields.
-        
+
         Args:
             raw_order: Raw order response from Backpack containing trigger price fields
-        
+
         Returns:
             OrderType.STOP_MARKET if stop loss triggered,
             OrderType.TAKE_PROFIT_MARKET if take profit triggered,
@@ -193,14 +196,15 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
     @staticmethod
     def _check_trigger_price_order(
-        bp_type_lower: str, raw_order: BackpackRawOrderResponse | None
+        bp_type_lower: str,
+        raw_order: BackpackRawOrderResponse | None,
     ) -> OrderType:
         """Determine order type based on trigger price.
-        
+
         Args:
             bp_type_lower: Lowercased order type string
             raw_order: Raw order data from Backpack (optional)
-            
+
         Returns:
             OrderType enum based on trigger price presence and order type
         """
@@ -243,7 +247,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
     @staticmethod
     def transform_order_data_to_internal(
         order_id: str,
-        symbol: str,
+        symbol: Symbol,
         side: str,
         order_type: str,
         status: str,
@@ -277,17 +281,6 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
         """
         try:
-            # Validate symbol format
-            if symbol and not BackpackCommonMappers.is_valid_symbol(symbol):
-                logger.warning(
-                    "invalid_symbol_format",
-                    symbol=symbol,
-                    expected_format="BASE_QUOTE",
-                    context="order_transform",
-                    order_id=order_id,
-                    message="Invalid Backpack symbol format in order data",
-                )
-
             # Map enums
             mapped_side = BackpackOrderMapper._map_side_to_internal(side)
             mapped_type = BackpackOrderMapper._map_type_to_internal(order_type, None, None)
@@ -319,10 +312,13 @@ class BackpackOrderMapper(OrderMapperProtocol):
             if updated_at:
                 updated_timestamp = parse_datetime_utc(updated_at, field_name="updated_at")
 
+            # Symbol is already a domain object
+            exchange_symbol = symbol
+
             # SECURITY FIX: Use secure_transform instead of direct instantiation
             order_data: dict[str, Any] = {
                 "exchange_order_id": order_id,
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "side": mapped_side.value,
                 "order_type": mapped_type.value,
                 "status": mapped_status.value,
@@ -359,10 +355,10 @@ class BackpackOrderMapper(OrderMapperProtocol):
     @staticmethod
     def _parse_order_quantities(raw_order: BackpackRawOrderResponse) -> tuple[Decimal, Decimal]:
         """Parse and validate order quantities.
-        
+
         Args:
             raw_order: Raw order data from Backpack
-            
+
         Returns:
             Tuple of (quantity_requested, quantity_filled) as Decimal values
 
@@ -402,11 +398,11 @@ class BackpackOrderMapper(OrderMapperProtocol):
     @staticmethod
     def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | None:
         """Parse order price field, returning None for zero or invalid values.
-        
+
         Args:
             price_value: Price value as string or None
             field_name: Name of the field for error reporting
-            
+
         Returns:
             Parsed price as Decimal or None if price is zero/invalid
         """
@@ -484,10 +480,10 @@ class BackpackOrderMapper(OrderMapperProtocol):
         raw_order: BackpackRawOrderResponse,
     ) -> tuple[datetime, datetime | None, datetime | None]:
         """Parse order timestamps.
-        
+
         Args:
             raw_order: Raw order data from Backpack
-            
+
         Returns:
             Tuple of (created_timestamp, updated_timestamp, triggered_timestamp) where
             created_timestamp is required and others may be None
@@ -530,17 +526,6 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
         """
         try:
-            # Validate symbol format
-            if raw_order.symbol and not BackpackCommonMappers.is_valid_symbol(raw_order.symbol):
-                logger.warning(
-                    "invalid_symbol_format",
-                    symbol=raw_order.symbol,
-                    expected_format="BASE_QUOTE",
-                    context="raw_order_transform",
-                    order_id=raw_order.id,
-                    message="Invalid Backpack symbol format in raw order data",
-                )
-
             # Map enums
             mapped_side = BackpackOrderMapper._map_side_to_internal(raw_order.side)
             mapped_type = BackpackOrderMapper._map_type_to_internal(
@@ -625,11 +610,17 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 else None,
             )
 
+            # Parse symbol to domain object at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw_order.symbol,  # e.g., "BTC_USD_PERP"
+                symbol_id=getattr(raw_order, "symbol_id", None),
+            )
+
             # Create Order directly with all parameters
             # SECURITY FIX: Use secure_transform instead of direct instantiation
             order_data: dict[str, Any] = {
                 "exchange_order_id": raw_order.id,
-                "symbol": raw_order.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "side": mapped_side.value,
                 "order_type": mapped_type.value,
                 "status": mapped_status.value,
@@ -744,12 +735,18 @@ class BackpackOrderMapper(OrderMapperProtocol):
             if event_timestamp is None:
                 event_timestamp = datetime.now(UTC)
 
+            # Parse symbol to domain object at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw_order_update.symbol,  # e.g., "BTC_USD_PERP"
+                symbol_id=getattr(raw_order_update, "symbol_id", None),
+            )
+
             # SECURITY FIX: Use secure_transform instead of direct instantiation
             order_data: dict[str, Any] = {
                 "exchange_order_id": (
                     f"ws_order_{raw_order_update.event_type}_{int(event_timestamp.timestamp())}"
                 ),
-                "symbol": raw_order_update.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "side": mapped_side.value,
                 "order_type": mapped_type.value,
                 "status": mapped_status.value,
@@ -801,50 +798,27 @@ class BackpackOrderMapper(OrderMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
-        
+
         Args:
             value: Value to parse as Decimal
             default: Default value to return if parsing fails
-            
+
         Returns:
             Parsed Decimal value or default if parsing fails
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-        
-        Args:
-            symbol: Symbol string to normalize
-            
-        Returns:
-            Symbol in Backpack format with underscores
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-        
-        Args:
-            symbol: Symbol string in Backpack format
-            
-        Returns:
-            Symbol in internal format with slashes
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
-
-    @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
-        
+
         Args:
             timestamp_ms: Timestamp in milliseconds or None
-            
+
         Returns:
             UTC datetime object or None if timestamp is None
         """

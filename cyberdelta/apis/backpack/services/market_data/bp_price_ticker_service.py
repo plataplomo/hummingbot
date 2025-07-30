@@ -39,6 +39,7 @@ from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Ticker
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -86,11 +87,11 @@ class BackpackPriceTickerService:
         self._exchange_name = exchange_name
         self._ticker_mapper = ticker_mapper or BackpackTickerMapper()
 
-    async def get_ticker(self, symbol: str) -> Ticker:
+    async def get_ticker(self, symbol: Symbol) -> Ticker:
         """Retrieve the current ticker data for a specific symbol.
 
         Args:
-            symbol: The trading symbol to get ticker data for
+            symbol: The Symbol domain object
 
         Returns:
             Ticker: Current ticker information including price and volume data
@@ -105,7 +106,8 @@ class BackpackPriceTickerService:
         frame = inspect.currentframe()
         current_method = frame.f_code.co_name if frame is not None else "get_ticker"
 
-        if not symbol:
+        # Validate Symbol object directly
+        if not symbol.value:
             raise EmptySymbolError(current_method)
 
         # Initialize context for error handling
@@ -162,7 +164,7 @@ class BackpackPriceTickerService:
             )
             internal_ticker = self._ticker_mapper.transform_raw_ticker_to_internal(
                 raw_ticker_model,
-                symbol_override=symbol,
+                symbol_override=str(symbol),
             )
 
             logger.info(
@@ -361,7 +363,7 @@ class BackpackPriceTickerService:
             reason=(
                 "This code should never be reached - "
                 "_validate_get_all_tickers_implementation always raises"
-            )
+            ),
         )
 
     @staticmethod

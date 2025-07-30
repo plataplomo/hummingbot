@@ -234,7 +234,9 @@ class HttpClient:
                 )
 
     def _validate_headers(
-        self, headers: CIMultiDictProxy[str], full_url: str
+        self,
+        headers: CIMultiDictProxy[str],
+        full_url: str,
     ) -> ProcessedResponseHeaders:
         """Validate and process response headers.
 
@@ -301,7 +303,10 @@ class HttpClient:
             ) from e_payload
 
     def _parse_json_response(
-        self, response_text: str, full_url: str, status_code: int
+        self,
+        response_text: str,
+        full_url: str,
+        status_code: int,
     ) -> ParsedJsonResponse:
         """Parse JSON response with security validation.
 
@@ -605,7 +610,8 @@ class HttpClient:
                     ),
                 )
                 raise AuthenticatorNotConfiguredError(
-                    auth_type="API", operation="signed HTTP request"
+                    auth_type="API",
+                    operation="signed HTTP request",
                 )
 
             try:
@@ -709,7 +715,7 @@ class HttpClient:
 
         # This should not be reached, but handle it defensively
         raise UnreachableCodeError(
-            reason=f"Request processing loop for {full_url} exited without exception or response"
+            reason=f"Request processing loop for {full_url} exited without exception or response",
         )
 
     async def _execute_single_request(
@@ -934,7 +940,7 @@ class HttpClient:
             raise UnreachableCodeError(
                 reason=(
                     "HTTP request retry handling: last_exception is None after all retries failed"
-                )
+                ),
             )
 
         # Wrap other exceptions

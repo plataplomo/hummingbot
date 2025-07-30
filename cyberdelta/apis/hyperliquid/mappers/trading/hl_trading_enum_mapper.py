@@ -61,7 +61,8 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
     # Base protocol methods - delegate to HyperliquidCommonMappers
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -73,30 +74,6 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
             Decimal: Parsed decimal value or default
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Args:
-            symbol: Exchange symbol to normalize
-
-        Returns:
-            str: Normalized symbol for internal use
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Args:
-            symbol: Internal symbol to denormalize
-
-        Returns:
-            str: Denormalized symbol for exchange use
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

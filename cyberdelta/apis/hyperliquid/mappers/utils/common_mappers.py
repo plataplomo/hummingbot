@@ -24,7 +24,9 @@ def validate_side_value(hl_side: str) -> None:
     """
     if hl_side not in {"B", "A"}:
         raise UnknownEnumError(
-            enum_type="Hyperliquid order side", value=hl_side, valid_values=["B", "A"]
+            enum_type="Hyperliquid order side",
+            value=hl_side,
+            valid_values=["B", "A"],
         )
 
 
@@ -53,7 +55,9 @@ def map_side_to_internal(hl_side: str) -> OrderSide:
         if isinstance(e, TransformationError):
             raise
         raise UnknownEnumError(
-            enum_type="Hyperliquid order side", value=hl_side, valid_values=["B", "A"]
+            enum_type="Hyperliquid order side",
+            value=hl_side,
+            valid_values=["B", "A"],
         ) from e
     else:
         # This should not be reached due to validation above, but for type safety

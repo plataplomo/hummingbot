@@ -73,7 +73,9 @@ class NetworkEnvironment(BaseModel):
     @field_validator("api_endpoint", "websocket_endpoint")
     @classmethod
     def validate_endpoints_match_chain(
-        cls, v: HttpUrl | AnyUrl, info: ValidationInfo
+        cls,
+        v: HttpUrl | AnyUrl,
+        info: ValidationInfo,
     ) -> HttpUrl | AnyUrl:
         """Ensure endpoints match the chain environment.
 
@@ -204,7 +206,9 @@ class NetworkEnvironmentFactory:
 
     @staticmethod
     def mainnet(
-        api_endpoint: str, websocket_endpoint: str, chain_id: int = 1337
+        api_endpoint: str,
+        websocket_endpoint: str,
+        chain_id: int = 1337,
     ) -> NetworkEnvironment:
         """Create mainnet environment from config - real funds at risk.
 
@@ -227,7 +231,9 @@ class NetworkEnvironmentFactory:
 
     @staticmethod
     def testnet(
-        api_endpoint: str, websocket_endpoint: str, chain_id: int = 421614
+        api_endpoint: str,
+        websocket_endpoint: str,
+        chain_id: int = 421614,
     ) -> NetworkEnvironment:
         """Create testnet environment from config - safe for development.
 
@@ -318,7 +324,8 @@ class SecurityPolicy(BaseModel):
     )
 
     threat_model: ThreatModel = Field(
-        default=ThreatModel.STANDARD, description="Threat model for security configuration"
+        default=ThreatModel.STANDARD,
+        description="Threat model for security configuration",
     )
 
     input_validation: InputValidationLevel = Field(
@@ -327,7 +334,8 @@ class SecurityPolicy(BaseModel):
     )
 
     dos_protection: DosProtectionLevel = Field(
-        default=DosProtectionLevel.ENABLED, description="DoS protection level for system security"
+        default=DosProtectionLevel.ENABLED,
+        description="DoS protection level for system security",
     )
 
     @model_validator(mode="after")
@@ -400,7 +408,8 @@ class AuthenticationEnvironment(BaseModel):
     network: NetworkEnvironment = Field(description="Network environment for authentication")
 
     security_policy: SecurityPolicy = Field(
-        default_factory=SecurityPolicy, description="Security policy for authentication"
+        default_factory=SecurityPolicy,
+        description="Security policy for authentication",
     )
 
     @model_validator(mode="after")

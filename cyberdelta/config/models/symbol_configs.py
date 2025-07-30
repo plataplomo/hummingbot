@@ -1,86 +1,70 @@
-"""Symbol configuration models.
-
-Separated from config_models.py to avoid circular imports with smart_symbol_generator.
-"""
+"""Symbol configuration models - Clean architecture."""
 
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.config.models.config_types import NonEmptyConfigString
 
 
-class InternalSymbolConfig(BaseModel):
-    """Configuration for internal symbol representation."""
+class SymbolMetadataConfig(BaseModel):
+    """Configuration for symbol metadata."""
 
     model_config = ConfigDict(extra="forbid")
 
-    value: NonEmptyConfigString = Field(..., description="Internal symbol identifier")
-    base_asset: NonEmptyConfigString = Field(..., description="Base asset symbol")
+    # Common fields that might be in any exchange's metadata
+    asset_index: int | None = Field(None, description="Asset index (Hyperliquid)")
+    symbol_id: str | None = Field(None, description="Symbol ID (Backpack)")
+
+
+class SymbolMappingConfig(BaseModel):
+    """Configuration for a single symbol on an exchange."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: NonEmptyConfigString = Field(..., description="Symbol value on this exchange")
+    exchange: NonEmptyConfigString = Field(..., description="Exchange identifier")
+    metadata: SymbolMetadataConfig = Field(
+        default_factory=lambda: SymbolMetadataConfig(asset_index=None, symbol_id=None),
+        description="Exchange-specific metadata",
+    )
+
+
+class SymbolGroupConfig(BaseModel):
+    """Configuration for a group of equivalent symbols across exchanges.
+
+    Each group represents the same instrument across different exchanges.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Canonical representation for equivalence tracking
+    canonical: NonEmptyConfigString = Field(
+        ..., description="Canonical symbol representation (e.g., BTC_USD)"
+    )
+
+    # Parsed components for reference
+    base_asset: NonEmptyConfigString = Field(..., description="Base asset")
     quote_asset: NonEmptyConfigString | None = Field(
-        None, description="Quote asset symbol (null for perpetuals)"
+        None, description="Quote asset (None for single assets)"
     )
-    market_type: Literal["SPOT", "PERP"] = Field(..., description="Market type (SPOT, PERP, etc.)")
+    market_type: Literal["SPOT", "PERP"] = Field("PERP", description="Market type")
 
-
-class ExchangeSymbolConfig(BaseModel):
-    """Configuration for exchange-specific symbol representation."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    value: NonEmptyConfigString = Field(..., description="Exchange-specific symbol")
-    exchange_id: NonEmptyConfigString = Field(..., description="Exchange identifier")
-    asset_index: int | None = Field(
-        None, description="Asset index for exchange (e.g., Hyperliquid)"
-    )
-    symbol_id: str | None = Field(None, description="Additional symbol identifier")
-
-
-class UnifiedSymbolConfig(BaseModel):
-    """Configuration for unified symbol with multiple exchange mappings."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    internal: InternalSymbolConfig = Field(..., description="Internal symbol configuration")
-    exchange_mappings: dict[str, ExchangeSymbolConfig] = Field(
-        default_factory=dict, description="Exchange-specific symbol mappings"
+    # Exchange mappings
+    mappings: list[SymbolMappingConfig] = Field(
+        ..., description="Symbol mappings for each exchange", min_length=1
     )
 
-    @field_validator("exchange_mappings", mode="before")
+    @field_validator("mappings", mode="after")
     @classmethod
-    def validate_exchange_mappings(cls, v: dict[str, Any]) -> dict[str, ExchangeSymbolConfig]:
-        """Validate and convert exchange mappings.
-        
-        Ensures exchange mappings are properly structured for cross-exchange
-        symbol resolution. This is critical for maintaining consistent symbol
-        references across different exchange APIs in the arbitrage system.
-        
-        Returns:
-            dict[str, ExchangeSymbolConfig]: Validated and converted exchange mappings
-            
-        Raises:
-            TypeError: If mapping value is neither dict nor ExchangeSymbolConfig
-        """
-        # Pydantic already validates v is dict[str, Any], so isinstance check not needed
-
-        validated_mappings: dict[str, ExchangeSymbolConfig] = {}
-        for exchange_id, mapping in v.items():
-            if isinstance(mapping, dict):
-                # Ensure exchange_id is set in the mapping
-                # Extract fields explicitly for proper typing
-                mapping_typed = cast(dict[str, Any], mapping)
-                validated_mappings[exchange_id] = ExchangeSymbolConfig(
-                    value=mapping_typed.get("value", ""),
-                    exchange_id=exchange_id,
-                    asset_index=mapping_typed.get("asset_index"),
-                    symbol_id=mapping_typed.get("symbol_id"),
-                )
-            elif isinstance(mapping, ExchangeSymbolConfig):
-                validated_mappings[exchange_id] = mapping
-            else:
-                msg = f"Invalid type for {exchange_id}: {type(mapping).__name__}"
-                raise TypeError(msg)
-
-        return validated_mappings
+    def validate_unique_exchanges(
+        cls, mappings: list[SymbolMappingConfig]
+    ) -> list[SymbolMappingConfig]:
+        """Ensure each exchange appears only once."""
+        exchanges = [m.exchange for m in mappings]
+        if len(exchanges) != len(set(exchanges)):
+            msg = "Duplicate exchange in mappings"
+            raise ValueError(msg)
+        return mappings

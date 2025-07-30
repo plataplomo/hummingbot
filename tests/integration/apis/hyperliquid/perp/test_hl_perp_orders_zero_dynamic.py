@@ -20,6 +20,7 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -205,7 +206,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
 
         # Create order args with dynamic parameters
         order_args = PlaceOrderArgs(
-            symbol=test_symbol,
+            symbol=exchanges.hyperliquid(test_symbol),
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=test_quantity,

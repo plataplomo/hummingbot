@@ -16,7 +16,7 @@ import inspect
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -48,12 +48,10 @@ from cyberdelta.apis.models.service_args.market_data import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import FundingRate
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.utils.parsing import timeframe_to_ms
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -113,7 +111,8 @@ class HyperliquidHistoricalDataService:
         current_method = frame.f_code.co_name if frame is not None else "get_funding_rates"
 
         # Input validation
-        self._validate_funding_rates_input(args.symbols)
+        symbols_str = [str(s) for s in args.symbols] if args.symbols else None
+        self._validate_funding_rates_input(symbols_str)
 
         # Initialize context for error handling
         status_code: int = 0
@@ -139,14 +138,14 @@ class HyperliquidHistoricalDataService:
                 return []
 
             symbols_to_process = self._determine_symbols_to_process(
-                args.symbols,
+                symbols_str,
                 all_contexts_response.asset_ctxs,
             )
 
             funding_rates = self._process_funding_rates_for_symbols(
                 symbols_to_process,
                 all_contexts_response.asset_ctxs,
-                args.symbols,
+                symbols_str,
             )
 
             logger.info(
@@ -223,13 +222,13 @@ class HyperliquidHistoricalDataService:
             )
 
             raw_funding_history_response = await self._fetch_historical_funding_rates_data(
-                args.symbol,
+                str(args.symbol),
                 start_time_ms,
                 end_time_ms,
             )
 
             funding_rates = self._map_historical_funding_rates_to_internal(
-                raw_funding_history_response.items
+                raw_funding_history_response.items,
             )
 
             logger.info(
@@ -322,9 +321,11 @@ class HyperliquidHistoricalDataService:
                 end_time_ms,
             )
 
+            # Convert string symbol back to Symbol object for mapper
+            symbol_obj = exchanges.hyperliquid(symbol)
             candles = self._mapper.transform_raw_candle_snapshot_to_candles(
                 raw_candles,
-                symbol,
+                symbol_obj,
                 interval,
             )
 
@@ -376,10 +377,10 @@ class HyperliquidHistoricalDataService:
         Note: This is a simplified version that delegates to the request/response flow.
         In a production setup, this might be injected as a dependency to avoid
         circular dependencies between services.
-        
+
         Returns:
             HyperliquidRawMetaAndAssetCtxsResponse: Raw asset contexts response from Hyperliquid API
-            
+
         Raises:
             APIError: If the API request fails or returns invalid response format
         """
@@ -428,7 +429,7 @@ class HyperliquidHistoricalDataService:
 
     def _validate_funding_rates_input(self, symbols: list[str] | None) -> None:
         """Validate funding rates input parameters.
-        
+
         Raises:
             InvalidParameterTypeError: If symbols list contains empty or invalid strings.
         """
@@ -448,11 +449,11 @@ class HyperliquidHistoricalDataService:
         asset_ctxs: list[Any],
     ) -> list[str]:
         """Determine which symbols to process for funding rates.
-        
+
         Args:
             symbols: Optional list of specific symbols to process
             asset_ctxs: List of asset contexts from Hyperliquid API
-            
+
         Returns:
             list[str]: List of symbol names to process for funding rates
         """
@@ -469,12 +470,12 @@ class HyperliquidHistoricalDataService:
         original_symbols: list[str] | None,
     ) -> list[FundingRate]:
         """Process funding rates for the specified symbols.
-        
+
         Args:
             symbols_to_process: List of symbols to process
             asset_ctxs: Asset contexts from Hyperliquid API
             original_symbols: Original symbols list from request (for validation)
-            
+
         Returns:
             list[FundingRate]: List of processed funding rate objects
         """
@@ -488,13 +489,13 @@ class HyperliquidHistoricalDataService:
         args: GetHistoricalFundingRatesArgs,
     ) -> tuple[int, int | None]:
         """Validate and convert historical funding rate time parameters.
-        
+
         Args:
             args: Arguments containing start_time and end_time datetime objects
-            
+
         Returns:
             tuple[int, int | None]: Tuple of (start_time_ms, end_time_ms) in milliseconds
-            
+
         Raises:
             ValueError: If time parameters are invalid or missing required start_time
         """
@@ -537,15 +538,15 @@ class HyperliquidHistoricalDataService:
         end_time_ms: int | None,
     ) -> HyperliquidRawFundingHistoryResponse:
         """Fetch historical funding rates data from API.
-        
+
         Args:
             symbol: Trading symbol to fetch funding rates for
             start_time_ms: Start time in milliseconds since epoch
             end_time_ms: Optional end time in milliseconds since epoch
-            
+
         Returns:
             HyperliquidRawFundingHistoryResponse: Raw funding history response from API
-            
+
         Raises:
             APIError: If API request fails or returns invalid response format
         """
@@ -554,8 +555,11 @@ class HyperliquidHistoricalDataService:
         start_time = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
         end_time = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC) if end_time_ms else None
 
+        exchange_symbol = exchanges.hyperliquid(
+            value=symbol,
+        )
         args = GetHistoricalFundingRatesArgs(
-            symbol=symbol,
+            symbol=exchange_symbol,
             start_time=start_time,
             end_time=end_time,
         )
@@ -601,10 +605,10 @@ class HyperliquidHistoricalDataService:
         raw_funding_history_items: list[HyperliquidRawFundingHistoryItem],
     ) -> list[FundingRate]:
         """Map raw historical funding rate items to internal FundingRate objects.
-        
+
         Args:
             raw_funding_history_items: List of raw funding history items from API
-            
+
         Returns:
             list[FundingRate]: List of internal FundingRate domain objects
         """
@@ -631,13 +635,13 @@ class HyperliquidHistoricalDataService:
         args: GetMarketDataArgs,
     ) -> tuple[str, str, int, int]:
         """Validate and prepare market data parameters.
-        
+
         Args:
             args: Market data arguments containing symbol, timeframe, and time range
-            
+
         Returns:
             tuple[str, str, int, int]: Tuple of (symbol, interval, start_time_ms, end_time_ms)
-            
+
         Raises:
             ValueError: If parameters are invalid or time range is incorrect
         """
@@ -676,7 +680,7 @@ class HyperliquidHistoricalDataService:
             error_msg = f"[{current_method}] 'end_time_ms' cannot be before 'start_time_ms'."
             raise ValueError(error_msg)
 
-        return symbol, interval, start_time_ms, end_time_ms
+        return str(symbol), interval, start_time_ms, end_time_ms
 
     async def _fetch_market_data_from_api(
         self,
@@ -686,16 +690,16 @@ class HyperliquidHistoricalDataService:
         end_time_ms: int,
     ) -> HyperliquidRawCandleSnapshot:
         """Fetch market data from the API.
-        
+
         Args:
             symbol: Trading symbol to fetch candlestick data for
             interval: Time interval for candlesticks (e.g., '1m', '5m', '1h')
             start_time_ms: Start time in milliseconds since epoch
             end_time_ms: End time in milliseconds since epoch
-            
+
         Returns:
             HyperliquidRawCandleSnapshot: Raw candlestick data from Hyperliquid API
-            
+
         Raises:
             APIError: If API request fails or returns invalid response format
         """
@@ -711,9 +715,12 @@ class HyperliquidHistoricalDataService:
 
         endpoint_path = "/info"
         try:
+            exchange_symbol = exchanges.hyperliquid(
+                value=symbol,
+            )
             payload = self._request_builder.build_candle_snapshot_payload(
                 HyperliquidGetCandleSnapshotArgs(
-                    symbol=symbol,
+                    symbol=exchange_symbol,
                     timeframe=interval,
                     start_time_ms=start_time_ms,
                     end_time_ms=end_time_ms,
@@ -766,9 +773,11 @@ class HyperliquidHistoricalDataService:
                 http_status=status_code,
             )
 
+        # Convert string symbol to Symbol object for response handler
+        symbol_obj = exchanges.hyperliquid(symbol)
         return self._response_handler.handle_info_candle_snapshot_response(
             raw_response_content_parsed,
-            symbol,
+            symbol_obj,
             interval,
             status_code,
             headers,
@@ -782,7 +791,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for funding rates.
-        
+
         Raises:
             APIError: Always raised to convert transformation error to API error.
         """
@@ -807,7 +816,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for funding rates.
-        
+
         Raises:
             APIError: Always raised to convert validation error to API error.
         """
@@ -830,7 +839,7 @@ class HyperliquidHistoricalDataService:
         error: ValueError | TypeError,
     ) -> None:
         """Handle service logic errors for funding rates.
-        
+
         Raises:
             APIError: Always raised to convert service logic error to API error.
         """
@@ -853,7 +862,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for funding rates.
-        
+
         Raises:
             APIError: Always raised to convert unexpected error to API error.
         """
@@ -878,7 +887,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: ParsedJsonResponse | None,
     ) -> None:
         """Handle transformation errors for historical funding rates.
-        
+
         Raises:
             APIError: Always raised to convert transformation error to API error.
         """
@@ -905,7 +914,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: ParsedJsonResponse | None,
     ) -> None:
         """Handle validation errors for historical funding rates.
-        
+
         Raises:
             APIError: Always raised to convert validation error to API error.
         """
@@ -930,7 +939,7 @@ class HyperliquidHistoricalDataService:
         error: ValueError | TypeError,
     ) -> None:
         """Handle service logic errors for historical funding rates.
-        
+
         Raises:
             APIError: Always raised to convert service logic error to API error.
         """
@@ -953,7 +962,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: ParsedJsonResponse | None,
     ) -> None:
         """Handle unexpected errors for historical funding rates.
-        
+
         Raises:
             APIError: Always raised to convert unexpected error to API error.
         """
@@ -981,7 +990,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle transformation errors for market data.
-        
+
         Raises:
             APIError: Always raised to convert transformation error to API error.
         """
@@ -1008,7 +1017,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle validation errors for market data.
-        
+
         Raises:
             APIError: Always raised to convert validation error to API error.
         """
@@ -1033,7 +1042,7 @@ class HyperliquidHistoricalDataService:
         symbol: str,
     ) -> None:
         """Handle service logic errors for market data.
-        
+
         Raises:
             APIError: Always raised to convert service logic error to API error.
         """
@@ -1058,7 +1067,7 @@ class HyperliquidHistoricalDataService:
         raw_response_content: str | None,
     ) -> None:
         """Handle unexpected errors for market data.
-        
+
         Raises:
             APIError: Always raised to convert unexpected error to API error.
         """

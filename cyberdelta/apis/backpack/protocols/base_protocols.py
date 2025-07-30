@@ -28,19 +28,10 @@ class MapperProtocol(Protocol):
 
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback."""
-        ...
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated)."""
-        ...
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated)."""
         ...
 
     @staticmethod
@@ -71,7 +62,11 @@ class ResponseHandlerProtocol(Protocol):
     """
 
     def handle_response(
-        self, response: ParsedJsonResponse, status_code: int, headers: dict[str, str], context: str
+        self,
+        response: ParsedJsonResponse,
+        status_code: int,
+        headers: dict[str, str],
+        context: str,
     ) -> object:
         """Generic response handler dispatch method."""
         ...

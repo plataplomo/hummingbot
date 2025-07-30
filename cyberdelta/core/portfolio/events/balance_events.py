@@ -48,14 +48,14 @@ class BalanceChange:
     @classmethod
     def validate_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate string fields are non-empty.
-        
+
         Args:
             v: The string value to validate
             info: Validation context information
-            
+
         Returns:
             The validated and stripped string value
-            
+
         Raises:
             EmptyBalanceFieldError: If the string is empty or only whitespace
         """
@@ -67,14 +67,14 @@ class BalanceChange:
     @classmethod
     def validate_balances(cls, v: Decimal, info: ValidationInfo) -> Decimal:
         """Validate balance amounts are finite and non-negative.
-        
+
         Args:
             v: The decimal balance value to validate
             info: Validation context information
-            
+
         Returns:
             The validated decimal balance value
-            
+
         Raises:
             NonFiniteBalanceError: If the balance is not finite (e.g., infinity, NaN)
             NegativeBalanceError: If the balance is negative
@@ -89,10 +89,10 @@ class BalanceChange:
     @classmethod
     def validate_reference_id(cls, v: str | None) -> str | None:
         """Validate reference ID is either None or non-empty.
-        
+
         Args:
             v: The reference ID value to validate
-            
+
         Returns:
             None if the reference ID is empty/whitespace, otherwise the original value
         """
@@ -114,13 +114,13 @@ class BalanceSnapshot:
     @classmethod
     def validate_exchange_id(cls, v: str) -> str:
         """Validate exchange ID is non-empty.
-        
+
         Args:
             v: The exchange ID to validate
-            
+
         Returns:
             The validated and stripped exchange ID
-            
+
         Raises:
             EmptyBalanceFieldError: If the exchange ID is empty or only whitespace
         """
@@ -132,13 +132,13 @@ class BalanceSnapshot:
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
         """Validate timestamp is positive.
-        
+
         Args:
             v: The timestamp value to validate
-            
+
         Returns:
             The validated timestamp value
-            
+
         Raises:
             NonPositiveTimestampError: If the timestamp is zero or negative
         """
@@ -150,13 +150,13 @@ class BalanceSnapshot:
     @classmethod
     def validate_balances_dict(cls, v: dict[str, Decimal]) -> dict[str, Decimal]:
         """Validate all balances in the dictionary are finite and non-negative.
-        
+
         Args:
             v: Dictionary of asset balances to validate
-            
+
         Returns:
             The validated balances dictionary
-            
+
         Raises:
             NonFiniteBalanceError: If any balance is not finite (e.g., infinity, NaN)
             NegativeBalanceError: If any balance is negative
@@ -172,13 +172,13 @@ class BalanceSnapshot:
     @classmethod
     def validate_total_value(cls, v: Decimal | None) -> Decimal | None:
         """Validate total value is finite if provided.
-        
+
         Args:
             v: The total value in USD to validate, or None
-            
+
         Returns:
             The validated total value or None if not provided
-            
+
         Raises:
             NonFiniteBalanceError: If the total value is not finite (e.g., infinity, NaN)
             NegativeBalanceError: If the total value is negative
@@ -204,7 +204,7 @@ class BalanceUpdatedEvent(BasePortfolioEvent[BalanceChange]):
         Args:
             balance_change: The balance change details
             **kwargs: Additional metadata fields
-            
+
         Returns:
             A new BalanceUpdatedEvent instance with populated metadata
         """
@@ -235,7 +235,7 @@ class BalanceUpdatedEvent(BasePortfolioEvent[BalanceChange]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize balance change data.
-        
+
         Returns:
             Dictionary containing serialized balance change information
         """
@@ -267,7 +267,7 @@ class BalanceReconciledEvent(BasePortfolioEvent[BalanceSnapshot]):
             balance_snapshot: Current balance snapshot
             discrepancies: Any found discrepancies
             **kwargs: Additional metadata fields
-            
+
         Returns:
             A new BalanceReconciledEvent instance with populated metadata
         """
@@ -301,7 +301,7 @@ class BalanceReconciledEvent(BasePortfolioEvent[BalanceSnapshot]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize balance snapshot data.
-        
+
         Returns:
             Dictionary containing serialized balance snapshot information
         """
@@ -348,7 +348,7 @@ class BalanceErrorEvent(BasePortfolioEvent[BalanceErrorData]):
             error_message: Error message
             error_data: Additional error data
             **kwargs: Additional metadata fields
-            
+
         Returns:
             A new BalanceErrorEvent instance with populated error data and metadata
         """
@@ -386,7 +386,7 @@ class BalanceErrorEvent(BasePortfolioEvent[BalanceErrorData]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize error data.
-        
+
         Returns:
             Dictionary containing serialized balance error information
         """

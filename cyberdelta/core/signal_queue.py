@@ -113,10 +113,10 @@ class PrioritySignalQueue:
 
     def _prepare_signal_metadata(self, signal: TradeSignal) -> bool:
         """Prepare and validate signal metadata.
-        
+
         Args:
             signal: Trade signal to prepare and validate
-            
+
         Returns:
             True if metadata preparation was successful, False otherwise
         """
@@ -172,10 +172,10 @@ class PrioritySignalQueue:
 
     async def _add_signal_to_queue(self, signal: TradeSignal) -> bool:
         """Add signal to the priority queue with duplicate checking and trimming.
-        
+
         Args:
             signal: Trade signal to add to the queue
-            
+
         Returns:
             True if signal was successfully added, False if rejected or duplicate
         """
@@ -201,7 +201,7 @@ class PrioritySignalQueue:
 
     def _is_duplicate_signal(self, signal: TradeSignal) -> bool:
         """Check if signal is a duplicate.
-        
+
         Returns:
             True if signal ID already exists in queue, False otherwise.
         """
@@ -237,7 +237,7 @@ class PrioritySignalQueue:
 
     def _trim_queue_if_needed(self) -> bool | None:
         """Trim queue if needed.
-        
+
         Returns:
             True if successfully trimmed, False if trim failed, None if trimming not needed.
         """
@@ -501,7 +501,7 @@ class PrioritySignalQueue:
         symbol: str | None = None,
     ) -> list[TradeSignal]:
         """Get a list of signals, optionally filtered by symbol. Asynchronous version.
-        
+
         Returns:
             List of trade signals sorted by priority, filtered by symbol if specified.
         """
@@ -636,7 +636,7 @@ class PrioritySignalQueue:
 
     def _trim_queue(self) -> bool:
         """Remove lowest priority signals until queue is at max size.
-        
+
         Returns:
             True if trimming succeeded or wasn't needed, False if an error occurred.
         """
@@ -678,7 +678,7 @@ class PrioritySignalQueue:
 
     def _calculate_expiration(self, signal: TradeSignal) -> TradeSignal:
         """Calculate and set default expiration if needed. Modifies signal in place.
-        
+
         Returns:
             The same TradeSignal object with expiration set if it was None.
         """
@@ -714,7 +714,7 @@ class PrioritySignalQueue:
 
     def _check_circuit_breakers_pre_add(self, signal: TradeSignal) -> bool:
         """Check circuit breakers before adding a signal to the queue.
-        
+
         Returns:
             True if all circuit breakers allow the signal, False if any are tripped.
         """
@@ -756,7 +756,7 @@ class PrioritySignalQueue:
 
     def _get_exchanges_for_cb_check(self, signal: TradeSignal) -> list[str]:
         """Get list of exchanges to check for circuit breakers.
-        
+
         Returns:
             List of exchange names extracted from signal metadata or exchange field.
         """
@@ -787,7 +787,7 @@ class PrioritySignalQueue:
 
     def _has_arbitrage_metadata(self, signal: TradeSignal) -> bool:
         """Check if signal has arbitrage metadata.
-        
+
         Returns:
             True if signal contains long_exchange in metadata, False otherwise.
         """
@@ -799,7 +799,7 @@ class PrioritySignalQueue:
 
     def _extract_arbitrage_exchanges(self, signal: TradeSignal) -> list[str]:
         """Extract exchanges from arbitrage metadata.
-        
+
         Returns:
             List of unique exchange names from long_exchange and short_exchange metadata.
         """
@@ -818,7 +818,7 @@ class PrioritySignalQueue:
 
     def _check_symbol_level_breaker(self, signal: TradeSignal) -> bool:
         """Check symbol-level circuit breaker.
-        
+
         Returns:
             True if symbol-level circuit breaker allows the signal, False if tripped.
         """
@@ -853,7 +853,7 @@ class PrioritySignalQueue:
         exchanges_to_check: list[str],
     ) -> bool:
         """Check exchange-level circuit breakers.
-        
+
         Returns:
             True if all exchange-level circuit breakers allow the signal, False if any are tripped.
         """
@@ -864,9 +864,9 @@ class PrioritySignalQueue:
 
     def _check_single_exchange_cb(self, signal: TradeSignal, exchange_name: str) -> bool:
         """Check circuit breakers for a single exchange.
-        
+
         Returns:
-            True if all circuit breakers for the exchange allow the signal, False if any 
+            True if all circuit breakers for the exchange allow the signal, False if any
                 are tripped.
         """
         # Check for API error breakers specifically
@@ -878,7 +878,7 @@ class PrioritySignalQueue:
 
     def _check_api_error_breaker(self, signal: TradeSignal, exchange_name: str) -> bool:
         """Check API error breaker for an exchange.
-        
+
         Returns:
             True if API error circuit breaker allows the signal, False if tripped.
         """
@@ -930,7 +930,7 @@ class PrioritySignalQueue:
 
     def _check_pair_breaker(self, signal: TradeSignal, exchange_name: str) -> bool:
         """Check exchange-symbol pair specific breaker.
-        
+
         Returns:
             True if pair-specific circuit breaker allows the signal, False if tripped.
         """
@@ -961,7 +961,7 @@ class PrioritySignalQueue:
 
     def _check_circuit_breakers_post_get(self, signal: TradeSignal) -> bool:
         """Check circuit breakers just before returning a signal from get_next_signal.
-        
+
         Returns:
             True if all circuit breakers allow the signal, False if any are tripped.
         """
@@ -988,7 +988,7 @@ class PrioritySignalQueue:
 
     def _try_perp_format(self, symbol: str) -> str | None:
         """Try to extract exchange from EXCHANGE-SYMBOL-PERP format.
-        
+
         Returns:
             Exchange name if format matches, None otherwise.
         """
@@ -1001,7 +1001,7 @@ class PrioritySignalQueue:
 
     def _try_dash_format(self, symbol: str) -> str | None:
         """Try to extract exchange from EXCHANGE-SYMBOL format.
-        
+
         Returns:
             Exchange name if format matches, None otherwise.
         """
@@ -1014,7 +1014,7 @@ class PrioritySignalQueue:
 
     def _try_underscore_format(self, symbol: str) -> str | None:
         """Try to extract exchange from SYMBOL_EXCHANGE format.
-        
+
         Returns:
             Exchange name if format matches, None otherwise.
         """
@@ -1027,7 +1027,7 @@ class PrioritySignalQueue:
 
     def _try_colon_format(self, symbol: str) -> str | None:
         """Try to extract exchange from SYMBOL:EXCHANGE format.
-        
+
         Returns:
             Exchange name if format matches, None otherwise.
         """
@@ -1040,7 +1040,7 @@ class PrioritySignalQueue:
 
     def _try_common_exchange_names(self, symbol: str) -> str | None:
         """Try to find common exchange names within the symbol.
-        
+
         Returns:
             Exchange name if found in symbol, None otherwise.
         """
@@ -1104,7 +1104,7 @@ class PrioritySignalQueue:
 
     async def get_pending_signals(self) -> list[TradeSignal]:
         """Get a list of all signals currently pending in the queue.
-        
+
         Returns:
             List of valid pending signals sorted by priority.
         """
@@ -1124,7 +1124,7 @@ class PrioritySignalQueue:
 
     def get_signal_count(self) -> int:
         """Get the number of signals currently in the queue.
-        
+
         Returns:
             Number of valid (non-expired) signals in the queue.
         """
@@ -1254,7 +1254,7 @@ class PrioritySignalQueue:
 
     async def pop_signals(self, max_signals: int = 1) -> list[TradeSignal]:
         """Atomically pop the highest priority signals from the queue.
-        
+
         Returns:
             List of highest priority signals that pass circuit breaker checks.
         """
@@ -1287,7 +1287,7 @@ class PrioritySignalQueue:
 
     async def get_next_signals(self, max_count: int = 1) -> list[TradeSignal]:
         """Get the next highest priority signals without removing them.
-        
+
         Returns:
             List of highest priority signals that pass circuit breaker checks (peek operation).
         """
@@ -1373,7 +1373,7 @@ class PrioritySignalQueue:
 
     async def is_empty(self) -> bool:
         """Check if the queue is empty asynchronously.
-        
+
         Returns:
             True if the queue contains no signals, False otherwise.
         """

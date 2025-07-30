@@ -21,7 +21,7 @@ def create_test_opportunity(
     frozen_time: FreezerProtocol | None = None,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity with required fields.
-    
+
     Returns:
         ArbitrageOpportunity: A configured arbitrage opportunity for testing.
     """
@@ -53,7 +53,7 @@ def setup_kelly_risk_manager(
     min_volatility: Decimal = Decimal("0.01"),
 ) -> RiskManager:
     """Setup a RiskManager with Kelly sizing properly configured.
-    
+
     Returns:
         RiskManager: A configured risk manager instance with Kelly sizing enabled.
     """

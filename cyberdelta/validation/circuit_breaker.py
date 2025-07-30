@@ -824,7 +824,7 @@ class CircuitBreakerSystem:
 
     def _check_global_breakers(self) -> tuple[bool, str | None]:
         """Check all global circuit breakers.
-        
+
         Returns:
             Tuple of (can_execute, reason_if_blocked).
         """
@@ -872,11 +872,11 @@ class CircuitBreakerSystem:
         symbol: str | None,
     ) -> tuple[bool, str | None]:
         """Check exchange-specific circuit breakers.
-        
+
         Args:
             exchange: Exchange identifier.
             symbol: Optional symbol for symbol-specific checks.
-            
+
         Returns:
             Tuple of (can_execute, reason_if_blocked).
         """
@@ -899,11 +899,11 @@ class CircuitBreakerSystem:
         symbol: str | None,
     ) -> list[CircuitBreaker]:
         """Get the list of breakers to check based on the breaker item type.
-        
+
         Args:
             breaker_item: Either a single breaker or a dictionary of symbol-specific breakers.
             symbol: Optional symbol for filtering symbol-specific breakers.
-            
+
         Returns:
             List of circuit breakers to check.
         """
@@ -926,11 +926,11 @@ class CircuitBreakerSystem:
         exchange: str,
     ) -> tuple[bool, str | None]:
         """Check an individual circuit breaker and handle recovery testing.
-        
+
         Args:
             breaker: The circuit breaker to check.
             exchange: Exchange identifier for context.
-            
+
         Returns:
             Tuple of (can_execute, reason_if_blocked).
         """
@@ -1509,7 +1509,7 @@ class CircuitBreakerSystem:
         default_cooldown_override: int | None = None,  # New parameter for explicit default
     ) -> CircuitBreaker | None:
         """Create a circuit breaker from configuration.
-        
+
         Args:
             breaker_name_or_key: Name or key for the breaker.
             breaker_specific_config: Configuration dictionary for the breaker.
@@ -1517,7 +1517,7 @@ class CircuitBreakerSystem:
             breaker_class: Class type of the breaker to create.
             symbol: Optional symbol for symbol-specific breakers.
             default_cooldown_override: Optional override for default cooldown.
-            
+
         Returns:
             Created circuit breaker instance or None if creation failed.
         """
@@ -1582,12 +1582,12 @@ class CircuitBreakerSystem:
         name: str,
     ) -> int:
         """Determine the cooldown value for a breaker from config.
-        
+
         Args:
             breaker_specific_config: Configuration dictionary for the breaker.
             default_cooldown_override: Optional override for default cooldown.
             name: Name of the breaker for logging.
-            
+
         Returns:
             Cooldown value in seconds.
         """
@@ -1641,13 +1641,13 @@ class CircuitBreakerSystem:
         cooldown: int,
     ) -> CircuitBreaker | None:
         """Instantiate the appropriate breaker based on class type.
-        
+
         Args:
             breaker_class: Class type of the breaker to create.
             name: Name for the breaker instance.
             breaker_specific_config: Configuration dictionary for the breaker.
             cooldown: Cooldown value in seconds.
-            
+
         Returns:
             Created circuit breaker instance or None if unknown class.
         """
@@ -1679,12 +1679,12 @@ class CircuitBreakerSystem:
         cooldown: int,
     ) -> APIErrorBreaker:
         """Create an API error breaker from config.
-        
+
         Args:
             name: Name for the breaker instance.
             breaker_specific_config: Configuration dictionary for the breaker.
             cooldown: Cooldown value in seconds.
-            
+
         Returns:
             Created APIErrorBreaker instance.
         """
@@ -1703,12 +1703,12 @@ class CircuitBreakerSystem:
         cooldown: int,
     ) -> VolatilityBreaker:
         """Create a volatility breaker from config.
-        
+
         Args:
             name: Name for the breaker instance.
             breaker_specific_config: Configuration dictionary for the breaker.
             cooldown: Cooldown value in seconds.
-            
+
         Returns:
             Created VolatilityBreaker instance.
         """
@@ -1725,12 +1725,12 @@ class CircuitBreakerSystem:
         cooldown: int,
     ) -> DrawdownBreaker:
         """Create a drawdown breaker from config.
-        
+
         Args:
             name: Name for the breaker instance.
             breaker_specific_config: Configuration dictionary for the breaker.
             cooldown: Cooldown value in seconds.
-            
+
         Returns:
             Created DrawdownBreaker instance.
         """
@@ -1748,12 +1748,12 @@ class CircuitBreakerSystem:
         cooldown: int,
     ) -> LiquidityBreaker:
         """Create a liquidity breaker from config.
-        
+
         Args:
             name: Name for the breaker instance.
             breaker_specific_config: Configuration dictionary for the breaker.
             cooldown: Cooldown value in seconds.
-            
+
         Returns:
             Created LiquidityBreaker instance.
         """

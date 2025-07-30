@@ -45,7 +45,7 @@ class TestTransformer:
         self, validated: MessageModel, context: WebSocketContextProtocol | None = None
     ) -> DomainModel:
         """Transform test message to domain model.
-        
+
         Returns:
             DomainModel: Transformed domain model with processed values.
         """
@@ -63,7 +63,7 @@ class FailingTransformer:
         self, validated: MessageModel, context: WebSocketContextProtocol | None = None
     ) -> DomainModel:
         """Always raise an exception.
-            
+
         Raises:
             ValueError: Always raises with "Transformation failed".
         """
@@ -123,7 +123,7 @@ class TestPydanticWebSocketProcessor:
     @pytest.fixture
     def error_handler(self) -> AsyncMock:
         """Create mock error handler.
-        
+
         Returns:
             AsyncMock: Mocked BaseErrorHandler for testing.
         """
@@ -132,7 +132,7 @@ class TestPydanticWebSocketProcessor:
     @pytest.fixture
     def transformer(self) -> TestTransformer:
         """Create test transformer.
-        
+
         Returns:
             TestTransformer: Test transformer instance.
         """
@@ -145,7 +145,7 @@ class TestPydanticWebSocketProcessor:
         transformer: TestTransformer,
     ) -> PydanticWebSocketProcessor[MessageModel, DomainModel]:
         """Create processor for testing.
-        
+
         Returns:
             PydanticWebSocketProcessor: Configured processor with test dependencies.
         """

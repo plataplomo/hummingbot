@@ -18,7 +18,7 @@ from cyberdelta.core.portfolio.exceptions import MalformedTradeError
 # Type-preserving factory function for tags dict
 def _str_str_dict_factory() -> dict[str, str]:
     """Factory function that preserves dict[str, str] type information.
-    
+
     Returns:
         dict[str, str]: Empty dictionary with preserved type information
     """
@@ -108,7 +108,7 @@ class EventMetadataKwargsWithoutExchange(TypedDict, total=False):
     tags: NotRequired[dict[str, str]]
 
 
-class EventMetadataKwargsWithoutExchangeSymbol(TypedDict, total=False):
+class EventMetadataKwargsWithoutSymbol(TypedDict, total=False):
     """Type definition for event metadata keyword arguments without exchange_id and symbol."""
 
     source_component: NotRequired[str]
@@ -136,10 +136,10 @@ class EventMetadata:
     @classmethod
     def validate_timestamp(cls, v: float) -> float:
         """Validate timestamp is positive.
-        
+
         Returns:
             float: The validated timestamp
-            
+
         Raises:
             MalformedTradeError: If timestamp is not positive
         """
@@ -153,7 +153,7 @@ class EventMetadata:
     @classmethod
     def validate_optional_strings(cls, v: str | None) -> str | None:
         """Validate optional string fields, returning None for empty strings.
-        
+
         Returns:
             str | None: The validated string, or None if empty/whitespace
         """
@@ -165,10 +165,10 @@ class EventMetadata:
     @classmethod
     def validate_retry_count(cls, v: int) -> int:
         """Validate retry count is non-negative.
-        
+
         Returns:
             int: The validated retry count
-            
+
         Raises:
             MalformedTradeError: If retry count is negative
         """
@@ -182,7 +182,7 @@ class EventMetadata:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert metadata to dictionary.
-        
+
         Returns:
             dict[str, Any]: Dictionary representation of metadata
         """
@@ -240,7 +240,7 @@ class BasePortfolioEvent[T](ABC):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary representation.
-        
+
         Returns:
             dict[str, Any]: Dictionary representation of the event
         """
@@ -259,7 +259,7 @@ class BasePortfolioEvent[T](ABC):
 
     def __str__(self) -> str:
         """String representation.
-        
+
         Returns:
             str: Human-readable string representation of the event
         """
@@ -295,7 +295,7 @@ class EventHandler[T](ABC):
 
     def get_handler_name(self) -> str:
         """Get handler name for logging.
-        
+
         Returns:
             str: The class name of the handler
         """
@@ -330,7 +330,7 @@ class TypeEventFilter(EventFilter):
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
         """Check if event type is allowed.
-        
+
         Returns:
             bool: True if event type is in allowed types
         """
@@ -350,7 +350,7 @@ class PriorityEventFilter(EventFilter):
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
         """Check if event priority meets minimum.
-        
+
         Returns:
             bool: True if event priority meets or exceeds minimum priority
         """
@@ -370,7 +370,7 @@ class ExchangeEventFilter(EventFilter):
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
         """Check if event is from allowed exchange.
-        
+
         Returns:
             bool: True if event exchange is allowed or None
         """
@@ -392,7 +392,7 @@ class CompositeEventFilter(EventFilter):
 
     def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
         """Check if all filters pass.
-        
+
         Returns:
             bool: True if all filters allow the event to be processed
         """

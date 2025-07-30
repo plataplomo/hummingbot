@@ -128,24 +128,26 @@ class BaseSubscriptionResponse(BaseWebSocketMessage):
     @classmethod
     def validate_error_consistency(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Ensure error is None when success is True.
-        
+
         Args:
             v: Error message value to validate
             info: Validation context with other field values
-            
+
         Returns:
             Validated error message or None
-            
+
         Raises:
             SuccessErrorMismatchError: If error/success fields are inconsistent
         """
         if info.data.get("success") and v is not None:
             raise SuccessErrorMismatchError(
-                success_state=FieldPresenceState.PRESENT, error_state=FieldPresenceState.PRESENT
+                success_state=FieldPresenceState.PRESENT,
+                error_state=FieldPresenceState.PRESENT,
             )
         if not info.data.get("success") and v is None:
             raise SuccessErrorMismatchError(
-                success_state=FieldPresenceState.PRESENT, error_state=FieldPresenceState.ABSENT
+                success_state=FieldPresenceState.PRESENT,
+                error_state=FieldPresenceState.ABSENT,
             )
         return v
 
@@ -271,14 +273,14 @@ class BaseAuthenticationResponse(BaseWebSocketMessage):
     @classmethod
     def validate_auth_consistency(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Ensure error is consistent with authentication status.
-        
+
         Args:
             v: Error message value to validate
             info: Validation context with other field values
-            
+
         Returns:
             Validated error message or None
-            
+
         Raises:
             AuthenticationErrorMismatchError: If error is present when authenticated is True
         """

@@ -60,7 +60,7 @@ from cyberdelta.utils.typing import is_dict_str_any, is_sequence_of_any
 
 def has_exact_length(lst: list[object], length: int) -> bool:
     """Check if a list has exactly the specified length.
-    
+
     Returns:
         True if the list has exactly the specified length, False otherwise.
     """
@@ -69,7 +69,7 @@ def has_exact_length(lst: list[object], length: int) -> bool:
 
 def all_are_sequences(items: list[object]) -> bool:
     """Check if all items in a list are themselves sequences (lists or tuples).
-    
+
     Returns:
         True if all items are sequences, False otherwise.
     """
@@ -160,10 +160,10 @@ class HyperliquidRawL2Book(BaseModel):
         This handles the preprocessing logic that was previously in the
         HyperliquidResponsePreprocessingMapper.preprocess_l2_book_response method.
         Specifically handles None responses by returning an empty order book structure.
-        
+
         Returns:
             Preprocessed order book data as a dictionary.
-            
+
         Raises:
             StructureTypeError: If the input is not a dictionary when expected.
         """

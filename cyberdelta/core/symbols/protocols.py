@@ -1,45 +1,47 @@
-"""Symbol system protocols for type safety and testing.
+"""Symbol Protocols for Clean Architecture."""
 
-These protocols define the contracts for symbol storage and transformation,
-enabling easy mocking, testing, and future extensibility without complex inheritance.
-"""
+from typing import Protocol, TypeVar
 
-from typing import Protocol
+from cyberdelta.enums.exchange_names import ExchangeName
 
-from cyberdelta.core.symbols.models import InternalSymbol, UnifiedSymbol
+from .models import Symbol, SymbolComponents, SymbolMetadata
 
 
-class SymbolStoreProtocol(Protocol):
-    """Protocol for symbol storage - enables easy mocking and future storage backends."""
+TMetadata_co = TypeVar("TMetadata_co", bound=SymbolMetadata, covariant=True)
 
-    def store(self, symbol: UnifiedSymbol) -> None:
-        """Store a unified symbol with cross-exchange mappings."""
+
+class ExchangeHandler(Protocol[TMetadata_co]):
+    """Protocol for exchange-specific symbol handling."""
+
+    @property
+    def exchange(self) -> ExchangeName:
+        """The exchange this handler is for."""
         ...
 
-    def get_by_internal(self, internal_symbol: str) -> UnifiedSymbol | None:
-        """Retrieve symbol by internal canonical representation."""
+    def parse_components(self, value: str) -> SymbolComponents:
+        """Parse symbol value into components using exchange rules."""
         ...
 
-    def get_by_exchange(self, exchange_symbol: str, exchange_name: str) -> UnifiedSymbol | None:
-        """Retrieve symbol by exchange-specific representation."""
+    def format_symbol(self, components: SymbolComponents) -> str:
+        """Format components into exchange-specific symbol value."""
         ...
 
-    def get_all(self) -> list[UnifiedSymbol]:
-        """Get all stored symbols for system-wide operations."""
+    def to_canonical(self, value: str) -> tuple[str, SymbolComponents]:
+        """Convert to canonical format and return components."""
         ...
 
-    def clear(self) -> None:
-        """Clear all stored symbol data."""
+    def from_canonical(self, canonical: str, components: SymbolComponents) -> str:
+        """Convert from canonical format to exchange format."""
         ...
 
-
-class SymbolTransformerProtocol(Protocol):
-    """Protocol for exchange symbol transformations."""
-
-    def internal_to_exchange(self, internal: InternalSymbol) -> str:
-        """Transform internal symbol to exchange-specific format."""
+    def create_metadata(
+        self, asset_index: int | None = None, symbol_id: int | None = None
+    ) -> TMetadata_co:
+        """Create exchange-specific metadata."""
         ...
 
-    def exchange_to_internal(self, exchange_symbol: str) -> InternalSymbol:
-        """Transform exchange symbol to internal format."""
+    def create_symbol(
+        self, value: str, asset_index: int | None = None, symbol_id: int | None = None
+    ) -> Symbol:
+        """Create symbol with proper metadata."""
         ...

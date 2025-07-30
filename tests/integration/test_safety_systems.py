@@ -450,7 +450,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
 @pytest.mark.asyncio
 def _setup_test_position(exchange_id: str, symbol: str) -> DerivativePosition:
     """Create a test position.
-    
+
     Returns:
         DerivativePosition: A test derivative position instance.
     """
@@ -488,7 +488,7 @@ def _check_hl_discrepancies(discrepancies: list[Any]) -> None:
 
 def _check_bp_discrepancies(discrepancies: list[Any]) -> None:
     """Check discrepancies for Backpack exchange.
-    
+
     Raises:
         AssertionError: If a discrepancy is not a HistoricalDiscrepancyRecord.
     """

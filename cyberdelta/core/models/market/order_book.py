@@ -20,6 +20,7 @@ from typing import TypeGuard, cast
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     DecimalFiniteError,
@@ -28,7 +29,7 @@ from cyberdelta.exceptions.field_validation import (
     RequiredFieldNoneError,
     TypeFieldError,
 )
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
 # Order book structure constants
@@ -44,7 +45,7 @@ class OrderBook(BaseModel):
     (e.g., str, int, float) directly into the required internal types (Decimal, datetime).
 
     Attributes:
-        symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
+        symbol: Exchange-specific trading symbol domain object.
         timestamp: UTC timestamp of the snapshot (validated: required).
         bids: List of (price, quantity) tuples for bids, validated & parsed to Decimal.
               Validated: price is finite, quantity is finite & non-negative.
@@ -63,7 +64,7 @@ class OrderBook(BaseModel):
 
     """
 
-    symbol: str
+    symbol: Symbol
     timestamp: datetime
     bids: list[tuple[Decimal, Decimal]]
     asks: list[tuple[Decimal, Decimal]]
@@ -72,18 +73,21 @@ class OrderBook(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_symbol(cls, v: object) -> str:
-        """Validate the 'symbol' field.
-
-        Ensures the symbol is a non-empty string with a maximum length of 64 characters.
+    def validate_symbol_domain(cls, v: Symbol) -> Symbol:
+        """Validate symbol field is Symbol domain object.
 
         Args:
-            v: The raw input value for the symbol.
+            v: The Symbol value to validate
 
         Returns:
-            The validated symbol string.
+            Validated Symbol
+
+        Raises:
+            ValueError: If not an Symbol
         """
-        return validate_str_field(v, field_name="symbol", max_length=64, allow_empty=False)
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
 
     @field_validator("timestamp", mode="before")
     @classmethod
@@ -169,15 +173,15 @@ class OrderBook(BaseModel):
         index: int,
     ) -> tuple[Decimal, Decimal]:
         """Validate and parse a single order book level.
-        
+
         Args:
             level_raw: Raw level data (should be list/tuple with 2 elements)
             field_name: Name of the field being validated
             index: Index of the level in the list
-            
+
         Returns:
             Validated tuple of (price, quantity) as Decimals
-            
+
         Raises:
             TypeFieldError: If level structure or data types are invalid
         """
@@ -207,10 +211,10 @@ class OrderBook(BaseModel):
     @classmethod
     def _is_valid_level_sequence(cls, level_raw: object) -> TypeGuard[Sequence[object]]:
         """Type guard to check if level_raw is a valid sequence.
-        
+
         Args:
             level_raw: Object to check
-            
+
         Returns:
             True if level_raw is a list or tuple, False otherwise
         """
@@ -219,12 +223,12 @@ class OrderBook(BaseModel):
     @classmethod
     def _validate_level_structure(cls, level_raw: object, field_name: str, index: int) -> None:
         """Validate the structure of a single level.
-        
+
         Args:
             level_raw: Raw level data to validate
             field_name: Name of the field being validated
             index: Index of the level in the list
-            
+
         Raises:
             ListFieldError: If level is not a list/tuple or has incorrect length
             RangeFieldError: If level length is not exactly 2
@@ -251,15 +255,15 @@ class OrderBook(BaseModel):
     @classmethod
     def _parse_and_validate_price(cls, price_raw: object, field_name: str, index: int) -> Decimal:
         """Parse and validate price value.
-        
+
         Args:
             price_raw: Raw price value to parse and validate
             field_name: Name of the field being validated
             index: Index of the level in the list
-            
+
         Returns:
             Validated price as a finite Decimal
-            
+
         Raises:
             TypeFieldError: If price type is not supported
             DecimalFieldError: If price cannot be parsed to Decimal
@@ -310,15 +314,15 @@ class OrderBook(BaseModel):
         index: int,
     ) -> Decimal:
         """Parse and validate quantity value.
-        
+
         Args:
             quantity_raw: Raw quantity value to parse and validate
             field_name: Name of the field being validated
             index: Index of the level in the list
-            
+
         Returns:
             Validated quantity as a finite, non-negative Decimal
-            
+
         Raises:
             TypeFieldError: If quantity type is not supported
             DecimalFieldError: If quantity cannot be parsed to Decimal

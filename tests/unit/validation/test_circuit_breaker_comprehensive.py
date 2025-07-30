@@ -52,7 +52,7 @@ class ConcreteCircuitBreaker(CircuitBreaker):
 
     def _check_recovery(self) -> bool:
         """Check if system has recovered.
-        
+
         Returns:
             bool: True if system has recovered, False otherwise.
         """
@@ -63,7 +63,7 @@ class ConcreteCircuitBreaker(CircuitBreaker):
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock app settings for testing.
-    
+
     Returns:
         Mock: Mock AppSettings instance configured for testing.
     """
@@ -169,7 +169,7 @@ class TestCircuitBreakerTrippedError:
 
     def test_exception_raising_success(self) -> None:
         """Test successful raising of CircuitBreakerTrippedError.
-        
+
         Raises:
             CircuitBreakerTrippedError: Expected exception for test validation.
         """

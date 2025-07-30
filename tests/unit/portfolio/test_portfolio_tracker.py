@@ -36,7 +36,7 @@ class TestPortfolioTracker:
         tracker.initialize.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_update_balances(self) -> None:
+    async def test_update_balances(self, usdc_hl) -> None:
         """Test updating balances through mock interface."""
         # Mock tracker
         tracker = AsyncMock()
@@ -44,7 +44,7 @@ class TestPortfolioTracker:
         balances = {
             "USDC": SpotBalance(
                 exchange="hyperliquid",
-                asset="USDC",
+                asset=usdc_hl,
                 total_quantity=Decimal(10000),
                 available_quantity=Decimal(9000),
                 timestamp=datetime.now(UTC),
@@ -55,7 +55,7 @@ class TestPortfolioTracker:
         tracker.update_balances.assert_called_once_with("hyperliquid", balances)
 
     @pytest.mark.asyncio
-    async def test_update_positions(self) -> None:
+    async def test_update_positions(self, btc_perp_hl) -> None:
         """Test updating positions through mock interface."""
         # Mock tracker
         tracker = AsyncMock()
@@ -63,7 +63,7 @@ class TestPortfolioTracker:
         positions = {
             "BTC-PERP": DerivativePosition(
                 exchange="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=btc_perp_hl,
                 side=OrderSide.BUY,
                 size=Decimal("0.5"),
                 entry_price=Decimal(50000),
@@ -78,7 +78,7 @@ class TestPortfolioTracker:
         tracker.update_positions.assert_called_once_with("hyperliquid", positions)
 
     @pytest.mark.asyncio
-    async def test_update_orders(self) -> None:
+    async def test_update_orders(self, btc_perp_hl) -> None:
         """Test updating orders through mock interface."""
         # Mock tracker
         tracker = AsyncMock()
@@ -87,7 +87,7 @@ class TestPortfolioTracker:
             Order(
                 client_order_id="order_001",
                 exchange="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=btc_perp_hl,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 status=OrderStatus.OPEN,
@@ -107,7 +107,7 @@ class TestPortfolioTracker:
         tracker.update_orders.assert_called_once_with("hyperliquid", orders)
 
     @pytest.mark.asyncio
-    async def test_process_trade(self) -> None:
+    async def test_process_trade(self, btc_perp_hl) -> None:
         """Test processing trades through mock interface."""
         # Mock tracker
         tracker = AsyncMock()
@@ -115,7 +115,7 @@ class TestPortfolioTracker:
         trade = Trade(
             id="trade_001",
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=btc_perp_hl,
             side=OrderSide.BUY,
             price=Decimal(50000),
             quantity=Decimal("0.5"),
@@ -129,13 +129,13 @@ class TestPortfolioTracker:
         tracker.process_trade.assert_called_once_with(trade)
 
     @pytest.mark.asyncio
-    async def test_get_balance(self) -> None:
+    async def test_get_balance(self, usdc_hl) -> None:
         """Test getting balance through mock interface."""
         # Mock tracker
         tracker = AsyncMock()
         balance = SpotBalance(
             exchange="hyperliquid",
-            asset="USDC",
+            asset=usdc_hl,
             total_quantity=Decimal(10000),
             available_quantity=Decimal(9000),
             timestamp=datetime.now(UTC),
@@ -146,14 +146,14 @@ class TestPortfolioTracker:
         assert result.total_quantity == Decimal(10000)
 
     @pytest.mark.asyncio
-    async def test_get_positions(self) -> None:
+    async def test_get_positions(self, btc_perp_hl) -> None:
         """Test getting positions through mock interface."""
         # Mock tracker
         tracker = AsyncMock()
         positions = {
             "BTC-PERP": DerivativePosition(
                 exchange="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=btc_perp_hl,
                 side=OrderSide.BUY,
                 size=Decimal("0.5"),
                 entry_price=Decimal(50000),

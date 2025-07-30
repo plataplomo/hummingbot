@@ -38,6 +38,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -170,7 +171,7 @@ class BackpackTradingService:
         """
         return await self._order_cancellation_service.cancel_order(args)
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all open orders.
 
         Delegates to the batch order service component.
@@ -204,7 +205,7 @@ class BackpackTradingService:
 
     # Order Query Operations
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Get all open orders.
 
         Delegates to the order query service component.
@@ -261,7 +262,9 @@ class BackpackTradingService:
         Returns:
             list[Order]: List of open orders, filtered by symbol if specified
         """
-        return await self._order_query_service.get_open_orders(args.symbol)
+        return await self._order_query_service.get_open_orders(
+            args.symbol,
+        )
 
     # Batch Operations
 
@@ -293,5 +296,5 @@ class BackpackTradingService:
         """
         raise NotImplementedError(
             "Modify order operation is not directly supported by Backpack exchange. "
-            "Use cancel and create order instead."
+            "Use cancel and create order instead.",
         )

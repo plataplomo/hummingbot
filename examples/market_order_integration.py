@@ -108,10 +108,10 @@ class ExchangeAgnosticMarketOrderExecutor:
 
     def _get_exchange_specific_config(self, exchange_name: str) -> MarketOrderConfig:
         """Get exchange-specific market order configuration.
-        
+
         Args:
             exchange_name: Name of the exchange to get configuration for.
-            
+
         Returns:
             MarketOrderConfig: Configuration tailored for the specific exchange,
                 with customized slippage settings and symbol-specific parameters.
@@ -251,10 +251,10 @@ class ExchangeAgnosticMarketOrderExecutor:
 
     def get_exchange_stats(self, exchange_name: str) -> dict[str, Any]:
         """Get market order statistics for a specific exchange.
-        
+
         Args:
             exchange_name: Name of the exchange to get statistics for.
-            
+
         Returns:
             dict[str, Any]: Dictionary containing overall statistics and
                 per-symbol statistics for the exchange.

@@ -47,7 +47,7 @@ logger = get_logger(__name__)
 @pytest.fixture
 def trading_data_mapper() -> BackpackOrderMapper:
     """Provide an instance of BackpackOrderMapper.
-    
+
     Returns:
         BackpackOrderMapper: Instance of the order mapper for testing.
     """
@@ -57,7 +57,7 @@ def trading_data_mapper() -> BackpackOrderMapper:
 @pytest.fixture
 def base_timestamp() -> str:
     """Provide a consistent timestamp string for tests.
-    
+
     Returns:
         str: ISO format timestamp string for test consistency.
     """
@@ -80,7 +80,7 @@ def create_raw_order(
     avg_fill_price: str | None = None,
 ) -> BackpackRawOrderResponse:
     """Create a BackpackRawOrderResponse with customizable parameters.
-    
+
     Returns:
         BackpackRawOrderResponse: A raw order response instance with the specified parameters.
     """

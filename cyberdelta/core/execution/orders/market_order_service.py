@@ -215,7 +215,24 @@ class MarketOrderService:
         """
         try:
             # Get market metadata from exchange
-            market = await self._exchange.get_market(GetMarketArgs(symbol=symbol))
+            from cyberdelta.core.symbols import exchanges
+            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+
+            exchange_name = (
+                ExchangeName.HYPERLIQUID
+                if self._exchange.exchange_name == "hyperliquid"
+                else ExchangeName.BACKPACK
+            )
+            # Dynamically call the appropriate exchange method
+            try:
+                exchange_method = getattr(exchanges, exchange_name.value.lower())
+                exchange_symbol = exchange_method(value=symbol, exchange_id=exchange_name)
+            except AttributeError as e:
+                raise MarketOrderError(
+                    f"Exchange method for {exchange_name.value} not found"
+                ) from e
+            market = await self._exchange.get_market(GetMarketArgs(symbol=exchange_symbol))
         except MarketOrderError:
             raise
         except (ValueError, TypeError, AttributeError, OSError) as e:
@@ -267,7 +284,24 @@ class MarketOrderService:
         """
         try:
             # Get market metadata from exchange
-            market = await self._exchange.get_market(GetMarketArgs(symbol=symbol))
+            from cyberdelta.core.symbols import exchanges
+            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+
+            exchange_name = (
+                ExchangeName.HYPERLIQUID
+                if self._exchange.exchange_name == "hyperliquid"
+                else ExchangeName.BACKPACK
+            )
+            # Dynamically call the appropriate exchange method
+            try:
+                exchange_method = getattr(exchanges, exchange_name.value.lower())
+                exchange_symbol = exchange_method(value=symbol, exchange_id=exchange_name)
+            except AttributeError as e:
+                raise MarketOrderError(
+                    f"Exchange method for {exchange_name.value} not found"
+                ) from e
+            market = await self._exchange.get_market(GetMarketArgs(symbol=exchange_symbol))
         except MarketOrderError:
             raise
         except (ValueError, TypeError, AttributeError, OSError) as e:

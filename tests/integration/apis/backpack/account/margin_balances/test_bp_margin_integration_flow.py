@@ -42,7 +42,7 @@ class TestBackpackMarginIntegrationFlow:
         for symbol, balance in spot_balances.items():
             assert isinstance(balance, SpotBalance), f"{symbol} balance should be SpotBalance"
             assert balance.exchange == "backpack", f"{symbol} should be from backpack exchange"
-            assert balance.asset == symbol, f"{symbol} asset field mismatch"
+            assert balance.asset.value == symbol, f"{symbol} asset field mismatch"
             assert balance.total_quantity >= Decimal(0), f"{symbol} total should be non-negative"
             assert balance.available_quantity >= Decimal(0), (
                 f"{symbol} available should be non-negative"

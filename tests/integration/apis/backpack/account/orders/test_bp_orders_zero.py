@@ -19,6 +19,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.models import Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     DEFAULT_TEST_SYMBOL_SPOT,
@@ -69,7 +70,8 @@ class TestBackpackOrdersZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving open orders for a symbol with no orders."""
-        args = GetAllOpenOrdersArgs(symbol=TEST_SYMBOL_BTC_USDC)
+        symbol = exchanges.backpack(TEST_SYMBOL_BTC_USDC)
+        args = GetAllOpenOrdersArgs(symbol=symbol)
         orders = await bp_api_for_zero_balance_test.get_all_open_orders(args)
 
         assert isinstance(orders, list)
@@ -84,8 +86,9 @@ class TestBackpackOrdersZero:
     ) -> None:
         """Test cancelling all orders when no open orders exist."""
         # Backpack requires symbol parameter for cancel_all_orders
+        symbol = exchanges.backpack(DEFAULT_TEST_SYMBOL_SPOT)
         results = await bp_api_for_zero_balance_test.cancel_all_orders(
-            symbol=DEFAULT_TEST_SYMBOL_SPOT,
+            symbol=symbol,
         )
 
         assert isinstance(results, list)
@@ -103,9 +106,10 @@ class TestBackpackOrdersZero:
         fake_order_id = generate_invalid_order_id()
 
         with pytest.raises(APIError) as exc_info:
+            symbol = exchanges.backpack(DEFAULT_TEST_SYMBOL_SPOT)
             args = CancelOrderArgs(
                 order_id=fake_order_id,
-                symbol=DEFAULT_TEST_SYMBOL_SPOT,
+                symbol=symbol,
             )
             await bp_api_for_zero_balance_test.cancel_order(args)
 
@@ -162,7 +166,8 @@ class TestBackpackOrdersZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that order creation correctly fails with zero balance."""
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
         side = OrderSide.BUY
 
         test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)
@@ -227,7 +232,8 @@ class TestBackpackOrdersZero:
     ) -> None:
         """Test cancelling all orders for a symbol with no orders."""
         # Try to cancel orders for a symbol with no open orders
-        results = await bp_api_for_zero_balance_test.cancel_all_orders(symbol=TEST_SYMBOL_ETH_USDC)
+        symbol = exchanges.backpack(TEST_SYMBOL_ETH_USDC)
+        results = await bp_api_for_zero_balance_test.cancel_all_orders(symbol=symbol)
 
         assert isinstance(results, list)
         assert len(results) == 0
@@ -245,7 +251,8 @@ class TestBackpackOrdersZero:
         than available, expecting it to fail.
         """
         # Try to buy a large amount with insufficient USDC
-        symbol = TEST_SYMBOL_BTC_USDC
+        symbol_str = TEST_SYMBOL_BTC_USDC
+        symbol = exchanges.backpack(symbol_str)
         # Use dynamic high price and quantity to ensure insufficient funds
         large_price = await get_unreasonably_large_price(bp_api_for_zero_balance_test, symbol)
         large_quantity = await get_unreasonably_large_quantity(bp_api_for_zero_balance_test, symbol)
@@ -298,7 +305,8 @@ class TestBackpackOrdersZero:
         )
         assert len(initial_orders) == 0
 
-        symbol = DEFAULT_TEST_SYMBOL_SPOT
+        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
+        symbol = exchanges.backpack(symbol_str)
         side = OrderSide.BUY
 
         test_price = await get_dynamic_test_price(bp_api_for_zero_balance_test, symbol, side)

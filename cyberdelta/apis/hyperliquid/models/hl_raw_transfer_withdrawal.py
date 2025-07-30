@@ -89,17 +89,20 @@ class HyperliquidRawInternalUsdTransferPayload(
         Literal["usdClassTransfer"],
         BeforeValidator(lambda v: validate_str_field(v, "type", max_length=32)),
     ] = Field(
-        "usdClassTransfer", description="Action type for USD class transfers between spot and perp"
+        "usdClassTransfer",
+        description="Action type for USD class transfers between spot and perp",
     )
 
     amount: Annotated[
-        str, BeforeValidator(lambda v: validate_str_field(v, "amount", max_length=32))
+        str,
+        BeforeValidator(lambda v: validate_str_field(v, "amount", max_length=32)),
     ] = Field(..., description="Amount to transfer in USDC as string")
 
     toPerp: bool = Field(..., description="Transfer direction: True=spot→perp, False=perp→spot")
 
     nonce: int = Field(
-        ..., description="Nonce/timestamp for the action, typically millisecond timestamp"
+        ...,
+        description="Nonce/timestamp for the action, typically millisecond timestamp",
     )
 
     model_config = ConfigDict(extra="forbid", frozen=True)

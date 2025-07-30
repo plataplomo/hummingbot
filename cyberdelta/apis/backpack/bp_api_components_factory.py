@@ -381,7 +381,7 @@ class BackpackAPIComponentsFactory:
                     for k in shared_components
                     if k.endswith("_builder")
                     and self._registry.request_builders.is_registered(
-                        k.replace("_request_builder", "")
+                        k.replace("_request_builder", ""),
                     )
                 ]),
                 "handlers": len([
@@ -389,7 +389,7 @@ class BackpackAPIComponentsFactory:
                     for k in shared_components
                     if k.endswith("_handler")
                     and self._registry.response_handlers.is_registered(
-                        k.replace("_response_handler", "")
+                        k.replace("_response_handler", ""),
                     )
                 ]),
             },
@@ -471,96 +471,114 @@ class BackpackAPIComponentsFactory:
     # Account mappers
     @overload
     def get_shared_component(
-        self, component_name: Literal["balance_mapper"]
+        self,
+        component_name: Literal["balance_mapper"],
     ) -> BackpackBalanceMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["position_mapper"]
+        self,
+        component_name: Literal["position_mapper"],
     ) -> BackpackPositionMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["account_summary_mapper"]
+        self,
+        component_name: Literal["account_summary_mapper"],
     ) -> BackpackAccountSummaryMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["transaction_mapper"]
+        self,
+        component_name: Literal["transaction_mapper"],
     ) -> BackpackTransactionMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["transfer_mapper"]
+        self,
+        component_name: Literal["transfer_mapper"],
     ) -> BackpackTransferMapper: ...
 
     # Market data mappers
     @overload
     def get_shared_component(
-        self, component_name: Literal["candle_mapper"]
+        self,
+        component_name: Literal["candle_mapper"],
     ) -> BackpackCandleMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["funding_rate_mapper"]
+        self,
+        component_name: Literal["funding_rate_mapper"],
     ) -> BackpackFundingRateMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["market_mapper"]
+        self,
+        component_name: Literal["market_mapper"],
     ) -> BackpackMarketMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["order_book_mapper"]
+        self,
+        component_name: Literal["order_book_mapper"],
     ) -> BackpackOrderBookMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["ticker_mapper"]
+        self,
+        component_name: Literal["ticker_mapper"],
     ) -> BackpackTickerMapper: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["trade_mapper"]
+        self,
+        component_name: Literal["trade_mapper"],
     ) -> BackpackTradeMapper: ...
 
     # Trading mappers
     @overload
     def get_shared_component(
-        self, component_name: Literal["order_mapper"]
+        self,
+        component_name: Literal["order_mapper"],
     ) -> BackpackOrderMapper: ...
 
     # Request builders
     @overload
     def get_shared_component(
-        self, component_name: Literal["account_request_builder"]
+        self,
+        component_name: Literal["account_request_builder"],
     ) -> BackpackAccountRequestBuilder: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["market_data_request_builder"]
+        self,
+        component_name: Literal["market_data_request_builder"],
     ) -> BackpackMarketDataRequestBuilder: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["trading_request_builder"]
+        self,
+        component_name: Literal["trading_request_builder"],
     ) -> BackpackTradingRequestBuilder: ...
 
     # Response handlers
     @overload
     def get_shared_component(
-        self, component_name: Literal["account_response_handler"]
+        self,
+        component_name: Literal["account_response_handler"],
     ) -> BackpackAccountResponseHandler: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["market_data_response_handler"]
+        self,
+        component_name: Literal["market_data_response_handler"],
     ) -> BackpackMarketDataResponseHandler: ...
 
     @overload
     def get_shared_component(
-        self, component_name: Literal["trading_response_handler"]
+        self,
+        component_name: Literal["trading_response_handler"],
     ) -> BackpackTradingResponseHandler: ...
 
     # Implementation

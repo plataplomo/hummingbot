@@ -27,6 +27,7 @@ from cyberdelta.apis.utils.response_validation import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -115,10 +116,10 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             # Trading operations require additional context not available in generic interface
             raise NotImplementedError(
                 f"Trading operation '{operation}' requires specific parameters not available "
-                f"in generic handle_response interface. Use specific handler methods directly."
+                f"in generic handle_response interface. Use specific handler methods directly.",
             )
         raise NotImplementedError(
-            f"Trading operation '{operation}' not supported by registry dispatch"
+            f"Trading operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
@@ -127,7 +128,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         status_code: int,
     ) -> BackpackRawOrderResponse:
         """Validate the raw response for the Place Order endpoint.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             status_code: HTTP status code
@@ -157,7 +158,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     def handle_cancel_order_response(
         raw_response_content: RawJsonResponse,
         order_id: str,
-        symbol: str,
+        symbol: Symbol,
     ) -> CancelOrderResult:
         """Validate the raw response for the Cancel Order endpoint.
 
@@ -178,8 +179,10 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
             )
 
         # Create CancelOrderResult for successful cancellation
+        exchange_symbol = symbol
+
         return CancelOrderResult(
-            symbol=symbol,
+            symbol=exchange_symbol,
             order_id=order_id,
             client_order_id=None,
             success=True,
@@ -191,11 +194,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     @staticmethod
     def handle_get_open_orders_response(
         raw_response_content: RawJsonResponse,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Get Open Orders endpoint.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Optional symbol to filter orders
@@ -234,11 +237,11 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     @staticmethod
     def handle_get_order_history_response(
         raw_response_content: RawJsonResponse,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Get Order History endpoint.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Optional symbol to filter orders
@@ -277,13 +280,13 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     @staticmethod
     def handle_get_trade_history_response(
         raw_response_content: RawJsonResponse,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
     ) -> list[BackpackRawPublicTrade]:
         """Validate the raw response for the Get Trade History endpoint.
 
         Now returns list[BackpackRawPublicTrade] as per user request.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Optional symbol to filter trades
@@ -291,7 +294,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
 
         Returns:
             List of validated BackpackRawPublicTrade models.
-            
+
         Raises:
             _handle_validation_error: Re-raised as APIError if validation fails.
         """
@@ -322,7 +325,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     @staticmethod
     def handle_get_fills_response(
         raw_response_content: RawJsonResponse,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
     ) -> list[BackpackRawFillResponse]:
         """Validate the raw response for the Get Fills (/wapi/v1/history/fills) endpoint.
@@ -366,7 +369,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
         status_code: int,
     ) -> BackpackRawOrderResponse:
         """Validate the raw response for the Get Order Status endpoint.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             identifier: Order ID or client order ID
@@ -394,7 +397,7 @@ class BackpackTradingResponseHandler(TradingResponseHandlerProtocol):
     @staticmethod
     def handle_cancel_all_orders_response(
         raw_response_content: RawJsonResponse,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
     ) -> list[BackpackRawOrderResponse]:
         """Validate the raw response for the Cancel All Orders endpoint.

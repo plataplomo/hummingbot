@@ -26,7 +26,7 @@ def create_test_opportunity(
     short_funding_rate: float = -0.0001,
 ) -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity: A configured arbitrage opportunity for testing.
     """
@@ -49,7 +49,7 @@ def create_test_context(
     available_capital: float = 100000.0, sizing_method: str = "simple"
 ) -> SizingContext:
     """Create a test sizing context.
-    
+
     Returns:
         SizingContext: A configured sizing context for testing.
     """

@@ -39,6 +39,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_usd_transfer_response import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
 from cyberdelta.apis.hyperliquid.protocols.base_protocols import ResponseHandlerProtocol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -52,7 +53,8 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_user_state_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawClearinghouseState:
         """Handle user state response.
 
@@ -67,7 +69,8 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_clearinghouse_state_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawClearinghouseState:
         """Handle clearinghouse state response.
 
@@ -82,7 +85,8 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_open_orders_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawOpenOrdersResponse:
         """Handle open orders response.
 
@@ -97,7 +101,8 @@ class AccountResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_user_fills_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawUserFillsResponse:
         """Handle user fills response.
 
@@ -175,7 +180,8 @@ class TradingResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_place_order_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle order placement response.
 
@@ -190,7 +196,8 @@ class TradingResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_cancel_order_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle order cancellation response.
 
@@ -205,7 +212,8 @@ class TradingResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_cancel_all_orders_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle cancel all orders response.
 
@@ -220,7 +228,8 @@ class TradingResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_modify_order_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Handle order modification response.
 
@@ -298,7 +307,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_all_mids_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawAllMids:
         """Handle all mids (mid prices) response.
 
@@ -313,7 +323,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_l2_book_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawOrderBookResponse:
         """Handle L2 order book response.
 
@@ -328,7 +339,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_recent_trades_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawRecentTradesResponse:
         """Handle recent trades response.
 
@@ -343,7 +355,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_candles_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawCandleSnapshot:
         """Handle candle data response.
 
@@ -358,7 +371,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_funding_history_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawFundingHistoryResponse:
         """Handle funding history response.
 
@@ -373,7 +387,8 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
 
     @staticmethod
     def handle_get_meta_response(
-        raw_response_content: dict[str, object], status_code: int
+        raw_response_content: dict[str, object],
+        status_code: int,
     ) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """Handle meta information response.
 
@@ -425,7 +440,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     def handle_info_l2_book_response(
         self,
         raw_data: dict[str, object],
-        symbol: str,
+        symbol: Symbol,
         status_code: int | None = None,
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawOrderBookResponse:
@@ -465,7 +480,7 @@ class MarketDataResponseHandlerProtocol(ResponseHandlerProtocol, Protocol):
     def handle_info_candle_snapshot_response(
         self,
         raw_data: ParsedJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         interval: str,
         status_code: int | None = None,
         headers: Mapping[str, str] | None = None,

@@ -13,6 +13,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols.models import create_exchange_symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -106,12 +108,12 @@ class TestCandle:
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
-        with pytest.raises(EmptyStringError):
-            Candle(**create_valid_candle_data(symbol=""))
-        with pytest.raises(EmptyStringError):
-            Candle(**create_valid_candle_data(symbol="   "))
-        with pytest.raises(TypeFieldError):
-            Candle(**create_valid_candle_data(symbol="A" * 65))
+        with pytest.raises(ValidationError):
+            create_exchange_symbol("", ExchangeName.HYPERLIQUID)
+        with pytest.raises(ValidationError):
+            create_exchange_symbol("   ", ExchangeName.HYPERLIQUID)
+        with pytest.raises(ValidationError):
+            create_exchange_symbol("A" * 65, ExchangeName.HYPERLIQUID)
 
     def test_interval_validation(self) -> None:
         """Test validation rules for the interval field."""

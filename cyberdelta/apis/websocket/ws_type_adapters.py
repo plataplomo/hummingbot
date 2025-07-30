@@ -62,7 +62,7 @@ class WebSocketTypeAdapters:
 
     # Union adapters for different scenarios
     backpack_union_adapter: TypeAdapter[DiscriminatedBackpackEnvelope] = TypeAdapter(
-        DiscriminatedBackpackEnvelope
+        DiscriminatedBackpackEnvelope,
     )
 
     hyperliquid_union_adapter: TypeAdapter[
@@ -155,7 +155,7 @@ class WebSocketTypeAdapters:
         if isinstance(model, HyperliquidRawWsFillEvent):
             return cls.fill_event_adapter.dump_json(model).decode("utf-8")
         # Fallback to model's built-in method
-        return cast(str, model.model_dump_json())
+        return cast("str", model.model_dump_json())
 
 
 class StreamingValidationAdapter:
@@ -171,7 +171,8 @@ class StreamingValidationAdapter:
         self._validation_cache: dict[str, Any] = {}
 
     def validate_streaming_message(
-        self, message: str | bytes | dict[str, Any]
+        self,
+        message: str | bytes | dict[str, Any],
     ) -> WebSocketEnvelopeUnion:
         """Validate streaming message with optimized path selection.
 
@@ -188,7 +189,8 @@ class StreamingValidationAdapter:
         return self.adapters.validate_python_ultra_fast(message)
 
     def validate_batch(
-        self, messages: list[str | bytes | dict[str, Any]]
+        self,
+        messages: list[str | bytes | dict[str, Any]],
     ) -> list[WebSocketEnvelopeUnion]:
         """Validate batch of messages with optimized processing.
 
@@ -268,7 +270,8 @@ class ValidationBenchmark:
 
     @staticmethod
     def benchmark_batch_validation(
-        messages: list[str | bytes | dict[str, Any]], batch_sizes: list[int] | None = None
+        messages: list[str | bytes | dict[str, Any]],
+        batch_sizes: list[int] | None = None,
     ) -> dict[int, float]:
         """Benchmark batch validation performance.
 

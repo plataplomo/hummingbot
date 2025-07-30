@@ -19,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
@@ -35,7 +36,7 @@ class Ticker(BaseModel):
     exchange-specific extension slots for preserving additional ticker data.
 
     Attributes:
-        symbol: Trading symbol (validated: required, non-empty, max 64 chars, UTF-8).
+        symbol: Exchange-specific trading symbol domain object.
         exchange: Exchange name (validated: required, non-empty, max 64 chars).
         timestamp: UTC timestamp of the ticker snapshot (validated: required).
         price: Last traded price. Must be non-negative if provided.
@@ -52,7 +53,7 @@ class Ticker(BaseModel):
 
     """
 
-    symbol: str
+    symbol: Symbol
     exchange: str
     timestamp: datetime
     # Using Field for default=None and validation (ge=0)
@@ -65,18 +66,29 @@ class Ticker(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("symbol", "exchange", mode="before")
+    @field_validator("symbol", mode="before")
     @classmethod
-    def validate_symbol_exchange(cls, v: object, info: ValidationInfo) -> str:
-        """Validate the 'symbol' and 'exchange' fields.
-        
+    def validate_symbol_domain(cls, v: Symbol, info: ValidationInfo) -> Symbol:
+        """Validate symbol field is Symbol domain object.
+
         Args:
-            v: Value to validate.
-            info: Pydantic validation context.
-            
+            v: The Symbol value to validate
+            info: Pydantic validation context
+
         Returns:
-            str: Validated string value.
+            Validated Symbol
+
+        Raises:
+            ValueError: If not an Symbol
         """
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
+
+    @field_validator("exchange", mode="before")
+    @classmethod
+    def validate_exchange(cls, v: object, info: ValidationInfo) -> str:
+        """Validate the 'exchange' field."""
         field_name = info.field_name if info.field_name is not None else "field"
         return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
@@ -84,13 +96,13 @@ class Ticker(BaseModel):
     @classmethod
     def validate_timestamp(cls, v: datetime | float | str | None) -> datetime:
         """Validate and parse the 'timestamp' field to a required UTC datetime object.
-        
+
         Args:
             v: Value to validate and parse.
-            
+
         Returns:
             datetime: Parsed UTC datetime object.
-            
+
         Raises:
             RequiredFieldNoneError: If timestamp is None.
         """
@@ -167,7 +179,8 @@ class Ticker(BaseModel):
                 else:
                     logger.warning(
                         "mid_price_calculation_non_finite",
-                        symbol=self.symbol,
+                        symbol=self.symbol.value,
+                        exchange=self.symbol.exchange,
                         bid=self.bid,
                         ask=self.ask,
                         message="Mid-price calculation resulted in non-finite value",
@@ -177,7 +190,8 @@ class Ticker(BaseModel):
                 # Should not happen if inputs are finite Decimals, but defensive
                 logger.exception(
                     "mid_price_calculation_error",
-                    symbol=self.symbol,
+                    symbol=self.symbol.value,
+                    exchange=self.symbol.exchange,
                     bid=self.bid,
                     ask=self.ask,
                     message="Error calculating mid-price",

@@ -33,7 +33,8 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+
+# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.utils.parsing import parse_datetime_utc
 
@@ -887,7 +888,7 @@ class PortfolioTracker:
 
     def _get_base_symbol(self, exchange_id: str, trade: Trade) -> str:
         """Get the base symbol for the trade using domain helpers.
-        
+
         Returns:
             Base asset symbol extracted from the trade symbol
         """
@@ -898,7 +899,7 @@ class PortfolioTracker:
             # This indicates a setup issue if self.symbol_service is None.
             # For now, proceed with a basic fallback for base_symbol if absolutely necessary,
             # but this should be fixed by ensuring proper initialization.
-            base_symbol = trade.symbol.split("-")[0].split("/")[0]  # Basic fallback
+            base_symbol = trade.symbol.value.split("-")[0].split("/")[0]  # Basic fallback
             logger.warning(
                 "symbol_service_missing_fallback",
                 base_symbol=base_symbol,
@@ -907,7 +908,7 @@ class PortfolioTracker:
         else:
             # Use domain helpers to resolve from exchange symbol to internal symbol
             internal_symbol_obj = self.symbol_helpers.resolve_from_exchange(
-                trade.symbol, exchange_id
+                str(trade.symbol), exchange_id
             )
             if internal_symbol_obj:
                 # Use the base asset from the domain object
@@ -922,7 +923,7 @@ class PortfolioTracker:
                 )
             else:
                 # Fallback if symbol not found
-                base_symbol = trade.symbol.split("-")[0].split("/")[0]
+                base_symbol = trade.symbol.value.split("-")[0].split("/")[0]
                 logger.warning(
                     "trade_symbol_resolution_failed",
                     exchange_symbol=trade.symbol,
@@ -2237,7 +2238,7 @@ class PortfolioTracker:
                     OrderStatus.OPEN,
                     OrderStatus.PARTIALLY_FILLED,
                 }:
-                    active.add(order.symbol)
+                    active.add(str(order.symbol))
         self.active_symbols = active
 
     def get_active_symbols(self) -> set[str]:
@@ -2395,19 +2396,19 @@ class PortfolioTracker:
         order.price = self._safe_decimal_convert(
             order.price,
             "price",
-            order.symbol,
+            str(order.symbol),
             exchange_id,
         )
         order.quantity_requested = self._safe_decimal_convert(
             order.quantity_requested,
             "quantity_requested",
-            order.symbol,
+            str(order.symbol),
             exchange_id,
         ) or Decimal(0)
         order.quantity_filled = self._safe_decimal_convert(
             order.quantity_filled,
             "quantity_filled",
-            order.symbol,
+            str(order.symbol),
             exchange_id,
         ) or Decimal(0)
 

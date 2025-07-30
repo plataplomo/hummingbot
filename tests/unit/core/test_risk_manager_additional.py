@@ -23,7 +23,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Create mock app settings for testing.
-    
+
     Returns:
         Mock: Mocked AppSettings with risk configuration.
     """
@@ -54,7 +54,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_portfolio_tracker() -> Mock:
     """Create mock portfolio tracker for testing.
-    
+
     Returns:
         Mock: Mocked portfolio tracker with default behaviors.
     """
@@ -82,7 +82,7 @@ def mock_portfolio_tracker() -> Mock:
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
     """Create mock circuit breaker system for testing.
-    
+
     Returns:
         Mock: Mocked circuit breaker system that allows execution.
     """
@@ -95,7 +95,7 @@ def mock_circuit_breaker_system() -> Mock:
 @pytest.fixture
 def mock_funding_rate_validator() -> Mock:
     """Create mock funding rate validator for testing.
-    
+
     Returns:
         Mock: Mocked funding rate validator with sample metrics.
     """
@@ -118,7 +118,7 @@ def risk_manager(
     mock_funding_rate_validator: Mock,
 ) -> RiskManager:
     """Create a RiskManager instance for testing.
-    
+
     Returns:
         RiskManager: Configured risk manager with all mocked dependencies.
     """
@@ -133,7 +133,7 @@ def risk_manager(
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     """Create a sample ArbitrageOpportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with 20 bps spread.
     """

@@ -37,7 +37,7 @@ from cyberdelta.core.models.market.candle import Candle
 @pytest.fixture
 def mock_app_settings() -> Mock:
     """Override mock app settings to add symbol configurations for data handler.
-    
+
     Returns:
         Mock: Mocked AppSettings with exchange and symbol configurations.
     """
@@ -59,7 +59,7 @@ def mock_app_settings() -> Mock:
 @pytest.fixture
 def mock_api_clients() -> dict[str, ExchangeAPI]:
     """Create mock API clients for testing.
-    
+
     Returns:
         dict[str, ExchangeAPI]: Dictionary of mocked exchange API clients.
     """
@@ -82,7 +82,7 @@ def mock_api_clients() -> dict[str, ExchangeAPI]:
 @pytest.fixture
 def mock_clock() -> Mock:
     """Create mock clock for testing.
-    
+
     Returns:
         Mock: Mocked clock function returning current UTC time.
     """
@@ -100,7 +100,7 @@ def data_handler(
     mock_clock: Mock,
 ) -> Generator[DataHandler]:
     """Create DataHandler instance for testing.
-    
+
     Yields:
         DataHandler: Configured DataHandler instance with mocked dependencies.
     """
@@ -124,7 +124,7 @@ def data_handler(
 @pytest.fixture
 def sample_order_book() -> OrderBook:
     """Create sample order book for testing.
-    
+
     Returns:
         OrderBook: Sample order book with BTC-PERP bids and asks.
     """
@@ -139,7 +139,7 @@ def sample_order_book() -> OrderBook:
 @pytest.fixture
 def sample_funding_rate() -> FundingRate:
     """Create sample funding rate for testing.
-    
+
     Returns:
         FundingRate: Sample funding rate with 0.01% rate.
     """

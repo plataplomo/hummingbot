@@ -47,6 +47,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -105,7 +106,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
     @staticmethod
     def _raise_none_response_error(http_status: int) -> None:
         """Raise error for None response after validation.
-        
+
         Raises:
             APIError: Always raises with INVALID_RESPONSE code.
         """
@@ -118,7 +119,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
     @staticmethod
     def _raise_internal_logic_error() -> NoReturn:
         """Raise error for internal logic error.
-        
+
         Raises:
             RuntimeError: Always raises for internal logic error.
         """
@@ -162,7 +163,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
             # Convert order status response to historical order format for mapper
             raw_historical_order = self._convert_order_status_to_historical_order(
-                raw_order_status_response
+                raw_order_status_response,
             )
 
             # Transform to internal order model
@@ -189,10 +190,14 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
             ) from e
         except (ValidationError, ValueError, TypeError, Exception) as e:
             raise self._handle_service_error(
-                e, current_method, f"order {args.order_id}", status_code, raw_response_content
+                e,
+                current_method,
+                f"order {args.order_id}",
+                status_code,
+                raw_response_content,
             ) from e
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
         """Retrieve all open orders, optionally filtered by symbol.
 
         Args:
@@ -222,7 +227,10 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
             raw_open_orders = await self._get_open_orders_raw()
 
             # Process and filter orders
-            internal_orders = self._process_raw_orders_to_internal(raw_open_orders, symbol)
+            internal_orders = self._process_raw_orders_to_internal(
+                raw_open_orders,
+                symbol.value if symbol else None,
+            )
 
             logger.info(
                 "open_orders_retrieved",
@@ -239,7 +247,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
                 current_method,
                 status_code,
                 raw_response_content,
-                symbol,
+                symbol.value if symbol else None,
             )
         else:
             return internal_orders
@@ -264,7 +272,8 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
             raise self._handle_service_error(e, current_method, "all open orders", 0, None) from e
 
     async def _get_order_status_raw(
-        self, order_id: int
+        self,
+        order_id: int,
     ) -> HyperliquidRawOrderStatusResponse | None:
         """Get raw order status data from the API.
 
@@ -281,8 +290,9 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
             # Build request payload
             request_payload = self._request_builder.build_order_status_payload(
                 HyperliquidGetOrderStatusArgs(
-                    wallet_address=self._wallet_address, order_id=order_id
-                )
+                    wallet_address=self._wallet_address,
+                    order_id=order_id,
+                ),
             )
 
             # Make API request
@@ -297,7 +307,9 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
             # Validate response structure
             response_dict = ensure_dict_response(
-                raw_content, f"order status {order_id}", http_status
+                raw_content,
+                f"order status {order_id}",
+                http_status,
             )
 
             # Handle the response using response handler
@@ -344,7 +356,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
         try:
             # Build request payload for open orders
             request_payload = self._request_builder.build_open_orders_payload(
-                HyperliquidGetOpenOrdersArgs(wallet_address=self._wallet_address)
+                HyperliquidGetOpenOrdersArgs(wallet_address=self._wallet_address),
             )
 
             # Make API request
@@ -382,7 +394,9 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
             raise
         except Exception as e:
             logger.exception(
-                "open_orders_request_failed", error=str(e), message="Failed to get open orders"
+                "open_orders_request_failed",
+                error=str(e),
+                message="Failed to get open orders",
             )
             raise APIError(
                 message="Failed to retrieve open orders",
@@ -418,7 +432,8 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
                 # Apply symbol filter if specified
                 if symbol_filter is None or (
-                    internal_order.symbol and internal_order.symbol.lower() == symbol_filter.lower()
+                    internal_order.symbol
+                    and internal_order.symbol.value.lower() == symbol_filter.lower()
                 ):
                     internal_orders.append(internal_order)
 
@@ -440,7 +455,8 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
         return internal_orders
 
     def _convert_order_status_to_historical_order(
-        self, order_status_response: HyperliquidRawOrderStatusResponse
+        self,
+        order_status_response: HyperliquidRawOrderStatusResponse,
     ) -> HyperliquidRawHistoricalOrder:
         """Convert order status response to historical order format for mapper.
 
@@ -512,6 +528,10 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
 
         # For other errors, convert to APIError and raise
         api_error = self._handle_service_error(
-            error, current_method, context, status_code, raw_response_content
+            error,
+            current_method,
+            context,
+            status_code,
+            raw_response_content,
         )
         raise api_error

@@ -81,7 +81,7 @@ class BackpackRequestBuilderRegistry(BaseComponentRegistry[IRequestBuilder]):
 
     def get_trading_builder(self, operation: str) -> IRequestBuilder:
         """Get a trading-specific request builder.
-        
+
         Returns:
             IRequestBuilder: The trading request builder for the specified operation.
         """
@@ -90,7 +90,7 @@ class BackpackRequestBuilderRegistry(BaseComponentRegistry[IRequestBuilder]):
 
     def get_account_builder(self, operation: str) -> IRequestBuilder:
         """Get an account-specific request builder.
-        
+
         Returns:
             IRequestBuilder: The account request builder for the specified operation.
         """
@@ -99,7 +99,7 @@ class BackpackRequestBuilderRegistry(BaseComponentRegistry[IRequestBuilder]):
 
     def get_market_data_builder(self, operation: str) -> IRequestBuilder:
         """Get a market data request builder.
-        
+
         Returns:
             IRequestBuilder: The market data request builder for the specified operation.
         """
@@ -108,7 +108,7 @@ class BackpackRequestBuilderRegistry(BaseComponentRegistry[IRequestBuilder]):
 
     def get_quote_builder(self, operation: str) -> IRequestBuilder:
         """Get a quote-specific request builder.
-        
+
         Returns:
             IRequestBuilder: The quote request builder for the specified operation.
         """

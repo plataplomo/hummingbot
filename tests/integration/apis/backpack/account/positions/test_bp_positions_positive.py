@@ -18,6 +18,7 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
@@ -65,8 +66,10 @@ class TestBackpackPositionsPositive:
                 assert position.exchange == "backpack"
 
                 # Required fields
-                assert isinstance(position.symbol, str)
-                assert len(position.symbol) > 0
+                assert hasattr(position.symbol, "value"), (
+                    f"Expected Symbol object with value attribute, got {type(position.symbol)}"
+                )
+                assert len(position.symbol.value) > 0
                 assert isinstance(position.side, OrderSide)
                 assert isinstance(position.size, Decimal)
                 assert position.size != Decimal(0)
@@ -134,7 +137,8 @@ class TestBackpackPositionsPositive:
             APIError: If API call fails with non-symbol-not-found errors.
         """
         try:
-            positions = await bp_api.get_positions(symbol=symbol)
+            symbol_obj = exchanges.backpack(symbol)
+            positions = await bp_api.get_positions(symbol=symbol_obj)
             assert isinstance(positions, list)
             return len(positions) > 0, positions
         except APIError as e:
@@ -152,16 +156,17 @@ class TestBackpackPositionsPositive:
         side = OrderSide.BUY  # Open a long position
 
         # Get current market price for size calculation
-        ticker = await bp_api.get_ticker(symbol)
+        symbol_obj = exchanges.backpack(symbol)
+        ticker = await bp_api.get_ticker(symbol_obj)
         market_price = ticker.price or ticker.ask
         if market_price is None:
             raise ValueError(f"Cannot determine market price for {symbol}")
 
         # Get minimal order size for market order (will open position immediately)
-        test_quantity = await get_minimal_order_size(bp_api, symbol, side, market_price)
+        test_quantity = await get_minimal_order_size(bp_api, symbol_obj, side, market_price)
 
         args = PlaceOrderArgs(
-            symbol=symbol,
+            symbol=symbol_obj,
             side=side,
             order_type=OrderType.MARKET,
             quantity=test_quantity,
@@ -173,7 +178,7 @@ class TestBackpackPositionsPositive:
 
         # Wait for position to be reflected
         async def position_exists() -> bool:
-            positions = await bp_api.get_positions(symbol=symbol)
+            positions = await bp_api.get_positions(symbol=symbol_obj)
             return len(positions) > 0 and positions[0].size != Decimal(0)
 
         await wait_for_condition(
@@ -187,7 +192,8 @@ class TestBackpackPositionsPositive:
         """Close any open positions for the given symbol."""
         try:
             # Get current positions to determine close side
-            current_positions = await bp_api.get_positions(symbol=symbol)
+            symbol_obj = exchanges.backpack(symbol)
+            current_positions = await bp_api.get_positions(symbol=symbol_obj)
             for position in current_positions:
                 if position.size != Decimal(0):
                     # Close position with opposite side
@@ -195,7 +201,7 @@ class TestBackpackPositionsPositive:
                     close_quantity = abs(position.size)
 
                     close_args = PlaceOrderArgs(
-                        symbol=symbol,
+                        symbol=symbol_obj,
                         side=close_side,
                         order_type=OrderType.MARKET,
                         quantity=close_quantity,
@@ -243,7 +249,8 @@ class TestBackpackPositionsPositive:
                 opened_position = True
 
                 # Re-fetch positions
-                positions = await bp_api_for_test_env.get_positions(symbol=symbol)
+                symbol_obj = exchanges.backpack(symbol)
+                positions = await bp_api_for_test_env.get_positions(symbol=symbol_obj)
 
             # Validate the position
             assert len(positions) > 0, f"Should have at least one position for {symbol}"
@@ -251,7 +258,7 @@ class TestBackpackPositionsPositive:
             # All returned positions should be for the specified symbol
             for position in positions:
                 assert isinstance(position, DerivativePosition)
-                assert position.symbol == symbol
+                assert position.symbol.value == symbol
                 assert position.exchange == "backpack"
 
         except APIError as e:

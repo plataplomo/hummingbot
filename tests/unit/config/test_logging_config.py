@@ -28,7 +28,7 @@ from cyberdelta.config.models.config_models import AppSettings, GeneralSettings
 @pytest.fixture
 def basic_app_settings() -> Mock:
     """Create basic mock app settings for testing.
-    
+
     Returns:
         Mock AppSettings instance with basic logging configuration.
     """
@@ -44,7 +44,7 @@ def basic_app_settings() -> Mock:
 @pytest.fixture
 def file_logging_app_settings() -> Mock:
     """Create mock app settings with file logging configured.
-    
+
     Returns:
         Mock AppSettings instance with file logging and module-specific log levels.
     """
@@ -60,7 +60,7 @@ def file_logging_app_settings() -> Mock:
 @pytest.fixture
 def temp_log_file() -> str:
     """Create a temporary log file path.
-    
+
     Returns:
         Path to a temporary file for logging tests.
     """
@@ -634,7 +634,7 @@ class TestLogCapture:
 
     def test_log_capture_edge_exception_in_context(self) -> None:
         """Test LogCapture properly cleans up even when exception occurs.
-        
+
         Raises:
             ValueError: Intentionally raised to test exception handling in context manager.
         """

@@ -41,6 +41,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetRecentTradesArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 logger = get_logger(__name__)
@@ -84,11 +85,11 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         return HyperliquidMarketDataRequestBuilder.build_all_mids_request_payload()
 
     @staticmethod
-    def build_get_l2_book_params(symbol: str) -> HyperliquidRawL2BookRequestPayload:
+    def build_get_l2_book_params(symbol: Symbol) -> HyperliquidRawL2BookRequestPayload:
         """Build parameters for L2 order book retrieval.
 
         Args:
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
 
         Returns:
             Validated Pydantic model containing request parameters
@@ -97,11 +98,11 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         return HyperliquidMarketDataRequestBuilder.build_l2_book_request_payload(args)
 
     @staticmethod
-    def build_get_recent_trades_params(symbol: str) -> HyperliquidRawRecentTradesRequestPayload:
+    def build_get_recent_trades_params(symbol: Symbol) -> HyperliquidRawRecentTradesRequestPayload:
         """Build parameters for recent trades retrieval.
 
         Args:
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
 
         Returns:
             Validated Pydantic model containing request parameters
@@ -111,12 +112,15 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
     @staticmethod
     def build_get_candles_params(
-        symbol: str, interval: str, start_time: int | None = None, end_time: int | None = None
+        symbol: Symbol,
+        interval: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> HyperliquidRawCandleSnapshotRequestPayload:
         """Build parameters for candle data retrieval.
 
         Args:
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
             interval: Candle interval (e.g., "1m", "5m", "1h")
             start_time: Optional start time (timestamp in milliseconds)
             end_time: Optional end time (timestamp in milliseconds)
@@ -140,12 +144,14 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
     @staticmethod
     def build_get_funding_history_params(
-        symbol: str, start_time: int | None = None, end_time: int | None = None
+        symbol: Symbol,
+        start_time: int | None = None,
+        end_time: int | None = None,
     ) -> HyperliquidRawFundingHistoryRequestPayload:
         """Build parameters for funding history retrieval.
 
         Args:
-            symbol: The trading symbol
+            symbol: The trading Symbol domain object
             start_time: Optional start time (timestamp)
             end_time: Optional end time (timestamp)
 
@@ -156,7 +162,11 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         start_dt = datetime.fromtimestamp(start_time, tz=UTC) if start_time else None
         end_dt = datetime.fromtimestamp(end_time, tz=UTC) if end_time else None
 
-        args = GetHistoricalFundingRatesArgs(symbol=symbol, start_time=start_dt, end_time=end_dt)
+        args = GetHistoricalFundingRatesArgs(
+            symbol=symbol,
+            start_time=start_dt,
+            end_time=end_dt,
+        )
         return HyperliquidMarketDataRequestBuilder.build_historical_funding_rates_payload(args)
 
     @staticmethod
@@ -224,7 +234,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
             request_type="l2Book",
             message="Building request payload for L2 order book",
         )
-        return HyperliquidRawL2BookRequestPayload(type="l2Book", coin=args.symbol)
+        return HyperliquidRawL2BookRequestPayload(type="l2Book", coin=str(args.symbol))
 
     @staticmethod
     def build_recent_trades_request_payload(
@@ -246,7 +256,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
             request_type="recentTrades",
             message="Building request payload for recent trades",
         )
-        return HyperliquidRawRecentTradesRequestPayload(type="recentTrades", coin=args.symbol)
+        return HyperliquidRawRecentTradesRequestPayload(type="recentTrades", coin=str(args.symbol))
 
     @staticmethod
     def build_candle_snapshot_payload(
@@ -273,7 +283,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
         )
 
         request_details = HyperliquidRawCandleRequestDetails(
-            coin=args.symbol,
+            coin=str(args.symbol),
             interval=args.timeframe,
             startTime=args.start_time_ms,
             endTime=args.end_time_ms,
@@ -317,7 +327,7 @@ class HyperliquidMarketDataRequestBuilder(MarketDataRequestBuilderProtocol):
 
         return HyperliquidRawFundingHistoryRequestPayload(
             type="fundingHistory",
-            coin=args.symbol,
+            coin=str(args.symbol),
             startTime=start_time_ms,
             endTime=end_time_ms,
         )

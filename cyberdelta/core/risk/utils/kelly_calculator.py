@@ -47,7 +47,7 @@ class KellyInput:
 
     def validate(self) -> None:
         """Validate input parameters.
-        
+
         Raises:
             KellyCalculationError: If any input parameter is invalid
         """
@@ -119,7 +119,7 @@ class KellyResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary.
-        
+
         Returns:
             Dictionary representation of Kelly calculation result
         """
@@ -256,10 +256,10 @@ class KellyCalculator:
 
     def _calculate_continuous_kelly(self, kelly_input: KellyInput) -> Decimal:
         """Calculate Kelly fraction using continuous formula.
-        
+
         Args:
             kelly_input: Input parameters for Kelly calculation
-            
+
         Returns:
             Kelly fraction calculated using continuous formula
         """
@@ -273,13 +273,13 @@ class KellyCalculator:
 
     def _calculate_binary_kelly(self, kelly_input: KellyInput) -> Decimal:
         """Calculate Kelly fraction using binary outcome formula.
-        
+
         Args:
             kelly_input: Input parameters for Kelly calculation
-            
+
         Returns:
             Kelly fraction calculated using binary outcome formula
-            
+
         Raises:
             KellyCalculationError: If required binary parameters are missing
         """
@@ -302,13 +302,13 @@ class KellyCalculator:
 
     def _calculate_multi_outcome_kelly(self, kelly_input: KellyInput) -> Decimal:
         """Calculate Kelly fraction for multiple outcomes.
-        
+
         Args:
             kelly_input: Input parameters with multiple outcome probabilities
-            
+
         Returns:
             Kelly fraction calculated for multiple outcomes
-            
+
         Raises:
             KellyCalculationError: If outcomes are not provided
         """
@@ -334,11 +334,11 @@ class KellyCalculator:
         self, kelly_input: KellyInput, sharpe_ratio: Decimal
     ) -> dict[str, Any]:
         """Calculate all adjustments to Kelly fraction.
-        
+
         Args:
             kelly_input: Input parameters for Kelly calculation
             sharpe_ratio: Calculated Sharpe ratio
-            
+
         Returns:
             Dictionary containing adjustment factors and details
         """
@@ -395,10 +395,10 @@ class KellyCalculator:
 
     def _apply_bounds(self, kelly_fraction: Decimal) -> Decimal:
         """Apply bounds to Kelly fraction.
-        
+
         Args:
             kelly_fraction: Unbounded Kelly fraction
-            
+
         Returns:
             Bounded Kelly fraction within configured limits
         """
@@ -413,12 +413,12 @@ class KellyCalculator:
         self, fraction: Decimal, expected_return: Decimal, volatility: Decimal
     ) -> Decimal:
         """Calculate expected growth rate using Kelly fraction.
-        
+
         Args:
             fraction: Kelly fraction to use
             expected_return: Expected return rate
             volatility: Return volatility
-            
+
         Returns:
             Expected growth rate based on Kelly fraction
         """
@@ -429,11 +429,11 @@ class KellyCalculator:
         self, fraction: Decimal, volatility: Decimal
     ) -> Decimal:
         """Calculate probability of maximum drawdown.
-        
+
         Args:
             fraction: Kelly fraction being used
             volatility: Return volatility
-            
+
         Returns:
             Estimated probability of experiencing maximum drawdown
         """
@@ -444,10 +444,10 @@ class KellyCalculator:
 
     def _calculate_time_to_double(self, growth_rate: Decimal) -> Decimal | None:
         """Calculate time to double capital.
-        
+
         Args:
             growth_rate: Expected growth rate
-            
+
         Returns:
             Time periods to double capital, or None if growth rate is non-positive
         """
@@ -483,10 +483,10 @@ class KellyCalculator:
 
     def _extract_expected_return(self, opportunity: ArbitrageOpportunity) -> Decimal:
         """Extract expected return from opportunity.
-        
+
         Args:
             opportunity: Arbitrage opportunity to extract return from
-            
+
         Returns:
             Expected return as Decimal, defaults to 0.1% if not found
         """
@@ -529,10 +529,10 @@ class KellyCalculator:
 
     def _extract_volatility(self, opportunity: ArbitrageOpportunity) -> Decimal:
         """Extract volatility from opportunity.
-        
+
         Args:
             opportunity: Arbitrage opportunity to extract volatility from
-            
+
         Returns:
             Volatility as Decimal, defaults to 1% if not found
         """
@@ -559,11 +559,11 @@ class KellyCalculator:
 
     def set_kelly_bounds(self, min_fraction: Decimal, max_fraction: Decimal) -> None:
         """Set Kelly fraction bounds.
-        
+
         Args:
             min_fraction: Minimum allowed Kelly fraction
             max_fraction: Maximum allowed Kelly fraction
-            
+
         Raises:
             KellyCalculationError: If min_fraction >= max_fraction
         """
@@ -582,10 +582,10 @@ class KellyCalculator:
 
     def set_default_multiplier(self, multiplier: Decimal) -> None:
         """Set default Kelly multiplier.
-        
+
         Args:
             multiplier: Kelly multiplier between 0 and 1
-            
+
         Raises:
             KellyCalculationError: If multiplier is not between 0 and 1
         """
@@ -597,11 +597,11 @@ class KellyCalculator:
 
     def enable_adjustment(self, adjustment_type: str, enabled: bool) -> None:
         """Enable or disable an adjustment type.
-        
+
         Args:
             adjustment_type: Type of adjustment ('sharpe', 'drawdown', 'transaction_cost')
             enabled: Whether to enable the adjustment
-            
+
         Raises:
             KellyCalculationError: If adjustment_type is unknown
         """
@@ -625,7 +625,7 @@ class KellyCalculator:
 
     def get_calculator_stats(self) -> dict[str, Any]:
         """Get calculator statistics.
-        
+
         Returns:
             Dictionary containing calculator configuration and settings
         """

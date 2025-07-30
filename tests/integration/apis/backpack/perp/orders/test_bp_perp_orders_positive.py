@@ -36,6 +36,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     TEST_SYMBOL_SOL_PERP,
@@ -84,7 +85,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         Tests margin usage and leverage effects for perp trading.
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol_str = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(value=symbol_str)
         side = OrderSide.BUY
 
         # Get minimal order size for perp market order
@@ -145,7 +147,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -260,7 +262,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -386,7 +388,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -511,7 +513,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -639,7 +641,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         2. Immediately sets stop loss protection
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
         entry_side = OrderSide.BUY
 
         # Step 1: Place perp market order to enter position
@@ -772,7 +774,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         5. All with different TimeInForce values
         """
         _ = custom_vcr_config
-        symbol = TEST_SYMBOL_SOL_PERP
+        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
 
         # Get market data once for all tests
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -997,7 +999,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order precision handling with edge case values."""
-        symbol = "SOL_USDC_PERP"
+        symbol = exchanges.backpack("SOL_USDC_PERP")
 
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         # Use min_quantity if available, otherwise use step_size as fallback
@@ -1039,7 +1041,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order calculations with leverage considerations."""
-        symbol = "SOL_USDC_PERP"
+        symbol = exchanges.backpack("SOL_USDC_PERP")
 
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         max_leverage = constraints.get("max_leverage", Decimal(20))
@@ -1079,7 +1081,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving perp order history with positive balance."""
-        symbol = "SOL_USDC_PERP"
+        symbol = exchanges.backpack("SOL_USDC_PERP")
 
         # Get recent order history
         end_time = datetime.now(UTC)
@@ -1112,7 +1114,8 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market order execution with margin available."""
-        symbol = "SOL_USDC_PERP"
+        symbol_str = "SOL_USDC_PERP"
+        symbol = exchanges.backpack(symbol_str)
 
         # Get minimal quantity for market order test
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -1156,7 +1159,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test concurrent perp order operations."""
-        symbol = "SOL_USDC_PERP"
+        symbol = exchanges.backpack("SOL_USDC_PERP")
 
         buy_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         sell_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
@@ -1231,7 +1234,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order operations with funding rate considerations."""
-        symbol = "SOL_USDC_PERP"
+        symbol = exchanges.backpack("SOL_USDC_PERP")
 
         try:
             # Get current funding rate
@@ -1296,7 +1299,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         should either succeed (if margin is sufficient) or fail with a proper
         margin-related error (if insufficient).
         """
-        symbol = "SOL_USDC_PERP"
+        symbol = exchanges.backpack("SOL_USDC_PERP")
 
         # Get market constraints
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)

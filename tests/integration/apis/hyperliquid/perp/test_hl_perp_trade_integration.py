@@ -7,6 +7,7 @@ import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.core.models import Trade
+from cyberdelta.core.symbols import exchanges
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
@@ -25,7 +26,7 @@ async def test_hl_get_perp_recent_trades_btc_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_recent_trades() with BTC returns valid perpetual Trade models."""
-    trades = await hl_api_for_test_env.get_recent_trades("BTC", limit=10)
+    trades = await hl_api_for_test_env.get_recent_trades(exchanges.hyperliquid("BTC"), limit=10)
 
     assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
 
@@ -54,11 +55,11 @@ async def test_hl_get_perp_recent_trades_eth_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_recent_trades() with ETH returns valid perpetual Trade models."""
-    trades = await hl_api_for_test_env.get_recent_trades("ETH", limit=5)
+    trades = await hl_api_for_test_env.get_recent_trades(exchanges.hyperliquid("ETH"), limit=5)
 
     assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
 
     if len(trades) > 0:
         for trade in trades:
             assert isinstance(trade, Trade), f"Should be Trade model, got {type(trade)}"
-            assert trade.symbol == "ETH", f"Wrong symbol, got {trade.symbol}"
+            assert trade.symbol.value == "ETH", f"Wrong symbol, got {trade.symbol}"

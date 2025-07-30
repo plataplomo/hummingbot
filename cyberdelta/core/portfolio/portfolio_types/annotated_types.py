@@ -105,10 +105,10 @@ type MarginRatio = Annotated[
 # String constraints
 def validate_symbol(value: str) -> str:
     """Validate trading symbol format.
-    
+
     Returns:
         str: The validated symbol in uppercase format.
-        
+
     Raises:
         EmptySymbolError: If the symbol is empty or None.
         InvalidSymbolLengthError: If symbol length is outside allowed range.
@@ -125,10 +125,10 @@ def validate_symbol(value: str) -> str:
 
 def validate_asset(value: str) -> str:
     """Validate asset name format.
-    
+
     Returns:
         str: The validated asset name in uppercase format.
-        
+
     Raises:
         EmptyAssetError: If the asset name is empty or None.
         InvalidAssetLengthError: If asset name length is outside allowed range.
@@ -145,10 +145,10 @@ def validate_asset(value: str) -> str:
 
 def validate_exchange_name(value: str) -> str:
     """Validate exchange name.
-    
+
     Returns:
         str: The validated exchange name in lowercase format.
-        
+
     Raises:
         InvalidExchangeError: If exchange name is not in the allowed list.
     """
@@ -209,10 +209,10 @@ type Username = Annotated[
 # Time constraints
 def validate_timestamp(value: float) -> float:
     """Validate timestamp is reasonable.
-    
+
     Returns:
         float: The validated timestamp value.
-        
+
     Raises:
         InvalidTimestampRangeError: If timestamp is outside the allowed range.
     """
@@ -244,10 +244,10 @@ type DurationMs = Annotated[int, Field(ge=0, description="Duration in millisecon
 # Collection constraints
 def validate_non_empty_list(value: list[Any]) -> list[Any]:
     """Validate that a list is not empty.
-    
+
     Returns:
         list[Any]: The validated non-empty list.
-        
+
     Raises:
         EmptyListError: If the list is empty.
     """
@@ -258,10 +258,10 @@ def validate_non_empty_list(value: list[Any]) -> list[Any]:
 
 def validate_unique_list(value: list[Any]) -> list[Any]:
     """Validate that a list contains unique elements.
-    
+
     Returns:
         list[Any]: The validated list with unique elements.
-        
+
     Raises:
         NonUniqueListError: If the list contains duplicate elements.
     """
@@ -288,10 +288,10 @@ type LimitedList = Annotated[
 # Portfolio-specific constraints
 def validate_position_size(value: float) -> float:
     """Validate position size (can be negative for short positions).
-    
+
     Returns:
         float: The validated position size value.
-        
+
     Raises:
         PositionSizeTooLargeError: If position size exceeds maximum allowed value.
     """
@@ -351,10 +351,10 @@ type LogLevel = Annotated[
 # Configuration constraints
 def validate_cache_size(value: int) -> int:
     """Validate cache size is reasonable.
-    
+
     Returns:
         int: The validated cache size value.
-        
+
     Raises:
         InvalidCacheSizeError: If cache size is outside the allowed range.
     """
@@ -365,10 +365,10 @@ def validate_cache_size(value: int) -> int:
 
 def validate_ttl_seconds(value: float) -> float:
     """Validate TTL is reasonable.
-    
+
     Returns:
         float: The validated TTL value in seconds.
-        
+
     Raises:
         InvalidTTLError: If TTL is outside the allowed range.
     """
@@ -410,10 +410,10 @@ type UUID = Annotated[
 # Network and URL constraints
 def validate_url(value: str) -> str:
     """Validate URL format.
-    
+
     Returns:
         str: The validated URL string.
-        
+
     Raises:
         InvalidURLFormatError: If URL format is invalid or missing required protocol.
     """
@@ -444,10 +444,10 @@ type Port = Annotated[int, Field(ge=1, le=65535, description="Network port (1-65
 # Business logic constraints
 def validate_market_hours(value: str) -> str:
     """Validate market hours format (HH:MM-HH:MM).
-    
+
     Returns:
         str: The validated market hours string.
-        
+
     Raises:
         InvalidMarketHoursFormatError: If market hours format is invalid.
     """
@@ -479,7 +479,7 @@ type CountryCode = Annotated[
 # Type aliases for common combinations
 SymbolPrice = tuple[TradingSymbol, Price]
 AssetBalance = tuple[AssetName, BalanceAmount]
-ExchangeSymbol = tuple[ExchangeName, TradingSymbol]
+Symbol = tuple[ExchangeName, TradingSymbol]
 TimestampedValue = tuple[Timestamp, Any]
 
 
@@ -490,7 +490,7 @@ def create_bounded_float(
     description: str = "Bounded float value",
 ) -> type[float]:
     """Create a float type with custom bounds.
-    
+
     Returns:
         type[float]: The base float type (annotated types cannot be returned from functions).
     """
@@ -510,7 +510,7 @@ def create_bounded_int(
     description: str = "Bounded integer value",
 ) -> type[int]:
     """Create an int type with custom bounds.
-    
+
     Returns:
         type[int]: The base int type (annotated types cannot be returned from functions).
     """
@@ -531,7 +531,7 @@ def create_constrained_string(
     description: str = "Constrained string value",
 ) -> type[str]:
     """Create a string type with custom constraints.
-    
+
     Returns:
         type[str]: The base str type (annotated types cannot be returned from functions).
     """

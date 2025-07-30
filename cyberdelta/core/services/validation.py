@@ -18,8 +18,9 @@ from cyberdelta.core.services.interfaces import (
     ValidationConfig,
     ValidationResult,
 )
-from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
-from cyberdelta.core.symbols.models import ExchangeSymbol
+
+# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderType
 
 
@@ -286,7 +287,7 @@ class ExecutionInputValidator(BaseService, IInputValidator):
             return
 
         # Check symbol mapping with domain helpers
-        exchange_symbol: ExchangeSymbol | None = self.symbol_helpers.resolve_for_exchange(
+        exchange_symbol: Symbol | None = self.symbol_helpers.resolve_for_exchange(
             request.symbol, request.exchange_id
         )
         if not exchange_symbol:

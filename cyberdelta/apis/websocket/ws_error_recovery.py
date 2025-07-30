@@ -365,7 +365,9 @@ class WebSocketErrorRecovery:
             self.health_check_task = asyncio.create_task(self._health_check_loop())
 
         self.logger.info(
-            "recovery_started", connection_id=self.connection_id, strategy=self.config.strategy
+            "recovery_started",
+            connection_id=self.connection_id,
+            strategy=self.config.strategy,
         )
 
     async def stop_recovery(self) -> None:
@@ -555,7 +557,9 @@ class WebSocketErrorRecovery:
                 break
             except Exception as e:
                 self.logger.exception(
-                    "health_check_error", connection_id=self.connection_id, error=str(e)
+                    "health_check_error",
+                    connection_id=self.connection_id,
+                    error=str(e),
                 )
 
     async def _recovery_loop(self) -> None:
@@ -594,7 +598,9 @@ class WebSocketErrorRecovery:
                 break
             except Exception as e:
                 self.logger.exception(
-                    "recovery_loop_error", connection_id=self.connection_id, error=str(e)
+                    "recovery_loop_error",
+                    connection_id=self.connection_id,
+                    error=str(e),
                 )
 
         # Max retries exceeded
@@ -659,7 +665,9 @@ class WebSocketErrorRecovery:
         self.recovery_events.append(event)
 
         self.logger.info(
-            "reconnection_successful", connection_id=self.connection_id, attempt=self.retry_count
+            "reconnection_successful",
+            connection_id=self.connection_id,
+            attempt=self.retry_count,
         )
         return True
 
@@ -673,7 +681,9 @@ class WebSocketErrorRecovery:
             return
 
         self.logger.info(
-            "replaying_messages", connection_id=self.connection_id, count=len(messages)
+            "replaying_messages",
+            connection_id=self.connection_id,
+            count=len(messages),
         )
 
         for message in messages:
@@ -683,7 +693,9 @@ class WebSocketErrorRecovery:
                     self.message_buffer.add_failed_message(message)
             except (ConnectionError, TimeoutError, OSError) as e:
                 self.logger.warning(
-                    "message_replay_failed", connection_id=self.connection_id, error=str(e)
+                    "message_replay_failed",
+                    connection_id=self.connection_id,
+                    error=str(e),
                 )
                 self.message_buffer.add_failed_message(message)
 

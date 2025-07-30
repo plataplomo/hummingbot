@@ -33,6 +33,8 @@ from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 
@@ -77,7 +79,7 @@ class BackpackBatchOrderService:
         self._exchange_name = exchange_name
         self._mapper = mapper or BackpackOrderMapper()
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
         """Cancel all orders, optionally filtered by symbol.
 
         Cancels all open orders for the account. If a symbol is provided,
@@ -146,7 +148,7 @@ class BackpackBatchOrderService:
 
     async def _execute_cancel_all_orders_request(
         self,
-        symbol: str | None,
+        symbol: Symbol | None,
         current_method: str,
     ) -> list[CancelOrderResult]:
         """Execute the cancel all orders API request and process the response.
@@ -171,7 +173,9 @@ class BackpackBatchOrderService:
         # DEFENSIVE CHECK: Ensure symbol is not None before proceeding
         if symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="cancel all orders"
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel all orders",
             )
 
         logger.info(
@@ -210,7 +214,11 @@ class BackpackBatchOrderService:
 
         return result
 
-    def _validate_cancel_all_orders_params(self, symbol: str | None, current_method: str) -> None:
+    def _validate_cancel_all_orders_params(
+        self,
+        symbol: Symbol | None,
+        current_method: str,
+    ) -> None:
         """Validate cancel all orders parameters for Backpack exchange.
 
         Args:
@@ -223,10 +231,13 @@ class BackpackBatchOrderService:
         # Business Logic Pre-Validation (moved from RequestBuilder)
         if symbol is None:
             raise MissingRequiredFieldError(
-                field="symbol", exchange="Backpack", operation="cancel all orders"
+                field="symbol",
+                exchange="Backpack",
+                operation="cancel all orders",
             )
 
-        if not symbol.strip():
+        # Symbol objects don't have .strip() method - check if value is empty
+        if not symbol.value.strip():
             raise MissingRequiredFieldError(
                 field="symbol",
                 exchange="Backpack",
@@ -246,7 +257,7 @@ class BackpackBatchOrderService:
         self,
         raw_data: ParsedJsonResponse | None,
         status_code: int,
-        symbol: str,
+        symbol: Symbol,
     ) -> list[CancelOrderResult]:
         """Process the cancel all orders API response.
 
@@ -261,7 +272,7 @@ class BackpackBatchOrderService:
         try:
             validated_data = ensure_list_response(
                 raw_data,
-                f"cancel all orders for {symbol}",
+                f"cancel all orders for {symbol.value}",
                 status_code,
             )
         except APIError:
@@ -292,7 +303,9 @@ class BackpackBatchOrderService:
             CancelOrderResult(
                 order_id=raw_order.id,
                 client_order_id=str(raw_order.clientId) if raw_order.clientId else None,
-                symbol=raw_order.symbol,
+                symbol=exchanges.backpack(
+                    value=raw_order.symbol,
+                ),
                 success=True,  # If returned by cancel all, it was successfully cancelled
                 message="Successfully cancelled.",
                 status=CancelOrderResultStatus.SUCCESS,
@@ -313,7 +326,7 @@ class BackpackBatchOrderService:
         self,
         raw_data: ParsedJsonResponse | None,
         status_code: int,
-        symbol: str,
+        symbol: Symbol,
     ) -> list[CancelOrderResult]:
         """Handle invalid response from cancel all orders API.
 
@@ -329,7 +342,7 @@ class BackpackBatchOrderService:
             APIError: If explicit error in response
         """
         error_message = (
-            f"Cancel all orders for {symbol or 'all'} returned invalid data "
+            f"Cancel all orders for {symbol.value if symbol else 'all'} returned invalid data "
             f"or no content (status: {status_code})"
         )
         logger.error(
@@ -370,7 +383,7 @@ class BackpackBatchOrderService:
         self,
         original_exception: Exception,
         current_method: str,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
         raw_response_content: str | None,
         message: str,

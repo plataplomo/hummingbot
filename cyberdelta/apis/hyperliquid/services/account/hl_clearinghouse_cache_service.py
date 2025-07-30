@@ -96,7 +96,8 @@ class HyperliquidClearinghouseCacheService:
         return self._cache_duration
 
     def get_cached_state(
-        self, user_address: ChecksumAddress
+        self,
+        user_address: ChecksumAddress,
     ) -> HyperliquidRawClearinghouseState | None:
         """Get cached clearinghouse state for a user (thread-safe).
 
@@ -134,7 +135,9 @@ class HyperliquidClearinghouseCacheService:
             return None
 
     def cache_state(
-        self, user_address: ChecksumAddress, state: HyperliquidRawClearinghouseState
+        self,
+        user_address: ChecksumAddress,
+        state: HyperliquidRawClearinghouseState,
     ) -> None:
         """Cache clearinghouse state for a user (thread-safe).
 

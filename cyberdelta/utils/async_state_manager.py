@@ -249,7 +249,7 @@ class AsyncStateManager:
 
     async def _get_sorted_backup_files(self) -> list[str]:
         """Get sorted list of backup files asynchronously.
-        
+
         Returns:
             List of backup file paths sorted by modification time (newest first)
         """
@@ -405,10 +405,10 @@ class AsyncStateManager:
 
     async def _async_read_json(self, file_path: str) -> dict[str, Any] | None:
         """Read JSON from a file asynchronously.
-        
+
         Args:
             file_path: Path to the JSON file to read
-            
+
         Returns:
             Parsed JSON data as dictionary or None if reading failed
         """
@@ -433,11 +433,11 @@ class AsyncStateManager:
 
     async def _async_write_json(self, file_path: str, data: dict[str, Any]) -> bool:
         """Write JSON to a file asynchronously.
-        
+
         Args:
             file_path: Path to write the JSON file to
             data: Dictionary data to write as JSON
-            
+
         Returns:
             True if write was successful, False otherwise
         """

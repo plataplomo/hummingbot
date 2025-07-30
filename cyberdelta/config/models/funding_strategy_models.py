@@ -48,13 +48,13 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @classmethod
     def validate_funding_threshold(cls, v: Decimal) -> Decimal:
         """Validate funding threshold is within reasonable bounds.
-        
+
         Args:
             v: The funding threshold value to validate.
-            
+
         Returns:
             The validated funding threshold.
-            
+
         Raises:
             RangeFieldError: If funding threshold exceeds maximum allowed value.
         """
@@ -74,13 +74,13 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @classmethod
     def validate_max_price_spread_pct(cls, v: Decimal) -> Decimal:
         """Validate price spread percentage is reasonable.
-        
+
         Args:
             v: The price spread percentage to validate.
-            
+
         Returns:
             The validated price spread percentage.
-            
+
         Raises:
             RangeFieldError: If price spread percentage exceeds maximum allowed value.
         """
@@ -100,13 +100,13 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @classmethod
     def validate_check_interval(cls, v: int) -> int:
         """Validate check interval is within reasonable bounds.
-        
+
         Args:
             v: The check interval in seconds to validate.
-            
+
         Returns:
             The validated check interval.
-            
+
         Raises:
             RangeFieldError: If check interval is outside allowed bounds.
         """
@@ -134,14 +134,14 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @classmethod
     def validate_exchange_names(cls, v: str, info: ValidationInfo) -> str:
         """Validate exchange names are supported.
-        
+
         Args:
             v: The exchange name to validate.
             info: Validation context information.
-            
+
         Returns:
             The validated exchange name in lowercase.
-            
+
         Raises:
             EnumFieldError: If exchange name is not in the supported exchanges list.
         """
@@ -157,15 +157,15 @@ class StrategyParamsHLPerpBPSpot(BaseModel):
     @model_validator(mode="after")
     def validate_exchange_combination(self) -> Self:
         """Validate that exchange combination makes sense for this strategy.
-        
+
         Ensures that:
         - Perp and spot exchanges are different
         - Perp exchange is HyperLiquid
         - Spot exchange is Backpack
-        
+
         Returns:
             The validated model instance.
-            
+
         Raises:
             OrderLogicError: If exchange combination is invalid for the strategy.
         """

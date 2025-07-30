@@ -14,6 +14,7 @@ from cyberdelta.apis.exceptions.field_validation import (
     TypeFieldError,
 )
 from cyberdelta.apis.models.service_args.common import validate_api_str_field
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
@@ -39,7 +40,7 @@ class PlaceOrderArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str
+    symbol: Symbol
     side: OrderSide
     order_type: OrderType
     quantity: Decimal = Field(gt=Decimal(0))
@@ -49,27 +50,11 @@ class PlaceOrderArgs(BaseModel):
     client_order_id: str | None = Field(default=None)
     execution: OrderExecution = Field(default_factory=OrderExecution)
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_str(cls, v: str, info: ValidationInfo) -> str:
-        """Validate symbol is a non-empty string with max length 64.
-        
-        Returns:
-            Validated symbol string.
-        """
-        # field_name is guaranteed by Pydantic to be correct here.
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
-
     @field_validator("client_order_id", mode="before")
     @classmethod
     def validate_client_order_id_str(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate client_order_id is None or a non-empty string with max length 64.
-        
+
         Returns:
             Validated client order ID string or None if input was None.
         """
@@ -90,10 +75,10 @@ class PlaceOrderArgs(BaseModel):
         info: ValidationInfo,
     ) -> Decimal | None:
         """Parse decimal fields and ensure they are finite.
-        
+
         Returns:
             Parsed and validated Decimal value or None for optional fields.
-            
+
         Raises:
             TypeFieldError: If input is not a valid decimal type.
             DecimalFieldError: If value is not finite or cannot be parsed.
@@ -126,10 +111,10 @@ class PlaceOrderArgs(BaseModel):
     @model_validator(mode="after")
     def check_parameter_dependencies(self) -> "PlaceOrderArgs":
         """Validate inter-parameter dependencies.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             MissingPriceError: If price is required but not provided.
             MissingStopPriceError: If stop price is required but not provided.
@@ -165,19 +150,19 @@ class CancelOrderArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     order_id: str  # Usually the exchange-generated order ID
-    symbol: str | None = Field(default=None)  # Often required by exchanges
+    symbol: Symbol | None = Field(default=None)  # Often required by exchanges
     client_order_id: str | None = Field(default=None)  # Alternative identifier
 
-    @field_validator("order_id", "symbol", "client_order_id", mode="before")
+    @field_validator("order_id", "client_order_id", mode="before")
     @classmethod
-    def validate_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
+    def validate_string_fields(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate string fields with appropriate requirements.
-        
+
         Returns:
-            Validated string value or None for optional fields.
-            
+            str | None: Validated string or None
+
         Raises:
-            RequiredFieldError: If required field is None.
+            RequiredFieldError: If required field is None
         """
         field_name = str(info.field_name)
         is_required = field_name == "order_id"  # order_id is always required
@@ -201,7 +186,7 @@ class CancelOrderArgs(BaseModel):
         For Hyperliquid, 'asset' (derived from symbol) and 'oid' (order_id) are needed.
         This generic model ensures order_id is present. Exchange-specific services
         will need to ensure `symbol` is also provided if their RequestBuilder requires it.
-        
+
         Returns:
             Self for method chaining.
         """
@@ -222,25 +207,8 @@ class CancelAllOrdersArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str | None = Field(default=None, max_length=64)
+    symbol: Symbol | None = Field(default=None)
     side: OrderSide | None = Field(default=None)
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_str(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate symbol is None or a non-empty string with max length 64.
-        
-        Returns:
-            Validated symbol string or None if input was None.
-        """
-        if v is None:
-            return None
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
 
 
 class GetOrderArgs(BaseModel):
@@ -254,19 +222,19 @@ class GetOrderArgs(BaseModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     order_id: str  # Primary identifier, usually exchange-generated
-    symbol: str | None = Field(default=None)  # Often required or recommended by exchanges
+    symbol: Symbol | None = Field(default=None)  # Often required or recommended by exchanges
     client_order_id: str | None = Field(default=None)  # Alternative identifier
 
-    @field_validator("order_id", "symbol", "client_order_id", mode="before")
+    @field_validator("order_id", "client_order_id", mode="before")
     @classmethod
-    def validate_strings(cls, v: object, info: ValidationInfo) -> str | None:
+    def validate_string_fields(cls, v: object, info: ValidationInfo) -> str | None:
         """Validate string fields with appropriate requirements.
-        
+
         Returns:
-            Validated string value or None for optional fields.
-            
+            str | None: Validated string or None
+
         Raises:
-            RequiredFieldError: If required field is None.
+            RequiredFieldError: If required field is None
         """
         field_name = str(info.field_name)
         is_required = field_name == "order_id"
@@ -279,7 +247,10 @@ class GetOrderArgs(BaseModel):
         # Max length for order_id can be quite long for some exchanges (e.g. UUIDs)
         max_len = 128 if field_name in {"order_id", "client_order_id"} else 64
         return validate_api_str_field(
-            v, field_name=field_name, max_length=max_len, allow_empty=False
+            v,
+            field_name=field_name,
+            max_length=max_len,
+            allow_empty=False,
         )
 
     @model_validator(mode="after")
@@ -291,7 +262,7 @@ class GetOrderArgs(BaseModel):
         Hyperliquid's orderStatus needs user + oid, symbol is not directly part of request.
         For a generic model, ensuring order_id is primary.
         If symbol becomes strictly required for all exchanges, it can be made non-optional.
-        
+
         Returns:
             Self for method chaining.
         """
@@ -314,24 +285,7 @@ class GetAllOpenOrdersArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str | None = Field(default=None)  # Optional symbol to filter by
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_optional_symbol(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional symbol field.
-        
-        Returns:
-            Validated symbol string or None if input was None.
-        """
-        if v is None:
-            return None
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
+    symbol: Symbol | None = Field(default=None)  # Optional symbol to filter by
 
 
 class GetOrderHistoryArgs(BaseModel):
@@ -343,14 +297,14 @@ class GetOrderHistoryArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str | None = Field(default=None)
+    symbol: Symbol | None = Field(default=None)
     start_time: datetime | None = Field(default=None)
     end_time: datetime | None = Field(default=None)
     limit: int | None = Field(default=None, gt=0)  # Limit must be positive if provided
     order_id: str | None = Field(default=None)
     client_order_id: str | None = Field(default=None)
 
-    @field_validator("symbol", "order_id", "client_order_id", mode="before")
+    @field_validator("order_id", "client_order_id", mode="before")
     @classmethod
     def validate_optional_strings(
         cls,
@@ -358,7 +312,7 @@ class GetOrderHistoryArgs(BaseModel):
         info: ValidationInfo,
     ) -> str | None:
         """Validate optional string fields are non-empty with reasonable max length.
-        
+
         Returns:
             Validated string value or None if input was None.
         """
@@ -380,7 +334,7 @@ class GetOrderHistoryArgs(BaseModel):
         info: ValidationInfo,
     ) -> datetime | None:
         """Parse optional datetime fields to UTC.
-        
+
         Returns:
             Parsed UTC datetime or None if input was None.
         """
@@ -394,10 +348,10 @@ class GetOrderHistoryArgs(BaseModel):
     @classmethod
     def parse_optional_int(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional integer fields.
-        
+
         Returns:
             Parsed integer value or None if input was None.
-            
+
         Raises:
             TypeFieldError: If input is not convertible to integer.
             IntegerConversionError: If value cannot be converted to integer.
@@ -421,10 +375,10 @@ class GetOrderHistoryArgs(BaseModel):
     @model_validator(mode="after")
     def check_time_range(self) -> "GetOrderHistoryArgs":
         """Validate time range logic.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             TimeRangeError: If start_time is greater than or equal to end_time.
         """
@@ -447,34 +401,17 @@ class GetTradeHistoryArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    symbol: str | None = Field(default=None)
+    symbol: Symbol | None = Field(default=None)
     limit: int | None = Field(default=100, gt=0)  # Default matches BackpackAPI
-
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_optional_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
-        """Validate optional string fields.
-        
-        Returns:
-            Validated string value or None if input was None.
-        """
-        if v is None:
-            return None
-        return validate_api_str_field(
-            v,
-            field_name=str(info.field_name),
-            max_length=64,
-            allow_empty=False,
-        )
 
     @field_validator("limit", mode="before")
     @classmethod
     def parse_optional_positive_int(cls, v: object, info: ValidationInfo) -> int | None:
         """Parse optional positive integer fields.
-        
+
         Returns:
             Parsed positive integer or None if input was None.
-            
+
         Raises:
             TypeFieldError: If input is not convertible to integer.
             IntegerConversionError: If value cannot be converted to integer.

@@ -497,7 +497,7 @@ ConfigValue = str | int | float | bool | dict[str, Any] | list[Any] | None
 @pytest.fixture
 def mock_config() -> AppSettings:
     """Create a generic mock Config for circuit breaker tests.
-    
+
     Returns:
         AppSettings: Mock app settings for circuit breaker tests.
     """
@@ -522,7 +522,7 @@ def mock_config() -> AppSettings:
 @pytest.fixture
 def mock_config_with_exchanges() -> AppSettings:
     """Mock Config object with predefined exchange configurations for CB testing.
-    
+
     Returns:
         AppSettings: Mock app settings with exchange configurations for testing.
     """

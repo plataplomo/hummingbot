@@ -46,10 +46,10 @@ class EthereumAddressNormalizer:
     @classmethod
     def normalize_address_fields(cls, v: str | object) -> str | object:
         """Normalize Ethereum address fields to lowercase.
-        
+
         Args:
             v: Input value that may be an Ethereum address string
-            
+
         Returns:
             Normalized lowercase address if input is a string, otherwise returns input unchanged
         """
@@ -73,11 +73,11 @@ class SigningPayloadSerializer:
         1. Respects the by_alias setting from model_dump
         2. Excludes None/null values
         3. Maintains field ordering required by signing
-        
+
         Args:
             serializer: Pydantic serializer function
             info: Serialization context information
-            
+
         Returns:
             Cleaned dictionary ready for signing, with None values removed
         """
@@ -90,10 +90,10 @@ class SigningPayloadSerializer:
 
     def _clean_for_signing(self, data: dict[str, Any]) -> dict[str, Any]:
         """Recursively clean data for signing.
-        
+
         Args:
             data: Dictionary data to clean
-            
+
         Returns:
             Cleaned dictionary with None values and empty structures removed
         """
@@ -101,10 +101,10 @@ class SigningPayloadSerializer:
 
     def _clean_dict_recursive(self, data: dict[str, Any]) -> dict[str, Any]:
         """Helper method to recursively clean dictionary data.
-        
+
         Args:
             data: Dictionary to clean recursively
-            
+
         Returns:
             New dictionary with None values and empty nested structures removed
         """
@@ -122,10 +122,10 @@ class SigningPayloadSerializer:
 
     def _clean_value(self, value: object) -> object:
         """Clean a single value for signing.
-        
+
         Args:
             value: Value to clean (can be dict, list, or primitive type)
-            
+
         Returns:
             Cleaned value with None/empty structures removed, or None if value should be excluded
         """
@@ -140,10 +140,10 @@ class SigningPayloadSerializer:
 
     def _clean_list(self, lst: list[Any]) -> list[Any] | None:
         """Clean a list for signing.
-        
+
         Args:
             lst: List to clean
-            
+
         Returns:
             Cleaned list with None values and empty dicts removed, or None if list becomes empty
         """
@@ -168,10 +168,10 @@ class OrderTypeCleanerMixin:
         """Clean order type structure by removing null limit/market fields.
 
         Transforms: {"limit": {...}, "market": null} -> {"limit": {...}}
-        
+
         Args:
             v: Order type structure to clean
-            
+
         Returns:
             Cleaned order type with null limit/market fields removed
         """
@@ -200,10 +200,10 @@ class GenericSigningPayload(BaseModel, SigningPayloadSerializer):
 
         This handles the conversion of arbitrary dict structures
         into a Pydantic model that can be properly serialized.
-        
+
         Args:
             data: Dictionary data to convert to model
-            
+
         Returns:
             New GenericSigningPayload instance containing the input data
         """

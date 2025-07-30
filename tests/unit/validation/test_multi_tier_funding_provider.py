@@ -34,7 +34,7 @@ pytestmark = pytest.mark.timing
 @pytest.fixture
 def base_config() -> dict[str, Any]:
     """Create base configuration for testing.
-    
+
     Returns:
         Dictionary with default configuration values for testing.
     """
@@ -67,7 +67,7 @@ def base_config() -> dict[str, Any]:
 @pytest.fixture
 def mock_validator() -> Mock:
     """Create mock funding rate validator.
-    
+
     Returns:
         Mock object implementing FundingRateValidatorProtocol.
     """
@@ -82,7 +82,7 @@ def mock_validator() -> Mock:
 @pytest.fixture
 def provider(base_config: dict[str, Any], mock_validator: Mock) -> MultiTierFundingProvider:
     """Create MultiTierFundingProvider instance for testing.
-    
+
     Returns:
         Configured MultiTierFundingProvider instance.
     """

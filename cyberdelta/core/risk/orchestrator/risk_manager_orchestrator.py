@@ -31,7 +31,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 def _create_str_list() -> list[str]:
     """Create typed string list for dataclass fields.
-    
+
     Returns:
         Empty list of strings for dataclass default factory.
     """
@@ -40,7 +40,7 @@ def _create_str_list() -> list[str]:
 
 def _create_str_any_dict() -> dict[str, Any]:
     """Create typed dict for dataclass fields.
-    
+
     Returns:
         Empty dictionary with string keys and any values for dataclass default factory.
     """
@@ -122,7 +122,7 @@ class ProcessedOpportunity:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary.
-        
+
         Returns:
             Dictionary representation of the processed opportunity with all metrics.
         """
@@ -227,7 +227,7 @@ class RiskManagerOrchestrator:
 
     def _create_volatility_config(self) -> dict[str, Any]:
         """Create volatility calculator configuration from AppSettings.
-        
+
         Returns:
             Configuration dictionary for volatility calculator.
         """
@@ -241,7 +241,7 @@ class RiskManagerOrchestrator:
 
     def _create_validation_factor_config(self) -> dict[str, Any]:
         """Create validation factor applier configuration from AppSettings.
-        
+
         Returns:
             Configuration dictionary for validation factor applier.
         """
@@ -441,7 +441,7 @@ class RiskManagerOrchestrator:
         opportunities: list[ArbitrageOpportunity],
     ) -> list[ProcessedOpportunity]:
         """Process opportunities in parallel with concurrency control.
-        
+
         Returns:
             List of processed opportunities with results from parallel processing.
         """
@@ -485,7 +485,7 @@ class RiskManagerOrchestrator:
         opportunities: list[ArbitrageOpportunity],
     ) -> list[ProcessedOpportunity]:
         """Process opportunities sequentially.
-        
+
         Returns:
             List of processed opportunities with results from sequential processing.
         """
@@ -529,7 +529,7 @@ class RiskManagerOrchestrator:
         historical_prices: list[PriceData] | None,
     ) -> VolatilityResult:
         """Calculate volatility for opportunity.
-        
+
         Returns:
             Volatility calculation result with computed volatility metrics.
         """
@@ -540,7 +540,7 @@ class RiskManagerOrchestrator:
 
     def _create_constraint_context(self) -> ConstraintContext:
         """Create constraint validation context.
-        
+
         Returns:
             Constraint context with current portfolio state for validation.
         """
@@ -627,7 +627,7 @@ class RiskManagerOrchestrator:
 
     def remove_position(self, symbol: str) -> bool:
         """Remove a position from the portfolio.
-        
+
         Returns:
             True if position was found and removed, False otherwise.
         """
@@ -649,7 +649,7 @@ class RiskManagerOrchestrator:
 
     def get_portfolio_metrics(self) -> dict[str, Any]:
         """Get current portfolio metrics.
-        
+
         Returns:
             Dictionary with portfolio metrics including value, positions, and risk data.
         """
@@ -680,7 +680,7 @@ class RiskManagerOrchestrator:
 
     def get_orchestrator_stats(self) -> dict[str, Any]:
         """Get orchestrator statistics.
-        
+
         Returns:
             Dictionary with processing statistics and performance metrics.
         """
@@ -724,7 +724,7 @@ class RiskManagerOrchestrator:
 
     def __str__(self) -> str:
         """String representation.
-        
+
         Returns:
             Human-readable string with basic orchestrator state.
         """
@@ -735,7 +735,7 @@ class RiskManagerOrchestrator:
 
     def __repr__(self) -> str:
         """Detailed representation.
-        
+
         Returns:
             Detailed string representation for debugging with all key metrics.
         """

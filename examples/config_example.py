@@ -148,7 +148,7 @@ def create_example_files() -> None:
 
 def _parse_arguments() -> argparse.Namespace:
     """Parse command line arguments.
-    
+
     Returns:
         argparse.Namespace: Parsed command line arguments with config path,
             secrets path, and flags for create-example and benchmark modes.
@@ -202,7 +202,7 @@ def _validate_config_files(config_path: Path, secrets_path: Path) -> None:
 
 def _load_configurations() -> tuple[AppSettings, SecretsConfig]:
     """Load application settings and secrets configuration.
-    
+
     Returns:
         tuple[AppSettings, SecretsConfig]: A tuple containing the loaded
             application settings and secrets configuration.

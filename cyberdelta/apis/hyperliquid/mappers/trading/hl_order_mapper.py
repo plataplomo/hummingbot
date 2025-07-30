@@ -47,6 +47,7 @@ from cyberdelta.core.enums import (
     TriggerType,
 )
 from cyberdelta.core.models import Order, Trade
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
@@ -87,7 +88,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     # Protocol method implementations (delegated to common utilities)
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -95,24 +97,6 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             Decimal: The parsed decimal value or default if parsing fails.
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Returns:
-            str: The normalized symbol.
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Returns:
-            str: The denormalized symbol.
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -229,7 +213,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
                 # Use direct key access with get() and default values
                 try:
                     # The trigger_data is guaranteed to be a dict[str, object] here
-                    trigger_dict = cast(dict[str, Any], trigger_data)
+                    trigger_dict = cast("dict[str, Any]", trigger_data)
                     trigger_px = trigger_dict.get("triggerPx")
                     is_market = trigger_dict.get("isMarket")
                     tpsl_value = trigger_dict.get("tpsl")
@@ -350,10 +334,16 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             created_at = parse_datetime_utc(raw_simple_order.timestamp, field_name="timestamp")
             updated_at = created_at  # No separate updated timestamp in simple orders
 
+            # Parse symbol to domain object at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=raw_simple_order.coin,  # e.g., "BTC"
+                asset_index=getattr(raw_simple_order, "asset_index", None),
+            )
+
             # SECURITY FIX: Use secure_transform instead of direct instantiation
             order_data: dict[str, Any] = {
                 "exchange_order_id": str(raw_simple_order.oid),
-                "symbol": raw_simple_order.coin,
+                "symbol": exchange_symbol,  # Domain object!
                 "side": side.value,
                 "order_type": order_type.value,
                 "status": status.value,
@@ -738,15 +728,21 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raw_order: HyperliquidRawOrder,
         components: OrderComponents,
     ) -> Order:
-        """Create Order object from parsed components.
+        """Create Order object with Symbol domain object.
 
         Returns:
-            Order: The created Order object.
+            Order: The created order object
         """
+        # Parse symbol to domain object at entry point
+        exchange_symbol = exchanges.hyperliquid(
+            value=raw_order.asset,  # e.g., "BTC"
+            asset_index=getattr(raw_order, "asset_index", None),
+        )
+
         # SECURITY FIX: Use secure_transform instead of direct instantiation
         order_data: dict[str, Any] = {
             "exchange_order_id": str(raw_order.oid),
-            "symbol": raw_order.asset,
+            "symbol": exchange_symbol,  # Domain object!
             "exchange": ExchangeName.HYPERLIQUID.value,
             "side": components["side"].value,
             "order_type": components["order_type"].value,
@@ -995,10 +991,16 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         # Get client order ID
         cloid = getattr(raw_historical_order, "cloid", None)
 
+        # Parse symbol to domain object at entry point
+        exchange_symbol = exchanges.hyperliquid(
+            value=raw_historical_order.asset,  # e.g., "BTC"
+            asset_index=getattr(raw_historical_order, "asset_index", None),
+        )
+
         # SECURITY FIX: Use secure_transform instead of direct instantiation
         order_data: dict[str, Any] = {
             "exchange_order_id": str(raw_historical_order.oid),
-            "symbol": raw_historical_order.asset,
+            "symbol": exchange_symbol,  # Domain object!
             "exchange": ExchangeName.HYPERLIQUID.value,
             "side": components["side"].value,
             "order_type": components["order_type"].value,

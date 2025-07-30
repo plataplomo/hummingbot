@@ -268,7 +268,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _process_private_key_string(self, private_key_str: str) -> str:
         """Process private key string by removing 0x prefix if present.
-        
+
         Returns:
             The processed private key string without the 0x prefix.
         """
@@ -276,7 +276,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _validate_private_key_format(self, processed_pk_str: str) -> None:
         """Validate that private key is a 64-character hex string.
-        
+
         Raises:
             InvalidPrivateKeyError: If the private key format is invalid.
         """
@@ -285,12 +285,12 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             and all(c in string.hexdigits for c in processed_pk_str)
         ):
             raise InvalidPrivateKeyError(
-                reason="must be a 64-character hex string (with or without '0x' prefix)"
+                reason="must be a 64-character hex string (with or without '0x' prefix)",
             )
 
     def _validate_passphrase(self, passphrase_secret: SecretStr) -> None:
         """Validate the BIP-39 passphrase if provided.
-        
+
         Raises:
             PassphraseFieldError: If the passphrase is invalid.
         """
@@ -311,7 +311,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _validate_passphrase_word_count(self, phrase_str: str) -> None:
         """Validate that passphrase has correct word count.
-        
+
         Raises:
             PassphraseFieldError: If the passphrase doesn't have 12 or 24 words.
         """
@@ -332,7 +332,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _validate_passphrase_bip39(self, phrase_str: str) -> None:
         """Validate that passphrase is a valid BIP-39 mnemonic.
-        
+
         Raises:
             PassphraseFieldError: If the passphrase is not a valid BIP-39 mnemonic.
         """
@@ -348,7 +348,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         if not is_valid:
             raise PassphraseFieldError(
-                reason="not a valid BIP-39 mnemonic (checksum or wordlist error)"
+                reason="not a valid BIP-39 mnemonic (checksum or wordlist error)",
             )
 
     def _setup_wallet_properties(self) -> None:
@@ -413,7 +413,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     EIP712TypeField(name="amount", type="string"),
                     EIP712TypeField(name="toPerp", type="bool"),
                     EIP712TypeField(name="nonce", type="uint64"),
-                ]
+                ],
             },
         )
 
@@ -429,7 +429,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     async def _get_next_nonce_ms(self) -> int:
         """Atomically generates a strictly increasing millisecond timestamp nonce.
-        
+
         Returns:
             A strictly increasing millisecond timestamp for use as a nonce.
         """
@@ -494,7 +494,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _validate_exchange_request_data(self, data: dict[str, Any] | None) -> None:
         """Validate exchange request data format.
-        
+
         Raises:
             TypeError: If data is not a dictionary.
         """
@@ -551,7 +551,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _is_dict_str_any(self, obj: object) -> TypeGuard[dict[str, Any]]:
         """Type guard to check if object is a dict[str, Any].
-        
+
         Returns:
             True if the object is a dictionary, False otherwise.
         """
@@ -559,7 +559,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _is_list_any(self, obj: object) -> TypeGuard[list[Any]]:
         """Type guard to check if object is a list[Any].
-        
+
         Returns:
             True if the object is a list, False otherwise.
         """
@@ -567,7 +567,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _clean_list_for_signing(self, items: list[Any]) -> list[Any]:
         """Clean a list by removing None values and cleaning nested dicts.
-        
+
         Returns:
             A cleaned list with None values removed and nested dictionaries cleaned.
         """
@@ -591,7 +591,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
         For Hyperliquid, we need to use the actual field names (not aliases) because
         the field names are the short ones (a, b, p, etc.) that Hyperliquid expects.
-        
+
         Returns:
             A cleaned dictionary ready for EIP-712 signing.
         """
@@ -639,10 +639,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         current_nonce_ms: int,
     ) -> bytes:
         """Compute action hash using msgpack and keccak.
-        
+
         Returns:
             The computed action hash as bytes.
-            
+
         Raises:
             APIError: If hash computation fails.
         """
@@ -756,7 +756,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _create_phantom_agent_message(self, action_hash_bytes: bytes) -> dict[str, Any]:
         """Create phantom agent message for EIP-712 signing.
-        
+
         Returns:
             A dictionary containing the phantom agent message structure.
         """
@@ -776,7 +776,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _validate_hex_format(self, hex_value: str, field_name: str) -> None:
         """Validate hex format for signature component.
-        
+
         Raises:
             InvalidFormatError: If the hex value format is invalid.
         """
@@ -790,10 +790,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _format_signature_components(self, signed_message_obj: SignatureObject) -> dict[str, Any]:
         """Format signature components with proper validation and padding.
-        
+
         Returns:
             A dictionary containing the formatted signature components (r, s, v).
-            
+
         Raises:
             APIError: If signature formatting fails.
         """
@@ -865,10 +865,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """Prepare and sign a Hyperliquid /exchange request using appropriate signing scheme.
-        
+
         Returns:
             Authenticated request components ready for HTTP transmission.
-            
+
         Raises:
             RequiredParameterError: If required parameters are missing.
         """
@@ -898,7 +898,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """Prepare and sign using sign_l1_action scheme (original method).
-        
+
         Returns:
             Authenticated request components for L1 action signing.
         """
@@ -930,7 +930,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         headers: Mapping[str, Any] | None,
     ) -> AuthenticatedRequestComponents:
         """Prepare and sign using sign_user_signed_action scheme for usdClassTransfer.
-        
+
         Returns:
             Authenticated request components for user-signed actions.
         """
@@ -961,10 +961,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _sign_user_action(self, action_payload_dict: dict[str, Any]) -> dict[str, Any]:
         """Sign user action using sign_user_signed_action scheme.
-        
+
         Returns:
             A dictionary containing the EIP-712 signature for the user action.
-            
+
         Raises:
             APIError: If user action signing fails.
         """
@@ -1013,10 +1013,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _sign_eip712_message(self, phantom_agent_message: dict[str, Any]) -> dict[str, Any]:
         """Sign the EIP-712 message and return signature components.
-        
+
         Returns:
             A dictionary containing the EIP-712 signature components.
-            
+
         Raises:
             APIError: If EIP-712 message signing fails.
         """
@@ -1037,7 +1037,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
                     action="sign_eip712_message",
                     domain_name=domain_dict.get("name", "unknown"),
                     message=("[HL_AUTH] EIP-712 domain name: {}").format(
-                        domain_dict.get("name", "unknown")
+                        domain_dict.get("name", "unknown"),
                     ),
                 )
             primary_type = structured_data_to_sign.get("primaryType", "unknown")
@@ -1073,10 +1073,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _encode_and_sign_message(self, structured_data_to_sign: dict[str, Any]) -> SignatureObject:
         """Encode and sign the EIP-712 message.
-        
+
         Returns:
             A SignatureObject containing the cryptographic signature.
-            
+
         Raises:
             APIError: If EIP-712 encoding or signing fails.
         """
@@ -1156,7 +1156,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         signature_dict: dict[str, Any],
     ) -> None:
         """Validate components for HTTP body construction.
-        
+
         Raises:
             RequiredParameterError: If required parameters are missing.
             InvalidFormatError: If parameter formats are invalid.
@@ -1188,10 +1188,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
         signature_dict: dict[str, Any],
     ) -> dict[str, Any]:
         """Construct the final HTTP request body.
-        
+
         Returns:
             A dictionary containing the complete HTTP request body.
-            
+
         Raises:
             APIError: If HTTP body construction fails.
         """
@@ -1237,10 +1237,10 @@ class HyperliquidEip712Authenticator(IAuthenticator):
 
     def _prepare_request_headers(self, headers: Mapping[str, Any] | None) -> dict[str, str]:
         """Prepare HTTP headers for the request.
-        
+
         Returns:
             A dictionary containing the prepared HTTP headers.
-            
+
         Raises:
             APIError: If header preparation fails.
         """

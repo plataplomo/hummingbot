@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
+from cyberdelta.core.symbols import exchanges
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp]
@@ -38,12 +39,12 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perpetual market retrieval with authenticated context."""
-        args = GetMarketArgs(symbol="SOL_USDC_PERP")
+        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
-        assert market.symbol == "SOL_USDC_PERP", (
-            f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol}'"
+        assert market.symbol.value == "SOL_USDC_PERP", (
+            f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol.value}'"
         )
 
         assert isinstance(market.tick_size, Decimal), (
@@ -86,12 +87,12 @@ class TestBackpackPerpMarketPrivate:
         perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol][:3]
 
         for market in perp_markets:
-            individual_args = GetMarketArgs(symbol=market.symbol)
+            individual_args = GetMarketArgs(symbol=exchanges.backpack(market.symbol))
             individual_market = await bp_api_for_test_env.get_market(individual_args)
 
             assert individual_market is not None, f"Should retrieve market {market.symbol}"
-            assert individual_market.symbol == market.symbol, (
-                f"Retrieved market symbol should match: {individual_market.symbol} vs "
+            assert individual_market.symbol.value == market.symbol, (
+                f"Retrieved market symbol should match: {individual_market.symbol.value} vs "
                 f"{market.symbol}"
             )
 
@@ -108,19 +109,15 @@ class TestBackpackPerpMarketPrivate:
 
         for symbol in test_symbols:
             try:
-                args = GetMarketArgs(symbol=symbol)
+                args = GetMarketArgs(symbol=exchanges.backpack(symbol))
                 market = await bp_api_for_test_env.get_market(args)
 
                 assert isinstance(market, Market), (
                     f"Expected Market for {symbol}, got {type(market)}"
                 )
 
-                assert isinstance(market.symbol, str), f"symbol should be str for {symbol}"
-                assert isinstance(market.base_symbol, str), (
-                    f"base_symbol should be str for {symbol}"
-                )
-                assert isinstance(market.quote_symbol, str), (
-                    f"quote_symbol should be str for {symbol}"
+                assert hasattr(market.symbol, "value"), (
+                    f"symbol should have value attribute for {symbol}"
                 )
                 assert isinstance(market.tick_size, Decimal), (
                     f"tick_size should be Decimal for {symbol}"
@@ -175,7 +172,7 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test error handling for authenticated perpetual market requests."""
-        invalid_args = GetMarketArgs(symbol="INVALID_PERP_SYMBOL_AUTH")
+        invalid_args = GetMarketArgs(symbol=exchanges.backpack("INVALID_PERP_SYMBOL_AUTH"))
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(invalid_args)

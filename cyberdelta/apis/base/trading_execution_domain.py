@@ -96,15 +96,18 @@ class OrderExecution(BaseModel):
     )
 
     liquidity_requirement: LiquidityRequirement = Field(
-        default=LiquidityRequirement.ANY, description="Liquidity requirement for order execution"
+        default=LiquidityRequirement.ANY,
+        description="Liquidity requirement for order execution",
     )
 
     position_intent: PositionIntent = Field(
-        default=PositionIntent.OPEN_OR_INCREASE, description="Position intent for risk management"
+        default=PositionIntent.OPEN_OR_INCREASE,
+        description="Position intent for risk management",
     )
 
     margin_policy: MarginPolicy = Field(
-        default=MarginPolicy.MANUAL_ONLY, description="Margin policy for automated operations"
+        default=MarginPolicy.MANUAL_ONLY,
+        description="Margin policy for automated operations",
     )
 
     @model_validator(mode="after")
@@ -212,7 +215,10 @@ class AccountSettings(BaseModel):
     )
 
     leverage_limit: int = Field(
-        default=10, ge=1, le=100, description="Maximum leverage allowed for the account"
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum leverage allowed for the account",
     )
 
     automation_policy: AccountSettingsPolicy = Field(

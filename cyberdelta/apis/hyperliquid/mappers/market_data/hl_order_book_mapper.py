@@ -38,6 +38,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderBook, Trade
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -56,7 +57,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
     # Protocol method implementations - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -64,24 +66,6 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             Decimal: Parsed decimal value or default if parsing fails
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Returns:
-            str: Normalized symbol in internal format
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Returns:
-            str: Denormalized symbol in exchange format
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -133,7 +117,9 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
 
     @staticmethod
     def _ensure_trade_values_not_none(
-        price: Decimal | None, quantity: Decimal | None, raw_trade: object
+        price: Decimal | None,
+        quantity: Decimal | None,
+        raw_trade: object,
     ) -> tuple[Decimal, Decimal]:
         """Ensure trade values are not None after parsing.
 
@@ -209,9 +195,14 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=str(raw_book.coin),  # Convert RawAssetString64HL to str
+            )
+
             # Use secure_transform for type-safe model creation
             orderbook_data = {
-                "symbol": str(raw_book.coin),  # Convert RawAssetString64HL to str
+                "symbol": exchange_symbol,  # Domain object!
                 "bids": [(str(price), str(size)) for price, size in bids],
                 "asks": [(str(price), str(size)) for price, size in asks],
                 "timestamp": timestamp.isoformat(),
@@ -340,7 +331,9 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
 
             # Ensure trade values are not None after parsing and get validated values
             price, quantity = HyperliquidOrderBookMapper._ensure_trade_values_not_none(
-                price, quantity, raw_trade
+                price,
+                quantity,
+                raw_trade,
             )
 
             # Check for zero or negative values - return None for invalid trades
@@ -361,6 +354,11 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=str(raw_trade.coin),  # Convert RawAssetString64HL to str
+            )
+
             # Create HL-specific details
             details = HyperliquidTradeDetails(
                 trade_hash=raw_trade.hash,
@@ -372,7 +370,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": raw_trade.hash,
-                "symbol": str(raw_trade.coin),  # Convert RawAssetString64HL to str
+                "symbol": exchange_symbol,  # Domain object!
                 "executed_at": executed_at.isoformat(),
                 "side": side.value,
                 "order_id": "UNKNOWN_PUBLIC_TRADE",  # Public trades don't have order IDs
@@ -464,6 +462,11 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             # Parse timestamp (convert from milliseconds)
             executed_at = datetime.fromtimestamp(raw.time / 1000, tz=UTC)
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=str(raw.coin),  # Convert RawAssetString64HL to str
+            )
+
             # Create HL-specific details
             details = HyperliquidTradeDetails(
                 trade_hash=raw.hash,
@@ -475,7 +478,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": raw.hash,
-                "symbol": str(raw.coin),  # Convert RawAssetString64HL to str
+                "symbol": exchange_symbol,  # Domain object!
                 "executed_at": executed_at.isoformat(),
                 "side": side.value,
                 "order_id": "UNKNOWN_PUBLIC_TRADE",
@@ -569,9 +572,14 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             # Parse timestamp (convert from milliseconds)
             timestamp = datetime.fromtimestamp(raw.time / 1000, tz=UTC)
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=str(raw.coin),  # Convert RawAssetString64HL to str
+            )
+
             # Use secure_transform for type-safe model creation
             orderbook_data = {
-                "symbol": str(raw.coin),  # Convert RawAssetString64HL to str
+                "symbol": exchange_symbol,  # Domain object!
                 "bids": [(str(price), str(size)) for price, size in bids],
                 "asks": [(str(price), str(size)) for price, size in asks],
                 "timestamp": timestamp.isoformat(),

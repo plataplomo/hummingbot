@@ -17,8 +17,9 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
 class HyperliquidFundingDetails(BaseModel):
@@ -55,10 +56,10 @@ class HyperliquidFundingDetails(BaseModel):
         info: object,
     ) -> Decimal | None:
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects.
-        
+
         Returns:
             Decimal | None: Validated finite decimal value, or None if input was None.
-            
+
         Raises:
             DecimalFiniteError: If the decimal value is not finite (infinite, NaN).
         """
@@ -89,7 +90,7 @@ class FundingRate(BaseModel):
     Immutable (frozen=True) to ensure funding data is not altered after retrieval.
 
     Fields:
-        symbol (str): Trading symbol.
+        symbol (Symbol): Exchange-specific trading symbol domain object.
         timestamp (datetime): Data snapshot timestamp (UTC-aware).
         funding_rate (Decimal | None): Current funding rate (8hr basis for perpetuals).
         predicted_rate (Decimal | None): Predicted next funding rate.
@@ -106,7 +107,7 @@ class FundingRate(BaseModel):
 
     """
 
-    symbol: str
+    symbol: Symbol
     timestamp: datetime
     funding_rate: Decimal | None = Field(default=None)
     predicted_rate: Decimal | None = Field(default=None)
@@ -120,13 +121,21 @@ class FundingRate(BaseModel):
 
     @field_validator("symbol", mode="before")
     @classmethod
-    def validate_symbol(cls, value: object) -> str:
-        """Validate that symbol is a non-empty string.
-        
+    def validate_symbol_domain(cls, v: Symbol) -> Symbol:
+        """Validate symbol field is Symbol domain object.
+
+        Args:
+            v: The Symbol value to validate
+
         Returns:
-            str: Validated non-empty symbol string with max length of 64 characters.
+            Validated Symbol
+
+        Raises:
+            ValueError: If not a Symbol
         """
-        return validate_str_field(value, field_name="symbol", max_length=64, allow_empty=False)
+        if not isinstance(v, BaseSymbol):
+            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
+        return v
 
     @field_validator("funding_rate", "predicted_rate", "mark_price", "index_price", mode="before")
     @classmethod
@@ -136,10 +145,10 @@ class FundingRate(BaseModel):
         info: object,
     ) -> Decimal | None:
         """Parse and validate decimal fields to ensure they are valid finite Decimal objects.
-        
+
         Returns:
             Decimal | None: Validated finite decimal value, or None if input was None.
-            
+
         Raises:
             DecimalFiniteError: If the decimal value is not finite (infinite, NaN).
         """
@@ -162,10 +171,10 @@ class FundingRate(BaseModel):
         info: object,
     ) -> datetime:
         """Parse and validate timestamp to ensure it is a UTC-aware datetime object.
-        
+
         Returns:
             datetime: UTC-aware datetime object representing the funding rate timestamp.
-            
+
         Raises:
             RequiredFieldNoneError: If timestamp is None or cannot be parsed.
         """
@@ -185,7 +194,7 @@ class FundingRate(BaseModel):
         info: object,
     ) -> datetime | None:
         """Parse and validate next_funding_time to ensure it is a UTC-aware datetime object.
-        
+
         Returns:
             datetime | None: UTC-aware datetime for next funding time, or None if not provided.
         """

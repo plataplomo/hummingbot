@@ -60,6 +60,7 @@ from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOr
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderType
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
@@ -143,7 +144,8 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         return await self._place_orders_core(orders, current_method)
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel multiple orders in a single batch request for improved performance.
 
@@ -174,7 +176,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of successfully placed Order objects
-            
+
         Raises:
             APIError: If API request fails or validation errors occur.
             ValueError: If orders list is empty or validation fails.
@@ -220,7 +222,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects
-            
+
         Raises:
             APIError: If API request fails or validation errors occur.
             ValueError: If cancel_args list is empty or validation fails.
@@ -265,7 +267,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
-            
+
         Raises:
             APIError: If the exchange returns invalid content format.
         """
@@ -303,7 +305,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             Tuple of (raw exchange response, HTTP status code)
-            
+
         Raises:
             APIError: If the exchange returns invalid content format.
         """
@@ -331,7 +333,8 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         return exchange_response, http_status
 
     def _is_error_status(
-        self, status: str | dict[str, Any] | HyperliquidRawExchangeStatusObject
+        self,
+        status: str | dict[str, Any] | HyperliquidRawExchangeStatusObject,
     ) -> bool:
         """Check if a status object represents an error.
 
@@ -387,7 +390,10 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             except ValueError as e:
                 error_msg = f"[{current_method}] Order {i} validation failed: {e}"
                 logger.exception(
-                    "order_validation_failed", method=current_method, index=i, error=str(e)
+                    "order_validation_failed",
+                    method=current_method,
+                    index=i,
+                    error=str(e),
                 )
                 raise ValueError(error_msg) from e
 
@@ -416,7 +422,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
                 f"Maximum is {MAX_BATCH_SIZE}"
             )
             logger.error(
-                "cancel_batch_size_exceeded", method=current_method, count=len(cancel_args)
+                "cancel_batch_size_exceeded",
+                method=current_method,
+                count=len(cancel_args),
             )
             raise ValueError(error_msg)
 
@@ -427,7 +435,10 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             except ValueError as e:
                 error_msg = f"[{current_method}] Cancel args {i} validation failed: {e}"
                 logger.exception(
-                    "cancel_args_validation_failed", method=current_method, index=i, error=str(e)
+                    "cancel_args_validation_failed",
+                    method=current_method,
+                    index=i,
+                    error=str(e),
                 )
                 raise ValueError(error_msg) from e
 
@@ -458,12 +469,14 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             order_id_int = int(args.order_id)
         except ValueError as e:
             self._raise_invalid_order_id_error(args.order_id, e)
-            return args.symbol, -1  # Never reached but needed for type checking
+            return str(args.symbol), -1  # Never reached but needed for type checking
         else:
             if order_id_int <= 0:
                 self._raise_positive_order_id_error(args.order_id)
-                return args.symbol, -1  # Never reached but needed for type checking
-            return args.symbol, order_id_int
+                return str(args.symbol), -1  # Never reached but needed for type checking
+            # Convert Symbol to string for internal processing
+            symbol_str = str(args.symbol)  # String conversion at boundary
+            return symbol_str, order_id_int
 
     async def _prepare_batch_order_data(
         self,
@@ -494,9 +507,11 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             return [(order, 0) for order in orders]
 
         for order in orders:
-            asset_index = await self._get_asset_index_callable(order.symbol)
+            # Convert Symbol to string for asset index lookup
+            symbol_str = str(order.symbol)  # String conversion at boundary
+            asset_index = await self._get_asset_index_callable(symbol_str)
             if asset_index is None:
-                raise SymbolNotFoundError(symbol=order.symbol, exchange=self._exchange_name)
+                raise SymbolNotFoundError(symbol=symbol_str, exchange=self._exchange_name)
             orders_with_indices.append((order, asset_index))
 
         return orders_with_indices
@@ -578,7 +593,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of successfully placed Order objects
-            
+
         Raises:
             APIError: If response has no status data or exchange-level errors.
         """
@@ -657,7 +672,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Returns:
             List of CancelOrderResult objects
-            
+
         Raises:
             APIError: If response has no status data or exchange-level errors.
         """
@@ -709,11 +724,12 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         # Process each cancellation result
         batch_statuses: list[dict[str, Any]] = []
-        symbols: list[str] = []
+        symbols: list[Symbol] = []
         order_ids: list[str] = []
 
         for i, cancel_args_item in enumerate(original_cancel_args):
-            action_description = f"cancel batch order {i} ({cancel_args_item.symbol})"
+            symbol_str = cancel_args_item.symbol.value if cancel_args_item.symbol else "None"
+            action_description = f"cancel batch order {i} ({symbol_str})"
 
             # Process the status for this cancellation
             processed_status = process_exchange_status(
@@ -722,8 +738,9 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             )
 
             batch_statuses.append(processed_status)
-            # symbol is validated to be non-empty in validation step
-            symbols.append(cancel_args_item.symbol or "")
+            # Collect Symbol objects for batch results formatting
+            if cancel_args_item.symbol:
+                symbols.append(cancel_args_item.symbol)
             order_ids.append(str(cancel_args_item.order_id))
 
         # Format batch results using utility function
@@ -880,7 +897,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
     def _raise_market_order_error(self) -> None:
         """Raise ServiceParameterError for market orders in batch operations.
-        
+
         Raises:
             ServiceParameterError: Always raised for market order in batch.
         """
@@ -899,7 +916,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
 
         Args:
             order_id: The invalid order ID
-            
+
         Raises:
             ServiceParameterError: Always raised for non-positive order ID.
         """
@@ -914,14 +931,16 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
         )
 
     def _raise_invalid_order_id_error(
-        self, order_id: str | int, original_error: ValueError
+        self,
+        order_id: str | int,
+        original_error: ValueError,
     ) -> None:
         """Raise ServiceParameterError for invalid order ID format.
 
         Args:
             order_id: The invalid order ID
             original_error: The original ValueError from conversion
-            
+
         Raises:
             ServiceParameterError: Always raised for invalid order ID format.
         """

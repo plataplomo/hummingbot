@@ -53,7 +53,7 @@ class CompositeAccountMapper:
         self, asset: str, total_balance: str, available_balance: str
     ) -> SpotBalance:
         """Transform balance data to spot balance.
-        
+
         Returns:
             SpotBalance instance created from the provided balance data.
         """
@@ -65,7 +65,7 @@ class CompositeAccountMapper:
         self, asset: str, raw_balance: BackpackRawBalanceResponse
     ) -> SpotBalance:
         """Transform raw balance to internal format.
-        
+
         Returns:
             SpotBalance instance transformed from raw Backpack balance data.
         """
@@ -76,7 +76,7 @@ class CompositeAccountMapper:
         self, raw_position: BackpackRawPositionResponse
     ) -> DerivativePosition:
         """Transform raw position to internal format.
-        
+
         Returns:
             DerivativePosition instance transformed from raw Backpack position data.
         """
@@ -90,7 +90,7 @@ class CompositeAccountMapper:
         positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
         """Transform raw account summary to internal format.
-        
+
         Returns:
             MarginAccountSummary instance with aggregated account data.
         """

@@ -32,6 +32,7 @@ from cyberdelta.core.enums import (
 )
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.order import CancelOrderResult
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -106,7 +107,7 @@ class TestHyperliquidBatchOperations:
 
             orders.append(
                 PlaceOrderArgs(
-                    symbol=symbol,
+                    symbol=exchanges.hyperliquid(symbol),
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=test_quantity,
@@ -139,7 +140,7 @@ class TestHyperliquidBatchOperations:
         for i, order in enumerate(placed_orders):
             assert isinstance(order, Order)
             assert order.exchange_order_id is not None
-            assert order.symbol == symbol
+            assert order.symbol.value == symbol
             assert order.side == OrderSide.BUY
             assert order.order_type == OrderType.LIMIT
             assert order.quantity_requested == test_quantity
@@ -214,7 +215,7 @@ class TestHyperliquidBatchOperations:
 
             orders.append(
                 PlaceOrderArgs(
-                    symbol=symbol,
+                    symbol=exchanges.hyperliquid(symbol),
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=test_quantity,
@@ -327,7 +328,7 @@ class TestHyperliquidBatchOperations:
 
         orders = [
             PlaceOrderArgs(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,  # This is fine
                 quantity=test_quantity,
@@ -336,7 +337,7 @@ class TestHyperliquidBatchOperations:
                 execution=OrderExecution(),
             ),
             PlaceOrderArgs(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol),
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,  # This should be rejected
                 quantity=test_quantity,
@@ -406,7 +407,7 @@ class TestHyperliquidBatchOperations:
 
         orders = [
             PlaceOrderArgs(
-                symbol=symbol1,
+                symbol=exchanges.hyperliquid(symbol1),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity1,
@@ -416,7 +417,7 @@ class TestHyperliquidBatchOperations:
                 client_order_id=generate_test_cloid(),  # Use proper 128-bit hex cloid
             ),
             PlaceOrderArgs(
-                symbol=symbol2,
+                symbol=exchanges.hyperliquid(symbol2),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity2,
@@ -433,8 +434,8 @@ class TestHyperliquidBatchOperations:
         assert len(placed_orders) == 2
 
         # Validate symbols are preserved correctly
-        symbol1_order = next((o for o in placed_orders if o.symbol == symbol1), None)
-        symbol2_order = next((o for o in placed_orders if o.symbol == symbol2), None)
+        symbol1_order = next((o for o in placed_orders if o.symbol.value == symbol1), None)
+        symbol2_order = next((o for o in placed_orders if o.symbol.value == symbol2), None)
 
         assert symbol1_order is not None, f"{symbol1} order not found"
         assert symbol2_order is not None, f"{symbol2} order not found"
@@ -501,7 +502,7 @@ class TestHyperliquidBatchOperations:
         orders = [
             # Valid order 1
             PlaceOrderArgs(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,
@@ -512,7 +513,7 @@ class TestHyperliquidBatchOperations:
             ),
             # Valid order 2
             PlaceOrderArgs(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,
@@ -529,7 +530,7 @@ class TestHyperliquidBatchOperations:
             # Potentially problematic order - use duplicate cloid to trigger failure
             # This avoids hardcoding financial values
             PlaceOrderArgs(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,  # Use proper test quantity
@@ -562,7 +563,7 @@ class TestHyperliquidBatchOperations:
             valid_orders = [order for order in placed_orders if order.exchange_order_id is not None]
             for order in valid_orders:
                 assert isinstance(order, Order)
-                assert order.symbol == symbol
+                assert order.symbol.value == symbol
                 assert order.side == OrderSide.BUY
                 assert order.order_type == OrderType.LIMIT
                 assert order.status in [OrderStatus.OPEN, OrderStatus.NEW]
@@ -645,7 +646,7 @@ class TestHyperliquidBatchOperations:
 
         invalid_orders = [
             PlaceOrderArgs(
-                symbol="INVALID_SYMBOL_THAT_DOES_NOT_EXIST",
+                symbol=exchanges.hyperliquid("INVALID_SYMBOL"),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,
@@ -684,7 +685,7 @@ class TestHyperliquidBatchOperations:
         invalid_cancel_args = [
             CancelOrderArgs(
                 order_id="99999999999",  # Non-existent order ID
-                symbol=cancel_test_symbol,
+                symbol=exchanges.hyperliquid(cancel_test_symbol),
             ),
         ]
 
@@ -697,7 +698,8 @@ class TestHyperliquidBatchOperations:
             result = cancel_results[0]
             assert isinstance(result, CancelOrderResult), "Should return CancelOrderResult"
             assert result.order_id == "99999999999", "Should preserve order ID"
-            assert result.symbol == cancel_test_symbol, "Should preserve symbol"
+            assert result.symbol is not None, "Symbol should not be None"
+            assert result.symbol.value == cancel_test_symbol, "Should preserve symbol"
             # Result should indicate failure
             logger.info(
                 "invalid_cancel_result",

@@ -22,6 +22,7 @@ from cyberdelta.apis.exceptions import TickerTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.models.market.ticker import BackpackTickerDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -59,16 +60,6 @@ class BackpackTickerMapper(TickerMapperProtocol):
         try:
             # Use symbol override if provided, otherwise use raw ticker symbol
             symbol = symbol_override or raw_ticker.symbol
-
-            # Validate symbol format
-            if symbol and not BackpackCommonMappers.is_valid_symbol(symbol):
-                logger.warning(
-                    "invalid_symbol_format",
-                    symbol=symbol,
-                    expected_format="BASE_QUOTE",
-                    context="ticker_transform",
-                    message="Invalid Backpack symbol format in ticker data",
-                )
 
             # Parse core ticker fields using new model structure
             last_price = parse_decimal_value(
@@ -122,6 +113,9 @@ class BackpackTickerMapper(TickerMapperProtocol):
             # Generate timestamp since API doesn't provide it
             timestamp = datetime.now(UTC)
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(value=symbol)
+
             # Create Backpack-specific extension details
             bp_details = BackpackTickerDetails(
                 first_price=first_price,
@@ -135,7 +129,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
 
             # Use secure_transform for type-safe model creation
             ticker_data: dict[str, Any] = {
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.BACKPACK.value,
                 "timestamp": timestamp.isoformat(),
                 "price": str(last_price),  # Map lastPrice to core price field
@@ -176,16 +170,6 @@ class BackpackTickerMapper(TickerMapperProtocol):
 
         """
         try:
-            # Validate symbol format
-            if raw_ticker.symbol and not BackpackCommonMappers.is_valid_symbol(raw_ticker.symbol):
-                logger.warning(
-                    "invalid_symbol_format",
-                    symbol=raw_ticker.symbol,
-                    expected_format="BASE_QUOTE",
-                    context="ws_ticker_transform",
-                    message="Invalid Backpack symbol format in WebSocket ticker event",
-                )
-
             # Parse core ticker fields
             last_price = parse_decimal_value(
                 raw_ticker.last_price,
@@ -203,9 +187,12 @@ class BackpackTickerMapper(TickerMapperProtocol):
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(value=raw_ticker.symbol)
+
             # Use secure_transform for type-safe model creation
             ticker_data: dict[str, Any] = {
-                "symbol": raw_ticker.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "exchange": ExchangeName.BACKPACK.value,
                 "timestamp": timestamp.isoformat(),
                 "price": str(last_price) if last_price is not None else None,
@@ -234,7 +221,8 @@ class BackpackTickerMapper(TickerMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -246,30 +234,6 @@ class BackpackTickerMapper(TickerMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

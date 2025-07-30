@@ -35,7 +35,7 @@ class TransferArgs(BaseModel):
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty with max length 64.
-        
+
         Returns:
             Validated string value.
         """
@@ -50,7 +50,7 @@ class TransferArgs(BaseModel):
     @classmethod
     def validate_optional_string(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate optional string fields.
-        
+
         Returns:
             Validated string value or None if input was None.
         """
@@ -67,10 +67,10 @@ class TransferArgs(BaseModel):
     @classmethod
     def parse_amount_decimal(cls, v: PotentialDecimalInput, info: ValidationInfo) -> Decimal:
         """Parse and validate amount as a positive finite decimal.
-        
+
         Returns:
             Parsed and validated Decimal value.
-            
+
         Raises:
             TypeFieldError: If input is not a valid decimal type.
             DecimalFieldError: If value is not finite or cannot be parsed.
@@ -98,10 +98,10 @@ class TransferArgs(BaseModel):
     @model_validator(mode="after")
     def check_account_types_differ(self) -> "TransferArgs":
         """Ensure from and to account types are different.
-        
+
         Returns:
             Self for method chaining.
-            
+
         Raises:
             TransferAccountError: If from and to account types are the same.
         """
@@ -136,7 +136,7 @@ class WithdrawArgs(BaseModel):
     @classmethod
     def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields.
-        
+
         Returns:
             Validated string value.
         """
@@ -151,7 +151,7 @@ class WithdrawArgs(BaseModel):
     @classmethod
     def validate_optional_strings(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate optional string fields.
-        
+
         Returns:
             Validated string value or None if input was None.
         """
@@ -169,10 +169,10 @@ class WithdrawArgs(BaseModel):
     @classmethod
     def parse_amount_decimal(cls, v: PotentialDecimalInput, info: ValidationInfo) -> Decimal:
         """Parse and validate amount as a positive finite decimal.
-        
+
         Returns:
             Parsed and validated Decimal value.
-            
+
         Raises:
             TypeFieldError: If input is not a valid decimal type.
             DecimalFieldError: If value is not finite or cannot be parsed.

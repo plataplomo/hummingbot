@@ -65,7 +65,7 @@ class UserEventsSubscriptionError(ValueError):
         """Initialize user events subscription error."""
         super().__init__(
             "Cannot subscribe to userEvents without wallet address. "
-            "Ensure private_key is configured in secrets."
+            "Ensure private_key is configured in secrets.",
         )
 
 

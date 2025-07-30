@@ -34,6 +34,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -51,37 +52,20 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
     # Protocol method implementations - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
-        
+
         Returns:
             Decimal: Parsed decimal value or default if parsing fails.
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
     @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-        
-        Returns:
-            str: Normalized symbol (e.g., 'BTC-USD' -> 'BTCUSD').
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-        
-        Returns:
-            str: Denormalized symbol for exchange (e.g., 'BTCUSD' -> 'BTC-USD').
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
-
-    @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
-        
+
         Returns:
             datetime | None: UTC datetime object or None if timestamp is None.
         """
@@ -104,7 +88,8 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
         """
         # Delegate to existing business logic method from git history
         return HyperliquidMarketMetadataMapper._create_market_from_asset_definition(
-            asset_def, asset_ctx
+            asset_def,
+            asset_ctx,
         )
 
     @staticmethod
@@ -244,7 +229,8 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
             # Calculate step_size from sz_decimals
             step_size_parsed = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
             step_size = HyperliquidMarketMetadataMapper._validate_asset_definition_data(
-                step_size_parsed, asset_def.name
+                step_size_parsed,
+                asset_def.name,
             )
 
             # For Hyperliquid perpetuals, determine tick size from actual market prices
@@ -274,12 +260,16 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
                 funding_rate=parse_decimal_value(asset_ctx.funding) if asset_ctx else None,
             )
 
+            # Parse symbol to domain object at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=asset_def.name,  # e.g., "BTC"
+                asset_index=getattr(asset_def, "asset_index", None),
+            )
+
             # Create market with available information
             # Use secure_transform for type-safe model creation
             market_data = {
-                "symbol": asset_def.name,
-                "base_symbol": asset_def.name,  # For perps, symbol equals base
-                "quote_symbol": "USD",  # Hyperliquid perps are USD-settled
+                "symbol": exchange_symbol,  # Domain object!
                 "market_type": "Perpetual",
                 "tick_size": str(tick_size),
                 "step_size": str(step_size),

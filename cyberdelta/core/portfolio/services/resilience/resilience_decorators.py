@@ -189,13 +189,13 @@ def resilient_method(
 
     This is useful for methods that should be resilient but need to return
     the actual value rather than a ResilienceResult.
-    
+
     Args:
         service_name: Optional service name (defaults to function name)
         use_circuit_breaker: Whether to enable circuit breaker protection
         use_retry: Whether to enable retry logic
         use_fallback: Whether to enable fallback execution
-        
+
     Returns:
         A decorator function that wraps methods with resilience capabilities.
     """
@@ -251,7 +251,7 @@ class ResilienceContext:
 
     async def __aenter__(self) -> Self:
         """Enter resilience context.
-        
+
         Returns:
             Self for use in async context manager.
         """
@@ -263,12 +263,12 @@ class ResilienceContext:
         self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
     ) -> bool:
         """Exit resilience context and record metrics.
-        
+
         Args:
             exc_type: Exception type if an exception occurred
-            exc_val: Exception value if an exception occurred  
+            exc_val: Exception value if an exception occurred
             exc_tb: Exception traceback if an exception occurred
-            
+
         Returns:
             False to indicate exceptions should not be suppressed.
         """

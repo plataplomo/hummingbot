@@ -75,10 +75,10 @@ class StateSnapshot[T: BaseModel](BaseModel):
 
     def get_entity(self, entity_id: str) -> T | None:
         """Get entity by ID.
-        
+
         Args:
             entity_id: Entity identifier.
-            
+
         Returns:
             T | None: Entity if found, None otherwise.
         """
@@ -86,10 +86,10 @@ class StateSnapshot[T: BaseModel](BaseModel):
 
     def has_entity(self, entity_id: str) -> bool:
         """Check if entity exists.
-        
+
         Args:
             entity_id: Entity identifier.
-            
+
         Returns:
             bool: True if entity exists, False otherwise.
         """
@@ -118,11 +118,11 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def add(self, entity_id: str, entity: T) -> None:
         """Add entity to container.
-        
+
         Args:
             entity_id: Entity identifier.
             entity: Entity to add.
-            
+
         Raises:
             ContainerSizeLimitExceededError: If container has reached max_size.
         """
@@ -146,10 +146,10 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def remove(self, entity_id: str) -> T | None:
         """Remove entity from container.
-        
+
         Args:
             entity_id: Entity identifier.
-            
+
         Returns:
             T | None: Removed entity if found, None otherwise.
         """
@@ -170,10 +170,10 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def get(self, entity_id: str) -> T | None:
         """Get entity by ID.
-        
+
         Args:
             entity_id: Entity identifier.
-            
+
         Returns:
             T | None: Entity if found, None otherwise.
         """
@@ -181,7 +181,7 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def get_all(self) -> dict[str, T]:
         """Get all entities.
-        
+
         Returns:
             dict[str, T]: Copy of all entities mapping.
         """
@@ -195,10 +195,10 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def create_snapshot(self, snapshot_id: str) -> StateSnapshot[T]:
         """Create snapshot of current state.
-        
+
         Args:
             snapshot_id: Unique identifier for the snapshot.
-            
+
         Returns:
             StateSnapshot[T]: Created snapshot.
         """
@@ -214,10 +214,10 @@ class StateContainer[T: BaseModel](BaseModel):
 
     def restore_snapshot(self, snapshot_id: str) -> bool:
         """Restore state from snapshot.
-        
+
         Args:
             snapshot_id: Identifier of snapshot to restore.
-            
+
         Returns:
             bool: True if restored successfully, False if snapshot not found.
         """
@@ -280,10 +280,10 @@ class StateValidationResult(BaseModel):
         cls, v: dict[str, object] | StateValidationMetadata
     ) -> StateValidationMetadata:
         """Convert dict to StateValidationMetadata if needed.
-        
+
         Args:
             v: Dictionary or StateValidationMetadata instance.
-            
+
         Returns:
             StateValidationMetadata: Validated metadata instance.
         """
@@ -340,7 +340,7 @@ class StateSummary(BaseModel):
 
     def to_dict(self) -> dict[str, object]:
         """Convert to dictionary.
-        
+
         Returns:
             dict[str, object]: Dictionary representation of the summary.
         """

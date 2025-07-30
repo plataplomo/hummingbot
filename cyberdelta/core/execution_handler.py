@@ -21,9 +21,10 @@ from cyberdelta.core.services.config_validation import (
 )
 from cyberdelta.core.services.factory import ServiceFactory
 from cyberdelta.core.services.interfaces import ExecutionResult, OrderRequest
-from cyberdelta.core.symbols.helpers import get_domain_helpers
-from cyberdelta.core.symbols.logging_helpers import create_operation_logger
-from cyberdelta.core.symbols.models import ExchangeSymbol
+
+# from cyberdelta.core.symbols.helpers import get_domain_helpers  # TODO: Remove obsolete import
+# from cyberdelta.core.symbols.logging_helpers import create_operation_logger  # TODO: Remove obsolete import
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.validation.circuit_breaker import CircuitBreakerTrippedError
@@ -482,8 +483,8 @@ class ExecutionHandler:
         opportunity: SizedOpportunity,
         long_client: ExchangeAPI,
         short_client: ExchangeAPI,
-        long_symbol: ExchangeSymbol,
-        short_symbol: ExchangeSymbol,
+        long_symbol: Symbol,
+        short_symbol: Symbol,
     ) -> None:
         """Execute the complete order placement logic with domain objects."""
         # Log with rich domain context
@@ -617,12 +618,12 @@ class ExecutionHandler:
         self,
         execution: TradeExecution,
         opportunity: SizedOpportunity,
-        long_symbol: ExchangeSymbol,
+        long_symbol: Symbol,
         base_asset_quantity_long: Decimal,
         default_tif: TimeInForce,
     ) -> ExecutionResult | None:
         """Place the long order using the order management service with domain objects.
-        
+
         Returns:
             ExecutionResult containing order details on success, or error information on failure
         """
@@ -678,7 +679,7 @@ class ExecutionHandler:
         self,
         execution: TradeExecution,
         opportunity: SizedOpportunity,
-        short_symbol: ExchangeSymbol,
+        short_symbol: Symbol,
         base_asset_quantity_short: Decimal,
         default_tif: TimeInForce,
     ) -> None:
@@ -782,7 +783,7 @@ class ExecutionHandler:
         order: object,  # Order object
         exchange_id: str,
         is_long_leg: bool,
-        exchange_symbol: ExchangeSymbol | None = None,
+        exchange_symbol: Symbol | None = None,
     ) -> None:
         """Handle a filled order by updating portfolio tracker with domain context."""
         try:

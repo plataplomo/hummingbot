@@ -35,7 +35,11 @@ class ResponseParsingError(APIError):
     """Failed to parse HTTP response."""
 
     def __init__(
-        self, url: str, status_code: int, reason: str, response_text: str | None = None
+        self,
+        url: str,
+        status_code: int,
+        reason: str,
+        response_text: str | None = None,
     ) -> None:
         """Initialize ResponseParsingError.
 

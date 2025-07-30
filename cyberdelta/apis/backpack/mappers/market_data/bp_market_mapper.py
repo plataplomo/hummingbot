@@ -19,6 +19,7 @@ from cyberdelta.apis.exceptions import MarketTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.market import BackpackMarketDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -95,11 +96,15 @@ class BackpackMarketMapper(MarketMapperProtocol):
                 created_at_raw=raw_market.created_at,
             )
 
+            # Parse symbol to domain object at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw_market.symbol,  # e.g., "BTC_USDC"
+                symbol_id=getattr(raw_market, "symbol_id", None),
+            )
+
             # Use secure_transform for type-safe model creation
             market_data: dict[str, Any] = {
-                "symbol": raw_market.symbol,
-                "base_symbol": raw_market.base_symbol,
-                "quote_symbol": raw_market.quote_symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "market_type": raw_market.market_type,
                 "tick_size": str(tick_size),
                 "step_size": str(step_size),
@@ -130,7 +135,8 @@ class BackpackMarketMapper(MarketMapperProtocol):
     # MapperProtocol methods
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely using BackpackCommonMappers.
 
@@ -142,30 +148,6 @@ class BackpackMarketMapper(MarketMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol format using BackpackCommonMappers.
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

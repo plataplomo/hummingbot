@@ -120,8 +120,19 @@ class MarketOrder:
             )
 
             # 4. Prepare IoC limit order
+            from cyberdelta.core.symbols import exchanges
+
+            # Create Symbol object based on exchange name
+            if self._exchange.exchange_name.lower() == "hyperliquid":
+                symbol_obj = exchanges.hyperliquid(symbol)
+            elif self._exchange.exchange_name.lower() == "backpack":
+                symbol_obj = exchanges.backpack(symbol)
+            else:
+                # Fallback for unknown exchanges
+                raise ValueError(f"Unknown exchange: {self._exchange.exchange_name}")
+
             order_args = PlaceOrderArgs(
-                symbol=symbol,
+                symbol=symbol_obj,
                 side=side,
                 order_type=OrderType.LIMIT,  # Using limit order with IoC
                 quantity=rounded_quantity,

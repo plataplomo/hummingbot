@@ -13,6 +13,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.core.symbols import exchanges
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     COMMON_SPOT_SYMBOLS,
     DELISTED_PERP_SYMBOL,
@@ -62,8 +63,9 @@ class TestBackpackPositionsZero:
             APIError: If API call fails with non-symbol-not-found errors.
         """
         try:
+            symbol = exchanges.backpack(TEST_SYMBOL_BTC_PERP)
             positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=TEST_SYMBOL_BTC_PERP,
+                symbol=symbol,
             )
             # Should return empty list for non-existent positions
             assert isinstance(positions, list)
@@ -122,8 +124,9 @@ class TestBackpackPositionsZero:
         try:
             # Try to get position for spot symbol
             # SOL-USDC
+            symbol = exchanges.backpack(COMMON_SPOT_SYMBOLS[0])
             positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=COMMON_SPOT_SYMBOLS[0],
+                symbol=symbol,
             )
 
             # Should return empty list as spot pairs don't have positions
@@ -157,8 +160,9 @@ class TestBackpackPositionsZero:
 
         # Try specific symbols
         try:
+            symbol = exchanges.backpack(TEST_SYMBOL_BTC_PERP)
             btc_positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=TEST_SYMBOL_BTC_PERP,
+                symbol=symbol,
             )
             assert isinstance(btc_positions, list)
             assert len(btc_positions) == 0
@@ -170,8 +174,9 @@ class TestBackpackPositionsZero:
                 raise
 
         try:
+            symbol = exchanges.backpack(TEST_SYMBOL_ETH_PERP)
             eth_positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=TEST_SYMBOL_ETH_PERP,
+                symbol=symbol,
             )
             assert isinstance(eth_positions, list)
             assert len(eth_positions) == 0
@@ -245,8 +250,9 @@ class TestBackpackPositionsZero:
         try:
             # Try an invalid/delisted symbol
             # Use a less common perp symbol that might not exist
+            symbol = exchanges.backpack(DELISTED_PERP_SYMBOL)
             positions = await bp_api_for_zero_balance_test.get_positions(
-                symbol=DELISTED_PERP_SYMBOL,
+                symbol=symbol,
             )
 
             # Should return empty list for invalid symbols

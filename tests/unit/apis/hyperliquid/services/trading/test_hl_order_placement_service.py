@@ -56,7 +56,7 @@ HyperliquidResponseHandler = HyperliquidTradingResponseHandler
 @pytest.fixture
 def mock_http_requester() -> AsyncMock:
     """Create a mock HTTP requester.
-    
+
     Returns:
         AsyncMock: A mock instance of the HTTP requester.
     """
@@ -66,7 +66,7 @@ def mock_http_requester() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> Mock:
     """Create a mock request builder.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidTradingRequestBuilder.
     """
@@ -76,7 +76,7 @@ def mock_request_builder() -> Mock:
 @pytest.fixture
 def mock_response_handler() -> Mock:
     """Create a mock response handler.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidResponseHandler.
     """
@@ -86,7 +86,7 @@ def mock_response_handler() -> Mock:
 @pytest.fixture
 def mock_mapper() -> Mock:
     """Create a mock data mapper.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidOrderMapper.
     """
@@ -96,7 +96,7 @@ def mock_mapper() -> Mock:
 @pytest.fixture
 def mock_error_mapper() -> Mock:
     """Create a mock error mapper.
-    
+
     Returns:
         Mock: A mock instance of HyperliquidErrorMapper.
     """
@@ -106,7 +106,7 @@ def mock_error_mapper() -> Mock:
 @pytest.fixture
 def mock_authenticator() -> Mock:
     """Create a mock authenticator.
-    
+
     Returns:
         Mock: A mock authenticator with sign_transaction method.
     """
@@ -118,7 +118,7 @@ def mock_authenticator() -> Mock:
 @pytest.fixture
 def mock_get_asset_index() -> AsyncMock:
     """Create a mock get_asset_index callable.
-    
+
     Returns:
         AsyncMock: A mock callable that returns asset index 0.
     """
@@ -136,7 +136,7 @@ def order_placement_service(
     mock_get_asset_index: AsyncMock,
 ) -> HyperliquidOrderPlacementService:
     """Create an order placement service instance with mocks.
-    
+
     Returns:
         HyperliquidOrderPlacementService: Service instance configured with mock dependencies.
     """
@@ -156,7 +156,7 @@ def order_placement_service(
 @pytest.fixture
 def valid_place_order_args() -> PlaceOrderArgs:
     """Create valid place order arguments.
-    
+
     Returns:
         PlaceOrderArgs: Valid arguments for placing a BTC-USD buy order.
     """
@@ -174,7 +174,7 @@ def valid_place_order_args() -> PlaceOrderArgs:
 @pytest.fixture
 def mock_order_response() -> Order:
     """Create a mock successful order response.
-    
+
     Returns:
         Order: A mock filled order response.
     """

@@ -42,6 +42,7 @@ from cyberdelta.apis.models.service_args.internal import (
     GetMaxOrderQuantityArgs,
     GetMaxWithdrawalQuantityArgs,
 )
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -66,7 +67,7 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         ...
 
     @staticmethod
-    def build_get_positions_params(symbol: str | None) -> BackpackRawGetPositionsParams:
+    def build_get_positions_params(symbol: Symbol | None) -> BackpackRawGetPositionsParams:
         """Build query parameters for fetching account positions."""
         ...
 
@@ -77,7 +78,7 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_withdraw_payload(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         network: str,
         address: str,
         amount: Decimal,
@@ -90,7 +91,7 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_internal_transfer_payload(
-        asset_symbol: str,
+        asset_symbol: Symbol,
         from_wallet: Literal["SPOT", "MARGIN", "FUTURES"],
         to_wallet: Literal["SPOT", "MARGIN", "FUTURES"],
         amount: Decimal,
@@ -100,13 +101,15 @@ class AccountRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         ...
 
     @staticmethod
-    def build_convert_dust_payload(asset_symbol: str) -> BackpackRawAccountConvertDustRequest:
+    def build_convert_dust_payload(asset_symbol: Symbol) -> BackpackRawAccountConvertDustRequest:
         """Build request payload for converting dust to USDC."""
         ...
 
     @staticmethod
     def build_borrow_lend_payload(
-        operation: Literal["BORROW", "REPAY", "LEND", "REDEEM"], asset_symbol: str, amount: Decimal
+        operation: Literal["BORROW", "REPAY", "LEND", "REDEEM"],
+        asset_symbol: Symbol,
+        amount: Decimal,
     ) -> BackpackRawBorrowLendExecuteRequest:
         """Build request payload for borrowing/lending operations."""
         ...
@@ -158,25 +161,22 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
     """
 
     @staticmethod
-    def format_symbol(symbol: str) -> str:
-        """Format symbol according to Backpack API requirements."""
-        ...
-
-    @staticmethod
-    def build_get_ticker_params(symbol: str) -> BackpackRawGetTickerParams:
+    def build_get_ticker_params(symbol: Symbol) -> BackpackRawGetTickerParams:
         """Build query parameters for fetching ticker data."""
         ...
 
     @staticmethod
     def build_get_order_book_params(
-        symbol: str, depth: int | None = None
+        symbol: Symbol,
+        depth: int | None = None,
     ) -> BackpackRawGetOrderBookParams:
         """Build query parameters for fetching order book data."""
         ...
 
     @staticmethod
     def build_get_recent_trades_params(
-        symbol: str, limit: int | None = None
+        symbol: Symbol,
+        limit: int | None = None,
     ) -> BackpackRawGetRecentTradesParams:
         """Build query parameters for fetching recent trades."""
         ...
@@ -187,32 +187,41 @@ class MarketDataRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
         ...
 
     @staticmethod
-    def build_get_market_params(symbol: str) -> BackpackRawGetMarketParams:
+    def build_get_market_params(symbol: Symbol) -> BackpackRawGetMarketParams:
         """Build query parameters for fetching a specific market."""
         ...
 
     @staticmethod
-    def build_get_funding_rate_params(symbol: str) -> BackpackRawGetFundingRateParams:
+    def build_get_funding_rate_params(symbol: Symbol) -> BackpackRawGetFundingRateParams:
         """Build query parameters for fetching current funding rate."""
         ...
 
     @staticmethod
     def build_get_historical_funding_rates_params(
-        symbol: str, start_time: int | None = None, end_time: int | None = None, limit: int = 100
+        symbol: Symbol,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int = 100,
     ) -> BackpackRawGetHistoricalFundingRatesParams:
         """Build query parameters for fetching historical funding rates."""
         ...
 
     @staticmethod
     def build_get_market_data_params(
-        symbol: str, interval: str, start_time: int, end_time: int | None = None, limit: int = 500
+        symbol: Symbol,
+        interval: str,
+        start_time: int,
+        end_time: int | None = None,
+        limit: int = 500,
     ) -> BackpackRawGetMarketDataParams:
         """Build query parameters for fetching historical market data (klines)."""
         ...
 
     @staticmethod
     def build_get_historical_trades_params(
-        symbol: str, limit: int = 100, from_id: str | None = None
+        symbol: Symbol,
+        limit: int = 100,
+        from_id: str | None = None,
     ) -> BackpackRawGetHistoricalTradesParams:
         """Build query parameters for fetching historical trades."""
         ...
@@ -228,14 +237,16 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def map_order_enums_to_api_strings(
-        order_type: OrderType, order_side: OrderSide, time_in_force: TimeInForce | None
+        order_type: OrderType,
+        order_side: OrderSide,
+        time_in_force: TimeInForce | None,
     ) -> tuple[str, str, str | None]:
         """Map internal enum values to Backpack API string values."""
         ...
 
     @staticmethod
     def build_place_order_payload(
-        symbol: str,
+        symbol: Symbol,
         order_type: OrderType,
         order_side: OrderSide,
         quantity: Decimal,
@@ -252,31 +263,33 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_cancel_order_payload(
-        symbol: str, order_id: str | None = None, client_order_id: str | None = None
+        symbol: Symbol,
+        order_id: str | None = None,
+        client_order_id: str | None = None,
     ) -> BackpackRawOrderCancelRequest:
         """Build request payload for cancelling an order."""
         ...
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> BackpackRawOrderCancelAllRequest:
         """Build request payload for cancelling all orders."""
         ...
 
     @staticmethod
-    def build_get_open_orders_params(symbol: str | None) -> BackpackRawGetOpenOrdersParams:
+    def build_get_open_orders_params(symbol: Symbol | None) -> BackpackRawGetOpenOrdersParams:
         """Build query parameters for fetching open orders."""
         ...
 
     @staticmethod
-    def build_get_order_params(symbol: str) -> BackpackRawGetOrderParams:
+    def build_get_order_params(symbol: Symbol) -> BackpackRawGetOrderParams:
         """Build query parameters for fetching a specific order."""
         ...
 
     @staticmethod
     def build_get_order_history_params(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         order_id: str | None = None,
         client_id: str | None = None,
         start_time: int | None = None,
@@ -288,7 +301,7 @@ class TradingRequestBuilderProtocol(RequestBuilderProtocol, Protocol):
 
     @staticmethod
     def build_get_trade_history_params(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
         limit: int = 100,

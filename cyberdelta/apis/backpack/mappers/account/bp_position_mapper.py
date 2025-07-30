@@ -25,6 +25,7 @@ from cyberdelta.apis.exceptions.data_transformation import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -108,7 +109,9 @@ class BackpackPositionMapper(PositionMapperProtocol):
 
             # Parse and validate position size
             size_dec = parse_decimal_value(
-                raw.net_quantity, allow_none=False, field_name="net_quantity"
+                raw.net_quantity,
+                allow_none=False,
+                field_name="net_quantity",
             )
             size_typed = BackpackPositionMapper._ensure_position_size_not_none(size_dec)
 
@@ -156,10 +159,15 @@ class BackpackPositionMapper(PositionMapperProtocol):
                 cumulative_funding=cumulative_funding_dec,
             )
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw.symbol,
+            )
+
             # Use secure_transform for type-safe model creation
             position_data = {
                 "exchange": ExchangeName.BACKPACK.value,
-                "symbol": raw.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "timestamp": timestamp.isoformat(),
                 "side": side.value,
                 "size": str(size_typed),
@@ -252,7 +260,8 @@ class BackpackPositionMapper(PositionMapperProtocol):
             entry_price_dec = parse_decimal_value(raw_position_update.entry_price, allow_none=True)
             mark_price_dec = parse_decimal_value(raw_position_update.mark_price, allow_none=True)
             liq_price_dec = parse_decimal_value(
-                raw_position_update.liquidation_price, allow_none=True
+                raw_position_update.liquidation_price,
+                allow_none=True,
             )
             # These fields don't exist in BackpackRawPositionUpdate
             unrealized_pnl_dec = None
@@ -274,14 +283,16 @@ class BackpackPositionMapper(PositionMapperProtocol):
             # fields instead of imf_function/mmf_function objects
             if raw_position_update.initial_margin_fraction is not None:
                 imf_base_dec = parse_decimal_value(
-                    raw_position_update.initial_margin_fraction, allow_none=True
+                    raw_position_update.initial_margin_fraction,
+                    allow_none=True,
                 )
                 # No factor available in position update, only base value
                 imf_factor_dec = None
 
             if raw_position_update.maintenance_margin_fraction is not None:
                 mmf_base_dec = parse_decimal_value(
-                    raw_position_update.maintenance_margin_fraction, allow_none=True
+                    raw_position_update.maintenance_margin_fraction,
+                    allow_none=True,
                 )
                 # No factor available in position update, only base value
                 mmf_factor_dec = None
@@ -295,10 +306,15 @@ class BackpackPositionMapper(PositionMapperProtocol):
                 cumulative_funding=None,  # Not typically available in position updates
             )
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.backpack(
+                value=raw_position_update.symbol,
+            )
+
             # Use secure_transform for type-safe model creation
             position_data = {
                 "exchange": ExchangeName.BACKPACK.value,
-                "symbol": raw_position_update.symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "timestamp": timestamp.isoformat(),
                 "side": side.value,
                 "size": str(size_typed),
@@ -350,7 +366,8 @@ class BackpackPositionMapper(PositionMapperProtocol):
     # MapperProtocol implementation - delegate to common utilities
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Safely parse decimal values with fallback.
 
@@ -362,30 +379,6 @@ class BackpackPositionMapper(PositionMapperProtocol):
             Parsed Decimal value or default if parsing fails.
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Convert symbol to Backpack format (underscore-separated).
-
-        Args:
-            symbol: Symbol string to normalize (e.g., "BTC/USD").
-
-        Returns:
-            Symbol in Backpack format with underscores (e.g., "BTC_USD").
-        """
-        return BackpackCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Convert symbol from Backpack to internal format (slash-separated).
-
-        Args:
-            symbol: Symbol string in Backpack format (e.g., "BTC_USD").
-
-        Returns:
-            Symbol in internal format with slashes (e.g., "BTC/USD").
-        """
-        return BackpackCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:

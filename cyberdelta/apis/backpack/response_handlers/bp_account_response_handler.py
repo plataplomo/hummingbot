@@ -37,6 +37,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_list_response,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -126,10 +127,10 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
             # Account operations require additional context not available in generic interface
             raise NotImplementedError(
                 f"Account operation '{operation}' requires specific parameters not available "
-                f"in generic handle_response interface. Use specific handler methods directly."
+                f"in generic handle_response interface. Use specific handler methods directly.",
             )
         raise NotImplementedError(
-            f"Account operation '{operation}' not supported by registry dispatch"
+            f"Account operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
@@ -179,14 +180,14 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     @staticmethod
     def handle_get_positions_response(
         raw_response_content: RawJsonResponse,
-        symbol: str | None,
+        symbol: Symbol | None,
         status_code: int,
     ) -> list[BackpackRawPositionResponse]:
         """Validate the raw response for the Get Positions endpoint.
 
         Handles a single position dictionary if a symbol is provided,
         or a list of position dictionaries if no symbol is provided.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Optional symbol to filter positions
@@ -216,7 +217,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
             )
             try:
                 position = BackpackRawPositionResponse.model_validate(validated_item)
-                if symbol is None or position.symbol == symbol:
+                if symbol is None or position.symbol == symbol.value:
                     validated_positions.append(position)
             except ValidationError as e:
                 raise BackpackAccountResponseHandler._handle_validation_error(
@@ -277,7 +278,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
 
         Returns:
             Validated BackpackRawWithdrawalResponse model.
-            
+
         Raises:
             _handle_validation_error: Re-raised as APIError if validation fails.
         """
@@ -372,7 +373,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         """Validate the raw response for the Get Collateral endpoint.
 
         (/api/v1/capital/collateral).
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             subaccount_id: Optional subaccount ID for context
@@ -381,7 +382,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
 
         Returns:
             Validated BackpackRawCollateralResponse model.
-            
+
         Raises:
             _handle_validation_error: Re-raised as APIError if validation fails.
         """
@@ -405,7 +406,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     @staticmethod
     def handle_max_borrow_quantity_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawMaxBorrowQuantity:
@@ -414,7 +415,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/borrow).
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: The asset symbol
@@ -423,7 +424,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
 
         Returns:
             Validated BackpackRawMaxBorrowQuantity model.
-            
+
         Raises:
             _handle_validation_error: Re-raised as APIError if validation fails.
         """
@@ -445,7 +446,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     @staticmethod
     def handle_max_order_quantity_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         side: str,
         status_code: int,
         headers: Mapping[str, str],
@@ -455,7 +456,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/order).
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: The trading symbol
@@ -465,7 +466,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
 
         Returns:
             Validated BackpackRawMaxOrderQuantity model.
-            
+
         Raises:
             _handle_validation_error: Re-raised as APIError if validation fails.
         """
@@ -487,7 +488,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
     @staticmethod
     def handle_max_withdrawal_quantity_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawMaxWithdrawalQuantity:
@@ -496,7 +497,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
         INTERNAL USE ONLY: For risk calculation validation and reconciliation.
 
         (/api/v1/account/limits/withdrawal).
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: The asset symbol
@@ -505,7 +506,7 @@ class BackpackAccountResponseHandler(AccountResponseHandlerProtocol):
 
         Returns:
             Validated BackpackRawMaxWithdrawalQuantity model.
-            
+
         Raises:
             _handle_validation_error: Re-raised as APIError if validation fails.
         """

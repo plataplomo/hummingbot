@@ -74,7 +74,7 @@ def mock_websocket() -> MagicMock:
     # Create an empty async generator using a lambda to avoid unreachable code
     def create_empty_async_generator() -> AsyncIterator[object]:
         """Factory function that returns an empty async generator.
-        
+
         Returns:
             Empty async iterator for mocking WebSocket message stream
         """

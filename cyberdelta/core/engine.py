@@ -226,7 +226,7 @@ class Engine:
 
     def _validate_engine_state(self) -> bool:
         """Validate that the engine is in a state to process market data.
-        
+
         Returns:
             bool: True if engine is running and has a signal handler configured.
         """
@@ -242,10 +242,10 @@ class Engine:
 
     def _should_process_symbol(self, symbol: str) -> bool:
         """Check if the symbol should be processed.
-        
+
         Args:
             symbol: Trading symbol to check.
-            
+
         Returns:
             bool: True if symbol has active strategies.
         """
@@ -297,10 +297,10 @@ class Engine:
         result: TradeSignal | list[TradeSignal],
     ) -> list[TradeSignal]:
         """Normalize strategy result to a list of signals.
-        
+
         Args:
             result: Single signal or list of signals from strategy.
-            
+
         Returns:
             list[TradeSignal]: List of signals (wraps single signal in list if needed).
         """

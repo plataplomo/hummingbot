@@ -23,7 +23,7 @@ class TestMarginAccountSummaryManager:
     @pytest.fixture
     def sample_summary(self) -> MarginAccountSummary:
         """Create a sample margin account summary.
-        
+
         Returns:
             MarginAccountSummary: A sample margin account summary for testing.
         """
@@ -91,7 +91,7 @@ class TestTradeManager:
     @pytest.fixture
     def sample_trade(self) -> Trade:
         """Create a sample trade.
-        
+
         Returns:
             Trade: A sample trade instance for testing.
         """

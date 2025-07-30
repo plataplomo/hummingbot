@@ -22,6 +22,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import exchanges
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 
@@ -57,7 +58,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC_PERP",
+            symbol=exchanges.backpack("SOL_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,  # Convert to milliseconds
             end_time_ms=end_time * 1000,
@@ -161,7 +162,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="BTC_USDC_PERP",
+            symbol=exchanges.backpack("BTC_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -218,7 +219,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="ETH_USDC_PERP",
+            symbol=exchanges.backpack("ETH_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -282,7 +283,7 @@ class TestBackpackPerpCandles:
                 start_time = end_time - 3600  # 1 hour earlier
 
             args = GetMarketDataArgs(
-                symbol="SOL_USDC_PERP",
+                symbol=exchanges.backpack("SOL_USDC_PERP"),
                 timeframe=interval,
                 start_time_ms=start_time * 1000,
                 end_time_ms=end_time * 1000,
@@ -331,7 +332,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC_PERP",
+            symbol=exchanges.backpack("SOL_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -390,7 +391,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC_PERP",
+            symbol=exchanges.backpack("SOL_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -485,7 +486,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC_PERP",
+            symbol=exchanges.backpack("SOL_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -562,7 +563,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="INVALID_PERP",
+            symbol=exchanges.backpack("INVALID_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -600,7 +601,7 @@ class TestBackpackPerpCandles:
 
         for symbol in symbols:
             args = GetMarketDataArgs(
-                symbol=symbol,
+                symbol=exchanges.backpack(symbol),
                 timeframe="1h",
                 start_time_ms=start_time * 1000,
                 end_time_ms=end_time * 1000,
@@ -655,7 +656,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC_PERP",
+            symbol=exchanges.backpack("SOL_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -712,7 +713,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC_PERP",
+            symbol=exchanges.backpack("SOL_USDC_PERP"),
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,

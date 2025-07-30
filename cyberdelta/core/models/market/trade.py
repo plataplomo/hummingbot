@@ -20,6 +20,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
@@ -36,7 +37,7 @@ class Trade(BaseModel):
 
     Fields:
         id (str): Trade ID (string, unique per exchange fill)
-        symbol (str): Trading symbol (e.g., 'BTC-PERP')
+        symbol (Symbol): Trading symbol domain object
         executed_at (datetime): UTC timestamp of execution
         side (OrderSide): Buy or sell
         order_id (str): Exchange order ID
@@ -52,7 +53,7 @@ class Trade(BaseModel):
     """
 
     id: str
-    symbol: str
+    symbol: Symbol
     executed_at: datetime
     side: OrderSide
     order_id: str
@@ -72,11 +73,11 @@ class Trade(BaseModel):
     @classmethod
     def validate_id_fields(cls, v: str, info: object) -> str:
         """Validate trade and order ID fields with appropriate length limits.
-        
+
         Args:
             v: ID field value to validate
             info: Pydantic field validation context
-            
+
         Returns:
             Validated ID string
         """
@@ -85,18 +86,10 @@ class Trade(BaseModel):
         # exchange specs
         return validate_str_field(v, field_name=str(field_name), max_length=128)
 
-    @field_validator("symbol", "exchange", mode="before")
+    @field_validator("exchange", mode="before")
     @classmethod
-    def validate_symbol_exchange(cls, v: str, info: object) -> str:
-        """Validate symbol and exchange fields with shorter length limits.
-        
-        Args:
-            v: Symbol or exchange field value to validate
-            info: Pydantic field validation context
-            
-        Returns:
-            Validated string value
-        """
+    def validate_exchange(cls, v: str, info: object) -> str:
+        """Validate exchange field with shorter length limits."""
         field_name = getattr(info, "field_name", None)
         return validate_str_field(v, field_name=str(field_name), max_length=64)
 
@@ -212,7 +205,7 @@ class Trade(BaseModel):
     @computed_field
     def cost(self) -> Decimal:
         """Total cost (price * quantity) for this trade.
-        
+
         Returns:
             Total cost as Decimal
         """
@@ -220,7 +213,7 @@ class Trade(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """Subject to deprecation: Prefer model_dump(mode='json') for future serialization.
-        
+
         Returns:
             Dictionary representation with serialized values
         """

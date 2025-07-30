@@ -65,13 +65,13 @@ class ErrorData:
     @classmethod
     def validate_required_strings(cls, v: str) -> str:
         """Validate required string fields are non-empty.
-        
+
         Args:
             v: String value to validate
-            
+
         Returns:
             Validated and stripped string value
-            
+
         Raises:
             MalformedTradeError: If string is empty or whitespace-only
         """
@@ -87,10 +87,10 @@ class ErrorData:
     @classmethod
     def validate_error_code(cls, v: str | None) -> str | None:
         """Validate optional error code field.
-        
+
         Args:
             v: Optional error code value to validate
-            
+
         Returns:
             Validated error code string or None if not provided
         """

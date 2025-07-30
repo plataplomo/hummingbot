@@ -27,7 +27,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
     """Create a test AppSettings instance with minimal required fields.
-    
+
     Returns:
         AppSettings: Test app settings with provided constraints config.
     """
@@ -75,7 +75,7 @@ class MockConstraintValidator:
     @property
     def name(self) -> str:
         """Name of the constraint.
-        
+
         Returns:
             str: The constraint name.
         """
@@ -84,7 +84,7 @@ class MockConstraintValidator:
     @property
     def constraint_type(self) -> str:
         """Type of constraint.
-        
+
         Returns:
             str: The constraint type.
         """
@@ -94,7 +94,7 @@ class MockConstraintValidator:
         self, opportunity: SizedOpportunity, context: ConstraintContext
     ) -> ConstraintResult:
         """Mock constraint validation.
-        
+
         Returns:
             ConstraintResult: Mocked validation result based on configured behavior.
         """
@@ -141,7 +141,7 @@ class MockConstraintValidator:
 
     def is_enabled(self) -> bool:
         """Check if constraint is enabled.
-        
+
         Returns:
             bool: True if enabled, False otherwise.
         """
@@ -159,7 +159,7 @@ class MockConstraintValidator:
 # Helper functions for creating test data
 def create_test_opportunity() -> ArbitrageOpportunity:
     """Create a test arbitrage opportunity.
-    
+
     Returns:
         ArbitrageOpportunity: Test BTC-PERP arbitrage opportunity.
     """
@@ -178,7 +178,7 @@ def create_test_opportunity() -> ArbitrageOpportunity:
 
 def create_test_sized_opportunity() -> SizedOpportunity:
     """Create a test sized opportunity.
-    
+
     Returns:
         SizedOpportunity: Test sized opportunity with $1000 position size.
     """
@@ -198,7 +198,7 @@ def create_test_sized_opportunity() -> SizedOpportunity:
 
 def create_test_constraint_context() -> ConstraintContext:
     """Create a test constraint context.
-    
+
     Returns:
         ConstraintContext: Test constraint context with $100k total capital.
     """

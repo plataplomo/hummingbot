@@ -22,6 +22,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolListError
 from cyberdelta.apis.models.service_args.market_data import GetFundingRatesArgs
 from cyberdelta.core.models import FundingRate
+from cyberdelta.core.symbols import exchanges
 
 
 # Mark all tests in this file
@@ -42,7 +43,8 @@ async def test_bp_get_funding_rate_sol_perp_success(
     - Response handling and validation
     - Mapping to internal FundingRate model
     """
-    funding_rate = await bp_api_for_test_env.get_funding_rate("SOL_USDC_PERP")
+    symbol = exchanges.backpack("SOL_USDC_PERP")
+    funding_rate = await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate return type
     assert isinstance(funding_rate, FundingRate), f"Expected FundingRate, got {type(funding_rate)}"
@@ -58,7 +60,7 @@ async def test_bp_get_funding_rate_sol_perp_success(
     )
 
     # Validate symbol
-    assert funding_rate.symbol == "SOL_USDC_PERP", (
+    assert str(funding_rate.symbol) == "SOL_USDC_PERP", (
         f"Expected symbol 'SOL_USDC_PERP', got '{funding_rate.symbol}'"
     )
 
@@ -96,13 +98,14 @@ async def test_bp_get_funding_rate_btc_perp_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test BackpackAPI.get_funding_rate() with BTC_USDC_PERP returns valid FundingRate model."""
-    funding_rate = await bp_api_for_test_env.get_funding_rate("BTC_USDC_PERP")
+    symbol = exchanges.backpack("BTC_USDC_PERP")
+    funding_rate = await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate return type
     assert isinstance(funding_rate, FundingRate), f"Expected FundingRate, got {type(funding_rate)}"
 
     # Validate symbol
-    assert funding_rate.symbol == "BTC_USDC_PERP", (
+    assert str(funding_rate.symbol) == "BTC_USDC_PERP", (
         f"Expected symbol 'BTC_USDC_PERP', got '{funding_rate.symbol}'"
     )
 
@@ -125,13 +128,14 @@ async def test_bp_get_funding_rate_eth_perp_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test BackpackAPI.get_funding_rate() with ETH_USDC_PERP returns valid FundingRate model."""
-    funding_rate = await bp_api_for_test_env.get_funding_rate("ETH_USDC_PERP")
+    symbol = exchanges.backpack("ETH_USDC_PERP")
+    funding_rate = await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate return type
     assert isinstance(funding_rate, FundingRate), f"Expected FundingRate, got {type(funding_rate)}"
 
     # Validate symbol
-    assert funding_rate.symbol == "ETH_USDC_PERP", (
+    assert str(funding_rate.symbol) == "ETH_USDC_PERP", (
         f"Expected symbol 'ETH_USDC_PERP', got '{funding_rate.symbol}'"
     )
 
@@ -162,7 +166,7 @@ async def test_bp_get_funding_rates_sol_perp_success(
     - Mapping to internal FundingRate models
     """
     args = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+        symbols=[exchanges.backpack("SOL_USDC_PERP")],
     )
 
     funding_rates = await bp_api_for_test_env.get_funding_rates(args)
@@ -195,8 +199,8 @@ async def test_bp_get_funding_rates_sol_perp_success(
             )
 
             # Validate symbol
-            assert funding_rate.symbol == "SOL_USDC_PERP", (
-                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{funding_rate.symbol}'"
+            assert str(funding_rate.symbol) == "SOL_USDC_PERP", (
+                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{str(funding_rate.symbol)}'"
             )
 
             # Validate rate is reasonable
@@ -217,7 +221,7 @@ async def test_bp_get_funding_rates_single_vs_multiple_symbols(
     """Test BackpackAPI.get_funding_rates() with single vs multiple symbols."""
     # Test with single symbol
     args_single = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+        symbols=[exchanges.backpack("SOL_USDC_PERP")],
     )
 
     funding_rates_single = await bp_api_for_test_env.get_funding_rates(args_single)
@@ -234,7 +238,7 @@ async def test_bp_get_funding_rates_single_vs_multiple_symbols(
 
     # Test with multiple symbols
     args_multiple = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP", "BTC_USDC_PERP"],
+        symbols=[exchanges.backpack("SOL_USDC_PERP"), exchanges.backpack("BTC_USDC_PERP")],
     )
 
     funding_rates_multiple = await bp_api_for_test_env.get_funding_rates(args_multiple)
@@ -261,7 +265,7 @@ async def test_bp_get_funding_rates_chronological_ordering(
 ) -> None:
     """Test BackpackAPI.get_funding_rates() returns funding rates in proper chronological order."""
     args = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+        symbols=[exchanges.backpack("SOL_USDC_PERP")],
     )
 
     funding_rates = await bp_api_for_test_env.get_funding_rates(args)
@@ -304,7 +308,7 @@ async def test_bp_get_funding_rates_precision_validation(
 ) -> None:
     """Test BackpackAPI.get_funding_rates() ensures proper Decimal precision handling."""
     args = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+        symbols=[exchanges.backpack("SOL_USDC_PERP")],
     )
 
     funding_rates = await bp_api_for_test_env.get_funding_rates(args)
@@ -354,7 +358,8 @@ async def test_bp_get_funding_rate_spot_symbol_error(
 ) -> None:
     """Test BackpackAPI.get_funding_rate() with spot symbol raises appropriate error."""
     with pytest.raises(APIError) as exc_info:
-        await bp_api_for_test_env.get_funding_rate("SOL_USDC")  # Spot symbol, not perpetual
+        symbol = exchanges.backpack("SOL_USDC")  # Spot symbol, not perpetual
+        await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate error details
     error = exc_info.value
@@ -376,7 +381,8 @@ async def test_bp_get_funding_rate_invalid_symbol_error(
 ) -> None:
     """Test BackpackAPI.get_funding_rate() with invalid symbol raises appropriate error."""
     with pytest.raises(APIError) as exc_info:
-        await bp_api_for_test_env.get_funding_rate("INVALID_SYMBOL_PERP")
+        symbol = exchanges.backpack("INVALID_SYMBOL_PERP")
+        await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate error details
     error = exc_info.value
@@ -394,7 +400,8 @@ async def test_bp_get_funding_rate_nonexistent_symbol_error(
 ) -> None:
     """Test BackpackAPI.get_funding_rate() with non-existent but well-formed perpetual symbol."""
     with pytest.raises(APIError) as exc_info:
-        await bp_api_for_test_env.get_funding_rate("NOTREAL_USDC_PERP")
+        symbol = exchanges.backpack("NOTREAL_USDC_PERP")
+        await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate error details
     error = exc_info.value
@@ -416,7 +423,8 @@ async def test_bp_get_funding_rate_empty_symbol_error(
 ) -> None:
     """Test BackpackAPI.get_funding_rate() with empty symbol raises appropriate error."""
     with pytest.raises((APIError, ValueError)) as exc_info:
-        await bp_api_for_test_env.get_funding_rate("")
+        symbol = exchanges.backpack("")
+        await bp_api_for_test_env.get_funding_rate(symbol)
 
     # Validate error contains relevant information
     error_str = str(exc_info.value)
@@ -435,7 +443,7 @@ async def test_bp_get_funding_rates_invalid_args_error(
     """Test BackpackAPI.get_funding_rates() with invalid args raises appropriate error."""
     # Test with spot symbol
     args = GetFundingRatesArgs(
-        symbols=["SOL_USDC"],  # Spot symbol, not perpetual
+        symbols=[exchanges.backpack("SOL_USDC")],  # Spot symbol, not perpetual
     )
 
     with pytest.raises(APIError) as exc_info:
@@ -485,7 +493,7 @@ async def test_bp_get_funding_rates_large_limit_handling(
 ) -> None:
     """Test BackpackAPI.get_funding_rates() with very large limit parameter."""
     args = GetFundingRatesArgs(
-        symbols=["SOL_USDC_PERP"],
+        symbols=[exchanges.backpack("SOL_USDC_PERP")],
     )
 
     try:
@@ -499,8 +507,8 @@ async def test_bp_get_funding_rates_large_limit_handling(
             assert isinstance(funding_rate, FundingRate), (
                 f"Funding rate {i} should be FundingRate model, got {type(funding_rate)}"
             )
-            assert funding_rate.symbol == "SOL_USDC_PERP", (
-                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{funding_rate.symbol}'"
+            assert str(funding_rate.symbol) == "SOL_USDC_PERP", (
+                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{str(funding_rate.symbol)}'"
             )
 
     except (APIError, ValueError):
@@ -523,7 +531,7 @@ async def test_bp_get_funding_rates_multiple_symbols_consistency(
 
     for symbol in perp_symbols:
         args = GetFundingRatesArgs(
-            symbols=[symbol],
+            symbols=[exchanges.backpack(symbol)],
         )
 
         funding_rates = await bp_api_for_test_env.get_funding_rates(args)
@@ -550,6 +558,6 @@ async def test_bp_get_funding_rates_multiple_symbols_consistency(
 
             # All funding rates in the list should have same symbol
             for i, funding_rate in enumerate(funding_rates):
-                assert funding_rate.symbol == symbol, (
-                    f"Funding rate {i} for {symbol} has wrong symbol: {funding_rate.symbol}"
+                assert str(funding_rate.symbol) == symbol, (
+                    f"Funding rate {i} for {symbol} has wrong symbol: {str(funding_rate.symbol)}"
                 )

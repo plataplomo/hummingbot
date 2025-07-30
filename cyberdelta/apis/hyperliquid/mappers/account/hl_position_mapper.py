@@ -33,6 +33,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import PositionMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition, HyperliquidPositionDetails
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -52,7 +53,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
     # Protocol method implementations (delegated to common utilities)
     @staticmethod
     def parse_decimal_safely(
-        value: str | float | Decimal | None, default: Decimal = Decimal(0)
+        value: str | float | Decimal | None,
+        default: Decimal = Decimal(0),
     ) -> Decimal:
         """Parse decimal values safely with default fallback.
 
@@ -64,30 +66,6 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             Decimal: Parsed decimal value or default
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    @staticmethod
-    def normalize_symbol(symbol: str) -> str:
-        """Normalize symbol to internal format.
-
-        Args:
-            symbol: Exchange-specific symbol to normalize
-
-        Returns:
-            str: Normalized symbol for internal use
-        """
-        return HyperliquidCommonMappers.normalize_symbol(symbol)
-
-    @staticmethod
-    def denormalize_symbol(symbol: str) -> str:
-        """Denormalize symbol to exchange format.
-
-        Args:
-            symbol: Internal symbol to denormalize
-
-        Returns:
-            str: Exchange-specific symbol format
-        """
-        return HyperliquidCommonMappers.denormalize_symbol(symbol)
 
     @staticmethod
     def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -119,7 +97,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
 
         # Use static method for the actual transformation
         return HyperliquidPositionMapper.transform_raw_asset_position_to_internal(
-            validated_position
+            validated_position,
         )
 
     @staticmethod
@@ -429,10 +407,15 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         else:  # size == 0, use a default (either is valid for zero positions)
             side = OrderSide.BUY
 
+        # Create domain symbol at entry point
+        exchange_symbol = exchanges.hyperliquid(
+            value=symbol,
+        )
+
         # Use secure_transform for type-safe model creation
         position_data = {
             "exchange": ExchangeName.HYPERLIQUID.value,
-            "symbol": symbol,
+            "symbol": exchange_symbol,  # Domain object!
             "side": side.value,
             "size": str(size),
             "entry_price": str(entry_price) if entry_price is not None else None,
@@ -656,10 +639,15 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             else:  # size == 0, use a default (either is valid for zero positions)
                 side = OrderSide.BUY
 
+            # Create domain symbol at entry point
+            exchange_symbol = exchanges.hyperliquid(
+                value=symbol,
+            )
+
             # Use secure_transform for type-safe model creation
             position_data = {
                 "exchange": ExchangeName.HYPERLIQUID.value,
-                "symbol": symbol,
+                "symbol": exchange_symbol,  # Domain object!
                 "side": side.value,
                 "size": str(size),
                 "entry_price": str(entry_price) if entry_price is not None else None,

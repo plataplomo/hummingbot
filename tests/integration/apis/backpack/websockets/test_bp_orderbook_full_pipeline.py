@@ -78,7 +78,7 @@ async def setup_websocket_connection(api: BackpackAPI) -> None:
 
 async def get_test_symbol(api: BackpackAPI) -> tuple[str, str]:
     """Get test symbol following security rules.
-    
+
     Returns:
         Tuple of (rest_symbol, ws_symbol) where ws_symbol has underscores instead of slashes.
     """
@@ -94,7 +94,7 @@ async def get_test_symbol(api: BackpackAPI) -> tuple[str, str]:
 
 async def fetch_rest_snapshot(api: BackpackAPI, symbol: str) -> OrderBook:
     """Fetch REST orderbook snapshot following security rules.
-    
+
     Returns:
         OrderBook snapshot from REST API with validated bids and asks.
     """
@@ -121,7 +121,7 @@ def create_update_handler(
     transformer: BackpackDepthStateTransformer,
 ) -> Callable[[WebSocketContextProtocol], Awaitable[None]]:
     """Create WebSocket update handler that uses the stateful transformer.
-    
+
     Returns:
         Async handler function that processes WebSocket contexts through the transformer pipeline.
     """

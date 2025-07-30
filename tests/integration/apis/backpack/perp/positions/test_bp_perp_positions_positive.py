@@ -18,6 +18,7 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_market_constraints,
@@ -54,7 +55,7 @@ pytestmark = [
 
 async def create_test_perp_position(
     api: BackpackAPI,
-    symbol: str = "SOL_USDC_PERP",
+    symbol=None,
 ) -> tuple[str, Decimal]:
     """Create a small test position and return order ID and quantity.
 
@@ -67,6 +68,9 @@ async def create_test_perp_position(
         TypeError: If type conversion errors occur.
         KeyError: If required data keys are missing.
     """
+    if symbol is None:
+        symbol = exchanges.backpack("SOL_USDC_PERP")
+
     try:
         # Get market price and place order ABOVE it to ensure IOC fill
         ticker = await api.get_ticker(symbol)

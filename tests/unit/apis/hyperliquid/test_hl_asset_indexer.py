@@ -32,7 +32,7 @@ class TestHyperliquidAssetIndexResolver:
     @pytest.fixture
     def mock_requester(self) -> AsyncMock:
         """Mock for the requester callable.
-        
+
         Returns:
             AsyncMock: Async mock for HTTP requester function.
         """
@@ -41,7 +41,7 @@ class TestHyperliquidAssetIndexResolver:
     @pytest.fixture
     def mock_response_handler(self) -> MagicMock:
         """Mock for HyperliquidMarketDataResponseHandler.
-        
+
         Returns:
             MagicMock: Mocked market data response handler.
         """
@@ -50,7 +50,7 @@ class TestHyperliquidAssetIndexResolver:
     @pytest.fixture
     def mock_request_builder(self) -> MagicMock:
         """Mock for HyperliquidMarketDataRequestBuilder.
-        
+
         Returns:
             MagicMock: Mocked request builder with configured build_info_request_payload method.
         """
@@ -64,9 +64,9 @@ class TestHyperliquidAssetIndexResolver:
     @pytest.fixture
     def mock_meta_response(self) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """Mock HyperliquidRawMetaAndAssetCtxsResponse with BTC and ETH.
-        
+
         Returns:
-            HyperliquidRawMetaAndAssetCtxsResponse: Mocked response with BTC at index 0 
+            HyperliquidRawMetaAndAssetCtxsResponse: Mocked response with BTC at index 0
                 and ETH at index 1.
         """
         mock_response = MagicMock(spec=HyperliquidRawMetaAndAssetCtxsResponse)
@@ -92,7 +92,7 @@ class TestHyperliquidAssetIndexResolver:
         mock_request_builder: MagicMock,
     ) -> HyperliquidAssetIndexResolver:
         """Create HyperliquidAssetIndexResolver instance with mocked dependencies.
-        
+
         Returns:
             HyperliquidAssetIndexResolver: Asset indexer instance with all dependencies mocked.
         """

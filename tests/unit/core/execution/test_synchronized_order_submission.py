@@ -35,7 +35,7 @@ pytestmark = pytest.mark.timing
 
 def create_test_opportunity() -> ArbitrageOpportunity:
     """Create a test ArbitrageOpportunity.
-    
+
     Returns:
         ArbitrageOpportunity: Configured test arbitrage opportunity for order submission tests.
     """
@@ -55,7 +55,7 @@ def create_test_opportunity() -> ArbitrageOpportunity:
 
 def create_test_order() -> Mock:
     """Create a test Order with to_dict method.
-    
+
     Returns:
         Mock: Mock Order instance with to_dict method for testing.
     """
@@ -358,7 +358,7 @@ class TestSynchronizedOrderSubmissionServiceSimple:
     @pytest.fixture
     def service(self) -> SynchronizedOrderSubmissionService:
         """Create SynchronizedOrderSubmissionService instance.
-        
+
         Returns:
             SynchronizedOrderSubmissionService: Configured service instance for testing.
         """

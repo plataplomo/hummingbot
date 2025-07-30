@@ -47,10 +47,10 @@ class Sized(Protocol):
 # Basic type guards
 def is_string(value: object) -> TypeGuard[str]:
     """Type guard for string values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a string, False otherwise
     """
@@ -59,10 +59,10 @@ def is_string(value: object) -> TypeGuard[str]:
 
 def is_int(value: object) -> TypeGuard[int]:
     """Type guard for integer values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an integer, False otherwise
     """
@@ -71,10 +71,10 @@ def is_int(value: object) -> TypeGuard[int]:
 
 def is_float(value: object) -> TypeGuard[float]:
     """Type guard for float values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a float or int, False otherwise
     """
@@ -83,10 +83,10 @@ def is_float(value: object) -> TypeGuard[float]:
 
 def is_decimal(value: object) -> TypeGuard[Decimal]:
     """Type guard for Decimal values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a Decimal, False otherwise
     """
@@ -95,10 +95,10 @@ def is_decimal(value: object) -> TypeGuard[Decimal]:
 
 def is_numeric(value: object) -> TypeGuard[float | int]:
     """Type guard for numeric values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is numeric (int or float), False otherwise
     """
@@ -107,10 +107,10 @@ def is_numeric(value: object) -> TypeGuard[float | int]:
 
 def is_positive_number(value: object) -> TypeGuard[float]:
     """Type guard for positive numeric values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a positive number, False otherwise
     """
@@ -119,10 +119,10 @@ def is_positive_number(value: object) -> TypeGuard[float]:
 
 def is_non_negative_number(value: object) -> TypeGuard[float]:
     """Type guard for non-negative numeric values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a non-negative number, False otherwise
     """
@@ -131,10 +131,10 @@ def is_non_negative_number(value: object) -> TypeGuard[float]:
 
 def is_dict(value: object) -> TypeGuard[dict[str, object]]:
     """Type guard for dictionary values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a dictionary, False otherwise
     """
@@ -143,10 +143,10 @@ def is_dict(value: object) -> TypeGuard[dict[str, object]]:
 
 def is_list(value: object) -> TypeGuard[list[object]]:
     """Type guard for list values.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a list, False otherwise
     """
@@ -156,10 +156,10 @@ def is_list(value: object) -> TypeGuard[list[object]]:
 # Portfolio model type guards
 def is_spot_balance(value: object) -> TypeGuard[SpotBalance]:
     """Type guard for SpotBalance objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a SpotBalance, False otherwise
     """
@@ -168,10 +168,10 @@ def is_spot_balance(value: object) -> TypeGuard[SpotBalance]:
 
 def is_derivative_position(value: object) -> TypeGuard[DerivativePosition]:
     """Type guard for DerivativePosition objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a DerivativePosition, False otherwise
     """
@@ -180,10 +180,10 @@ def is_derivative_position(value: object) -> TypeGuard[DerivativePosition]:
 
 def is_order(value: object) -> TypeGuard[Order]:
     """Type guard for Order objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an Order, False otherwise
     """
@@ -192,10 +192,10 @@ def is_order(value: object) -> TypeGuard[Order]:
 
 def is_trade(value: object) -> TypeGuard[Trade]:
     """Type guard for Trade objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a Trade, False otherwise
     """
@@ -205,10 +205,10 @@ def is_trade(value: object) -> TypeGuard[Trade]:
 # Portfolio data model type guards
 def is_portfolio_metrics(value: object) -> TypeGuard[PortfolioMetrics]:
     """Type guard for PortfolioMetrics objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a PortfolioMetrics, False otherwise
     """
@@ -217,10 +217,10 @@ def is_portfolio_metrics(value: object) -> TypeGuard[PortfolioMetrics]:
 
 def is_exchange_balances(value: object) -> TypeGuard[ExchangeBalances]:
     """Type guard for ExchangeBalances objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an ExchangeBalances, False otherwise
     """
@@ -229,10 +229,10 @@ def is_exchange_balances(value: object) -> TypeGuard[ExchangeBalances]:
 
 def is_exchange_positions(value: object) -> TypeGuard[ExchangePositions]:
     """Type guard for ExchangePositions objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an ExchangePositions, False otherwise
     """
@@ -241,10 +241,10 @@ def is_exchange_positions(value: object) -> TypeGuard[ExchangePositions]:
 
 def is_exchange_orders(value: object) -> TypeGuard[ExchangeOrders]:
     """Type guard for ExchangeOrders objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an ExchangeOrders, False otherwise
     """
@@ -253,10 +253,10 @@ def is_exchange_orders(value: object) -> TypeGuard[ExchangeOrders]:
 
 def is_portfolio_state(value: object) -> TypeGuard[PortfolioState]:
     """Type guard for PortfolioState objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a PortfolioState, False otherwise
     """
@@ -265,10 +265,10 @@ def is_portfolio_state(value: object) -> TypeGuard[PortfolioState]:
 
 def is_cache_statistics(value: object) -> TypeGuard[CacheStatistics]:
     """Type guard for CacheStatistics objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a CacheStatistics, False otherwise
     """
@@ -277,10 +277,10 @@ def is_cache_statistics(value: object) -> TypeGuard[CacheStatistics]:
 
 def is_validation_statistics(value: object) -> TypeGuard[ValidationStatistics]:
     """Type guard for ValidationStatistics objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a ValidationStatistics, False otherwise
     """
@@ -290,10 +290,10 @@ def is_validation_statistics(value: object) -> TypeGuard[ValidationStatistics]:
 # Update request type guards
 def is_balance_update_request(value: object) -> TypeGuard[BalanceUpdateRequest]:
     """Type guard for BalanceUpdateRequest objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a BalanceUpdateRequest, False otherwise
     """
@@ -302,10 +302,10 @@ def is_balance_update_request(value: object) -> TypeGuard[BalanceUpdateRequest]:
 
 def is_position_update_request(value: object) -> TypeGuard[PositionUpdateRequest]:
     """Type guard for PositionUpdateRequest objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a PositionUpdateRequest, False otherwise
     """
@@ -314,10 +314,10 @@ def is_position_update_request(value: object) -> TypeGuard[PositionUpdateRequest
 
 def is_order_update_request(value: object) -> TypeGuard[OrderUpdateRequest]:
     """Type guard for OrderUpdateRequest objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an OrderUpdateRequest, False otherwise
     """
@@ -327,10 +327,10 @@ def is_order_update_request(value: object) -> TypeGuard[OrderUpdateRequest]:
 # Result type guards
 def is_portfolio_error(value: object) -> TypeGuard[PortfolioResultError]:
     """Type guard for PortfolioResultError objects.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a PortfolioResultError, False otherwise
     """
@@ -342,10 +342,10 @@ def is_portfolio_result_ok(value: object) -> bool:
 
     Note: PortfolioResult is a type alias for Result[T, PortfolioResultError].
     We check for Result base class and error type.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a successful Result, False otherwise
     """
@@ -357,10 +357,10 @@ def is_portfolio_result_error(value: object) -> bool:
 
     Note: PortfolioResult is a type alias for Result[T, PortfolioResultError].
     We check for Result base class and error type.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is an error Result, False otherwise
     """
@@ -370,10 +370,10 @@ def is_portfolio_result_error(value: object) -> bool:
 # Exchange-specific type guards
 def is_valid_exchange_name(value: object) -> TypeGuard[str]:
     """Type guard for valid exchange names.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a valid exchange name, False otherwise
     """
@@ -383,10 +383,10 @@ def is_valid_exchange_name(value: object) -> TypeGuard[str]:
 
 def is_valid_symbol(value: object) -> TypeGuard[str]:
     """Type guard for valid trading symbols.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a valid symbol, False otherwise
     """
@@ -400,10 +400,10 @@ def is_valid_symbol(value: object) -> TypeGuard[str]:
 
 def is_valid_asset(value: object) -> TypeGuard[str]:
     """Type guard for valid asset names.
-    
+
     Args:
         value: Value to check
-        
+
     Returns:
         True if value is a valid asset name, False otherwise
     """
@@ -420,12 +420,12 @@ def validate_numeric_range(
     value: object, min_val: float | None = None, max_val: float | None = None
 ) -> bool:
     """Validate that a numeric value is within a specified range.
-    
+
     Args:
         value: Value to check
         min_val: Minimum allowed value (inclusive)
         max_val: Maximum allowed value (inclusive)
-        
+
     Returns:
         True if value is numeric and within range, False otherwise
     """
@@ -441,12 +441,12 @@ def validate_string_length(
     value: object, min_len: int | None = None, max_len: int | None = None
 ) -> bool:
     """Validate that a string is within specified length bounds.
-    
+
     Args:
         value: Value to check
         min_len: Minimum allowed length
         max_len: Maximum allowed length
-        
+
     Returns:
         True if value is a string within bounds, False otherwise
     """
@@ -463,12 +463,12 @@ def validate_collection_size(
     value: object, min_size: int | None = None, max_size: int | None = None
 ) -> bool:
     """Validate that a collection is within specified size bounds.
-    
+
     Args:
         value: Value to check
         min_size: Minimum allowed size
         max_size: Maximum allowed size
-        
+
     Returns:
         True if value is a collection within bounds, False otherwise
     """
@@ -485,10 +485,10 @@ def validate_collection_size(
 # Comprehensive type validation - broken down into helper functions
 def _validate_required_fields(data: dict[str, object]) -> list[str]:
     """Validate that required fields are present.
-    
+
     Args:
         data: Dictionary to validate
-        
+
     Returns:
         List of validation error messages
     """
@@ -498,10 +498,10 @@ def _validate_required_fields(data: dict[str, object]) -> list[str]:
 
 def _validate_balances_data(data: dict[str, object]) -> list[str]:
     """Validate balances data structure.
-    
+
     Args:
         data: Dictionary containing balances data
-        
+
     Returns:
         List of validation error messages
     """
@@ -522,10 +522,10 @@ def _validate_balances_data(data: dict[str, object]) -> list[str]:
 
 def _validate_positions_data(data: dict[str, object]) -> list[str]:
     """Validate positions data structure.
-    
+
     Args:
         data: Dictionary containing positions data
-        
+
     Returns:
         List of validation error messages
     """
@@ -546,10 +546,10 @@ def _validate_positions_data(data: dict[str, object]) -> list[str]:
 
 def _validate_metrics_data(data: dict[str, object]) -> list[str]:
     """Validate metrics data structure.
-    
+
     Args:
         data: Dictionary containing metrics data
-        
+
     Returns:
         List of validation error messages
     """
@@ -561,10 +561,10 @@ def _validate_metrics_data(data: dict[str, object]) -> list[str]:
 
 def validate_portfolio_data_integrity(data: object) -> list[str]:
     """Validate portfolio data integrity and return list of issues.
-    
+
     Args:
         data: Data to validate
-        
+
     Returns:
         List of validation error messages, empty if valid
     """
@@ -585,10 +585,10 @@ def validate_portfolio_data_integrity(data: object) -> list[str]:
 
 def is_valid_portfolio_data(data: object) -> TypeGuard[dict[str, object]]:
     """Type guard for valid portfolio data with comprehensive validation.
-    
+
     Args:
         data: Data to validate
-        
+
     Returns:
         True if data is valid portfolio data, False otherwise
     """

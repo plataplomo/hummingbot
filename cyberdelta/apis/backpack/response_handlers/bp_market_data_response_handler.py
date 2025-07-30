@@ -40,6 +40,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_list_response,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -163,16 +164,16 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             # Market data operations require additional context not available in generic interface
             raise NotImplementedError(
                 f"Market data operation '{operation}' requires specific parameters not available "
-                f"in generic handle_response interface. Use specific handler methods directly."
+                f"in generic handle_response interface. Use specific handler methods directly.",
             )
         raise NotImplementedError(
-            f"Market data operation '{operation}' not supported by registry dispatch"
+            f"Market data operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
     def handle_get_ticker_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawTickerResponse:
@@ -187,7 +188,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Returns:
             Validated BackpackRawTickerResponse model.
         """
-        context = f"ticker ({symbol}) - Status: {status_code}"
+        context = f"ticker ({symbol.value}) - Status: {status_code}"
         validated_data = ensure_dict_response(
             raw_response_content,
             context,
@@ -206,7 +207,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_order_book_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawOrderBook:
@@ -221,7 +222,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Returns:
             Validated BackpackRawOrderBook model.
         """
-        context = f"order book ({symbol}) - Status: {status_code}"
+        context = f"order book ({symbol.value}) - Status: {status_code}"
         validated_data = ensure_dict_response(
             raw_response_content,
             context,
@@ -240,7 +241,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_recent_trades_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawRecentPublicTrade]:
@@ -255,7 +256,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Returns:
             List of validated BackpackRawRecentPublicTrade models.
         """
-        context = f"recent trades ({symbol}) - Status: {status_code}"
+        context = f"recent trades ({symbol.value}) - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
             context,
@@ -284,7 +285,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_funding_rate_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRateResponse:
@@ -303,7 +304,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             APIError: If response format is unexpected (empty list or non-dict/list type).
             _handle_validation_error: Internal validation error handler.
         """
-        context = f"funding rate ({symbol}) - Status: {status_code}"
+        context = f"funding rate ({symbol.value}) - Status: {status_code}"
 
         # Try to handle as dict first
         if isinstance(raw_response_content, dict):
@@ -386,7 +387,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_market_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawMarketResponse:
@@ -404,7 +405,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Raises:
             _handle_validation_error: Internal validation error handler.
         """
-        context = f"market for {symbol}"
+        context = f"market for {symbol.value}"
         validated_data = ensure_dict_response(
             raw_response_content,
             context,
@@ -423,7 +424,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_market_data_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         timeframe: str,
         status_code: int,
         headers: Mapping[str, str],
@@ -444,7 +445,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
             APIError: If unexpected error occurs validating kline items.
             _handle_validation_error: Internal validation error handler.
         """
-        context = f"market data (klines {timeframe}) for {symbol} - Status: {status_code}"
+        context = f"market data (klines {timeframe}) for {symbol.value} - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
             context,
@@ -510,7 +511,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_historical_trades_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawPublicTrade]:
@@ -528,7 +529,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Raises:
             _handle_validation_error: Internal validation error handler.
         """
-        context = f"historical trades ({symbol}) - Status: {status_code}"
+        context = f"historical trades ({symbol.value}) - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
             context,
@@ -555,7 +556,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_current_funding_rate_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> BackpackRawFundingRateResponse:
@@ -570,7 +571,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Returns:
             Validated BackpackRawFundingRateResponse model.
         """
-        context = f"current funding rate ({symbol}) - Status: {status_code}"
+        context = f"current funding rate ({symbol.value}) - Status: {status_code}"
         validated_data = ensure_dict_response(
             raw_response_content,
             context,
@@ -590,7 +591,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
     @staticmethod
     def handle_get_historical_funding_rates_response(
         raw_response_content: RawJsonResponse,
-        symbol: str,
+        symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
     ) -> list[BackpackRawFundingIntervalRate]:
@@ -610,7 +611,7 @@ class BackpackMarketDataResponseHandler(MarketDataResponseHandlerProtocol):
         Raises:
             _handle_validation_error: Internal validation error handler.
         """
-        context = f"historical funding rates ({symbol}) - Status: {status_code}"
+        context = f"historical funding rates ({symbol.value}) - Status: {status_code}"
         validated_list = ensure_list_response(
             raw_response_content,
             context,

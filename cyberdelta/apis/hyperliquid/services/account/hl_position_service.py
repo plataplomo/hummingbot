@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Mapping
-from typing import TYPE_CHECKING, NoReturn
+from typing import NoReturn
 
 from pydantic import ValidationError
 
@@ -25,12 +25,10 @@ from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_state_service
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 
@@ -64,7 +62,7 @@ class HyperliquidPositionService:
         self._mapper = mapper
         self._exchange_name = exchange_name
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
         """Retrieve derivative positions, optionally filtered by symbol.
 
         Args:
@@ -124,23 +122,34 @@ class HyperliquidPositionService:
             raise
         except TransformationError as e_transform:
             self._handle_positions_transformation_error(
-                e_transform, current_method, status_code, raw_response_content
+                e_transform,
+                current_method,
+                status_code,
+                raw_response_content,
             )
         except ValidationError as e_val:
             self._handle_positions_validation_error(
-                e_val, current_method, status_code, raw_response_content
+                e_val,
+                current_method,
+                status_code,
+                raw_response_content,
             )
         except (ValueError, TypeError) as e_service_logic:
             self._handle_positions_service_logic_error(e_service_logic, current_method)
         except (AttributeError, KeyError, IndexError) as e_unexpected:
             self._handle_positions_unexpected_error(
-                e_unexpected, current_method, status_code, raw_response_content
+                e_unexpected,
+                current_method,
+                status_code,
+                raw_response_content,
             )
         else:
             return positions
 
     def _filter_positions_by_symbol(
-        self, all_positions_dict: dict[str, DerivativePosition], symbol: str | None
+        self,
+        all_positions_dict: dict[str, DerivativePosition],
+        symbol: Symbol | None,
     ) -> list[DerivativePosition]:
         """Filter positions by symbol or return all positions.
 
@@ -152,7 +161,7 @@ class HyperliquidPositionService:
             list[DerivativePosition]: Filtered positions
         """
         if symbol:
-            position = all_positions_dict.get(symbol)
+            position = all_positions_dict.get(symbol.value)
             if position:
                 logger.debug(
                     "filtered_position_found",
@@ -251,7 +260,9 @@ class HyperliquidPositionService:
         ) from e_val
 
     def _handle_positions_service_logic_error(
-        self, e_service_logic: ValueError | TypeError, current_method: str
+        self,
+        e_service_logic: ValueError | TypeError,
+        current_method: str,
     ) -> NoReturn:
         """Handle service logic errors for positions.
 
@@ -260,7 +271,7 @@ class HyperliquidPositionService:
             current_method: Name of the method where error occurred
 
         Raises:
-            APIError: Always raised to wrap the service logic error (or re-raises the 
+            APIError: Always raised to wrap the service logic error (or re-raises the
                 original exception for input validation errors)
         """
         # Distinguish input validation from internal errors per ERROR_HANDLING.md

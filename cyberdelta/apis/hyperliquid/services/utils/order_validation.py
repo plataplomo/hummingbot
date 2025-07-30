@@ -9,6 +9,7 @@ from decimal import Decimal
 from cyberdelta.apis.exceptions import InvalidEnumValueError
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderType, TimeInForce
 
 
@@ -65,7 +66,10 @@ def validate_orders_list(orders: list[PlaceOrderArgs], current_method: str) -> N
         except ValueError as e:
             error_msg = f"[{current_method}] Order {i} validation failed: {e}"
             logger.exception(
-                "batch_order_validation_failed", method=current_method, order_index=i, error=str(e)
+                "batch_order_validation_failed",
+                method=current_method,
+                order_index=i,
+                error=str(e),
             )
             raise ValueError(error_msg) from e
 
@@ -84,8 +88,8 @@ def validate_batch_orders(orders: list[PlaceOrderArgs], current_method: str) -> 
 
     # Check for duplicate symbols in batch (Hyperliquid constraint)
     symbols = [order.symbol for order in orders]
-    duplicate_symbols: set[str] = set()
-    seen_symbols: set[str] = set()
+    duplicate_symbols: set[Symbol] = set()
+    seen_symbols: set[Symbol] = set()
 
     for symbol in symbols:
         if symbol in seen_symbols:
@@ -93,12 +97,15 @@ def validate_batch_orders(orders: list[PlaceOrderArgs], current_method: str) -> 
         seen_symbols.add(symbol)
 
     if duplicate_symbols:
+        duplicate_symbol_values = [symbol.value for symbol in duplicate_symbols]
         error_msg = (
             f"[{current_method}] Duplicate symbols in batch not allowed: "
-            f"{', '.join(duplicate_symbols)}"
+            f"{', '.join(duplicate_symbol_values)}"
         )
         logger.error(
-            "duplicate_symbols_in_batch", method=current_method, symbols=list(duplicate_symbols)
+            "duplicate_symbols_in_batch",
+            method=current_method,
+            symbols=list(duplicate_symbols),
         )
         raise ValueError(error_msg)
 

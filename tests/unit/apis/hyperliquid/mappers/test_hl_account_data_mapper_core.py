@@ -48,7 +48,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 @pytest.fixture
 def balance_mapper() -> HyperliquidBalanceMapper:
     """Provide an instance of HyperliquidBalanceMapper.
-    
+
     Returns:
         HyperliquidBalanceMapper: Instance for testing balance transformations.
     """
@@ -58,7 +58,7 @@ def balance_mapper() -> HyperliquidBalanceMapper:
 @pytest.fixture
 def raw_leverage_fixture() -> HyperliquidRawLeverage:
     """Provide a basic HyperliquidRawLeverage fixture.
-    
+
     Returns:
         HyperliquidRawLeverage: Leverage fixture with cross type and value 10.
     """
@@ -70,7 +70,7 @@ def raw_position_info_fixture(
     raw_leverage_fixture: HyperliquidRawLeverage,
 ) -> HyperliquidRawPositionInfo:
     """Provide a basic HyperliquidRawPositionInfo fixture.
-    
+
     Returns:
         HyperliquidRawPositionInfo: Position info fixture with ETH position data.
     """
@@ -92,7 +92,7 @@ def raw_position_info_fixture(
 @pytest.fixture
 def raw_margin_summary_fixture() -> HyperliquidRawMarginSummary:
     """Provide a basic HyperliquidRawMarginSummary fixture.
-    
+
     Returns:
         HyperliquidRawMarginSummary: Margin summary with test account values.
     """
@@ -109,7 +109,7 @@ def raw_clearinghouse_state_base_fixture(
     raw_margin_summary_fixture: HyperliquidRawMarginSummary,
 ) -> HyperliquidRawClearinghouseState:
     """Provide a base HyperliquidRawClearinghouseState fixture for testing.
-    
+
     Returns:
         HyperliquidRawClearinghouseState: Base clearinghouse state with margin summary.
     """
@@ -130,7 +130,7 @@ def raw_user_state_empty_positions_no_balances() -> HyperliquidRawClearinghouseS
     """Provide a HyperliquidRawClearinghouseState with no asset positions.
 
     Includes basic margin summary.
-    
+
     Returns:
         HyperliquidRawClearinghouseState: Empty state with zero values.
     """

@@ -131,7 +131,9 @@ class WebSocketTelemetry:
 
         # Error metrics
         self.error_counter = self.meter.create_counter(
-            name="websocket_errors_total", description="Total number of WebSocket errors", unit="1"
+            name="websocket_errors_total",
+            description="Total number of WebSocket errors",
+            unit="1",
         )
 
         # Rate limiting metrics
@@ -156,7 +158,9 @@ class WebSocketTelemetry:
 
     @contextmanager
     def trace_operation(
-        self, context: SpanContext, **kwargs: TelemetryAttributeValue
+        self,
+        context: SpanContext,
+        **kwargs: TelemetryAttributeValue,
     ) -> Generator[Span | None]:
         """Create a traced operation context.
 
@@ -196,7 +200,8 @@ class WebSocketTelemetry:
 
         # Create and start span
         with self.tracer.start_as_current_span(
-            name=context.operation_name, attributes=attributes
+            name=context.operation_name,
+            attributes=attributes,
         ) as span:
             try:
                 yield span
@@ -235,7 +240,10 @@ class WebSocketTelemetry:
         self.connection_duration.record(duration_seconds, attributes)
 
     def record_message_processed(
-        self, labels: MetricLabels, size_bytes: int, processing_time_seconds: float
+        self,
+        labels: MetricLabels,
+        size_bytes: int,
+        processing_time_seconds: float,
     ) -> None:
         """Record message processing event.
 
@@ -334,7 +342,10 @@ class WebSocketTelemetry:
         return attributes
 
     def create_child_span(
-        self, parent_span: Span, operation_name: str, **attributes: TelemetryAttributeValue
+        self,
+        parent_span: Span,
+        operation_name: str,
+        **attributes: TelemetryAttributeValue,
     ) -> Span | None:
         """Create a child span.
 
@@ -423,7 +434,10 @@ class TelemetryMiddleware:
 
     @contextmanager
     def trace_message_processing(
-        self, connection_id: str, message_type: str, user_id: str | None = None
+        self,
+        connection_id: str,
+        message_type: str,
+        user_id: str | None = None,
     ) -> Generator[Span | None]:
         """Trace message processing operation.
 
@@ -448,7 +462,9 @@ class TelemetryMiddleware:
 
     @contextmanager
     def trace_connection_operation(
-        self, connection_id: str, operation: str
+        self,
+        connection_id: str,
+        operation: str,
     ) -> Generator[Span | None]:
         """Trace connection operation.
 
@@ -503,7 +519,11 @@ class TelemetryMiddleware:
         self.telemetry.record_connection_end(labels, duration)
 
     def record_message_success(
-        self, connection_id: str, message_type: str, size_bytes: int, processing_time_seconds: float
+        self,
+        connection_id: str,
+        message_type: str,
+        size_bytes: int,
+        processing_time_seconds: float,
     ) -> None:
         """Record successful message processing.
 
@@ -548,7 +568,9 @@ class TelemetryMiddleware:
             limit_type: Type of rate limit
         """
         labels = MetricLabels(
-            exchange=self.exchange_name, connection_id=connection_id, operation="rate_limit"
+            exchange=self.exchange_name,
+            connection_id=connection_id,
+            operation="rate_limit",
         )
         self.telemetry.record_rate_limit_violation(labels, limit_type)
 

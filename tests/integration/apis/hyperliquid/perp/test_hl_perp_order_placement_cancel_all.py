@@ -34,6 +34,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.market.order import CancelOrderResult, Order
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -127,7 +128,7 @@ class TestHyperliquidPerpOrdersComprehensive:
 
                 # Define order parameters using dynamic values
                 place_args = PlaceOrderArgs(
-                    symbol=test_symbol,
+                    symbol=exchanges.hyperliquid(test_symbol),
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=test_quantity,
@@ -156,8 +157,8 @@ class TestHyperliquidPerpOrdersComprehensive:
                 assert placed_order.exchange == "hyperliquid", (
                     f"Order.exchange should be 'hyperliquid', got {placed_order.exchange}"
                 )
-                assert placed_order.symbol == test_symbol, (
-                    f"Order symbol should match request, got {placed_order.symbol}"
+                assert placed_order.symbol.value == test_symbol, (
+                    f"Order symbol should match request, got {placed_order.symbol.value}"
                 )
                 assert placed_order.side == OrderSide.BUY, (
                     f"Order side should match request, got {placed_order.side}"
@@ -190,9 +191,9 @@ class TestHyperliquidPerpOrdersComprehensive:
             assert len(placed_orders) == 6, f"Should have placed 6 orders, got {len(placed_orders)}"
 
             # Validate all orders use the same test symbol
-            order_symbols = [order.symbol for order in placed_orders]
-            assert all(symbol == test_symbol for symbol in order_symbols), (
-                f"All orders should use {test_symbol} symbol, got: {order_symbols}"
+            order_symbol_values = [order.symbol.value for order in placed_orders]
+            assert all(symbol == test_symbol for symbol in order_symbol_values), (
+                f"All orders should use {test_symbol} symbol, got: {order_symbol_values}"
             )
 
             # Validate all orders have unique exchange order IDs

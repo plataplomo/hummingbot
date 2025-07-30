@@ -103,7 +103,7 @@ class TestHyperliquidPydanticRouter:
         self, hl_api_for_test_env: HyperliquidAPI
     ) -> tuple[Any, dict[str, Any]]:
         """Set up router and verify it has processors.
-        
+
         Returns:
             tuple[Any, dict[str, Any]]: Router instance and its processors dictionary.
         """
@@ -125,7 +125,7 @@ class TestHyperliquidPydanticRouter:
         self, processors: dict[str, Any], processor_calls: dict[str, list[Any]]
     ) -> dict[str, Callable[..., Any]]:
         """Mock processors to track their invocations.
-        
+
         Returns:
             dict[str, Callable[..., Any]]: Dictionary of original processors for restoration.
         """

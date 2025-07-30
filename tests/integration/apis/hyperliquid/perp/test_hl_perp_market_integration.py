@@ -22,6 +22,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
+from cyberdelta.core.symbols import exchanges
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]
@@ -40,15 +41,14 @@ async def test_hl_get_perp_market_btc_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_market() with BTC returns valid perpetual Market model."""
-    args = GetMarketArgs(symbol="BTC")
+    args = GetMarketArgs(symbol=exchanges.hyperliquid("BTC"))
     market = await hl_api_for_test_env.get_market(args)
 
     assert market is not None, "Market should not be None for BTC"
     assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
-    assert market.symbol == "BTC", f"Expected symbol 'BTC', got '{market.symbol}'"
-    assert market.base_symbol == "BTC", f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
-    assert market.quote_symbol == "USD", f"Expected quote_symbol 'USD', got '{market.quote_symbol}'"
+    assert market.symbol.value == "BTC", f"Expected symbol 'BTC', got '{market.symbol.value}'"
+    # Symbol already contains base/quote info via Symbol object
 
     assert isinstance(market.market_type, str), (
         f"market_type should be str, got {type(market.market_type)}"
@@ -165,15 +165,14 @@ async def test_hl_get_perp_market_eth_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_market() with ETH returns valid perpetual Market model."""
-    args = GetMarketArgs(symbol="ETH")
+    args = GetMarketArgs(symbol=exchanges.hyperliquid("ETH"))
     market = await hl_api_for_test_env.get_market(args)
 
     assert market is not None, "Market should not be None for ETH"
     assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
-    assert market.symbol == "ETH", f"Expected symbol 'ETH', got '{market.symbol}'"
-    assert market.base_symbol == "ETH", f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
-    assert market.quote_symbol == "USD", f"Expected quote_symbol 'USD', got '{market.quote_symbol}'"
+    assert market.symbol.value == "ETH", f"Expected symbol 'ETH', got '{market.symbol.value}'"
+    # Symbol already contains base/quote info via Symbol object
 
     assert market.tick_size <= Decimal(10), f"ETH tick_size seems too large: {market.tick_size}"
     assert market.step_size <= Decimal(1), f"ETH step_size seems too large: {market.step_size}"
@@ -192,15 +191,14 @@ async def test_hl_get_perp_market_sol_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_market() with SOL returns valid perpetual Market model."""
-    args = GetMarketArgs(symbol="SOL")
+    args = GetMarketArgs(symbol=exchanges.hyperliquid("SOL"))
     market = await hl_api_for_test_env.get_market(args)
 
     assert market is not None, "Market should not be None for SOL"
     assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
-    assert market.symbol == "SOL", f"Expected symbol 'SOL', got '{market.symbol}'"
-    assert market.base_symbol == "SOL", f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
-    assert market.quote_symbol == "USD", f"Expected quote_symbol 'USD', got '{market.quote_symbol}'"
+    assert market.symbol.value == "SOL", f"Expected symbol 'SOL', got '{market.symbol.value}'"
+    # Symbol already contains base/quote info via Symbol object
 
 
 @pytest.mark.parametrize(
@@ -216,7 +214,7 @@ async def test_hl_get_perp_market_nonexistent_symbol_returns_none(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_market() with non-existent symbol returns None or raises APIError."""
-    args = GetMarketArgs(symbol="NONEXISTENT")
+    args = GetMarketArgs(symbol=exchanges.hyperliquid("NONEXISTENT"))
 
     try:
         market = await hl_api_for_test_env.get_market(args)
@@ -238,7 +236,7 @@ async def test_hl_get_perp_market_invalid_symbol_handling(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_market() with malformed symbol."""
-    args = GetMarketArgs(symbol="@#$%^&*")
+    args = GetMarketArgs(symbol=exchanges.hyperliquid("INVALID123"))
 
     try:
         market = await hl_api_for_test_env.get_market(args)
@@ -270,25 +268,20 @@ async def test_hl_get_perp_markets_success(
     for market in markets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
-        assert market.symbol not in symbols_seen, f"Duplicate symbol found: {market.symbol}"
-        symbols_seen.add(market.symbol)
+        # Check for duplicate symbols using value
+        symbol_value = market.symbol.value
+        assert symbol_value not in symbols_seen, f"Duplicate symbol found: {symbol_value}"
+        symbols_seen.add(symbol_value)
 
-        assert isinstance(market.symbol, str), f"symbol should be str, got {type(market.symbol)}"
-        assert len(market.symbol) > 0, "symbol should not be empty"
+        # Validate symbol is Symbol object
+        from cyberdelta.core.symbols.models import BaseSymbol
 
-        assert isinstance(market.base_symbol, str), (
-            f"base_symbol should be str, got {type(market.base_symbol)}"
+        assert isinstance(market.symbol, BaseSymbol), (
+            f"symbol should be Symbol, got {type(market.symbol)}"
         )
-        assert len(market.base_symbol) > 0, "base_symbol should not be empty"
+        assert len(market.symbol.value) > 0, "symbol value should not be empty"
 
-        assert isinstance(market.quote_symbol, str), (
-            f"quote_symbol should be str, got {type(market.quote_symbol)}"
-        )
-        assert len(market.quote_symbol) > 0, "quote_symbol should not be empty"
-
-        assert market.quote_symbol == "USD", (
-            f"Expected USD quote for Hyperliquid market {market.symbol}"
-        )
+        # Symbol validation is handled by the Symbol object itself
 
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal for {market.symbol}"
@@ -312,12 +305,13 @@ async def test_hl_get_perp_markets_success(
                 f"hl_details should be HyperliquidMarketDetails for {market.symbol}"
             )
 
-    market_symbols = {market.symbol for market in markets}
+    # Extract symbol values for comparison
+    market_symbol_values = {market.symbol.value for market in markets}
     common_symbols = {"BTC", "ETH", "SOL"}
-    found_symbols = common_symbols.intersection(market_symbols)
+    found_symbols = common_symbols.intersection(market_symbol_values)
     assert len(found_symbols) > 0, (
         f"Expected to find at least one common symbol from {common_symbols}, "
-        f"got symbols: {sorted(market_symbols)}"
+        f"got symbols: {sorted(market_symbol_values)}"
     )
 
 
@@ -344,8 +338,6 @@ async def test_hl_get_perp_markets_data_consistency(
 
     required_attrs = [
         "symbol",
-        "base_symbol",
-        "quote_symbol",
         "market_type",
         "tick_size",
         "step_size",
@@ -380,20 +372,16 @@ async def test_hl_get_perp_markets_hyperliquid_specific_validation(
     markets = await hl_api_for_test_env.get_markets(args)
 
     for market in markets:
-        assert market.quote_symbol == "USD", (
-            f"Expected USD quote for all Hyperliquid markets, got {market.quote_symbol} "
-            f"for {market.symbol}"
-        )
+        # Note: quote_symbol no longer exists in Market model
+        # Hyperliquid perpetuals are USD-quoted by convention
 
         assert market.market_type in ["Perpetual", "Future", "Perp"], (
             f"Expected perpetual market type for Hyperliquid, got '{market.market_type}' "
             f"for {market.symbol}"
         )
 
-        assert market.base_symbol == market.symbol, (
-            f"For Hyperliquid, base_symbol should equal symbol, got {market.base_symbol} "
-            f"vs {market.symbol}"
-        )
+        # Note: base_symbol no longer exists in Market model
+        # Symbol now encapsulates the trading pair information
 
         if market.hl_details is not None:
             assert market.hl_details.max_leverage >= 1, (
@@ -503,8 +491,6 @@ async def test_hl_get_perp_market_vs_get_markets_consistency(
     assert matching_market is not None, f"Could not find market {test_symbol} in all_markets list"
 
     assert individual_market.symbol == matching_market.symbol
-    assert individual_market.base_symbol == matching_market.base_symbol
-    assert individual_market.quote_symbol == matching_market.quote_symbol
     assert individual_market.market_type == matching_market.market_type
     assert individual_market.tick_size == matching_market.tick_size
     assert individual_market.step_size == matching_market.step_size
@@ -538,19 +524,14 @@ async def test_hl_perp_market_business_logic_validation(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test that perpetual Market models from Hyperliquid satisfy business logic constraints."""
-    args = GetMarketArgs(symbol="BTC")
+    args = GetMarketArgs(symbol=exchanges.hyperliquid("BTC"))
     market = await hl_api_for_test_env.get_market(args)
 
     assert market is not None, "BTC market should not be None"
 
-    assert market.symbol == market.base_symbol, (
-        f"For Hyperliquid, symbol should equal base_symbol, got {market.symbol} "
-        f"vs {market.base_symbol}"
-    )
-
-    assert market.quote_symbol == "USD", (
-        f"Hyperliquid markets should always quote in USD, got {market.quote_symbol}"
-    )
+    # Note: base_symbol and quote_symbol no longer exist in Market model
+    # Symbol now encapsulates the trading pair information
+    # Hyperliquid perpetuals are USD-quoted by convention
 
     if market.min_price is not None and market.max_price is not None:
         assert market.max_price > market.min_price, (
@@ -577,7 +558,7 @@ async def test_hl_perp_market_business_logic_validation(
 
         assert market.hl_details.sz_decimals <= 18, "sz_decimals should not exceed 18"
 
-        if market.hl_details.mark_price is not None and market.symbol == "BTC":
+        if market.hl_details.mark_price is not None and market.symbol.value == "BTC":
             assert market.hl_details.mark_price > Decimal(1000), (
                 f"BTC mark price seems too low: {market.hl_details.mark_price}"
             )

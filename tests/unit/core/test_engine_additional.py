@@ -25,7 +25,7 @@ from cyberdelta.core.strategy import Strategy
 @pytest.fixture
 def engine() -> Engine:
     """Create an Engine instance for testing.
-    
+
     Returns:
         Engine: Engine instance with name "TestEngine".
     """
@@ -35,7 +35,7 @@ def engine() -> Engine:
 @pytest.fixture
 def mock_strategy() -> Mock:
     """Create a mock Strategy for testing.
-    
+
     Returns:
         Mock: Mocked Strategy with BTC-PERP symbol and test configuration.
     """
@@ -52,7 +52,7 @@ def mock_strategy() -> Mock:
 @pytest.fixture
 def sample_candle() -> Candle:
     """Create a sample Candle for testing.
-    
+
     Returns:
         Candle: Sample BTC-PERP candle with test price data.
     """
@@ -71,7 +71,7 @@ def sample_candle() -> Candle:
 @pytest.fixture
 def sample_trade_signal() -> TradeSignal:
     """Create a sample TradeSignal for testing.
-    
+
     Returns:
         TradeSignal: Sample long entry signal for BTC-PERP.
     """
@@ -90,7 +90,7 @@ def sample_trade_signal() -> TradeSignal:
 @pytest.fixture
 def mock_signal_handler() -> AsyncMock:
     """Create a mock signal handler for testing.
-    
+
     Returns:
         AsyncMock: Mocked async signal handler function.
     """

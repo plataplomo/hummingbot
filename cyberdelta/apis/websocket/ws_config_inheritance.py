@@ -178,7 +178,7 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
         context_modifiers = self._context_modifiers.get(context, {})
 
         # Merge configurations
-        return self._merge_configs(base_config, cast(dict[str, Any], context_modifiers))
+        return self._merge_configs(base_config, cast("dict[str, Any]", context_modifiers))
 
     def supports_context(self, context: ConfigurationContext) -> bool:
         """Check if strategy supports the given context.
@@ -228,7 +228,7 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
         merged_dict = dict(base_config)
         merged_dict.update(modifiers)
         # Convert to ConfigDict by using the dict constructor
-        return cast(ConfigDict, merged_dict)
+        return cast("ConfigDict", merged_dict)
 
 
 class PerformanceProfileStrategy(ConfigurationStrategy):
@@ -336,7 +336,7 @@ class PerformanceProfileStrategy(ConfigurationStrategy):
         profile_config = self._profile_configs[profile]
 
         # Create ConfigDict from profile config
-        return cast(ConfigDict, dict(profile_config))
+        return cast("ConfigDict", dict(profile_config))
 
     def supports_context(self, context: ConfigurationContext) -> bool:
         """Check if strategy supports the given context.
@@ -496,12 +496,13 @@ class ConfigurationManager:
             for key, value in overrides.items():
                 # Ensure value is of acceptable type and not None
                 if value is not None and isinstance(
-                    value, (str, bool, int, float, dict, list, type(None))
+                    value,
+                    (str, bool, int, float, dict, list, type(None)),
                 ):
                     config_dict[key] = value
 
         # Create ConfigDict from config dict
-        return cast(ConfigDict, dict(config_dict))
+        return cast("ConfigDict", dict(config_dict))
 
     def get_cache_stats(self) -> dict[str, Any]:
         """Get configuration cache statistics.
@@ -526,7 +527,10 @@ class ConfigurationManager:
         self._cache_stats = {"hits": 0, "misses": 0}
 
     def benchmark_configurations(
-        self, model_type: type[BaseModel], test_data: dict[str, Any], iterations: int = 1000
+        self,
+        model_type: type[BaseModel],
+        test_data: dict[str, Any],
+        iterations: int = 1000,
     ) -> dict[str, float]:
         """Benchmark different configurations for a model type.
 
@@ -573,7 +577,8 @@ config_manager = ConfigurationManager()
 
 
 def get_optimized_config(
-    model_type: type[BaseModel], context: ConfigurationContext = ConfigurationContext.PRODUCTION
+    model_type: type[BaseModel],
+    context: ConfigurationContext = ConfigurationContext.PRODUCTION,
 ) -> ConfigDict:
     """Get optimized configuration for model type and context.
 
@@ -614,7 +619,7 @@ def create_optimized_model(
     if config_overrides:
         config_dict = dict(optimized_config)
         config_dict.update(config_overrides)
-        optimized_config = cast(ConfigDict, dict(config_dict))
+        optimized_config = cast("ConfigDict", dict(config_dict))
 
     # Note: Due to strict type checking, we return the original model type
     # In practice, you would need to manually apply the optimized_config
@@ -640,7 +645,9 @@ if __name__ == "__main__":
         data: dict[str, Any] = Field(...)
 
     logger.info(
-        "config_inheritance_demo_started", component="ConfigurationManager", action="demonstration"
+        "config_inheritance_demo_started",
+        component="ConfigurationManager",
+        action="demonstration",
     )
 
     # Test different contexts
@@ -662,11 +669,15 @@ if __name__ == "__main__":
             logger.debug("config_setting", setting="extra", value=config["extra"])
         if "validate_assignment" in config:
             logger.debug(
-                "config_setting", setting="validate_assignment", value=config["validate_assignment"]
+                "config_setting",
+                setting="validate_assignment",
+                value=config["validate_assignment"],
             )
         if "validate_default" in config:
             logger.debug(
-                "config_setting", setting="validate_default", value=config["validate_default"]
+                "config_setting",
+                setting="validate_default",
+                value=config["validate_default"],
             )
         if "frozen" in config:
             logger.debug("config_setting", setting="frozen", value=config["frozen"])
@@ -684,7 +695,9 @@ if __name__ == "__main__":
     logger.info("performance_benchmark_header")
     test_data: dict[str, Any] = {"channel": "l2Book", "data": {"coin": "BTC", "levels": []}}
     benchmark_results = config_manager.benchmark_configurations(
-        TestWebSocketEnvelope, test_data, iterations=1000
+        TestWebSocketEnvelope,
+        test_data,
+        iterations=1000,
     )
 
     for context_name, time_ms in benchmark_results.items():

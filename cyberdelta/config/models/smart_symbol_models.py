@@ -37,14 +37,14 @@ class SymbolPatterns(BaseModel):
     @classmethod
     def validate_patterns(cls, v: dict[str, str]) -> dict[str, str]:
         """Validate exchange patterns contain required market types.
-        
+
         Ensures each exchange has patterns for perpetual futures ('perp') and that
         patterns contain proper placeholders for symbol substitution during
         cross-exchange symbol mapping.
-        
+
         Returns:
             dict[str, str]: Validated pattern dictionary
-            
+
         Raises:
             ValueError: If required market types are missing or patterns are invalid
         """
@@ -87,14 +87,14 @@ class SmartSymbolsConfig(BaseModel):
     @classmethod
     def validate_symbol_list(cls, v: builtins.list[str]) -> builtins.list[str]:
         """Validate symbol list with basic validation.
-        
+
         Ensures all symbols meet the trading system requirements: alphanumeric,
         proper length, and normalized to uppercase for consistent processing
         across exchanges.
-        
+
         Returns:
             builtins.list[str]: Validated and normalized symbol list
-            
+
         Raises:
             ValueError: If any symbol is invalid (empty, non-alphanumeric, wrong length)
         """
@@ -128,14 +128,14 @@ class SmartSymbolsConfig(BaseModel):
     @classmethod
     def validate_defaults(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Validate defaults dictionary contains valid values.
-        
+
         Ensures default market types are valid for the trading system. This is
         critical for proper symbol categorization and routing to the correct
         exchange endpoints.
-        
+
         Returns:
             dict[str, Any]: Validated defaults dictionary
-            
+
         Raises:
             ValueError: If market_type is specified but not in the valid set
         """
@@ -156,14 +156,14 @@ class SmartSymbolsConfig(BaseModel):
     @classmethod
     def validate_overrides(cls, v: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
         """Validate overrides structure and values.
-        
+
         Ensures custom symbol overrides are properly structured for specific
         exchange requirements. This allows handling edge cases where pattern-based
         generation doesn't match exchange-specific symbol formats.
-        
+
         Returns:
             dict[str, dict[str, str]]: Validated overrides dictionary
-            
+
         Raises:
             ValueError: If override symbols are empty or exchanges are invalid
         """

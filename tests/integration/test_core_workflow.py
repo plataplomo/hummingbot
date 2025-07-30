@@ -1834,7 +1834,7 @@ def _validate_opportunities(
 
     Returns:
         First valid arbitrage opportunity from the list.
-        
+
     Raises:
         ValueError: If no opportunities are generated.
     """

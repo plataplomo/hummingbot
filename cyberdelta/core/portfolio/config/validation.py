@@ -319,7 +319,7 @@ def _get_section_assignment_map(
     config: PortfolioConfiguration,
 ) -> dict[str, Callable[[object], None]]:
     """Get mapping of section names to assignment functions.
-    
+
     Returns:
         dict[str, Callable[[object], None]]: Mapping of section names to their assignment functions.
     """
@@ -429,7 +429,7 @@ def _update_nested_sections(config: PortfolioConfiguration, kwargs: dict[str, ob
 
 def _validate_critical_errors(errors: list[str]) -> None:
     """Validate and raise critical configuration errors.
-    
+
     Raises:
         ConfigurationValidationError: If critical configuration errors are found.
     """

@@ -94,7 +94,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         """Helper for regex-based error message matching.
 
         Accepts a single pattern or a list of patterns.
-        
+
         Returns:
             True if any pattern matches the message.
         """
@@ -108,7 +108,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
         Uses canonical error substrings from hl_api_error.py for initial matching,
         then regex for variants.
-        
+
         Returns:
             HyperliquidAPIErrorCategory corresponding to the error message.
         """
@@ -130,7 +130,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _try_canonical_string_match(msg: str) -> HyperliquidAPIErrorCategory:
         """Try to match error message using canonical error strings.
-        
+
         Returns:
             HyperliquidAPIErrorCategory if matched, otherwise UNKNOWN.
         """
@@ -142,7 +142,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _try_regex_pattern_match(msg: str) -> HyperliquidAPIErrorCategory:
         """Try to match error message using regex patterns.
-        
+
         Returns:
             HyperliquidAPIErrorCategory if matched, otherwise UNKNOWN.
         """
@@ -162,7 +162,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _match_auth_and_balance_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match authentication and balance related patterns.
-        
+
         Returns:
             HyperliquidAPIErrorCategory if matched, otherwise UNKNOWN.
         """
@@ -189,7 +189,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _match_asset_and_order_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match asset and order validation patterns.
-        
+
         Returns:
             HyperliquidAPIErrorCategory if matched, otherwise UNKNOWN.
         """
@@ -205,7 +205,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _match_specialized_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match specialized error patterns (rate limit, price, server, order state, TWAP).
-        
+
         Returns:
             HyperliquidAPIErrorCategory if matched, otherwise UNKNOWN.
         """
@@ -239,7 +239,7 @@ class HyperliquidErrorMapper(IErrorMapper):
     @staticmethod
     def _match_order_size_patterns(msg: str) -> HyperliquidAPIErrorCategory:
         """Match order size related error patterns.
-        
+
         Returns:
             HyperliquidAPIErrorCategory if matched, otherwise UNKNOWN.
         """
@@ -258,7 +258,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         """Map a HyperliquidAPIErrorCategory or raw error message (str) to APIErrorCode.
 
         If a string is provided, it is first categorized using regex logic.
-        
+
         Returns:
             APIErrorCode corresponding to the category.
         """
@@ -288,7 +288,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
     def map_string_error(self, error_message: str, http_status: int | None = None) -> APIError:
         """Maps a raw error string from Hyperliquid to a standardized APIError.
-        
+
         Returns:
             APIError with standardized error information.
         """
@@ -383,7 +383,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError | None:
         """Check for Hyperliquid IP ban pattern (403 + rate limit message).
-        
+
         Returns:
             APIError if IP ban pattern detected, None otherwise.
         """
@@ -417,7 +417,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError | None:
         """Handle critical HTTP status codes with direct mapping.
-        
+
         Returns:
             APIError if critical status code handled, None otherwise.
         """
@@ -462,7 +462,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         original_exception: Exception | None,
     ) -> APIError:
         """Handle 401 authentication errors with refined string mapping.
-        
+
         Returns:
             APIError with authentication error details.
         """
@@ -490,7 +490,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         status_code: int,
     ) -> tuple[str, HyperliquidAPIErrorCategory]:
         """Extract error message and categorize it.
-        
+
         Returns:
             Tuple of extracted error message and its category.
         """
@@ -513,7 +513,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
     def _parse_error_body(self, error_body: str) -> str:
         """Parse error_body which might be JSON array or plain string.
-        
+
         Returns:
             Parsed error message string.
         """
@@ -538,7 +538,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         request_path: str | None,
     ) -> APIError:
         """Build the final APIError object.
-        
+
         Returns:
             Complete APIError with all standardized information.
         """
@@ -572,7 +572,7 @@ class HyperliquidErrorMapper(IErrorMapper):
 
     def _get_exchange_specific_code(self, category: HyperliquidAPIErrorCategory) -> str | None:
         """Get exchange-specific code based on category.
-        
+
         Returns:
             Exchange-specific error code or None.
         """
@@ -586,7 +586,7 @@ class HyperliquidErrorMapper(IErrorMapper):
         extracted_message: str,
     ) -> float | None:
         """Calculate retry_after for rate limit errors.
-        
+
         Returns:
             Number of seconds to wait before retry, or None.
         """

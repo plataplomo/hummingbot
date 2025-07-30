@@ -9,9 +9,9 @@ from __future__ import annotations
 
 from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig
 from cyberdelta.config.models.symbol_configs import (
-    ExchangeSymbolConfig,
-    InternalSymbolConfig,
-    UnifiedSymbolConfig,
+    SymbolGroupConfig,
+    SymbolMappingConfig,
+    SymbolMetadataConfig,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -21,10 +21,10 @@ logger = get_logger(__name__)
 
 
 class SmartSymbolGenerator:
-    """Generate UnifiedSymbolConfig objects from smart configuration.
+    """Generate SymbolGroupConfig objects from smart configuration.
 
     Transforms the concise smart configuration format into the standard
-    UnifiedSymbolConfig objects expected by the ConfigSymbolLoader.
+    SymbolGroupConfig objects expected by the ConfigSymbolLoader.
     """
 
     def __init__(self, smart_config: SmartSymbolsConfig) -> None:
@@ -45,22 +45,14 @@ class SmartSymbolGenerator:
             has_overrides=len(smart_config.overrides) > 0,
         )
 
-    def generate_unified_symbols(self) -> list[UnifiedSymbolConfig]:
-        """Generate list of UnifiedSymbolConfig from smart configuration.
-        
-        This method transforms the concise smart symbol configuration into
-        fully-qualified UnifiedSymbolConfig objects that can be used throughout
-        the trading system for cross-exchange symbol mapping.
-        
-        Returns:
-            list[UnifiedSymbolConfig]: Generated unified symbol configurations
-        """
-        unified_symbols: list[UnifiedSymbolConfig] = []
+    def generate_symbol_groups(self) -> list[SymbolGroupConfig]:
+        """Generate list of SymbolGroupConfig from smart configuration."""
+        symbol_groups: list[SymbolGroupConfig] = []
 
         for symbol in self.smart_config.list:
             try:
-                unified_symbol = self._generate_unified_symbol(symbol)
-                unified_symbols.append(unified_symbol)
+                symbol_group = self._generate_symbol_group(symbol)
+                symbol_groups.append(symbol_group)
                 logger.debug("symbol_generated", symbol=symbol)
             except Exception as e:
                 logger.exception("symbol_generation_failed", symbol=symbol, error=str(e))
@@ -68,37 +60,25 @@ class SmartSymbolGenerator:
 
         logger.info(
             "smart_symbols_generated",
-            total_symbols=len(unified_symbols),
-            symbols=[s.internal.value for s in unified_symbols],
+            total_symbols=len(symbol_groups),
+            symbols=[s.canonical for s in symbol_groups],
         )
 
-        return unified_symbols
+        return symbol_groups
 
-    def _generate_unified_symbol(self, symbol: str) -> UnifiedSymbolConfig:
-        """Generate single UnifiedSymbolConfig from symbol string.
+    def _generate_symbol_group(self, symbol: str) -> SymbolGroupConfig:
+        """Generate single SymbolGroupConfig from symbol string.
 
-        Uses the existing enum validation and model structure to ensure
-        compatibility with the current system. Applies pattern-based transformations
-        and custom overrides to create exchange-specific symbol mappings.
-        
-        Returns:
-            UnifiedSymbolConfig: Complete symbol configuration with all exchange mappings
-            
-        Raises:
-            ValueError: If no valid exchange mappings can be generated for the symbol
+        Uses the new unified symbol architecture.
         """
-        # Create internal symbol config with string market type (no enum conversion)
+        # Get market type from defaults
         market_type_str = self.defaults.get("market_type", "PERP")
 
-        internal_config = InternalSymbolConfig(
-            value=symbol,
-            base_asset=symbol,  # For PERP, base_asset = symbol
-            quote_asset=None,  # For PERP, quote_asset = null
-            market_type=market_type_str,  # Use string directly, InternalSymbolConfig expects string
-        )
+        # Generate canonical representation
+        canonical = symbol  # For perps, canonical is typically just the symbol
 
         # Generate exchange mappings using patterns
-        exchange_mappings: dict[str, ExchangeSymbolConfig] = {}
+        mappings: list[SymbolMappingConfig] = []
 
         # Iterate over supported exchanges
         supported_exchanges = ["hyperliquid", "backpack"]  # Extensible list
@@ -139,12 +119,14 @@ class SmartSymbolGenerator:
                         value=exchange_value,
                     )
 
-                exchange_mappings[exchange_name_str] = ExchangeSymbolConfig(
-                    value=exchange_value,
-                    exchange_id=exchange_name_str,  # String format for config
-                    asset_index=None,  # Optional field, will be populated by registry
-                    symbol_id=None,  # Optional field, will be populated by registry
+                # Create metadata for this exchange
+                metadata = SymbolMetadataConfig(asset_index=None, symbol_id=None)
+
+                # Create mapping
+                mapping = SymbolMappingConfig(
+                    value=exchange_value, exchange=exchange_name_str, metadata=metadata
                 )
+                mappings.append(mapping)
 
             except Exception:
                 logger.exception(
@@ -153,8 +135,14 @@ class SmartSymbolGenerator:
                 raise
 
         # Validate we have at least one exchange mapping
-        if not exchange_mappings:
+        if not mappings:
             msg = f"No valid exchange mappings generated for symbol {symbol}"
             raise ValueError(msg)
 
-        return UnifiedSymbolConfig(internal=internal_config, exchange_mappings=exchange_mappings)
+        return SymbolGroupConfig(
+            canonical=canonical,
+            base_asset=symbol,
+            quote_asset=None,  # For perps, quote is typically None in canonical form
+            market_type=market_type_str,
+            mappings=mappings,
+        )

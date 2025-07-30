@@ -1,329 +1,126 @@
-"""Unified Symbol Service - Direct interface to the new symbol system.
+"""Unified Symbol Service - Compatibility wrapper for the new symbol system.
 
-This module provides the primary interface to the new unified symbol system,
-completely bypassing all legacy compatibility layers for optimal performance.
+This module provides a compatibility layer to bridge the old symbol service
+interface with the new symbol system.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from cyberdelta.core.symbols.exceptions import SymbolNotFoundError
-from cyberdelta.core.symbols.models import ExchangeSymbol, InternalSymbol, UnifiedSymbol
-from cyberdelta.core.symbols.service import SymbolService
+from cyberdelta.core.symbols import Symbol, SymbolService, get_symbol_service
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
+class SymbolNotFoundError(Exception):
+    """Symbol not found in registry."""
+
+    pass
+
+
+# For backward compatibility, create aliases
+InternalSymbol = Symbol
+ExchangeSymbol = Symbol
+UnifiedSymbol = Symbol
+
+
 class UnifiedSymbolService:
-    """Direct interface to the new symbol system - NO COMPATIBILITY LAYER.
+    """Compatibility wrapper for the new symbol system.
 
-    This service provides clean, type-safe access to the unified symbol system
-    without any legacy compatibility overhead. All methods use typed enums
-    and return typed symbol objects rather than strings.
-
-    Features:
-    - Zero backwards compatibility - clean break from old system
-    - Direct registry access for optimal performance
-    - Type-safe symbol operations
-    - Thread-safe through underlying registry
+    This class provides a bridge between the old UnifiedSymbolService interface
+    and the new symbol system. It wraps the global symbol service to maintain
+    backward compatibility with existing tests and code.
     """
 
     def __init__(self) -> None:
-        """Initialize the unified symbol service."""
-        self.service = SymbolService()
+        """Initialize the unified symbol service with the global symbol service."""
+        self._service = get_symbol_service()
 
-    def get_exchange_symbol_value(self, internal_symbol: str, exchange_id: ExchangeName) -> str:
-        """Get exchange symbol string value from internal symbol.
+    @property
+    def service(self) -> SymbolService:
+        """Get the underlying symbol service for compatibility."""
+        return self._service
+
+    def get_symbol(self, value: str, exchange: ExchangeName) -> Symbol:
+        """Get or create a symbol.
 
         Args:
-            internal_symbol: Internal symbol name (e.g., "BTC")
-            exchange_id: Exchange identifier enum
+            value: Symbol value (e.g., "BTC-PERP")
+            exchange: Exchange name
 
         Returns:
-            Exchange-specific symbol string (e.g., "BTC_PERP")
+            Symbol object
         """
-        exchange_symbol = self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
-        return exchange_symbol.value
+        return self._service.create_symbol(value, exchange)
 
-    def get_internal_symbol_value(self, exchange_symbol: str, exchange_id: ExchangeName) -> str:
-        """Get internal symbol string value from exchange symbol.
+    def create_internal_symbol(
+        self, value: str, base_asset: str, quote_asset: str | None = None, market_type: str = "PERP"
+    ) -> Symbol:
+        """Create an internal symbol (backward compatibility).
 
-        Args:
-            exchange_symbol: Exchange-specific symbol (e.g., "BTC_PERP")
-            exchange_id: Exchange identifier enum
-
-        Returns:
-            Internal symbol string (e.g., "BTC")
+        In the new system, all symbols are unified, so this just creates
+        a regular symbol for Hyperliquid (default internal exchange).
         """
-        internal_symbol = self.service.get_internal_symbol(exchange_symbol, exchange_id.value)
-        return internal_symbol.value
+        # For internal symbols, default to Hyperliquid
+        return self._service.create_symbol(value, ExchangeName.HYPERLIQUID)
 
-    def get_exchange_symbol(
-        self, internal_symbol: str, exchange_id: ExchangeName
-    ) -> ExchangeSymbol:
-        """Get exchange symbol object from internal symbol.
+    def get_exchange_symbol(self, internal_symbol: Symbol, exchange: ExchangeName) -> Symbol:
+        """Get exchange-specific symbol (backward compatibility).
 
-        Args:
-            internal_symbol: Internal symbol name
-            exchange_id: Exchange identifier enum
-
-        Returns:
-            ExchangeSymbol object with full metadata
+        In the new system, we create a new symbol for the target exchange.
         """
-        return self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
+        # Extract the base value and create for target exchange
+        return self._service.create_symbol(internal_symbol.value, exchange)
 
-    def get_internal_symbol(
-        self, exchange_symbol: str, exchange_id: ExchangeName
-    ) -> InternalSymbol:
-        """Get internal symbol object from exchange symbol.
+    def get_unified_symbol(
+        self, base_asset: str, quote_asset: str | None = None, market_type: str = "PERP"
+    ) -> Symbol:
+        """Get unified symbol (backward compatibility).
 
-        Args:
-            exchange_symbol: Exchange-specific symbol
-            exchange_id: Exchange identifier enum
-
-        Returns:
-            InternalSymbol object with full metadata
+        In the new system, all symbols are unified, so we just create
+        a symbol with the appropriate format.
         """
-        return self.service.get_internal_symbol(exchange_symbol, exchange_id.value)
+        if market_type == "PERP":
+            value = f"{base_asset}-PERP"
+        else:
+            value = f"{base_asset}-{quote_asset or 'USDC'}"
 
-    def get_unified_symbol(self, internal_symbol: str) -> UnifiedSymbol:
-        """Get complete unified symbol with all exchange mappings.
+        # Default to Hyperliquid for unified symbols
+        return self._service.create_symbol(value, ExchangeName.HYPERLIQUID)
+
+    def normalize_symbol(self, symbol: str, exchange: ExchangeName) -> str:
+        """Normalize symbol string for exchange (backward compatibility).
 
         Args:
-            internal_symbol: Internal symbol name
+            symbol: Symbol string
+            exchange: Target exchange
 
         Returns:
-            UnifiedSymbol with all exchange mappings
-
-        Raises:
-            SymbolNotFoundError: If symbol not found
+            Normalized symbol string
         """
-        unified_symbol = self.service.store.get_by_internal(internal_symbol)
-        if not unified_symbol:
-            raise SymbolNotFoundError(
-                symbol=internal_symbol,
-                context="unified_symbol_lookup",
-                details={"internal_symbol": internal_symbol},
-            )
-        return unified_symbol
+        # Create symbol and get its value (which is already normalized)
+        symbol_obj = self._service.create_symbol(symbol, exchange)
+        return symbol_obj.value
 
-    def get_trading_specifications(self, internal_symbol: str) -> dict[str, Any]:
-        """Get trading specifications for a symbol.
+    def denormalize_symbol(self, symbol: str, exchange: ExchangeName) -> str:
+        """Denormalize symbol string from exchange format (backward compatibility).
 
-        Args:
-            internal_symbol: Internal symbol name
-
-        Returns:
-            Dictionary with trading specifications:
-            - tick_size: Minimum price increment
-            - min_order_size: Minimum order size
-            - max_order_size: Maximum order size
-            - lot_size: Order size increment
-            - supported_exchanges: List of exchanges supporting this symbol
+        In the new system, symbols are already in their canonical form.
         """
-        unified = self.get_unified_symbol(internal_symbol)
-        return {
-            "tick_size": unified.tick_size,
-            "min_order_size": unified.min_order_size,
-            "max_order_size": unified.max_order_size,
-            "lot_size": unified.lot_size,
-            "is_tradeable": unified.is_tradeable,
-            "is_active": unified.is_active,
-            "supported_exchanges": list(unified.exchange_mappings.keys()),
-        }
+        return symbol
 
-    def is_symbol_supported(self, internal_symbol: str, exchange_id: ExchangeName) -> bool:
-        """Check if symbol is supported on exchange.
+    def validate_symbol(self, symbol: str, exchange: ExchangeName) -> bool:
+        """Validate if symbol is valid for exchange.
 
         Args:
-            internal_symbol: Internal symbol name
-            exchange_id: Exchange identifier enum
+            symbol: Symbol string
+            exchange: Exchange name
 
         Returns:
-            True if symbol is supported on exchange, False otherwise
+            True if valid, False otherwise
         """
         try:
-            self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
-        except SymbolNotFoundError:
-            return False
-        else:
+            self._service.create_symbol(symbol, exchange)
             return True
-
-    def get_all_internal_symbols(self) -> list[str]:
-        """Get all internal symbol values.
-
-        Returns:
-            List of all internal symbol strings
-        """
-        symbols = self.service.get_all_symbols()
-        return [symbol.internal.value for symbol in symbols]
-
-    def get_symbols_for_exchange(self, exchange_id: ExchangeName) -> list[str]:
-        """Get all internal symbols supported on exchange.
-
-        Args:
-            exchange_id: Exchange identifier enum
-
-        Returns:
-            List of internal symbol strings supported on exchange
-        """
-        # Filter symbols that support the requested exchange
-        all_symbols = self.service.get_all_symbols()
-        symbols = [s for s in all_symbols if exchange_id.value in s.exchange_mappings]
-        return [symbol.internal.value for symbol in symbols]
-
-    def get_base_asset(self, internal_symbol: str) -> str:
-        """Get base asset for a symbol.
-
-        Args:
-            internal_symbol: Internal symbol name
-
-        Returns:
-            Base asset name (e.g., "BTC" for "BTC_PERP")
-        """
-        unified = self.get_unified_symbol(internal_symbol)
-        return unified.internal.base_asset
-
-    def get_quote_asset(self, internal_symbol: str) -> str | None:
-        """Get quote asset for a symbol.
-
-        Args:
-            internal_symbol: Internal symbol name
-
-        Returns:
-            Quote asset name if available (e.g., "USDC" for "BTC_USDC"), None for perpetuals
-        """
-        unified = self.get_unified_symbol(internal_symbol)
-        return unified.internal.quote_asset
-
-    def get_asset_index(self, internal_symbol: str, exchange_id: ExchangeName) -> int | None:
-        """Get asset index for Hyperliquid spot symbols.
-
-        Args:
-            internal_symbol: Internal symbol name
-            exchange_id: Exchange identifier (should be HYPERLIQUID)
-
-        Returns:
-            Asset index if available, None otherwise
-        """
-        exchange_symbol = self.service.get_exchange_symbol(internal_symbol, exchange_id.value)
-        return exchange_symbol.asset_index
-
-    def get_symbol_by_index(self, asset_index: int, exchange_id: ExchangeName) -> str:
-        """Get symbol by asset index (Hyperliquid spot symbols).
-
-        Args:
-            asset_index: Asset index number
-            exchange_id: Exchange identifier (should be HYPERLIQUID)
-
-        Returns:
-            Internal symbol name
-
-        Raises:
-            SymbolNotFoundError: If no symbol found for index
-        """
-        # Search all symbols for one with matching asset_index
-        all_symbols = self.service.get_all_symbols()
-        for unified in all_symbols:
-            exchange_symbol = unified.exchange_mappings.get(exchange_id.value)
-            if exchange_symbol and exchange_symbol.asset_index == asset_index:
-                return unified.internal.value
-
-        raise SymbolNotFoundError(
-            symbol=str(asset_index),
-            context=f"asset_index_lookup_{exchange_id.value}",
-            details={"asset_index": asset_index, "exchange": exchange_id.value},
-        )
-
-    def validate_symbol_pair(
-        self, internal_symbol: str, long_exchange: ExchangeName, short_exchange: ExchangeName
-    ) -> None:
-        """Validate symbol is available on both exchanges for arbitrage.
-
-        Args:
-            internal_symbol: Internal symbol name
-            long_exchange: Exchange for long position
-            short_exchange: Exchange for short position
-
-        Raises:
-            SymbolNotFoundError: If symbol not available on either exchange
-        """
-        # Check long exchange
-        if not self.is_symbol_supported(internal_symbol, long_exchange):
-            raise SymbolNotFoundError(
-                symbol=internal_symbol,
-                context=f"long_exchange_{long_exchange.value}",
-                details={"exchange": long_exchange.value, "position_side": "long"},
-            )
-
-        # Check short exchange
-        if not self.is_symbol_supported(internal_symbol, short_exchange):
-            raise SymbolNotFoundError(
-                symbol=internal_symbol,
-                context=f"short_exchange_{short_exchange.value}",
-                details={"exchange": short_exchange.value, "position_side": "short"},
-            )
-
-    def get_registry_stats(self) -> dict[str, Any]:
-        """Get symbol registry statistics.
-
-        Returns:
-            Dictionary with registry statistics
-        """
-        # Return basic stats from the new service
-        all_symbols = self.service.get_all_symbols()
-        supported_exchanges: set[str] = set()
-        for symbol in all_symbols:
-            supported_exchanges.update(symbol.exchange_mappings.keys())
-
-        return {
-            "total_symbols": len(all_symbols),
-            "supported_exchanges": sorted(supported_exchanges),
-            "exchange_count": len(supported_exchanges),
-        }
-
-
-# Module-level service instance using a class to avoid global statement
-class _SymbolServiceSingleton:
-    """Singleton holder for symbol service."""
-
-    _instance: UnifiedSymbolService | None = None
-
-    @classmethod
-    def get_instance(cls) -> UnifiedSymbolService:
-        """Get or create the singleton instance.
-        
-        Returns:
-            The singleton UnifiedSymbolService instance
-        """
-        if cls._instance is None:
-            cls._instance = UnifiedSymbolService()
-        return cls._instance
-
-    @classmethod
-    def set_instance(cls, service: UnifiedSymbolService) -> None:
-        """Set the singleton instance."""
-        cls._instance = service
-
-
-def get_symbol_service() -> UnifiedSymbolService:
-    """Get global symbol service instance.
-
-    Returns:
-        Global UnifiedSymbolService instance
-    """
-    return _SymbolServiceSingleton.get_instance()
-
-
-def initialize_symbol_service() -> UnifiedSymbolService:
-    """Initialize and return the global symbol service.
-
-    This should be called during application startup after
-    symbols have been loaded into the registry.
-
-    Returns:
-        Initialized UnifiedSymbolService instance
-    """
-    service = UnifiedSymbolService()
-    _SymbolServiceSingleton.set_instance(service)
-    return service
+        except Exception:
+            return False

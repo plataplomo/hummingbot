@@ -27,7 +27,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 @pytest.fixture
 def mock_circuit_breaker_system() -> Mock:
     """Create mock circuit breaker system for testing.
-    
+
     Returns:
         Mock: Mock instance of CircuitBreakerSystem with configured breaker.
     """
@@ -42,7 +42,7 @@ def mock_circuit_breaker_system() -> Mock:
 @pytest.fixture
 def signal_queue(mock_app_settings: Mock, mock_circuit_breaker_system: Mock) -> PrioritySignalQueue:
     """Create a PrioritySignalQueue instance for testing.
-    
+
     Returns:
         PrioritySignalQueue: Configured signal queue instance for testing.
     """
@@ -58,7 +58,7 @@ def signal_queue(mock_app_settings: Mock, mock_circuit_breaker_system: Mock) -> 
 @pytest.fixture
 def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     """Create a sample ArbitrageOpportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Sample arbitrage opportunity with realistic parameters.
     """

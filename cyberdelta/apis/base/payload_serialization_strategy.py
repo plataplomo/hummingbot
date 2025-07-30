@@ -20,7 +20,9 @@ class PayloadSerializationStrategy(Protocol):
     """
 
     def serialize_model(
-        self, model: BaseModel, request_config: RequestConfiguration
+        self,
+        model: BaseModel,
+        request_config: RequestConfiguration,
     ) -> dict[str, Any]:
         """Serialize a Pydantic model according to exchange requirements.
 
@@ -42,7 +44,9 @@ class DefaultSerializationStrategy:
     """
 
     def serialize_model(
-        self, model: BaseModel, request_config: RequestConfiguration
+        self,
+        model: BaseModel,
+        request_config: RequestConfiguration,
     ) -> dict[str, Any]:
         """Serialize model using standard Pydantic behavior with aliases.
 

@@ -11,7 +11,7 @@ from cyberdelta.core.models import Trade
 from cyberdelta.core.portfolio.events.base.base_event import (
     BasePortfolioEvent,
     EventMetadata,
-    EventMetadataKwargsWithoutExchangeSymbol,
+    EventMetadataKwargsWithoutSymbol,
     EventType,
 )
 
@@ -32,19 +32,19 @@ class TradeReceivedEvent(BasePortfolioEvent[Trade]):
 
     @classmethod
     def create(
-        cls, trade: Trade, **kwargs: Unpack[EventMetadataKwargsWithoutExchangeSymbol]
+        cls, trade: Trade, **kwargs: Unpack[EventMetadataKwargsWithoutSymbol]
     ) -> TradeReceivedEvent:
         """Create a trade received event with proper initialization.
 
         Args:
             trade: The received trade
             **kwargs: Additional metadata fields
-            
+
         Returns:
             TradeReceivedEvent: A new trade received event instance.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
+        metadata = EventMetadata(exchange_id=trade.exchange, symbol=str(trade.symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -62,9 +62,9 @@ class TradeReceivedEvent(BasePortfolioEvent[Trade]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize trade data.
-        
+
         Returns:
-            dict[str, Any]: Serialized trade data with trade ID, exchange, symbol, 
+            dict[str, Any]: Serialized trade data with trade ID, exchange, symbol,
                 side, size, price, fee details, execution time, and order ID.
         """
         return {
@@ -90,7 +90,7 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
         cls,
         trade: Trade,
         validation_results: ValidationResults | None = None,
-        **kwargs: Unpack[EventMetadataKwargsWithoutExchangeSymbol],
+        **kwargs: Unpack[EventMetadataKwargsWithoutSymbol],
     ) -> TradeValidatedEvent:
         """Create a trade validated event with proper initialization.
 
@@ -98,12 +98,12 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
             trade: The validated trade
             validation_results: Optional validation results
             **kwargs: Additional metadata fields
-            
+
         Returns:
             TradeValidatedEvent: A new trade validated event instance.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
+        metadata = EventMetadata(exchange_id=trade.exchange, symbol=str(trade.symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -128,7 +128,7 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize trade data.
-        
+
         Returns:
             dict[str, Any]: Serialized trade data with trade ID, exchange, symbol,
                 side, size, price, and execution time.
@@ -154,7 +154,7 @@ class TradeProcessedEvent(BasePortfolioEvent[Trade]):
         trade: Trade,
         position_id: str | None = None,
         realized_pnl: float | None = None,
-        **kwargs: Unpack[EventMetadataKwargsWithoutExchangeSymbol],
+        **kwargs: Unpack[EventMetadataKwargsWithoutSymbol],
     ) -> TradeProcessedEvent:
         """Create a trade processed event with proper initialization.
 
@@ -163,12 +163,12 @@ class TradeProcessedEvent(BasePortfolioEvent[Trade]):
             position_id: ID of affected position
             realized_pnl: Realized P&L from trade
             **kwargs: Additional metadata fields
-            
+
         Returns:
             TradeProcessedEvent: A new trade processed event instance.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
+        metadata = EventMetadata(exchange_id=trade.exchange, symbol=str(trade.symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -192,7 +192,7 @@ class TradeProcessedEvent(BasePortfolioEvent[Trade]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize trade data.
-        
+
         Returns:
             dict[str, Any]: Serialized trade data with trade ID, exchange, symbol,
                 side, size, price, fee details, and execution time.
@@ -234,7 +234,7 @@ class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
         trade_data: dict[str, Any],
         reason: str,
         error_code: str | None = None,
-        **kwargs: Unpack[EventMetadataKwargsWithoutExchangeSymbol],
+        **kwargs: Unpack[EventMetadataKwargsWithoutSymbol],
     ) -> TradeRejectedEvent:
         """Create a trade rejected event with proper initialization.
 
@@ -243,7 +243,7 @@ class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
             reason: Rejection reason
             error_code: Optional error code
             **kwargs: Additional metadata fields
-            
+
         Returns:
             TradeRejectedEvent: A new trade rejected event instance.
         """
@@ -283,7 +283,7 @@ class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
 
     def _serialize_data(self) -> dict[str, Any]:
         """Serialize rejection data.
-        
+
         Returns:
             dict[str, Any]: Serialized rejection data with trade ID, exchange, symbol,
                 side, size, price, order ID, rejection reason, error code, and raw data.

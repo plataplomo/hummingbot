@@ -69,7 +69,7 @@ class TestWebSocketPreValidatorPublic:
     @pytest.fixture
     def validator(self) -> WebSocketPreValidator:
         """Create a pre-validator with default config.
-        
+
         Returns:
             WebSocketPreValidator instance with default configuration.
         """
@@ -140,7 +140,7 @@ class TestValidatedWebSocketManagerPublic:
     @pytest.fixture
     def ws_config(self) -> WebSocketManagerConfig:
         """Create WebSocket manager config.
-        
+
         Returns:
             WebSocketManagerConfig with test WebSocket URL and timeouts.
         """
@@ -155,7 +155,7 @@ class TestValidatedWebSocketManagerPublic:
     @pytest.fixture
     def message_handler(self) -> AsyncMock:
         """Create mock message handler.
-        
+
         Returns:
             AsyncMock configured as a message handler.
         """
@@ -168,7 +168,7 @@ class TestValidatedWebSocketManagerPublic:
         message_handler: AsyncMock,
     ) -> ValidatedWebSocketManager:
         """Create ValidatedWebSocketManager instance.
-        
+
         Returns:
             ValidatedWebSocketManager configured for testing.
         """

@@ -16,12 +16,12 @@ logger = get_logger(__name__)
 
 def _validate_decimal_finite(value: Decimal, field_name: str, context: str) -> None:
     """Validate that a decimal value is finite.
-    
+
     Args:
         value: Decimal value to validate
         field_name: Name of the field for error messages
         context: Context description for error messages
-        
+
     Raises:
         APIError: If value is not finite
     """
@@ -34,15 +34,15 @@ def _validate_decimal_finite(value: Decimal, field_name: str, context: str) -> N
 
 def _prepare_value_string(value: str | float | Decimal, field_name: str, context: str) -> str:
     """Convert value to string for safe decimal parsing.
-    
+
     Args:
         value: Value to convert to string
         field_name: Name of the field for error messages
         context: Context description for error messages
-        
+
     Returns:
         str: String representation suitable for Decimal parsing
-        
+
     Raises:
         APIError: If value cannot be converted to string
     """
@@ -101,14 +101,18 @@ def safe_parse_decimal(
     # Handle already-decimal values
     if isinstance(value, Decimal):
         _validate_decimal_finite(
-            value, validation_context.field_name, validation_context.context_description
+            value,
+            validation_context.field_name,
+            validation_context.context_description,
         )
         return value
 
     # Convert to string for safe parsing
     try:
         value_str = _prepare_value_string(
-            value, validation_context.field_name, validation_context.context_description
+            value,
+            validation_context.field_name,
+            validation_context.context_description,
         )
 
         # Parse using Decimal constructor
@@ -116,7 +120,9 @@ def safe_parse_decimal(
 
         # Validate the result
         _validate_decimal_finite(
-            decimal_value, validation_context.field_name, validation_context.context_description
+            decimal_value,
+            validation_context.field_name,
+            validation_context.context_description,
         )
 
         logger.debug(
@@ -201,7 +207,7 @@ def validate_positive_decimal(
                 code=APIErrorCode.INVALID_RESPONSE.value,
             )
     elif validation_context.range_policy.value == "financial_positive" and value <= Decimal(
-        "0.00000001"
+        "0.00000001",
     ):
         raise APIError(
             message=(

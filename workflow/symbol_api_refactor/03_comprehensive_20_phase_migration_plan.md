@@ -146,26 +146,33 @@ symbol: ExchangeSymbol | None = Field(default=None, description="Symbol of the o
 
 ### Changes Required
 
-#### 2.1 Primary Service Args (`cyberdelta/apis/models/service_args_models.py`)
+#### 2.1 Service Args Modules (REORGANIZED STRUCTURE)
+**CRITICAL UPDATE: Service args reorganized into 6 domain modules**
+
 ```python
-# Import domain models
+# cyberdelta/apis/models/service_args/trading.py
 from cyberdelta.core.symbols.models import ExchangeSymbol
 
-# CHANGE ALL symbol fields from str to ExchangeSymbol:
+class PlaceOrderArgs(BaseModel):
+    symbol: ExchangeSymbol  # Was: str
 
-# Line 95 - PlaceOrderArgs:
-symbol: ExchangeSymbol  # Was: str
+class CancelOrderArgs(BaseModel):
+    symbol: ExchangeSymbol | None  # Was: str | None
 
-# Line 509 - CancelOrderArgs:
-symbol: ExchangeSymbol | None  # was: str | None
+class GetOrderArgs(BaseModel):
+    symbol: ExchangeSymbol | None  # Was: str | None
 
-# Line 638 - GetAllOpenOrdersArgs:
-symbol: ExchangeSymbol | None  # Was: str | None
+# cyberdelta/apis/models/service_args/market_data.py
+class GetTickerArgs(BaseModel):
+    symbol: ExchangeSymbol  # Was: str
 
-# Line 665 - GetOrderArgs:
-symbol: ExchangeSymbol | None  # Was: str | None
+class GetOrderBookArgs(BaseModel):
+    symbol: ExchangeSymbol  # Was: str
 
-# Plus ~20 more Args classes with symbol fields
+class GetMarketDataArgs(BaseModel):
+    symbol: ExchangeSymbol  # Was: str
+
+# Plus: account.py, hyperliquid.py, backpack.py, internal.py modules
 ```
 
 #### 2.2 Update Validators

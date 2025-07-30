@@ -133,11 +133,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, opportunity: ArbitrageOpportunity, details: dict[str, Any]
     ) -> tuple[str, Decimal] | tuple[str, CheckResult]:
         """Extract and validate opportunity data.
-        
+
         Args:
             opportunity: The arbitrage opportunity to process
             details: Dictionary to update with extracted details
-            
+
         Returns:
             Tuple of (symbol, spread_decimal) on success, or (symbol, CheckResult) on failure
         """
@@ -170,11 +170,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, opportunity: ArbitrageOpportunity, details: dict[str, Any]
     ) -> tuple[list[Decimal] | None, Decimal | None]:
         """Get historical and current volatility data.
-        
+
         Args:
             opportunity: The arbitrage opportunity
             details: Dictionary to update with volatility details
-            
+
         Returns:
             Tuple of (historical_volatility, current_volatility)
         """
@@ -197,14 +197,14 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         details: dict[str, Any],
     ) -> CheckResult | None:
         """Perform all volatility checks, return CheckResult if any fail.
-        
+
         Args:
             symbol: Trading symbol
             spread_decimal: Current spread as Decimal
             current_volatility: Current volatility if available
             historical_volatility: Historical volatility data
             details: Dictionary to update with check details
-            
+
         Returns:
             CheckResult if any check fails, None if all pass
         """
@@ -271,13 +271,13 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _to_decimal(self, value: Decimal | str | float) -> Decimal:
         """Convert value to Decimal with validation.
-        
+
         Args:
             value: Value to convert to Decimal
-            
+
         Returns:
             Decimal representation of the value
-            
+
         Raises:
             VolatilityError: If value type cannot be converted
         """
@@ -297,10 +297,10 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _get_historical_volatility(self, opportunity: ArbitrageOpportunity) -> list[Decimal] | None:
         """Get historical volatility data for the opportunity.
-        
+
         Args:
             opportunity: The arbitrage opportunity
-            
+
         Returns:
             List of historical volatility values or None if not available
         """
@@ -315,11 +315,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, opportunity: ArbitrageOpportunity, historical_data: list[Decimal] | None
     ) -> Decimal | None:
         """Calculate current volatility estimate.
-        
+
         Args:
             opportunity: The arbitrage opportunity
             historical_data: Historical volatility data if available
-            
+
         Returns:
             Current volatility estimate or None if not calculable
         """
@@ -356,11 +356,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, current_volatility: Decimal | None, spread: Decimal
     ) -> CheckResult:
         """Check if volatility is within acceptable bounds.
-        
+
         Args:
             current_volatility: Current volatility or None
             spread: Current spread to use as proxy if volatility is None
-            
+
         Returns:
             CheckResult indicating success or failure with details
         """
@@ -397,11 +397,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, spread: Decimal, historical_data: list[Decimal] | None
     ) -> CheckResult:
         """Check basis volatility using spread data.
-        
+
         Args:
             spread: Current spread
             historical_data: Historical volatility data if available
-            
+
         Returns:
             CheckResult indicating success or failure with details
         """
@@ -444,12 +444,12 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, symbol: str, current_volatility: Decimal, historical_data: list[Decimal] | None
     ) -> CheckResult:
         """Check volatility stability and detect spikes.
-        
+
         Args:
             symbol: Trading symbol
             current_volatility: Current volatility value
             historical_data: Historical volatility data
-            
+
         Returns:
             CheckResult indicating success or failure with details
         """
@@ -526,10 +526,10 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _check_rolling_volatility(self, historical_data: list[Decimal]) -> CheckResult:
         """Check rolling window volatility.
-        
+
         Args:
             historical_data: Historical volatility data
-            
+
         Returns:
             CheckResult indicating success or failure with details
         """
@@ -569,11 +569,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, current_volatility: Decimal, historical_data: list[Decimal] | None
     ) -> str:
         """Detect current market regime based on volatility.
-        
+
         Args:
             current_volatility: Current volatility value
             historical_data: Historical volatility data if available
-            
+
         Returns:
             Market regime string: 'high_volatility' or 'normal'
         """
@@ -595,11 +595,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         self, current_volatility: Decimal | None, historical_data: list[Decimal] | None
     ) -> float:
         """Calculate a volatility health score (0-1, higher is better).
-        
+
         Args:
             current_volatility: Current volatility or None
             historical_data: Historical volatility data if available
-            
+
         Returns:
             Volatility health score between 0 and 1
         """
@@ -675,7 +675,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         Args:
             min_threshold: Minimum volatility threshold
             max_threshold: Maximum volatility threshold
-            
+
         Raises:
             VolatilityError: If min_threshold is not less than max_threshold
         """
@@ -712,7 +712,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _create_skip_result(self) -> CheckResult:
         """Create result for skipped check.
-        
+
         Returns:
             CheckResult with skip status
         """
@@ -722,11 +722,11 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
         """Create result for failed check.
-        
+
         Args:
             error: The exception that occurred
             execution_time: Time taken for the check in milliseconds
-            
+
         Returns:
             CheckResult with error status and details
         """

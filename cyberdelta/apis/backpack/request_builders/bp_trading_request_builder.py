@@ -38,6 +38,7 @@ from cyberdelta.apis.exceptions import (
     MissingRequiredParameterError,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -71,7 +72,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         operation = kwargs.get("operation")
         if not operation:
             raise NotImplementedError(
-                "Trading request builder requires 'operation' parameter for generic build_request"
+                "Trading request builder requires 'operation' parameter for generic build_request",
             )
 
         # Note: Trading request builders require specific parameters for each operation
@@ -91,10 +92,10 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             # Trading operations require specific parameters not available in generic interface
             raise NotImplementedError(
                 f"Trading operation '{operation}' requires specific parameters not available "
-                f"in generic build_request interface. Use specific builder methods directly."
+                f"in generic build_request interface. Use specific builder methods directly.",
             )
         raise NotImplementedError(
-            f"Trading operation '{operation}' not supported by registry dispatch"
+            f"Trading operation '{operation}' not supported by registry dispatch",
         )
 
     @staticmethod
@@ -188,13 +189,17 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         BackpackTradingRequestBuilder._add_quantity_fields(request_dict, order_type, quantity)
         BackpackTradingRequestBuilder._add_price_fields(request_dict, order_type_str, price)
         BackpackTradingRequestBuilder._add_optional_fields(
-            request_dict, time_in_force_str, client_order_id
+            request_dict,
+            time_in_force_str,
+            client_order_id,
         )
         BackpackTradingRequestBuilder._add_execution_fields(request_dict, order_type_str, execution)
 
     @staticmethod
     def _add_quantity_fields(
-        request_dict: dict[str, Any], order_type: OrderType, quantity: Decimal
+        request_dict: dict[str, Any],
+        order_type: OrderType,
+        quantity: Decimal,
     ) -> None:
         """Add quantity fields based on order type."""
         trigger_order_types = {
@@ -208,10 +213,12 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def _add_price_fields(
-        request_dict: dict[str, Any], order_type_str: str, price: Decimal | None
+        request_dict: dict[str, Any],
+        order_type_str: str,
+        price: Decimal | None,
     ) -> None:
         """Add price fields for limit orders.
-        
+
         Raises:
             MissingRequiredParameterError: If price is None for limit orders.
         """
@@ -225,7 +232,9 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def _add_optional_fields(
-        request_dict: dict[str, Any], time_in_force_str: str | None, client_order_id: str | None
+        request_dict: dict[str, Any],
+        time_in_force_str: str | None,
+        client_order_id: str | None,
     ) -> None:
         """Add optional fields to request."""
         if time_in_force_str is not None:
@@ -235,7 +244,9 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def _add_execution_fields(
-        request_dict: dict[str, Any], order_type_str: str, execution: OrderExecution
+        request_dict: dict[str, Any],
+        order_type_str: str,
+        execution: OrderExecution,
     ) -> None:
         """Add execution configuration fields."""
         # Market orders cannot have postOnly flag
@@ -254,7 +265,8 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def _add_position_intent_fields(
-        request_dict: dict[str, Any], execution: OrderExecution
+        request_dict: dict[str, Any],
+        execution: OrderExecution,
     ) -> None:
         """Add position intent fields."""
         if execution.position_intent == PositionIntent.REDUCE_ONLY:
@@ -296,7 +308,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def build_place_order_payload(
-        symbol: str,
+        symbol: Symbol,
         order_type: OrderType,
         order_side: OrderSide,
         quantity: Decimal,
@@ -327,7 +339,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             BackpackRawOrderExecuteRequest: Validated request payload
 
         Raises:
-            MissingRequiredParameterError: If required parameters are missing for 
+            MissingRequiredParameterError: If required parameters are missing for
                 specific order types
         """
         logger.debug(
@@ -342,12 +354,14 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         # Map enums to API strings
         order_type_str, order_side_str, tif_str = (
             BackpackTradingRequestBuilder.map_order_enums_to_api_strings(
-                order_type, order_side, time_in_force
+                order_type,
+                order_side,
+                time_in_force,
             )
         )
 
-        # Build base request dictionary
-        request_dict: dict[str, Any] = {"symbol": symbol}
+        # Build base request dictionary - convert Symbol to string at the API boundary
+        request_dict: dict[str, Any] = {"symbol": symbol.value}
 
         # Default execution if not provided
         if execution is None:
@@ -396,7 +410,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def build_cancel_order_payload(
-        symbol: str,
+        symbol: Symbol,
         order_id: str | None = None,
         client_order_id: str | None = None,
     ) -> BackpackRawOrderCancelRequest:
@@ -426,7 +440,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             client_order_id=client_order_id,
         )
 
-        request_dict: dict[str, Any] = {"symbol": symbol}
+        request_dict: dict[str, Any] = {"symbol": symbol.value}
 
         if order_id is not None:
             request_dict["orderId"] = order_id
@@ -437,7 +451,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def build_cancel_all_orders_payload(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> BackpackRawOrderCancelAllRequest:
         """Build the request payload for cancelling all orders.
 
@@ -455,12 +469,12 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         request_dict: dict[str, Any] = {}
 
         if symbol is not None:
-            request_dict["symbol"] = symbol
+            request_dict["symbol"] = symbol.value
 
         return BackpackRawOrderCancelAllRequest(**request_dict)
 
     @staticmethod
-    def build_get_open_orders_params(symbol: str | None) -> BackpackRawGetOpenOrdersParams:
+    def build_get_open_orders_params(symbol: Symbol | None) -> BackpackRawGetOpenOrdersParams:
         """Build query parameters for fetching open orders.
 
         Args:
@@ -477,12 +491,12 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         params_dict: dict[str, Any] = {}
 
         if symbol is not None:
-            params_dict["symbol"] = symbol
+            params_dict["symbol"] = symbol.value
 
         return BackpackRawGetOpenOrdersParams(**params_dict)
 
     @staticmethod
-    def build_get_order_params(symbol: str) -> BackpackRawGetOrderParams:
+    def build_get_order_params(symbol: Symbol) -> BackpackRawGetOrderParams:
         """Build query parameters for fetching a specific order.
 
         Args:
@@ -496,11 +510,11 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
             symbol=symbol,
         )
 
-        return BackpackRawGetOrderParams(symbol=symbol)
+        return BackpackRawGetOrderParams(symbol=symbol.value)
 
     @staticmethod
     def build_get_order_history_params(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         order_id: str | None = None,
         client_id: str | None = None,
         start_time: int | None = None,
@@ -535,7 +549,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         }
 
         if symbol is not None:
-            params_dict["symbol"] = symbol
+            params_dict["symbol"] = symbol.value
         if order_id is not None:
             params_dict["orderId"] = order_id
         if client_id is not None:
@@ -549,7 +563,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
 
     @staticmethod
     def build_get_trade_history_params(
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
         limit: int = 100,
@@ -581,7 +595,7 @@ class BackpackTradingRequestBuilder(TradingRequestBuilderProtocol):
         }
 
         if symbol is not None:
-            params_dict["symbol"] = symbol
+            params_dict["symbol"] = symbol.value
         if start_time is not None:
             params_dict["start_time"] = start_time
         if end_time is not None:

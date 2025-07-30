@@ -51,7 +51,7 @@ logger = get_logger(__name__)
 @pytest.fixture
 def trading_data_mapper() -> HyperliquidOrderMapper:
     """Provide an instance of HyperliquidOrderMapper.
-    
+
     Returns:
         HyperliquidOrderMapper: Order mapper instance for transformation testing.
     """
@@ -61,7 +61,7 @@ def trading_data_mapper() -> HyperliquidOrderMapper:
 @pytest.fixture
 def base_timestamp() -> int:
     """Provide a consistent timestamp for tests.
-    
+
     Returns:
         int: Current timestamp in milliseconds.
     """
@@ -81,7 +81,7 @@ def create_raw_order(
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
     """Create a HyperliquidRawOrder with customizable parameters.
-    
+
     Returns:
         HyperliquidRawOrder: Raw order with specified parameters.
     """
@@ -117,7 +117,7 @@ def create_raw_historical_order(
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
     """Create a HyperliquidRawHistoricalOrder with customizable parameters.
-    
+
     Returns:
         HyperliquidRawHistoricalOrder: Raw historical order with specified parameters.
     """
@@ -147,7 +147,7 @@ def create_raw_historical_order(
 @pytest.fixture
 def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInfo:
     """Provide a valid HyperliquidRawTriggerInfo for a stop loss.
-    
+
     Returns:
         HyperliquidRawTriggerInfo: Stop loss trigger configuration with market order.
     """
@@ -161,7 +161,7 @@ def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInf
 @pytest.fixture
 def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerInfo:
     """Provide a valid HyperliquidRawTriggerInfo for a take profit.
-    
+
     Returns:
         HyperliquidRawTriggerInfo: Take profit trigger configuration with limit order.
     """

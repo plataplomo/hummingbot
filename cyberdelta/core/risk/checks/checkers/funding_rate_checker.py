@@ -191,7 +191,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
         """Check if funding rates are within reasonable bounds.
-        
+
         Returns:
             CheckResult: Success if rates within bounds, failure otherwise.
         """
@@ -233,7 +233,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
         """Check if funding rate spread is within acceptable limits.
-        
+
         Returns:
             CheckResult: Success if spread within limits, failure otherwise.
         """
@@ -271,7 +271,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
         """Check funding rate stability over time.
-        
+
         Returns:
             CheckResult: Success if rates are stable, warning if volatile.
         """
@@ -330,7 +330,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         self, long_metrics: dict[str, Any], short_metrics: dict[str, Any]
     ) -> CheckResult:
         """Check confidence scores for funding rate data.
-        
+
         Returns:
             CheckResult: Success if confidence high, warning otherwise.
         """
@@ -367,7 +367,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
 
     def _get_current_funding_rate(self, metrics: dict[str, Any]) -> Decimal | None:
         """Extract current funding rate from metrics.
-        
+
         Returns:
             Decimal | None: Current funding rate or None if not available.
         """
@@ -382,7 +382,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
 
     def _count_consecutive_moves(self, rates: list[float]) -> int:
         """Count consecutive moves in the same direction.
-        
+
         Returns:
             int: Number of consecutive moves in same direction.
         """
@@ -420,7 +420,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
         Args:
             min_rate: Minimum allowed funding rate
             max_rate: Maximum allowed funding rate
-            
+
         Raises:
             FundingRateError: If min_rate >= max_rate.
         """
@@ -468,7 +468,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
 
     def _create_skip_result(self) -> CheckResult:
         """Create result for skipped check.
-        
+
         Returns:
             CheckResult: Skip result with appropriate message.
         """
@@ -478,7 +478,7 @@ class FundingRateChecker(TypedBaseChecker[CheckResult]):
 
     def _create_error_result(self, error: Exception, execution_time: float) -> CheckResult:
         """Create result for failed check.
-        
+
         Returns:
             CheckResult: Error result with exception details.
         """

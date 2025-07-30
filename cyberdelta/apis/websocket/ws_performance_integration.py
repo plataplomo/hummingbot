@@ -46,10 +46,10 @@ class PerformanceMode:
 
 def _raise_unknown_mode_error(mode: str) -> NoReturn:
     """Raise error for unknown performance mode.
-    
+
     Args:
         mode: The unknown performance mode that was provided.
-        
+
     Raises:
         TypeError: Always raised with details about the unknown mode.
     """
@@ -81,7 +81,9 @@ class WebSocketPerformanceProcessor:
         self._error_count = 0
 
     def validate_message(
-        self, message: str | bytes | dict[str, Any], mode: str | None = None
+        self,
+        message: str | bytes | dict[str, Any],
+        mode: str | None = None,
     ) -> WebSocketEnvelopeUnion:
         """Validate WebSocket message with optimal performance strategy.
 
@@ -118,10 +120,10 @@ class WebSocketPerformanceProcessor:
 
     def _validate_ultra_fast(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
         """Ultra-fast validation using all performance optimizations.
-        
+
         Args:
             message: Message in any supported format.
-            
+
         Returns:
             Validated WebSocket envelope using discriminated unions for maximum performance.
         """
@@ -134,13 +136,13 @@ class WebSocketPerformanceProcessor:
 
     def _validate_fast(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
         """Fast validation with basic error checking.
-        
+
         Args:
             message: Message in any supported format.
-            
+
         Returns:
             Validated WebSocket envelope with basic safety checks.
-            
+
         Raises:
             ValidationError: If JSON parsing fails or message is invalid.
         """
@@ -158,10 +160,10 @@ class WebSocketPerformanceProcessor:
 
     def _validate_balanced(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
         """Balanced validation with moderate safety checks.
-        
+
         Args:
             message: Message in any supported format.
-            
+
         Returns:
             Validated WebSocket envelope using streaming validation adapter.
         """
@@ -169,13 +171,13 @@ class WebSocketPerformanceProcessor:
 
     def _validate_secure(self, message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
         """Secure validation with comprehensive checks.
-        
+
         Args:
             message: Message in any supported format.
-            
+
         Returns:
             Validated WebSocket envelope with comprehensive security validation.
-            
+
         Raises:
             ValidationError: If JSON parsing fails or message format is invalid.
         """
@@ -198,7 +200,9 @@ class WebSocketPerformanceProcessor:
         return validate_envelope_ultra_fast(data)
 
     def validate_batch(
-        self, messages: list[str | bytes | dict[str, Any]], mode: str | None = None
+        self,
+        messages: list[str | bytes | dict[str, Any]],
+        mode: str | None = None,
     ) -> list[WebSocketEnvelopeUnion]:
         """Validate batch of messages with optimized processing.
 
@@ -312,10 +316,10 @@ performance_processor = WebSocketPerformanceProcessor()
 # Convenience functions for common use cases
 def validate_ultra_fast(message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
     """Ultra-fast validation with maximum performance optimizations.
-    
+
     Args:
         message: Message in any supported format.
-        
+
     Returns:
         Validated WebSocket envelope using ultra-fast performance mode.
     """
@@ -324,10 +328,10 @@ def validate_ultra_fast(message: str | bytes | dict[str, Any]) -> WebSocketEnvel
 
 def validate_secure(message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeUnion:
     """Secure validation with comprehensive safety checks.
-    
+
     Args:
         message: Message in any supported format.
-        
+
     Returns:
         Validated WebSocket envelope using secure performance mode.
     """
@@ -336,7 +340,7 @@ def validate_secure(message: str | bytes | dict[str, Any]) -> WebSocketEnvelopeU
 
 def get_performance_summary() -> dict[str, Any]:
     """Get summary of performance characteristics and recommendations.
-    
+
     Returns:
         Dictionary containing performance mode descriptions, use cases,
         trade-offs, and recommendations for different scenarios.

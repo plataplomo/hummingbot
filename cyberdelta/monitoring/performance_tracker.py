@@ -634,13 +634,13 @@ class PerformanceTracker:
         end_time: datetime | None,
     ) -> list[dict[str, Any]]:
         """Filter funding rates by exchange, symbol, and time range.
-        
+
         Args:
             exchange: Exchange to filter by (optional)
             symbol: Symbol to filter by (optional)
             start_time: Start time for filtering (optional)
             end_time: End time for filtering (optional)
-            
+
         Returns:
             List of filtered funding rate dictionaries
         """
@@ -674,10 +674,10 @@ class PerformanceTracker:
 
     def _create_funding_rates_dataframe(self, filtered_rates: list[dict[str, Any]]) -> pd.DataFrame:
         """Create and process the funding rates DataFrame.
-        
+
         Args:
             filtered_rates: List of filtered funding rate dictionaries
-            
+
         Returns:
             Processed DataFrame with timestamp index and numeric columns
         """
@@ -694,11 +694,11 @@ class PerformanceTracker:
 
     def _apply_pivot_if_requested(self, df: pd.DataFrame, pivot: bool) -> pd.DataFrame:
         """Apply pivot transformation if requested.
-        
+
         Args:
             df: Input DataFrame to potentially pivot
             pivot: Whether to apply pivot transformation
-            
+
         Returns:
             Either pivoted DataFrame (with symbols as columns) or original DataFrame
         """

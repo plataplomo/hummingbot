@@ -23,7 +23,7 @@ class TestCachePerformanceSimple:
     @pytest.fixture
     def cache_service(self) -> HyperliquidClearinghouseCacheService:
         """Create a cache service with 5-second TTL.
-        
+
         Returns:
             HyperliquidClearinghouseCacheService configured for testing
         """
@@ -36,7 +36,7 @@ class TestCachePerformanceSimple:
     @pytest.fixture
     def mock_state(self) -> Mock:
         """Create a simple mock state object.
-        
+
         Returns:
             Mock object representing a clearinghouse state
         """

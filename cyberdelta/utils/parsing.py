@@ -51,7 +51,7 @@ def parse_datetime_utc(
         A timezone-aware UTC datetime object, or None if value is None and allowed.
 
     Raises:
-        TimestampFormatError: If the value cannot be parsed as a datetime. The error message 
+        TimestampFormatError: If the value cannot be parsed as a datetime. The error message
             will include the field name if provided.
 
     """
@@ -223,7 +223,7 @@ def parse_decimal_value(
         A Decimal object, or None if value is None and allowed.
 
     Raises:
-        DecimalFieldError: If the value cannot be parsed as a Decimal. The error message will 
+        DecimalFieldError: If the value cannot be parsed as a Decimal. The error message will
             include the field name if provided.
 
     """

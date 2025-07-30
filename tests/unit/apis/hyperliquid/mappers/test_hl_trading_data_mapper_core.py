@@ -43,7 +43,7 @@ logger = get_logger(__name__)
 @pytest.fixture
 def trading_data_mapper() -> HyperliquidOrderMapper:
     """Provide an instance of HyperliquidOrderMapper.
-    
+
     Returns:
         HyperliquidOrderMapper: Mapper instance for trading data transformations.
     """
@@ -63,7 +63,7 @@ def create_raw_order(
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawOrder:
     """Create a HyperliquidRawOrder with customizable parameters.
-    
+
     Returns:
         HyperliquidRawOrder: Raw order object with the specified parameters.
     """
@@ -99,7 +99,7 @@ def create_raw_historical_order(
     timestamp: int = 1640995200000,  # Fixed timestamp for consistency
 ) -> HyperliquidRawHistoricalOrder:
     """Create a HyperliquidRawHistoricalOrder with customizable parameters.
-    
+
     Returns:
         HyperliquidRawHistoricalOrder: Raw historical order object with the specified parameters.
     """
@@ -148,7 +148,7 @@ def create_raw_historical_order(
 @pytest.fixture
 def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInfo:
     """Provide a valid HyperliquidRawTriggerInfo for a stop loss.
-    
+
     Returns:
         HyperliquidRawTriggerInfo: Trigger info configured for stop loss orders.
     """
@@ -162,7 +162,7 @@ def hyperliquid_raw_trigger_info_stop_loss_fixture() -> HyperliquidRawTriggerInf
 @pytest.fixture
 def hyperliquid_raw_trigger_info_take_profit_fixture() -> HyperliquidRawTriggerInfo:
     """Provide a valid HyperliquidRawTriggerInfo for a take profit.
-    
+
     Returns:
         HyperliquidRawTriggerInfo: Trigger info configured for take profit orders.
     """
@@ -495,12 +495,13 @@ class TestCoreValidationLogic:
         trading_data_mapper: HyperliquidOrderMapper,
     ) -> None:
         """Test that symbol names are consistently handled across different transformations."""
+        # Use symbols that comply with 20-character domain model limit
         test_symbols = [
             "ETH-PERP",
             "BTC-PERP",
             "SOL-PERP",
             "AVAX-PERP",
-            "LONG-SYMBOL-NAME-PERP",
+            "LONGNAME-PERP",  # Updated to stay within 20-char limit
         ]
 
         for symbol in test_symbols:
@@ -512,8 +513,11 @@ class TestCoreValidationLogic:
                 historical_order,
             )
 
-            assert raw_result.symbol == symbol
-            assert historical_result.symbol == symbol
+            # Compare ExchangeSymbol domain objects properly
+            assert raw_result.symbol.value == symbol
+            assert historical_result.symbol.value == symbol
+            assert raw_result.symbol.exchange_id.value == "hyperliquid"
+            assert historical_result.symbol.exchange_id.value == "hyperliquid"
 
     def test_decimal_precision_handling(
         self,

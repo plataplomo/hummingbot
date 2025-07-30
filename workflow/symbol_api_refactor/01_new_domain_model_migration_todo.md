@@ -106,18 +106,37 @@ symbol: ExchangeSymbol = Field(...)
 ```
 **Impact**: Every Order creation must now use domain objects
 
-#### File 2: `cyberdelta/apis/models/service_args_models.py`
+#### Files 2-8: Service Args Domain Modules (REORGANIZED STRUCTURE)
+**NOTE: Service args have been reorganized into domain-specific modules**
+
 ```python
-# Change ALL args classes:
+# cyberdelta/apis/models/service_args/trading.py
 class PlaceOrderArgs(BaseModel):
     symbol: ExchangeSymbol  # Was str
 
 class CancelOrderArgs(BaseModel):
     symbol: ExchangeSymbol  # Was str
 
-# ... etc for all 20+ Args classes
+# cyberdelta/apis/models/service_args/market_data.py
+class GetTickerArgs(BaseModel):
+    symbol: ExchangeSymbol  # Was str
+
+class GetOrderBookArgs(BaseModel):
+    symbol: ExchangeSymbol  # Was str
+
+# cyberdelta/apis/models/service_args/account.py
+# ... plus account-related args
+
+# cyberdelta/apis/models/service_args/hyperliquid.py
+# ... plus Hyperliquid-specific args
+
+# cyberdelta/apis/models/service_args/backpack.py
+# ... plus Backpack-specific args
+
+# cyberdelta/apis/models/service_args/internal.py
+# ... plus internal system args
 ```
-**Impact**: All service calls must use domain objects
+**Impact**: All service calls must use domain objects across **6 modules** instead of 1
 
 ### Phase 2: Order Flow Files (Fix How Orders Enter System)
 

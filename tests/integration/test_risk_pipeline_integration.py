@@ -42,7 +42,7 @@ class MockPortfolioTracker:
 
     def get_exchange_balances(self, exchange: str) -> list[SpotBalance]:
         """Get exchange balances.
-        
+
         Returns:
             list[SpotBalance]: List of mock balance objects for the exchange.
         """
@@ -58,7 +58,7 @@ class MockPortfolioTracker:
 
     def get_exchange_balance(self, exchange: str, asset: str) -> Decimal:
         """Get specific exchange balance.
-        
+
         Returns:
             Decimal: Mock balance of 10000 for any exchange/asset combination.
         """
@@ -66,7 +66,7 @@ class MockPortfolioTracker:
 
     def get_total_portfolio_value(self) -> Decimal:
         """Get total portfolio value.
-        
+
         Returns:
             Decimal: Mock total portfolio value of 100000.
         """
@@ -74,7 +74,7 @@ class MockPortfolioTracker:
 
     def get_total_capital(self) -> Decimal:
         """Get total capital.
-        
+
         Returns:
             Decimal: Mock total capital of 100000.
         """
@@ -98,7 +98,7 @@ class MockCircuitBreakerSystem:
 
     def check_circuit_state(self, symbol: str, exchange: str) -> dict[str, Any]:
         """Check circuit breaker state.
-        
+
         Returns:
             dict[str, Any]: Dictionary containing circuit breaker state information.
         """
@@ -106,7 +106,7 @@ class MockCircuitBreakerSystem:
 
     def get_system_status(self) -> dict[str, Any]:
         """Get system status.
-        
+
         Returns:
             dict[str, Any]: Dictionary containing system status information.
         """
@@ -114,7 +114,7 @@ class MockCircuitBreakerSystem:
 
     def can_execute(self, symbol: str, exchange: str) -> bool:
         """Check if can execute trade.
-        
+
         Returns:
             bool: True if execution is allowed, False if circuit breaker is tripped.
         """
@@ -122,7 +122,7 @@ class MockCircuitBreakerSystem:
 
     def get_exchange_breaker(self, exchange: str) -> dict[str, Any]:
         """Get exchange circuit breaker info.
-        
+
         Returns:
             dict[str, Any]: Dictionary containing exchange circuit breaker information.
         """
@@ -146,7 +146,7 @@ class MockFundingRateValidator:
 
     def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, Any]:
         """Get symbol metrics.
-        
+
         Returns:
             dict[str, Any]: Dictionary containing mock symbol metrics and funding rate data.
         """
@@ -162,7 +162,7 @@ class MockFundingRateValidator:
 @pytest.fixture
 def base_app_settings() -> "AppSettings":
     """Create base AppSettings for testing.
-    
+
     Returns:
         AppSettings: Configured AppSettings instance for risk pipeline integration tests.
     """
@@ -277,7 +277,7 @@ def base_app_settings() -> "AppSettings":
 @pytest.fixture
 def mock_portfolio_tracker() -> "MockPortfolioTracker":
     """Create mock portfolio tracker.
-    
+
     Returns:
         MockPortfolioTracker: Mock portfolio tracker instance for testing.
     """
@@ -287,7 +287,7 @@ def mock_portfolio_tracker() -> "MockPortfolioTracker":
 @pytest.fixture
 def mock_circuit_breaker() -> "MockCircuitBreakerSystem":
     """Create mock circuit breaker.
-    
+
     Returns:
         MockCircuitBreakerSystem: Mock circuit breaker system instance for testing.
     """
@@ -297,7 +297,7 @@ def mock_circuit_breaker() -> "MockCircuitBreakerSystem":
 @pytest.fixture
 def mock_funding_rate_validator() -> "MockFundingRateValidator":
     """Create mock funding rate validator.
-    
+
     Returns:
         MockFundingRateValidator: Mock funding rate validator instance for testing.
     """
@@ -307,7 +307,7 @@ def mock_funding_rate_validator() -> "MockFundingRateValidator":
 @pytest.fixture
 def sample_opportunity() -> "ArbitrageOpportunity":
     """Create a sample arbitrage opportunity for testing.
-    
+
     Returns:
         ArbitrageOpportunity: Sample arbitrage opportunity configured for risk pipeline tests.
     """

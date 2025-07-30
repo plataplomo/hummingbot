@@ -41,7 +41,7 @@ from cyberdelta.enums import OrderSide
 @pytest.fixture
 def mock_http_client() -> AsyncMock:
     """Create a mock HTTP client requester.
-    
+
     Returns:
         AsyncMock: Mock HTTP client for testing.
     """
@@ -51,7 +51,7 @@ def mock_http_client() -> AsyncMock:
 @pytest.fixture
 def mock_request_builder() -> MagicMock:
     """Create a mock request builder.
-    
+
     Returns:
         MagicMock: Mock BackpackAccountRequestBuilder instance for testing.
     """
@@ -61,7 +61,7 @@ def mock_request_builder() -> MagicMock:
 @pytest.fixture
 def mock_response_handler() -> MagicMock:
     """Create a mock response handler.
-    
+
     Returns:
         MagicMock: Mock BackpackAccountResponseHandler instance for testing.
     """
@@ -71,7 +71,7 @@ def mock_response_handler() -> MagicMock:
 @pytest.fixture
 def mock_mapper() -> MagicMock:
     """Create a mock data mapper.
-    
+
     Returns:
         MagicMock: Mock BackpackPositionMapper instance for testing.
     """
@@ -81,7 +81,7 @@ def mock_mapper() -> MagicMock:
 @pytest.fixture
 def mock_authenticator() -> MagicMock:
     """Create a mock authenticator.
-    
+
     Returns:
         MagicMock: Mock authenticator instance for testing.
     """
@@ -97,7 +97,7 @@ def position_service(
     mock_authenticator: MagicMock,
 ) -> BackpackPositionService:
     """Create a position service instance with mocks.
-    
+
     Returns:
         BackpackPositionService: Configured service instance with mocked dependencies.
     """
@@ -114,7 +114,7 @@ def position_service(
 @pytest.fixture
 def mock_raw_position() -> BackpackRawPositionResponse:
     """Create a mock raw position.
-    
+
     Returns:
         BackpackRawPositionResponse: Mock position response with test data.
     """
@@ -145,7 +145,7 @@ def mock_raw_position() -> BackpackRawPositionResponse:
 @pytest.fixture
 def mock_derivative_position() -> DerivativePosition:
     """Create a mock derivative position.
-    
+
     Returns:
         DerivativePosition: Mock DerivativePosition instance with test data.
     """
@@ -167,7 +167,7 @@ def mock_derivative_position() -> DerivativePosition:
 @pytest.fixture
 def mock_collateral_response() -> BackpackRawCollateralResponse:
     """Create a mock collateral response with derivative positions.
-    
+
     Returns:
         BackpackRawCollateralResponse: Mock collateral response with test data.
     """

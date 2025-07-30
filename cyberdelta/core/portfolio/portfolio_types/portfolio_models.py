@@ -143,7 +143,7 @@ class PortfolioSnapshot(BaseModel):
         """Convert portfolio snapshot to dictionary representation.
 
         Returns:
-            dict[str, object]: Dictionary containing all snapshot data with 
+            dict[str, object]: Dictionary containing all snapshot data with
                 string-formatted decimals.
         """
         return {
@@ -220,7 +220,7 @@ class ExchangeSummary(BaseModel):
         """Convert exchange summary to dictionary representation.
 
         Returns:
-            dict[str, object]: Dictionary containing exchange summary data with 
+            dict[str, object]: Dictionary containing exchange summary data with
                 string-formatted decimals.
         """
         return {
@@ -366,7 +366,7 @@ class PortfolioUpdate(BaseModel):
         """Convert portfolio update to dictionary representation.
 
         Returns:
-            dict[str, object]: Dictionary containing update data including trades, 
+            dict[str, object]: Dictionary containing update data including trades,
                 balances, positions, and orders.
         """
         return {
@@ -414,7 +414,7 @@ class RiskParameters(BaseModel):
         """Convert risk parameters to dictionary representation.
 
         Returns:
-            dict[str, object]: Dictionary containing risk parameter settings with 
+            dict[str, object]: Dictionary containing risk parameter settings with
                 string-formatted decimals.
         """
         return {
@@ -469,7 +469,7 @@ class PerformanceMetrics(BaseModel):
         """Convert performance metrics to dictionary representation.
 
         Returns:
-            dict[str, object]: Dictionary containing performance metrics with 
+            dict[str, object]: Dictionary containing performance metrics with
                 string-formatted decimals.
         """
         return {

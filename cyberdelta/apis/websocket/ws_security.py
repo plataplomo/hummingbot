@@ -11,7 +11,7 @@ identified security gaps in the current WebSocket message processing pipeline.
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,9 +21,6 @@ from cyberdelta.apis.websocket.ws_type_guards import (
     is_secure_list,
 )
 
-
-if TYPE_CHECKING:
-    pass
 
 # Type alias for JSON-like data structures
 JSONLike = dict[str, Any] | list[Any] | str | int | float | bool | None
@@ -269,7 +266,8 @@ class SecurityValidator:
 
             if message_size > self.config.max_message_size_bytes:
                 size_error = MessageSizeExceedsLimitError(
-                    message_size, self.config.max_message_size_bytes
+                    message_size,
+                    self.config.max_message_size_bytes,
                 )
                 raise SecurityValidationError(
                     str(size_error),
@@ -300,7 +298,8 @@ class SecurityValidator:
         """
         if current_depth > self.config.max_nesting_depth:
             depth_error = NestingDepthExceedsLimitError(
-                current_depth, self.config.max_nesting_depth
+                current_depth,
+                self.config.max_nesting_depth,
             )
             raise SecurityValidationError(
                 str(depth_error),
@@ -374,7 +373,8 @@ class SecurityValidator:
             # Check string length
             if len(obj) > self.config.max_string_length:
                 string_error = StringLengthExceedsLimitError(
-                    len(obj), self.config.max_string_length
+                    len(obj),
+                    self.config.max_string_length,
                 )
                 raise SecurityValidationError(
                     str(string_error),
@@ -521,7 +521,7 @@ class SecurityValidator:
 
         Returns:
             Size in bytes
-            
+
         Raises:
             TypeError: If obj type is not supported for size calculation
         """
@@ -582,14 +582,14 @@ class SecureErrorHandler:
         # Add security context if available
         if error.security_context:
             sanitized_security_context = self.security_validator.sanitize_error_context(
-                error.security_context
+                error.security_context,
             )
             base_context["security_context"] = sanitized_security_context
 
         # Add additional context if provided
         if additional_context:
             sanitized_additional_context = self.security_validator.sanitize_error_context(
-                additional_context
+                additional_context,
             )
             base_context["additional_context"] = sanitized_additional_context
 

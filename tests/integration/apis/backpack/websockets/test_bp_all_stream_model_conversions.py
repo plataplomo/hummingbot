@@ -32,6 +32,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.core.symbols import exchanges
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (
@@ -113,6 +114,9 @@ class TestBackpackAllStreamModelConversions:
             symbol_value = model_dict.get("symbol")
             if isinstance(symbol_value, str):
                 return symbol_value
+            # Handle Symbol objects that were serialized to dict
+            elif isinstance(symbol_value, dict) and "value" in symbol_value:
+                return str(symbol_value["value"])
         return None
 
     def _get_model_dict_keys(self, model_dict: object) -> list[str] | str:
@@ -169,7 +173,7 @@ class TestBackpackAllStreamModelConversions:
 
         if perp_markets:
             # Find SOL perpetual if available, otherwise use first perp
-            sol_perps = [m for m in perp_markets if m.base_symbol == "SOL"]
+            sol_perps = [m for m in perp_markets if m.symbol.base_asset == "SOL"]
 
             # Use SOL perpetual if available, otherwise first available perpetual
             test_market = sol_perps[0] if sol_perps else perp_markets[0]
@@ -177,20 +181,20 @@ class TestBackpackAllStreamModelConversions:
             logger.info(
                 "test_symbol_selected",
                 symbol=test_market.symbol,
-                base_symbol=test_market.base_symbol,
+                base_asset=test_market.symbol.base_asset,
                 market_type=test_market.market_type,
                 total_markets=len(markets),
                 total_perp_markets=len(perp_markets),
                 message=f"Using perpetual market: {test_market.symbol}",
             )
-            return test_market.symbol
+            return test_market.symbol.value
 
         # Fallback to spot markets
         spot_markets = [m for m in markets if m.market_type == "SPOT"]
 
         if spot_markets:
             # Find SOL spot if available
-            sol_spots = [m for m in spot_markets if m.base_symbol == "SOL"]
+            sol_spots = [m for m in spot_markets if m.symbol.base_asset == "SOL"]
             test_market = sol_spots[0] if sol_spots else spot_markets[0]
         else:
             # Last resort: use first available market
@@ -199,13 +203,13 @@ class TestBackpackAllStreamModelConversions:
         logger.info(
             "test_symbol_selected",
             symbol=test_market.symbol,
-            base_symbol=test_market.base_symbol,
+            base_asset=test_market.symbol.base_asset,
             market_type=test_market.market_type,
             total_markets=len(markets),
-            first_few_symbols=[m.symbol for m in markets[:5]],
+            first_few_symbols=[m.symbol.value for m in markets[:5]],
             message=f"No PERP markets found, using: {test_market.symbol}",
         )
-        return test_market.symbol
+        return test_market.symbol.value
 
     async def _create_ticker_handler(self, received_tickers: list[Ticker]) -> MessageHandler:
         """Create handler for ticker stream messages.
@@ -298,8 +302,8 @@ class TestBackpackAllStreamModelConversions:
     def _validate_ticker_model(self, ticker: Ticker, expected_symbol: str) -> None:
         """Validate Ticker model structure and data."""
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
-        assert ticker.symbol == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {ticker.symbol}"
+        assert ticker.symbol.value == expected_symbol, (
+            f"Expected symbol {expected_symbol}, got {ticker.symbol.value}"
         )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
@@ -457,8 +461,8 @@ class TestBackpackAllStreamModelConversions:
     def _validate_trade_model(self, trade: Trade, expected_symbol: str) -> None:
         """Validate Trade model structure and data."""
         assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
-        assert trade.symbol == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {trade.symbol}"
+        assert trade.symbol.value == expected_symbol, (
+            f"Expected symbol {expected_symbol}, got {trade.symbol.value}"
         )
         assert isinstance(trade.price, Decimal), f"Price should be Decimal, got {type(trade.price)}"
         assert isinstance(trade.quantity, Decimal), (
@@ -708,14 +712,29 @@ class TestBackpackAllStreamModelConversions:
 
         # Test depth transformation with REAL DATA
         try:
-            raw_depth = await get_real_depth_data(bp_api_for_test_env, test_symbol)
+            # Ensure we use string version for helper function
+            test_symbol_for_api = (
+                test_symbol.value if hasattr(test_symbol, "value") else test_symbol
+            )
+            raw_depth = await get_real_depth_data(bp_api_for_test_env, test_symbol_for_api)
 
             # Use ACTUAL transformation logic
+            # Convert string to Symbol object as expected by the mapper
+            # Handle case where test_symbol might already be a Symbol object
+            if hasattr(test_symbol, "value"):
+                # test_symbol is already a Symbol object
+                test_symbol_obj = test_symbol
+                test_symbol_str = test_symbol.value
+            else:
+                # test_symbol is a string
+                test_symbol_obj = exchanges.backpack(test_symbol)
+                test_symbol_str = test_symbol
+
             domain_orderbook = order_book_mapper.transform_ws_depth_event_to_internal(
-                test_symbol, raw_depth
+                test_symbol_obj, raw_depth
             )
 
-            self._validate_orderbook_basic(domain_orderbook, test_symbol)
+            self._validate_orderbook_basic(domain_orderbook, test_symbol_str)
 
             logger.info(
                 "depth_transformation_success",
@@ -738,8 +757,12 @@ class TestBackpackAllStreamModelConversions:
     def _validate_orderbook_basic(self, orderbook: OrderBook, expected_symbol: str) -> None:
         """Basic OrderBook validation."""
         assert isinstance(orderbook, OrderBook), f"Expected OrderBook, got {type(orderbook)}"
-        assert orderbook.symbol == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {orderbook.symbol}"
+        # Compare symbol value since orderbook.symbol is a Symbol object
+        actual_symbol = (
+            orderbook.symbol.value if hasattr(orderbook.symbol, "value") else str(orderbook.symbol)
+        )
+        assert actual_symbol == expected_symbol, (
+            f"Expected symbol {expected_symbol}, got {actual_symbol}"
         )
         assert isinstance(orderbook.bids, list), f"Bids should be list, got {type(orderbook.bids)}"
         assert isinstance(orderbook.asks, list), f"Asks should be list, got {type(orderbook.asks)}"
@@ -989,10 +1012,13 @@ class TestBackpackAllStreamModelConversions:
         model_data: dict[str, dict[str, Any]],
     ) -> None:
         """Subscribe to multiple streams for consistency testing."""
+        # test_symbol is now guaranteed to be a string from _get_test_symbol
+        symbol_str = test_symbol
+
         consistency_streams = [
-            (f"ticker.{test_symbol}", "ticker"),
-            (f"depth.{test_symbol}", "depth"),
-            (f"trade.{test_symbol}", "trades"),  # Note: stream name is "trade"
+            (f"ticker.{symbol_str}", "ticker"),
+            (f"depth.{symbol_str}", "depth"),
+            (f"trade.{symbol_str}", "trades"),  # Note: stream name is "trade"
         ]
 
         for topic, stream_type in consistency_streams:

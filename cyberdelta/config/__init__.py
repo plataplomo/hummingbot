@@ -27,11 +27,11 @@ logger = get_logger(__name__)
 
 def _get_config_file_path() -> Path:
     """Get the configuration file path from environment or default locations.
-    
+
     Returns:
         Path to the configuration file, checking environment variable first,
         then standard locations, with fallback to default
-    
+
     """
     env_path = os.environ.get("CYBERDELTA_CONFIG_PATH")
     if env_path:
@@ -54,11 +54,11 @@ def _get_config_file_path() -> Path:
 
 def _get_secrets_file_path() -> Path:
     """Get the secrets file path from environment or default location.
-    
+
     Returns:
         Path to the secrets file, checking environment variable first,
         then defaulting to ~/.cyberdelta/secrets.yaml
-    
+
     """
     env_path_str = os.environ.get("CYBERDELTA_SECRETS_PATH")
     if env_path_str:
@@ -77,12 +77,12 @@ _secrets_config: SecretsConfig | None = None
 
 def _initialize_config() -> None:
     """Initialize configuration managers lazily.
-    
+
     Raises:
         ConfigurationInitializationError: If configuration system fails to initialize
         AppSettingsNotLoadedError: If app settings cannot be loaded
         SecretsNotLoadedError: If secrets configuration cannot be loaded
-    
+
     """
     global _config_manager, _secrets_manager, _app_settings, _secrets_config  # noqa: PLW0603
 
@@ -162,13 +162,13 @@ def _initialize_config() -> None:
 
 def get_app_settings() -> AppSettings:
     """Get the application settings, initializing if necessary.
-    
+
     Returns:
         Validated application settings from configuration file
-        
+
     Raises:
         ConfigurationNotInitializedError: If configuration system is not initialized
-    
+
     """
     _initialize_config()
     if _app_settings is None:
@@ -178,13 +178,13 @@ def get_app_settings() -> AppSettings:
 
 def get_secrets_config() -> SecretsConfig:
     """Get the secrets configuration, initializing if necessary.
-    
+
     Returns:
         Validated secrets configuration from secrets file
-        
+
     Raises:
         ConfigurationNotInitializedError: If secrets system is not initialized
-    
+
     """
     _initialize_config()
     if _secrets_config is None:
@@ -194,13 +194,13 @@ def get_secrets_config() -> SecretsConfig:
 
 def get_config_manager() -> ConfigManager:
     """Get the configuration manager, initializing if necessary.
-    
+
     Returns:
         Configuration manager instance for advanced configuration operations
-        
+
     Raises:
         ConfigurationNotInitializedError: If configuration system is not initialized
-    
+
     """
     _initialize_config()
     if _config_manager is None:
@@ -210,13 +210,13 @@ def get_config_manager() -> ConfigManager:
 
 def get_secrets_manager() -> SecretsManager:
     """Get the secrets manager, initializing if necessary.
-    
+
     Returns:
         Secrets manager instance for advanced secrets operations
-        
+
     Raises:
         ConfigurationNotInitializedError: If secrets system is not initialized
-    
+
     """
     _initialize_config()
     if _secrets_manager is None:

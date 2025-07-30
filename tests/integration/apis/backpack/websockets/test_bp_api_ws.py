@@ -42,7 +42,9 @@ async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:
     """
     try:
         markets = await api.get_markets(GetMarketsArgs())
-        spot_symbols = [market.symbol for market in markets if not market.symbol.endswith("_PERP")]
+        spot_symbols = [
+            market.symbol for market in markets if not market.symbol.value.endswith("_PERP")
+        ]
 
         if not spot_symbols:
             raise RuntimeError(

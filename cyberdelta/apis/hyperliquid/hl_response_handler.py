@@ -52,6 +52,7 @@ from cyberdelta.apis.hyperliquid.response_handlers.hl_trading_response_handler i
     HyperliquidTradingResponseHandler,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -83,17 +84,19 @@ class HyperliquidResponseHandler:
         status_code: int,
     ) -> HyperliquidRawUserStateResponse:
         """Delegate to account handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             user_address: User's wallet address
             status_code: HTTP status code
-            
+
         Returns:
             Validated user state response
         """
         return self._account_handler.handle_info_user_state_response(
-            raw_response_content, user_address, status_code
+            raw_response_content,
+            user_address,
+            status_code,
         )
 
     def handle_info_vault_details_response(
@@ -103,17 +106,18 @@ class HyperliquidResponseHandler:
         status_code: int,
     ) -> HyperliquidRawVaultDetailsResponse:
         """Delegate to account handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             user_address: User's wallet address (unused by handler)
             status_code: HTTP status code
-            
+
         Returns:
             Validated vault details response
         """
         return self._account_handler.handle_info_vault_details_response(
-            raw_response_content, status_code
+            raw_response_content,
+            status_code,
         )
 
     def handle_info_open_orders_response(
@@ -123,17 +127,18 @@ class HyperliquidResponseHandler:
         status_code: int,
     ) -> HyperliquidRawOpenOrdersResponse:
         """Delegate to account handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             user_address: User's wallet address (unused by handler)
             status_code: HTTP status code
-            
+
         Returns:
             Validated open orders response
         """
         return self._account_handler.handle_info_open_orders_response(
-            raw_response_content, status_code
+            raw_response_content,
+            status_code,
         )
 
     def handle_info_user_fills_response(
@@ -143,17 +148,18 @@ class HyperliquidResponseHandler:
         status_code: int,
     ) -> HyperliquidRawUserFillsResponse:
         """Delegate to account handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             user_address: User's wallet address (unused by handler)
             status_code: HTTP status code
-            
+
         Returns:
             Validated user fills response
         """
         return self._account_handler.handle_info_user_fills_response(
-            raw_response_content, status_code
+            raw_response_content,
+            status_code,
         )
 
     def handle_historical_orders_response(
@@ -162,16 +168,17 @@ class HyperliquidResponseHandler:
         user_address: str,
     ) -> list[HyperliquidRawHistoricalOrderResponse]:
         """Delegate to account handler and return items.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             user_address: User's wallet address
-            
+
         Returns:
             List of validated historical order responses
         """
         return self._account_handler.handle_historical_orders_response(
-            raw_response_content, user_address
+            raw_response_content,
+            user_address,
         )
 
     # Market data methods
@@ -182,17 +189,19 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawMetaAndAssetCtxsResponse:
         """Delegate to market data handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             status_code: HTTP status code (optional)
             headers: Response headers (optional)
-            
+
         Returns:
             Validated meta and asset contexts response
         """
         return self._market_handler.handle_info_meta_and_asset_ctxs_response(
-            raw_response_content, status_code, headers
+            raw_response_content,
+            status_code,
+            headers,
         )
 
     def handle_info_funding_rate_response(
@@ -202,17 +211,18 @@ class HyperliquidResponseHandler:
         status_code: int,
     ) -> HyperliquidRawAssetCtx:
         """Delegate to market data handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Trading symbol (unused by handler)
             status_code: HTTP status code
-            
+
         Returns:
             Validated asset context with funding rate
         """
         return self._market_handler.handle_info_funding_rate_response(
-            raw_response_content, status_code
+            raw_response_content,
+            status_code,
         )
 
     def handle_info_l2_book_response(
@@ -223,18 +233,22 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawOrderBookResponse:
         """Delegate to market data handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Trading symbol
             status_code: HTTP status code (optional)
             headers: Response headers (optional)
-            
+
         Returns:
             Validated L2 order book response
         """
+        symbol_obj = exchanges.hyperliquid(symbol)
         return self._market_handler.handle_info_l2_book_response(
-            raw_response_content, symbol, status_code, headers
+            raw_response_content,
+            symbol_obj,
+            status_code,
+            headers,
         )
 
     def handle_info_recent_trades_response(
@@ -245,18 +259,21 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawPublicTrade]:
         """Delegate to market data handler and return items.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Trading symbol
             status_code: HTTP status code (optional)
             headers: Response headers (optional)
-            
+
         Returns:
             List of validated recent public trades
         """
         return self._market_handler.handle_info_recent_trades_response(
-            raw_response_content, symbol, status_code, headers
+            raw_response_content,
+            symbol,
+            status_code,
+            headers,
         )
 
     def handle_info_candle_snapshot_response(
@@ -268,19 +285,24 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawCandleSnapshot:
         """Delegate to market data handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             symbol: Trading symbol
             interval: Candle interval
             status_code: HTTP status code (optional)
             headers: Response headers (optional)
-            
+
         Returns:
             Validated candle snapshot
         """
+        symbol_obj = exchanges.hyperliquid(symbol)
         return self._market_handler.handle_info_candle_snapshot_response(
-            raw_response_content, symbol, interval, status_code, headers
+            raw_response_content,
+            symbol_obj,
+            interval,
+            status_code,
+            headers,
         )
 
     def handle_all_mids_response(
@@ -290,17 +312,19 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> HyperliquidRawAllMids:
         """Delegate to market data handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             status_code: HTTP status code (optional)
             headers: Response headers (optional)
-            
+
         Returns:
             Validated all mid prices response
         """
         return self._market_handler.handle_all_mids_response(
-            raw_response_content, status_code, headers
+            raw_response_content,
+            status_code,
+            headers,
         )
 
     def handle_historical_funding_rates_response(
@@ -310,17 +334,19 @@ class HyperliquidResponseHandler:
         headers: Mapping[str, str] | None = None,
     ) -> list[HyperliquidRawFundingHistoryItem]:
         """Delegate to market data handler and return items.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             status_code: HTTP status code (optional)
             headers: Response headers (optional)
-            
+
         Returns:
             List of validated funding history items
         """
         response = self._market_handler.handle_historical_funding_rates_response(
-            raw_response_content, status_code, headers
+            raw_response_content,
+            status_code,
+            headers,
         )
         return response.items
 
@@ -341,12 +367,12 @@ class HyperliquidResponseHandler:
         status_code: int,
     ) -> HyperliquidRawExchangeResponse:
         """Delegate to trading handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             action_type: Type of exchange action (unused by handler)
             status_code: HTTP status code
-            
+
         Returns:
             Validated exchange response
         """
@@ -359,12 +385,12 @@ class HyperliquidResponseHandler:
         order_id: int,
     ) -> HyperliquidRawOrderStatusResponse:
         """Delegate to trading handler.
-        
+
         Args:
             raw_response_content: Raw JSON response from the API
             user_address: User's wallet address (unused by handler)
             order_id: Order ID (unused by handler)
-            
+
         Returns:
             Validated order status response
         """

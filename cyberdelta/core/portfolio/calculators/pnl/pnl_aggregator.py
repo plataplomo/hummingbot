@@ -394,7 +394,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         unrealized_result: PortfolioUnrealizedPnLResult,
     ) -> dict[str, ExchangeBreakdown]:
         """Group positions by exchange with typed return.
-        
+
         Returns:
             Dictionary mapping exchange names to their breakdown metrics
         """
@@ -426,7 +426,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         self, position: DerivativePosition, unrealized_result: PortfolioUnrealizedPnLResult
     ) -> UnrealizedPnLResult | None:
         """Find the unrealized result for a position.
-        
+
         Returns:
             The matching unrealized P&L result, or None if not found
         """
@@ -447,7 +447,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         self, unrealized_result: PortfolioUnrealizedPnLResult
     ) -> dict[str, UnrealizedPnLResult]:
         """Group results by symbol with typed return.
-        
+
         Returns:
             Dictionary mapping symbols to their unrealized P&L results
         """
@@ -461,7 +461,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
     def _extract_symbol_from_result(self, result: UnrealizedPnLResult) -> str:
         """Extract symbol from result metadata.
-        
+
         Returns:
             The extracted symbol name, or 'unknown' if not found
         """
@@ -476,7 +476,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         self, unrealized_result: PortfolioUnrealizedPnLResult
     ) -> tuple[list[UnrealizedPnLResult], list[UnrealizedPnLResult]]:
         """Separate positions into long and short with typed return.
-        
+
         Returns:
             Tuple of (long_positions, short_positions) lists
         """
@@ -566,7 +566,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
     def _get_current_timestamp(self) -> float:
         """Get current timestamp for metadata.
-        
+
         Returns:
             Current Unix timestamp as float
         """
