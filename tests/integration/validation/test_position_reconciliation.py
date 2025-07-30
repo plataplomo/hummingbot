@@ -262,7 +262,7 @@ class TestPositionReconciliationSystem:
         tracker.update_position = MagicMock()
 
         # Configure API clients - direct assignment matching real architecture
-        # The reconciliation system expects portfolio_tracker.api_clients to be a dict
+        # The reconciliation system expects portfolio_state_manager.api_clients to be a dict
         tracker.api_clients = {
             "hyperliquid": hyperliquid_client,
             "backpack": backpack_client,
@@ -292,7 +292,7 @@ class TestPositionReconciliationSystem:
         Returns:
             PositionReconciliationSystem: A configured position reconciliation system for testing.
         """
-        # Note: API clients have moved to PortfolioOrchestrator
+        # Note: API clients have moved to PortfolioReconciliationService
         return PositionReconciliationSystem(config, portfolio_tracker)
 
     def test_init(
@@ -323,7 +323,7 @@ class TestPositionReconciliationSystem:
     ) -> None:
         """Test registering a portfolio tracker."""
         new_tracker = MagicMock()
-        # Note: API clients have moved to PortfolioOrchestrator
+        # Note: API clients have moved to PortfolioReconciliationService
         reconciliation_system.register_portfolio_tracker(new_tracker)
         # Verify registration worked by attempting to use the system
         # The actual portfolio tracker is private, so we can't directly assert on it
@@ -334,7 +334,7 @@ class TestPositionReconciliationSystem:
         reconciliation_system: PositionReconciliationSystem,
     ) -> None:
         """Test position check interval logic."""
-        # NOTE: API client registration has moved to PortfolioOrchestrator
+        # NOTE: API client registration has moved to PortfolioReconciliationService
 
         # Scenario 1: Interval has passed, should run
         reconciliation_system.check_interval = timedelta(seconds=100)
@@ -437,7 +437,7 @@ class TestPositionReconciliationSystem:
     ) -> None:
         """Test checking positions and identifying discrepancies."""
         # Configure the mock portfolio tracker before creating the system
-        portfolio_tracker.get_positions_by_exchange.return_value = []
+        portfolio_state_manager.get_positions_by_exchange.return_value = []
 
         # Create reconciliation system with configured mock
         reconciliation_system = PositionReconciliationSystem(config, portfolio_tracker)
@@ -478,7 +478,7 @@ class TestPositionReconciliationSystem:
         mock_bp_api_client = AsyncMock(spec=ExchangeAPI)
         mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
-        # NOTE: API client registration has moved to PortfolioOrchestrator
+        # NOTE: API client registration has moved to PortfolioReconciliationService
 
         # Patch _reconcile_exchange to return a known structure to avoid internal errors
         # This helps test check_positions's aggregation logic rather than _reconcile_exchange
@@ -566,12 +566,12 @@ class TestPositionReconciliationSystem:
             side_effect=mock_side_effect_reconcile_exchange,
         ) as mock_reconcile_method:
             # Note: API clients are no longer directly accessible after refactoring
-            # API access now goes through PortfolioOrchestrator
+            # API access now goes through PortfolioReconciliationService
 
             # Mock methods on portfolio_tracker that auto_correct might call if
             # discrepancies were processed
-            portfolio_tracker.update_position = AsyncMock()
-            portfolio_tracker.create_position_from_exchange_data = AsyncMock()
+            portfolio_state_manager.update_position = AsyncMock()
+            portfolio_state_manager.create_position_from_exchange_data = AsyncMock()
 
             # Call check_positions, which should trigger the mocked _reconcile_exchange
             await system.check_positions(force=True)
@@ -594,7 +594,7 @@ class TestPositionReconciliationSystem:
                 "Did not record a reconcile call for backpack"
             )
 
-            # Further assertions could check if portfolio_tracker.update_position was called
+            # Further assertions could check if portfolio_state_manager.update_position was called
             # if mock_discrepancies was non-empty and auto_correct logic was fully exercised.
             # For example, if hyperliquid had a discrepancy:
             # Await the coroutine to get its result (the dictionary)
@@ -634,9 +634,9 @@ class TestPositionReconciliationSystem:
             timestamp=datetime.now(UTC),
         )
         # Clear any side_effect to allow return_value to work
-        portfolio_tracker.get_positions_by_exchange.side_effect = None
-        portfolio_tracker.get_positions_by_exchange.return_value = [local_position]
-        portfolio_tracker.get_position.return_value = local_position
+        portfolio_state_manager.get_positions_by_exchange.side_effect = None
+        portfolio_state_manager.get_positions_by_exchange.return_value = [local_position]
+        portfolio_state_manager.get_position.return_value = local_position
 
         # Create reconciliation system
         reconciliation_system = PositionReconciliationSystem(config, portfolio_tracker)
@@ -655,7 +655,7 @@ class TestPositionReconciliationSystem:
         mock_api_client.get_positions = AsyncMock(return_value=[api_position])
 
         # Mock the api_clients attribute on the portfolio tracker directly
-        portfolio_tracker.api_clients = {"hyperliquid": mock_api_client}
+        portfolio_state_manager.api_clients = {"hyperliquid": mock_api_client}
 
         # Get initial history (should be empty)
         initial_history = reconciliation_system.get_discrepancy_history()
@@ -889,7 +889,7 @@ class TestPositionReconciliationSystem:
     ) -> None:
         """Test checking positions and identifying discrepancies."""
         # Configure the mock portfolio tracker before creating the system
-        portfolio_tracker.get_positions_by_exchange.return_value = []
+        portfolio_state_manager.get_positions_by_exchange.return_value = []
 
         # Create reconciliation system with configured mock
         reconciliation_system = PositionReconciliationSystem(config, portfolio_tracker)
@@ -931,7 +931,7 @@ class TestPositionReconciliationSystem:
         mock_bp_api_client.get_positions = AsyncMock(return_value=api_positions_bp)
 
         # Note: portfolio_tracker no longer has api_clients after refactoring
-        # API access is now handled through PortfolioOrchestrator
+        # API access is now handled through PortfolioReconciliationService
 
         # Patch _reconcile_exchange to return a known structure to avoid internal errors
         # This helps test check_positions's aggregation logic rather than

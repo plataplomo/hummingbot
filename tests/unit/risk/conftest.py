@@ -143,7 +143,7 @@ def mock_config(mock_config_dict: dict[str, Any]) -> MagicMock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> MagicMock:
+def mock_portfolio_state_manager() -> MagicMock:
     """Return mock portfolio tracker for testing."""
     tracker = MagicMock(spec=PortfolioTrackerProtocol)
     tracker.get_total_capital.return_value = Decimal(10000)
@@ -234,7 +234,7 @@ def mock_data_handler() -> MagicMock:
 @pytest.fixture
 def risk_manager(
     mock_config: MagicMock,
-    mock_portfolio_tracker: PortfolioTrackerProtocol,
+    mock_portfolio_state_manager: PortfolioTrackerProtocol,
     mock_circuit_breaker_system: CircuitBreakerSystemProtocol,
     mock_funding_validator: FundingRateValidatorProtocol,
 ) -> RiskManager:
@@ -245,7 +245,7 @@ def risk_manager(
     """
     return RiskManager(
         app_settings=mock_config,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         circuit_breaker_system=mock_circuit_breaker_system,
         funding_rate_validator=mock_funding_validator,
     )

@@ -12,7 +12,7 @@ from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.exceptions.service import CircuitBreakerThresholdError
-from cyberdelta.core.portfolio.portfolio_types.resilience_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     ResilienceError,
     ResilienceErrorType,
     ResilienceMetrics,

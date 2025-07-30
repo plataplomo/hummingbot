@@ -11,7 +11,7 @@ from cyberdelta.core.portfolio.calculators.base.base_calculator import BaseCalcu
 from cyberdelta.core.portfolio.calculators.pnl.realized_pnl_calculator import (
     PnLCalculationMethod,
 )
-from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
+from cyberdelta.core.portfolio.portfolio_types.calculations import (
     BreakdownMetrics,
     CalculationMetadata,
     ExchangeBreakdown,

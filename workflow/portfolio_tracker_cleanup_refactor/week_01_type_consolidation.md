@@ -3,11 +3,11 @@
 **Duration:** Week 1 (2025-07-28 to 2025-08-03)
 **Approach:** Clean Break - No Backward Compatibility
 **Priority:** Critical
-**Objective:** Consolidate 17 type files into 4 clean modules, remove legacy imports
+**Objective:** Consolidate 31 type files into 4 clean modules, remove legacy imports
 
 ## Overview
 
-The modular system has 17 separate type definition files creating unnecessary complexity for a 0.0.1 system. This week consolidates them into 4 focused modules and removes all legacy type dependencies.
+The modular system has **31 type-related files** creating unnecessary complexity for a 0.0.1 system. Research shows significant duplication across portfolio_types/ (17 files), models/ (4 files), protocols/ (8 files), and other type files (2 files). This week consolidates them into 4 focused modules and removes all legacy type dependencies.
 
 **Clean Break Strategy:**
 - ❌ No adapters or compatibility layers
@@ -17,9 +17,9 @@ The modular system has 17 separate type definition files creating unnecessary co
 
 ## Target Type Architecture
 
-### BEFORE: 17 Fragmented Files
+### BEFORE: 31 Fragmented Files
 ```
-portfolio_types/
+portfolio_types/ (17 files)
 ├── annotated_types.py
 ├── calculation_types.py
 ├── data_transfer_objects.py
@@ -37,6 +37,26 @@ portfolio_types/
 ├── type_guards.py
 ├── update_models.py
 └── validation_types.py
+
+models/ (4 files)
+├── base.py
+├── events.py
+├── portfolio_state.py
+└── __init__.py
+
+protocols/ (8 files)
+├── concurrency.py
+├── container.py
+├── events.py
+├── lifecycle.py
+├── metrics.py
+├── service.py
+├── state.py
+└── validation.py
+
+Other type files (2 files)
+├── protocols.py
+└── services/type_validation.py
 ```
 
 ### AFTER: 4 Clean Modules

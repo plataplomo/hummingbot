@@ -57,10 +57,10 @@ class TestRiskManagerErrorHandlingComprehensive:
             (Exception, "Generic exception"),
         ],
     )
-    async def test_portfolio_tracker_exception_handling(
+    async def test_portfolio_state_manager_exception_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -74,11 +74,11 @@ class TestRiskManagerErrorHandlingComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks - validation should pass so we reach get_total_capital
-        mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
+        mock_portfolio_state_manager.get_exchange_balance.return_value = MagicMock(
             available_quantity=Decimal(10000)
         )
         # Make get_total_capital throw exception (called after validation)
-        mock_portfolio_tracker.get_total_capital.side_effect = exception_type(exception_message)
+        mock_portfolio_state_manager.get_total_capital.side_effect = exception_type(exception_message)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -88,7 +88,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -117,7 +117,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_circuit_breaker_exception_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -130,8 +130,8 @@ class TestRiskManagerErrorHandlingComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         # Make circuit breaker throw exception
         mock_circuit_breaker_system.can_execute.side_effect = circuit_breaker_exception
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
@@ -142,7 +142,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -171,7 +171,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_funding_validator_exception_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -184,8 +184,8 @@ class TestRiskManagerErrorHandlingComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         # Make funding validator throw exception
         mock_funding_validator.get_symbol_metrics.side_effect = funding_validator_exception
@@ -196,7 +196,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -226,7 +226,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_invalid_configuration_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -252,8 +252,8 @@ class TestRiskManagerErrorHandlingComprehensive:
             mock_config.risk.kelly.fraction = invalid_value
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -264,7 +264,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         try:
             risk_manager = RiskManager(
                 app_settings=mock_config,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 circuit_breaker_system=mock_circuit_breaker_system,
                 funding_rate_validator=mock_funding_validator,
             )
@@ -295,7 +295,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_invalid_opportunity_data_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -309,8 +309,8 @@ class TestRiskManagerErrorHandlingComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -322,7 +322,7 @@ class TestRiskManagerErrorHandlingComprehensive:
             # Create risk manager
             risk_manager = RiskManager(
                 app_settings=mock_config,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 circuit_breaker_system=mock_circuit_breaker_system,
                 funding_rate_validator=mock_funding_validator,
             )
@@ -346,7 +346,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_decimal_arithmetic_errors(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -358,8 +358,8 @@ class TestRiskManagerErrorHandlingComprehensive:
         mock_config.risk.simple_fixed_fraction = Decimal("0.01")
 
         # Setup mocks with zero capital (already handled by the risk manager)
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(0)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -369,7 +369,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -388,7 +388,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_concurrent_access_safety(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -402,8 +402,8 @@ class TestRiskManagerErrorHandlingComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -413,7 +413,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -441,7 +441,7 @@ class TestRiskManagerErrorHandlingComprehensive:
     async def test_memory_cleanup_after_errors(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -462,10 +462,10 @@ class TestRiskManagerErrorHandlingComprehensive:
                 raise ValueError("Simulated error")
             return Decimal(100000)
 
-        mock_portfolio_tracker.get_total_capital.side_effect = portfolio_side_effect
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.side_effect = portfolio_side_effect
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         # Mock get_exchange_balance to pass validation
-        mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
+        mock_portfolio_state_manager.get_exchange_balance.return_value = MagicMock(
             available_quantity=Decimal(10000)
         )
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
@@ -474,7 +474,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )

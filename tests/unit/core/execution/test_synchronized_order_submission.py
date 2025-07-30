@@ -218,7 +218,7 @@ class TestOrderVerifierSimple:
         exchange_adapters: dict[str, Any] = {"test_exchange": mock_api_client}
 
         test_order = create_test_order()
-        portfolio_tracker.get_order_by_id.return_value = test_order
+        portfolio_state_manager.get_order_by_id.return_value = test_order
         mock_api_client.get_order.return_value = test_order
 
         verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
@@ -280,7 +280,7 @@ class TestOrderVerifierSimple:
         portfolio_tracker = Mock()
         exchange_adapters: dict[str, Any] = {}
 
-        portfolio_tracker.get_order_by_id.return_value = None
+        portfolio_state_manager.get_order_by_id.return_value = None
 
         verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
 
@@ -333,7 +333,7 @@ class TestOrderVerifierSimple:
 
         test_order = create_test_order()
         test_order.symbol = "ETH-PERP"  # Wrong symbol
-        portfolio_tracker.get_order_by_id.return_value = test_order
+        portfolio_state_manager.get_order_by_id.return_value = test_order
 
         verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
 
@@ -693,9 +693,9 @@ class TestExecutionWorkflows:
         portfolio_tracker = Mock()
 
         # Mock portfolio tracker methods to prevent AttributeError
-        portfolio_tracker.start_order_tracking = Mock()
-        portfolio_tracker.add_order = Mock()
-        portfolio_tracker.get_order_by_id = Mock(return_value=create_test_order())
+        portfolio_state_manager.start_order_tracking = Mock()
+        portfolio_state_manager.add_order = Mock()
+        portfolio_state_manager.get_order_by_id = Mock(return_value=create_test_order())
 
         service = SynchronizedOrderSubmissionService(
             config,

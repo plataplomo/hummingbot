@@ -13,7 +13,7 @@ import pytest
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.balance_monitor import BalanceAlert, BalanceMonitor
 from cyberdelta.core.models.spot_balance import SpotBalance
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 
 
 @pytest.fixture
@@ -47,26 +47,26 @@ def mock_app_settings() -> Mock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Create a mock portfolio tracker.
 
     Returns:
-        Mock: Mocked PortfolioTracker with default behavior configured.
+        Mock: Mocked PortfolioStateManager with default behavior configured.
     """
-    tracker = Mock(spec=PortfolioTracker)
+    tracker = Mock(spec=PortfolioStateManager)
     # Set up default behavior
     tracker.get_exchange_balance.return_value = None
     return tracker
 
 
 @pytest.fixture
-def balance_monitor(mock_app_settings: Mock, mock_portfolio_tracker: Mock) -> BalanceMonitor:
+def balance_monitor(mock_app_settings: Mock, mock_portfolio_state_manager: Mock) -> BalanceMonitor:
     """Create a BalanceMonitor instance for testing.
 
     Returns:
         BalanceMonitor: Instance configured with mock dependencies.
     """
-    return BalanceMonitor(mock_app_settings, mock_portfolio_tracker)
+    return BalanceMonitor(mock_app_settings, mock_portfolio_state_manager)
 
 
 @pytest.fixture
@@ -140,13 +140,13 @@ class TestBalanceChecking:
     def test_check_balances_with_sufficient_funds_returns_no_alerts(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         sufficient_balance: SpotBalance,
     ) -> None:
         """Test that sufficient balances don't generate alerts."""
         # Arrange
         # Set up the mock tracker to return sufficient balance for both exchanges
-        mock_portfolio_tracker.get_exchange_balance.return_value = sufficient_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = sufficient_balance
 
         # Act
         alerts = balance_monitor.check_balances()
@@ -155,7 +155,7 @@ class TestBalanceChecking:
         assert len(alerts) == 0
 
     def test_check_balances_with_low_funds_generates_warning_alerts(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test that low balances generate warning alerts."""
         # Arrange - create balance above minimum but below warning threshold
@@ -166,7 +166,7 @@ class TestBalanceChecking:
             total_quantity=Decimal(110),  # Above min (100) but below warning threshold (100)
             available_quantity=Decimal(80),  # Actually below warning threshold
         )
-        mock_portfolio_tracker.get_exchange_balance.return_value = low_warning_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = low_warning_balance
 
         # Act
         alerts = balance_monitor.check_balances()
@@ -178,12 +178,12 @@ class TestBalanceChecking:
     def test_check_balances_with_critical_funds_generates_critical_alerts(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         critical_balance: SpotBalance,
     ) -> None:
         """Test that critically low balances generate critical alerts."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = critical_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = critical_balance
 
         # Act
         alerts = balance_monitor.check_balances()
@@ -193,11 +193,11 @@ class TestBalanceChecking:
         assert all(alert.severity == BalanceAlert.SEVERITY_CRITICAL for alert in alerts)
 
     def test_check_balances_with_missing_balance_data_generates_critical_alerts(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test that missing balance data generates critical alerts."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = None
+        mock_portfolio_state_manager.get_exchange_balance.return_value = None
 
         # Act
         alerts = balance_monitor.check_balances()
@@ -209,12 +209,12 @@ class TestBalanceChecking:
     def test_check_balance_for_opportunity_with_sufficient_funds_returns_none(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         sufficient_balance: SpotBalance,
     ) -> None:
         """Test opportunity check with sufficient funds returns no alert."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = sufficient_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = sufficient_balance
         required_amount = Decimal(100)
 
         # Act
@@ -228,12 +228,12 @@ class TestBalanceChecking:
     def test_check_balance_for_opportunity_with_insufficient_funds_returns_alert(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         low_balance: SpotBalance,
     ) -> None:
         """Test opportunity check with insufficient funds returns alert."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = low_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = low_balance
         required_amount = Decimal(150)  # More than available
 
         # Act
@@ -254,12 +254,12 @@ class TestAlertManagement:
     def test_get_active_alerts_returns_current_alerts(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         critical_balance: SpotBalance,
     ) -> None:
         """Test that get_active_alerts returns currently active alerts."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = critical_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = critical_balance
         balance_monitor.check_balances()  # Generate alerts
 
         # Act
@@ -271,12 +271,12 @@ class TestAlertManagement:
     def test_get_critical_alerts_filters_by_severity(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         critical_balance: SpotBalance,
     ) -> None:
         """Test that get_critical_alerts returns only critical severity alerts."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = critical_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = critical_balance
         balance_monitor.check_balances()  # Generate critical alerts
 
         # Act
@@ -300,12 +300,12 @@ class TestAlertManagement:
     def test_duplicate_alerts_not_generated_on_repeated_checks(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         critical_balance: SpotBalance,
     ) -> None:
         """Test that checking balances multiple times creates new alerts each time."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = critical_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = critical_balance
 
         # Act
         first_check = balance_monitor.check_balances()
@@ -323,12 +323,12 @@ class TestBalanceStatusReporting:
     def test_get_balance_status_returns_comprehensive_status(
         self,
         balance_monitor: BalanceMonitor,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         sufficient_balance: SpotBalance,
     ) -> None:
         """Test that get_balance_status returns comprehensive balance information."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.return_value = sufficient_balance
+        mock_portfolio_state_manager.get_exchange_balance.return_value = sufficient_balance
 
         # Act
         status = balance_monitor.get_balance_status()
@@ -343,23 +343,23 @@ class TestBalanceStatusReporting:
 class TestErrorHandling:
     """Test error handling in balance monitoring."""
 
-    def test_portfolio_tracker_error_handled_gracefully(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker: Mock
+    def test_portfolio_state_manager_error_handled_gracefully(
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test that portfolio tracker errors generate critical alerts."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.side_effect = Exception("Portfolio error")
+        mock_portfolio_state_manager.get_exchange_balance.side_effect = Exception("Portfolio error")
 
         # Act & Assert - should propagate exception since no error handling
         with pytest.raises(Exception, match="Portfolio error"):
             balance_monitor.check_balances()
 
     def test_balance_status_with_portfolio_error_returns_status(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test that get_balance_status propagates portfolio errors."""
         # Arrange
-        mock_portfolio_tracker.get_exchange_balance.side_effect = Exception("Portfolio error")
+        mock_portfolio_state_manager.get_exchange_balance.side_effect = Exception("Portfolio error")
 
         # Act & Assert - should propagate exception since no error handling
         with pytest.raises(Exception, match="Portfolio error"):

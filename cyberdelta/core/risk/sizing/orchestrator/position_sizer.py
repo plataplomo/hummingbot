@@ -18,6 +18,7 @@ from cyberdelta.core.risk.sizing.models.sizing_result import (
 )
 from cyberdelta.core.risk.sizing.strategies.typed_base_sizer import TypedBaseSizer
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.core.risk.config.risk_module_config import RiskModuleConfig, load_risk_config_from_settings
 
 
 # Type alias for sizers that can be used in the orchestrator
@@ -52,8 +53,11 @@ class PositionSizer:
         self.total_sizing_time = 0.0
         self.sizing_success_rate = 0.0
 
-        # Concurrency limits from AppSettings
-        self.max_concurrent_sizing = 5  # Hardcoded as not in new config
+        # Load risk module configuration
+        self.risk_config = load_risk_config_from_settings(app_settings)
+        
+        # Concurrency limits from risk module config and AppSettings
+        self.max_concurrent_sizing = self.risk_config.orchestrator.max_concurrent_processing
         self.sizing_timeout = self.sizing_settings.sizing_timeout_seconds
 
     async def size_opportunity(

@@ -26,7 +26,7 @@ from cyberdelta.core.models.market.candle import Candle
 # Import shared fixtures from conftest.py - they will be automatically available
 # The following fixtures are imported:
 # - mock_app_settings (but we need to override it to add symbol configs)
-# - mock_portfolio_tracker
+# - mock_portfolio_state_manager
 # - mock_symbol_mapper
 # - sample_ticker
 # - sample_spot_balance
@@ -75,7 +75,7 @@ def mock_api_clients() -> dict[str, ExchangeAPI]:
     }
 
 
-# mock_portfolio_tracker is imported from conftest.py
+# mock_portfolio_state_manager is imported from conftest.py
 # mock_symbol_mapper is imported from conftest.py
 
 
@@ -95,7 +95,7 @@ def mock_clock() -> Mock:
 def data_handler(
     mock_app_settings: Mock,
     mock_api_clients: dict[str, ExchangeAPI],
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_symbol_mapper: Mock,
     mock_clock: Mock,
 ) -> Generator[DataHandler]:
@@ -108,7 +108,7 @@ def data_handler(
     handler = DataHandler(
         app_settings=mock_app_settings,
         api_clients=mock_api_clients,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         symbol_mapper=mock_symbol_mapper,
         clock=mock_clock,
         loop=loop,
@@ -160,7 +160,7 @@ class TestDataHandlerInit:
         self,
         mock_app_settings: Mock,
         mock_api_clients: dict[str, ExchangeAPI],
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_mapper: Mock,
     ) -> None:
         """Test successful initialization of DataHandler."""
@@ -171,7 +171,7 @@ class TestDataHandlerInit:
         handler = DataHandler(
             app_settings=mock_app_settings,
             api_clients=mock_api_clients,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_mapper=mock_symbol_mapper,
             loop=loop,
         )
@@ -179,7 +179,7 @@ class TestDataHandlerInit:
         # Assert
         assert handler.app_settings == mock_app_settings
         assert handler.api_clients == mock_api_clients
-        assert handler.portfolio_tracker == mock_portfolio_tracker
+        assert handler.portfolio_tracker == mock_portfolio_state_manager
         assert handler.symbol_service == mock_symbol_mapper
         assert isinstance(handler.loop, asyncio.AbstractEventLoop)
 
@@ -204,7 +204,7 @@ class TestDataHandlerInit:
         self,
         mock_app_settings: Mock,
         mock_api_clients: dict[str, ExchangeAPI],
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_mapper: Mock,
         mock_clock: Mock,
     ) -> None:
@@ -216,7 +216,7 @@ class TestDataHandlerInit:
         handler = DataHandler(
             app_settings=mock_app_settings,
             api_clients=mock_api_clients,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_mapper=mock_symbol_mapper,
             loop=custom_loop,
             clock=mock_clock,
@@ -234,7 +234,7 @@ class TestDataHandlerInit:
     def test_data_handler_init_edge_empty_api_clients(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_mapper: Mock,
     ) -> None:
         """Test initialization with empty API clients dictionary."""
@@ -245,7 +245,7 @@ class TestDataHandlerInit:
         handler = DataHandler(
             app_settings=mock_app_settings,
             api_clients={},
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_mapper=mock_symbol_mapper,
             loop=loop,
         )

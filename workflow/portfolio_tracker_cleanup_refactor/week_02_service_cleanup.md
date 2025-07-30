@@ -54,6 +54,118 @@ services/
 
 ## Week 2 Deliverables
 
+### Critical: Portfolio/Risk Module Boundary Cleanup
+Before service breakdown, address major architectural boundary violations between portfolio and risk modules:
+
+```python
+# CRITICAL BOUNDARY VIOLATIONS FOUND
+BOUNDARY_VIOLATIONS = {
+    "portfolio_module_overreach": {
+        "exposure_calculators": "4 exposure calculators belong in risk module",
+        "risk_analytics": "Portfolio analytics contains VaR, stress testing",
+        "risk_limits": "Portfolio enforces limits it shouldn't calculate",
+        "position_sizing": "Duplicated position sizing logic"
+    },
+    "architecture_inconsistency": {
+        "validation_frameworks": "Two separate validation systems",
+        "service_patterns": "Different architectural approaches",
+        "data_models": "Inconsistent exposure model definitions"
+    }
+}
+```
+
+**REQUIRED: Module Boundary Tasks for Week 2:**
+- [ ] **Move Exposure Calculators to Risk Module** (Portfolio → Risk)
+- [ ] **Extract Risk Logic from Portfolio Analytics** (Clean separation)
+- [ ] **Consolidate Validation Frameworks** (Single approach)
+- [ ] **Establish Clean Integration Patterns** (Portfolio ↔ Risk)
+
+### Security Integration (Progressive Security Phase 1)
+After boundary cleanup, implement foundational security practices:
+
+```python
+# Security requirements for service refactoring
+SECURITY_STANDARDS = {
+    "input_validation": "All service inputs validated with Pydantic models",
+    "error_handling": "No sensitive data in error messages or logs",
+    "api_key_handling": "Services must not log or expose API credentials",
+    "data_sanitization": "Portfolio data sanitized before logging",
+    "access_control": "Service interfaces validate caller permissions"
+}
+```
+
+**Security Tasks for Week 2:**
+- [ ] Add input validation to all new service interfaces
+- [ ] Implement secure error handling patterns
+- [ ] Audit existing services for hardcoded secrets
+- [ ] Add data sanitization to portfolio logging functions
+- [ ] Create service-level access control framework
+
+### Day 1-2: Portfolio/Risk Boundary Analysis & Cleanup Plan
+
+- [ ] **Critical Boundary Violation Analysis**
+  ```python
+  # Files that must move from portfolio to risk module
+  MISPLACED_FILES = {
+      "exposure_calculators": [
+          "portfolio/calculators/exposure_calculator.py",
+          "portfolio/calculators/portfolio_exposure_calculator.py",
+          "portfolio/calculators/currency_exposure_calculator.py",
+          "portfolio/calculators/position_exposure_calculator.py"
+      ],
+      "risk_logic_in_analytics": [
+          "portfolio/services/analytics/portfolio_analytics_service.py:1216-1237",  # VaR calculations
+          "portfolio/services/analytics/portfolio_analytics_service.py:890-950",   # Risk scoring
+          "portfolio/services/analytics/portfolio_analytics_service.py:1100-1180" # Stress testing
+      ]
+  }
+  ```
+
+- [ ] **Define Clean Module Boundaries**
+  ```python
+  # CORRECT module responsibilities after cleanup
+  MODULE_BOUNDARIES = {
+      "portfolio_module": {
+          "responsibilities": [
+              "Position/balance state management",
+              "Trade execution tracking",
+              "P&L calculation (realized/unrealized)",
+              "Performance metrics (returns, attribution)",
+              "Data persistence and caching"
+          ],
+          "forbidden": ["Risk calculations", "Exposure metrics", "Position sizing"]
+      },
+      "risk_module": {
+          "responsibilities": [
+              "All exposure calculations and risk metrics",
+              "Position sizing and allocation decisions",
+              "Pre-trade risk validation",
+              "Risk limit enforcement",
+              "Stress testing and scenario analysis"
+          ],
+          "forbidden": ["Portfolio state management", "Trade execution", "P&L tracking"]
+      }
+  }
+  ```
+
+- [ ] **Create Integration Architecture**
+  ```python
+  # Clean integration pattern: Portfolio → Risk → Portfolio
+  INTEGRATION_PATTERN = {
+      "data_flow": [
+          "1. Portfolio provides position/balance data to Risk",
+          "2. Risk calculates exposures, limits, sizing",
+          "3. Portfolio uses risk assessments for decisions",
+          "4. Portfolio executes trades based on risk approval"
+      ],
+      "interface_design": {
+          "portfolio_to_risk": "PortfolioState → RiskAssessment",
+          "risk_to_portfolio": "RiskMetrics → TradingDecisions",
+          "shared_models": "Position, Balance, ExposureMetrics"
+      }
+  }
+  ```
+
 ### Day 1-2: Service Analysis & Decomposition Plan
 
 - [ ] **Analyze Oversized Services**
@@ -146,6 +258,8 @@ services/
   from decimal import Decimal
   from typing import Any
 
+  from pydantic import BaseModel, ConfigDict, Field
+
   from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
   from cyberdelta.core.portfolio.portfolio_types.calculations import (
       PerformanceInput,
@@ -153,11 +267,12 @@ services/
   )
   from cyberdelta.core.portfolio.portfolio_types.protocols import CalculatorProtocol
 
-  class PerformanceAnalyticsService:
+  class PerformanceAnalyticsService(BaseModel):
       """Calculates portfolio performance metrics only."""
 
-      def __init__(self, base_currency: str = "USDC"):
-          self.base_currency = base_currency
+      base_currency: str = Field(default="USDC", description="Base currency for calculations")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
       async def calculate_performance(
           self,
@@ -206,14 +321,17 @@ services/
   from pathlib import Path
   from typing import Any
 
+  from pydantic import BaseModel, ConfigDict, Field
+
   from cyberdelta.core.portfolio.portfolio_types.models import PortfolioConfig
   from cyberdelta.core.portfolio.portfolio_types.infrastructure import ValidationResult
 
-  class ConfigLoaderService:
+  class ConfigLoaderService(BaseModel):
       """Loads configuration from various sources only."""
 
-      def __init__(self):
-          self.supported_formats = [".yaml", ".json", ".toml"]
+      supported_formats: list[str] = Field(default_factory=lambda: [".yaml", ".json", ".toml"])
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
       async def load_from_file(self, config_path: Path) -> PortfolioConfig:
           """Load configuration from file."""
@@ -251,14 +369,17 @@ services/
   from abc import ABC, abstractmethod
   from typing import Any
 
+  from pydantic import BaseModel, ConfigDict, Field
+
   from cyberdelta.core.portfolio.portfolio_types.protocols import ServiceProtocol
 
-  class BasePortfolioService(ServiceProtocol):
+  class BasePortfolioService(BaseModel, ServiceProtocol):
       """Base class for all portfolio services."""
 
-      def __init__(self, service_name: str):
-          self.service_name = service_name
-          self._initialized = False
+      service_name: str = Field(..., description="Name of the service")
+      _initialized: bool = Field(default=False, description="Service initialization state")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
       async def initialize(self) -> None:
           """Initialize the service."""
@@ -333,6 +454,34 @@ services/
           """Shutdown all services."""
           for service in self._services.values():
               await service.shutdown()
+  ```
+
+- [ ] **Move Misplaced Code Between Modules**
+  ```bash
+  # CRITICAL: Move exposure calculators to risk module
+  mkdir -p cyberdelta/core/risk/exposure/
+  mv cyberdelta/core/portfolio/calculators/exposure_calculator.py cyberdelta/core/risk/exposure/position_exposure.py
+  mv cyberdelta/core/portfolio/calculators/portfolio_exposure_calculator.py cyberdelta/core/risk/exposure/portfolio_exposure.py
+  mv cyberdelta/core/portfolio/calculators/currency_exposure_calculator.py cyberdelta/core/risk/exposure/currency_exposure.py
+  mv cyberdelta/core/portfolio/calculators/position_exposure_calculator.py cyberdelta/core/risk/exposure/individual_position.py
+
+  # Create risk service factory for clean integration
+  cat > cyberdelta/core/risk/services/risk_service_factory.py << 'EOF'
+  """Risk service factory for portfolio integration."""
+  from cyberdelta.core.risk.exposure.portfolio_exposure import PortfolioExposureCalculator
+  from cyberdelta.core.risk.sizing.orchestrator.position_sizer import PositionSizer
+  from cyberdelta.core.risk.utils.risk_metrics_calculator import RiskMetricsCalculator
+
+  class RiskServiceFactory:
+      def create_exposure_calculator(self) -> PortfolioExposureCalculator:
+          return PortfolioExposureCalculator()
+
+      def create_position_sizer(self) -> PositionSizer:
+          return PositionSizer()
+
+      def create_risk_metrics_calculator(self) -> RiskMetricsCalculator:
+          return RiskMetricsCalculator()
+  EOF
   ```
 
 - [ ] **Complete Legacy Service Removal**

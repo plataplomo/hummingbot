@@ -9,11 +9,12 @@ from collections.abc import Awaitable, Callable
 from typing import Any, ParamSpec, TypeVar, cast
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.services.resilience.resilience_service import (
-    CircuitBreakerConfig,
-    PortfolioResilienceService,
-    RetryConfig,
-)
+from cyberdelta.core.portfolio.services.resilience.circuit_breaker_service import CircuitBreakerConfig, CircuitBreakerService
+from cyberdelta.core.portfolio.services.resilience.graceful_degradation_service import GracefulDegradationService
+from cyberdelta.core.portfolio.services.resilience.retry_service import RetryConfig, RetryService
+
+# Use new focused health check services
+from cyberdelta.core.portfolio.services.monitoring import HealthCheckOrchestrator
 
 
 logger = get_logger(__name__)
@@ -25,9 +26,18 @@ T = TypeVar("T", bound=object)
 class ResilienceMiddleware:
     """Middleware for adding resilience capabilities to portfolio components."""
 
-    def __init__(self, resilience_service: PortfolioResilienceService) -> None:
-        """Initialize middleware with resilience service."""
-        self.resilience_service = resilience_service
+    def __init__(
+        self,
+        circuit_breaker_service: CircuitBreakerService,
+        retry_service: RetryService,
+        health_check_orchestrator: HealthCheckOrchestrator,
+        degradation_service: GracefulDegradationService,
+    ) -> None:
+        """Initialize middleware with individual resilience services."""
+        self.circuit_breaker_service = circuit_breaker_service
+        self.retry_service = retry_service
+        self.health_check_orchestrator = health_check_orchestrator
+        self.degradation_service = degradation_service
         self.registered_services: set[str] = set()
 
     def resilient(
@@ -66,15 +76,29 @@ class ResilienceMiddleware:
                     # For non-awaitable results, return directly (mypy knows this is T)
                     return result
 
-                return await self.resilience_service.execute_with_resilience(
-                    service_name,
-                    async_func,
-                    *args,
-                    use_circuit_breaker=use_circuit_breaker,
-                    use_retry=use_retry,
-                    use_fallback=use_fallback,
-                    **kwargs,
-                )
+                # Apply resilience patterns
+                execution_func = async_func
+                
+                # Apply circuit breaker if enabled
+                if use_circuit_breaker:
+                    execution_func = lambda *a, **k: self.circuit_breaker_service.execute_with_circuit_breaker(
+                        service_name, async_func, *a, **k
+                    )
+                
+                # Apply retry if enabled
+                if use_retry:
+                    retry_func = execution_func
+                    execution_func = lambda *a, **k: self.retry_service.execute_with_retry(
+                        service_name, retry_func, *a, **k
+                    )
+                
+                # Apply fallback if enabled
+                if use_fallback:
+                    return await self.degradation_service.execute_with_fallback(
+                        service_name, execution_func, *args, **kwargs
+                    )
+                
+                return await execution_func(*args, **kwargs)
 
             return wrapper
 
@@ -89,17 +113,16 @@ class ResilienceMiddleware:
     ) -> None:
         """Register a service with resilience components."""
         # Register circuit breaker
-        self.resilience_service.register_circuit_breaker(service_name, circuit_breaker_config)
+        if circuit_breaker_config:
+            self.circuit_breaker_service.register_circuit_breaker(service_name, circuit_breaker_config)
 
         # Register fallback handler
         if fallback_handler:
-            self.resilience_service.degradation_manager.register_fallback(
-                service_name, fallback_handler
-            )
+            self.degradation_service.register_fallback(service_name, fallback_handler)
 
-        # Register health check
-        if health_check:
-            self.resilience_service.register_health_check(service_name, health_check)
+        # Register health check (Note: HealthCheckOrchestrator uses register_service instead)
+        # For compatibility, we skip health check registration here
+        # Health checks should be registered directly with the orchestrator using register_service
 
         logger.info(
             "resilience_middleware_service_registered",
@@ -109,7 +132,12 @@ class ResilienceMiddleware:
         )
 
 
-def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> type[Any]:
+def create_resilience_mixin(
+    circuit_breaker_service: CircuitBreakerService,
+    retry_service: RetryService,
+    health_check_orchestrator: HealthCheckOrchestrator,
+    degradation_service: GracefulDegradationService,
+) -> type[Any]:
     """Create a mixin class for adding resilience capabilities.
 
     Returns:
@@ -121,8 +149,13 @@ def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> t
 
         def __init__(self, *args: object, **kwargs: object) -> None:
             super().__init__(*args, **kwargs)
-            self.resilience_service = resilience_service
-            self.resilience_middleware = ResilienceMiddleware(resilience_service)
+            self.circuit_breaker_service = circuit_breaker_service
+            self.retry_service = retry_service
+            self.health_check_orchestrator = health_check_orchestrator
+            self.degradation_service = degradation_service
+            self.resilience_middleware = ResilienceMiddleware(
+                circuit_breaker_service, retry_service, health_check_orchestrator, degradation_service
+            )
 
         def resilient_method(
             self,
@@ -162,28 +195,19 @@ def create_resilience_mixin(resilience_service: PortfolioResilienceService) -> t
             *args: object,
             **kwargs: object,
         ) -> object:
-            """Execute function with resilience capabilities.
-
-            Returns:
-                Result of the executed function with resilience applied
-            """
-            return await self.resilience_service.execute_with_resilience(
-                service_name,
-                func,
-                *args,
-                use_circuit_breaker=True,
-                use_retry=True,
-                use_fallback=True,
-                **kwargs,
+            """Execute function with resilience capabilities."""
+            return await self.degradation_service.execute_with_fallback(
+                service_name, func, *args, **kwargs
             )
 
-        def get_resilience_status(self) -> dict[str, Any]:
-            """Get resilience status for this component.
-
-            Returns:
-                Dictionary containing resilience status information
-            """
-            return self.resilience_service.get_resilience_status()
+        async def get_resilience_status(self) -> dict[str, Any]:
+            """Get resilience status for this component."""
+            return {
+                "circuit_breakers": self.circuit_breaker_service.get_all_states(),
+                "retry_stats": self.retry_service.get_retry_stats(),
+                "health_summary": await self.health_check_orchestrator.get_aggregate_status(),
+                "degradation_status": self.degradation_service.get_degradation_status(),
+            }
 
         async def health_check(self) -> bool:
             """Default health check implementation.

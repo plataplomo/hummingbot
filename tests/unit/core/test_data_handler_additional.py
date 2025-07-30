@@ -20,7 +20,7 @@ from cyberdelta.core.data_handler import (
 )
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.symbols.service import SymbolService
 
 
@@ -47,13 +47,13 @@ def mock_app_settings() -> Mock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Create mock portfolio tracker for testing.
 
     Returns:
-        Mock: A mock PortfolioTracker instance for testing.
+        Mock: A mock PortfolioStateManager instance for testing.
     """
-    return Mock(spec=PortfolioTracker)
+    return Mock(spec=PortfolioStateManager)
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def mock_symbol_service() -> Mock:
 
 @pytest.fixture
 def data_handler(
-    mock_app_settings: Mock, mock_portfolio_tracker: Mock, mock_symbol_service: Mock
+    mock_app_settings: Mock, mock_portfolio_state_manager: Mock, mock_symbol_service: Mock
 ) -> DataHandler:
     """Create a DataHandler instance for testing.
 
@@ -80,7 +80,7 @@ def data_handler(
     return DataHandler(
         app_settings=mock_app_settings,
         api_clients={},  # Start with empty api_clients dict
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         symbol_mapper=mock_symbol_service,
         loop=mock_loop,
     )

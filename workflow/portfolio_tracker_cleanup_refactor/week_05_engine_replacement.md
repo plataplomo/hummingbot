@@ -3,11 +3,11 @@
 **Duration:** Week 5 (2025-08-25 to 2025-08-31)
 **Approach:** Clean Break - No Backward Compatibility
 **Priority:** Critical
-**Objective:** Replace Engine component with specialized portfolio-aware trading engine using modular system
+**Objective:** Replace Engine component with clean Portfolio-Risk coordinated trading engine
 
 ## Overview
 
-Week 5 focuses on completely replacing the legacy Engine component with a new portfolio-aware trading engine that leverages the modular portfolio system established in Weeks 1-4. This includes sophisticated risk management, position sizing, and real-time portfolio monitoring.
+Week 5 focuses on completely replacing the legacy Engine component with a new trading engine that uses **clean portfolio/risk boundaries** established in Weeks 1-4. The engine coordinates portfolio state management with risk assessment through the PortfolioRiskCoordinator.
 
 **Clean Break Strategy:**
 - ❌ No legacy engine compatibility
@@ -35,21 +35,25 @@ graph TB
         style OLD_PT fill:#ffcccc
     end
 
-    subgraph "AFTER: Portfolio-Aware Engine"
-        NEW_ENGINE[PortfolioAwareEngine]
+    subgraph "AFTER: Clean Portfolio-Risk Engine"
+        NEW_ENGINE[CleanTradingEngine]
 
-        subgraph "Portfolio Integration"
-            PSM[PortfolioStateManager]
-            PERF[PerformanceAnalytics]
-            RISK_A[RiskAnalytics]
-            EXP[ExposureAnalytics]
+        subgraph "Integration Layer"
+            COORDINATOR[PortfolioRiskCoordinator]
+            UNIFIED_FACTORY[UnifiedServiceFactory]
         end
 
-        subgraph "Trading Components"
-            POS_SIZER[PositionSizer]
-            RISK_MGR[RiskManager]
+        subgraph "Portfolio Module (State)"
+            PSM[PortfolioStateManager]
+            PERF[PerformanceAnalytics]
             TRADE_EXEC[TradeExecutor]
-            ORDER_MGR[OrderManager]
+        end
+
+        subgraph "Risk Module (Assessment)"
+            RISK_CALC[RiskCalculator]
+            EXP_CALC[ExposureCalculator]
+            POS_SIZER[PositionSizer]
+            RISK_VAL[RiskValidator]
         end
 
         subgraph "Strategy Integration"
@@ -65,21 +69,16 @@ graph TB
             ALERTS[AlertSystem]
         end
 
-        NEW_ENGINE --> PSM
-        NEW_ENGINE --> PERF
-        NEW_ENGINE --> RISK_A
-        NEW_ENGINE --> EXP
-        NEW_ENGINE --> POS_SIZER
-        NEW_ENGINE --> RISK_MGR
-        NEW_ENGINE --> TRADE_EXEC
-        NEW_ENGINE --> ORDER_MGR
-        NEW_ENGINE --> STRAT_EVAL
-        NEW_ENGINE --> SIGNAL_PROC
-        NEW_ENGINE --> TIMING
-        NEW_ENGINE --> PERF_MON
-        NEW_ENGINE --> RISK_MON
-        NEW_ENGINE --> HEALTH
-        NEW_ENGINE --> ALERTS
+        NEW_ENGINE --> COORDINATOR
+        NEW_ENGINE --> UNIFIED_FACTORY
+
+        COORDINATOR --> PSM
+        COORDINATOR --> PERF
+        COORDINATOR --> TRADE_EXEC
+        COORDINATOR --> RISK_CALC
+        COORDINATOR --> EXP_CALC
+        COORDINATOR --> POS_SIZER
+        COORDINATOR --> RISK_VAL
 
         style NEW_ENGINE fill:#90EE90
         style PSM fill:#87CEEB
@@ -88,6 +87,40 @@ graph TB
 ```
 
 ## Week 5 Deliverables
+
+### Progressive Security Phase 3 & Early Integration Testing
+Implement security for trading engine and start integration testing:
+
+```python
+# Security requirements for trading engine
+ENGINE_SECURITY = {
+    "position_validation": "All position changes validated before execution",
+    "risk_threshold_enforcement": "Hard limits on position sizes and exposures",
+    "audit_trail": "All trading decisions logged with full context",
+    "secure_order_handling": "Order details sanitized in logs",
+    "emergency_controls": "Panic stop functionality for security incidents"
+}
+```
+
+**Security & Testing Tasks:**
+- [ ] Implement secure order validation and sanitization
+- [ ] Add comprehensive audit logging for all trading decisions
+- [ ] Create emergency stop mechanisms for security incidents
+- [ ] **Early Integration Testing**: Test engine with existing modular components
+- [ ] **Component Integration**: Validate portfolio state manager integration
+- [ ] **Performance Baseline**: Establish performance metrics for new engine
+
+### Architectural Documentation (Progressive Documentation Phase 1)
+Document the new engine architecture as we build:
+
+```markdown
+# Engine Architecture Documentation
+- Component interactions and data flow
+- Risk management decision trees
+- Position sizing algorithms and constraints
+- Portfolio integration patterns
+- Performance optimization strategies
+```
 
 ### Day 1-2: Core Engine Architecture
 
@@ -102,10 +135,16 @@ graph TB
   from typing import Any, Dict, List, Optional
   from enum import Enum
 
-  from cyberdelta.core.portfolio.services import IntegratedPortfolioServiceFactory
+  from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+  from pydantic.dataclasses import dataclass
+
+  from cyberdelta.core.portfolio.services import PortfolioServiceFactory
+  from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
+  from cyberdelta.workflow.portfolio_tracker_cleanup_refactor.week_04_modular_integration import (
+      PortfolioRiskCoordinator, UnifiedServiceFactory
+  )
   from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState, Position
   from cyberdelta.core.portfolio.portfolio_types.infrastructure import PortfolioEvent, EventType
-  from cyberdelta.core.portfolio.portfolio_types.calculations import PerformanceResult, ExposureResult
 
   class EngineState(str, Enum):
       """Engine operational states."""
@@ -116,47 +155,52 @@ graph TB
       STOPPING = "stopping"
       ERROR = "error"
 
+  @dataclass
   class TradingSignal:
       """Trading signal with portfolio context."""
 
-      def __init__(
-          self,
-          symbol: str,
-          direction: str,  # "long" | "short" | "close"
-          strength: float,  # 0.0 to 1.0
-          strategy_id: str,
-          confidence: float,  # 0.0 to 1.0
-          metadata: Dict[str, Any] = None
-      ):
-          self.symbol = symbol
-          self.direction = direction
-          self.strength = strength
-          self.strategy_id = strategy_id
-          self.confidence = confidence
-          self.metadata = metadata or {}
-          self.timestamp = datetime.utcnow()
+      symbol: str
+      direction: str  # "long" | "short" | "close"
+      strength: float  # 0.0 to 1.0
+      strategy_id: str
+      confidence: float  # 0.0 to 1.0
+      metadata: dict[str, Any] = Field(default_factory=dict)
+      timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-  class PortfolioAwareTradingEngine:
-      """Advanced trading engine with complete portfolio integration."""
+      @field_validator("strength", "confidence", mode="before")
+      @classmethod
+      def validate_percentage(cls, v: float, info: ValidationInfo) -> float:
+          """Validate percentage values are between 0 and 1."""
+          if not 0.0 <= v <= 1.0:
+              raise ValueError(f"{info.field_name} must be between 0.0 and 1.0")
+          return v
 
-      def __init__(self, portfolio_service_factory: IntegratedPortfolioServiceFactory):
-          self.portfolio_factory = portfolio_service_factory
-          self.portfolio_manager = portfolio_service_factory.get_portfolio_manager()
-          self.performance_analytics = portfolio_service_factory.get_performance_analytics()
-          self.risk_analytics = portfolio_service_factory.get_risk_analytics()
-          self.exposure_analytics = portfolio_service_factory.get_exposure_analytics()
-          self.event_dispatcher = portfolio_service_factory.get_event_dispatcher()
+      @field_validator("direction", mode="before")
+      @classmethod
+      def validate_direction(cls, v: str) -> str:
+          """Validate direction is valid."""
+          valid_directions = {"long", "short", "close"}
+          if v not in valid_directions:
+              raise ValueError(f"Direction must be one of {valid_directions}")
+          return v
+
+  class CleanTradingEngine:
+      """Trading engine with clean portfolio/risk separation via coordinator."""
+
+      def __init__(self, unified_factory: UnifiedServiceFactory):
+          # Clean architecture: engine uses coordinator for portfolio-risk integration
+          self.unified_factory = unified_factory
+          self.coordinator = unified_factory.get_risk_coordinator()
+
+          # Direct access to clean module interfaces (no cross-boundary access)
+          self.portfolio_manager = unified_factory.get_portfolio_manager()
 
           # Engine components
-          self.position_sizer = None
-          self.risk_manager = None
           self.trade_executor = None
           self.order_manager = None
           self.strategy_evaluator = None
           self.signal_processor = None
           self.performance_monitor = None
-          self.risk_monitor = None
-          self.health_checker = None
           self.alert_system = None
 
           # Engine state
@@ -184,8 +228,8 @@ graph TB
           self._state = EngineState.STARTING
 
           try:
-              # Initialize portfolio system
-              await self.portfolio_factory.initialize_all()
+              # Initialize unified system (portfolio + risk modules)
+              await self.unified_factory.initialize_all()
 
               # Initialize engine components
               await self._initialize_components()
@@ -251,7 +295,7 @@ graph TB
           # Restart trading logic
           self._state = EngineState.RUNNING
 
-      async def process_trading_signal(self, signal: TradingSignal) -> Dict[str, Any]:
+      async def process_trading_signal(self, signal: TradingSignal) -> dict[str, Any]:
           \"\"\"Process a trading signal with complete portfolio context.\"\"\"
 
           if self._state != EngineState.RUNNING:

@@ -9,7 +9,7 @@ from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
-# Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker,
+# Note: Fixtures risk_manager, mock_config, mock_portfolio_state_manager,
 #       sample_opportunity are provided by tests/unit/risk/conftest.py
 
 
@@ -21,7 +21,7 @@ class TestRiskManagerSizingStandard:
     async def test_size_opportunity_standard_path(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -34,7 +34,7 @@ class TestRiskManagerSizingStandard:
         # Create RiskManager with the correct config
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )

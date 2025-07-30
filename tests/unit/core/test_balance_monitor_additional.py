@@ -19,7 +19,7 @@ from cyberdelta.core.models import SpotBalance
 
 # Import shared fixtures from conftest.py - they will be automatically available
 # The following fixtures are imported:
-# - mock_portfolio_tracker
+# - mock_portfolio_state_manager
 # - sample_spot_balance
 # We override mock_app_settings to add balance monitoring configuration
 
@@ -58,32 +58,32 @@ def mock_app_settings() -> Mock:
     return settings
 
 
-# mock_portfolio_tracker is imported from conftest.py
+# mock_portfolio_state_manager is imported from conftest.py
 # If tests need the balances attribute, they should set it up individually
 
 
 @pytest.fixture
-def mock_portfolio_tracker_with_balances(mock_portfolio_tracker: Mock) -> Mock:
-    """Extend the shared mock_portfolio_tracker to add the balances attribute.
-
+def mock_portfolio_state_manager_with_balances(mock_portfolio_state_manager: Mock) -> Mock:
+    """Extend the shared mock_portfolio_state_manager to add the balances attribute.
+    
     Returns:
         Mock: Enhanced mock portfolio tracker with balances attribute.
     """
     # Add balances attribute for tests that access it directly
-    mock_portfolio_tracker.balances = {}
-    return mock_portfolio_tracker
+    mock_portfolio_state_manager.balances = {}
+    return mock_portfolio_state_manager
 
 
 @pytest.fixture
 def balance_monitor(
-    mock_app_settings: Mock, mock_portfolio_tracker_with_balances: Mock
+    mock_app_settings: Mock, mock_portfolio_state_manager_with_balances: Mock
 ) -> BalanceMonitor:
     """Create a BalanceMonitor instance for testing.
 
     Returns:
         BalanceMonitor: Balance monitor configured with mock dependencies.
     """
-    return BalanceMonitor(mock_app_settings, mock_portfolio_tracker_with_balances)
+    return BalanceMonitor(mock_app_settings, mock_portfolio_state_manager_with_balances)
 
 
 @pytest.fixture
@@ -208,7 +208,7 @@ class TestBalanceMonitorThresholdChecking:
     # ==================== SUCCESS CASES ====================
 
     def test_check_balances_success_with_multiple_exchanges(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balances across multiple exchanges."""
         # Arrange
@@ -239,7 +239,7 @@ class TestBalanceMonitorThresholdChecking:
         def get_exchange_balance(exchange: str, asset: str) -> SpotBalance | None:
             return balances.get((exchange, asset))
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = get_exchange_balance
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = get_exchange_balance
 
         # Act
         alerts = balance_monitor.check_balances()
@@ -248,7 +248,7 @@ class TestBalanceMonitorThresholdChecking:
         assert len(alerts) == 0  # All balances are sufficient
 
     def test_check_balances_success_non_usdc_assets(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balances for non-USDC assets."""
         # Arrange
@@ -286,7 +286,7 @@ class TestBalanceMonitorThresholdChecking:
         def get_exchange_balance(exchange: str, asset: str) -> SpotBalance | None:
             return balances.get((exchange, asset))
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = get_exchange_balance
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = get_exchange_balance
 
         # Act
         alerts = balance_monitor.check_balances()
@@ -298,7 +298,7 @@ class TestBalanceMonitorThresholdChecking:
     # ==================== EDGE CASES ====================
 
     def test_check_balances_edge_zero_balance(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking when balance is exactly zero."""
         # Arrange
@@ -313,7 +313,7 @@ class TestBalanceMonitorThresholdChecking:
         def balance_side_effect_zero(exchange: str, asset: str) -> SpotBalance | None:
             return balance if exchange == "hyperliquid" and asset == "USDC" else None
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = (
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = (
             balance_side_effect_zero
         )
 
@@ -325,7 +325,7 @@ class TestBalanceMonitorThresholdChecking:
         assert alerts[0].severity == BalanceAlert.SEVERITY_CRITICAL
 
     def test_check_balances_edge_stale_data(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balances with stale timestamp data."""
         # Arrange
@@ -341,7 +341,7 @@ class TestBalanceMonitorThresholdChecking:
         def balance_side_effect_stale(exchange: str, asset: str) -> SpotBalance | None:
             return balance if exchange == "hyperliquid" and asset == "USDC" else None
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = (
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = (
             balance_side_effect_stale
         )
 
@@ -355,11 +355,11 @@ class TestBalanceMonitorThresholdChecking:
     # ==================== FAILURE CASES ====================
 
     def test_check_balances_failure_portfolio_tracker_exception(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test handling when portfolio tracker raises exception."""
         # Arrange
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = Exception(
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = Exception(
             "Connection error"
         )
 
@@ -377,7 +377,7 @@ class TestBalanceMonitorOpportunityChecking:
     # ==================== SUCCESS CASES ====================
 
     def test_check_balance_for_opportunity_success_sufficient_funds(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balance for opportunity with sufficient funds."""
         # Arrange
@@ -392,7 +392,7 @@ class TestBalanceMonitorOpportunityChecking:
         def balance_side_effect_sufficient(exchange: str, asset: str) -> SpotBalance | None:
             return balance if exchange == "hyperliquid" and asset == "USDC" else None
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = (
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = (
             balance_side_effect_sufficient
         )
 
@@ -407,7 +407,7 @@ class TestBalanceMonitorOpportunityChecking:
         assert alert is None
 
     def test_check_balance_for_opportunity_success_exact_amount(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balance when we have exact required amount."""
         # Arrange
@@ -422,7 +422,7 @@ class TestBalanceMonitorOpportunityChecking:
         def balance_side_effect_exact(exchange: str, asset: str) -> SpotBalance | None:
             return balance if exchange == "hyperliquid" and asset == "USDC" else None
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = (
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = (
             balance_side_effect_exact
         )
 
@@ -454,11 +454,11 @@ class TestBalanceMonitorOpportunityChecking:
         assert alert is not None or alert is None  # Implementation dependent
 
     def test_check_balance_for_opportunity_edge_unknown_exchange(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balance for unknown exchange."""
         # Arrange
-        mock_portfolio_tracker_with_balances.get_exchange_balance.return_value = None
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.return_value = None
 
         # Act
         alert = balance_monitor.check_balance_for_opportunity(
@@ -474,7 +474,7 @@ class TestBalanceMonitorOpportunityChecking:
     # ==================== FAILURE CASES ====================
 
     def test_check_balance_for_opportunity_failure_insufficient_funds(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test checking balance with insufficient funds."""
         # Arrange
@@ -489,7 +489,7 @@ class TestBalanceMonitorOpportunityChecking:
         def balance_side_effect_insufficient(exchange: str, asset: str) -> SpotBalance | None:
             return balance if exchange == "hyperliquid" and asset == "USDC" else None
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = (
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = (
             balance_side_effect_insufficient
         )
 
@@ -512,7 +512,7 @@ class TestBalanceMonitorStatusReporting:
     # ==================== SUCCESS CASES ====================
 
     def test_get_balance_status_success_with_balances(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test getting balance status with available balances."""
         # Arrange
@@ -536,7 +536,7 @@ class TestBalanceMonitorStatusReporting:
         def get_exchange_balance(exchange: str, asset: str) -> SpotBalance | None:
             return balances.get((exchange, asset))
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = get_exchange_balance
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = get_exchange_balance
 
         # Add an alert
         alert = BalanceAlert(
@@ -558,11 +558,11 @@ class TestBalanceMonitorStatusReporting:
         assert len(status["alerts"]) == 1
 
     def test_get_balance_status_success_empty_state(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test getting balance status with no balances or alerts."""
         # Arrange
-        mock_portfolio_tracker_with_balances.get_exchange_balance.return_value = None
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.return_value = None
 
         # Act
         status = balance_monitor.get_balance_status()
@@ -575,7 +575,7 @@ class TestBalanceMonitorStatusReporting:
     # ==================== EDGE CASES ====================
 
     def test_get_balance_status_edge_mixed_assets(
-        self, balance_monitor: BalanceMonitor, mock_portfolio_tracker_with_balances: Mock
+        self, balance_monitor: BalanceMonitor, mock_portfolio_state_manager_with_balances: Mock
     ) -> None:
         """Test balance status with mixed asset types."""
         # Arrange
@@ -606,7 +606,7 @@ class TestBalanceMonitorStatusReporting:
         def get_exchange_balance(exchange: str, asset: str) -> SpotBalance | None:
             return balances.get((exchange, asset))
 
-        mock_portfolio_tracker_with_balances.get_exchange_balance.side_effect = get_exchange_balance
+        mock_portfolio_state_manager_with_balances.get_exchange_balance.side_effect = get_exchange_balance
 
         # Act
         status = balance_monitor.get_balance_status()

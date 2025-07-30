@@ -33,7 +33,7 @@ from cyberdelta.core.models import (
     OrderType,
     TimeInForce,
 )
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -293,13 +293,13 @@ class TestOrderVerifier:
         }
 
     @pytest.fixture
-    def mock_portfolio_tracker(self) -> Mock:
+    def mock_portfolio_state_manager(self) -> Mock:
         """Create a mock portfolio tracker.
 
         Returns:
-            Mock: Mock PortfolioTracker instance for order verification tests.
+            Mock: Mock PortfolioStateManager instance for order verification tests.
         """
-        return Mock(spec=PortfolioTracker)
+        return Mock(spec=PortfolioStateManager)
 
     @pytest.fixture
     def mock_exchange_adapters(self) -> dict[str, Mock]:
@@ -327,7 +327,7 @@ class TestOrderVerifier:
     def order_verifier(
         self,
         mock_config: dict[str, Any],
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_exchange_adapters: dict[str, ExchangeAPI],
     ) -> OrderVerifier:
         """Create an OrderVerifier instance for testing.
@@ -337,7 +337,7 @@ class TestOrderVerifier:
         """
         return OrderVerifier(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_exchange_adapters,
         )
 
@@ -370,27 +370,27 @@ class TestOrderVerifier:
     def test_order_verifier_success_initialization(
         self,
         mock_config: dict[str, Any],
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_exchange_adapters: dict[str, ExchangeAPI],
     ) -> None:
         """Test successful OrderVerifier initialization."""
         # Act
         verifier = OrderVerifier(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_exchange_adapters,
         )
 
         # Assert
         assert verifier.config == mock_config
-        assert verifier.portfolio_tracker == mock_portfolio_tracker
+        assert verifier.portfolio_tracker == mock_portfolio_state_manager
         assert verifier.exchange_adapters == mock_exchange_adapters
 
     @pytest.mark.asyncio
     async def test_verify_order_placement_success_local_and_api(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_exchange_adapters: dict[str, Mock],
         sample_order: Order,
     ) -> None:
@@ -405,7 +405,7 @@ class TestOrderVerifier:
         }
 
         # Mock local order found
-        mock_portfolio_tracker.get_order_by_id.return_value = sample_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = sample_order
 
         # Mock API order found
         api_order = sample_order
@@ -424,7 +424,7 @@ class TestOrderVerifier:
     async def test_verify_order_execution_success_filled_order(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_exchange_adapters: dict[str, Mock],
         sample_order: Order,
     ) -> None:
@@ -452,7 +452,7 @@ class TestOrderVerifier:
         )
 
         # Mock local order
-        mock_portfolio_tracker.get_order_by_id.return_value = filled_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = filled_order
 
         # Mock API methods
         mock_exchange_adapters[exchange].get_order_status = AsyncMock(return_value=filled_order)
@@ -472,7 +472,7 @@ class TestOrderVerifier:
     async def test_verify_order_placement_edge_empty_expected_details(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         sample_order: Order,
     ) -> None:
         """Test order placement verification with empty expected details."""
@@ -482,7 +482,7 @@ class TestOrderVerifier:
         expected_details: dict[str, Any] = {}
 
         # Mock local order found
-        mock_portfolio_tracker.get_order_by_id.return_value = sample_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = sample_order
 
         # Act
         result = await order_verifier.verify_order_placement(exchange, order_id, expected_details)
@@ -494,7 +494,7 @@ class TestOrderVerifier:
     async def test_verify_order_execution_edge_no_api_client(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         sample_order: Order,
     ) -> None:
         """Test order execution verification when API client is missing."""
@@ -503,7 +503,7 @@ class TestOrderVerifier:
         order_id = "test_order_123"
 
         # Mock local order
-        mock_portfolio_tracker.get_order_by_id.return_value = sample_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = sample_order
 
         # Act
         result = await order_verifier.verify_order_execution(exchange, order_id)
@@ -518,7 +518,7 @@ class TestOrderVerifier:
     async def test_verify_order_placement_failure_local_order_not_found(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test order placement verification failure when local order not found."""
         # Arrange
@@ -527,7 +527,7 @@ class TestOrderVerifier:
         expected_details = {"symbol": "BTC"}
 
         # Mock local order not found
-        mock_portfolio_tracker.get_order_by_id.return_value = None
+        mock_portfolio_state_manager.get_order_by_id.return_value = None
 
         # Act
         result = await order_verifier.verify_order_placement(exchange, order_id, expected_details)
@@ -540,7 +540,7 @@ class TestOrderVerifier:
     async def test_verify_order_placement_failure_property_mismatch(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         sample_order: Order,
     ) -> None:
         """Test order placement verification failure with property mismatch."""
@@ -552,7 +552,7 @@ class TestOrderVerifier:
         }
 
         # Mock local order found
-        mock_portfolio_tracker.get_order_by_id.return_value = sample_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = sample_order
 
         # Act
         result = await order_verifier.verify_order_placement(exchange, order_id, expected_details)
@@ -565,7 +565,7 @@ class TestOrderVerifier:
     async def test_verify_order_execution_failure_unfilled_order(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_exchange_adapters: dict[str, Mock],
     ) -> None:
         """Test order execution verification failure with unfilled order."""
@@ -592,7 +592,7 @@ class TestOrderVerifier:
         )
 
         # Mock local order
-        mock_portfolio_tracker.get_order_by_id.return_value = unfilled_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = unfilled_order
 
         # Mock API methods
         mock_exchange_adapters[exchange].get_order_status = AsyncMock(return_value=unfilled_order)
@@ -610,7 +610,7 @@ class TestOrderVerifier:
     async def test_verify_order_execution_failure_api_exception(
         self,
         order_verifier: OrderVerifier,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_exchange_adapters: dict[str, Mock],
         sample_order: Order,
     ) -> None:
@@ -620,7 +620,7 @@ class TestOrderVerifier:
         order_id = "test_order_123"
 
         # Mock local order
-        mock_portfolio_tracker.get_order_by_id.return_value = sample_order
+        mock_portfolio_state_manager.get_order_by_id.return_value = sample_order
 
         # Mock API exception
         mock_exchange_adapters[exchange].get_order_status = AsyncMock(
@@ -932,13 +932,13 @@ class TestSynchronizedOrderSubmissionService:
         return Mock(spec=PositionReconciliationSystem)
 
     @pytest.fixture
-    def mock_portfolio_tracker(self) -> Mock:
+    def mock_portfolio_state_manager(self) -> Mock:
         """Create a mock portfolio tracker.
 
         Returns:
-            Mock: Mock PortfolioTracker instance for synchronized order submission tests.
+            Mock: Mock PortfolioStateManager instance for synchronized order submission tests.
         """
-        return Mock(spec=PortfolioTracker)
+        return Mock(spec=PortfolioStateManager)
 
     @pytest.fixture
     def service(
@@ -947,7 +947,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_exchange_adapters: dict[str, ExchangeAPI],
         mock_circuit_breaker: Mock,
         mock_position_reconciliation: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> SynchronizedOrderSubmissionService:
         """Create a SynchronizedOrderSubmissionService instance for testing.
 
@@ -959,7 +959,7 @@ class TestSynchronizedOrderSubmissionService:
             mock_exchange_adapters,
             mock_circuit_breaker,
             mock_position_reconciliation,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
         )
 
     @pytest.fixture
@@ -987,7 +987,7 @@ class TestSynchronizedOrderSubmissionService:
         mock_exchange_adapters: dict[str, ExchangeAPI],
         mock_circuit_breaker: Mock,
         mock_position_reconciliation: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test successful service initialization."""
         # Act
@@ -996,7 +996,7 @@ class TestSynchronizedOrderSubmissionService:
             mock_exchange_adapters,
             mock_circuit_breaker,
             mock_position_reconciliation,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
         )
 
         # Assert
@@ -1004,7 +1004,7 @@ class TestSynchronizedOrderSubmissionService:
         assert service.exchange_adapters == mock_exchange_adapters
         assert service.circuit_breaker_system == mock_circuit_breaker
         assert service.position_reconciliation_system == mock_position_reconciliation
-        assert service.portfolio_tracker == mock_portfolio_tracker
+        assert service.portfolio_tracker == mock_portfolio_state_manager
         assert service.verification_timeout == 10.0
         assert service.verification_retries == 3
         assert service.verification_interval == 1.0
@@ -1185,7 +1185,7 @@ class TestSynchronizedOrderSubmissionIntegration:
         circuit_breaker.can_execute.return_value = (True, None)
 
         position_reconciliation = Mock(spec=PositionReconciliationSystem)
-        portfolio_tracker = Mock(spec=PortfolioTracker)
+        portfolio_tracker = Mock(spec=PortfolioStateManager)
 
         # Mock successful order placement
         mock_order = Order(
@@ -1210,7 +1210,7 @@ class TestSynchronizedOrderSubmissionIntegration:
         backpack_mock.place_order = AsyncMock(return_value=mock_order)
         backpack_mock.get_order = AsyncMock(return_value=mock_order)
 
-        portfolio_tracker.get_order_by_id.return_value = mock_order
+        portfolio_state_manager.get_order_by_id.return_value = mock_order
 
         service = SynchronizedOrderSubmissionService(
             config,

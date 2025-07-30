@@ -9,18 +9,18 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cyberdelta.core.models import DerivativePosition, Order, SpotBalance, Trade
-from cyberdelta.core.portfolio.portfolio_types.calculation_types import PortfolioExposureResult
-from cyberdelta.core.portfolio.portfolio_types.manager_protocols import (
+from cyberdelta.core.portfolio.portfolio_types.calculations import PortfolioExposureResult
+from cyberdelta.core.portfolio.portfolio_types.protocols import (
     BalanceManagerProtocol,
     OrderManagerProtocol,
     PositionManagerProtocol,
     StateManagerProtocol,
 )
-from cyberdelta.core.portfolio.portfolio_types.portfolio_models import (
+from cyberdelta.core.portfolio.portfolio_types.models import (
     PortfolioSnapshot,
     PortfolioUpdate,
 )
-from cyberdelta.core.portfolio.portfolio_types.update_models import (
+from cyberdelta.core.portfolio.portfolio_types.models import (
     CapitalSummary,
     ExposureMetrics,
     ManagerStats,

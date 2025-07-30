@@ -61,7 +61,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
     async def test_max_position_size_constraints(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         proposed_size: Decimal,
@@ -80,8 +80,8 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         mock_config.risk.global_risk.max_total_exposure_usd = Decimal(50000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -91,7 +91,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -136,7 +136,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
     async def test_total_exposure_constraints(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         existing_exposure: Decimal,
@@ -156,8 +156,8 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         mock_config.risk.global_risk.max_total_exposure_usd = max_total_exposure
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = existing_exposure
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = existing_exposure
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -167,7 +167,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -212,7 +212,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
     async def test_single_position_exposure_ratio_constraints(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         total_capital: Decimal,
@@ -232,8 +232,8 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         mock_config.risk.strategy.max_single_position_exposure_ratio = max_single_position_ratio
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = total_capital
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = total_capital
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -243,7 +243,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -269,7 +269,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
     async def test_multiple_constraint_interactions(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
     ) -> None:
@@ -288,8 +288,8 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Setup mocks
         total_capital = Decimal(100000)
         existing_exposure = Decimal(5000)
-        mock_portfolio_tracker.get_total_capital.return_value = total_capital
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = existing_exposure
+        mock_portfolio_state_manager.get_total_capital.return_value = total_capital
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = existing_exposure
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -299,7 +299,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -330,7 +330,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
     async def test_constraint_checking_with_invalid_capital(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         capital_error_type: str,
@@ -343,13 +343,13 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
 
         # Setup mocks with invalid capital
         if capital_error_type == "zero_capital":
-            mock_portfolio_tracker.get_total_capital.return_value = Decimal(0)
+            mock_portfolio_state_manager.get_total_capital.return_value = Decimal(0)
         elif capital_error_type == "negative_capital":
-            mock_portfolio_tracker.get_total_capital.return_value = Decimal(-1000)
+            mock_portfolio_state_manager.get_total_capital.return_value = Decimal(-1000)
         elif capital_error_type == "none_capital":
-            mock_portfolio_tracker.get_total_capital.return_value = None
+            mock_portfolio_state_manager.get_total_capital.return_value = None
 
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.01, "bias": 0.005}
 
@@ -359,7 +359,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -379,7 +379,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
     async def test_constraint_checking_with_exposure_calculation_failure(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
     ) -> None:
@@ -390,9 +390,9 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
         # Make exposure calculation throw exception
-        mock_portfolio_tracker.get_total_exposure_usd.side_effect = Exception(
+        mock_portfolio_state_manager.get_total_exposure_usd.side_effect = Exception(
             "Exposure calculation failed"
         )
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
@@ -404,7 +404,7 @@ class TestRiskManagerPortfolioConstraintsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )

@@ -11,13 +11,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.portfolio.services import PortfolioServiceFactory
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
@@ -26,50 +28,40 @@ from cyberdelta.core.strategy import Strategy
 logger = structlog.get_logger(__name__)
 
 
-class StrategyManager:
-    """Manage multiple trading strategies and control their lifecycle.
+class StrategyManager(BaseModel):
+    """Strategy manager using focused services."""
 
-    Acts as a central coordinator for strategy operations including:
+    config: AppSettings = Field(..., description="Application configuration settings")
+    execution_handler: ExecutionHandler = Field(..., description="Handler for executing trading strategies")
+    risk_manager: RiskManager = Field(..., description="Manager for risk management")
+    signal_queue: PrioritySignalQueue = Field(..., description="Queue for managing trade signals")
+    service_factory: PortfolioServiceFactory = Field(..., description="Portfolio service factory")
 
-    - Registration/deregistration of strategies
-    - Enabling/disabling strategies
-    - Distributing market data to appropriate strategies
-    - Collecting and prioritizing trade signals
-    - Performance tracking and metrics collection
-    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, arbitrary_types_allowed=True)
 
-    def __init__(
-        self,
-        config: AppSettings,
-        execution_handler: ExecutionHandler,
-        portfolio_tracker: PortfolioTracker,
-        risk_manager: RiskManager,
-        signal_queue: PrioritySignalQueue,
-    ) -> None:
-        """Initialize the StrategyManager.
-
-        Args:
-            config: Application configuration settings
-            execution_handler: Handler for executing trading strategies
-            portfolio_tracker: Tracker for managing trading portfolios
-            risk_manager: Manager for risk management
-            signal_queue: Queue for managing trade signals
-
-        """
-        self.logger = get_logger(__name__)
-        self.config = config
-        self.execution_handler = execution_handler
-        self.portfolio_tracker = portfolio_tracker
-        self.risk_manager = risk_manager
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize service instances after Pydantic validation."""
+        # Portfolio responsibilities: state management, performance tracking  
+        self.portfolio_manager = self.service_factory.create_portfolio_state_manager()
+        self.risk_analytics = self.service_factory.create_risk_analytics()
+        
+        # Legacy compatibility fields
+        self.portfolio_state_manager = self.portfolio_manager  # Compatibility alias
         self.strategies: dict[str, Strategy] = {}
         self._tasks: list[asyncio.Task[Any]] = []
         self._running = False
         self.enabled_strategies: set[str] = set()
         self.active_symbols: set[str] = set()
         self.last_update_time: datetime | None = None
-        self.signal_queue: PrioritySignalQueue = signal_queue
+        self.logger = get_logger(__name__)
 
-        logger.info("StrategyManager initialized")
+        logger.info("StrategyManager initialized with modular system")
+
+    async def check_risk_limits(self, max_exposure: float) -> bool:
+        """Check portfolio risk limits using modular system."""
+        portfolio_state = await self.portfolio_manager.get_current_state()
+        exposure_result = await self.risk_analytics.calculate_exposure(portfolio_state)
+        return exposure_result.total_exposure < max_exposure
 
     def register_strategy(self, strategy: Strategy) -> None:
         """Register a strategy with the manager.

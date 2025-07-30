@@ -10,9 +10,8 @@ from typing import Any, ClassVar, Literal
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance  # Changed import
-from cyberdelta.core.portfolio_tracker import (
-    PortfolioTracker,  # Updated from Balance
-)
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 logger = get_logger(__name__)
@@ -74,16 +73,18 @@ class BalanceMonitor:
     - Tracking balance changes
     """
 
-    def __init__(self, app_settings: AppSettings, portfolio_tracker: PortfolioTracker) -> None:
+    def __init__(
+        self, app_settings: AppSettings, portfolio_state_manager: PortfolioStateManager
+    ) -> None:
         """Initialize the balance monitor.
 
         Args:
             app_settings: Application configuration
-            portfolio_tracker: Portfolio tracker for balance information
+            portfolio_state_manager: Portfolio state manager for balance information
 
         """
         self.app_settings = app_settings
-        self.portfolio_tracker = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
         self.state_file: str = ""  # Initialize state_file attribute
 
         # Load balance parameters from config and convert to Decimal
@@ -125,7 +126,7 @@ class BalanceMonitor:
             # For now, only support USDC thresholds from the new config structure
             # Additional asset requirements would need to be added to the config model
 
-    def check_balances(self) -> list[BalanceAlert]:
+    async def check_balances(self) -> list[BalanceAlert]:
         """Check all exchange balances against requirements.
 
         Returns:
@@ -140,10 +141,10 @@ class BalanceMonitor:
         for exchange_id, min_balances in self.exchange_min_balances.items():
             for asset, min_balance in min_balances.items():
                 # Use the correct type hint: SpotBalance
-                current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id,
-                    asset,
+                balances = await self.portfolio_state_manager.get_balances(
+                    ExchangeName(exchange_id)
                 )
+                current_balance: SpotBalance | None = balances.get(asset)
                 available_balance = (
                     current_balance.available_quantity  # Direct attribute access
                     if current_balance is not None  # Check if balance exists
@@ -209,7 +210,7 @@ class BalanceMonitor:
 
         return new_alerts
 
-    def check_balance_for_opportunity(
+    async def check_balance_for_opportunity(
         self,
         exchange: str,
         asset: str,
@@ -227,10 +228,8 @@ class BalanceMonitor:
 
         """
         # Use the correct type hint: SpotBalance
-        current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-            exchange,
-            asset,
-        )
+        balances = await self.portfolio_state_manager.get_balances(ExchangeName(exchange))
+        current_balance: SpotBalance | None = balances.get(asset)
         available_balance = (
             current_balance.available_quantity  # Direct attribute access
             if current_balance is not None  # Check if balance exists
@@ -277,7 +276,7 @@ class BalanceMonitor:
             if alert.severity == BalanceAlert.SEVERITY_CRITICAL
         ]
 
-    def get_balance_status(self) -> dict[str, Any]:
+    async def get_balance_status(self) -> dict[str, Any]:
         """Get a summary of current balance status across all exchanges.
 
         Returns:
@@ -294,10 +293,10 @@ class BalanceMonitor:
             exchange_balances: dict[str, dict[str, str]] = {}  # Type hint for inner dict
             for asset in min_balances:
                 # Use the correct type hint: SpotBalance
-                current_balance: SpotBalance | None = self.portfolio_tracker.get_exchange_balance(
-                    exchange_id,
-                    asset,
+                balances = await self.portfolio_state_manager.get_balances(
+                    ExchangeName(exchange_id)
                 )
+                current_balance: SpotBalance | None = balances.get(asset)
                 available_balance = (
                     current_balance.available_quantity  # Direct attribute access
                     if current_balance is not None  # Check if balance exists

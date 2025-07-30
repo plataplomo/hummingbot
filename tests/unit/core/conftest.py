@@ -15,7 +15,7 @@ from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
     ExchangeSpecificConfig,
     PortfolioStateSettings,
-    PortfolioTrackerConfig,
+    # PortfolioTrackerConfig removed - replaced by modular portfolio system
     PortfolioValidationSettings,
 )
 from cyberdelta.core.enums import SignalType
@@ -35,7 +35,7 @@ from cyberdelta.core.models import (
     TradeSignal,
 )
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+# from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager - removed legacy import
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -218,13 +218,13 @@ def symbol_mapper_config() -> dict[str, ExchangeSpecificConfig]:
 
 # Portfolio tracker fixtures
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Mock portfolio tracker with standard methods.
 
     Returns:
         Mock: Mock portfolio tracker with configured method return values.
     """
-    tracker = Mock(spec=PortfolioTracker)
+    tracker = Mock(spec=PortfolioStateManager)
     tracker.get_open_orders.return_value = []
     tracker.get_order_history.return_value = []
     tracker.get_all_positions.return_value = []

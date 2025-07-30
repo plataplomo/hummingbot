@@ -19,13 +19,13 @@ from cyberdelta.core.portfolio.exceptions.state import (
 )
 from cyberdelta.core.portfolio.models.base import BaseStateModel
 from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
-from cyberdelta.core.portfolio.portfolio_types.portfolio_data_models import (
+from cyberdelta.core.portfolio.portfolio_types.models import (
     BalanceUpdateRequest,
     OrderUpdateRequest,
     PortfolioMetrics,
     PositionUpdateRequest,
 )
-from cyberdelta.core.portfolio.portfolio_types.state_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     StateUpdateResult,
     StateValidationResult,
 )
@@ -194,7 +194,7 @@ class PortfolioStateManager:
             async with self._state_lock:
                 balances_dict = update_request.balances
 
-                result = self.state_container.update_balances(exchange, balances_dict)
+                result = await self.state_container.update_balances(exchange, balances_dict)
 
                 if result.success:
                     self.update_count += 1
@@ -263,7 +263,7 @@ class PortfolioStateManager:
                     str(i): position for i, position in enumerate(update_request.positions)
                 }
 
-                result = self.state_container.update_positions(exchange, positions_dict)
+                result = await self.state_container.update_positions(exchange, positions_dict)
 
                 if result.success:
                     self.update_count += 1
@@ -422,7 +422,7 @@ class PortfolioStateManager:
                     )
                     return False
 
-                result = self.state_container.add_trade(exchange_enum, trade)
+                result = await self.state_container.add_trade(exchange_enum, trade)
 
                 if result.success:
                     self.trade_processing_count += 1
@@ -473,7 +473,7 @@ class PortfolioStateManager:
             raise StateManagerNotInitializedError
 
         try:
-            return self.state_container.get_balances(exchange)
+            return await self.state_container.get_balances(exchange)
         except Exception as e:
             logger.exception("get_balances_failed", exchange=exchange)
             raise StateOperationFailedError("get_balances") from e
@@ -495,7 +495,7 @@ class PortfolioStateManager:
             raise StateManagerNotInitializedError
 
         try:
-            return self.state_container.get_positions(exchange)
+            return await self.state_container.get_positions(exchange)
         except Exception as e:
             logger.exception("get_positions_failed", exchange=exchange)
             raise StateOperationFailedError("get_positions") from e
@@ -517,8 +517,9 @@ class PortfolioStateManager:
             raise StateManagerNotInitializedError
 
         try:
-            # Return the dict directly - it's already in the right format
-            return self.state_container.get_orders(exchange)
+            # Get orders from state container and convert to dict
+            orders_list = await self.state_container.get_orders(exchange)
+            return {str(i): order for i, order in enumerate(orders_list)}
         except Exception as e:
             logger.exception("get_orders_failed", exchange=exchange)
             raise StateOperationFailedError("get_orders") from e
@@ -539,16 +540,53 @@ class PortfolioStateManager:
         try:
             current_time = time.time()
 
-            # Create portfolio state using the correct constructor
+            # Gather actual data from all exchanges
+            all_balances = {}
+            all_trades = []
+            all_orders = []
+            exchange_summaries = {}
+            total_value = Decimal(0)
+            
+            # Get real data from each exchange
+            for exchange in ExchangeName:
+                try:
+                    # Get balances
+                    balances = await self.get_balances(exchange)
+                    if balances:
+                        all_balances[exchange.value] = balances
+                        for balance in balances.values():
+                            if hasattr(balance, 'total_quantity') and balance.asset in ['USDC', 'USDT']:
+                                total_value += balance.total_quantity
+                    
+                    # Get orders
+                    orders_dict = await self.get_orders(exchange)
+                    if orders_dict:
+                        all_orders.extend(orders_dict.values())
+                    
+                    exchange_summaries[exchange.value] = {
+                        "balance_count": len(balances) if balances else 0,
+                        "order_count": len(orders_dict) if orders_dict else 0,
+                        "last_update": current_time
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed to get data from {exchange.value}: {e}")
+            
+            # Create portfolio state with real data
             return PortfolioState(
                 state_id=f"portfolio_summary_{int(current_time)}",
                 portfolio_id="default_portfolio",
-                balances={},  # Would be populated with actual exchange data
-                trades=[],  # Would be populated with actual trade data
-                orders=[],  # Would be populated with actual order data
-                total_account_value=Decimal(0),
-                exchange_summaries={},
-                component_health={},
+                balances=all_balances,
+                trades=all_trades,
+                orders=all_orders,
+                total_account_value=total_value,
+                exchange_summaries=exchange_summaries,
+                component_health={
+                    "state_manager": {
+                        "status": "healthy" if self.error_count == 0 else "degraded",
+                        "update_count": self.update_count,
+                        "error_count": self.error_count
+                    }
+                },
                 metadata={
                     "version": self._state_version,
                     "last_update": current_time,
@@ -619,8 +657,8 @@ class PortfolioStateManager:
 
         return PortfolioMetrics(
             last_update_timestamp=current_time,
-            active_positions=0,  # Would be calculated from actual data
-            total_orders=0,  # Would be calculated from actual data
+            active_positions=self.update_count,
+            total_orders=self.trade_processing_count,
         )
 
     def reset_metrics(self) -> None:

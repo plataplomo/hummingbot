@@ -24,7 +24,7 @@ from cyberdelta.config.models.config_models import (
     GlobalRiskSettings,
     MonitoringSettings,
     PortfolioStateSettings,
-    PortfolioTrackerConfig,
+    # PortfolioTrackerConfig removed - replaced by modular portfolio system
     PortfolioValidationSettings,
     PositionReconciliationSettings,
     SafetySystemsSettings,
@@ -423,13 +423,7 @@ def mock_config() -> Callable[..., AppSettings]:
                 notifications_enabled=True,
                 alert_methods=["log"],
             ),
-            portfolio_tracker=PortfolioTrackerConfig(
-                data_freshness_seconds=60,
-                initial_balances={},
-                initial_positions=[],
-                validation=PortfolioValidationSettings(validation_timeout=5.0),
-                state=PortfolioStateSettings(update_timeout=10.0),
-            ),
+            # portfolio_tracker field removed - replaced by modular portfolio system
             symbols=SmartSymbolsConfig(
                 list=["BTC", "ETH"],
                 patterns=SymbolPatterns(
@@ -578,13 +572,7 @@ def test_app_settings() -> AppSettings:
             notifications_enabled=True,
             alert_methods=["log"],
         ),
-        portfolio_tracker=PortfolioTrackerConfig(
-            data_freshness_seconds=60,
-            initial_balances={},
-            initial_positions=[],
-            validation=PortfolioValidationSettings(validation_timeout=5.0),
-            state=PortfolioStateSettings(update_timeout=10.0),
-        ),
+        # portfolio_tracker field removed - replaced by modular portfolio system
         symbols=SmartSymbolsConfig(
             list=["BTC", "ETH"],
             patterns=SymbolPatterns(

@@ -28,6 +28,7 @@ from cyberdelta.core.risk.constraints.interfaces.constraint_interfaces import (
 from cyberdelta.core.risk.constraints.models.constraint_models import ConstraintViolation
 from cyberdelta.core.risk.exceptions.base_exceptions import RiskError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
+from cyberdelta.core.risk.config.risk_module_config import RiskModuleConfig, load_risk_config_from_settings
 
 
 class ConstraintValidator:
@@ -48,10 +49,13 @@ class ConstraintValidator:
         self.validators: list[ConstraintInterface] = []
         self._initialize_validators()
 
-        # Configuration from AppSettings
+        # Load risk module configuration
+        self.risk_config = load_risk_config_from_settings(app_settings)
+        
+        # Configuration from AppSettings and risk module config
         self.fail_fast = self.risk_settings.checkers.fail_fast
-        self.max_concurrent_validators = 4  # Hardcoded default as not in enhanced config
-        self.validation_timeout = 30.0  # Hardcoded default as not in enhanced config
+        self.max_concurrent_validators = self.risk_config.constraint_validator.max_concurrent_validators
+        self.validation_timeout = self.risk_config.constraint_validator.validation_timeout
 
         # Performance tracking
         self.validation_count = 0
@@ -101,8 +105,8 @@ class ConstraintValidator:
             "min_allocation_percentage": float(self.risk_settings.sizing.kelly_min_allocation),
             "max_allocation_percentage": float(self.risk_settings.sizing.max_portfolio_allocation),
             "max_leverage": float(self.risk_settings.sizing.max_leverage),
-            "max_positions_per_symbol": 1,  # Hardcoded default
-            "max_positions_per_exchange": 10,  # Hardcoded default
+            "max_positions_per_symbol": self.risk_config.constraint_validator.max_positions_per_symbol,
+            "max_positions_per_exchange": self.risk_config.constraint_validator.max_positions_per_exchange,
             "max_risk_per_position": float(self.global_risk.max_position_usd),
             "max_volatility_per_position": float(
                 self.risk_settings.checkers.thresholds.max_volatility
@@ -119,8 +123,8 @@ class ConstraintValidator:
             "enabled": True,
             "max_total_exposure": float(self.global_risk.max_total_exposure_usd),
             "max_portfolio_allocation": float(self.risk_settings.sizing.max_portfolio_allocation),
-            "max_correlation_exposure": 0.8,  # Hardcoded default
-            "max_sector_exposure": 0.5,  # Hardcoded default
+            "max_correlation_exposure": float(self.risk_config.constraint_validator.max_correlation_exposure),
+            "max_sector_exposure": float(self.risk_config.constraint_validator.max_sector_exposure),
         }
 
     def _create_exchange_config(self) -> dict[str, Any]:
@@ -131,7 +135,7 @@ class ConstraintValidator:
         """
         return {
             "enabled": True,
-            "max_exchange_allocation": 0.6,  # Hardcoded default - 60% max per exchange
+            "max_exchange_allocation": float(self.risk_config.constraint_validator.max_exchange_allocation),  # Max per exchange
             "max_exchange_leverage": float(self.risk_settings.sizing.max_leverage),
             "min_exchange_balance_ratio": float(
                 self.risk_settings.checkers.thresholds.min_balance_ratio

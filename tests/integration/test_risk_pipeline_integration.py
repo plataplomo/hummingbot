@@ -275,7 +275,7 @@ def base_app_settings() -> "AppSettings":
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> "MockPortfolioTracker":
+def mock_portfolio_state_manager() -> "MockPortfolioTracker":
     """Create mock portfolio tracker.
 
     Returns:
@@ -332,7 +332,7 @@ class TestRiskPipelineIntegration:
     async def test_complete_risk_pipeline_success(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_circuit_breaker: MockCircuitBreakerSystem,
         mock_funding_rate_validator: MockFundingRateValidator,
         sample_opportunity: ArbitrageOpportunity,
@@ -341,7 +341,7 @@ class TestRiskPipelineIntegration:
         # Create risk manager orchestrator
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -378,7 +378,7 @@ class TestRiskPipelineIntegration:
     async def test_risk_pipeline_with_failed_checks(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_circuit_breaker: MockCircuitBreakerSystem,
         mock_funding_rate_validator: MockFundingRateValidator,
     ) -> None:
@@ -400,7 +400,7 @@ class TestRiskPipelineIntegration:
 
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -418,7 +418,7 @@ class TestRiskPipelineIntegration:
     async def test_risk_pipeline_with_circuit_breaker_tripped(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_funding_rate_validator: MockFundingRateValidator,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
@@ -428,7 +428,7 @@ class TestRiskPipelineIntegration:
 
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=tripped_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -443,7 +443,7 @@ class TestRiskPipelineIntegration:
     async def test_kelly_criterion_sizing_integration(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_circuit_breaker: MockCircuitBreakerSystem,
         mock_funding_rate_validator: MockFundingRateValidator,
         sample_opportunity: ArbitrageOpportunity,
@@ -455,7 +455,7 @@ class TestRiskPipelineIntegration:
 
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=kelly_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -470,7 +470,7 @@ class TestRiskPipelineIntegration:
     async def test_multiple_opportunities_processing(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_circuit_breaker: MockCircuitBreakerSystem,
         mock_funding_rate_validator: MockFundingRateValidator,
     ) -> None:
@@ -494,7 +494,7 @@ class TestRiskPipelineIntegration:
 
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -510,7 +510,7 @@ class TestRiskPipelineIntegration:
     async def test_preset_configuration_integration(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test integration with configuration presets."""
@@ -518,7 +518,7 @@ class TestRiskPipelineIntegration:
         conservative_orchestrator = RiskManagerFactory.create_from_preset(
             preset_name="conservative",
             base_app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         result = await conservative_orchestrator.process_opportunity(sample_opportunity)
@@ -531,7 +531,7 @@ class TestRiskPipelineIntegration:
         aggressive_orchestrator = RiskManagerFactory.create_from_preset(
             preset_name="aggressive",
             base_app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         aggressive_result = await aggressive_orchestrator.process_opportunity(sample_opportunity)
@@ -540,7 +540,7 @@ class TestRiskPipelineIntegration:
     async def test_global_risk_settings_constraints(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_circuit_breaker: MockCircuitBreakerSystem,
         mock_funding_rate_validator: MockFundingRateValidator,
         sample_opportunity: ArbitrageOpportunity,
@@ -552,7 +552,7 @@ class TestRiskPipelineIntegration:
 
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=constrained_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -594,14 +594,14 @@ class TestRiskPipelineIntegration:
     async def test_minimal_risk_manager_integration(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test minimal risk manager creation without optional dependencies."""
         # Create minimal risk manager (no circuit breaker or funding rate validator)
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         result = await orchestrator.process_opportunity(sample_opportunity)
@@ -613,7 +613,7 @@ class TestRiskPipelineIntegration:
     async def test_portfolio_position_management(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         mock_circuit_breaker: MockCircuitBreakerSystem,
         mock_funding_rate_validator: MockFundingRateValidator,
         sample_opportunity: ArbitrageOpportunity,
@@ -621,7 +621,7 @@ class TestRiskPipelineIntegration:
         """Test portfolio position management integration."""
         orchestrator = RiskManagerFactory.create_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker,
             funding_rate_validator=mock_funding_rate_validator,
         )
@@ -649,7 +649,7 @@ class TestRiskPipelineIntegration:
     async def test_error_handling_and_recovery(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
     ) -> None:
         """Test error handling and recovery in the pipeline."""
         # Create opportunity with invalid data to trigger errors
@@ -667,7 +667,7 @@ class TestRiskPipelineIntegration:
 
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         result = await orchestrator.process_opportunity(invalid_opportunity)
@@ -679,13 +679,13 @@ class TestRiskPipelineIntegration:
     async def test_performance_and_metrics(
         self,
         base_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test performance metrics collection."""
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=base_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Process multiple opportunities to generate metrics

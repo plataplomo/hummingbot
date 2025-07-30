@@ -23,7 +23,7 @@ from cyberdelta.core.models import (
     SpotBalance,  # Updated from Balance
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
-from cyberdelta.core.portfolio_tracker import PortfolioTracker  # Added PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager  # Added PortfolioStateManager
 from cyberdelta.core.risk_manager import (
     RiskManager,
     SizedOpportunity,
@@ -62,7 +62,7 @@ async def test_circuit_breaker_global_halts_execution(
     mock_config: AppSettings,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,  # Added type
     signal_generator: SignalGenerator,  # Added type
     risk_manager: RiskManager,  # Added type
@@ -108,7 +108,7 @@ async def test_circuit_breaker_global_halts_execution(
             timestamp=datetime.now(UTC),
         ),
     )
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_state_manager.initialize()
     ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
     mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
@@ -176,7 +176,7 @@ async def test_circuit_breaker_exchange_halts_execution(
     mock_config: AppSettings,  # Added type
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,  # Added type
     signal_generator: SignalGenerator,  # Added type
     risk_manager: RiskManager,  # Added type
@@ -222,7 +222,7 @@ async def test_circuit_breaker_exchange_halts_execution(
             timestamp=datetime.now(UTC),
         ),
     )
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_state_manager.initialize()
     ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
     mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
@@ -307,7 +307,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -339,17 +339,17 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
             timestamp=now,
         ),
     )
-    await real_portfolio_tracker.initialize()
+    await real_portfolio_state_manager.initialize()
 
     # Manually set balances in portfolio tracker since mock APIs don't sync automatically
-    real_portfolio_tracker.balances["mock_hl"]["USD"] = SpotBalance(
+    real_portfolio_state_manager.balances["mock_hl"]["USD"] = SpotBalance(
         exchange="mock_hl",
         asset="USD",
         total_quantity=Decimal(10000),
         available_quantity=Decimal(10000),
         timestamp=now,
     )
-    real_portfolio_tracker.balances["mock_bp"]["USDC"] = SpotBalance(
+    real_portfolio_state_manager.balances["mock_bp"]["USDC"] = SpotBalance(
         exchange="mock_bp",
         asset="USDC",
         total_quantity=Decimal(10000),
@@ -357,7 +357,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
         timestamp=now,
     )
 
-    await real_portfolio_tracker.update()  # Ensure total capital is calculated
+    await real_portfolio_state_manager.update()  # Ensure total capital is calculated
     # Safe opportunity: low expected_return, high volatility
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -390,7 +390,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -422,8 +422,8 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
             timestamp=now,
         ),
     )
-    await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.update()  # Ensure total capital is calculated
+    await real_portfolio_state_manager.initialize()
+    await real_portfolio_state_manager.update()  # Ensure total capital is calculated
     # Oversized opportunity: high expected_return, low volatility
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -466,12 +466,12 @@ def _setup_test_position(exchange_id: str, symbol: str) -> DerivativePosition:
 
 
 def _register_mock_apis(
-    tracker: PortfolioTracker,
+    tracker: PortfolioStateManager,
     hl_api: MockExchangeAPI,
     bp_api: MockExchangeAPI,
 ) -> None:
     """Register mock APIs with portfolio tracker."""
-    # NOTE: API client registration has moved to PortfolioOrchestrator
+    # NOTE: API client registration has moved to PortfolioReconciliationService
 
 
 def _check_hl_discrepancies(discrepancies: list[Any]) -> None:
@@ -515,7 +515,7 @@ async def test_position_reconciler_detects_discrepancy(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     position_reconciler: PositionReconciliationSystem,
 ) -> None:
     """Tests that the PositionReconciliationSystem identifies discrepancies."""
@@ -548,9 +548,9 @@ async def test_position_reconciler_detects_discrepancy(
 
     # 4. Setup Reverse Scenario - Position in tracker, not on exchange
     mock_bp_api.reset()  # Clear position from mock API
-    real_portfolio_tracker.update_position(exchange_id, mock_position)  # Add to real tracker
+    real_portfolio_state_manager.process_position_update(exchange_id, mock_position)  # Add to real tracker
 
-    # Note: API client registration has moved to PortfolioOrchestrator
+    # Note: API client registration has moved to PortfolioReconciliationService
 
     # === ADDED State Check Logging ===
     logger.info("--- Reverse Scenario State Check ---")
@@ -561,7 +561,7 @@ async def test_position_reconciler_detects_discrepancy(
         message="Mock BP positions after reset",
     )
     # Get all positions and filter by the target exchange
-    all_local_positions = real_portfolio_tracker.get_all_positions()
+    all_local_positions = real_portfolio_state_manager.get_all_positions()
     local_positions_after_update: dict[str, Any] = {}
 
     for pos_item in all_local_positions:
@@ -651,7 +651,7 @@ async def test_kelly_size_exactly_at_max_position_size(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -685,7 +685,7 @@ async def test_kelly_size_just_below_max_position_size(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -719,7 +719,7 @@ async def test_kelly_size_just_above_max_position_size(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -753,7 +753,7 @@ async def test_kelly_size_near_zero(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -788,7 +788,7 @@ async def test_kelly_negative_expected_return(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -822,7 +822,7 @@ async def test_kelly_zero_or_negative_volatility(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -874,7 +874,7 @@ async def test_kelly_insufficient_balance(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -917,8 +917,8 @@ async def test_kelly_insufficient_balance(
             timestamp=datetime.now(UTC),
         ),
     )
-    await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.update()  # Ensure total capital is calculated
+    await real_portfolio_state_manager.initialize()
+    await real_portfolio_state_manager.update()  # Ensure total capital is calculated
     risk_manager.funding_rate_validator = None
     sized_opps = await risk_manager.validate_opportunities([opp])
     # Business logic uses simple sizing and accepts trades even with insufficient balance
@@ -931,7 +931,7 @@ async def test_kelly_zero_total_capital(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -958,8 +958,8 @@ async def test_kelly_zero_total_capital(
             timestamp=datetime.now(UTC),
         ),
     )
-    await real_portfolio_tracker.initialize()
-    await real_portfolio_tracker.update()  # Ensure total capital is calculated
+    await real_portfolio_state_manager.initialize()
+    await real_portfolio_state_manager.update()  # Ensure total capital is calculated
 
     opp = ArbitrageOpportunity(
         symbol="BTC",
@@ -988,7 +988,7 @@ async def test_kelly_max_position_size_zero(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -1023,7 +1023,7 @@ async def test_kelly_max_position_size_very_large(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -1058,7 +1058,7 @@ async def test_max_drawdown_halts_execution(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     risk_manager: RiskManager,
     funding_rate_validator: MagicMock,
@@ -1071,7 +1071,7 @@ async def test_max_drawdown_halts_execution(
 async def test_max_total_exposure_constraint_prevents_trade(
     risk_manager: RiskManager,  # RiskManager instance from fixture
     basic_opportunity: ArbitrageOpportunity,
-    real_portfolio_tracker: PortfolioTracker,  # Added portfolio_tracker
+    real_portfolio_tracker: PortfolioStateManager,  # Added portfolio_tracker
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that max_total_exposure constraint rejects an opportunity that would exceed it."""
@@ -1086,16 +1086,16 @@ async def test_max_total_exposure_constraint_prevents_trade(
 
     # Configure mock portfolio tracker
     assert hasattr(risk_manager.portfolio_tracker, "get_total_capital")
-    assert isinstance(risk_manager.portfolio_tracker.get_total_capital, AsyncMock)
-    risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(10000)
+    assert isinstance(risk_manager.portfolio_state_manager.get_total_capital, AsyncMock)
+    risk_manager.portfolio_state_manager.get_total_capital.return_value = Decimal(10000)
 
     assert hasattr(risk_manager.portfolio_tracker, "get_total_exposure_usd")
-    assert isinstance(risk_manager.portfolio_tracker.get_total_exposure_usd, AsyncMock)
-    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+    assert isinstance(risk_manager.portfolio_state_manager.get_total_exposure_usd, AsyncMock)
+    risk_manager.portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
 
     assert hasattr(risk_manager.portfolio_tracker, "get_current_drawdown")
-    assert isinstance(risk_manager.portfolio_tracker.get_current_drawdown, AsyncMock)
-    risk_manager.portfolio_tracker.get_current_drawdown.return_value = Decimal(0)
+    assert isinstance(risk_manager.portfolio_state_manager.get_current_drawdown, AsyncMock)
+    risk_manager.portfolio_state_manager.get_current_drawdown.return_value = Decimal(0)
 
     # Effective max_total_exposure_usd for the check will be 10000 * 0.01 = 100 USD
 
@@ -1113,8 +1113,8 @@ async def test_max_total_exposure_constraint_prevents_trade(
     )
     logger.info(
         "portfolio_tracker_mock_values",
-        total_capital=risk_manager.portfolio_tracker.get_total_capital.return_value,
-        total_exposure=risk_manager.portfolio_tracker.get_total_exposure_usd.return_value,
+        total_capital=risk_manager.portfolio_state_manager.get_total_capital.return_value,
+        total_exposure=risk_manager.portfolio_state_manager.get_total_exposure_usd.return_value,
         message="Portfolio tracker mock values",
     )
     logger.info(
@@ -1148,7 +1148,7 @@ async def test_max_total_exposure_constraint_prevents_trade(
 async def test_min_trade_size_constraint_prevents_trade(
     risk_manager: RiskManager,  # RiskManager instance from fixture
     basic_opportunity: ArbitrageOpportunity,
-    real_portfolio_tracker: PortfolioTracker,  # Added portfolio_tracker
+    real_portfolio_tracker: PortfolioStateManager,  # Added portfolio_tracker
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that min_trade_size_usd constraint rejects an opportunity smaller than it."""
@@ -1165,19 +1165,19 @@ async def test_min_trade_size_constraint_prevents_trade(
         "RiskManager's portfolio_tracker mock is missing get_total_capital attribute"
     )
     # Ensure it's an AsyncMock, as get_total_capital is an async method in the protocol
-    assert isinstance(risk_manager.portfolio_tracker.get_total_capital, AsyncMock), (
+    assert isinstance(risk_manager.portfolio_state_manager.get_total_capital, AsyncMock), (
         f"RM PT.get_total_capital is not AsyncMock, but "
-        f"{type(risk_manager.portfolio_tracker.get_total_capital)}"
+        f"{type(risk_manager.portfolio_state_manager.get_total_capital)}"
     )
 
-    risk_manager.portfolio_tracker.get_total_capital.return_value = Decimal(
+    risk_manager.portfolio_state_manager.get_total_capital.return_value = Decimal(
         1000,
     )  # Capital is 1000
 
     # ADDED: Ensure get_total_exposure_usd is also mocked
     assert hasattr(risk_manager.portfolio_tracker, "get_total_exposure_usd")
-    assert isinstance(risk_manager.portfolio_tracker.get_total_exposure_usd, AsyncMock)
-    risk_manager.portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+    assert isinstance(risk_manager.portfolio_state_manager.get_total_exposure_usd, AsyncMock)
+    risk_manager.portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
 
     # Max exposure allowed is 0.1 * 1000 = 100 USD
     # Based on sample_opportunity_scaled from integration/conftest.py:
@@ -1187,7 +1187,7 @@ async def test_min_trade_size_constraint_prevents_trade(
     logger.info(
         "risk_manager_config",
         max_total_exposure_usd=risk_manager.max_total_exposure_usd,
-        total_capital=risk_manager.portfolio_tracker.get_total_capital.return_value,
+        total_capital=risk_manager.portfolio_state_manager.get_total_capital.return_value,
         message="Risk manager config and portfolio tracker mock values",
     )
     logger.info(

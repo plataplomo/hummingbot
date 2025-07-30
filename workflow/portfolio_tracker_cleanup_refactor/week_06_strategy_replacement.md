@@ -1,231 +1,279 @@
-# Week 6: Strategy Components Replacement - Clean Break Approach
+# Week 6: Portfolio Analytics & Performance Components - Clean Break Approach
 
 **Duration:** Week 6 (2025-09-01 to 2025-09-07)
 **Approach:** Clean Break - No Backward Compatibility
 **Priority:** Critical
-**Objective:** Replace StrategyManager and related components with portfolio-integrated strategy system
+**Objective:** Replace legacy portfolio analytics and performance tracking with modular components
 
 ## Overview
 
-Week 6 focuses on completely replacing the legacy StrategyManager with a sophisticated portfolio-integrated strategy system. This includes advanced strategy evaluation, signal generation, portfolio-aware decision making, and real-time strategy performance tracking.
+Week 6 focuses on replacing legacy portfolio analytics and performance tracking components that were embedded in the old PortfolioTracker. This includes performance attribution, portfolio analytics, reporting, and monitoring - all within the portfolio module's boundaries.
 
 **Clean Break Strategy:**
-- ❌ No legacy strategy compatibility
-- ❌ No gradual strategy migration
-- ✅ Complete strategy system replacement
-- ✅ Portfolio-integrated strategy evaluation and execution
+- ❌ No legacy analytics compatibility
+- ❌ No gradual migration of reporting
+- ✅ Complete analytics system replacement
+- ✅ Clean portfolio performance tracking
 
-## Strategy Architecture Analysis
+## Portfolio Analytics Architecture Analysis
 
-### Current vs Target Strategy Architecture
+### Current vs Target Analytics Architecture
 
 ```mermaid
 graph TB
-    subgraph "BEFORE: Legacy Strategy System"
-        OLD_STRAT[Legacy StrategyManager]
-        OLD_SIGNALS[Basic Signal Logic]
-        OLD_EVAL[Simple Evaluation]
-        OLD_EXEC[Direct Execution]
+    subgraph "BEFORE: Legacy Analytics in PortfolioTracker"
+        OLD_PT[PortfolioTracker<br/>2,726 lines]
+        OLD_ANALYTICS[Embedded Analytics]
+        OLD_PERF[Basic Performance]
+        OLD_REPORT[Simple Reporting]
 
-        OLD_STRAT --> OLD_SIGNALS
-        OLD_STRAT --> OLD_EVAL
-        OLD_STRAT --> OLD_EXEC
+        OLD_PT --> OLD_ANALYTICS
+        OLD_PT --> OLD_PERF
+        OLD_PT --> OLD_REPORT
 
-        style OLD_STRAT fill:#ffcccc
-        style OLD_SIGNALS fill:#ffcccc
+        style OLD_PT fill:#ffcccc
+        style OLD_ANALYTICS fill:#ffcccc
     end
 
-    subgraph "AFTER: Portfolio-Integrated Strategy System"
-        NEW_STRAT[PortfolioStrategyOrchestrator]
+    subgraph "AFTER: Modular Portfolio Analytics"
+        NEW_ANALYTICS[PortfolioAnalyticsOrchestrator]
 
-        subgraph "Strategy Framework"
-            SF[StrategyFactory]
-            SR[StrategyRegistry]
-            SL[StrategyLifecycle]
-            SC[StrategyCoordinator]
+        subgraph "Integration Layer"
+            COORDINATOR[PortfolioRiskCoordinator]
         end
 
-        subgraph "Signal Processing"
-            SG[SignalGenerator]
-            SA[SignalAggregator]
-            SF2[SignalFilter]
-            SP[SignalPrioritizer]
+        subgraph "Analytics Framework"
+            AF[AnalyticsFactory]
+            AR[AnalyticsRegistry]
+            AC[AnalyticsCalculator]
+            AA[AnalyticsAggregator]
         end
 
-        subgraph "Portfolio Integration"
-            PSE[PortfolioStrategyEvaluator]
-            PCALC[PortfolioCalculator]
-            POPT[PortfolioOptimizer]
-            PRISK[PortfolioRiskAssessor]
+        subgraph "Performance Tracking"
+            PT[PerformanceTracker]
+            PA[PerformanceAggregator]
+            PH[PerformanceHistory]
+            PM[PerformanceMetrics]
         end
 
-        subgraph "Strategy Types"
-            DN[DeltaNeutralStrategy]
-            ARB[ArbitrageStrategy]
-            MOM[MomentumStrategy]
-            MR[MeanReversionStrategy]
+        subgraph "Attribution Analysis"
+            PAT[PortfolioAttributor]
+            EAT[ExchangeAttributor]
+            SAT[StrategyAttributor]
+            TAT[TimeAttributor]
         end
 
-        subgraph "Performance & Analytics"
-            SPT[StrategyPerformanceTracker]
-            SAT[StrategyAttributionAnalyzer]
-            SBT[StrategyBacktester]
-            SRT[StrategyReporter]
+        subgraph "Reporting Components"
+            PR[PortfolioReporter]
+            DR[DailyReporter]
+            RR[RiskReporter]
+            CR[ComplianceReporter]
         end
 
-        NEW_STRAT --> SF
-        NEW_STRAT --> SR
-        NEW_STRAT --> SL
-        NEW_STRAT --> SC
-        NEW_STRAT --> SG
-        NEW_STRAT --> SA
-        NEW_STRAT --> SF2
-        NEW_STRAT --> SP
-        NEW_STRAT --> PSE
-        NEW_STRAT --> PCALC
-        NEW_STRAT --> POPT
-        NEW_STRAT --> PRISK
-        NEW_STRAT --> DN
-        NEW_STRAT --> ARB
-        NEW_STRAT --> MOM
-        NEW_STRAT --> MR
-        NEW_STRAT --> SPT
-        NEW_STRAT --> SAT
-        NEW_STRAT --> SBT
-        NEW_STRAT --> SRT
+        subgraph "Monitoring & Alerts"
+            HM[HealthMonitor]
+            AM[AlertManager]
+            TM[ThresholdMonitor]
+            EM[EventMonitor]
+        end
 
-        style NEW_STRAT fill:#90EE90
-        style PSE fill:#87CEEB
-        style PCALC fill:#87CEEB
+        NEW_ANALYTICS --> AF
+        NEW_ANALYTICS --> AR
+        NEW_ANALYTICS --> AC
+        NEW_ANALYTICS --> AA
+        NEW_ANALYTICS --> PT
+        NEW_ANALYTICS --> PA
+        NEW_ANALYTICS --> PH
+        NEW_ANALYTICS --> PM
+        NEW_ANALYTICS --> PAT
+        NEW_ANALYTICS --> EAT
+        NEW_ANALYTICS --> SAT
+        NEW_ANALYTICS --> TAT
+        NEW_ANALYTICS --> PR
+        NEW_ANALYTICS --> DR
+        NEW_ANALYTICS --> RR
+        NEW_ANALYTICS --> CR
+        NEW_ANALYTICS --> HM
+        NEW_ANALYTICS --> AM
+        NEW_ANALYTICS --> TM
+        NEW_ANALYTICS --> EM
+
+        style NEW_ANALYTICS fill:#90EE90
+        style PT fill:#87CEEB
+        style PAT fill:#87CEEB
     end
 ```
 
 ## Week 6 Deliverables
 
-### Day 1-2: Strategy Framework Foundation
+### Progressive Security Phase 4 & Integration Testing Phase 2
+Implement analytics-level security and continue integration testing:
 
-- [ ] **Portfolio Strategy Orchestrator Core**
+```python
+# Security requirements for analytics components
+ANALYTICS_SECURITY = {
+    "data_validation": "All portfolio data validated before analytics calculations",
+    "performance_integrity": "Performance calculations protected against manipulation",
+    "report_sanitization": "Sensitive data sanitized in reports",
+    "access_control": "Role-based access to analytics and reports",
+    "audit_trail": "Complete audit trail for all calculations"
+}
+```
+
+**Security & Testing Tasks:**
+- [ ] Add analytics input validation and data verification
+- [ ] Implement performance calculation integrity checks
+- [ ] Add report generation security and sanitization
+- [ ] **Analytics Integration Testing**: Test analytics with portfolio state
+- [ ] **Performance Testing**: Validate performance tracking accuracy
+- [ ] **Reporting Integration**: Test report generation and distribution
+
+### Architectural Documentation (Progressive Documentation Phase 2)
+Document analytics architecture and calculation patterns:
+
+```markdown
+# Portfolio Analytics Architecture Documentation
+- Analytics calculation pipeline and data flow
+- Performance attribution methodology
+- Report generation and distribution patterns
+- Monitoring and alerting thresholds
+- Real-time vs batch analytics processing
+```
+
+### Day 1-2: Analytics Framework Foundation
+
+- [ ] **Portfolio Analytics Orchestrator Core**
   ```python
-  """Portfolio-integrated strategy orchestrator with complete modular integration."""
+  """Portfolio analytics orchestrator with complete modular integration."""
   from __future__ import annotations
 
   import asyncio
   from decimal import Decimal
-  from datetime import datetime, timedelta
-  from typing import Dict, List, Any, Optional, Type
-  from dataclasses import dataclass
+  from datetime import datetime, timedelta, UTC
+  from typing import Any, Type
   from enum import Enum
+
+  from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+  from pydantic.dataclasses import dataclass
 
   from cyberdelta.core.portfolio.services import IntegratedPortfolioServiceFactory
   from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
   from cyberdelta.core.portfolio.portfolio_types.infrastructure import PortfolioEvent, EventType
 
-  class StrategyState(str, Enum):
-      """Strategy operational states."""
+  class AnalyticsState(str, Enum):
+      """Analytics operational states."""
       INACTIVE = "inactive"
       ACTIVE = "active"
-      PAUSED = "paused"
-      WARMING_UP = "warming_up"
-      COOLING_DOWN = "cooling_down"
+      CALCULATING = "calculating"
+      UPDATING = "updating"
       ERROR = "error"
 
-  class SignalStrength(str, Enum):
-      """Signal strength levels."""
-      WEAK = "weak"
-      MODERATE = "moderate"
-      STRONG = "strong"
-      VERY_STRONG = "very_strong"
+  class ReportFrequency(str, Enum):
+      """Report generation frequencies."""
+      REALTIME = "realtime"
+      MINUTE = "minute"
+      HOURLY = "hourly"
+      DAILY = "daily"
+      WEEKLY = "weekly"
 
   @dataclass
-  class StrategySignal:
-      """Enhanced strategy signal with portfolio context."""
-      strategy_id: str
-      symbol: str
-      direction: str  # "long" | "short" | "close" | "reduce"
-      strength: SignalStrength
-      confidence: float  # 0.0 to 1.0
-      expected_return: Decimal
-      expected_risk: Decimal
-      time_horizon: timedelta
-      portfolio_impact: Dict[str, Any]
-      metadata: Dict[str, Any]
+  class PerformanceSnapshot:
+      """Point-in-time portfolio performance snapshot."""
       timestamp: datetime
-      expiry: datetime
-
-  @dataclass
-  class StrategyPerformance:
-      """Strategy performance metrics."""
-      strategy_id: str
-      total_return: Decimal
-      annualized_return: Decimal
-      volatility: Decimal
+      total_value: Decimal
+      daily_pnl: Decimal
+      cumulative_pnl: Decimal
+      realized_pnl: Decimal
+      unrealized_pnl: Decimal
+      win_rate: Decimal
       sharpe_ratio: Decimal
       max_drawdown: Decimal
-      win_rate: Decimal
-      avg_trade_return: Decimal
-      total_trades: int
-      active_positions: int
-      capital_allocated: Decimal
-      risk_adjusted_return: Decimal
-      last_updated: datetime
+      positions_count: int
 
-  class PortfolioStrategyOrchestrator:
-      """Advanced strategy orchestrator with complete portfolio integration."""
+      @field_validator("win_rate", mode="before")
+      @classmethod
+      def validate_win_rate(cls, v: Decimal) -> Decimal:
+          """Validate win rate is between 0 and 1."""
+          if not (Decimal(0) <= v <= Decimal(1)):
+              raise ValueError("Win rate must be between 0 and 1")
+          return v
 
-      def __init__(self, portfolio_service_factory: IntegratedPortfolioServiceFactory):
-          self.portfolio_factory = portfolio_service_factory
-          self.portfolio_manager = portfolio_service_factory.get_portfolio_manager()
-          self.performance_analytics = portfolio_service_factory.get_performance_analytics()
-          self.risk_analytics = portfolio_service_factory.get_risk_analytics()
-          self.exposure_analytics = portfolio_service_factory.get_exposure_analytics()
-          self.event_dispatcher = portfolio_service_factory.get_event_dispatcher()
+  @dataclass
+  class AttributionResult:
+      """Performance attribution analysis result."""
+      period: timedelta
+      total_pnl: Decimal
+      by_exchange: dict[str, Decimal]
+      by_symbol: dict[str, Decimal]
+      by_strategy: dict[str, Decimal]  # Attribution to strategies, not implementation
+      by_time_bucket: dict[str, Decimal]
+      top_winners: list[tuple[str, Decimal]]
+      top_losers: list[tuple[str, Decimal]]
 
-          # Strategy components
-          self.strategy_factory = None
-          self.strategy_registry = None
-          self.signal_generator = None
-          self.signal_aggregator = None
-          self.signal_filter = None
-          self.signal_prioritizer = None
-          self.portfolio_evaluator = None
-          self.portfolio_calculator = None
-          self.portfolio_optimizer = None
-          self.performance_tracker = None
+      def get_strategy_contribution(self, strategy_id: str) -> Decimal:
+          """Get P&L contribution from a specific strategy."""
+          return self.by_strategy.get(strategy_id, Decimal(0))
+
+  class PortfolioAnalyticsOrchestrator(BaseModel):
+      """Advanced analytics orchestrator for portfolio performance tracking."""
+
+      portfolio_service_factory: IntegratedPortfolioServiceFactory = Field(..., description="Portfolio service factory")
+
+      # Configuration fields
+      calculation_interval: float = Field(default=60.0, gt=0.0, description="Analytics calculation interval in seconds")
+      snapshot_interval: float = Field(default=300.0, gt=0.0, description="Performance snapshot interval in seconds")
+      report_retention_days: int = Field(default=90, ge=1, description="Days to retain reports")
+      max_attribution_depth: int = Field(default=3, ge=1, description="Maximum attribution analysis depth")
+
+      # State fields
+      performance_history: list[PerformanceSnapshot] = Field(default_factory=list, description="Performance history")
+      attribution_cache: dict[str, AttributionResult] = Field(default_factory=dict, description="Attribution cache")
+      active_reports: dict[str, Any] = Field(default_factory=dict, description="Active report configurations")
+      alert_thresholds: dict[str, Decimal] = Field(default_factory=dict, description="Alert thresholds")
+      orchestrator_state: AnalyticsState = Field(default=AnalyticsState.INACTIVE, description="Orchestrator state")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+      def model_post_init(self, __context: Any) -> None:
+          """Initialize components after Pydantic validation."""
+          self.portfolio_factory = self.portfolio_service_factory
+          self.portfolio_manager = self.portfolio_service_factory.get_portfolio_manager()
+          self.performance_analytics = self.portfolio_service_factory.get_performance_analytics()
+          self.risk_analytics = self.portfolio_service_factory.get_risk_analytics()
+          self.exposure_analytics = self.portfolio_service_factory.get_exposure_analytics()
+          self.event_dispatcher = self.portfolio_service_factory.get_event_dispatcher()
+
+          # Analytics components (initialized during start)
+          self.analytics_factory = None
+          self.performance_calculator = None
           self.attribution_analyzer = None
-
-          # Strategy state
-          self.active_strategies: Dict[str, Any] = {}
-          self.strategy_performances: Dict[str, StrategyPerformance] = {}
-          self.pending_signals: List[StrategySignal] = []
-          self.signal_history: List[StrategySignal] = []
-          self.orchestrator_state = StrategyState.INACTIVE
-
-          # Configuration
-          self.max_strategies = 10
-          self.max_signals_per_cycle = 20
-          self.signal_processing_interval = 1.0  # seconds
-          self.performance_update_interval = 60.0  # seconds
+          self.report_generator = None
+          self.alert_manager = None
+          self.health_monitor = None
+          self.metrics_aggregator = None
+          self.snapshot_manager = None
+          self.compliance_checker = None
 
           # Background tasks
-          self._tasks: List[asyncio.Task] = []
+          self._tasks: list[asyncio.Task] = []
 
       async def start(self) -> None:
-          """Start the strategy orchestrator."""
+          """Start the analytics orchestrator."""
 
-          if self.orchestrator_state != StrategyState.INACTIVE:
+          if self.orchestrator_state != AnalyticsState.INACTIVE:
               raise RuntimeError(f"Cannot start orchestrator in state: {self.orchestrator_state}")
 
-          self.orchestrator_state = StrategyState.WARMING_UP
+          self.orchestrator_state = AnalyticsState.UPDATING
 
           try:
               # Initialize portfolio system
               await self.portfolio_factory.initialize_all()
 
-              # Initialize strategy components
-              await self._initialize_strategy_components()
+              # Initialize analytics components
+              await self._initialize_analytics_components()
 
-              # Load and activate strategies
-              await self._load_strategies()
+              # Load historical data for analytics
+              await self._load_historical_data()
 
               # Register event handlers
               await self._register_event_handlers()
@@ -233,19 +281,19 @@ graph TB
               # Start background tasks
               await self._start_background_tasks()
 
-              self.orchestrator_state = StrategyState.ACTIVE
+              self.orchestrator_state = AnalyticsState.ACTIVE
 
           except Exception as e:
-              self.orchestrator_state = StrategyState.ERROR
-              raise RuntimeError(f"Failed to start strategy orchestrator: {e}") from e
+              self.orchestrator_state = AnalyticsState.ERROR
+              raise RuntimeError(f"Failed to start analytics orchestrator: {e}") from e
 
       async def stop(self) -> None:
-          """Stop the strategy orchestrator gracefully."""
+          """Stop the analytics orchestrator gracefully."""
 
-          if self.orchestrator_state == StrategyState.INACTIVE:
+          if self.orchestrator_state == AnalyticsState.INACTIVE:
               return
 
-          self.orchestrator_state = StrategyState.COOLING_DOWN
+          self.orchestrator_state = AnalyticsState.UPDATING
 
           try:
               # Stop all active strategies
@@ -662,8 +710,10 @@ graph TB
   """Strategy factory for creating portfolio-integrated strategies."""
   from __future__ import annotations
 
-  from typing import Dict, Any, Type
+  from typing import Any, Type
   from abc import ABC, abstractmethod
+
+  from pydantic import BaseModel, ConfigDict, Field
 
   class BasePortfolioStrategy(ABC):
       """Base class for all portfolio-integrated strategies."""

@@ -28,7 +28,7 @@ from cyberdelta.core.execution_handler import (
 )
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
@@ -56,13 +56,13 @@ def mock_app_settings() -> Mock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Create mock portfolio tracker for testing.
 
     Returns:
-        Mock: Mock PortfolioTracker instance for testing.
+        Mock: Mock PortfolioStateManager instance for testing.
     """
-    return Mock(spec=PortfolioTracker)
+    return Mock(spec=PortfolioStateManager)
 
 
 @pytest.fixture
@@ -95,7 +95,7 @@ def mock_circuit_breaker_system() -> Mock:
 @pytest.fixture
 def execution_handler(
     mock_app_settings: Mock,
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_symbol_service: Mock,
     mock_circuit_breaker_system: Mock,
 ) -> ExecutionHandler:
@@ -106,7 +106,7 @@ def execution_handler(
     """
     return ExecutionHandler(
         app_settings=mock_app_settings,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         symbol_service=mock_symbol_service,
         circuit_breaker_system=mock_circuit_breaker_system,
     )
@@ -297,7 +297,7 @@ class TestExecutionHandlerInitialization:
     def test_init_success_with_all_dependencies(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
         mock_circuit_breaker_system: Mock,
     ) -> None:
@@ -305,14 +305,14 @@ class TestExecutionHandlerInitialization:
         # Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker_system,
         )
 
         # Assert
         assert handler.app_settings is mock_app_settings
-        assert handler.portfolio_tracker is mock_portfolio_tracker
+        assert handler.portfolio_tracker is mock_portfolio_state_manager
         assert handler.symbol_service is mock_symbol_service
         assert handler.circuit_breaker_system is mock_circuit_breaker_system
         assert handler.max_slippage == Decimal("0.01")
@@ -324,14 +324,14 @@ class TestExecutionHandlerInitialization:
     def test_init_success_without_circuit_breaker(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
     ) -> None:
         """Test successful initialization without circuit breaker."""
         # Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
@@ -531,7 +531,7 @@ class TestExecutionHandlerOpportunityExecution:
     async def test_execute_opportunity_edge_no_circuit_breaker(
         self,
         mock_app_settings: Mock,  # Use shared fixture
-        mock_portfolio_tracker: Mock,  # Use shared fixture
+        mock_portfolio_state_manager: Mock,  # Use shared fixture
         mock_symbol_service: Mock,  # Use shared fixture
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
@@ -540,7 +540,7 @@ class TestExecutionHandlerOpportunityExecution:
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
@@ -712,14 +712,14 @@ class TestExecutionHandlerCircuitBreakerReset:
     def test_circuit_breaker_integration_without_system(
         self,
         mock_app_settings: Mock,  # Use shared fixture
-        mock_portfolio_tracker: Mock,  # Use shared fixture
+        mock_portfolio_state_manager: Mock,  # Use shared fixture
         mock_symbol_service: Mock,  # Use shared fixture
     ) -> None:
         """Test circuit breaker integration when system doesn't exist."""
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )

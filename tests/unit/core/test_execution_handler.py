@@ -131,7 +131,7 @@ def _create_mock_order(
 
 # Import shared fixtures from conftest.py - they will be automatically available
 # The following fixtures are imported:
-# - mock_portfolio_tracker
+# - mock_portfolio_state_manager
 # - mock_symbol_service
 # We override mock_app_settings to add execution-specific settings
 
@@ -186,7 +186,7 @@ def mock_circuit_breaker() -> Mock:
 @pytest.fixture
 def execution_handler(
     mock_app_settings: Mock,
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_symbol_service: Mock,
     mock_circuit_breaker: Mock,
 ) -> ExecutionHandler:
@@ -197,7 +197,7 @@ def execution_handler(
     """
     return ExecutionHandler(
         app_settings=mock_app_settings,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         symbol_service=mock_symbol_service,
         circuit_breaker_system=mock_circuit_breaker,
     )
@@ -266,7 +266,7 @@ class TestExecutionHandlerInitialization:
     def test_init_success_with_all_dependencies(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
         mock_circuit_breaker: Mock,
     ) -> None:
@@ -274,14 +274,14 @@ class TestExecutionHandlerInitialization:
         # Arrange & Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker,
         )
 
         # Assert
         assert handler.app_settings == mock_app_settings
-        assert handler.portfolio_tracker == mock_portfolio_tracker
+        assert handler.portfolio_tracker == mock_portfolio_state_manager
         assert handler.symbol_service == mock_symbol_service
         assert handler.circuit_breaker_system == mock_circuit_breaker
         assert handler.max_slippage == Decimal("0.01")
@@ -294,14 +294,14 @@ class TestExecutionHandlerInitialization:
     def test_init_success_without_circuit_breaker(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
     ) -> None:
         """Test successful initialization without circuit breaker (optional dependency)."""
         # Arrange & Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
@@ -309,14 +309,14 @@ class TestExecutionHandlerInitialization:
         # Assert
         assert handler.circuit_breaker_system is None
         assert handler.app_settings == mock_app_settings
-        assert handler.portfolio_tracker == mock_portfolio_tracker
+        assert handler.portfolio_tracker == mock_portfolio_state_manager
         assert handler.symbol_service == mock_symbol_service
 
     # EDGE CASES
     def test_init_edge_minimal_retry_config(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
     ) -> None:
         """Test initialization with minimal retry configuration."""
@@ -327,7 +327,7 @@ class TestExecutionHandlerInitialization:
         # Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
         )
 
@@ -338,7 +338,7 @@ class TestExecutionHandlerInitialization:
     def test_init_edge_high_values_config(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
     ) -> None:
         """Test initialization with high configuration values."""
@@ -350,7 +350,7 @@ class TestExecutionHandlerInitialization:
         # Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
         )
 
@@ -362,7 +362,7 @@ class TestExecutionHandlerInitialization:
     # FAILURE CASES
     def test_init_failure_none_app_settings(
         self,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
     ) -> None:
         """Test initialization fails with None app_settings."""
@@ -373,7 +373,7 @@ class TestExecutionHandlerInitialization:
         with pytest.raises(ConfigValidationError):
             ExecutionHandler(
                 app_settings=none_settings,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 symbol_service=mock_symbol_service,
             )
 
@@ -398,7 +398,7 @@ class TestExecutionHandlerInitialization:
     def test_init_failure_none_symbol_service(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization with None symbol_service (should succeed but may fail later)."""
         # Arrange & Act
@@ -406,7 +406,7 @@ class TestExecutionHandlerInitialization:
         none_service: Any = None
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=none_service,
         )
 
@@ -980,7 +980,7 @@ class TestCircuitBreakerIntegration:
     async def test_execute_opportunity_success_no_breaker_system(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
         sized_opportunity: SizedOpportunity,
     ) -> None:
@@ -988,7 +988,7 @@ class TestCircuitBreakerIntegration:
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )
@@ -3592,14 +3592,14 @@ class TestMiscellaneousMethods:
     def test_reset_circuit_breaker_none_system(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
     ) -> None:
         """Test reset circuit breaker when system is None."""
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=None,
         )

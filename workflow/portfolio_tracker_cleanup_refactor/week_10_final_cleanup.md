@@ -21,11 +21,12 @@ import pytest
 from decimal import Decimal
 from datetime import datetime, UTC
 
-from cyberdelta.core.portfolio.tracker import PortfolioTracker
-from cyberdelta.core.portfolio.manager import PortfolioManager
-from cyberdelta.core.portfolio.risk import RiskManager
-from cyberdelta.core.portfolio.strategy import PortfolioStrategyOrchestrator
-from cyberdelta.core.portfolio.integration import ExchangeIntegrationOrchestrator
+from cyberdelta.workflow.portfolio_tracker_cleanup_refactor.week_04_modular_integration import (
+    UnifiedServiceFactory, PortfolioRiskCoordinator
+)
+from cyberdelta.workflow.portfolio_tracker_cleanup_refactor.week_05_engine_replacement import CleanTradingEngine
+from cyberdelta.workflow.portfolio_tracker_cleanup_refactor.week_06_strategy_replacement import CleanStrategyManager
+from cyberdelta.workflow.portfolio_tracker_cleanup_refactor.week_07_api_integration import CleanExchangeIntegration
 from cyberdelta.core.models.portfolio import Portfolio
 from cyberdelta.core.models.enums import ExchangeType, OrderStatus
 from cyberdelta.apis.hyperliquid.client import HyperliquidClient
@@ -35,11 +36,15 @@ class FinalSystemIntegrationTest:
     """Complete end-to-end system integration test suite."""
 
     def __init__(self):
-        self.portfolio_tracker = PortfolioTracker()
-        self.portfolio_manager = PortfolioManager()
-        self.risk_manager = RiskManager()
-        self.strategy_orchestrator = PortfolioStrategyOrchestrator()
-        self.integration_orchestrator = ExchangeIntegrationOrchestrator()
+        # Clean architecture: unified factory coordinates portfolio and risk modules
+        self.unified_factory = UnifiedServiceFactory(config)
+        self.coordinator = self.unified_factory.get_risk_coordinator()
+        self.portfolio_manager = self.unified_factory.get_portfolio_manager()
+
+        # Production components using clean boundaries
+        self.engine = CleanTradingEngine(self.unified_factory)
+        self.strategy_manager = CleanStrategyManager(self.unified_factory)
+        self.exchange_integration = CleanExchangeIntegration(self.unified_factory)
 
     async def test_full_arbitrage_cycle(self):
         """Test complete arbitrage cycle from signal to execution."""
@@ -56,8 +61,8 @@ class FinalSystemIntegrationTest:
             }
         )
 
-        # Generate arbitrage signal
-        signal = await self.strategy_orchestrator.generate_signal(
+        # Generate arbitrage signal using clean strategy manager
+        signal = await self.strategy_manager.generate_signal(
             symbol='ETH-USD',
             strategy_type='delta_neutral_arbitrage'
         )
@@ -65,38 +70,47 @@ class FinalSystemIntegrationTest:
         assert signal is not None
         assert signal.confidence > 0.7
 
-        # Execute arbitrage trades
-        execution_result = await self.portfolio_manager.execute_arbitrage(
-            signal=signal,
-            portfolio=portfolio
-        )
+        # Validate and execute trades using coordinator (clean portfolio/risk integration)
+        validation_result = await self.coordinator.validate_trade_request({
+            'symbol': signal.symbol,
+            'size': signal.recommended_size,
+            'direction': signal.direction
+        })
+
+        assert validation_result['approved']
+
+        execution_result = await self.coordinator.execute_coordinated_trade({
+            'symbol': signal.symbol,
+            'size': validation_result['optimal_size'],
+            'direction': signal.direction
+        })
 
         assert execution_result.success
         assert len(execution_result.trades) == 2  # One per exchange
 
-        # Validate portfolio state
-        updated_portfolio = await self.portfolio_tracker.get_current_portfolio()
-        assert updated_portfolio.total_value > portfolio.total_value
-        assert abs(updated_portfolio.net_exposure) < Decimal('0.01')
+        # Validate portfolio state using clean coordinator
+        portfolio_with_risk = await self.coordinator.get_current_portfolio_with_risk_assessment()
+        updated_portfolio = portfolio_with_risk['portfolio_state']
+        risk_assessment = portfolio_with_risk['risk_assessment']
+
+        assert updated_portfolio.total_capital > initial_balance['USDC']
+        assert abs(risk_assessment.total_exposure) < Decimal('1000.00')  # Reasonable exposure
 
     async def test_risk_management_integration(self):
-        """Test risk management across all components."""
-        portfolio = await self.portfolio_tracker.get_current_portfolio()
+        """Test risk management across all components with clean boundaries."""
+        portfolio_with_risk = await self.coordinator.get_current_portfolio_with_risk_assessment()
 
-        # Test position size limits
-        large_signal = await self.strategy_orchestrator.generate_signal(
-            symbol='ETH-USD',
-            strategy_type='delta_neutral_arbitrage',
-            size_multiplier=10.0  # Intentionally oversized
-        )
+        # Test position size limits using coordinator (clean risk module integration)
+        large_trade_request = {
+            'symbol': 'ETH-USD',
+            'size': Decimal('100000.00'),  # Intentionally oversized
+            'direction': 'long'
+        }
 
-        risk_check = await self.risk_manager.validate_trade(
-            signal=large_signal,
-            portfolio=portfolio
-        )
+        risk_validation = await self.coordinator.validate_trade_request(large_trade_request)
 
-        assert not risk_check.approved
-        assert 'position_size' in risk_check.violations
+        assert not risk_validation['approved']
+        assert 'position_size' in risk_validation.get('risk_violations', [])
 
         # Test drawdown protection
         simulated_loss_portfolio = portfolio.model_copy()

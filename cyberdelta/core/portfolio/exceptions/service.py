@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Unpack
 
 from cyberdelta.core.portfolio.exceptions.base import PortfolioError
-from cyberdelta.core.portfolio.portfolio_types.exception_models import ServiceExceptionContext
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import ServiceExceptionContext
 
 
 if TYPE_CHECKING:

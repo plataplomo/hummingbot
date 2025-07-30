@@ -1,4 +1,4 @@
-"""Tests for the PortfolioOrchestrator service."""
+"""Tests for the PortfolioReconciliationService service."""
 
 from __future__ import annotations
 
@@ -23,12 +23,12 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
 )
-from cyberdelta.core.portfolio_orchestrator import PortfolioOrchestrator
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 
 
 class TestPortfolioOrchestrator:
-    """Test cases for PortfolioOrchestrator."""
+    """Test cases for PortfolioReconciliationService."""
 
     @pytest.fixture
     def app_settings(self) -> MagicMock:
@@ -46,9 +46,9 @@ class TestPortfolioOrchestrator:
         """Create mock portfolio tracker.
 
         Returns:
-            Mock PortfolioTracker instance with async methods configured.
+            Mock PortfolioStateManager instance with async methods configured.
         """
-        tracker = MagicMock(spec=PortfolioTracker)
+        tracker = MagicMock(spec=PortfolioStateManager)
         tracker.update_balances = AsyncMock()
         tracker.update_positions = AsyncMock()
         tracker.update_orders = AsyncMock()
@@ -90,15 +90,15 @@ class TestPortfolioOrchestrator:
         app_settings: MagicMock,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
-    ) -> PortfolioOrchestrator:
-        """Create PortfolioOrchestrator instance.
-
+    ) -> PortfolioReconciliationService:
+        """Create PortfolioReconciliationService instance.
+        
         Returns:
-            Configured PortfolioOrchestrator instance for testing.
+            Configured PortfolioReconciliationService instance for testing.
         """
         # Cast to the expected type for mypy
         api_clients = cast("dict[str, ExchangeAPI]", mock_api_clients)
-        return PortfolioOrchestrator(
+        return PortfolioReconciliationService(
             app_settings=app_settings,
             portfolio_tracker=portfolio_tracker,
             api_clients=api_clients,
@@ -106,7 +106,7 @@ class TestPortfolioOrchestrator:
 
     def test_init(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -119,7 +119,7 @@ class TestPortfolioOrchestrator:
 
     def test_register_api_client(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
     ) -> None:
         """Test registering an API client."""
         new_client = AsyncMock(spec=ExchangeAPI)
@@ -131,7 +131,7 @@ class TestPortfolioOrchestrator:
     @pytest.mark.asyncio
     async def test_fetch_and_update_balances_success(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -161,13 +161,13 @@ class TestPortfolioOrchestrator:
         # Verify
         assert result is True
         mock_api_clients["hyperliquid"].get_balances.assert_awaited_once()
-        portfolio_tracker.update_balances.assert_awaited_once_with("hyperliquid", mock_balances)
+        portfolio_state_manager.update_balances.assert_awaited_once_with("hyperliquid", mock_balances)
         assert "hyperliquid" in orchestrator.last_reconciliation_time
 
     @pytest.mark.asyncio
     async def test_fetch_and_update_balances_api_error(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -184,12 +184,12 @@ class TestPortfolioOrchestrator:
         # Verify the exception details
         assert "API Error" in str(exc_info.value)
         mock_api_clients["hyperliquid"].get_balances.assert_awaited_once()
-        portfolio_tracker.update_balances.assert_not_awaited()
+        portfolio_state_manager.update_balances.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_fetch_and_update_balances_no_client(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
     ) -> None:
         """Test balance fetching with no API client."""
@@ -198,12 +198,12 @@ class TestPortfolioOrchestrator:
 
         # Verify
         assert result is False
-        portfolio_tracker.update_balances.assert_not_awaited()
+        portfolio_state_manager.update_balances.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_fetch_and_update_positions_success(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -235,13 +235,13 @@ class TestPortfolioOrchestrator:
         # Verify
         assert result is True
         mock_api_clients["hyperliquid"].get_positions.assert_awaited_once()
-        portfolio_tracker.update_positions.assert_awaited_once_with("hyperliquid", mock_positions)
+        portfolio_state_manager.update_positions.assert_awaited_once_with("hyperliquid", mock_positions)
         assert "hyperliquid" in orchestrator.last_reconciliation_time
 
     @pytest.mark.asyncio
     async def test_fetch_and_update_orders_success(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -273,12 +273,12 @@ class TestPortfolioOrchestrator:
         # Verify
         assert result is True
         mock_api_clients["hyperliquid"].get_open_orders.assert_awaited_once()
-        portfolio_tracker.update_orders.assert_awaited_once_with("hyperliquid", mock_orders)
+        portfolio_state_manager.update_orders.assert_awaited_once_with("hyperliquid", mock_orders)
 
     @pytest.mark.asyncio
     async def test_fetch_and_update_account_summary_success(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -302,14 +302,14 @@ class TestPortfolioOrchestrator:
         # Verify
         assert result is True
         mock_api_clients["hyperliquid"].get_account_summary.assert_awaited_once()
-        portfolio_tracker.update_account_summary.assert_awaited_once_with(
+        portfolio_state_manager.update_account_summary.assert_awaited_once_with(
             "hyperliquid", mock_summary
         )
 
     @pytest.mark.asyncio
     async def test_fetch_ticker_data_success(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -330,14 +330,14 @@ class TestPortfolioOrchestrator:
         # Verify
         assert result == mock_ticker
         mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with("BTC-PERP")
-        portfolio_tracker.update_ticker_data.assert_awaited_once_with(
+        portfolio_state_manager.update_ticker_data.assert_awaited_once_with(
             "hyperliquid", "BTC-PERP", mock_ticker
         )
 
     @pytest.mark.asyncio
     async def test_orchestrate_full_reconciliation(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -371,7 +371,7 @@ class TestPortfolioOrchestrator:
     @pytest.mark.timing
     async def test_orchestrate_periodic_updates(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         portfolio_tracker: MagicMock,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
@@ -402,7 +402,7 @@ class TestPortfolioOrchestrator:
     @pytest.mark.timing
     def test_should_reconcile(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
     ) -> None:
         """Test reconciliation timing logic."""
         # Test exchange not in last_reconciliation_time
@@ -422,7 +422,7 @@ class TestPortfolioOrchestrator:
     @pytest.mark.timing
     async def test_shutdown(
         self,
-        orchestrator: PortfolioOrchestrator,
+        orchestrator: PortfolioReconciliationService,
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test orchestrator shutdown functionality by creating background tasks indirectly."""

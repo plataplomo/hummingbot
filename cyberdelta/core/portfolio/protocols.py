@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from cyberdelta.core.models import DerivativePosition, SpotBalance
 from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.portfolio.portfolio_types.portfolio_data_models import PortfolioState
-from cyberdelta.core.portfolio.portfolio_types.state_types import (
-    PortfolioSnapshot,
+from cyberdelta.core.portfolio.portfolio_types.models import PortfolioSnapshot, PortfolioState
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     StateUpdateResult,
     StateValidationResult,
 )

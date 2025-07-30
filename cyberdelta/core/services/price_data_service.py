@@ -26,7 +26,7 @@ class PriceDataService:
     """Specialized service for ticker data management and price conversions.
 
     This service handles all price-related data operations, providing a clean abstraction
-    for ticker data caching and price conversion logic. It complements the PortfolioTracker
+    for ticker data caching and price conversion logic. It complements the PortfolioStateManager
     by handling the volatile, frequently-updated price data separately from portfolio state.
 
     Key Responsibilities:
@@ -72,8 +72,8 @@ class PriceDataService:
         ```
 
     See Also:
-        - PortfolioTracker: Core state manager that uses price data for calculations
-        - PortfolioOrchestrator: Orchestration layer that coordinates data fetching
+        - PortfolioStateManager: Core state manager that uses price data for calculations
+        - Portfolio modular system: Modular architecture for portfolio management
         - Ticker: Data model representing ticker information
     """
 

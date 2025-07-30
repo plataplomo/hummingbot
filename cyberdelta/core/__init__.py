@@ -12,7 +12,7 @@ from .execution_handler import (
     SymbolMappingError,
 )
 from .models.execution import ExecutionStatus, TradeExecution
-from .portfolio_tracker import PortfolioTracker
+from .portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from .risk_manager import RiskManager
 from .signal_generator import SignalGenerator
 from .signal_queue import PrioritySignalQueue  # Correct name
@@ -28,7 +28,7 @@ __all__ = [
     "ExecutionStatus",
     "LongExchangeCircuitBreakerError",
     "MissingClientError",
-    "PortfolioTracker",
+    "PortfolioStateManager",
     "PrioritySignalQueue",
     "RiskManager",
     "ShortExchangeCircuitBreakerError",

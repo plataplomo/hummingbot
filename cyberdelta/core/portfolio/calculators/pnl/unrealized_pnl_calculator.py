@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.calculators.base.base_calculator import BaseCalculator
-from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
+from cyberdelta.core.portfolio.portfolio_types.calculations import (
     BreakdownMetrics,
     CalculationMetadata,
     PerformanceMetrics,
@@ -21,7 +21,7 @@ from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import DerivativePosition
-    from cyberdelta.core.portfolio.portfolio_types.service_protocols import PriceServiceProtocol
+    from cyberdelta.core.portfolio.portfolio_types.protocols import PriceServiceProtocol
 
 logger = get_logger(__name__)
 

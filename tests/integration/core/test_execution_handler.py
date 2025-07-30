@@ -28,7 +28,7 @@ from cyberdelta.core.models import (
     Trade,
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
@@ -180,9 +180,9 @@ class TestExecutionHandler:
         return cfg
 
     @pytest.fixture
-    def mock_portfolio_tracker(self) -> MagicMock:
+    def mock_portfolio_state_manager(self) -> MagicMock:
         """Return mock portfolio tracker for testing."""
-        tracker = MagicMock(spec=PortfolioTracker)
+        tracker = MagicMock(spec=PortfolioStateManager)
         tracker.update_order = MagicMock()
 
         # Add a side effect to process_trade for debugging
@@ -191,11 +191,11 @@ class TestExecutionHandler:
         def process_trade_side_effect(exchange_id: str, trade: Trade) -> None:
             """Process trade and log the call for testing portfolio tracker integration."""
             logger.debug(
-                "mock_portfolio_tracker_process_trade_called",
+                "mock_portfolio_state_manager_process_trade_called",
                 exchange_id=exchange_id,
                 trade_repr=repr(trade),
                 message=(
-                    f"mock_portfolio_tracker.process_trade called with: {exchange_id}, {trade!r}"
+                    f"mock_portfolio_state_manager.process_trade called with: {exchange_id}, {trade!r}"
                 ),
             )
             process_trade_call_tracker.append((exchange_id, trade))
@@ -281,7 +281,7 @@ class TestExecutionHandler:
     def execution_handler(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_symbol_service: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_hl_api: AsyncMock,
@@ -294,7 +294,7 @@ class TestExecutionHandler:
         """
         handler = ExecutionHandler(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker_system,
         )
@@ -306,7 +306,7 @@ class TestExecutionHandler:
     def testable_execution_handler(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_symbol_service: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_hl_api: AsyncMock,
@@ -319,7 +319,7 @@ class TestExecutionHandler:
         """
         handler = TestableExecutionHandler(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_service=mock_symbol_service,
             circuit_breaker_system=mock_circuit_breaker_system,
         )
@@ -556,7 +556,7 @@ class TestExecutionHandler:
         self,
         testable_execution_handler: TestableExecutionHandler,
         mock_hl_api: AsyncMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         sized_opportunity: SizedOpportunity,
         mock_symbol_service: MagicMock,
         mock_config: MagicMock,
@@ -632,7 +632,7 @@ class TestExecutionHandler:
             strategy_name=None,
             signal_id=None,
         )
-        mock_portfolio_tracker.get_order.return_value = original_filled_order
+        mock_portfolio_state_manager.get_order.return_value = original_filled_order
 
         with patch.object(
             testable_execution_handler,
@@ -666,7 +666,7 @@ class TestExecutionHandler:
         mock_hl_api: AsyncMock,
         mock_symbol_service: MagicMock,
         sized_opportunity: SizedOpportunity,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
     ) -> None:
         """Test compensation failure due to API error during placement."""
         mock_hl_api.get_ticker.return_value = Ticker(
@@ -709,7 +709,7 @@ class TestExecutionHandler:
             hl_details=None,
             bp_details=None,
         )
-        mock_portfolio_tracker.get_order.return_value = original_filled_order
+        mock_portfolio_state_manager.get_order.return_value = original_filled_order
 
         # Define an async side_effect function that raises the APIError
         def async_api_error_side_effect(*_args: object, **_kwargs: object) -> None:
@@ -1011,7 +1011,7 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_config: MagicMock,
     ) -> None:
@@ -1065,7 +1065,7 @@ class TestExecutionHandler:
         assert mock_place_retry_patcher.call_count == 2
 
         # Verify that the correct methods were called
-        assert len(mock_portfolio_tracker.process_trade_call_tracker) == 2
+        assert len(mock_portfolio_state_manager.process_trade_call_tracker) == 2
 
     def _setup_failed_order_config(self) -> dict[str, object]:
         """Setup configuration for failed order test.
@@ -1090,7 +1090,7 @@ class TestExecutionHandler:
         sized_opportunity: SizedOpportunity,
         mock_hl_api: AsyncMock,
         mock_bp_api: AsyncMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_symbol_service: MagicMock,
         mock_config: MagicMock,
@@ -1105,7 +1105,7 @@ class TestExecutionHandler:
         # Configure mock_config to have a .get method
         mock_config.get = MagicMock(side_effect=config_get)
 
-        mock_portfolio_tracker.get_position.return_value = None
+        mock_portfolio_state_manager.get_position.return_value = None
 
         # TODO: Implement helper methods for test setup
         # For now, create minimal test objects

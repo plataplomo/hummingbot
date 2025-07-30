@@ -13,7 +13,7 @@ import pytest
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.models.funding_strategy_models import StrategyParamsHLPerpBPSpot
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.strategies.factory.strategy_factory import (
     StrategyCreationError,
@@ -165,12 +165,12 @@ class TestValidateStrategyEnabled:
             # This will internally call _validate_strategy_enabled
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
         except (ValueError, AttributeError, KeyError, TypeError) as e:
             # Should not fail due to validation if strategy is enabled
@@ -196,12 +196,12 @@ class TestValidateStrategyEnabled:
         try:
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
         except (ValueError, AttributeError, KeyError, TypeError) as e:
             # Strategy type validation is internal - verify it doesn't fail on validation
@@ -225,12 +225,12 @@ class TestValidateStrategyEnabled:
         with pytest.raises(StrategyCreationError) as exc_info:
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
         # Verify the error is about the strategy being disabled
@@ -282,13 +282,13 @@ class TestCreateHLPerpBPSpotStrategy:
         return Mock(spec=DataHandler)
 
     @pytest.fixture
-    def mock_portfolio_tracker(self) -> Mock:
+    def mock_portfolio_state_manager(self) -> Mock:
         """Create a mock portfolio tracker.
 
         Returns:
-            Mock: Mock PortfolioTracker instance for testing strategy creation.
+            Mock: Mock PortfolioStateManager instance for testing strategy creation.
         """
-        return Mock(spec=PortfolioTracker)
+        return Mock(spec=PortfolioStateManager)
 
     @pytest.fixture
     def mock_risk_manager(self) -> Mock:
@@ -305,7 +305,7 @@ class TestCreateHLPerpBPSpotStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
     ) -> None:
         """Test successful strategy creation with risk manager."""
@@ -329,7 +329,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 risk_manager=mock_risk_manager,
             )
 
@@ -339,7 +339,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 risk_manager=mock_risk_manager,
                 params={"param": "value"},
             )
@@ -348,7 +348,7 @@ class TestCreateHLPerpBPSpotStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test successful strategy creation without risk manager."""
         # Arrange
@@ -371,7 +371,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 risk_manager=None,
             )
 
@@ -381,7 +381,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 risk_manager=None,
                 params={"param": "value"},
             )
@@ -392,7 +392,7 @@ class TestCreateHLPerpBPSpotStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation with empty name."""
         # Arrange
@@ -415,7 +415,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
             # Assert
@@ -425,7 +425,7 @@ class TestCreateHLPerpBPSpotStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation with special characters in name."""
         # Arrange
@@ -448,7 +448,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
             # Assert
@@ -459,7 +459,7 @@ class TestCreateHLPerpBPSpotStrategy:
     def test_create_hl_perp_bp_spot_strategy_failure_disabled_strategy(
         self,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation failure with disabled strategy."""
         # Arrange
@@ -478,7 +478,7 @@ class TestCreateHLPerpBPSpotStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
         assert "strategy is disabled in configuration" in str(exc_info.value)
@@ -487,7 +487,7 @@ class TestCreateHLPerpBPSpotStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation failure when strategy class raises exception."""
         # Arrange
@@ -510,7 +510,7 @@ class TestCreateHLPerpBPSpotStrategy:
                     name=name,
                     symbol=symbol,
                     data_handler=mock_data_handler,
-                    portfolio_tracker=mock_portfolio_tracker,
+                    portfolio_tracker=mock_portfolio_state_manager,
                 )
 
             assert "Failed to create HL Perp BP Spot strategy" in str(exc_info.value)
@@ -552,13 +552,13 @@ class TestCreateStrategy:
         return Mock(spec=DataHandler)
 
     @pytest.fixture
-    def mock_portfolio_tracker(self) -> Mock:
+    def mock_portfolio_state_manager(self) -> Mock:
         """Create a mock portfolio tracker.
 
         Returns:
-            Mock: Mock PortfolioTracker instance for testing strategy creation.
+            Mock: Mock PortfolioStateManager instance for testing strategy creation.
         """
-        return Mock(spec=PortfolioTracker)
+        return Mock(spec=PortfolioStateManager)
 
     @pytest.fixture
     def mock_risk_manager(self) -> Mock:
@@ -575,7 +575,7 @@ class TestCreateStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
     ) -> None:
         """Test successful strategy creation for hl_perp_bp_spot type."""
@@ -594,7 +594,7 @@ class TestCreateStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 risk_manager=mock_risk_manager,
             )
 
@@ -604,7 +604,7 @@ class TestCreateStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
                 risk_manager=mock_risk_manager,
             )
 
@@ -614,7 +614,7 @@ class TestCreateStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation with case variations."""
         # Arrange - Test case sensitivity
@@ -629,7 +629,7 @@ class TestCreateStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
         assert "Unknown strategy type" in str(exc_info.value)
@@ -640,7 +640,7 @@ class TestCreateStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation failure with unknown strategy type."""
         # Arrange
@@ -655,7 +655,7 @@ class TestCreateStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
         assert "Unknown strategy type" in str(exc_info.value)
@@ -665,7 +665,7 @@ class TestCreateStrategy:
         self,
         factory: StrategyFactory,
         mock_data_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test strategy creation failure with empty strategy type."""
         # Arrange
@@ -680,7 +680,7 @@ class TestCreateStrategy:
                 name=name,
                 symbol=symbol,
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
         assert "Unknown strategy type" in str(exc_info.value)
@@ -740,12 +740,12 @@ class TestConvertStrategyParamsToDict:
 
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
             # Verify strategy was created with converted parameters
@@ -789,12 +789,12 @@ class TestConvertStrategyParamsToDict:
 
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
             # Verify strategy was created with converted parameters
@@ -833,12 +833,12 @@ class TestConvertStrategyParamsToDict:
 
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
             # Verify strategy was created with empty parameters
@@ -878,12 +878,12 @@ class TestConvertStrategyParamsToDict:
 
             # We need to provide mock dependencies for the test
             mock_data_handler = Mock()
-            mock_portfolio_tracker = Mock()
+            mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
                 symbol="BTC",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
             # Verify strategy was created with converted parameters
@@ -1186,12 +1186,12 @@ def test_convert_strategy_params_parametrized(
 
         # We need to provide mock dependencies for the test
         mock_data_handler = Mock()
-        mock_portfolio_tracker = Mock()
+        mock_portfolio_state_manager = Mock()
         result = factory.create_hl_perp_bp_spot_strategy(
             name="test",
             symbol="BTC",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Verify strategy was created with converted parameters
@@ -1251,7 +1251,7 @@ class TestStrategyFactoryIntegration:
         """
         return {
             "data_handler": Mock(spec=DataHandler),
-            "portfolio_tracker": Mock(spec=PortfolioTracker),
+            "portfolio_tracker": Mock(spec=PortfolioStateManager),
             "risk_manager": Mock(spec=RiskManager),
         }
 

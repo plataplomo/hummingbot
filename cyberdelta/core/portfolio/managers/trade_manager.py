@@ -14,7 +14,7 @@ from cyberdelta.core.portfolio.base.typed_state_manager import (
     StateManagerMetadata,
     StateManagerResult,
 )
-from cyberdelta.core.portfolio.portfolio_types.state_types import StateValidationResult
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import StateValidationResult
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -66,6 +66,9 @@ class TradeManager(TypedStateManager[TradeState]):
         # Configuration from AppSettings
         self.max_trade_history = self.portfolio_config.state.max_trade_history_size
         self.strict_validation = self.portfolio_config.validation.strict_mode
+        
+        # In-memory trade history storage (production should use persistent storage)
+        self._trade_history: list[Trade] = []
 
         self.logger.info(
             "trade_manager_created",
@@ -79,9 +82,8 @@ class TradeManager(TypedStateManager[TradeState]):
         Returns:
             Current trade state
         """
-        # Trade state is not directly available from state container
-        # Return empty list for now as trade history is not persisted in state container
-        return []
+        # Return copy to prevent external modification
+        return self._trade_history.copy()
 
     async def update_state(self, update: StateUpdate[TradeState]) -> StateManagerResult:
         """Update trade state.
@@ -93,7 +95,17 @@ class TradeManager(TypedStateManager[TradeState]):
             Update result
         """
         try:
-            # For each trade in the update, add it via the state container
+            # Replace current trade history with update data
+            self._trade_history = update.data.copy()
+            
+            # Trim if exceeds maximum
+            if len(self._trade_history) > self.max_trade_history:
+                self._trade_history = self._trade_history[-self.max_trade_history:]
+            
+            # Sort by execution time for consistent ordering
+            self._trade_history.sort(key=lambda t: t.executed_at)
+
+            # For each trade in the update, also add it via the state container
             for trade in update.data:
                 # Get exchange from trade object using type-safe field access
                 exchange_str = self._get_trade_exchange(trade)
@@ -120,8 +132,8 @@ class TradeManager(TypedStateManager[TradeState]):
                     )
 
             return StateManagerResult.success_result(
-                message="Trade state updated",
-                data=update.data,
+                message=f"Trade state updated with {len(self._trade_history)} trades",
+                data=self._trade_history,
             )
 
         except (ValueError, TypeError, AttributeError, KeyError) as e:
@@ -207,35 +219,45 @@ class TradeManager(TypedStateManager[TradeState]):
             Update result
         """
         try:
-            # Get current trade history
-            current_trades = await self.get_state()
-
-            # Add new trade
-            updated_trades = [*current_trades, trade]
+            # Add trade to in-memory storage
+            self._trade_history.append(trade)
+            
+            # Sort by execution time to maintain chronological order
+            self._trade_history.sort(key=lambda t: t.executed_at)
 
             # Trim if exceeds maximum
-            if len(updated_trades) > self.max_trade_history:
-                updated_trades = updated_trades[-self.max_trade_history :]
+            if len(self._trade_history) > self.max_trade_history:
+                self._trade_history = self._trade_history[-self.max_trade_history:]
 
-            # Create state update
-            update = StateUpdate(
-                data=updated_trades,
-                timestamp=datetime.now(UTC),
-                source=f"add_trade_{trade.id}",
-                metadata=StateManagerMetadata(
-                    operation_type="add_trade",
-                    source=f"add_trade_{trade.id}",
-                    timestamp=time.time(),
-                    additional_data={
-                        "trade_id": trade.id,
-                        "exchange": trade.exchange,
-                        "symbol": str(trade.symbol),
-                    },
-                ),
+            # Also add to state container
+            try:
+                exchange = ExchangeName(trade.exchange)
+                self.state_container.add_trade(exchange, trade)
+            except (ValueError, AttributeError):
+                logger.warning(
+                    "trade_exchange_conversion_failed_in_add",
+                    trade_exchange=trade.exchange,
+                    trade_id=trade.id,
+                )
+
+            # Record metrics if available
+            if self.metrics_collector:
+                self.metrics_collector.record_state_update(
+                    "trade_history_add", trade.exchange, "completed"
+                )
+
+            self.logger.info(
+                "trade_added_successfully",
+                trade_id=trade.id,
+                symbol=trade.symbol,
+                exchange=trade.exchange,
+                total_trades=len(self._trade_history)
             )
 
-            # Apply update with validation
-            return await self.update_with_validation(update)
+            return StateManagerResult.success_result(
+                message=f"Trade {trade.id} added successfully. Total trades: {len(self._trade_history)}",
+                data=[trade],
+            )
 
         except (ValueError, TypeError, AttributeError, KeyError) as e:
             self.logger.exception("add_trade_failed", trade_id=trade.id)
@@ -254,8 +276,7 @@ class TradeManager(TypedStateManager[TradeState]):
             List of trades for the exchange
         """
         try:
-            all_trades = await self.get_state()
-            return [trade for trade in all_trades if trade.exchange == exchange]
+            return [trade for trade in self._trade_history if trade.exchange == exchange.value]
         except Exception:
             self.logger.exception("get_trades_by_exchange_failed", exchange=exchange)
             return []
@@ -270,8 +291,7 @@ class TradeManager(TypedStateManager[TradeState]):
             List of trades for the symbol
         """
         try:
-            all_trades = await self.get_state()
-            return [trade for trade in all_trades if trade.symbol == symbol]
+            return [trade for trade in self._trade_history if trade.symbol == symbol]
         except Exception:
             self.logger.exception("get_trades_by_symbol_failed", symbol=symbol)
             return []
@@ -286,9 +306,8 @@ class TradeManager(TypedStateManager[TradeState]):
             List of recent trades
         """
         try:
-            all_trades = await self.get_state()
             # Sort by executed_at (newest first) and limit
-            sorted_trades = sorted(all_trades, key=lambda t: t.executed_at, reverse=True)
+            sorted_trades = sorted(self._trade_history, key=lambda t: t.executed_at, reverse=True)
             return sorted_trades[:limit]
         except Exception:
             self.logger.exception("get_recent_trades_failed", limit=limit)
@@ -301,9 +320,7 @@ class TradeManager(TypedStateManager[TradeState]):
             Dictionary with trade history statistics
         """
         try:
-            all_trades = await self.get_state()
-
-            if not all_trades:
+            if not self._trade_history:
                 return {
                     "total_trades": 0,
                     "exchanges": [],
@@ -312,12 +329,12 @@ class TradeManager(TypedStateManager[TradeState]):
                     "latest_trade": None,
                 }
 
-            exchanges = {trade.exchange for trade in all_trades}
-            symbols = {trade.symbol for trade in all_trades}
-            timestamps = [trade.executed_at for trade in all_trades]
+            exchanges = {trade.exchange for trade in self._trade_history}
+            symbols = {trade.symbol for trade in self._trade_history}
+            timestamps = [trade.executed_at for trade in self._trade_history]
 
             return {
-                "total_trades": len(all_trades),
+                "total_trades": len(self._trade_history),
                 "exchanges": list(exchanges),
                 "symbols": list(symbols),
                 "exchange_count": len(exchanges),
@@ -347,35 +364,33 @@ class TradeManager(TypedStateManager[TradeState]):
         keep_count = keep_count or self.max_trade_history
 
         try:
-            all_trades = await self.get_state()
-
-            if len(all_trades) <= keep_count:
+            if len(self._trade_history) <= keep_count:
                 return StateManagerResult.success_result(
-                    message=f"No trades to clear, current count: {len(all_trades)}"
+                    message=f"No trades to clear, current count: {len(self._trade_history)}"
                 )
 
+            original_count = len(self._trade_history)
+            
             # Keep only the most recent trades
-            sorted_trades = sorted(all_trades, key=lambda t: t.executed_at, reverse=True)
-            trimmed_trades = sorted_trades[:keep_count]
+            sorted_trades = sorted(self._trade_history, key=lambda t: t.executed_at, reverse=True)
+            self._trade_history = sorted_trades[:keep_count]
+            
+            # Sort back to chronological order
+            self._trade_history.sort(key=lambda t: t.executed_at)
 
-            # Create state update
-            update = StateUpdate(
-                data=trimmed_trades,
-                timestamp=datetime.now(UTC),
-                source="clear_old_trades",
-                metadata=StateManagerMetadata(
-                    operation_type="clear_old_trades",
-                    source="clear_old_trades",
-                    timestamp=time.time(),
-                    additional_data={
-                        "original_count": str(len(all_trades)),
-                        "new_count": str(len(trimmed_trades)),
-                        "removed_count": str(len(all_trades) - len(trimmed_trades)),
-                    },
-                ),
+            removed_count = original_count - len(self._trade_history)
+            
+            self.logger.info(
+                "trades_cleared",
+                original_count=original_count,
+                new_count=len(self._trade_history),
+                removed_count=removed_count
             )
 
-            return await self.update_with_validation(update)
+            return StateManagerResult.success_result(
+                message=f"Cleared {removed_count} old trades. Kept {len(self._trade_history)} recent trades.",
+                data=self._trade_history,
+            )
 
         except (ValueError, TypeError, AttributeError, KeyError) as e:
             self.logger.exception("clear_old_trades_failed")

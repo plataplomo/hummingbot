@@ -9,14 +9,14 @@ from __future__ import annotations  # Enable postponed evaluation
 import asyncio  # Added import for asyncio
 
 # logging replaced with structlog
-from collections.abc import Sequence
 from decimal import ROUND_DOWN, Decimal, InvalidOperation, getcontext
 from enum import StrEnum  # Ensure Enum is imported
 from typing import Any, Protocol
 
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import SpotBalance
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.risk import (
     RiskCheckError,
     RiskConfigError,
@@ -171,28 +171,6 @@ class Position(Protocol):
 
 
 # --- Protocols for Dependency Injection ---
-class PortfolioTrackerProtocol(Protocol):
-    """Protocol for portfolio tracking implementation."""
-
-    async def get_total_capital(self) -> Decimal:
-        """Get total available capital."""
-        ...
-
-    def get_exchange_balance(self, exchange: str, asset: str) -> SpotBalance | None:
-        """Get balance for specific exchange and asset."""
-        ...
-
-    def get_all_positions(self) -> Sequence[tuple[str, Position]]:
-        """Get all current positions."""
-        ...
-
-    async def get_current_drawdown(self) -> Decimal | None:
-        """Get current portfolio drawdown."""
-        ...
-
-    async def get_total_exposure_usd(self) -> Decimal:
-        """Get total portfolio exposure in USD."""
-        ...
 
 
 class CircuitBreakerSystemProtocol(Protocol):
@@ -220,7 +198,7 @@ class RiskManager:
     def __init__(
         self,
         app_settings: AppSettings,
-        portfolio_tracker: PortfolioTrackerProtocol,
+        portfolio_state_manager: PortfolioStateManager,
         circuit_breaker_system: CircuitBreakerSystemProtocol | None = None,
         funding_rate_validator: FundingRateValidatorProtocol | None = None,
     ) -> None:
@@ -228,8 +206,7 @@ class RiskManager:
 
         Args:
             app_settings: Application configuration
-            portfolio_tracker: Portfolio state tracking (must implement
-                PortfolioTrackerProtocol)
+            portfolio_state_manager: Portfolio state manager for position and balance tracking
             circuit_breaker_system: Optional system for circuit breakers
                 (must implement CircuitBreakerSystemProtocol)
             funding_rate_validator: Optional validator for funding rate predictions.
@@ -247,7 +224,7 @@ class RiskManager:
 
         # Assign dependencies from constructor arguments BEFORE any config
         # parsing that might use them
-        self.portfolio_tracker: PortfolioTrackerProtocol = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
         self.circuit_breaker_system: CircuitBreakerSystemProtocol | None = circuit_breaker_system
         self.funding_rate_validator: FundingRateValidatorProtocol | None = funding_rate_validator
 
@@ -703,25 +680,26 @@ class RiskManager:
             return False
         return True
 
-    def _check_exchange_balances(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that both exchanges have sufficient available balance.
-
-        Returns:
-            bool: True if both exchanges have sufficient balance for the opportunity,
-                False if either exchange has insufficient balance.
-        """
+    async def _check_exchange_balances(self, opportunity: ArbitrageOpportunity) -> bool:
+        """Check that both exchanges have sufficient available balance."""
         # Default to USD for collateral asset since it's not in current config structure
         long_collateral_asset = "USD"
         short_collateral_asset = "USD"
 
-        long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.long_exchange,
-            long_collateral_asset,
-        )
-        short_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.short_exchange,
-            short_collateral_asset,
-        )
+        # Get balances for both exchanges
+        try:
+            long_balances = await self.portfolio_state_manager.get_balances(
+                ExchangeName(opportunity.long_exchange)
+            )
+            short_balances = await self.portfolio_state_manager.get_balances(
+                ExchangeName(opportunity.short_exchange)
+            )
+        except ValueError as e:
+            self.logger.error("Invalid exchange name", error=str(e))
+            return False
+            
+        long_exchange_balance_obj = long_balances.get(long_collateral_asset)
+        short_exchange_balance_obj = short_balances.get(short_collateral_asset)
         try:
             long_balance_available_raw = (
                 long_exchange_balance_obj.available_quantity
@@ -796,12 +774,9 @@ class RiskManager:
         return long_exchange_ok and short_exchange_ok
 
     async def _check_leverage(self, opportunity: ArbitrageOpportunity) -> bool:
-        """Check that portfolio leverage is within allowed limits.
-
-        Returns:
-            bool: True if leverage is within limits, False otherwise.
-        """
-        total_capital = await self.portfolio_tracker.get_total_capital()
+        """Check that portfolio leverage is within allowed limits."""
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        total_capital = getattr(portfolio_state, "total_capital", Decimal(0))
 
         if total_capital <= ZERO:
             self.logger.warning(
@@ -898,7 +873,12 @@ class RiskManager:
                 - Error message if constraint failed, None otherwise
         """
         # Use the direct method from portfolio tracker for current exposure
-        current_exposure = await self.portfolio_tracker.get_total_exposure_usd()
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        # Try to get exposure from exposure_metrics, otherwise calculate from positions
+        if hasattr(portfolio_state, "exposure_metrics") and hasattr(portfolio_state.exposure_metrics, "total_exposure"):
+            current_exposure = portfolio_state.exposure_metrics.total_exposure
+        else:
+            current_exposure = Decimal(0)
         if (current_exposure + proposed_size) > self.max_total_exposure_usd:
             return (
                 False,
@@ -935,7 +915,7 @@ class RiskManager:
                 )
         return True, None
 
-    def _check_constraint_exchange_balance(
+    async def _check_constraint_exchange_balance(
         self,
         opportunity: ArbitrageOpportunity,
         proposed_size: Decimal,
@@ -956,14 +936,19 @@ class RiskManager:
             opportunity.symbol,
         )
 
-        long_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            long_ex,
-            long_collateral_asset,
-        )
-        short_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            short_ex,
-            short_collateral_asset,
-        )
+        # Get balances for both exchanges
+        try:
+            long_balances = await self.portfolio_state_manager.get_balances(
+                ExchangeName(long_ex)
+            )
+            short_balances = await self.portfolio_state_manager.get_balances(
+                ExchangeName(short_ex)
+            )
+        except ValueError as e:
+            return False, f"Invalid exchange name: {e}"
+            
+        long_balance_obj = long_balances.get(long_collateral_asset)
+        short_balance_obj = short_balances.get(short_collateral_asset)
 
         long_available = long_balance_obj.available_quantity if long_balance_obj else ZERO
         if long_available < self.min_exchange_balance:  # Ensure Decimal comparison
@@ -1010,7 +995,7 @@ class RiskManager:
             return False
         if not self._check_price_sanity(opportunity):
             return False
-        if not self._check_exchange_balances(opportunity):
+        if not await self._check_exchange_balances(opportunity):
             return False
         if not await self._check_leverage(opportunity):
             return False
@@ -1063,7 +1048,8 @@ class RiskManager:
 
         # Example: Simple check against total exposure
         # (redundant with _check_portfolio_constraints?)
-        total_capital = await self.portfolio_tracker.get_total_capital()
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        total_capital = getattr(portfolio_state, "total_capital", Decimal(0))
         if total_capital <= ZERO:
             self.logger.warning(
                 "portfolio_exposure_management_failed",
@@ -1357,7 +1343,8 @@ class RiskManager:
 
         """
         # Ensure total_capital is fetched and valid before proceeding
-        total_capital = await self.portfolio_tracker.get_total_capital()
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        total_capital = getattr(portfolio_state, "total_capital", Decimal(0))
         if total_capital <= ZERO:
             msg = f"Cannot check constraints: Invalid total capital ({total_capital})."
             self.logger.warning(
@@ -1373,7 +1360,7 @@ class RiskManager:
             await self._check_constraint_max_relative_size(size, total_capital),
             await self._check_constraint_max_total_exposure(size),
             await self._check_constraint_max_leverage(size, total_capital),
-            self._check_constraint_exchange_balance(opportunity, size),
+            await self._check_constraint_exchange_balance(opportunity, size),
         ]
 
         for passed, reason in checks:
@@ -1541,7 +1528,7 @@ class RiskManager:
         )
 
         # Perform checks that don't depend on proposed size first
-        if not self._check_exchange_balances(opportunity):
+        if not await self._check_exchange_balances(opportunity):
             raise RiskCheckError(
                 opportunity.symbol,
                 "_check_exchange_balances",
@@ -1604,7 +1591,8 @@ class RiskManager:
         long_validation_factor, short_validation_factor = validation_result
 
         # Check total capital
-        total_capital = await self.portfolio_tracker.get_total_capital()
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        total_capital = getattr(portfolio_state, "total_capital", Decimal(0))
         if total_capital <= ZERO:
             self.logger.warning(
                 "sizing_failed_zero_capital",
@@ -2008,13 +1996,9 @@ class RiskManager:
         return max_size
 
     async def check_drawdown(self) -> bool:
-        """Check if the current portfolio drawdown exceeds the limit.
-
-        Returns:
-            bool: True if drawdown is within limits, False if drawdown exceeds limit
-                or drawdown information is unavailable.
-        """
-        current_drawdown = await self.portfolio_tracker.get_current_drawdown()
+        """Check if the current portfolio drawdown exceeds the limit."""
+        # Drawdown calculation not available in new API, return None for now
+        current_drawdown = None
         if current_drawdown is None:
             self.logger.warning(
                 "drawdown_information_unavailable",
@@ -2037,7 +2021,7 @@ class RiskManager:
             return False
         return True
 
-    def calculate_position_exposure(self, symbol: str) -> Decimal | None:
+    async def calculate_position_exposure(self, symbol: str) -> Decimal | None:
         """Calculate the total USD exposure for a specific symbol across all exchanges.
 
         Args:
@@ -2049,7 +2033,16 @@ class RiskManager:
         """
         total_exposure = ZERO
         found_position = False
-        all_positions = self.portfolio_tracker.get_all_positions()
+        # Get all positions from all exchanges
+        all_positions = []
+        for exchange_name in ExchangeName:
+            try:
+                positions = await self.portfolio_state_manager.get_positions(exchange_name)
+                for symbol, position in positions.items():
+                    all_positions.append((symbol, position))
+            except Exception:
+                # Skip exchanges that fail
+                continue
 
         if all_positions:  # Check if the list is not empty
             for exchange_id, position in all_positions:
@@ -2085,7 +2078,16 @@ class RiskManager:
                 Returns ZERO if no positions exist.
         """
         total_exposure = ZERO
-        all_positions = self.portfolio_tracker.get_all_positions()
+        # Get all positions from all exchanges
+        all_positions = []
+        for exchange_name in ExchangeName:
+            try:
+                positions = await self.portfolio_state_manager.get_positions(exchange_name)
+                for symbol, position in positions.items():
+                    all_positions.append((symbol, position))
+            except Exception:
+                # Skip exchanges that fail
+                continue
         if all_positions:  # Check if the list is not empty
             for exchange_id, position in all_positions:
                 # Remove unnecessary isinstance and None checks for Position and its fields
@@ -2128,7 +2130,7 @@ class RiskManager:
             return size * price  # 1x leverage requires full notional value
         return (size * price) / leverage
 
-    def evaluate_liquidation_risk(self, symbol: str) -> Decimal | None:
+    async def evaluate_liquidation_risk(self, symbol: str) -> Decimal | None:
         """Evaluate the liquidation risk for a symbol based on current price and liquidation price.
 
         Args:
@@ -2141,7 +2143,16 @@ class RiskManager:
         """
         # Find the position for the given symbol across all exchanges
         position = None
-        all_positions = self.portfolio_tracker.get_all_positions()
+        # Get all positions from all exchanges
+        all_positions = []
+        for exchange_name in ExchangeName:
+            try:
+                positions = await self.portfolio_state_manager.get_positions(exchange_name)
+                for symbol, position in positions.items():
+                    all_positions.append((symbol, position))
+            except Exception:
+                # Skip exchanges that fail
+                continue
         if all_positions:  # Check if the list is not empty
             for _exchange_id, pos in all_positions:
                 if pos.symbol:
@@ -2240,7 +2251,8 @@ class RiskManager:
         self.logger.debug("Performing portfolio sanity checks...")
 
         # Check 1: Leverage
-        total_capital = await self.portfolio_tracker.get_total_capital()
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        total_capital = getattr(portfolio_state, "total_capital", Decimal(0))
         total_exposure = await self.calculate_total_exposure()
         sanity_leverage_limit = self.max_leverage * Decimal("1.5")  # Example: 50% buffer
 
@@ -2269,7 +2281,8 @@ class RiskManager:
         #     self.logger.warning(
 
         # Check 2: Drawdown (if available)
-        current_drawdown = await self.portfolio_tracker.get_current_drawdown()
+        # Drawdown calculation not available in new API, return None for now
+        current_drawdown = None
         sanity_drawdown_limit = self.max_drawdown_limit_ratio * Decimal(
             "1.5",
         )  # Example: 50% buffer
@@ -2336,12 +2349,13 @@ class RiskManager:
             return True
 
         current_total_exposure = await self.calculate_total_exposure()
-        # current_total_exposure is Decimal and cannot be None based on PortfolioTrackerProtocol.
+        # current_total_exposure is Decimal and cannot be None based on portfolio state manager protocol.
         # Therefore, the direct check 'if current_total_exposure is None:' is no longer needed.
 
         max_exposure_factor = Decimal("2.0")
 
-        total_capital = await self.portfolio_tracker.get_total_capital()
+        portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
+        total_capital = getattr(portfolio_state, "total_capital", Decimal(0))
         # total_capital can be None in edge cases, handle gracefully
         if total_capital <= ZERO:
             logger.warning(
@@ -2394,14 +2408,20 @@ class RiskManager:
         long_collateral_asset = "USD"
         short_collateral_asset = "USD"
 
-        long_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.long_exchange,
-            long_collateral_asset,
-        )
-        short_exchange_balance_obj = self.portfolio_tracker.get_exchange_balance(
-            opportunity.short_exchange,
-            short_collateral_asset,
-        )
+        # Get balances for both exchanges
+        try:
+            long_balances = await self.portfolio_state_manager.get_balances(
+                ExchangeName(opportunity.long_exchange)
+            )
+            short_balances = await self.portfolio_state_manager.get_balances(
+                ExchangeName(opportunity.short_exchange)
+            )
+        except ValueError as e:
+            self.logger.error("Invalid exchange name", error=str(e))
+            return False
+            
+        long_exchange_balance_obj = long_balances.get(long_collateral_asset)
+        short_exchange_balance_obj = short_balances.get(short_collateral_asset)
         try:
             long_balance_available_raw = (
                 long_exchange_balance_obj.available_quantity

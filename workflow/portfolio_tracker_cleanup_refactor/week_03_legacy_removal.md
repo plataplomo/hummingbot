@@ -7,7 +7,12 @@
 
 ## Overview
 
-After Weeks 1-2 established clean type system and focused services, Week 3 eliminates the legacy monolithic components completely. The 2,600+ line PortfolioTracker and 610-line PortfolioOrchestrator will be removed and replaced with the modular system.
+After Weeks 1-2 established clean type system and focused services, Week 3 eliminates the legacy monolithic components completely. The 2,726-line PortfolioTracker and 609-line PortfolioOrchestrator will be removed and replaced with the modular system.
+
+**Research Findings:**
+- **54 direct dependencies** on legacy components across core module
+- **10+ production components** require migration to modular system
+- **3,335 total lines** of legacy code to be removed
 
 **Clean Break Strategy:**
 - ❌ No adapters or compatibility wrappers
@@ -22,8 +27,8 @@ After Weeks 1-2 established clean type system and focused services, Week 3 elimi
 ```mermaid
 graph TB
     subgraph "Legacy Components (REMOVE)"
-        PT[portfolio_tracker.py<br/>2,600+ lines<br/>27,380+ tokens]
-        PO[portfolio_orchestrator.py<br/>610 lines<br/>API coordination]
+        PT[portfolio_tracker.py<br/>2,726 lines<br/>54 dependencies]
+        PO[portfolio_orchestrator.py<br/>609 lines<br/>API coordination]
 
         PT -->|monolithic state| DB[(Legacy State)]
         PO -->|orchestrates| PT
@@ -111,13 +116,15 @@ legacy_imports = {
   replacement_plan = {
       "Engine": {
           "current": "PortfolioTracker direct usage",
-          "replacement": "PortfolioStateManager via ServiceFactory",
-          "breaking_changes": ["Method signatures", "Return types", "Error handling"]
+          "replacement": "PortfolioStateManager + RiskServiceFactory integration",
+          "breaking_changes": ["Method signatures", "Return types", "Error handling"],
+          "new_dependencies": ["RiskServiceFactory for exposure/sizing", "Clean portfolio/risk separation"]
       },
       "StrategyManager": {
           "current": "PortfolioTracker state queries",
-          "replacement": "PerformanceAnalyticsService + RiskAnalyticsService",
-          "breaking_changes": ["Async methods", "Pydantic models", "Exception types"]
+          "replacement": "PerformanceAnalyticsService + RiskServiceFactory integration",
+          "breaking_changes": ["Async methods", "Pydantic models", "Exception types"],
+          "architecture_change": "Risk calculations now properly separated from portfolio state"
       },
       "ExecutionHandler": {
           "current": "PortfolioTracker position updates",
@@ -141,24 +148,59 @@ legacy_imports = {
       async def get_portfolio_capital(self) -> Decimal:
           return await self.portfolio.get_total_capital()
 
-  # AFTER: Engine using modular system
+  # AFTER: Engine using modular system with clean portfolio/risk separation
+  from __future__ import annotations
+
+  from decimal import Decimal
+  from typing import Any
+
+  from pydantic import BaseModel, ConfigDict, Field
+
   from cyberdelta.core.portfolio.services import PortfolioServiceFactory
+  from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
   from cyberdelta.core.portfolio.portfolio_types.protocols import PortfolioManagerProtocol
 
-  class Engine:
-      def __init__(self, service_factory: PortfolioServiceFactory):
-          self.portfolio_manager = service_factory.create_portfolio_state_manager()
-          self.performance_analytics = service_factory.create_performance_analytics()
+  class Engine(BaseModel):
+      """Trading engine with clean portfolio/risk separation."""
+
+      portfolio_factory: PortfolioServiceFactory = Field(..., description="Portfolio service factory")
+      risk_factory: RiskServiceFactory = Field(..., description="Risk service factory")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+      def model_post_init(self, __context: Any) -> None:
+          """Initialize service instances after Pydantic validation."""
+          # Portfolio responsibilities: state management, performance tracking
+          self.portfolio_manager = self.portfolio_factory.create_portfolio_state_manager()
+          self.performance_analytics = self.portfolio_factory.create_performance_analytics()
+
+          # Risk responsibilities: exposure calculation, position sizing, risk assessment
+          self.risk_calculator = self.risk_factory.create_risk_metrics_calculator()
+          self.exposure_calculator = self.risk_factory.create_exposure_calculator()
+          self.position_sizer = self.risk_factory.create_position_sizer()
 
       async def get_portfolio_capital(self) -> Decimal:
+          # Clean separation: portfolio provides state, performance calculates metrics
           portfolio_state = await self.portfolio_manager.get_current_state()
           performance = await self.performance_analytics.calculate_performance(portfolio_state)
           return performance.total_capital
+
+      async def get_position_size_for_trade(self, symbol: str, signal_strength: float) -> Decimal:
+          # Risk module handles all position sizing decisions
+          portfolio_state = await self.portfolio_manager.get_current_state()
+          return await self.position_sizer.calculate_optimal_size(
+              portfolio_state, symbol, signal_strength
+          )
   ```
 
 - [ ] **Update StrategyManager Component**
   ```python
   # BEFORE: StrategyManager using legacy methods
+  from __future__ import annotations
+
+  from decimal import Decimal
+  from typing import Any
+
   from cyberdelta.core.portfolio_tracker import PortfolioTracker
 
   class StrategyManager:
@@ -170,13 +212,27 @@ legacy_imports = {
           return exposure.total_exposure < self.max_exposure
 
   # AFTER: StrategyManager using focused services
+  from __future__ import annotations
+
+  from decimal import Decimal
+  from typing import Any
+
+  from pydantic import BaseModel, ConfigDict, Field
+
   from cyberdelta.core.portfolio.services import PortfolioServiceFactory
   from cyberdelta.core.portfolio.portfolio_types.models import ExposureMetrics
 
-  class StrategyManager:
-      def __init__(self, service_factory: PortfolioServiceFactory):
-          self.portfolio_manager = service_factory.create_portfolio_state_manager()
-          self.risk_analytics = service_factory.create_risk_analytics()
+  class StrategyManager(BaseModel):
+      """Strategy manager using focused services."""
+
+      service_factory: PortfolioServiceFactory = Field(..., description="Portfolio service factory")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+      def model_post_init(self, __context: Any) -> None:
+          """Initialize service instances after Pydantic validation."""
+          self.portfolio_manager = self.service_factory.create_portfolio_state_manager()
+          self.risk_analytics = self.service_factory.create_risk_analytics()
 
       async def check_risk_limits(self) -> bool:
           portfolio_state = await self.portfolio_manager.get_current_state()

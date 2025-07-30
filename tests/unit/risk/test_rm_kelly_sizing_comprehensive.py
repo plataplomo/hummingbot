@@ -44,7 +44,7 @@ def create_test_opportunity(
 
 def setup_kelly_risk_manager(
     mock_config: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_circuit_breaker_system: MagicMock,
     mock_funding_validator: MagicMock,
     kelly_multiplier: Decimal = Decimal("0.25"),
@@ -68,7 +68,7 @@ def setup_kelly_risk_manager(
     # Create risk manager
     risk_manager = RiskManager(
         app_settings=mock_config,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         circuit_breaker_system=mock_circuit_breaker_system,
         funding_rate_validator=mock_funding_validator,
     )
@@ -105,7 +105,7 @@ class TestRiskManagerKellySizingComprehensive:
     async def test_kelly_sizing_with_various_parameters(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -116,8 +116,8 @@ class TestRiskManagerKellySizingComprehensive:
     ) -> None:
         """Test Kelly sizing with various parameter combinations."""
         # Setup portfolio tracker
-        mock_portfolio_tracker.get_total_capital.return_value = total_capital
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = total_capital
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
 
         # Setup circuit breaker
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
@@ -137,7 +137,7 @@ class TestRiskManagerKellySizingComprehensive:
 
         # Create Kelly-configured risk manager
         risk_manager = setup_kelly_risk_manager(
-            mock_config, mock_portfolio_tracker, mock_circuit_breaker_system, mock_funding_validator
+            mock_config, mock_portfolio_state_manager, mock_circuit_breaker_system, mock_funding_validator
         )
 
         # Execute sizing
@@ -175,7 +175,7 @@ class TestRiskManagerKellySizingComprehensive:
     async def test_kelly_sizing_return_validation(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -184,8 +184,8 @@ class TestRiskManagerKellySizingComprehensive:
     ) -> None:
         """Test Kelly sizing rejects non-positive returns."""
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {
             "rmse": 0.001,
@@ -201,7 +201,7 @@ class TestRiskManagerKellySizingComprehensive:
 
         # Create Kelly-configured risk manager
         risk_manager = setup_kelly_risk_manager(
-            mock_config, mock_portfolio_tracker, mock_circuit_breaker_system, mock_funding_validator
+            mock_config, mock_portfolio_state_manager, mock_circuit_breaker_system, mock_funding_validator
         )
 
         # Execute sizing
@@ -227,7 +227,7 @@ class TestRiskManagerKellySizingComprehensive:
     async def test_kelly_sizing_volatility_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -236,8 +236,8 @@ class TestRiskManagerKellySizingComprehensive:
     ) -> None:
         """Test Kelly sizing handles various volatility scenarios."""
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {
             "rmse": 0.001,
@@ -254,7 +254,7 @@ class TestRiskManagerKellySizingComprehensive:
         # Create Kelly-configured risk manager with specific volatility bounds
         risk_manager = setup_kelly_risk_manager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker_system,
             mock_funding_validator,
             min_volatility=Decimal("0.01"),  # 1% min volatility
@@ -305,7 +305,7 @@ class TestRiskManagerKellySizingComprehensive:
     async def test_kelly_multiplier_effect(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -314,8 +314,8 @@ class TestRiskManagerKellySizingComprehensive:
     ) -> None:
         """Test that Kelly multiplier correctly affects position size."""
         # Setup mocks with consistent parameters
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {
             "rmse": 0.001,
@@ -332,7 +332,7 @@ class TestRiskManagerKellySizingComprehensive:
         # Create Kelly-configured risk manager to test multiplier effect
         risk_manager = setup_kelly_risk_manager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker_system,
             mock_funding_validator,
             kelly_multiplier=kelly_multiplier,
@@ -361,7 +361,7 @@ class TestRiskManagerKellySizingComprehensive:
     async def test_kelly_sizing_allocation_limits(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -369,8 +369,8 @@ class TestRiskManagerKellySizingComprehensive:
         """Test that Kelly sizing respects allocation limits."""
         # Setup mocks
         total_capital = Decimal(100000)
-        mock_portfolio_tracker.get_total_capital.return_value = total_capital
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = total_capital
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {
             "rmse": 0.001,
@@ -387,7 +387,7 @@ class TestRiskManagerKellySizingComprehensive:
         # Create Kelly-configured risk manager with tight allocation limits
         risk_manager = setup_kelly_risk_manager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker_system,
             mock_funding_validator,
             kelly_multiplier=Decimal("1.0"),  # Full Kelly
@@ -408,7 +408,7 @@ class TestRiskManagerKellySizingComprehensive:
     async def test_kelly_sizing_with_existing_exposure(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -417,8 +417,8 @@ class TestRiskManagerKellySizingComprehensive:
         # Setup mocks with existing exposure
         total_capital = Decimal(100000)
         existing_exposure = Decimal(30000)  # 30% already exposed
-        mock_portfolio_tracker.get_total_capital.return_value = total_capital
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = existing_exposure
+        mock_portfolio_state_manager.get_total_capital.return_value = total_capital
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = existing_exposure
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
         mock_funding_validator.get_symbol_metrics.return_value = {
             "rmse": 0.001,
@@ -435,7 +435,7 @@ class TestRiskManagerKellySizingComprehensive:
         # Create Kelly-configured risk manager
         risk_manager = setup_kelly_risk_manager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker_system,
             mock_funding_validator,
             kelly_multiplier=Decimal("0.25"),  # 25% of Kelly

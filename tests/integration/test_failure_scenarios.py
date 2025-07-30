@@ -17,7 +17,7 @@ from cyberdelta.core.models import (
     SpotBalance,
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import (
@@ -62,7 +62,7 @@ class TestFailureScenarios:
         mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
-        real_portfolio_tracker: PortfolioTracker,
+        real_portfolio_tracker: PortfolioStateManager,
         circuit_breaker_system: CircuitBreakerSystem,
         execution_handler: ExecutionHandler,
         basic_opportunity: ArbitrageOpportunity,
@@ -75,7 +75,7 @@ class TestFailureScenarios:
 
         mock_bp_api.reset()
         mock_hl_api.reset()
-        real_portfolio_tracker.reset()
+        real_portfolio_state_manager.reset()
         circuit_breaker_system.reset_breaker("global/api_error")  # Use correct breaker name format
         circuit_breaker_system.reset_exchange_breakers(target_exchange)
         circuit_breaker_system.reset_exchange_breakers(other_exchange)
@@ -100,7 +100,7 @@ class TestFailureScenarios:
                 timestamp=now,  # Add missing
             ),
         )
-        await real_portfolio_tracker.initialize()
+        await real_portfolio_state_manager.initialize()
         # Ensure BOTH exchanges have valid tickers configured *before* error simulation
         bp_symbol = str(mock_config.exchanges[target_exchange].symbols["BTC"])  # Cast to str
         hl_symbol = str(mock_config.exchanges[other_exchange].symbols["BTC"])  # Cast to str
@@ -406,7 +406,7 @@ class TestFailureScenarios:
         mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
-        real_portfolio_tracker: PortfolioTracker,
+        real_portfolio_tracker: PortfolioStateManager,
         circuit_breaker_system: CircuitBreakerSystem,
         execution_handler: ExecutionHandler,
         basic_opportunity: ArbitrageOpportunity,
@@ -423,7 +423,7 @@ class TestFailureScenarios:
         mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
-        real_portfolio_tracker: PortfolioTracker,
+        real_portfolio_tracker: PortfolioStateManager,
         circuit_breaker_system: CircuitBreakerSystem,
         execution_handler: ExecutionHandler,
         basic_opportunity: ArbitrageOpportunity,
@@ -440,7 +440,7 @@ class TestFailureScenarios:
         mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
-        real_portfolio_tracker: PortfolioTracker,
+        real_portfolio_tracker: PortfolioStateManager,
         circuit_breaker_system: CircuitBreakerSystem,
         execution_handler: ExecutionHandler,
         basic_opportunity: ArbitrageOpportunity,
@@ -456,7 +456,7 @@ class TestFailureScenarios:
         mock_config: AppSettings,  # Added AppSettings type hint
         mock_hl_api: MockExchangeAPI,
         mock_bp_api: MockExchangeAPI,
-        real_portfolio_tracker: PortfolioTracker,
+        real_portfolio_tracker: PortfolioStateManager,
         circuit_breaker_system: CircuitBreakerSystem,
         execution_handler: ExecutionHandler,
         basic_opportunity: ArbitrageOpportunity,

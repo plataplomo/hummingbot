@@ -15,25 +15,31 @@ from cyberdelta.core.models import DerivativePosition, Order, SpotBalance, Trade
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import (
     PortfolioStateManager,
 )
-from cyberdelta.core.portfolio.portfolio_types.portfolio_data_models import (
+from cyberdelta.core.portfolio.portfolio_types.models import (
     BalanceUpdateRequest,
     PositionUpdateRequest,
 )
-from cyberdelta.core.portfolio.portfolio_types.state_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     PortfolioSnapshot,
     StateUpdateResult,
 )
-from cyberdelta.core.portfolio.portfolio_types.validation_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     ValidationResult,
 )
-from cyberdelta.core.portfolio.services.resilience.resilience_middleware import (
-    ResilienceMiddleware,
+from cyberdelta.core.portfolio.services.resilience.circuit_breaker_service import (
+    CircuitBreakerService,
 )
-from cyberdelta.core.portfolio.services.resilience.resilience_service import (
-    PortfolioResilienceService,
+from cyberdelta.core.portfolio.services.resilience.retry_service import (
+    RetryService,
 )
-from cyberdelta.core.portfolio.services.validation.portfolio_validation_service import (
-    PortfolioValidationService,
+from cyberdelta.core.portfolio.services.monitoring import (
+    HealthCheckOrchestrator,
+)
+from cyberdelta.core.portfolio.services.resilience.graceful_degradation_service import (
+    GracefulDegradationService,
+)
+from cyberdelta.core.portfolio.services.validation import (
+    PortfolioValidationCoordinator,
 )
 from cyberdelta.core.portfolio.services.validation.validation_middleware import (
     ValidationMiddleware,
@@ -43,8 +49,8 @@ from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.portfolio.portfolio_types.manager_protocols import StateManagerProtocol
-    from cyberdelta.core.portfolio.portfolio_types.service_protocols import PortfolioServiceProtocol
+    from cyberdelta.core.portfolio.portfolio_types.protocols import StateManagerProtocol
+    from cyberdelta.core.portfolio.portfolio_types.protocols import PortfolioServiceProtocol
 
 
 logger = get_logger(__name__)
@@ -198,12 +204,13 @@ class AdvancedPortfolioStrategy:
         self.resilience_service = resilience_service
         self.validation_service = validation_service
 
-        # Create middleware for advanced patterns
-        self.resilience_middleware = ResilienceMiddleware(
-            cast(PortfolioResilienceService, resilience_service)
-        )
+        # Store individual resilience services
+        self.circuit_breaker_service = cast(CircuitBreakerService, resilience_service)
+        self.retry_service = cast(RetryService, resilience_service) 
+        self.health_check_orchestrator = cast(HealthCheckOrchestrator, resilience_service)
+        self.degradation_service = cast(GracefulDegradationService, resilience_service)
         self.validation_middleware = ValidationMiddleware(
-            cast(PortfolioValidationService, validation_service)
+            cast(PortfolioValidationCoordinator, validation_service)
         )
 
         # Strategy configuration
@@ -725,8 +732,11 @@ class AdvancedIntegrationDemo:
     def __init__(self) -> None:
         """Initialize advanced integration demo."""
         self.portfolio_manager: PortfolioStateManager | None = None
-        self.resilience_service: PortfolioResilienceService | None = None
-        self.validation_service: PortfolioValidationService | None = None
+        self.circuit_breaker_service: CircuitBreakerService | None = None
+        self.retry_service: RetryService | None = None
+        self.health_check_orchestrator: HealthCheckOrchestrator | None = None
+        self.degradation_service: GracefulDegradationService | None = None
+        self.validation_service: PortfolioValidationCoordinator | None = None
         self.strategy: AdvancedPortfolioStrategy | None = None
         self.state_container: Any = None  # Will be initialized in initialize_advanced_system
 
@@ -948,8 +958,14 @@ class AdvancedIntegrationDemo:
         if self.portfolio_manager:
             await self.portfolio_manager.shutdown()
 
-        if self.resilience_service:
-            await self.resilience_service.stop()
+        if self.circuit_breaker_service:
+            await self.circuit_breaker_service.stop()
+        if self.retry_service:
+            await self.retry_service.stop()
+        if self.health_check_orchestrator:
+            await self.health_check_orchestrator.stop()
+        if self.degradation_service:
+            await self.degradation_service.stop()
 
         # Validation service doesn't need explicit stop in new architecture
 

@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 class ConcurrencyManager:
     """Manages concurrent access to portfolio state with proper synchronization.
 
-    Addresses the race condition issues identified in the original PortfolioTracker
+    Addresses the race condition issues identified in the original legacy portfolio tracker
     by providing consistent locking strategies and deadlock prevention.
     """
 

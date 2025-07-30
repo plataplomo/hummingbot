@@ -1029,73 +1029,7 @@ class PortfolioCalculationSettings(BaseModel):
     price_staleness_threshold: int = Field(default=300, gt=0, le=3600)
 
 
-class PortfolioTrackerConfig(BaseModel):
-    """Portfolio tracker configuration with comprehensive settings."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    # Core settings
-    data_freshness_seconds: int = Field(default=DEFAULT_DATA_FRESHNESS_SECONDS, gt=0)
-    initial_balances: dict[ExchangeId, dict[str, str]] = Field(default_factory=dict)
-    initial_positions: list[dict[str, Any]] = Field(default_factory=_initial_positions_factory)
-
-    # Enhanced settings
-    cache: PortfolioCacheSettings = Field(default_factory=PortfolioCacheSettings)
-    state: PortfolioStateSettings = Field(default_factory=PortfolioStateSettings)
-    validation: PortfolioValidationSettings = Field(default_factory=PortfolioValidationSettings)
-    calculation: PortfolioCalculationSettings = Field(default_factory=PortfolioCalculationSettings)
-
-    # Module behavior
-    enabled: bool = True
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
-    log_performance_metrics: bool = True
-    metrics_interval: float = Field(default=300.0, gt=0, le=3600)
-
-    # Integration settings
-    sync_with_risk_module: bool = True
-    sync_with_execution_module: bool = True
-    event_driven_updates: bool = True
-
-    @field_validator("log_level", mode="before")
-    @classmethod
-    def _validate_log_level(cls, v: str | float | bool, info: ValidationInfo) -> str:
-        return validate_enum_field(
-            v,
-            allowed={"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"},
-            field_name=info.field_name or "log_level",
-        )
-
-    @model_validator(mode="after")
-    def validate_cross_settings(self) -> Self:
-        """Validate cross-field relationships in portfolio configuration.
-
-        Returns:
-            Self instance after validation
-
-        Raises:
-            ValueError: If cross-field relationships are invalid
-        """
-        # Ensure cache cleanup interval is larger than default TTL
-        if self.cache.cleanup_interval < self.cache.default_ttl:
-            msg = "Cache cleanup interval must be >= default TTL"
-            raise ValueError(msg)
-
-        # Ensure state persist interval is reasonable compared to data freshness
-        if self.state.persist_interval < self.data_freshness_seconds:
-            msg = "State persist interval should be >= data freshness seconds"
-            raise ValueError(msg)
-
-        # Ensure validation timeout is reasonable
-        if self.validation.validation_timeout > self.state.update_timeout:
-            msg = "Validation timeout should not exceed state update timeout"
-            raise ValueError(msg)
-
-        # Ensure metrics interval is reasonable
-        if self.metrics_interval < self.calculation.exposure_update_interval:
-            msg = "Metrics interval should be >= exposure update interval"
-            raise ValueError(msg)
-
-        return self
+# PortfolioTrackerConfig removed - replaced by modular portfolio system
 
 
 class AppSettings(BaseModel):
@@ -1110,7 +1044,7 @@ class AppSettings(BaseModel):
     execution: ExecutionSettings
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings
-    portfolio_tracker: PortfolioTrackerConfig
+    # portfolio_tracker field removed - replaced by modular portfolio system
     # CLEAN BREAK: Smart symbol configuration replaces verbose unified_symbols
     symbols: "SmartSymbolsConfig" = Field(..., description="Smart symbol configuration")
 

@@ -9,9 +9,11 @@
 The CyberDeltaEngine portfolio system exhibits a **dual-architecture pattern** where two complete portfolio management systems coexist, creating significant technical debt and operational complexity. This analysis reveals a sophisticated but incomplete migration from a monolithic architecture to a modern modular system.
 
 **Key Findings:**
-- **Legacy System:** Monolithic `PortfolioTracker` (2,600+ lines) + `PortfolioOrchestrator` still in active use
-- **Modular System:** Complete modern architecture in `cyberdelta/core/portfolio/` with 423+ Pydantic models
-- **Integration Gap:** No bridge between systems, causing development complexity and production risks
+- **Legacy System:** Monolithic `PortfolioTracker` (2,726 lines) + `PortfolioOrchestrator` (609 lines) still in active use
+- **Modular System:** Complete modern architecture in `cyberdelta/core/portfolio/` with 128 files
+- **Type System Debt:** 31 type-related files with significant duplication (vs documented 17)
+- **Service Sprawl:** Multiple 1,500+ line services exist in modular system
+- **Integration Gap:** 54 direct dependencies on legacy components across core module
 - **Refactor Status:** ~60% complete - infrastructure done, core integration pending
 
 ## System Architecture Overview
@@ -21,8 +23,8 @@ The CyberDeltaEngine portfolio system exhibits a **dual-architecture pattern** w
 ```mermaid
 graph TB
     subgraph "Legacy System (Active Production)"
-        PO[PortfolioOrchestrator<br/>610 lines]
-        PT[PortfolioTracker<br/>2,600+ lines]
+        PO[PortfolioOrchestrator<br/>609 lines]
+        PT[PortfolioTracker<br/>2,726 lines]
 
         PO -->|orchestrates| PT
         PT -->|state mgmt| DB[(Portfolio State)]

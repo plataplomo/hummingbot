@@ -17,7 +17,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.ticker import Ticker
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.symbols.service import SymbolService
 
 
@@ -59,7 +59,7 @@ class TestDataHandlerIntegration:
             DataHandler: A data handler instance with mocked dependencies for testing.
         """
         # Create mock portfolio tracker
-        mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
+        mock_portfolio_state_manager = MagicMock(spec=PortfolioStateManager)
 
         # Create mock api_clients dict
         api_clients: dict[str, Any] = {}
@@ -67,7 +67,7 @@ class TestDataHandlerIntegration:
         handler = DataHandler(
             app_settings=mock_config,
             api_clients=api_clients,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_mapper=mock_symbol_mapper,
         )
 
@@ -248,13 +248,13 @@ class TestDataHandlerIntegration:
         mock_symbol_mapper: MagicMock,
     ) -> None:
         """Test DataHandler initialization with configuration."""
-        mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
+        mock_portfolio_state_manager = MagicMock(spec=PortfolioStateManager)
         api_clients: dict[str, Any] = {}
 
         handler = DataHandler(
             app_settings=mock_config,
             api_clients=api_clients,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_mapper=mock_symbol_mapper,
         )
         assert handler.app_settings == mock_config
@@ -271,13 +271,13 @@ class TestDataHandlerIntegration:
         mock_symbol_mapper: MagicMock,
     ) -> None:
         """Test WebSocket reconnection scenario."""
-        mock_portfolio_tracker = MagicMock(spec=PortfolioTracker)
+        mock_portfolio_state_manager = MagicMock(spec=PortfolioStateManager)
         api_clients: dict[str, Any] = {}
 
         handler = DataHandler(
             app_settings=mock_config,
             api_clients=api_clients,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             symbol_mapper=mock_symbol_mapper,
         )
 

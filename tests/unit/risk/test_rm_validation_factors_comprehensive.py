@@ -66,7 +66,7 @@ class TestRiskManagerValidationFactorsComprehensive:
     async def test_validation_factor_calculation_scenarios(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -86,8 +86,8 @@ class TestRiskManagerValidationFactorsComprehensive:
         mock_config.risk.min_validation_factor = Decimal("0.2")  # 20% minimum factor
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         # Setup funding validator with test metrics
@@ -102,7 +102,7 @@ class TestRiskManagerValidationFactorsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -146,7 +146,7 @@ class TestRiskManagerValidationFactorsComprehensive:
     async def test_asymmetric_validation_factors(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -163,8 +163,8 @@ class TestRiskManagerValidationFactorsComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         # Setup asymmetric funding validation
@@ -183,7 +183,7 @@ class TestRiskManagerValidationFactorsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -213,7 +213,7 @@ class TestRiskManagerValidationFactorsComprehensive:
     async def test_validation_factor_missing_metrics_fallback(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -225,8 +225,8 @@ class TestRiskManagerValidationFactorsComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         # Setup funding validator to return missing/incomplete metrics
@@ -238,7 +238,7 @@ class TestRiskManagerValidationFactorsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -256,7 +256,7 @@ class TestRiskManagerValidationFactorsComprehensive:
     async def test_validation_factor_exception_handling(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -268,8 +268,8 @@ class TestRiskManagerValidationFactorsComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         # Setup funding validator to throw exception
@@ -281,7 +281,7 @@ class TestRiskManagerValidationFactorsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
@@ -305,7 +305,7 @@ class TestRiskManagerValidationFactorsComprehensive:
     async def test_validation_factor_exchange_specific_calls(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
         frozen_time: FreezerProtocol,
@@ -319,8 +319,8 @@ class TestRiskManagerValidationFactorsComprehensive:
         mock_config.risk.simple_fixed_usd_size = Decimal(1000)
 
         # Setup mocks
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal(100000)
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal(100000)
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         # Setup funding validator with good metrics
@@ -339,7 +339,7 @@ class TestRiskManagerValidationFactorsComprehensive:
         # Create risk manager
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )

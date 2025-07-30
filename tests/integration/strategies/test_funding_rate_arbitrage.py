@@ -27,7 +27,7 @@ from cyberdelta.core.models.market.funding_rate import (
     BackpackFundingDetails,
     HyperliquidFundingDetails,
 )
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -116,7 +116,7 @@ def strategy() -> FundingRateArbitrageStrategy:
         FundingRateArbitrageStrategy: Configured strategy instance with mock dependencies.
     """
     data_handler = MagicMock()
-    portfolio_tracker = MagicMock(spec=PortfolioTracker)
+    portfolio_tracker = MagicMock(spec=PortfolioStateManager)
     risk_manager_mock = MagicMock(spec=RiskManager)
 
     return FundingRateArbitrageStrategy(

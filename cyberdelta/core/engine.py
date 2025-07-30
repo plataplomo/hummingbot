@@ -1,19 +1,22 @@
-"""Core trading engine for strategy management and signal routing."""
+"""Core trading engine with clean portfolio/risk separation."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from decimal import InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 import structlog
-
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import TradeSignal
 
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.portfolio.services import PortfolioServiceFactory
+from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
+from cyberdelta.core.portfolio.portfolio_types.protocols import PortfolioManagerProtocol
 
 from .strategy import Strategy
 
@@ -25,39 +28,69 @@ class EngineConfigurationError(RuntimeError):
     """Error with engine configuration."""
 
 
-class Engine:
-    """Core trading engine responsible for strategy management and signal routing.
+class Engine(BaseModel):
+    """Trading engine with clean portfolio/risk separation."""
 
-    - Managing strategies and their states (enabled/disabled).
-    - Routing incoming market data to relevant, enabled strategies.
-    - Receiving trade signals from strategies and forwarding them to a configured
-      handler (e.g., RiskManager).
-    - DOES NOT manage positions, calculate PnL, or execute trades directly.
-    """
+    portfolio_factory: PortfolioServiceFactory = Field(..., description="Portfolio service factory")
+    risk_factory: RiskServiceFactory = Field(..., description="Risk service factory")
+    name: str = Field(default="CyberDeltaEngine", description="Engine name")
 
-    def __init__(self, name: str = "CyberDeltaEngine") -> None:
-        """Initialize the trading engine with a given name.
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, arbitrary_types_allowed=True)
 
-        Args:
-            name: Name identifier for this engine instance.
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize service instances after Pydantic validation."""
+        # Portfolio responsibilities: state management, performance tracking
+        self.portfolio_manager = self.portfolio_factory.create_portfolio_state_manager()
+        self.performance_analytics = self.portfolio_factory.create_performance_analytics()
 
-        """
-        self.name = name
+        # Risk responsibilities: exposure calculation, position sizing, risk assessment
+        self.risk_calculator = self.risk_factory.create_risk_metrics_calculator()
+        self.exposure_calculator = self.risk_factory.create_exposure_calculator()
+        self.position_sizer = self.risk_factory.create_position_sizer()
+
+        # Legacy engine state for compatibility
         self.strategies: dict[str, Strategy] = {}
-        self.enabled_strategies: set[str] = set()  # Track enabled strategy names
-        self.active_symbols: set[str] = set()  # Track symbols monitored by strategies
-        # Must be set via set_signal_handler
+        self.enabled_strategies: set[str] = set()
+        self.active_symbols: set[str] = set()
         self.signal_handler: Callable[[TradeSignal], Awaitable[None]] | None = None
         self.is_running = False
         self.start_time: datetime | None = None
         self.last_data_time: datetime | None = None
-        self.logger = structlog.get_logger(engine_name=name)
+        self.logger = structlog.get_logger(engine_name=self.name)
 
         logger.info(
             "engine_initialized",
-            engine_name=name,
-            message=f"Engine '{name}' initialized",
+            engine_name=self.name,
+            message=f"Engine '{self.name}' initialized with modular system",
         )
+
+    async def get_portfolio_capital(self) -> Decimal:
+        """Get current portfolio capital for position sizing."""
+        # Clean separation: portfolio provides state, performance calculates metrics
+        portfolio_state = await self.portfolio_manager.get_current_state()
+        performance = await self.performance_analytics.calculate_performance(portfolio_state)
+        return performance.total_capital
+
+    async def get_position_size_for_trade(self, symbol: str, signal_strength: float) -> Decimal:
+        """Calculate optimal position size using risk module."""
+        # Risk module handles all position sizing decisions
+        portfolio_state = await self.portfolio_manager.get_current_state()
+        return await self.position_sizer.calculate_optimal_size(
+            portfolio_state, symbol, signal_strength
+        )
+
+    async def get_portfolio_positions(self, exchange_id: str | None = None) -> dict:
+        """Get current portfolio positions."""
+        return await self.portfolio_manager.get_positions(exchange_id)
+
+    async def get_portfolio_balances(self, exchange_id: str | None = None) -> dict:
+        """Get current portfolio balances."""
+        return await self.portfolio_manager.get_balances(exchange_id)
+
+    async def get_exposure_metrics(self) -> dict:
+        """Get portfolio exposure metrics using risk module."""
+        portfolio_state = await self.portfolio_manager.get_current_state()
+        return await self.risk_calculator.calculate_exposure(portfolio_state)
 
     def add_strategy(self, strategy: Strategy) -> None:
         """Add a strategy instance to the engine. Replaces existing strategy with the same name.

@@ -169,7 +169,7 @@ def constrained_app_settings(global_risk_settings: GlobalRiskSettings) -> AppSet
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> MockPortfolioTracker:
+def mock_portfolio_state_manager() -> MockPortfolioTracker:
     """Create mock portfolio tracker.
 
     Returns:
@@ -206,13 +206,13 @@ class TestGlobalRiskSettingsIntegration:
     async def test_position_size_limit_enforcement(
         self,
         constrained_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         high_value_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test that position sizes are limited by GlobalRiskSettings.max_position_usd."""
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=constrained_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         result = await orchestrator.process_opportunity(high_value_opportunity)
@@ -232,13 +232,13 @@ class TestGlobalRiskSettingsIntegration:
     async def test_total_exposure_constraint_enforcement(
         self,
         constrained_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         high_value_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test total exposure constraints with multiple positions."""
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=constrained_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Process multiple opportunities to build up exposure
@@ -313,7 +313,7 @@ class TestGlobalRiskSettingsIntegration:
 
     async def test_global_risk_settings_in_different_configurations(
         self,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         high_value_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test GlobalRiskSettings behavior with different sizing configurations."""
@@ -364,7 +364,7 @@ class TestGlobalRiskSettingsIntegration:
 
         kelly_orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=kelly_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         result = await kelly_orchestrator.process_opportunity(high_value_opportunity)
@@ -419,7 +419,7 @@ class TestGlobalRiskSettingsIntegration:
 
     async def test_global_settings_with_preset_configurations(
         self,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         high_value_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test GlobalRiskSettings behavior with different preset configurations."""
@@ -443,7 +443,7 @@ class TestGlobalRiskSettingsIntegration:
         conservative_orchestrator = RiskManagerFactory.create_from_preset(
             preset_name="conservative",
             base_app_settings=base_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         conservative_result = await conservative_orchestrator.process_opportunity(
@@ -454,7 +454,7 @@ class TestGlobalRiskSettingsIntegration:
         moderate_orchestrator = RiskManagerFactory.create_from_preset(
             preset_name="moderate",
             base_app_settings=base_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         moderate_result = await moderate_orchestrator.process_opportunity(high_value_opportunity)
@@ -463,7 +463,7 @@ class TestGlobalRiskSettingsIntegration:
         aggressive_orchestrator = RiskManagerFactory.create_from_preset(
             preset_name="aggressive",
             base_app_settings=base_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         aggressive_result = await aggressive_orchestrator.process_opportunity(
@@ -478,13 +478,13 @@ class TestGlobalRiskSettingsIntegration:
     async def test_portfolio_metrics_with_global_constraints(
         self,
         constrained_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         high_value_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test portfolio metrics calculation with global constraints."""
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=constrained_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Process and add multiple positions
@@ -513,13 +513,13 @@ class TestGlobalRiskSettingsIntegration:
     async def test_capital_management_with_global_limits(
         self,
         constrained_app_settings: AppSettings,
-        mock_portfolio_tracker: MockPortfolioTracker,
+        mock_portfolio_state_manager: MockPortfolioTracker,
         high_value_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test capital management integration with global risk limits."""
         orchestrator = RiskManagerFactory.create_minimal_risk_manager(
             app_settings=constrained_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Set total capital

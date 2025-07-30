@@ -19,9 +19,8 @@ if TYPE_CHECKING:
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
-
-# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
@@ -65,7 +64,7 @@ class DataHandler:
         self,
         app_settings: AppSettings,
         api_clients: dict[str, ExchangeAPI],
-        portfolio_tracker: PortfolioTracker,
+        portfolio_state_manager: PortfolioStateManager,
         symbol_mapper: SymbolService,  # Now accepts SymbolService
         loop: asyncio.AbstractEventLoop | None = None,
         clock: Callable[[Any], dt_real] | None = None,  # Add clock parameter
@@ -75,7 +74,7 @@ class DataHandler:
         Args:
             app_settings: Application configuration object.
             api_clients: Dictionary of ExchangeAPI instances.
-            portfolio_tracker: PortfolioTracker instance.
+            portfolio_state_manager: PortfolioStateManager instance.
             symbol_mapper: Symbol service (kept as symbol_mapper for compatibility).
             loop: Event loop for async operations.
             clock: Callable for getting current datetime.
@@ -83,7 +82,7 @@ class DataHandler:
         """
         self.app_settings = app_settings
         self.api_clients = api_clients
-        self.portfolio_tracker = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
         self.symbol_service = symbol_mapper  # Internal reference uses proper name
         self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
         self.loop = loop or asyncio.get_event_loop()

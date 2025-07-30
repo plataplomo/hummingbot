@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.portfolio.exceptions.state import StateValidationError
-from cyberdelta.core.portfolio.portfolio_types.service_protocols import (
+from cyberdelta.core.portfolio.portfolio_types.protocols import (
     ServiceCacheStats,
     ServiceProtocolValidationError,
     ServiceResilienceStatus,

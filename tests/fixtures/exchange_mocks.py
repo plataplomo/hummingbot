@@ -131,21 +131,27 @@ def mock_exchange_api() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> MagicMock:
-    """Create a mock PortfolioTracker for testing.
+def mock_portfolio_state_manager() -> MagicMock:
+    """Create a mock PortfolioStateManager for testing.
 
     Returns:
-        MagicMock: A mock portfolio tracker with preconfigured test values.
+        MagicMock: A mock portfolio state manager with preconfigured test values.
     """
-    mock_tracker = MagicMock()
+    mock_manager = MagicMock()
 
-    # Configure mock methods
-    mock_tracker.get_total_capital.return_value = 20000.0
-    mock_tracker.get_exchange_balance.return_value = 10000.0
-    mock_tracker.get_exchange_exposure.return_value = 5000.0
-    mock_tracker.get_total_exposure.return_value = 10000.0
+    # Configure mock methods for PortfolioStateManager interface
+    mock_manager.get_total_capital.return_value = 20000.0
+    mock_manager.get_exchange_balance.return_value = 10000.0
+    mock_manager.get_exchange_exposure.return_value = 5000.0
+    mock_manager.get_total_exposure.return_value = 10000.0
+    
+    # Additional methods for PortfolioStateManager
+    mock_manager.get_current_state.return_value = MagicMock()
+    mock_manager.get_positions.return_value = {}
+    mock_manager.get_balances.return_value = {}
+    mock_manager.process_trade.return_value = None
 
-    return mock_tracker
+    return mock_manager
 
 
 @pytest.fixture

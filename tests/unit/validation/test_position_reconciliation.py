@@ -17,7 +17,7 @@ from cyberdelta.config.models.config_models import (
     SafetySystemsSettings,
 )
 from cyberdelta.core.models import DerivativePosition
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.enums import OrderSide
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
@@ -44,13 +44,13 @@ def mock_app_settings() -> Mock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Create mock portfolio tracker.
 
     Returns:
-        Mock PortfolioTracker with configured methods.
+        Mock PortfolioStateManager with configured methods.
     """
-    tracker = Mock()  # Don't use spec=PortfolioTracker to allow api_clients attribute
+    tracker = Mock()  # Don't use spec=PortfolioStateManager to allow api_clients attribute
     tracker.api_clients = {}
     tracker.get_positions_by_exchange = Mock()
     tracker.get_position = Mock(return_value=None)
@@ -60,14 +60,14 @@ def mock_portfolio_tracker() -> Mock:
 
 @pytest.fixture
 def reconciliation_system(
-    mock_app_settings: Mock, mock_portfolio_tracker: Mock
+    mock_app_settings: Mock, mock_portfolio_state_manager: Mock
 ) -> PositionReconciliationSystem:
     """Create PositionReconciliationSystem instance for testing.
 
     Returns:
         Configured PositionReconciliationSystem instance.
     """
-    return PositionReconciliationSystem(mock_app_settings, mock_portfolio_tracker)
+    return PositionReconciliationSystem(mock_app_settings, mock_portfolio_state_manager)
 
 
 @pytest.fixture
@@ -115,10 +115,10 @@ class TestPositionReconciliationSystemInit:
 
     # ==================== SUCCESS CASES ====================
 
-    def test_init_success(self, mock_app_settings: Mock, mock_portfolio_tracker: Mock) -> None:
+    def test_init_success(self, mock_app_settings: Mock, mock_portfolio_state_manager: Mock) -> None:
         """Test successful initialization of PositionReconciliationSystem."""
         # Act
-        system = PositionReconciliationSystem(mock_app_settings, mock_portfolio_tracker)
+        system = PositionReconciliationSystem(mock_app_settings, mock_portfolio_state_manager)
 
         # Assert - Test public properties and behavior instead of private attributes
         assert system.reconciliation_threshold == 5.0
@@ -132,11 +132,11 @@ class TestPositionReconciliationSystemInit:
         assert hasattr(system, "reconcile_positions")  # Should have public methods
 
     def test_init_creates_timedelta_interval(
-        self, mock_app_settings: Mock, mock_portfolio_tracker: Mock
+        self, mock_app_settings: Mock, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test initialization creates proper timedelta for interval."""
         # Act
-        system = PositionReconciliationSystem(mock_app_settings, mock_portfolio_tracker)
+        system = PositionReconciliationSystem(mock_app_settings, mock_portfolio_state_manager)
 
         # Assert
         assert isinstance(system.reconciliation_interval, timedelta)
@@ -145,14 +145,14 @@ class TestPositionReconciliationSystemInit:
     # ==================== EDGE CASES ====================
 
     def test_init_edge_zero_interval(
-        self, mock_app_settings: Mock, mock_portfolio_tracker: Mock
+        self, mock_app_settings: Mock, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test initialization with zero interval."""
         # Arrange
         mock_app_settings.safety_systems.position_reconciliation.check_interval_sec = 0
 
         # Act
-        system = PositionReconciliationSystem(mock_app_settings, mock_portfolio_tracker)
+        system = PositionReconciliationSystem(mock_app_settings, mock_portfolio_state_manager)
 
         # Assert
         assert system.reconciliation_interval == timedelta(seconds=0)
@@ -168,7 +168,7 @@ class TestRegisterPortfolioTracker:
     ) -> None:
         """Test successful registration of portfolio tracker."""
         # Arrange
-        new_tracker = Mock(spec=PortfolioTracker)
+        new_tracker = Mock(spec=PortfolioStateManager)
 
         # Act
         reconciliation_system.register_portfolio_tracker(new_tracker)
@@ -185,13 +185,13 @@ class TestCheckPositions:
 
     @pytest.mark.asyncio
     async def test_check_positions_success_first_run(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test successful position check on first run."""
         # Arrange - Set up api_clients on the mock that was passed to the system
         mock_api_client = Mock(spec=ExchangeAPI)
         mock_api_client.get_positions = AsyncMock(return_value=[])
-        mock_portfolio_tracker.api_clients["hyperliquid"] = mock_api_client
+        mock_portfolio_state_manager.api_clients["hyperliquid"] = mock_api_client
 
         # Act
         with patch.object(
@@ -211,13 +211,13 @@ class TestCheckPositions:
 
     @pytest.mark.asyncio
     async def test_check_positions_success_forced(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test forced position check bypasses interval check."""
         # Arrange
         reconciliation_system.last_check_time = datetime.now(UTC)  # Recent check
         mock_api_client = Mock(spec=ExchangeAPI)
-        mock_portfolio_tracker.api_clients["hyperliquid"] = mock_api_client
+        mock_portfolio_state_manager.api_clients["hyperliquid"] = mock_api_client
 
         # Act
         with patch.object(
@@ -234,12 +234,12 @@ class TestCheckPositions:
 
     @pytest.mark.asyncio
     async def test_check_positions_edge_no_api_clients(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test check positions when no API clients are available."""
         # Arrange
-        mock_portfolio_tracker.api_clients.clear()
-        mock_portfolio_tracker.api_clients = None
+        mock_portfolio_state_manager.api_clients.clear()
+        mock_portfolio_state_manager.api_clients = None
 
         # Act
         results = await reconciliation_system.check_positions()
@@ -267,12 +267,12 @@ class TestCheckPositions:
 
     @pytest.mark.asyncio
     async def test_check_positions_failure_reconcile_exception(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test check positions handles reconciliation exceptions."""
         # Arrange
         mock_api_client = Mock(spec=ExchangeAPI)
-        mock_portfolio_tracker.api_clients["hyperliquid"] = mock_api_client
+        mock_portfolio_state_manager.api_clients["hyperliquid"] = mock_api_client
 
         # Act
         with patch.object(
@@ -798,12 +798,12 @@ class TestRunReconciliation:
 
     @pytest.mark.asyncio
     async def test_run_reconciliation_success(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test successful run of reconciliation process."""
         # Arrange
         mock_api_client = Mock(spec=ExchangeAPI)
-        mock_portfolio_tracker.api_clients["hyperliquid"] = mock_api_client
+        mock_portfolio_state_manager.api_clients["hyperliquid"] = mock_api_client
 
         # Act
         with patch.object(
@@ -825,13 +825,13 @@ class TestRunReconciliation:
 
     @pytest.mark.asyncio
     async def test_run_reconciliation_success_forced(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test forced reconciliation run bypasses interval check."""
         # Arrange
         # Set up recent run time
         mock_api_client = Mock(spec=ExchangeAPI)
-        mock_portfolio_tracker.api_clients["hyperliquid"] = mock_api_client
+        mock_portfolio_state_manager.api_clients["hyperliquid"] = mock_api_client
 
         # Act
         with patch.object(
@@ -848,12 +848,12 @@ class TestRunReconciliation:
 
     @pytest.mark.asyncio
     async def test_run_reconciliation_edge_no_api_clients(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test reconciliation with no API clients."""
         # Arrange
-        mock_portfolio_tracker.api_clients.clear()
-        mock_portfolio_tracker.api_clients = None
+        mock_portfolio_state_manager.api_clients.clear()
+        mock_portfolio_state_manager.api_clients = None
 
         # Act
         result = await reconciliation_system.run_reconciliation()
@@ -882,12 +882,12 @@ class TestRunReconciliation:
 
     @pytest.mark.asyncio
     async def test_run_reconciliation_failure_exception_handling(
-        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_tracker: Mock
+        self, reconciliation_system: PositionReconciliationSystem, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test reconciliation handles exceptions from exchanges."""
         # Arrange
         mock_api_client = Mock(spec=ExchangeAPI)
-        mock_portfolio_tracker.api_clients["hyperliquid"] = mock_api_client
+        mock_portfolio_state_manager.api_clients["hyperliquid"] = mock_api_client
 
         # Act
         with patch.object(

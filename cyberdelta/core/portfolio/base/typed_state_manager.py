@@ -21,7 +21,7 @@ from cyberdelta.core.portfolio.exceptions.state import (
     StateTransitionError,
     StateValidationError,
 )
-from cyberdelta.core.portfolio.portfolio_types.state_types import StateValidationResult
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import StateValidationResult
 
 
 # Type-preserving factory functions for dataclass fields

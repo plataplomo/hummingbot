@@ -17,7 +17,7 @@ from cyberdelta.core.models import (
     TradeSignal,
 )
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
@@ -46,13 +46,13 @@ def mock_execution_handler() -> Mock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Create mock portfolio tracker.
 
     Returns:
-        Mock: Mock PortfolioTracker instance for testing.
+        Mock: Mock PortfolioStateManager instance for testing.
     """
-    return Mock(spec=PortfolioTracker)
+    return Mock(spec=PortfolioStateManager)
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def mock_signal_queue() -> Mock:
 def strategy_manager(
     mock_config: Mock,
     mock_execution_handler: Mock,
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_risk_manager: Mock,
     mock_signal_queue: Mock,
 ) -> StrategyManager:
@@ -93,7 +93,7 @@ def strategy_manager(
     return StrategyManager(
         config=mock_config,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -168,7 +168,7 @@ class TestStrategyManagerInit:
         self,
         mock_config: Mock,
         mock_execution_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
         mock_signal_queue: Mock,
     ) -> None:
@@ -177,7 +177,7 @@ class TestStrategyManagerInit:
         manager = StrategyManager(
             config=mock_config,
             execution_handler=mock_execution_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             risk_manager=mock_risk_manager,
             signal_queue=mock_signal_queue,
         )
@@ -185,7 +185,7 @@ class TestStrategyManagerInit:
         # Assert
         assert manager.config == mock_config
         assert manager.execution_handler == mock_execution_handler
-        assert manager.portfolio_tracker == mock_portfolio_tracker
+        assert manager.portfolio_tracker == mock_portfolio_state_manager
         assert manager.risk_manager == mock_risk_manager
         assert manager.signal_queue == mock_signal_queue
         assert manager.strategies == {}

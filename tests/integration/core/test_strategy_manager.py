@@ -20,7 +20,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import OrderSide, SignalType, TradeSignal
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy_manager import StrategyManager
@@ -55,9 +55,9 @@ def mock_execution_handler() -> MagicMock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> MagicMock:
+def mock_portfolio_state_manager() -> MagicMock:
     """Return mock portfolio tracker for testing."""
-    return MagicMock(spec=PortfolioTracker)
+    return MagicMock(spec=PortfolioStateManager)
 
 
 @pytest.fixture
@@ -96,7 +96,7 @@ def test_register_strategy(
     mocker: MockerFixture,
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -104,7 +104,7 @@ def test_register_strategy(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -117,7 +117,7 @@ def test_register_strategy(
 def test_unregister_strategy(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -125,7 +125,7 @@ def test_unregister_strategy(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -139,7 +139,7 @@ def test_unregister_strategy(
 def test_enable_disable_strategy(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -147,7 +147,7 @@ def test_enable_disable_strategy(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -166,7 +166,7 @@ def test_enable_disable_strategy(
 def test_get_strategies_for_symbol(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -174,7 +174,7 @@ def test_get_strategies_for_symbol(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -210,7 +210,7 @@ def test_start_stop_all(
     mock_gather: MagicMock,
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -218,7 +218,7 @@ def test_start_stop_all(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -251,7 +251,7 @@ async def test_process_market_data(
     mock_create_task: MagicMock,
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -259,7 +259,7 @@ async def test_process_market_data(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -310,7 +310,7 @@ async def test_process_market_data(
 async def test_process_market_data_no_enabled_strategies(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -318,7 +318,7 @@ async def test_process_market_data_no_enabled_strategies(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -353,7 +353,7 @@ async def test_process_market_data_exception(
     mock_create_task: MagicMock,
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -361,7 +361,7 @@ async def test_process_market_data_exception(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -398,7 +398,7 @@ async def test_process_market_data_signal_handler_raises(
     mock_logger: MagicMock,
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -406,7 +406,7 @@ async def test_process_market_data_signal_handler_raises(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -459,7 +459,7 @@ async def test_process_market_data_signal_handler_raises(
 async def test_process_market_data_duplicate_signals(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -471,7 +471,7 @@ async def test_process_market_data_duplicate_signals(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -517,7 +517,7 @@ async def test_process_market_data_duplicate_signals(
 async def test_process_market_data_mixed_valid_invalid(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -525,7 +525,7 @@ async def test_process_market_data_mixed_valid_invalid(
     strategy_manager_for_test = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -596,7 +596,7 @@ async def test_process_market_data_mixed_valid_invalid(
 async def test_signal_handler_risk_manager_exception(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -604,7 +604,7 @@ async def test_signal_handler_risk_manager_exception(
     strategy_manager = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -659,7 +659,7 @@ async def test_signal_handler_risk_manager_exception(
 async def test_signal_handler_update_historical_data_exception(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -667,7 +667,7 @@ async def test_signal_handler_update_historical_data_exception(
     strategy_manager = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -714,7 +714,7 @@ async def test_signal_handler_update_historical_data_exception(
 async def test_process_market_data_malformed_signal(
     mock_app_settings: MagicMock,
     mock_execution_handler: MagicMock,
-    mock_portfolio_tracker: MagicMock,
+    mock_portfolio_state_manager: MagicMock,
     mock_risk_manager: AsyncMock,
     mock_signal_queue: MagicMock,
 ) -> None:
@@ -722,7 +722,7 @@ async def test_process_market_data_malformed_signal(
     strategy_manager = StrategyManager(
         config=mock_app_settings,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )

@@ -8,7 +8,7 @@ from .portfolio_config_manager import (
     ConfigSnapshot,
     ConfigSource,
     ConfigValidationResult,
-    PortfolioConfigManager,
+    ConfigLoaderService,
 )
 
 
@@ -20,5 +20,5 @@ __all__ = [
     "ConfigSnapshot",
     "ConfigSource",
     "ConfigValidationResult",
-    "PortfolioConfigManager",
+    "ConfigLoaderService",
 ]

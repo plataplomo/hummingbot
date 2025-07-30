@@ -31,7 +31,8 @@ from cyberdelta.core.models import (
     OrderType,
     TimeInForce,
 )
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import RequiredFieldError
 from cyberdelta.exceptions.service_validation import OrderParameterError
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
@@ -170,12 +171,12 @@ class OrderVerifier:
     def __init__(
         self,
         config: dict[str, Any],
-        portfolio_tracker: PortfolioTracker,
+        portfolio_state_manager: PortfolioStateManager,
         exchange_adapters: dict[str, ExchangeAPI],
     ) -> None:  # Add -> None
         """Initialize the order verifier."""
         self.config = config
-        self.portfolio_tracker = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
         self.exchange_adapters = exchange_adapters
 
     async def verify_order_placement(
@@ -231,7 +232,7 @@ class OrderVerifier:
             "details": verification_details,
         }
 
-    def _verify_local_order(
+    async def _verify_local_order(
         self,
         exchange: str,
         order_id: str,
@@ -239,15 +240,14 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
-        """Verify local order details.
-
-        Returns:
-            tuple[Order | None, bool, str | None]: A tuple containing:
-                - The local order object if found, None otherwise
-                - True if verification succeeded, False otherwise
-                - Error message if verification failed, None otherwise
-        """
-        local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
+        """Verify local order details."""
+        # In new API, we need to get all orders and find by ID
+        try:
+            orders = await self.portfolio_state_manager.get_orders(ExchangeName(exchange))
+            local_order: Order | None = orders.get(order_id)
+        except Exception as e:
+            logger.error(f"Failed to get orders from portfolio: {e}")
+            local_order = None
 
         if not local_order:
             verification_success = False
@@ -526,7 +526,7 @@ class OrderVerifier:
             "details": verification_details,
         }
 
-    def _verify_local_order_execution(
+    async def _verify_local_order_execution(
         self,
         exchange: str,
         order_id: str,
@@ -534,15 +534,14 @@ class OrderVerifier:
         verification_success: bool,
         verification_error: str | None,
     ) -> tuple[Order | None, bool, str | None]:
-        """Verify local order state.
-
-        Returns:
-            tuple[Order | None, bool, str | None]: A tuple containing:
-                - The local order object if found, None otherwise
-                - True if verification succeeded, False otherwise
-                - Error message if verification failed, None otherwise
-        """
-        local_order: Order | None = self.portfolio_tracker.get_order_by_id(exchange, order_id)
+        """Verify local order state."""
+        # In new API, we need to get all orders and find by ID
+        try:
+            orders = await self.portfolio_state_manager.get_orders(ExchangeName(exchange))
+            local_order: Order | None = orders.get(order_id)
+        except Exception as e:
+            logger.error(f"Failed to get orders from portfolio: {e}")
+            local_order = None
         if not local_order:
             verification_success = False
             verification_error = "Order not found in local portfolio for exchange"
@@ -1077,16 +1076,16 @@ class SynchronizedOrderSubmissionService:
         exchange_adapters: dict[str, ExchangeAPI],
         circuit_breaker_system: CircuitBreakerSystem,
         position_reconciliation_system: PositionReconciliationSystem,
-        portfolio_tracker: PortfolioTracker,
+        portfolio_state_manager: PortfolioStateManager,
     ) -> None:
         """Initialize the service."""
         self.config = config
         self.exchange_adapters = exchange_adapters
         self.circuit_breaker_system = circuit_breaker_system
         self.position_reconciliation_system = position_reconciliation_system
-        self.portfolio_tracker = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
 
-        self.order_verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
+        self.order_verifier = OrderVerifier(config, portfolio_state_manager, exchange_adapters)
         self.execution_coordinator = ExecutionCoordinator(config)
 
         # Configuration parameters
@@ -1472,7 +1471,7 @@ class SynchronizedOrderSubmissionService:
                 - 'timestamp': int (current timestamp in milliseconds)
                 - 'message': str describing the placeholder status
         """
-        # Placeholder implementation - needs integration with PortfolioTracker
+        # Placeholder implementation - needs integration with portfolio state manager
         # and opportunity details (required sizes)
         return {
             "timestamp": int(time.time() * 1000),
@@ -1614,7 +1613,7 @@ class SynchronizedOrderSubmissionService:
 
             # Verify first order
             order_verifier = OrderVerifier(
-                self.config, self.portfolio_tracker, self.exchange_adapters
+                self.config, self.portfolio_state_manager, self.exchange_adapters
             )
             verification_result = await order_verifier.verify_order_placement(
                 first_exchange,
@@ -1772,7 +1771,7 @@ class SynchronizedOrderSubmissionService:
 
             # Verify second order
             order_verifier = OrderVerifier(
-                self.config, self.portfolio_tracker, self.exchange_adapters
+                self.config, self.portfolio_state_manager, self.exchange_adapters
             )
             second_verification = await order_verifier.verify_order_placement(
                 second_exchange,

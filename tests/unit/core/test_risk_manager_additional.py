@@ -52,7 +52,7 @@ def mock_app_settings() -> Mock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
+def mock_portfolio_state_manager() -> Mock:
     """Create mock portfolio tracker for testing.
 
     Returns:
@@ -113,7 +113,7 @@ def mock_funding_rate_validator() -> Mock:
 @pytest.fixture
 def risk_manager(
     mock_app_settings: Mock,
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_circuit_breaker_system: Mock,
     mock_funding_rate_validator: Mock,
 ) -> RiskManager:
@@ -124,7 +124,7 @@ def risk_manager(
     """
     return RiskManager(
         app_settings=mock_app_settings,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         circuit_breaker_system=mock_circuit_breaker_system,
         funding_rate_validator=mock_funding_rate_validator,
     )
@@ -158,7 +158,7 @@ class TestRiskManagerInitialization:
     def test_initialization_success_with_all_dependencies(
         self,
         mock_app_settings: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_circuit_breaker_system: Mock,
         mock_funding_rate_validator: Mock,
     ) -> None:
@@ -166,32 +166,32 @@ class TestRiskManagerInitialization:
         # Act
         risk_manager = RiskManager(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_rate_validator,
         )
 
         # Assert
         assert risk_manager.app_settings is mock_app_settings
-        assert risk_manager.portfolio_tracker is mock_portfolio_tracker
+        assert risk_manager.portfolio_tracker is mock_portfolio_state_manager
         assert risk_manager.circuit_breaker_system is mock_circuit_breaker_system
         assert risk_manager.funding_rate_validator is mock_funding_rate_validator
         assert risk_manager.use_simple_sizing_path is True
         assert risk_manager.kelly_enabled is False
 
     def test_initialization_success_with_minimal_dependencies(
-        self, mock_app_settings: Mock, mock_portfolio_tracker: Mock
+        self, mock_app_settings: Mock, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test successful initialization with minimal required dependencies."""
         # Act
         risk_manager = RiskManager(
             app_settings=mock_app_settings,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Assert
         assert risk_manager.app_settings is mock_app_settings
-        assert risk_manager.portfolio_tracker is mock_portfolio_tracker
+        assert risk_manager.portfolio_tracker is mock_portfolio_state_manager
         assert risk_manager.circuit_breaker_system is None
         assert risk_manager.funding_rate_validator is None
 
@@ -209,7 +209,7 @@ class TestRiskManagerInitialization:
 
     # ==================== FAILURE CASES ====================
 
-    def test_initialization_failure_invalid_config(self, mock_portfolio_tracker: Mock) -> None:
+    def test_initialization_failure_invalid_config(self, mock_portfolio_state_manager: Mock) -> None:
         """Test initialization failure with invalid configuration."""
         # Arrange
         bad_settings = Mock()
@@ -219,7 +219,7 @@ class TestRiskManagerInitialization:
         with pytest.raises(RiskConfigError):
             RiskManager(
                 app_settings=bad_settings,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
 

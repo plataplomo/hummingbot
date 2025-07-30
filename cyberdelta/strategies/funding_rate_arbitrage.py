@@ -31,7 +31,8 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market import Candle  # Import Candle
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.exceptions.field_validation import RequiredFieldError, TypeFieldError
@@ -66,7 +67,7 @@ class FundingRateArbitrageStrategy(Strategy):
         name: str,
         symbol: str,
         data_handler: DataHandler | None,
-        portfolio_tracker: PortfolioTracker | None,
+        portfolio_state_manager: PortfolioStateManager | None,
         risk_manager: RiskManager | None = None,
         params: dict[str, Any] | None = None,
     ) -> None:
@@ -76,7 +77,7 @@ class FundingRateArbitrageStrategy(Strategy):
             name: Unique name for the strategy
             symbol: Trading symbol this strategy operates on (e.g., "BTC-PERP")
             data_handler: Data handler for market data access
-            portfolio_tracker: Portfolio tracker for position management
+            portfolio_state_manager: Portfolio state manager for position management
             risk_manager: Risk manager for position sizing and risk controls
             params: Dictionary of strategy parameters
 
@@ -92,10 +93,10 @@ class FundingRateArbitrageStrategy(Strategy):
                 actual_type="None",
                 actual_value=None,
             )
-        if portfolio_tracker is None:
+        if portfolio_state_manager is None:
             raise TypeFieldError(
-                field_name="portfolio_tracker",
-                expected_type="PortfolioTracker",
+                field_name="portfolio_state_manager",
+                expected_type="PortfolioStateManager",
                 actual_type="None",
                 actual_value=None,
             )
@@ -106,7 +107,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         super().__init__(name, symbol, params)
         self.data_handler = data_handler
-        self.portfolio_tracker = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
         self.risk_manager = risk_manager
 
         # Use helpers for config-derived parameters
@@ -826,8 +827,8 @@ class FundingRateArbitrageStrategy(Strategy):
                 spot_symbol_mapped,
             )
 
-        if self._should_rebalance(perp_ticker_live, spot_ticker_live):
-            rebalance_signals = self._generate_rebalance_signal(perp_ticker_live, spot_ticker_live)
+        if await self._should_rebalance(perp_ticker_live, spot_ticker_live):
+            rebalance_signals = await self._generate_rebalance_signal(perp_ticker_live, spot_ticker_live)
             if rebalance_signals:
                 signals.extend(rebalance_signals)
 
@@ -868,8 +869,8 @@ class FundingRateArbitrageStrategy(Strategy):
             )
 
         # Check for rebalancing first
-        if self._should_rebalance(perp_ticker_live, spot_ticker_live):
-            rebalance_signals = self._generate_rebalance_signal(perp_ticker_live, spot_ticker_live)
+        if await self._should_rebalance(perp_ticker_live, spot_ticker_live):
+            rebalance_signals = await self._generate_rebalance_signal(perp_ticker_live, spot_ticker_live)
             if rebalance_signals:
                 signals.extend(rebalance_signals)
                 # Potentially return early or manage state to avoid conflicting entry signals
@@ -949,7 +950,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 )
         return signals or None
 
-    def _should_rebalance(
+    async def _should_rebalance(
         self,
         perp_ticker_live: Ticker | None,
         spot_ticker_live: Ticker | None,
@@ -966,7 +967,8 @@ class FundingRateArbitrageStrategy(Strategy):
         #    or not self.portfolio_tracker.has_active_positions(self.name): # REMOVED
 
         # Get current positions
-        perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
+        perp_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.perp_exchange))
+        perp_position = perp_positions.get(self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if not spot_symbol:
             logger.error(
@@ -979,7 +981,8 @@ class FundingRateArbitrageStrategy(Strategy):
                 message=f"Spot symbol not mapped for {self.symbol} in _should_rebalance",
             )
             return False
-        spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
+        spot_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.spot_exchange))
+        spot_position = spot_positions.get(spot_symbol)
 
         # Ensure positions are not None before accessing .size or using in calculations
         if perp_position is None or spot_position is None:
@@ -1218,7 +1221,7 @@ class FundingRateArbitrageStrategy(Strategy):
         self.signals_generated += len(signals)
         return signals
 
-    def _generate_rebalance_signal(
+    async def _generate_rebalance_signal(
         self,
         perp_ticker_live: Ticker | None,
         spot_ticker_live: Ticker | None,
@@ -1229,19 +1232,19 @@ class FundingRateArbitrageStrategy(Strategy):
             List of TradeSignal objects for rebalancing positions.
         """
         signals: list[TradeSignal] = []
-        if not self.portfolio_tracker:
+        if not self.portfolio_state_manager:
             logger.error(
-                "portfolio_tracker_not_set",
+                "portfolio_state_manager_not_set",
                 strategy=self.name,
                 symbol=self.symbol,
                 method="_generate_rebalance_signal",
                 action="returning_empty_signals",
-                message=f"PortfolioTracker not set for {self.name}",
+                message=f"PortfolioStateManager not set for {self.name}",
             )
             return signals
 
         # Get positions and validate
-        position_data = self._get_and_validate_positions()
+        position_data = await self._get_and_validate_positions()
         if position_data is None:
             return signals
 
@@ -1286,16 +1289,12 @@ class FundingRateArbitrageStrategy(Strategy):
 
         return signals
 
-    def _get_and_validate_positions(
+    async def _get_and_validate_positions(
         self,
     ) -> tuple[DerivativePosition, DerivativePosition, str] | None:
-        """Get and validate perp and spot positions.
-
-        Returns:
-            Tuple of (perp_position, spot_position, spot_symbol) if valid positions exist,
-            None otherwise.
-        """
-        perp_position = self.portfolio_tracker.get_position(self.perp_exchange, self.symbol)
+        """Get and validate perp and spot positions."""
+        perp_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.perp_exchange))
+        perp_position = perp_positions.get(self.symbol)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if not spot_symbol:
             logger.error(
@@ -1308,7 +1307,8 @@ class FundingRateArbitrageStrategy(Strategy):
                 message=f"Spot symbol not mapped for {self.symbol} in _generate_rebalance_signal",
             )
             return None
-        spot_position = self.portfolio_tracker.get_position(self.spot_exchange, spot_symbol)
+        spot_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.spot_exchange))
+        spot_position = spot_positions.get(spot_symbol)
 
         # Check if positions are None before accessing .size
         if perp_position is None or spot_position is None:

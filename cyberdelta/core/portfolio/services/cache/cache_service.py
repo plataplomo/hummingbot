@@ -14,7 +14,7 @@ from cyberdelta.core.portfolio.exceptions import (
     CacheSizeMustBePositiveError,
     ServiceNotRunningError,
 )
-from cyberdelta.core.portfolio.portfolio_types.portfolio_data_models import CacheStatistics
+from cyberdelta.core.portfolio.portfolio_types.models import CacheStatistics
 
 
 if TYPE_CHECKING:

@@ -10,7 +10,7 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
-# Note: Fixtures risk_manager, mock_portfolio_tracker
+# Note: Fixtures risk_manager, mock_portfolio_state_manager
 #       are provided by tests/unit/risk/conftest.py
 
 
@@ -21,7 +21,7 @@ class TestRiskManagerConstraints:
     async def test_portfolio_constraints_pass_through_size_opportunity(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
     ) -> None:
@@ -34,14 +34,14 @@ class TestRiskManagerConstraints:
         # Create risk manager with simple path
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
 
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("3000.0")
-        mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("3000.0")
+        mock_portfolio_state_manager.get_exchange_balance.return_value = MagicMock(
             total_quantity=Decimal(50000),
             available_quantity=Decimal(50000),
         )
@@ -70,7 +70,7 @@ class TestRiskManagerConstraints:
     async def test_portfolio_constraints_fail_through_size_opportunity(
         self,
         mock_config: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker_system: MagicMock,
         mock_funding_validator: MagicMock,
     ) -> None:
@@ -84,16 +84,16 @@ class TestRiskManagerConstraints:
         # Create risk manager with simple path
         risk_manager = RiskManager(
             app_settings=mock_config,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             circuit_breaker_system=mock_circuit_breaker_system,
             funding_rate_validator=mock_funding_validator,
         )
 
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("1000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("1000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(
             "4500.0",
         )  # High existing exposure; adding 1000 would exceed 5000 limit
-        mock_portfolio_tracker.get_exchange_balance.return_value = MagicMock(
+        mock_portfolio_state_manager.get_exchange_balance.return_value = MagicMock(
             total_quantity=Decimal(1000),
             available_quantity=Decimal(1000),
         )

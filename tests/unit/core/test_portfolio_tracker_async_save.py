@@ -1,4 +1,4 @@
-"""Unit tests for the PortfolioTracker async save functionality.
+"""Unit tests for the PortfolioStateManager async save functionality.
 
 Tests async state persistence capabilities including save_state, load_state,
 and helper functions. Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases.
@@ -14,7 +14,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.portfolio_tracker_async_save import (
     load_state,
     patch_portfolio_tracker,
@@ -27,13 +27,13 @@ pytestmark = pytest.mark.timing
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
-    """Create a mock PortfolioTracker instance.
-
+def mock_portfolio_state_manager() -> Mock:
+    """Create a mock PortfolioStateManager instance.
+    
     Returns:
-        Mock: A mock PortfolioTracker instance for testing.
+        Mock: A mock PortfolioStateManager instance for testing.
     """
-    tracker = Mock(spec=PortfolioTracker)
+    tracker = Mock(spec=PortfolioStateManager)
 
     # Mock app_settings
     tracker.app_settings = Mock()
@@ -73,7 +73,7 @@ class TestSaveState:
 
     # SUCCESS CASES
     @pytest.mark.asyncio
-    async def test_save_state_success_with_path(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_success_with_path(self, mock_portfolio_state_manager: Mock) -> None:
         """Test successful save_state with explicit path."""
         # Arrange
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
@@ -81,7 +81,7 @@ class TestSaveState:
 
         try:
             # Act
-            await save_state(mock_portfolio_tracker, file_path)
+            await save_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert Path(file_path).exists()
@@ -97,15 +97,15 @@ class TestSaveState:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_save_state_success_default_path(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_success_default_path(self, mock_portfolio_state_manager: Mock) -> None:
         """Test successful save_state with default path from config."""
         # Arrange
         with tempfile.TemporaryDirectory() as tmp_dir:
             default_path = str(Path(tmp_dir) / "portfolio_state.json")
-            mock_portfolio_tracker.app_settings.general.portfolio_state_file = default_path
+            mock_portfolio_state_manager.app_settings.general.portfolio_state_file = default_path
 
             # Act
-            await save_state(mock_portfolio_tracker, None)
+            await save_state(mock_portfolio_state_manager, None)
 
             # Assert
             assert Path(default_path).exists()
@@ -113,14 +113,14 @@ class TestSaveState:
             assert saved_data["version"] == "1.0"
 
     @pytest.mark.asyncio
-    async def test_save_state_success_creates_directory(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_success_creates_directory(self, mock_portfolio_state_manager: Mock) -> None:
         """Test save_state successfully creates parent directories."""
         # Arrange
         with tempfile.TemporaryDirectory() as tmp_dir:
             nested_path = str(Path(tmp_dir) / "nested" / "dir" / "state.json")
 
             # Act
-            await save_state(mock_portfolio_tracker, nested_path)
+            await save_state(mock_portfolio_state_manager, nested_path)
 
             # Assert
             assert Path(nested_path).exists()
@@ -128,20 +128,20 @@ class TestSaveState:
 
     # EDGE CASES
     @pytest.mark.asyncio
-    async def test_save_state_edge_empty_portfolio_data(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_edge_empty_portfolio_data(self, mock_portfolio_state_manager: Mock) -> None:
         """Test save_state with empty portfolio data."""
         # Arrange
-        mock_portfolio_tracker.exchange_summaries = {}
-        mock_portfolio_tracker.active_symbols = set()
-        mock_portfolio_tracker.watchlist = set()
-        mock_portfolio_tracker.to_dict.return_value = {}
+        mock_portfolio_state_manager.exchange_summaries = {}
+        mock_portfolio_state_manager.active_symbols = set()
+        mock_portfolio_state_manager.watchlist = set()
+        mock_portfolio_state_manager.to_dict.return_value = {}
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
             file_path = tmp_file.name
 
         try:
             # Act
-            await save_state(mock_portfolio_tracker, file_path)
+            await save_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             saved_data = json.loads(Path(file_path).read_text(encoding="utf-8"))
@@ -152,23 +152,23 @@ class TestSaveState:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_save_state_edge_large_portfolio_data(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_edge_large_portfolio_data(self, mock_portfolio_state_manager: Mock) -> None:
         """Test save_state with large portfolio data."""
         # Arrange
         # Create large dataset
         large_exchanges: dict[str, dict[str, Any]] = {f"exchange_{i}": {} for i in range(100)}
         large_symbols = {f"SYMBOL_{i}-PERP" for i in range(1000)}
 
-        mock_portfolio_tracker.exchange_summaries = large_exchanges
-        mock_portfolio_tracker.active_symbols = large_symbols
-        mock_portfolio_tracker.to_dict.return_value = {"large_data": "x" * 10000}
+        mock_portfolio_state_manager.exchange_summaries = large_exchanges
+        mock_portfolio_state_manager.active_symbols = large_symbols
+        mock_portfolio_state_manager.to_dict.return_value = {"large_data": "x" * 10000}
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
             file_path = tmp_file.name
 
         try:
             # Act
-            await save_state(mock_portfolio_tracker, file_path)
+            await save_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert Path(file_path).exists()
@@ -181,31 +181,31 @@ class TestSaveState:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_save_state_failure_none_path_no_config(
-        self, mock_portfolio_tracker: Mock
+        self, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test save_state failure when path is None and no config available."""
         # Arrange
-        mock_portfolio_tracker.app_settings.general.portfolio_state_file = None
+        mock_portfolio_state_manager.app_settings.general.portfolio_state_file = None
 
         # Act & Assert
         with pytest.raises(StateFilePathError):
-            await save_state(mock_portfolio_tracker, None)
+            await save_state(mock_portfolio_state_manager, None)
 
     @pytest.mark.asyncio
-    async def test_save_state_failure_invalid_path(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_failure_invalid_path(self, mock_portfolio_state_manager: Mock) -> None:
         """Test save_state failure with invalid path."""
         # Arrange
         invalid_path = "/nonexistent/readonly/path/state.json"
 
         # Act & Assert
         with pytest.raises((OSError, IOError, FileNotFoundError, PermissionError)):
-            await save_state(mock_portfolio_tracker, invalid_path)
+            await save_state(mock_portfolio_state_manager, invalid_path)
 
     @pytest.mark.asyncio
-    async def test_save_state_failure_to_dict_error(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_state_failure_to_dict_error(self, mock_portfolio_state_manager: Mock) -> None:
         """Test save_state failure when to_dict raises exception."""
         # Arrange
-        mock_portfolio_tracker.to_dict.side_effect = Exception("Serialization error")
+        mock_portfolio_state_manager.to_dict.side_effect = Exception("Serialization error")
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
             file_path = tmp_file.name
@@ -213,7 +213,7 @@ class TestSaveState:
         try:
             # Act & Assert
             with pytest.raises(Exception, match="Serialization error"):
-                await save_state(mock_portfolio_tracker, file_path)
+                await save_state(mock_portfolio_state_manager, file_path)
         finally:
             Path(file_path).unlink(missing_ok=True)
 
@@ -247,7 +247,7 @@ class TestLoadState:
 
     # SUCCESS CASES
     @pytest.mark.asyncio
-    async def test_load_state_success_with_path(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_success_with_path(self, mock_portfolio_state_manager: Mock) -> None:
         """Test successful load_state with explicit path."""
         # Arrange
         state_data = self.create_test_state_data()
@@ -258,38 +258,38 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is True
-            mock_portfolio_tracker.from_dict.assert_called_once()
-            assert mock_portfolio_tracker.active_symbols == {"BTC-PERP", "ETH-PERP"}
-            assert mock_portfolio_tracker.watchlist == {"SOL-PERP"}
+            mock_portfolio_state_manager.from_dict.assert_called_once()
+            assert mock_portfolio_state_manager.active_symbols == {"BTC-PERP", "ETH-PERP"}
+            assert mock_portfolio_state_manager.watchlist == {"SOL-PERP"}
         finally:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_load_state_success_default_path(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_success_default_path(self, mock_portfolio_state_manager: Mock) -> None:
         """Test successful load_state with default path from config."""
         # Arrange
         state_data = self.create_test_state_data()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             default_path = str(Path(tmp_dir) / "portfolio_state.json")
-            mock_portfolio_tracker.app_settings.general.portfolio_state_file = default_path
+            mock_portfolio_state_manager.app_settings.general.portfolio_state_file = default_path
 
             # Write test data
             Path(default_path).write_text(json.dumps(state_data), encoding="utf-8")
 
             # Act
-            result = await load_state(mock_portfolio_tracker, None)
+            result = await load_state(mock_portfolio_state_manager, None)
 
             # Assert
             assert result is True
-            mock_portfolio_tracker.from_dict.assert_called_once()
+            mock_portfolio_state_manager.from_dict.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_load_state_success_minimal_data(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_success_minimal_data(self, mock_portfolio_state_manager: Mock) -> None:
         """Test successful load_state with minimal valid data."""
         # Arrange
         minimal_data: dict[str, str | dict[str, str]] = {
@@ -305,33 +305,33 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is True
             # Check that active_symbols was set to empty set (from empty metadata)
-            mock_portfolio_tracker.active_symbols = set()
-            mock_portfolio_tracker.watchlist = set()
-            assert mock_portfolio_tracker.active_symbols == set()
-            assert mock_portfolio_tracker.watchlist == set()
+            mock_portfolio_state_manager.active_symbols = set()
+            mock_portfolio_state_manager.watchlist = set()
+            assert mock_portfolio_state_manager.active_symbols == set()
+            assert mock_portfolio_state_manager.watchlist == set()
         finally:
             Path(file_path).unlink(missing_ok=True)
 
     # EDGE CASES
     @pytest.mark.asyncio
-    async def test_load_state_edge_file_not_exists(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_edge_file_not_exists(self, mock_portfolio_state_manager: Mock) -> None:
         """Test load_state when file doesn't exist."""
         # Arrange
         nonexistent_path = "/nonexistent/file.json"
 
         # Act
-        result = await load_state(mock_portfolio_tracker, nonexistent_path)
+        result = await load_state(mock_portfolio_state_manager, nonexistent_path)
 
         # Assert
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_load_state_edge_unsupported_version(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_edge_unsupported_version(self, mock_portfolio_state_manager: Mock) -> None:
         """Test load_state with unsupported version."""
         # Arrange
         invalid_version_data: dict[str, str | dict[str, str]] = {
@@ -347,7 +347,7 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is False
@@ -355,7 +355,7 @@ class TestLoadState:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_load_state_edge_missing_version(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_edge_missing_version(self, mock_portfolio_state_manager: Mock) -> None:
         """Test load_state with missing version field."""
         # Arrange
         no_version_data: dict[str, str | dict[str, str]] = {
@@ -370,7 +370,7 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is False
@@ -380,20 +380,20 @@ class TestLoadState:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_load_state_failure_none_path_no_config(
-        self, mock_portfolio_tracker: Mock
+        self, mock_portfolio_state_manager: Mock
     ) -> None:
         """Test load_state failure when path is None and no config available."""
         # Arrange
-        mock_portfolio_tracker.app_settings.general.portfolio_state_file = None
+        mock_portfolio_state_manager.app_settings.general.portfolio_state_file = None
 
         # Act
-        result = await load_state(mock_portfolio_tracker, None)
+        result = await load_state(mock_portfolio_state_manager, None)
 
         # Assert - should return False due to None path
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_load_state_failure_invalid_json(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_failure_invalid_json(self, mock_portfolio_state_manager: Mock) -> None:
         """Test load_state failure with invalid JSON."""
         # Arrange
         invalid_json = "{ invalid json content"
@@ -404,7 +404,7 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is False
@@ -412,11 +412,11 @@ class TestLoadState:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_load_state_failure_from_dict_error(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_failure_from_dict_error(self, mock_portfolio_state_manager: Mock) -> None:
         """Test load_state failure when from_dict raises exception."""
         # Arrange
         state_data = self.create_test_state_data()
-        mock_portfolio_tracker.from_dict.side_effect = Exception("Deserialization error")
+        mock_portfolio_state_manager.from_dict.side_effect = Exception("Deserialization error")
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
             json.dump(state_data, tmp_file)
@@ -424,7 +424,7 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is False
@@ -432,7 +432,7 @@ class TestLoadState:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_load_state_failure_empty_file(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_load_state_failure_empty_file(self, mock_portfolio_state_manager: Mock) -> None:
         """Test load_state failure with empty file."""
         # Arrange
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
@@ -441,7 +441,7 @@ class TestLoadState:
 
         try:
             # Act
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is False
@@ -454,8 +454,8 @@ class TestPatchPortfolioTracker:
 
     # SUCCESS CASES
     @pytest.mark.asyncio
-    async def test_patch_portfolio_tracker_success(self, mock_portfolio_tracker: Mock) -> None:
-        """Test successful patching and functionality of PortfolioTracker."""
+    async def test_patch_portfolio_tracker_success(self, mock_portfolio_state_manager: Mock) -> None:
+        """Test successful patching and functionality of PortfolioStateManager."""
         # Arrange
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
             file_path = tmp_file.name
@@ -465,14 +465,14 @@ class TestPatchPortfolioTracker:
             patch_portfolio_tracker()
 
             # Assert - Methods are added and functional
-            assert hasattr(PortfolioTracker, "save_state")
-            assert hasattr(PortfolioTracker, "load_state")
+            assert hasattr(PortfolioStateManager, "save_state")
+            assert hasattr(PortfolioStateManager, "load_state")
 
             # Test that the patched methods actually work
-            await save_state(mock_portfolio_tracker, file_path)
+            await save_state(mock_portfolio_state_manager, file_path)
             assert Path(file_path).exists()
 
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
             assert result is True
         finally:
             Path(file_path).unlink(missing_ok=True)
@@ -480,9 +480,9 @@ class TestPatchPortfolioTracker:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_patch_portfolio_tracker_edge_multiple_calls(
-        self, mock_portfolio_tracker: Mock
+        self, mock_portfolio_state_manager: Mock
     ) -> None:
-        """Test patching PortfolioTracker multiple times still works."""
+        """Test patching PortfolioStateManager multiple times still works."""
         # Arrange
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
             file_path = tmp_file.name
@@ -494,14 +494,14 @@ class TestPatchPortfolioTracker:
             patch_portfolio_tracker()
 
             # Assert - Should still work correctly
-            assert hasattr(PortfolioTracker, "save_state")
-            assert hasattr(PortfolioTracker, "load_state")
+            assert hasattr(PortfolioStateManager, "save_state")
+            assert hasattr(PortfolioStateManager, "load_state")
 
             # Test functionality still works after multiple patches
-            await save_state(mock_portfolio_tracker, file_path)
+            await save_state(mock_portfolio_state_manager, file_path)
             assert Path(file_path).exists()
 
-            result = await load_state(mock_portfolio_tracker, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
             assert result is True
         finally:
             Path(file_path).unlink(missing_ok=True)
@@ -510,12 +510,12 @@ class TestPatchPortfolioTracker:
         """Test that patch_portfolio_tracker is idempotent."""
         # Act - Apply patch multiple times
         patch_portfolio_tracker()
-        first_save_method = getattr(PortfolioTracker, "save_state", None)
-        first_load_method = getattr(PortfolioTracker, "load_state", None)
+        first_save_method = getattr(PortfolioStateManager, "save_state", None)
+        first_load_method = getattr(PortfolioStateManager, "load_state", None)
 
         patch_portfolio_tracker()
-        second_save_method = getattr(PortfolioTracker, "save_state", None)
-        second_load_method = getattr(PortfolioTracker, "load_state", None)
+        second_save_method = getattr(PortfolioStateManager, "save_state", None)
+        second_load_method = getattr(PortfolioStateManager, "load_state", None)
 
         # Assert - Methods should be the same (idempotent)
         assert first_save_method is second_save_method
@@ -530,8 +530,8 @@ class TestPatchPortfolioTracker:
         # Act & Assert - Should not raise any exceptions
         patch_portfolio_tracker()
         # If we get here without exception, the test passes
-        assert hasattr(PortfolioTracker, "save_state")
-        assert hasattr(PortfolioTracker, "load_state")
+        assert hasattr(PortfolioStateManager, "save_state")
+        assert hasattr(PortfolioStateManager, "load_state")
 
 
 # Integration tests
@@ -539,7 +539,7 @@ class TestIntegrationScenarios:
     """Integration test scenarios for portfolio tracker async save functionality."""
 
     @pytest.mark.asyncio
-    async def test_save_load_roundtrip_success(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_save_load_roundtrip_success(self, mock_portfolio_state_manager: Mock) -> None:
         """Test complete save and load roundtrip."""
         # Arrange
         with tempfile.NamedTemporaryFile(mode="w", delete=False, encoding="utf-8") as tmp_file:
@@ -554,12 +554,12 @@ class TestIntegrationScenarios:
         temp_tracker.high_watermark = Decimal("10000.0")
         temp_tracker.realized_pnl = Decimal("1500.0")
 
-        mock_portfolio_tracker.from_dict.return_value = temp_tracker
+        mock_portfolio_state_manager.from_dict.return_value = temp_tracker
 
         try:
             # Act - Save then load
-            await save_state(mock_portfolio_tracker, file_path)
-            result = await load_state(mock_portfolio_tracker, file_path)
+            await save_state(mock_portfolio_state_manager, file_path)
+            result = await load_state(mock_portfolio_state_manager, file_path)
 
             # Assert
             assert result is True
@@ -574,7 +574,7 @@ class TestIntegrationScenarios:
             Path(file_path).unlink(missing_ok=True)
 
     @pytest.mark.asyncio
-    async def test_concurrent_save_operations(self, mock_portfolio_tracker: Mock) -> None:
+    async def test_concurrent_save_operations(self, mock_portfolio_state_manager: Mock) -> None:
         """Test concurrent save operations."""
         # Arrange
         file_paths: list[str] = []
@@ -584,7 +584,7 @@ class TestIntegrationScenarios:
 
         try:
             # Act - Concurrent saves
-            tasks = [save_state(mock_portfolio_tracker, path) for path in file_paths]
+            tasks = [save_state(mock_portfolio_state_manager, path) for path in file_paths]
             await asyncio.gather(*tasks)
 
             # Assert - All files should exist and contain valid data

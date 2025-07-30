@@ -11,6 +11,7 @@ from cyberdelta.core.risk.exceptions.sizing_exceptions import (
 from cyberdelta.core.risk.sizing.models.sizing_result import SizingContext
 from cyberdelta.core.risk.sizing.strategies.typed_base_sizer import TypedBaseSizer
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.core.risk.config.risk_module_config import load_risk_config_from_settings
 
 
 class KellyCriterionSizer(TypedBaseSizer):
@@ -34,20 +35,23 @@ class KellyCriterionSizer(TypedBaseSizer):
         self._max_volatility = self.sizing_settings.max_volatility_bound
         self._volatility_lookback_hours = self.sizing_settings.volatility_lookback_hours
 
+        # Load risk module configuration
+        self.risk_config = load_risk_config_from_settings(app_settings)
+        
         # Risk parameters from AppSettings
         self._risk_free_rate = float(self.sizing_settings.kelly_risk_free_rate)
-        self._expected_return_adjustment = Decimal("0.8")  # Hardcoded default
+        self._expected_return_adjustment = Decimal("0.8")  # Conservative adjustment factor
 
-        # Calculation parameters - hardcoded defaults as not in enhanced config
+        # Calculation parameters from risk config
         self._enable_sharpe_adjustment = True
         self._enable_drawdown_adjustment = True
-        self._max_drawdown_threshold = Decimal("0.2")  # 20%
+        self._max_drawdown_threshold = self.risk_config.risk_metrics.max_drawdown_limit
 
-        # Safety parameters - hardcoded defaults as not in enhanced config
+        # Safety parameters - use Kelly bounds from AppSettings
         self._enable_kelly_floor = True
-        self._kelly_floor = Decimal("0.001")  # 0.1% minimum
+        self._kelly_floor = self._kelly_min_allocation / Decimal("10")  # 10% of min allocation
         self._enable_kelly_ceiling = True
-        self._kelly_ceiling = Decimal("0.5")  # 50% maximum
+        self._kelly_ceiling = self._kelly_max_allocation * Decimal("2")  # 2x max allocation
 
     @property
     def name(self) -> str:

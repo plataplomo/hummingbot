@@ -26,9 +26,9 @@ from cyberdelta.config.structlog_config import get_logger as get_structlog, setu
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.portfolio_orchestrator import PortfolioOrchestrator
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
-from cyberdelta.core.portfolio_tracker_async_save import patch_portfolio_tracker
+from cyberdelta.core.portfolio.services import PortfolioServiceFactory
+from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
+from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.services import PriceDataService
 from cyberdelta.core.signal_queue import PrioritySignalQueue
@@ -96,11 +96,11 @@ async def _save_application_state(app_state: dict[str, Any]) -> None:
     """Save application state to persistent storage."""
     logger.info("Saving final state...")
 
-    # Save portfolio state using async save_state
-    if "portfolio_tracker" in app_state:
+    # Save portfolio state using portfolio service factory
+    if "portfolio_factory" in app_state:
         try:
-            await app_state["portfolio_tracker"].save_state()
-            logger.info("Portfolio state saved successfully")
+            await app_state["portfolio_factory"].shutdown_all()
+            logger.info("Portfolio services shut down successfully")
         except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             logger.exception("portfolio_save_error: Error saving portfolio state", error=str(e))
 
@@ -227,9 +227,16 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
 
     try:
         logger.info("Initializing core components...")
-        # Patch PortfolioTracker with async save/load methods
-        patch_portfolio_tracker()
-        logger.info("PortfolioTracker patched with async methods")
+        # Initialize portfolio service factory and risk service factory
+        portfolio_factory = PortfolioServiceFactory(config=config)
+        risk_factory = RiskServiceFactory(config=config)
+        app_state["portfolio_factory"] = portfolio_factory
+        app_state["risk_factory"] = risk_factory
+        
+        # Create portfolio state manager through factory
+        portfolio_state_manager = portfolio_factory.create_portfolio_state_manager()
+        app_state["portfolio_state_manager"] = portfolio_state_manager
+        logger.info("Portfolio service factory and state manager initialized")
 
         # Use AsyncStateManager instead of regular StateManager
         state_manager = AsyncStateManager(config)
@@ -263,13 +270,13 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         symbol_service = unified_symbol_service.service
         app_state["symbol_mapper"] = symbol_service
 
-        # PortfolioTracker now accepts SymbolService directly
-        portfolio_tracker: PortfolioTracker = PortfolioTracker(
-            config,
-            config.portfolio_tracker,
-            symbol_mapper=symbol_service,
-        )
-        app_state["portfolio_tracker"] = portfolio_tracker
+        # Create portfolio reconciliation service to replace orchestrator
+        reconciliation_service = portfolio_factory.create_reconciliation_service()
+        app_state["reconciliation_service"] = reconciliation_service
+
+        # Create exchange data service 
+        exchange_data_service = portfolio_factory.create_exchange_service()
+        app_state["exchange_data_service"] = exchange_data_service
 
         # Create PriceDataService for ticker management
         price_data_service = PriceDataService(
@@ -279,66 +286,59 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         )
         app_state["price_data_service"] = price_data_service
 
-        # Create PortfolioOrchestrator to handle API interactions
-        portfolio_orchestrator = PortfolioOrchestrator(
-            app_settings=config,
-            portfolio_tracker=portfolio_tracker,
-            api_clients={},  # Will be populated later
-        )
-        app_state["portfolio_orchestrator"] = portfolio_orchestrator
-
         # CircuitBreakerSystem expects Config
         circuit_breaker = CircuitBreakerSystem(config)
         app_state["circuit_breaker"] = circuit_breaker
 
-        # ExecutionHandler expects:
+        # ExecutionHandler with modular system (updated constructor signature)
         execution_handler = ExecutionHandler(
-            config,
-            portfolio_tracker,
-            symbol_service,
-            circuit_breaker,
+            app_settings=config,
+            portfolio_state_manager=portfolio_state_manager,
+            symbol_service=symbol_service,
+            circuit_breaker_system=circuit_breaker,
         )
         app_state["execution_handler"] = execution_handler
 
-        # RiskManager expects:
-        #   (Config, PortfolioTrackerProtocol, CircuitBreakerSystemProtocol|None,
-        #    FundingRateValidatorProtocol|None)
+        # RiskManager with portfolio state manager
         risk_manager = RiskManager(
             config,
-            portfolio_tracker,  # PortfolioTracker instance
+            portfolio_state_manager,  # Portfolio state manager instead of tracker
             circuit_breaker,
             None,  # No funding rate validator for now
         )
         app_state["risk_manager"] = risk_manager
 
-        # PrioritySignalQueue expects handler and config (assume import and correct signature)
+        # PrioritySignalQueue
         signal_queue = PrioritySignalQueue(
             config,
             circuit_breaker,
         )
         app_state["signal_queue"] = signal_queue
 
-        # Engine expects name (optional)
-        engine = Engine(name="CyberDeltaEngine_Core")
+        # Engine with modular system - requires service factories
+        engine = Engine(
+            portfolio_factory=portfolio_factory,
+            risk_factory=risk_factory,
+            name="CyberDeltaEngine_Core"
+        )
         app_state["engine"] = engine
 
-        # DataHandler expects app_settings, api_clients, portfolio_tracker, symbol_mapper
-        # We'll initialize api_clients empty here and register them later
+        # DataHandler with portfolio state manager
         data_handler = DataHandler(
             app_settings=config,
             api_clients={},
-            portfolio_tracker=portfolio_tracker,
+            portfolio_tracker=portfolio_state_manager,  # Use portfolio state manager
             symbol_mapper=symbol_service,
         )
         app_state["data_handler"] = data_handler
 
-        # Initialize StrategyManager
+        # Initialize StrategyManager with modular system
         strategy_manager = StrategyManager(
             config=config,
-            execution_handler=execution_handler,  # Pass execution_handler
-            portfolio_tracker=portfolio_tracker,
+            execution_handler=execution_handler,
             risk_manager=risk_manager,
-            signal_queue=signal_queue,  # Pass the initialized signal_queue
+            signal_queue=signal_queue,
+            service_factory=portfolio_factory,  # Portfolio service factory
         )
         app_state["strategy_manager"] = strategy_manager
 
@@ -406,8 +406,8 @@ async def _initialize_api_clients(
             # Register API client with relevant components
             app_state["data_handler"].register_api_client(exchange_name, client)
             app_state["execution_handler"].register_api_client(exchange_name, client)
-            # Register with PortfolioOrchestrator and PriceDataService instead of PortfolioTracker
-            app_state["portfolio_orchestrator"].register_api_client(exchange_name, client)
+            # Register with ExchangeDataService and PriceDataService
+            app_state["exchange_data_service"].register_api_client(exchange_name, client)
             app_state["price_data_service"].register_api_client(exchange_name, client)
             logger.info("Initialized and connected API client", exchange=exchange_name)
 
@@ -461,7 +461,7 @@ def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> li
                     name="HL-BP-FundingArbitrage",
                     symbol=strategy_config.symbol_long,  # Primary symbol for strategy
                     data_handler=app_state["data_handler"],
-                    portfolio_tracker=app_state["portfolio_tracker"],
+                    portfolio_tracker=app_state["portfolio_state_manager"],
                     risk_manager=app_state["risk_manager"],
                 )
                 strategies.append(strategy)
@@ -551,8 +551,7 @@ def _wire_components(app_state: dict[str, Any]) -> None:
     # RiskManager pushes ExecutionOrders -> ExecutionHandler (done in RM init)
     logger.debug("RiskManager configured to send orders to ExecutionHandler")
 
-    # ExecutionHandler updates PortfolioTracker (assumed internal or via events)
-    # TODO: Verify how ExecutionHandler reports fills/updates to PortfolioTracker.
+    # ExecutionHandler updates portfolio state via event-driven system
     logger.debug("Component wiring complete.")
 
 
@@ -564,11 +563,13 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
     """
     main_tasks: list[asyncio.Task[Any]] = []
 
-    logger.info("Loading initial state...")
-    await app_state["portfolio_tracker"].load_state()
-    # Fetch initial balances/positions AFTER loading state using PortfolioOrchestrator
+    # Initialize portfolio services
+    logger.info("Initializing portfolio services...")
+    await app_state["portfolio_factory"].initialize_all()
+    
+    # Perform initial portfolio reconciliation using new service
     logger.info("Performing initial portfolio reconciliation...")
-    await app_state["portfolio_orchestrator"].orchestrate_full_reconciliation()
+    await app_state["reconciliation_service"].reconcile_all_exchanges()
 
     logger.info("Starting background component tasks...")
     # Start data streams and processing

@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING, ParamSpec, Protocol, Self, TypeVar, runtime_checkable
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.portfolio_types.resilience_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     ResilienceError,
     ResilienceErrorType,
     ResilienceMetrics,
@@ -18,8 +18,8 @@ from cyberdelta.core.portfolio.portfolio_types.resilience_types import (
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from cyberdelta.core.portfolio.services.resilience.resilience_service import (
-        PortfolioResilienceService,
+    from cyberdelta.core.portfolio.services.resilience.graceful_degradation_service import (
+        GracefulDegradationService,
     )
 
 
@@ -31,9 +31,9 @@ T = TypeVar("T", bound=object)
 
 @runtime_checkable
 class HasResilienceService(Protocol):
-    """Protocol for objects that have a resilience service."""
+    """Protocol for objects that have resilience services."""
 
-    resilience_service: PortfolioResilienceService
+    degradation_service: GracefulDegradationService
 
 
 def with_resilience[**P, T](
@@ -80,21 +80,15 @@ def with_resilience[**P, T](
             )
 
             try:
-                # Get resilience service from first argument if it has one
-                resilience_service = None
+                # Get degradation service from first argument if it has one
+                degradation_service = None
                 if args and isinstance(args[0], HasResilienceService):
-                    resilience_service = args[0].resilience_service
+                    degradation_service = args[0].degradation_service
 
-                if resilience_service:
-                    # Use resilience service if available
-                    result = await resilience_service.execute_with_resilience(
-                        service_name,
-                        func,
-                        *args,
-                        use_circuit_breaker=use_circuit_breaker,
-                        use_retry=use_retry,
-                        use_fallback=use_fallback,
-                        **kwargs,
+                if degradation_service:
+                    # Use degradation service if available
+                    result = await degradation_service.execute_with_fallback(
+                        service_name, func, *args, **kwargs
                     )
 
                     # Update metrics
@@ -207,21 +201,15 @@ def resilient_method(
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             # Apply resilience manually instead of using the decorator
             try:
-                # Get resilience service from first argument if it has one
-                resilience_service = None
+                # Get degradation service from first argument if it has one
+                degradation_service = None
                 if args and isinstance(args[0], HasResilienceService):
-                    resilience_service = args[0].resilience_service
+                    degradation_service = args[0].degradation_service
 
-                if resilience_service:
-                    # Use resilience service if available
-                    return await resilience_service.execute_with_resilience(
-                        actual_service_name,
-                        func,
-                        *args,
-                        use_circuit_breaker=use_circuit_breaker,
-                        use_retry=use_retry,
-                        use_fallback=use_fallback,
-                        **kwargs,
+                if degradation_service:
+                    # Use degradation service if available
+                    return await degradation_service.execute_with_fallback(
+                        actual_service_name, func, *args, **kwargs
                     )
                 # No resilience service, execute directly
                 return await func(*args, **kwargs)
@@ -241,11 +229,11 @@ class ResilienceContext:
     def __init__(
         self,
         service_name: str,
-        resilience_service: PortfolioResilienceService | None = None,
+        degradation_service: GracefulDegradationService | None = None,
     ) -> None:
         """Initialize resilience context."""
         self.service_name = service_name
-        self.resilience_service = resilience_service
+        self.degradation_service = degradation_service
         self.start_time: float = 0
         self.metrics: ResilienceMetrics | None = None
 

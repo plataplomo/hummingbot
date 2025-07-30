@@ -38,7 +38,7 @@ from tests.fixtures.exchange_mocks import (
     mock_arbitrage_opportunity,
     mock_data_handler,
     mock_exchange_api,
-    mock_portfolio_tracker,
+    mock_portfolio_state_manager,
 )
 from tests.fixtures.http_mocks import (
     MockClientSession,
@@ -138,7 +138,7 @@ __all__ = [
     "mock_data_handler",
     "mock_exchange_api",
     "mock_get_config",
-    "mock_portfolio_tracker",
+    "mock_portfolio_state_manager",  # Note: provides PortfolioStateManager mock, not legacy PortfolioStateManager
     "mock_request",
     "mock_secrets_manager_with_missing",
     "mock_time_factory",

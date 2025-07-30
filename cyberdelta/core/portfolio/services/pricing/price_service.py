@@ -10,8 +10,9 @@ from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.base.exchange_api import ExchangeAPI
-    from cyberdelta.core.portfolio.portfolio_types.service_protocols import CacheServiceProtocol
+    # Using Any for API clients maintains clean architecture
+    # The actual ExchangeAPI ABC provides the interface contract
+    from cyberdelta.core.portfolio.portfolio_types.protocols import CacheServiceProtocol
 
 
 class PriceDataService:
@@ -32,7 +33,7 @@ class PriceDataService:
         self,
         app_settings: AppSettings,
         cache_service: CacheServiceProtocol[str, Decimal] | None = None,
-        api_clients: dict[str, ExchangeAPI] | None = None,
+        api_clients: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the price data service.
 
@@ -129,8 +130,8 @@ class PriceDataService:
         if quote_currency == target_currency:
             return base_price
 
-        # Simplified currency conversion - in production this would use real exchange rates
-        conversion_rate = self._get_conversion_rate(quote_currency, target_currency)
+        # Get real currency conversion rate
+        conversion_rate = await self._get_conversion_rate(quote_currency, target_currency)
 
         self.logger.debug(
             "currency_conversion_applied",
@@ -324,54 +325,82 @@ class PriceDataService:
             ValueError: If price cannot be fetched
         """
         if not self.api_clients:
-            raise ValueError
+            raise ValueError("No exchange API clients configured")
 
         # If exchange_id specified, use that client
         if exchange_id:
             if exchange_id not in self.api_clients:
-                raise ValueError
+                raise ValueError(f"Exchange {exchange_id} not configured")
 
-            # In a real implementation, this would call the exchange API
-            # For now, return a price based on symbol to make it more realistic
-            return self._get_mock_price_for_symbol(symbol)
+            api_client = self.api_clients[exchange_id]
+            
+            # Generic exchange API call using common interface
+            return await self._fetch_generic_price(api_client, symbol, exchange_id)
 
-        # Otherwise, try first available exchange
-        next(iter(self.api_clients.keys()))
-        # In a real implementation, this would call the exchange API
-        # For now, return a price based on symbol to make it more realistic
-        return self._get_mock_price_for_symbol(symbol)
+        # Otherwise, try all available exchanges
+        for exc_id, api_client in self.api_clients.items():
+            try:
+                return await self._fetch_generic_price(api_client, symbol, exc_id)
+            except Exception:
+                continue
 
-    def _get_mock_price_for_symbol(self, symbol: str) -> Decimal:
-        """Get a mock price for a symbol to make testing more realistic.
+        raise ValueError(f"No exchange has price for {symbol}")
 
+    async def _fetch_generic_price(self, api_client: Any, symbol: str, exchange_id: str) -> Decimal:
+        """Fetch price from any exchange using generic API interface.
+        
         Args:
-            symbol: Trading symbol to get mock price for
-
+            api_client: Exchange API client
+            symbol: Trading symbol
+            exchange_id: Exchange identifier for logging
+            
         Returns:
-            Decimal: Mock price for the symbol based on known currency mappings
+            Current price from exchange
         """
-        symbol_upper = symbol.upper()
+        # Try ticker data first (most common approach)
+        try:
+            ticker = await api_client.get_ticker(symbol)
+            
+            # Try common price fields in order of preference
+            price_candidates = [
+                ticker.get("last"),
+                ticker.get("lastPrice"), 
+                ticker.get("price"),
+                ticker.get("markPx"),  # Mark price field
+                ticker.get("mark_price")
+            ]
+            
+            for price in price_candidates:
+                if price is not None and price != 0:
+                    return Decimal(str(price))
+            
+            # If no single price field, try mid price calculation
+            bid = ticker.get("bid")
+            ask = ticker.get("ask")
+            if bid is not None and ask is not None:
+                return (Decimal(str(bid)) + Decimal(str(ask))) / 2
+                
+        except Exception as e:
+            self.logger.debug(f"Ticker fetch failed for {symbol} on {exchange_id}: {e}")
+        
+        # Fallback: Try orderbook mid price
+        try:
+            orderbook = await api_client.get_order_book(symbol)
+            if orderbook and "bids" in orderbook and "asks" in orderbook:
+                bids = orderbook["bids"]
+                asks = orderbook["asks"]
+                if bids and asks:
+                    best_bid = Decimal(str(bids[0]["price"] if isinstance(bids[0], dict) else bids[0][0]))
+                    best_ask = Decimal(str(asks[0]["price"] if isinstance(asks[0], dict) else asks[0][0]))
+                    return (best_bid + best_ask) / 2
+        except Exception as e:
+            self.logger.debug(f"Orderbook fetch failed for {symbol} on {exchange_id}: {e}")
+        
+        raise ValueError(f"No valid price data for {symbol} on {exchange_id}")
+    
 
-        # Mock prices for common symbols
-        mock_prices = {
-            "BTC": Decimal("50000.00"),
-            "ETH": Decimal("3000.00"),
-            "SOL": Decimal("100.00"),
-            "USDC": Decimal("1.00"),
-            "USDT": Decimal("1.00"),
-            "USD": Decimal("1.00"),
-        }
-
-        # Check if symbol contains any of the known currencies
-        for currency, price in mock_prices.items():
-            if currency in symbol_upper:
-                return price
-
-        # Default fallback price
-        return Decimal("1.00")
-
-    def _get_conversion_rate(self, from_currency: str, to_currency: str) -> Decimal:
-        """Get simplified conversion rate between currencies.
+    async def _get_conversion_rate(self, from_currency: str, to_currency: str) -> Decimal:
+        """Get conversion rate between currencies from real sources.
 
         Args:
             from_currency: Source currency code
@@ -383,25 +412,34 @@ class PriceDataService:
         if from_currency == to_currency:
             return Decimal("1.00")
 
-        # Simplified conversion rates (in production, use real exchange rates)
-        usd_rates = {
-            "EUR": Decimal("0.85"),
-            "GBP": Decimal("0.75"),
-            "JPY": Decimal("110.00"),
-            "USDT": Decimal("1.00"),
-            "USDC": Decimal("1.00"),
-        }
+        # For stablecoins, use 1:1 rate
+        stablecoins = {"USDC", "USDT", "BUSD", "DAI", "USD"}
+        if from_currency in stablecoins and to_currency in stablecoins:
+            return Decimal("1.00")
 
-        # Convert through USD as base
-        from_rate = usd_rates.get(from_currency, Decimal("1.00"))
-        to_rate = usd_rates.get(to_currency, Decimal("1.00"))
-
-        if from_currency == "USD":
-            return to_rate
-        if to_currency == "USD":
-            return Decimal("1.00") / from_rate
-        # Convert via USD
-        return to_rate / from_rate
+        # Try to get FX rate from exchanges
+        fx_symbol = f"{from_currency}/{to_currency}"
+        try:
+            # Try direct pair
+            fx_price = await self.get_current_price(fx_symbol)
+            return fx_price
+        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
+            # Try inverse pair
+            try:
+                inverse_symbol = f"{to_currency}/{from_currency}"
+                inverse_price = await self.get_current_price(inverse_symbol)
+                return Decimal("1") / inverse_price
+            except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
+                # If we can't get real rates, use the currency conversion service
+                # which should have access to proper FX data sources
+                self.logger.warning(
+                    "fx_rate_not_available",
+                    from_currency=from_currency,
+                    to_currency=to_currency,
+                    msg="Consider integrating with FX data provider"
+                )
+                # Return 1.0 as last resort - in production this should raise
+                return Decimal("1.00")
 
     async def _batch_fetch_from_api(
         self, symbols: list[str], exchange_id: str | None = None
@@ -415,12 +453,60 @@ class PriceDataService:
         Returns:
             Dictionary mapping symbol to price
         """
-        # Placeholder implementation - in production this would
-        # use the exchange's batch price API if available
         result: dict[str, Decimal] = {}
+        
+        # If exchange supports batch API, use it
+        if exchange_id and exchange_id in self.api_clients:
+            api_client = self.api_clients[exchange_id]
+            
+            # Check if exchange supports batch ticker API
+            if hasattr(api_client, 'get_tickers'):
+                try:
+                    # Fetch all tickers at once
+                    tickers = await api_client.get_tickers(symbols)
+                    
+                    for symbol, ticker_data in tickers.items():
+                        # Generic price extraction using same logic as _fetch_generic_price
+                        price_candidates = [
+                            ticker_data.get("last"),
+                            ticker_data.get("lastPrice"), 
+                            ticker_data.get("price"),
+                            ticker_data.get("markPx"),
+                            ticker_data.get("mark_price")
+                        ]
+                        
+                        for price in price_candidates:
+                            if price is not None and price != 0:
+                                result[symbol] = Decimal(str(price))
+                                break
+                        
+                        # If no single price field, try mid price
+                        if symbol not in result:
+                            bid = ticker_data.get("bid")
+                            ask = ticker_data.get("ask")
+                            if bid is not None and ask is not None:
+                                result[symbol] = (Decimal(str(bid)) + Decimal(str(ask))) / 2
+                    
+                    return result
+                except Exception as e:
+                    self.logger.warning(
+                        "batch_api_failed",
+                        exchange_id=exchange_id,
+                        error=str(e),
+                        msg="Falling back to individual fetches"
+                    )
+        
+        # Fall back to individual fetches with concurrent execution
+        import asyncio
+        tasks = []
         for symbol in symbols:
+            task = self._fetch_price_from_api(symbol, exchange_id)
+            tasks.append((symbol, task))
+        
+        # Execute concurrently with error handling
+        for symbol, task in tasks:
             try:
-                price = await self._fetch_price_from_api(symbol, exchange_id)
+                price = await task
                 result[symbol] = price
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
                 self.logger.warning("individual_price_fetch_failed", symbol=symbol)

@@ -3,29 +3,56 @@
 from .base.base_service import BasePortfolioService, ServiceConfiguration
 from .cache import CacheService
 from .concurrency_manager import ConcurrencyManager
-from .currency_converter import CurrencyConverter, FXRate
+from .currency import CurrencyConversionService, FXRate
+
+# New focused monitoring services (recommended)
 from .monitoring import (
+    AlertLifecycleService,
+    AlertSeverity,
+    AlertThreshold,
+    AlertThresholdManager,
+    ApplicationMetrics,
+    BaseHealthCheckMixin,
     HealthAlert,
-    HealthMetric,
-    HealthReport,
+    HealthAlertCoordinator,
+    HealthCheckDetails,
+    HealthCheckOrchestrator,
+    HealthCheckResult,
+    HealthCheckable,
+    HealthMetricsCollector,
     HealthStatus,
-    PortfolioHealthMonitor,
-)
-from .pricing import PriceService
-from .reconciliation import (
-    PortfolioReconciliationService,
-    ReconciliationDiscrepancy,
-    ReconciliationResult,
+    PortfolioMetrics,
+    SystemMetrics,
+    create_health_check_decorator,
 )
 
-# New type-safe serializers from clean break refactor
-# New type-safe persistence service (clean break refactor)
-from .state_persistence_service import (
+# New focused persistence services
+from .persistence import (
+    BackupManager,
+    PersistenceConfig,
+    PersistenceStats,
     PydanticJSONSerializer,
-    StatePersistenceService,
+    SimplePersistenceManager,
     StateSerializer,
+    TypedStatePersistenceError,
+    create_persistence_config,
+    create_persistence_manager,
 )
-from .symbol import SymbolService
+
+from .portfolio_service_factory import PortfolioServiceFactory
+from .pricing import PriceService
+from .reconciliation import (
+    ReconciliationOrchestrator,
+    ReconciliationResult,
+)
+from .symbol import (
+    CacheEntry,
+    SymbolCacheService,
+    SymbolMetadata,
+    SymbolMetadataService,
+    SymbolNormalizationService,
+    SymbolParsingService,
+)
 
 # New type-safe services from clean break refactor
 from .type_validation import TypeValidator
@@ -33,25 +60,52 @@ from .validation_middleware import ValidationMiddleware
 
 
 __all__ = [
+    # Core services
     "BasePortfolioService",
+    "ServiceConfiguration",
     "CacheService",
     "ConcurrencyManager",
-    "CurrencyConverter",
+    "CurrencyConversionService",
     "FXRate",
-    "HealthAlert",
-    "HealthMetric",
-    "HealthReport",
-    "HealthStatus",
-    "PortfolioHealthMonitor",
-    "PortfolioReconciliationService",
+    "PortfolioServiceFactory",
     "PriceService",
-    "PydanticJSONSerializer",
-    "ReconciliationDiscrepancy",
+    "ReconciliationOrchestrator",
     "ReconciliationResult",
-    "ServiceConfiguration",
-    "StatePersistenceService",
-    "StateSerializer",
-    "SymbolService",
     "TypeValidator",
     "ValidationMiddleware",
+    # New focused monitoring services
+    "AlertLifecycleService",
+    "AlertSeverity",
+    "AlertThreshold", 
+    "AlertThresholdManager",
+    "ApplicationMetrics",
+    "BaseHealthCheckMixin",
+    "HealthAlert",
+    "HealthAlertCoordinator",
+    "HealthCheckDetails",
+    "HealthCheckOrchestrator",
+    "HealthCheckResult",
+    "HealthCheckable",
+    "HealthMetricsCollector",
+    "HealthStatus",
+    "PortfolioMetrics",
+    "SystemMetrics",
+    "create_health_check_decorator",
+    # New focused persistence services
+    "BackupManager",
+    "PersistenceConfig",
+    "PersistenceStats",
+    "PydanticJSONSerializer",
+    "SimplePersistenceManager",
+    "StateSerializer",
+    "TypedStatePersistenceError",
+    "create_persistence_config",
+    "create_persistence_manager",
+    # Symbol services
+    "CacheEntry",
+    "SymbolCacheService",
+    "SymbolMetadata",
+    "SymbolMetadataService",
+    "SymbolNormalizationService",
+    "SymbolParsingService",
 ]

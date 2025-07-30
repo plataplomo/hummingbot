@@ -17,7 +17,7 @@ from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.trade_signal import TradeSignal
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -46,13 +46,13 @@ def mock_data_handler() -> MagicMock:
 
 
 @pytest.fixture
-def mock_portfolio_tracker() -> Mock:
-    """Create a mock PortfolioTracker instance.
-
+def mock_portfolio_state_manager() -> Mock:
+    """Create a mock PortfolioStateManager instance.
+    
     Returns:
-        Mock: Mocked PortfolioTracker with test positions.
+        Mock: Mocked PortfolioStateManager with test positions.
     """
-    tracker = Mock(spec=PortfolioTracker)
+    tracker = Mock(spec=PortfolioStateManager)
 
     # Create mock positions
     mock_perp_position = DerivativePosition(
@@ -147,7 +147,7 @@ def strategy_params() -> dict[str, Any]:
 @pytest.fixture
 def funding_rate_strategy(
     mock_data_handler: MagicMock,
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_risk_manager: Mock,
     strategy_params: dict[str, Any],
 ) -> FundingRateArbitrageStrategy:
@@ -160,7 +160,7 @@ def funding_rate_strategy(
         name="test_strategy",
         symbol="BTC-PERP",
         data_handler=mock_data_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         params=strategy_params,
     )
@@ -176,7 +176,7 @@ class TestFundingRateArbitrageStrategyInit:
     def test_init_success_with_valid_params(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
         strategy_params: dict[str, Any],
     ) -> None:
@@ -186,7 +186,7 @@ class TestFundingRateArbitrageStrategyInit:
             name="test_strategy",
             symbol="BTC-PERP",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             risk_manager=mock_risk_manager,
             params=strategy_params,
         )
@@ -195,7 +195,7 @@ class TestFundingRateArbitrageStrategyInit:
         assert strategy.name == "test_strategy"
         assert strategy.symbol == "BTC-PERP"
         assert strategy.data_handler is mock_data_handler
-        assert strategy.portfolio_tracker is mock_portfolio_tracker
+        assert strategy.portfolio_tracker is mock_portfolio_state_manager
         assert strategy.risk_manager is mock_risk_manager
         assert strategy.min_funding_differential == Decimal("0.0001")
         assert strategy.min_profit_threshold == Decimal("0.1")
@@ -209,7 +209,7 @@ class TestFundingRateArbitrageStrategyInit:
     def test_init_success_with_minimal_params(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test successful initialization with minimal parameters (defaults)."""
         # Act
@@ -217,7 +217,7 @@ class TestFundingRateArbitrageStrategyInit:
             name="minimal_strategy",
             symbol="ETH-PERP",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Assert
@@ -239,7 +239,7 @@ class TestFundingRateArbitrageStrategyInit:
     def test_init_edge_invalid_decimal_params(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization with invalid decimal parameters falls back to defaults."""
         # Arrange
@@ -255,7 +255,7 @@ class TestFundingRateArbitrageStrategyInit:
             name="edge_strategy",
             symbol="BTC-PERP",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             params=invalid_params,
         )
 
@@ -268,7 +268,7 @@ class TestFundingRateArbitrageStrategyInit:
     def test_init_edge_invalid_int_params(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization with invalid integer parameters falls back to defaults."""
         # Arrange
@@ -282,7 +282,7 @@ class TestFundingRateArbitrageStrategyInit:
             name="edge_strategy",
             symbol="BTC-PERP",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             params=invalid_params,
         )
 
@@ -293,7 +293,7 @@ class TestFundingRateArbitrageStrategyInit:
     def test_init_edge_complex_symbol_mapping(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization with complex symbol containing underscores."""
         # Arrange
@@ -304,7 +304,7 @@ class TestFundingRateArbitrageStrategyInit:
             name="complex_strategy",
             symbol=complex_symbol,
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
         )
 
         # Assert - Should extract base correctly
@@ -314,7 +314,7 @@ class TestFundingRateArbitrageStrategyInit:
     # FAILURE CASES
     def test_init_failure_none_data_handler(
         self,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization failure with None data handler."""
         # Act & Assert
@@ -323,7 +323,7 @@ class TestFundingRateArbitrageStrategyInit:
                 name="fail_strategy",
                 symbol="BTC-PERP",
                 data_handler=None,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
     def test_init_failure_none_portfolio_tracker(
@@ -343,7 +343,7 @@ class TestFundingRateArbitrageStrategyInit:
     def test_init_failure_empty_name(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization failure with empty strategy name."""
         # Act & Assert
@@ -352,13 +352,13 @@ class TestFundingRateArbitrageStrategyInit:
                 name="",
                 symbol="BTC-PERP",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
     def test_init_failure_empty_symbol(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
     ) -> None:
         """Test initialization failure with empty symbol."""
         # Act & Assert
@@ -367,7 +367,7 @@ class TestFundingRateArbitrageStrategyInit:
                 name="fail_strategy",
                 symbol="",
                 data_handler=mock_data_handler,
-                portfolio_tracker=mock_portfolio_tracker,
+                portfolio_tracker=mock_portfolio_state_manager,
             )
 
 
@@ -1868,7 +1868,7 @@ class TestIntegrationScenarios:
     async def test_full_opportunity_detection_and_signal_generation(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
         strategy_params: dict[str, Any],
         frozen_time: FreezerProtocol,
@@ -1880,7 +1880,7 @@ class TestIntegrationScenarios:
             name="integration_test",
             symbol="BTC-PERP",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             risk_manager=mock_risk_manager,
             params=strategy_params,
         )
@@ -1963,7 +1963,7 @@ class TestIntegrationScenarios:
     async def test_no_opportunity_when_funding_rate_too_low(
         self,
         mock_data_handler: MagicMock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
         strategy_params: dict[str, Any],
         frozen_time: FreezerProtocol,
@@ -1975,7 +1975,7 @@ class TestIntegrationScenarios:
             name="integration_test",
             symbol="BTC-PERP",
             data_handler=mock_data_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             risk_manager=mock_risk_manager,
             params=strategy_params,
         )

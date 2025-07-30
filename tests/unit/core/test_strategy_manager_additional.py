@@ -36,7 +36,7 @@ def mock_execution_handler() -> Mock:
     return Mock(spec=ExecutionHandler)
 
 
-# Use shared mock_portfolio_tracker from conftest.py
+# Use shared mock_portfolio_state_manager from conftest.py
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ def mock_signal_queue() -> Mock:
 def strategy_manager(
     mock_config: Mock,
     mock_execution_handler: Mock,
-    mock_portfolio_tracker: Mock,
+    mock_portfolio_state_manager: Mock,
     mock_risk_manager: Mock,
     mock_signal_queue: Mock,
 ) -> StrategyManager:
@@ -137,7 +137,7 @@ def strategy_manager(
     return StrategyManager(
         config=mock_config,
         execution_handler=mock_execution_handler,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
@@ -212,7 +212,7 @@ class TestStrategyManagerInitialization:
         self,
         mock_config: Mock,
         mock_execution_handler: Mock,
-        mock_portfolio_tracker: Mock,
+        mock_portfolio_state_manager: Mock,
         mock_risk_manager: Mock,
         mock_signal_queue: Mock,
     ) -> None:
@@ -221,7 +221,7 @@ class TestStrategyManagerInitialization:
         manager = StrategyManager(
             config=mock_config,
             execution_handler=mock_execution_handler,
-            portfolio_tracker=mock_portfolio_tracker,
+            portfolio_tracker=mock_portfolio_state_manager,
             risk_manager=mock_risk_manager,
             signal_queue=mock_signal_queue,
         )
@@ -229,7 +229,7 @@ class TestStrategyManagerInitialization:
         # Assert
         assert manager.config is mock_config
         assert manager.execution_handler is mock_execution_handler
-        assert manager.portfolio_tracker is mock_portfolio_tracker
+        assert manager.portfolio_tracker is mock_portfolio_state_manager
         assert manager.risk_manager is mock_risk_manager
         assert manager.signal_queue is mock_signal_queue
         assert manager.strategies == {}

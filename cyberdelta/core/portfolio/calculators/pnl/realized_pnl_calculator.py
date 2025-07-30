@@ -17,7 +17,7 @@ from cyberdelta.core.portfolio.base.typed_calculator import (
     CalculationMetadata as TypedCalculatorMetadata,
 )
 from cyberdelta.core.portfolio.exceptions import InvalidCalculationInputError
-from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
+from cyberdelta.core.portfolio.portfolio_types.calculations import (
     CalculationMetadata,
     RealizedPnLResult,
 )

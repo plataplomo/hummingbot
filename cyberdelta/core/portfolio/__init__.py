@@ -1,7 +1,7 @@
 """Portfolio management package for CyberDeltaEngine.
 
 This package provides a modular, scalable architecture for portfolio state management,
-P&L calculations, and trade processing. It replaces the monolithic PortfolioTracker
+P&L calculations, and trade processing. It replaces the monolithic legacy tracker
 with a collection of specialized components that work together.
 
 Key Components:

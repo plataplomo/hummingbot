@@ -8,6 +8,7 @@ from cyberdelta.core.risk.exceptions.sizing_exceptions import SizingError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizingContext
 from cyberdelta.core.risk.sizing.strategies.typed_base_sizer import TypedBaseSizer
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.core.risk.config.risk_module_config import load_risk_config_from_settings
 
 
 class SimpleSizer(TypedBaseSizer):
@@ -20,6 +21,9 @@ class SimpleSizer(TypedBaseSizer):
             app_settings: The application settings instance
         """
         super().__init__(app_settings)
+        
+        # Load risk module configuration
+        self.risk_config = load_risk_config_from_settings(app_settings)
 
         # Simple sizing method from AppSettings
         self.sizing_method_type: Literal["fixed_usd", "fixed_fraction"] = (
@@ -28,20 +32,19 @@ class SimpleSizer(TypedBaseSizer):
 
         # Fixed USD sizing from AppSettings
         self.fixed_usd_amount = self.sizing_settings.simple_fixed_usd
-        # Capital scaling (hardcoded as not in new config)
-        self.enable_capital_scaling = True
-
+        
         # Fixed fraction sizing from AppSettings
         self.fixed_fraction = self.sizing_settings.simple_fixed_fraction
-        # Spread adjustment already inherited from TypedBaseSizer
+        
+        # Get risk module config (already loaded in parent)
+        # Capital scaling parameters from config
+        self.enable_capital_scaling = True
+        self.min_capital_for_scaling = self.risk_config.position_sizer.min_capital_threshold * Decimal("100")  # Scale up from base
+        self.max_capital_for_scaling = self.risk_config.position_sizer.capital_scale_factor * Decimal("1000")  # Scale up
 
-        # Scaling parameters (hardcoded as not in new config)
-        self.min_capital_for_scaling = Decimal(10000)  # $10k minimum
-        self.max_capital_for_scaling = Decimal(1000000)  # $1M maximum
-
-        # Spread adjustment parameters (hardcoded as not in new config)
-        self.base_spread_threshold = Decimal("0.005")  # 0.5%
-        self.spread_adjustment_factor = Decimal("2.0")  # 2x
+        # Spread adjustment parameters from config
+        self.base_spread_threshold = self.risk_config.position_sizer.min_spread_percentage
+        self.spread_adjustment_factor = Decimal("1") / self.risk_config.position_sizer.spread_impact_factor  # Inverse for adjustment
 
         # Risk adjustment parameters
         # Volatility adjustment already inherited from TypedBaseSizer

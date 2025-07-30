@@ -33,7 +33,7 @@ from cyberdelta.validation.circuit_breaker import CircuitBreakerTrippedError
 if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
     from cyberdelta.config.models.config_models import AppSettings
-    from cyberdelta.core.portfolio_tracker import PortfolioTracker
+    from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
     from cyberdelta.core.risk_manager import SizedOpportunity
     from cyberdelta.core.services.interfaces import IAlertService
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
@@ -145,7 +145,7 @@ class ExecutionHandler:
     def __init__(
         self,
         app_settings: AppSettings,
-        portfolio_tracker: PortfolioTracker,
+        portfolio_state_manager: PortfolioStateManager,
         symbol_service: SymbolService | None = None,
         circuit_breaker_system: CircuitBreakerSystem | None = None,
         alert_service: IAlertService | None = None,
@@ -155,7 +155,7 @@ class ExecutionHandler:
 
         Args:
             app_settings: Application configuration settings
-            portfolio_tracker: Portfolio tracker for position updates
+            portfolio_state_manager: Portfolio state manager for position updates
             symbol_service: SymbolService for symbol operations (optional, creates default if None)
             circuit_breaker_system: The main circuit breaker system (optional)
             alert_service: Optional alert service for notifications
@@ -179,7 +179,8 @@ class ExecutionHandler:
             raise
 
         self.app_settings = app_settings
-        self.portfolio_tracker = portfolio_tracker
+        self.portfolio_state_manager = portfolio_state_manager
+        self.portfolio_manager = portfolio_state_manager  # Modular system alias
         self.circuit_breaker_system = circuit_breaker_system
         self.alert_service = alert_service
         self.logger = logger or get_logger(__name__)
@@ -803,7 +804,7 @@ class ExecutionHandler:
             )
 
             # Process trade with portfolio tracker
-            await self.portfolio_tracker.process_trade(exchange_id, trade)
+            await self.portfolio_state_manager.process_trade(trade)
 
             # Log with rich domain context
             log_context: dict[str, Any] = {

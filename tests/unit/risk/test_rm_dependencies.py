@@ -11,7 +11,7 @@ from cyberdelta.exceptions.risk import RiskCheckError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
-# Note: Fixtures risk_manager, mock_portfolio_tracker, mock_config,
+# Note: Fixtures risk_manager, mock_portfolio_state_manager, mock_config,
 #       are provided by tests/unit/risk/conftest.py
 
 
@@ -37,7 +37,7 @@ class TestRiskManagerDependencyFailures:
     async def test_size_opportunity_bad_total_capital(
         self,
         risk_manager: RiskManager,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
         sample_opportunity: ArbitrageOpportunity,
@@ -47,8 +47,8 @@ class TestRiskManagerDependencyFailures:
 
         Tests when total capital is zero, negative, or invalid.
         """
-        mock_portfolio_tracker.get_total_capital.return_value = bad_capital
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.return_value = bad_capital
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
 
         # Business logic raises RiskCheckError for validation failures including bad capital
         with pytest.raises((RiskCheckError, TypeError, Exception)) as exc_info:
@@ -64,7 +64,7 @@ class TestRiskManagerDependencyFailures:
     async def test_size_opportunity_constraint_check_fail(
         self,
         risk_manager: RiskManager,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
         sample_opportunity: ArbitrageOpportunity,
@@ -79,8 +79,8 @@ class TestRiskManagerDependencyFailures:
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
         risk_manager.app_settings = mock_config  # Explicitly assign patched config
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
         with (
             patch.object(
                 risk_manager,
@@ -100,7 +100,7 @@ class TestRiskManagerDependencyFailures:
     async def test_size_opportunity_dependency_exception(
         self,
         risk_manager: RiskManager,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
         sample_opportunity: ArbitrageOpportunity,
@@ -112,8 +112,8 @@ class TestRiskManagerDependencyFailures:
 
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
-        mock_portfolio_tracker.get_total_capital.side_effect = Exception("Simulated PT Error")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.side_effect = Exception("Simulated PT Error")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
         with patch.object(
             risk_manager,
             "_apply_portfolio_exposure_management",
@@ -134,7 +134,7 @@ class TestRiskManagerDependencyFailures:
         mock_config_dict: dict[str, Any],
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
         scope_to_trip: str,
     ) -> None:
@@ -154,12 +154,12 @@ class TestRiskManagerDependencyFailures:
         # Function get_side_effect_for_cb_tripped removed - was unused after refactoring
 
         risk_manager.max_position_size = Decimal("20000.0")
-        risk_manager.portfolio_tracker = mock_portfolio_tracker
+        risk_manager.portfolio_tracker = mock_portfolio_state_manager
 
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
         with patch.object(
             risk_manager,
             "_apply_portfolio_exposure_management",
@@ -211,7 +211,7 @@ class TestRiskManagerDependencyFailures:
     async def test_size_opportunity_circuit_breaker_exception(
         self,
         risk_manager: RiskManager,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
@@ -229,12 +229,12 @@ class TestRiskManagerDependencyFailures:
         # Function get_side_effect_for_cb_exception removed - was unused after refactoring
 
         risk_manager.max_position_size = Decimal("20000.0")
-        risk_manager.portfolio_tracker = mock_portfolio_tracker
+        risk_manager.portfolio_tracker = mock_portfolio_state_manager
 
         # Business logic uses direct attribute access, not config.get()
         # Configure mock_config attributes directly instead of patching get method
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
         with (
             patch.object(
                 risk_manager,
@@ -262,7 +262,7 @@ class TestRiskManagerDependencyFailures:
         risk_manager: RiskManager,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test size rejection due to low funding validation factor (fail-safe)."""
@@ -271,12 +271,12 @@ class TestRiskManagerDependencyFailures:
         # min_validation_factor: 0.2, max_acceptable_rmse: 0.05, max_acceptable_bias: 0.02
 
         risk_manager.max_position_size = Decimal("20000.0")
-        risk_manager.portfolio_tracker = mock_portfolio_tracker
+        risk_manager.portfolio_tracker = mock_portfolio_state_manager
         risk_manager.funding_rate_validator = mock_funding_validator
         risk_manager.circuit_breaker_system = mock_circuit_breaker
 
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
         mock_circuit_breaker.can_execute.return_value = (True, None)
 
         # Set up metrics that will cause validation to fail:
@@ -308,7 +308,7 @@ class TestRiskManagerDependencyFailures:
         risk_manager: RiskManager,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
         bad_metrics_return: object,
     ) -> None:
@@ -317,12 +317,12 @@ class TestRiskManagerDependencyFailures:
         # The mock config in conftest.py already has the correct values set
 
         risk_manager.max_position_size = Decimal("20000.0")
-        risk_manager.portfolio_tracker = mock_portfolio_tracker
+        risk_manager.portfolio_tracker = mock_portfolio_state_manager
         risk_manager.funding_rate_validator = mock_funding_validator
         risk_manager.circuit_breaker_system = mock_circuit_breaker
 
-        mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-        mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal("0.0")
+        mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+        mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal("0.0")
         mock_circuit_breaker.can_execute.return_value = (True, None)
 
         if isinstance(bad_metrics_return, Exception):

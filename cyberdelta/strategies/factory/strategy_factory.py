@@ -12,7 +12,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.models.funding_strategy_models import StrategyParamsHLPerpBPSpot
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -74,7 +74,7 @@ class StrategyFactory:
         name: str,
         symbol: str,
         data_handler: DataHandler,
-        portfolio_tracker: PortfolioTracker,
+        portfolio_state_manager: PortfolioStateManager,
         risk_manager: RiskManager | None = None,
     ) -> FundingRateArbitrageStrategy:
         """Create a Hyperliquid Perpetual vs Backpack Spot funding arbitrage strategy.
@@ -83,7 +83,7 @@ class StrategyFactory:
             name: Unique name for the strategy instance
             symbol: Trading symbol (e.g., "HYPE")
             data_handler: Data handler for market data access
-            portfolio_tracker: Portfolio tracker for position management
+            portfolio_state_manager: Portfolio state manager for position management
             risk_manager: Optional risk manager for position sizing
 
         Returns:
@@ -108,7 +108,7 @@ class StrategyFactory:
                 name=name,
                 symbol=symbol,
                 data_handler=data_handler,
-                portfolio_tracker=portfolio_tracker,
+                portfolio_state_manager=portfolio_state_manager,
                 risk_manager=risk_manager,
                 params=params,
             )
@@ -147,7 +147,7 @@ class StrategyFactory:
         name: str,
         symbol: str,
         data_handler: DataHandler,
-        portfolio_tracker: PortfolioTracker,
+        portfolio_state_manager: PortfolioStateManager,
         risk_manager: RiskManager | None = None,
     ) -> Strategy:
         """Create a strategy of the specified type.
@@ -157,7 +157,7 @@ class StrategyFactory:
             name: Unique name for the strategy instance
             symbol: Trading symbol
             data_handler: Data handler for market data access
-            portfolio_tracker: Portfolio tracker for position management
+            portfolio_state_manager: Portfolio state manager for position management
             risk_manager: Optional risk manager for position sizing
 
         Returns:
@@ -171,7 +171,7 @@ class StrategyFactory:
                 name=name,
                 symbol=symbol,
                 data_handler=data_handler,
-                portfolio_tracker=portfolio_tracker,
+                portfolio_state_manager=portfolio_state_manager,
                 risk_manager=risk_manager,
             )
         raise StrategyCreationError(

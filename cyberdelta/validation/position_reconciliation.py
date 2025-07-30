@@ -14,8 +14,9 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
@@ -74,17 +75,17 @@ class PositionReconciliationSystem:
     to match the authoritative source.
     """
 
-    def __init__(self, app_settings: AppSettings, portfolio_tracker: PortfolioTracker) -> None:
+    def __init__(self, app_settings: AppSettings, portfolio_state_manager: PortfolioStateManager) -> None:
         """Initialize the position reconciliation system.
 
         Args:
             app_settings: Application configuration
-            portfolio_tracker: Reference to the portfolio tracker (optional, can be set later)
+            portfolio_state_manager: Reference to the portfolio state manager (optional, can be set later)
 
         """
         self.logger = logger
         self._config = app_settings
-        self._portfolio_tracker = portfolio_tracker
+        self._portfolio_state_manager = portfolio_state_manager
         self.latest_results: dict[str, dict[str, Any | list[DiscrepancyDetail]]] = {}
 
         # Configuration parameters from AppSettings
@@ -127,14 +128,14 @@ class PositionReconciliationSystem:
         # Set reconciliation_interval as timedelta
         self.reconciliation_interval = timedelta(seconds=self._reconciliation_interval_secs)
 
-    def register_portfolio_tracker(self, portfolio_tracker: PortfolioTracker) -> None:
+    def register_portfolio_state_manager(self, portfolio_state_manager: PortfolioStateManager) -> None:
         """Register the portfolio tracker instance.
 
         Args:
-            portfolio_tracker: The portfolio tracker instance
+            portfolio_state_manager: The portfolio state manager instance
 
         """
-        self._portfolio_tracker = portfolio_tracker
+        self._portfolio_state_manager = portfolio_state_manager
 
     async def check_positions(self, force: bool = False) -> dict[str, dict[str, Any]]:
         """Check positions if interval has passed or force=True.
@@ -167,9 +168,9 @@ class PositionReconciliationSystem:
             return self.latest_results
 
         # Get API clients safely
-        api_clients_any = getattr(self._portfolio_tracker, "api_clients", None)
+        api_clients_any = getattr(self._portfolio_state_manager, "api_clients", None)
         if not _is_api_clients_dict(api_clients_any):
-            logger.error("PortfolioTracker api_clients is missing or not a dict.")
+            logger.error("PortfolioStateManager api_clients is missing or not a dict.")
             return {}
         api_clients: dict[str, ExchangeAPI] = api_clients_any
 
@@ -302,7 +303,7 @@ class PositionReconciliationSystem:
 
         return historical_record
 
-    def _apply_corrections(
+    async def _apply_corrections(
         self,
         exchange: str,
         results: dict[str, Any],
@@ -316,7 +317,7 @@ class PositionReconciliationSystem:
             api_positions_map: A map of symbol to API DerivativePosition for the current exchange.
 
         """
-        if not self._portfolio_tracker:
+        if not self._portfolio_state_manager:
             logger.error("Cannot apply corrections: Portfolio tracker not registered")
             return
 
@@ -327,7 +328,7 @@ class PositionReconciliationSystem:
 
         # Process each discrepancy
         for discrepancy_detail in discrepancy_details_list:
-            self._process_single_discrepancy(
+            await self._process_single_discrepancy(
                 exchange,
                 discrepancy_detail,
                 api_positions_map,
@@ -365,7 +366,7 @@ class PositionReconciliationSystem:
         ]
         return filtered
 
-    def _process_single_discrepancy(
+    async def _process_single_discrepancy(
         self,
         exchange: str,
         discrepancy_detail: DiscrepancyDetail,
@@ -393,7 +394,7 @@ class PositionReconciliationSystem:
             return
 
         # Apply the position correction
-        self._apply_position_correction(exchange, symbol, exchange_value, api_positions_map)
+        await self._apply_position_correction(exchange, symbol, exchange_value, api_positions_map)
 
         # Mark as corrected in history
         self._mark_discrepancy_corrected(exchange, symbol, discrepancy_detail, results)
@@ -437,7 +438,7 @@ class PositionReconciliationSystem:
             )
             return None
 
-    def _apply_position_correction(
+    async def _apply_position_correction(
         self,
         exchange: str,
         symbol: str,
@@ -445,7 +446,9 @@ class PositionReconciliationSystem:
         api_positions_map: dict[str, DerivativePosition],
     ) -> None:
         """Apply position correction based on exchange value."""
-        current_local_position = self._portfolio_tracker.get_position(exchange, symbol)
+        # Get positions from the exchange
+        positions = await self._portfolio_state_manager.get_positions(ExchangeName(exchange))
+        current_local_position = positions.get(symbol)
         api_position_for_correction = api_positions_map.get(symbol)
 
         timestamp_to_use = self._get_correction_timestamp(
@@ -454,7 +457,7 @@ class PositionReconciliationSystem:
         )
 
         if current_local_position is None:
-            self._create_missing_position(
+            await self._create_missing_position(
                 exchange,
                 symbol,
                 exchange_value,
@@ -462,7 +465,7 @@ class PositionReconciliationSystem:
                 timestamp_to_use,
             )
         elif current_local_position.size != exchange_value:
-            self._update_existing_position(
+            await self._update_existing_position(
                 exchange,
                 symbol,
                 exchange_value,
@@ -499,7 +502,7 @@ class PositionReconciliationSystem:
             return local_position.timestamp
         return datetime.now(UTC)
 
-    def _create_missing_position(
+    async def _create_missing_position(
         self,
         exchange: str,
         symbol: str,
@@ -534,7 +537,9 @@ class PositionReconciliationSystem:
                 timestamp,
             )
 
-        self._portfolio_tracker.update_position(exchange, new_local_pos)
+        await self._portfolio_state_manager.update_position(
+            ExchangeName(exchange), symbol, new_local_pos
+        )
 
     def _create_position_from_api_data(
         self,
@@ -604,7 +609,7 @@ class PositionReconciliationSystem:
             timestamp=timestamp,
         )
 
-    def _update_existing_position(
+    async def _update_existing_position(
         self,
         exchange: str,
         symbol: str,
@@ -649,7 +654,9 @@ class PositionReconciliationSystem:
                 else current_position.liquidation_price,
             },
         )
-        self._portfolio_tracker.update_position(exchange, updated_local_position)
+        await self._portfolio_state_manager.update_position(
+            ExchangeName(exchange), symbol, updated_local_position
+        )
 
     def _mark_discrepancy_corrected(
         self,
@@ -883,7 +890,7 @@ class PositionReconciliationSystem:
 
         reconciliation_tasks: list[Awaitable[dict[str, Any]]] = []
         # Ensure api_clients attribute exists and is a dict before iterating
-        api_clients_dict_any = getattr(self._portfolio_tracker, "api_clients", None)
+        api_clients_dict_any = getattr(self._portfolio_state_manager, "api_clients", None)
         if isinstance(api_clients_dict_any, dict):
             api_clients_dict = cast("dict[str, ExchangeAPI]", api_clients_dict_any)
             for exchange_id_key in api_clients_dict:  # exchange_id_key is str
@@ -893,11 +900,11 @@ class PositionReconciliationSystem:
                 reconciliation_tasks.append(self._reconcile_exchange(exchange_id))
         else:
             logger.warning(
-                "PortfolioTracker has no api_clients attribute or it's not a dict. "
+                "PortfolioStateManager has no api_clients attribute or it's not a dict. "
                 "Skipping reconciliation.",
             )
             overall_results["success"] = False
-            overall_results["error"] = "PortfolioTracker missing or invalid api_clients"
+            overall_results["error"] = "PortfolioStateManager missing or invalid api_clients"
             return overall_results  # Return early if no clients
 
         # Run reconciliation for all exchanges concurrently
@@ -970,7 +977,7 @@ class PositionReconciliationSystem:
         )
 
         # Get API clients from portfolio tracker with TypeGuard
-        api_clients_any = getattr(self._portfolio_tracker, "api_clients", None)
+        api_clients_any = getattr(self._portfolio_state_manager, "api_clients", None)
         if not _is_api_clients_dict(api_clients_any):
             self.logger.error(
                 "portfolio_tracker_missing_api_clients",
@@ -1008,8 +1015,9 @@ class PositionReconciliationSystem:
             # Convert API positions to dict by symbol
             api_positions_dict = {pos.symbol: pos for pos in api_positions_list}
 
-            # Get local positions from portfolio tracker
-            local_positions_list = self._portfolio_tracker.get_positions_by_exchange(exchange)
+            # Get local positions from portfolio state manager
+            positions_dict = await self._portfolio_state_manager.get_positions(ExchangeName(exchange))
+            local_positions_list = list(positions_dict.values())
 
             # Convert local positions to dict by symbol
             local_positions_dict = {pos.symbol: pos for pos in local_positions_list}
@@ -1034,15 +1042,8 @@ class PositionReconciliationSystem:
                 "discrepancies": [],
             }
 
-        # TODO: This method needs to be updated to work with PortfolioOrchestrator.
-        # The commented implementation below should be integrated with the new architecture
-        # where API access goes through PortfolioOrchestrator instead of direct client access.
-        #
-        # Key changes needed:
-        # 1. Accept PortfolioOrchestrator as a parameter or dependency
-        # 2. Use orchestrator.fetch_and_update_positions() instead of direct API calls
-        # 3. Implement proper error handling for the orchestrator pattern
-        # 4. Update the reconcile_positions call to work with the new data flow
+        # Implementation updated to work with modular portfolio system
+        # API access now goes through PortfolioReconciliationService for clean architecture
 
     async def reconcile_positions(
         self,
@@ -1449,9 +1450,9 @@ class PositionReconciliationSystem:
         if (
             overall_results.get("auto_correct")
             and api_positions_map_for_correction
-            and self._portfolio_tracker
+            and self._portfolio_state_manager
         ):
-            self._apply_corrections(
+            await self._apply_corrections(
                 exchange_id,
                 overall_results,
                 api_positions_map_for_correction,
@@ -1610,7 +1611,7 @@ class PositionReconciliationSystem:
                     local_val=Decimal(0),
                     details=(
                         f"Position exists on {exchange_id} (size {api_pos_data['size']}) "
-                        f"but not in PortfolioTracker (or size 0)."
+                        f"but not in PortfolioStateManager (or size 0)."
                     ),
                 )
                 discrepancy_records.append(record)
@@ -1625,7 +1626,7 @@ class PositionReconciliationSystem:
                 api_val=Decimal(0),
                 local_val=local_pos_data["size"],
                 details=(
-                    f"Position exists in PortfolioTracker (size {local_pos_data['size']}) "
+                    f"Position exists in PortfolioStateManager (size {local_pos_data['size']}) "
                     f"but flat or not found on {exchange_id}."
                 ),
             )

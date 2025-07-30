@@ -16,7 +16,34 @@ models are available in:
 For configuration migration utilities:
 
     from cyberdelta.core.risk.config.migration import ConfigurationMigrator
+
+For risk module specific configuration:
+
+    from cyberdelta.core.risk.config.risk_module_config import (
+        RiskModuleConfig,
+        OrchestratorConfig,
+        ConstraintValidatorConfig,
+        PositionSizerConfig,
+        RiskMetricsConfig,
+        load_risk_config_from_settings
+    )
 """
 
-# The migration utility is available if needed
-__all__: list[str] = []
+# Export risk module configuration
+from .risk_module_config import (
+    RiskModuleConfig,
+    OrchestratorConfig,
+    ConstraintValidatorConfig,
+    PositionSizerConfig,
+    RiskMetricsConfig,
+    load_risk_config_from_settings
+)
+
+__all__ = [
+    "RiskModuleConfig",
+    "OrchestratorConfig", 
+    "ConstraintValidatorConfig",
+    "PositionSizerConfig",
+    "RiskMetricsConfig",
+    "load_risk_config_from_settings"
+]

@@ -16,7 +16,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 logger = get_logger(__name__)
 
-# Note: Fixtures risk_manager, mock_config, mock_portfolio_tracker,
+# Note: Fixtures risk_manager, mock_config, mock_portfolio_state_manager,
 #       sample_opportunity are provided by tests/unit/risk/conftest.py
 
 # Minimal valid config for RiskManager initialization in these tests
@@ -138,7 +138,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -150,9 +150,9 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.simple_fixed_fraction = Decimal("0.1")
         mock_config.risk.global_risk.max_position_usd = Decimal("5000.0")
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -166,7 +166,7 @@ class TestRiskManagerSizingSimple:
         # Use mock config fixture
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -179,7 +179,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -191,9 +191,9 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.simple_fixed_fraction = Decimal("0.1")  # 10% of 100k = 10k
         mock_config.risk.global_risk.max_position_usd = Decimal("5000.0")  # Cap at 5k
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -207,7 +207,7 @@ class TestRiskManagerSizingSimple:
         # Use mock config fixture
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -220,7 +220,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -232,9 +232,9 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.simple_fixed_usd_size = Decimal("7500.0")
         mock_config.risk.global_risk.max_position_usd = Decimal("10000.0")
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -248,7 +248,7 @@ class TestRiskManagerSizingSimple:
         # Use mock config fixture
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -263,7 +263,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -275,9 +275,9 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.simple_fixed_usd_size = Decimal("7500.0")
         mock_config.risk.global_risk.max_position_usd = Decimal("3000.0")
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -291,7 +291,7 @@ class TestRiskManagerSizingSimple:
         # Use mock config fixture
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -304,7 +304,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -334,9 +334,9 @@ class TestRiskManagerSizingSimple:
             update={"net_funding_differential": Decimal("0.00005")},  # 0.5 bps
         )
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("10000.0"))
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("10000.0"))
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -348,7 +348,7 @@ class TestRiskManagerSizingSimple:
         # Business logic uses direct attribute access, not config.get()
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -362,7 +362,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -394,10 +394,10 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.global_risk.max_position_usd = Decimal("200.0")
         mock_config.risk.global_risk.max_total_exposure_usd = Decimal("500.0")
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("1000.0"))
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("1000.0"))
         # Simulate existing exposure of $400. Proposed trade is $200. Total = $600 > $500 limit.
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("400.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("400.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -411,7 +411,7 @@ class TestRiskManagerSizingSimple:
         # Business logic uses direct attribute access, not config.get()
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -425,7 +425,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -455,11 +455,11 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.simple_fixed_usd_size = Decimal("200.0")
         mock_config.risk.global_risk.max_position_usd = Decimal("200.0")
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(
             return_value=Decimal("100.0"),
         )  # Only $100 capital
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -473,7 +473,7 @@ class TestRiskManagerSizingSimple:
         # Business logic uses direct attribute access, not config.get()
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -498,7 +498,7 @@ class TestRiskManagerSizingSimple:
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -510,10 +510,10 @@ class TestRiskManagerSizingSimple:
         mock_config.risk.simple_fixed_usd_size = Decimal("200.0")
         mock_config.risk.global_risk.max_position_usd = Decimal("500.0")  # High enough to allow 200
 
-        mock_portfolio_tracker.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
-        mock_portfolio_tracker.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
-        mock_portfolio_tracker.get_all_positions.return_value = []
-        mock_portfolio_tracker.get_exchange_balance.return_value = SpotBalance(
+        mock_portfolio_state_manager.get_total_capital = AsyncMock(return_value=Decimal("100000.0"))
+        mock_portfolio_state_manager.get_total_exposure_usd = AsyncMock(return_value=Decimal("0.0"))
+        mock_portfolio_state_manager.get_all_positions.return_value = []
+        mock_portfolio_state_manager.get_exchange_balance.return_value = SpotBalance(
             exchange="exchange_a",
             asset="USD",
             timestamp=datetime.now(UTC),
@@ -525,7 +525,7 @@ class TestRiskManagerSizingSimple:
         # First sizing: should pass with size 200
         risk_manager = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -539,7 +539,7 @@ class TestRiskManagerSizingSimple:
         # Create second RiskManager with updated config
         risk_manager_2 = RiskManager(
             mock_config,
-            mock_portfolio_tracker,
+            mock_portfolio_state_manager,
             mock_circuit_breaker,
             mock_funding_validator,
         )
@@ -554,7 +554,7 @@ class TestRiskManagerSizingSimple:
     async def test_size_opportunity_validation_factor_happy_path(
         self,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,
@@ -566,7 +566,7 @@ class TestRiskManagerSizingSimple:
     async def test_size_opportunity_validation_factor_safety_path(
         self,
         mock_config_dict: dict[str, Any],
-        mock_portfolio_tracker: MagicMock,
+        mock_portfolio_state_manager: MagicMock,
         mock_circuit_breaker: MagicMock,
         mock_funding_validator: MagicMock,
         sample_opportunity: ArbitrageOpportunity,

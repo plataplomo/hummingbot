@@ -27,6 +27,7 @@ from cyberdelta.core.risk.utils.volatility_calculator import (
     VolatilityResult,
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.core.risk.config.risk_module_config import RiskModuleConfig, load_risk_config_from_settings
 
 
 def _create_str_list() -> list[str]:
@@ -220,10 +221,13 @@ class RiskManagerOrchestrator:
         self.opportunities_rejected = 0
         self.total_processing_time = 0.0
 
-        # Configuration from AppSettings
-        self.max_concurrent_processing = 5  # Hardcoded default as not in enhanced config
-        self.processing_timeout = 60.0  # Hardcoded default as not in enhanced config
-        self.enable_parallel_processing = True  # Hardcoded default as not in enhanced config
+        # Load risk module configuration
+        self.risk_config = load_risk_config_from_settings(app_settings)
+        
+        # Configuration from risk module config
+        self.max_concurrent_processing = self.risk_config.orchestrator.max_concurrent_processing
+        self.processing_timeout = self.risk_config.orchestrator.processing_timeout
+        self.enable_parallel_processing = self.risk_config.orchestrator.enable_parallel_processing
 
     def _create_volatility_config(self) -> dict[str, Any]:
         """Create volatility calculator configuration from AppSettings.
@@ -235,8 +239,8 @@ class RiskManagerOrchestrator:
             "lookback_hours": self.risk_settings.checkers.volatility_lookback_hours,
             "min_volatility": float(self.sizing_settings.min_volatility),
             "max_volatility": float(self.sizing_settings.max_volatility_bound),
-            "use_garch": False,  # Hardcoded default
-            "confidence_level": 0.95,  # Hardcoded default
+            "use_garch": self.risk_config.orchestrator.use_garch,
+            "confidence_level": self.risk_config.orchestrator.confidence_level,
         }
 
     def _create_validation_factor_config(self) -> dict[str, Any]:

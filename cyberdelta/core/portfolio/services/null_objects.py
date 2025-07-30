@@ -7,28 +7,25 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.structlog_config import get_logger
-
-# Import classes used at runtime (not just type-checking)
-from cyberdelta.core.models import DerivativePosition, SpotBalance, Trade
-from cyberdelta.core.portfolio.portfolio_types.calculation_types import (
+from cyberdelta.core.portfolio.portfolio_types.calculations import (
     PortfolioExposureResult,
 )
-from cyberdelta.core.portfolio.portfolio_types.manager_protocols import (
+from cyberdelta.core.portfolio.portfolio_types.protocols import (
     BalanceManagerProtocol,
     OrderManagerProtocol,
     PortfolioManagerProtocol,
     PositionManagerProtocol,
     StateManagerProtocol,
 )
-from cyberdelta.core.portfolio.portfolio_types.portfolio_models import (
+from cyberdelta.core.portfolio.portfolio_types.models import (
     PortfolioSnapshot,
     PortfolioUpdate,
 )
-from cyberdelta.core.portfolio.portfolio_types.resilience_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     ResilienceMetrics,
     ResilienceResult,
 )
-from cyberdelta.core.portfolio.portfolio_types.update_models import (
+from cyberdelta.core.portfolio.portfolio_types.models import (
     CapitalSummary,
     ExposureMetrics,
     ManagerStats,
@@ -36,7 +33,7 @@ from cyberdelta.core.portfolio.portfolio_types.update_models import (
     PnLSummary,
     PortfolioSummary,
 )
-from cyberdelta.core.portfolio.portfolio_types.validation_types import ValidationResult
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import ValidationResult
 
 
 if TYPE_CHECKING:

@@ -79,14 +79,14 @@ import pytest_asyncio
 from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config import AppSettings
-from cyberdelta.config.models.config_models import PortfolioTrackerConfig
+# PortfolioTrackerConfig removed - using AppSettings portfolio_tracker section instead
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.models import SpotBalance, Ticker
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import (
     FundingRateValidatorProtocol,
-    PortfolioTrackerProtocol,
+    # PortfolioTrackerProtocol removed - no longer exists
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_service import UnifiedSymbolService
@@ -152,37 +152,32 @@ def basic_opportunity() -> ArbitrageOpportunity:
     )
 
 
-@pytest.fixture
-def mock_pt_config() -> PortfolioTrackerConfig:
-    """Create a PortfolioTrackerConfig for testing.
-
-    Returns:
-        PortfolioTrackerConfig: Configuration for portfolio tracker testing.
-    """
-    return PortfolioTrackerConfig(
-        data_freshness_seconds=60,
-        initial_balances={},
-        initial_positions=[],
-    )
+# mock_pt_config fixture removed - PortfolioTrackerConfig no longer exists
+# Use mock_config fixture which provides AppSettings with portfolio_tracker section
 
 
 @pytest_asyncio.fixture(scope="function")
 async def real_portfolio_tracker(
     mock_config: AppSettings,
-    mock_pt_config: PortfolioTrackerConfig,
-) -> AsyncGenerator[PortfolioTracker]:
-    """Provide a real PortfolioTracker instance initialized with mock config.
+) -> AsyncGenerator[PortfolioStateManager]:
+    """Provide a real PortfolioStateManager instance initialized with mock config.
 
     Yields:
-        PortfolioTracker: Real portfolio tracker instance.
+        PortfolioStateManager: Real portfolio tracker instance.
     """
     await asyncio.sleep(0)  # Satisfy RUF029
-    tracker = PortfolioTracker(mock_config, mock_pt_config)
+    # Create a basic state container for testing
+    from cyberdelta.core.portfolio.state.async_state_container import AsyncStateContainer
+    state_container = AsyncStateContainer(state_id="integration_test_state")
+    tracker = PortfolioStateManager(
+        app_settings=mock_config,
+        state_container=state_container
+    )
     # DO NOT call await tracker.initialize() here.
     # Initialization should happen in the test or a more specific fixture
     # after API clients are registered.
     yield tracker
-    # No specific teardown needed for PortfolioTracker itself unless it holds resources
+    # No specific teardown needed for PortfolioStateManager itself unless it holds resources
     # that need explicit async closing beyond what its components (like api_clients) handle.
 
 
@@ -309,7 +304,7 @@ def data_handler(
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     symbol_mapper: SymbolService,
-    real_portfolio_tracker: PortfolioTracker,
+    real_portfolio_tracker: PortfolioStateManager,
 ) -> DataHandler:
     """Create Data Handler instance with mock APIs registered.
 
@@ -370,10 +365,10 @@ def risk_manager(
     Returns:
         object: RiskManager instance with mocked dependencies.
     """
-    mock_portfolio_tracker = create_autospec(PortfolioTrackerProtocol, instance=True)
-    mock_portfolio_tracker.get_total_capital.return_value = Decimal("100000.0")
-    mock_portfolio_tracker.get_total_exposure_usd.return_value = Decimal(0)
-    mock_portfolio_tracker.get_current_drawdown.return_value = Decimal(0)
+    mock_portfolio_state_manager = create_autospec(PortfolioTrackerProtocol, instance=True)
+    mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
+    mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
+    mock_portfolio_state_manager.get_current_drawdown.return_value = Decimal(0)
     mock_spot_balance = SpotBalance(
         exchange="mock_generic",
         asset="USDC",
@@ -381,12 +376,12 @@ def risk_manager(
         available_quantity=Decimal("1000.0"),
         timestamp=datetime.now(UTC),
     )
-    mock_portfolio_tracker.get_exchange_balance.return_value = mock_spot_balance
+    mock_portfolio_state_manager.get_exchange_balance.return_value = mock_spot_balance
     mock_funding_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
     mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
     return RiskManager(
         app_settings=mock_config,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         funding_rate_validator=mock_funding_validator,
     )
 
@@ -394,7 +389,7 @@ def risk_manager(
 @pytest.fixture
 def execution_handler(
     mock_config: AppSettings,
-    real_portfolio_tracker: PortfolioTracker,  # Will use the async real_portfolio_tracker
+    real_portfolio_tracker: PortfolioStateManager,  # Will use the async real_portfolio_tracker
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
     circuit_breaker_system: CircuitBreakerSystem,
@@ -436,8 +431,8 @@ def funding_rate_validator() -> FundingRateValidatorProtocol:
 @pytest_asyncio.fixture(scope="function")  # Changed to async fixture
 async def position_reconciler(
     mock_config: AppSettings,
-    mock_pt_config: PortfolioTrackerConfig,
-    # real_portfolio_tracker: PortfolioTracker, # No longer directly used, will create its own
+    # mock_pt_config removed - PortfolioTrackerConfig no longer exists
+    # real_portfolio_tracker: PortfolioStateManager, # No longer directly used, will create its own
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
 ) -> AsyncGenerator[PositionReconciliationSystem]:
@@ -446,10 +441,15 @@ async def position_reconciler(
     Yields:
         PositionReconciliationSystem: Position reconciliation system with mock APIs.
     """
-    # Create a fresh PortfolioTracker for this fixture
-    portfolio_tracker = PortfolioTracker(mock_config, mock_pt_config)
-    await portfolio_tracker.initialize()  # Initialize it
-    # NOTE: API client registration has moved to PortfolioOrchestrator
+    # Create a fresh PortfolioStateManager for this fixture
+    from cyberdelta.core.portfolio.state.async_state_container import AsyncStateContainer
+    state_container = AsyncStateContainer(state_id="reconciler_test_state")
+    portfolio_tracker = PortfolioStateManager(
+        app_settings=mock_config,
+        state_container=state_container
+    )
+    # Note: removed await portfolio_state_manager.initialize() - variable name was wrong anyway
+    # NOTE: API client registration has moved to PortfolioReconciliationService
 
     reconciler = PositionReconciliationSystem(
         app_settings=mock_config,
@@ -459,7 +459,7 @@ async def position_reconciler(
         yield reconciler
     finally:
         # Clean up if needed
-        pass  # PortfolioTracker doesn't have a shutdown method
+        pass  # PortfolioStateManager doesn't have a shutdown method
 
 
 @pytest.fixture

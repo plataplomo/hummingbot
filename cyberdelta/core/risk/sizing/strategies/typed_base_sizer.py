@@ -9,6 +9,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.risk.exceptions.sizing_exceptions import SizingError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizingContext, SizingResult
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.core.risk.config.risk_module_config import load_risk_config_from_settings
 
 
 class TypedBaseSizer(ABC):
@@ -30,8 +31,11 @@ class TypedBaseSizer(ABC):
         self._max_portfolio_allocation = self.sizing_settings.max_portfolio_allocation
         self._base_validation_factor = self.sizing_settings.base_validation_factor
 
-        # Common sizing parameters from AppSettings
-        self.position_precision = 2  # Hardcoded for now as not in config
+        # Load risk module configuration
+        risk_config = load_risk_config_from_settings(app_settings)
+        
+        # Common sizing parameters from risk config
+        self.position_precision = risk_config.position_sizer.position_precision
         self.enable_validation_factors = self.sizing_settings.enable_validation_factors
         self.enable_volatility_adjustment = self.sizing_settings.enable_volatility_adjustment
         self.enable_spread_adjustment = self.sizing_settings.enable_spread_adjustment

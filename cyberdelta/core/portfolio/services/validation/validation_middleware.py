@@ -9,13 +9,13 @@ from typing import Any, ParamSpec, TypeGuard, TypeVar
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition, SpotBalance, Trade
 from cyberdelta.core.portfolio.exceptions.integrity import PortfolioIntegrityError
-from cyberdelta.core.portfolio.portfolio_types.validation_types import (
+from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     ValidationIssue,
     ValidationResult,
     ValidationSeverity,
 )
-from cyberdelta.core.portfolio.services.validation.portfolio_validation_service import (
-    PortfolioValidationService,
+from cyberdelta.core.portfolio.services.validation.portfolio_validation_coordinator import (
+    PortfolioValidationCoordinator,
 )
 
 
@@ -28,7 +28,7 @@ T = TypeVar("T", bound=object)
 class ValidationMiddleware:
     """Middleware for adding validation capabilities to portfolio components."""
 
-    def __init__(self, validation_service: PortfolioValidationService) -> None:
+    def __init__(self, validation_service: PortfolioValidationCoordinator) -> None:
         """Initialize validation middleware.
 
         Args:
@@ -310,7 +310,7 @@ class ValidationMiddleware:
                 )
 
 
-def create_validation_mixin(validation_service: PortfolioValidationService) -> type[Any]:
+def create_validation_mixin(validation_service: PortfolioValidationCoordinator) -> type[Any]:
     """Create a mixin class for adding validation capabilities.
 
     Returns:
@@ -376,7 +376,7 @@ def create_validation_mixin(validation_service: PortfolioValidationService) -> t
 
 # Common validation decorators
 def validate_trade_input(
-    validation_service: PortfolioValidationService, fail_on_error: bool = False
+    validation_service: PortfolioValidationCoordinator, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for validating trade inputs.
 
@@ -388,7 +388,7 @@ def validate_trade_input(
 
 
 def validate_balance_input(
-    validation_service: PortfolioValidationService, fail_on_error: bool = False
+    validation_service: PortfolioValidationCoordinator, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for validating balance inputs.
 
@@ -400,7 +400,7 @@ def validate_balance_input(
 
 
 def validate_position_input(
-    validation_service: PortfolioValidationService, fail_on_error: bool = False
+    validation_service: PortfolioValidationCoordinator, fail_on_error: bool = False
 ) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]:
     """Decorator for validating position inputs.
 
@@ -413,7 +413,7 @@ def validate_position_input(
 
 # Utility functions
 async def validate_data_integrity(
-    validation_service: PortfolioValidationService,
+    validation_service: PortfolioValidationCoordinator,
     trades: list[Trade] | None = None,
     balances: list[SpotBalance] | None = None,
     positions: list[DerivativePosition] | None = None,

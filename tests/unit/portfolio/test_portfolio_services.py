@@ -73,30 +73,32 @@ class TestConcurrencyManager:
         assert not await manager.is_locked("test_resource")
 
 
-class TestPortfolioHealthMonitor:
-    """Test PortfolioHealthMonitor functionality through public interfaces."""
+class TestHealthCheckOrchestrator:
+    """Test HealthCheckOrchestrator functionality through public interfaces."""
 
     @pytest.mark.asyncio
     async def test_check_component_health(self) -> None:
         """Test checking component health through mock interface."""
-        # Mock monitor
-        monitor = AsyncMock()
-        mock_health_report = AsyncMock()
-        mock_health_report.overall_status = "WARNING"
-        mock_health_report.component_statuses = {"healthy": True, "unhealthy": False}
-        monitor.check_health.return_value = mock_health_report
+        # Mock orchestrator
+        orchestrator = AsyncMock()
+        mock_health_result = AsyncMock()
+        mock_health_result.is_healthy = False
+        mock_health_result.status = "WARNING"
+        mock_health_result.details = {"healthy": True, "unhealthy": False}
+        orchestrator.check_health.return_value = mock_health_result
 
-        health_report = await monitor.check_health()
+        health_result = await orchestrator.check_health()
 
-        assert health_report.overall_status == "WARNING"
-        assert len(health_report.component_statuses) == 2
+        assert health_result.status == "WARNING"
+        assert not health_result.is_healthy
+        assert len(health_result.details) == 2
 
     @pytest.mark.asyncio
     async def test_health_metrics(self) -> None:
         """Test collecting health metrics through mock interface."""
-        # Mock monitor
-        monitor = AsyncMock()
-        monitor.collect_metrics.return_value = {
+        # Mock collector
+        collector = AsyncMock()
+        collector.collect_metrics.return_value = {
             "test_component": {
                 "uptime": 3600,
                 "processed_items": 1000,
@@ -104,7 +106,7 @@ class TestPortfolioHealthMonitor:
             }
         }
 
-        metrics = await monitor.collect_metrics()
+        metrics = await collector.collect_metrics()
 
         assert "test_component" in metrics
         assert metrics["test_component"]["uptime"] == 3600

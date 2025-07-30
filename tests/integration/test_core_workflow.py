@@ -41,7 +41,7 @@ from cyberdelta.core.models import (
     TimeInForce,  # Add TradeSignal import
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
-from cyberdelta.core.portfolio_tracker import PortfolioTracker
+from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import (
     PortfolioTrackerProtocol,
     RiskManager,
@@ -387,14 +387,14 @@ def portfolio_tracker(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-) -> PortfolioTracker:
+) -> PortfolioStateManager:
     """Portfolio Tracker instance with APIs registered.
 
     Returns:
-        PortfolioTracker instance with mock APIs registered for testing.
+        PortfolioStateManager instance with mock APIs registered for testing.
     """
-    # NOTE: API client registration has moved to PortfolioOrchestrator
-    return PortfolioTracker(mock_config, mock_config.portfolio_tracker)
+    # NOTE: API client registration has moved to PortfolioReconciliationService
+    return PortfolioStateManager(mock_config, mock_config.portfolio_tracker)
 
 
 @pytest.fixture
@@ -414,12 +414,12 @@ def data_handler(
         },
     )
     # Create a mock portfolio tracker for DataHandler
-    mock_portfolio_tracker = mocker.MagicMock()
+    mock_portfolio_state_manager = mocker.MagicMock()
 
     return DataHandler(
         app_settings=mock_config,
         api_clients=api_clients,
-        portfolio_tracker=mock_portfolio_tracker,
+        portfolio_tracker=mock_portfolio_state_manager,
         symbol_mapper=symbol_mapper,
     )
 
@@ -447,7 +447,7 @@ def signal_generator(
 
 
 @pytest.fixture
-def risk_manager(mock_config: AppSettings, portfolio_tracker: PortfolioTracker) -> RiskManager:
+def risk_manager(mock_config: AppSettings, portfolio_tracker: PortfolioStateManager) -> RiskManager:
     """Risk Manager instance.
 
     Returns:
@@ -460,7 +460,7 @@ def risk_manager(mock_config: AppSettings, portfolio_tracker: PortfolioTracker) 
 @pytest.fixture
 def execution_handler(
     mock_config: AppSettings,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     symbol_mapper: SymbolService,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
@@ -480,7 +480,7 @@ async def test_happy_path_full_cycle(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
     risk_manager: RiskManager,
@@ -510,9 +510,9 @@ async def test_happy_path_full_cycle(
     start_time = datetime.now(UTC)
     # Initial balance is now set through mock APIs instead of direct assignment
 
-    # 1. Initialize PortfolioTracker with balances
-    await portfolio_tracker.initialize()
-    portfolio_tracker.reset()  # Explicitly reset state for this test
+    # 1. Initialize PortfolioStateManager with balances
+    await portfolio_state_manager.initialize()
+    portfolio_state_manager.reset()  # Explicitly reset state for this test
     # Set balances through mock exchange APIs instead of direct private method access
     # The portfolio tracker will sync these balances when queried
     # This approach tests the actual integration flow rather than bypassing it
@@ -748,20 +748,20 @@ async def test_happy_path_full_cycle(
     # Verify balances directly via internal dict for test setup accuracy
     logger.info(
         "hl_balance_before_sizing",
-        balance=portfolio_tracker.get_exchange_balance("mock_hl", "USD"),
+        balance=portfolio_state_manager.get_exchange_balance("mock_hl", "USD"),
         exchange="mock_hl",
         asset="USD",
         message="HL balance before sizing",
     )
     logger.info(
         "bp_balance_before_sizing",
-        balance=portfolio_tracker.get_exchange_balance("mock_bp", "USDC"),
+        balance=portfolio_state_manager.get_exchange_balance("mock_bp", "USDC"),
         exchange="mock_bp",
         asset="USDC",
         message="BP balance before sizing",
     )
     # Let's assume RM uses get_total_capital directly from balances for now
-    total_capital = await portfolio_tracker.get_total_capital()
+    total_capital = await portfolio_state_manager.get_current_state().total_capital
     logger.info(
         "portfolio_total_capital_for_sizing",
         total_capital=total_capital,
@@ -827,8 +827,8 @@ async def test_happy_path_full_cycle(
     logger.info("Verifying portfolio state post-execution...")
 
     # Get final balances - check internal state directly for test verification
-    hl_balance = portfolio_tracker.get_exchange_balance("hyperliquid", "USD")
-    bp_balance = portfolio_tracker.get_exchange_balance("backpack", "USDC")
+    hl_balance = portfolio_state_manager.get_exchange_balance("hyperliquid", "USD")
+    bp_balance = portfolio_state_manager.get_exchange_balance("backpack", "USDC")
 
     assert hl_balance is not None
     assert bp_balance is not None
@@ -852,9 +852,9 @@ async def test_happy_path_full_cycle(
     )
     # Add assertions about balance changes if fees/costs are accurately simulated
 
-    # Get final positions (should be updated by ExecutionHandler via PortfolioTracker.record_trade)
-    hl_pos = portfolio_tracker.get_position("hyperliquid", symbol_base)
-    bp_pos = portfolio_tracker.get_position("backpack", symbol_base)
+    # Get final positions (should be updated by ExecutionHandler via PortfolioStateManager.record_trade)
+    hl_pos = portfolio_state_manager.get_position("hyperliquid", symbol_base)
+    bp_pos = portfolio_state_manager.get_position("backpack", symbol_base)
 
     logger.debug(
         "final_positions_debug",
@@ -897,7 +897,7 @@ async def test_api_error_during_placement(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolService,
@@ -916,7 +916,7 @@ async def test_insufficient_balance(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
 ) -> None:
@@ -1168,7 +1168,7 @@ async def test_partial_fill(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolService,
@@ -1195,7 +1195,7 @@ async def test_partial_fill(
     # Reset APIs and tracker
     mock_hl_api.reset()
     mock_bp_api.reset()
-    portfolio_tracker.reset()
+    portfolio_state_manager.reset()
 
     # Setup mock API behaviors
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
@@ -1358,10 +1358,10 @@ async def test_partial_fill(
     # Get balances using internal dict for test verification
     logger.debug(
         "portfolio_balances_before_validation",
-        balances=portfolio_tracker.balances,
+        balances=portfolio_state_manager.balances,
         message="PT Balances before RM validation",
     )
-    total_cap_debug = await portfolio_tracker.get_total_capital()  # Added await
+    total_cap_debug = await portfolio_state_manager.get_current_state().total_capital  # Added await
     logger.debug(
         "portfolio_total_capital_before_validation",
         total_capital=str(total_cap_debug),
@@ -1403,15 +1403,15 @@ async def test_partial_fill(
     )
 
     # Further checks:
-    # - Verify PortfolioTracker reflects the partial fill on BP and full fill on HL
+    # - Verify PortfolioStateManager reflects the partial fill on BP and full fill on HL
     #   *before* any compensation.
     # - Verify logs indicate compensation was triggered (or not, depending on the test setup).
     #   # This test setup doesn't trigger compensation.
-    # - Verify final PortfolioTracker state shows successful compensation if it ran.
+    # - Verify final PortfolioStateManager state shows successful compensation if it ran.
 
-    # Example Check (adjust based on PortfolioTracker state after COMPLETED status)
-    bp_final_pos = portfolio_tracker.get_position("backpack", symbol_key)
-    hl_final_pos = portfolio_tracker.get_position("hyperliquid", symbol_key)
+    # Example Check (adjust based on PortfolioStateManager state after COMPLETED status)
+    bp_final_pos = portfolio_state_manager.get_position("backpack", symbol_key)
+    hl_final_pos = portfolio_state_manager.get_position("hyperliquid", symbol_key)
 
     logger.debug(
         "final_bp_position_partial_fill",
@@ -1870,14 +1870,14 @@ def _validate_opportunities(
     return opportunity
 
 
-async def _log_debug_info(portfolio_tracker: PortfolioTracker) -> None:
+async def _log_debug_info(portfolio_tracker: PortfolioStateManager) -> None:
     """Log debug information about portfolio tracker state."""
     logger.debug(
         "portfolio_balances_debug_info",
-        balances=portfolio_tracker.balances,
+        balances=portfolio_state_manager.balances,
         message="PT Balances before RM validation",
     )
-    total_cap_debug = await portfolio_tracker.get_total_capital()
+    total_cap_debug = await portfolio_state_manager.get_current_state().total_capital
     logger.debug(
         "portfolio_total_capital_debug_info",
         total_capital=str(total_cap_debug),
@@ -1893,7 +1893,7 @@ async def test_execution_failure_compensation(
     mock_bp_api: MockExchangeAPI,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     risk_manager: RiskManager,
     execution_handler: ExecutionHandler,
     symbol_mapper: SymbolService,
@@ -1934,7 +1934,7 @@ async def test_execution_failure_compensation(
         mock_bp_ob,
     )
 
-    portfolio_tracker.reset()
+    portfolio_state_manager.reset()
 
     # Configure initial balances
     initial_hl_balance = SpotBalance(
@@ -1953,8 +1953,8 @@ async def test_execution_failure_compensation(
     )
     mock_hl_api.set_mock_balance(initial_hl_balance)
     mock_bp_api.set_mock_balance(initial_bp_balance)
-    await portfolio_tracker.initialize()
-    await portfolio_tracker.update()  # Explicitly update derived metrics
+    await portfolio_state_manager.initialize()
+    await portfolio_state_manager.update()  # Explicitly update derived metrics
 
     # --- Manually Populate DataHandler ---
     populate_data_handler(
@@ -2097,9 +2097,9 @@ async def test_execution_failure_compensation(
     assert calls[1].kwargs["quantity"] == target_qty
 
     # Verify final portfolio state (should be flat for ETH)
-    await portfolio_tracker.update()  # Ensure state is fresh
-    final_bp_pos = portfolio_tracker.get_position(mock_bp_api.exchange_name, symbol_key)
-    final_hl_pos = portfolio_tracker.get_position(mock_hl_api.exchange_name, symbol_key)
+    await portfolio_state_manager.update()  # Ensure state is fresh
+    final_bp_pos = portfolio_state_manager.get_position(mock_bp_api.exchange_name, symbol_key)
+    final_hl_pos = portfolio_state_manager.get_position(mock_hl_api.exchange_name, symbol_key)
     assert final_bp_pos is None or abs(final_bp_pos.size) < POSITION_SIZE_TOLERANCE, (
         f"Expected BP position for {symbol_key} to be flat after compensation, "
         f"but got {final_bp_pos.size if final_bp_pos else 'None'}"
@@ -2124,12 +2124,12 @@ async def test_execution_failure_compensation(
         "final_mock_hl_usd_balance",
         exchange="mock_hl",
         asset="USD",
-        balance=str(portfolio_tracker.get_exchange_balance("mock_hl", "USD")),
+        balance=str(portfolio_state_manager.get_exchange_balance("mock_hl", "USD")),
         message="Final mock_hl USD Balance after compensation test",
     )
     logger.info(
         "final_balances",
-        balances=portfolio_tracker.balances,
+        balances=portfolio_state_manager.balances,
         message="Final Balances",
     )
 
@@ -2152,7 +2152,7 @@ async def test_failed_execution(
     mock_config: AppSettings,
     mock_hl_api: MockExchangeAPI,
     mock_bp_api: MockExchangeAPI,
-    portfolio_tracker: PortfolioTracker,
+    portfolio_tracker: PortfolioStateManager,
     data_handler: DataHandler,
     signal_generator: SignalGenerator,
     risk_manager: RiskManager,
@@ -2175,7 +2175,7 @@ async def test_failed_execution(
     mock_hl_api.reset()
     mock_bp_api.reset()
     # Re-initialize portfolio tracker state for this test
-    portfolio_tracker.reset()
+    portfolio_state_manager.reset()
 
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2001.0, 2000.5, now)
@@ -2221,11 +2221,11 @@ async def test_failed_execution(
     )
     mock_hl_api.set_mock_balance(initial_hl_balance)
     mock_bp_api.set_mock_balance(initial_bp_balance)
-    await portfolio_tracker.initialize()
-    await portfolio_tracker.update()  # Explicitly update derived metrics
+    await portfolio_state_manager.initialize()
+    await portfolio_state_manager.update()  # Explicitly update derived metrics
 
     # Verify balances are set
-    total_balance = await portfolio_tracker.get_total_capital()
+    total_balance = await portfolio_state_manager.get_current_state().total_capital
     logger.info(
         "total_balance_after_setup",
         total_balance=str(total_balance),
@@ -2346,17 +2346,17 @@ async def test_failed_execution(
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification
-    hl_balance_dict = portfolio_tracker.balances[
+    hl_balance_dict = portfolio_state_manager.balances[
         "hyperliquid"
     ]  # CORRECTED: Direct access returns defaultdict
-    bp_balance_dict = portfolio_tracker.balances[
+    bp_balance_dict = portfolio_state_manager.balances[
         "backpack"
     ]  # CORRECTED: Direct access returns defaultdict
 
     hl_balance = hl_balance_dict.get("USD")
     bp_balance = bp_balance_dict.get("USDC")
-    hl_pos = portfolio_tracker.get_position("hyperliquid", symbol_key)
-    bp_pos = portfolio_tracker.get_position("backpack", symbol_key)
+    hl_pos = portfolio_state_manager.get_position("hyperliquid", symbol_key)
+    bp_pos = portfolio_state_manager.get_position("backpack", symbol_key)
 
     assert hl_balance is not None
     assert hl_balance.total_quantity == initial_hl_balance.total_quantity

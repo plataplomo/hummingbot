@@ -3,11 +3,18 @@
 **Duration:** Week 4 (2025-08-18 to 2025-08-24)
 **Approach:** Clean Break - No Backward Compatibility
 **Priority:** Critical
-**Objective:** Fully integrate modular portfolio system with production components and establish core data flows
+**Objective:** Establish Portfolio-Risk Integration Layer and Coordination Patterns (Clean Boundaries)
 
 ## Overview
 
-With legacy components removed in Week 3, Week 4 focuses on deep integration of the modular system with all production components. This includes establishing proper data flows, event-driven architecture, and ensuring the complete portfolio system operates seamlessly.
+With legacy components removed and portfolio/risk boundaries cleaned in Weeks 2-3, Week 4 focuses on **coordinating the two clean modules**. This week establishes integration patterns between portfolio state management and risk assessment.
+
+**Clean Integration Scope:**
+- Establish Portfolio ↔ Risk coordination patterns
+- Create unified service orchestration layer
+- Implement event-driven communication between modules
+- Build production-ready integration framework
+- Leave component-specific replacements to Weeks 5-7
 
 **Clean Break Strategy:**
 - ❌ No legacy compatibility layers
@@ -29,28 +36,34 @@ graph TB
         MONITOR[SystemMonitor]
     end
 
-    subgraph "Portfolio Core (Week 4 Focus)"
+    subgraph "Portfolio Module (State Management)"
         PSM[PortfolioStateManager]
-        SF[ServiceFactory]
-        ED[EventDispatcher]
+        PERF[PerformanceAnalytics]
+        PF[PortfolioServiceFactory]
 
-        subgraph "Analytics Services"
-            PERF[PerformanceAnalytics]
-            RISKA[RiskAnalytics]
-            EXP[ExposureAnalytics]
-        end
-
-        subgraph "Data Services"
+        subgraph "Portfolio Services"
             EXCH[ExchangeDataService]
             VAL[ValidationService]
             CACHE[CacheService]
-        end
-
-        subgraph "Infrastructure Services"
             STATE[StateContainer]
-            EVENT[EventProcessor]
-            HEALTH[HealthService]
         end
+    end
+
+    subgraph "Risk Module (Risk Assessment)"
+        RSF[RiskServiceFactory]
+
+        subgraph "Risk Services"
+            EXP[ExposureCalculator]
+            SIZER[PositionSizer]
+            RISK[RiskMetricsCalculator]
+            CHECKS[RiskValidator]
+        end
+    end
+
+    subgraph "Integration Layer (Week 4 Focus)"
+        COORD[PortfolioRiskCoordinator]
+        ED[EventDispatcher]
+        FACTORY[UnifiedServiceFactory]
     end
 
     subgraph "External Dependencies"
@@ -60,23 +73,27 @@ graph TB
         DB[PostgreSQL]
     end
 
-    ENGINE --> SF
-    STRAT --> SF
-    EXEC --> SF
-    RISK --> SF
-    MONITOR --> SF
+    ENGINE --> FACTORY
+    STRAT --> FACTORY
+    EXEC --> FACTORY
+    RISK --> FACTORY
+    MONITOR --> FACTORY
 
-    SF --> PSM
-    SF --> ED
+    FACTORY --> PF
+    FACTORY --> RSF
+    FACTORY --> COORD
+
+    COORD --> PSM
+    COORD --> EXP
+    COORD --> SIZER
+    COORD --> RISK
+    COORD --> ED
+
     PSM --> PERF
-    PSM --> RISKA
-    PSM --> EXP
     PSM --> EXCH
     PSM --> VAL
     PSM --> CACHE
     PSM --> STATE
-    PSM --> EVENT
-    PSM --> HEALTH
 
     EXCH --> HYPERLIQUID
     EXCH --> BACKPACK
@@ -90,15 +107,252 @@ graph TB
 
 ## Week 4 Deliverables
 
-### Day 1-2: Core Integration Framework
+### Day 1-2: Portfolio-Risk Coordination Framework
 
-- [ ] **Enhanced ServiceFactory with Complete Integration**
+- [ ] **Portfolio-Risk Coordinator (Core Integration Component)**
   ```python
-  """Complete service factory for full system integration."""
+  """Central coordinator for portfolio state management and risk assessment."""
   from __future__ import annotations
 
   import asyncio
+  from decimal import Decimal
+  from typing import Any, Dict
+
+  from cyberdelta.core.portfolio.services import PortfolioServiceFactory
+  from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
+  from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+  from cyberdelta.core.risk.models.risk_assessment import RiskAssessment
+
+  # Supporting Pydantic models for type-safe integration
+  from pydantic.dataclasses import dataclass
+
+  @dataclass
+  class PortfolioWithRiskModel:
+      """Portfolio state enhanced with risk assessment."""
+      portfolio_state: PortfolioState
+      risk_assessment: RiskAssessment
+      timestamp: datetime
+
+  @dataclass
+  class TradeRequestModel:
+      """Trade request with validation."""
+      symbol: str
+      side: str  # "buy" or "sell"
+      quantity: Decimal
+      price: Decimal | None = None
+      signal_strength: float = 1.0
+
+      @field_validator("quantity", mode="before")
+      @classmethod
+      def validate_quantity(cls, v: Decimal) -> Decimal:
+          """Validate quantity is positive."""
+          if v <= 0:
+              raise ValueError("Quantity must be positive")
+          return v
+
+      @field_validator("signal_strength", mode="before")
+      @classmethod
+      def validate_signal_strength(cls, v: float) -> float:
+          """Validate signal strength is between 0 and 1."""
+          if not 0.0 <= v <= 1.0:
+              raise ValueError("Signal strength must be between 0.0 and 1.0")
+          return v
+
+  @dataclass
+  class TradeValidationResultModel:
+      """Result of trade validation."""
+      approved: bool
+      reason: str | None = None
+      optimal_size: Decimal | None = None
+      risk_assessment: Any | None = None
+      portfolio_impact: Any | None = None
+      risk_violations: list[str] = Field(default_factory=list)
+
+  class PortfolioRiskCoordinator(BaseModel):
+      """Coordinates portfolio state management with risk assessment."""
+
+      portfolio_factory: PortfolioServiceFactory = Field(..., description="Portfolio service factory")
+      risk_factory: RiskServiceFactory = Field(..., description="Risk service factory")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+      def model_post_init(self, __context: Any) -> None:
+          """Initialize service instances after Pydantic validation."""
+          # Portfolio module services
+          self.portfolio_manager = self.portfolio_factory.get_portfolio_manager()
+          self.performance_analytics = self.portfolio_factory.get_performance_analytics()
+
+          # Risk module services
+          self.exposure_calculator = self.risk_factory.create_exposure_calculator()
+          self.position_sizer = self.risk_factory.create_position_sizer()
+          self.risk_calculator = self.risk_factory.create_risk_metrics_calculator()
+          self.risk_validator = self.risk_factory.create_risk_validator()
+
+      async def get_current_portfolio_with_risk_assessment(self) -> PortfolioWithRiskModel:
+          """Get portfolio state enhanced with risk assessment."""
+
+          # Get current portfolio state (portfolio module responsibility)
+          portfolio_state = await self.portfolio_manager.get_current_state()
+
+          # Calculate risk metrics (risk module responsibility)
+          risk_assessment = await self._calculate_comprehensive_risk(portfolio_state)
+
+          return PortfolioWithRiskModel(
+              portfolio_state=portfolio_state,
+              risk_assessment=risk_assessment,
+              timestamp=portfolio_state.timestamp
+          )
+
+      async def validate_trade_request(self, trade_request: TradeRequestModel) -> TradeValidationResultModel:
+          """Validate trade using both portfolio state and risk assessment."""
+
+          # Get current state
+          portfolio_state = await self.portfolio_manager.get_current_state()
+
+          # Risk module validates the trade
+          risk_validation = await self.risk_validator.validate_trade(
+              trade_request, portfolio_state
+          )
+
+          if not risk_validation.approved:
+              return TradeValidationResultModel(
+                  approved=False,
+                  reason="Risk validation failed",
+                  risk_violations=risk_validation.violations
+              )
+
+          # Calculate optimal position size (risk module responsibility)
+          optimal_size = await self.position_sizer.calculate_optimal_size(
+              portfolio_state,
+              trade_request.symbol,
+              trade_request.signal_strength
+          )
+
+          portfolio_impact = await self._simulate_trade_impact(trade_request, portfolio_state)
+
+          return TradeValidationResultModel(
+              approved=True,
+              optimal_size=optimal_size,
+              risk_assessment=risk_validation,
+              portfolio_impact=portfolio_impact
+          )
+
+      async def execute_coordinated_trade(self, trade_request: Dict[str, Any]) -> Dict[str, Any]:
+          """Execute trade with coordinated portfolio and risk management."""
+
+          # Pre-trade validation
+          validation_result = await self.validate_trade_request(trade_request)
+          if not validation_result["approved"]:
+              return {"success": False, "reason": validation_result["reason"]}
+
+          # Execute through portfolio manager
+          execution_result = await self.portfolio_manager.execute_trade(trade_request)
+
+          # Post-trade risk assessment
+          updated_state = await self.portfolio_manager.get_current_state()
+          post_trade_risk = await self._calculate_comprehensive_risk(updated_state)
+
+          return {
+              "success": execution_result["success"],
+              "trade_result": execution_result,
+              "updated_risk_profile": post_trade_risk
+          }
+
+      async def _calculate_comprehensive_risk(self, portfolio_state: PortfolioState) -> RiskAssessment:
+          """Calculate complete risk assessment using risk module."""
+
+          # All risk calculations delegated to risk module
+          exposure_metrics = await self.exposure_calculator.calculate_portfolio_exposure(portfolio_state)
+          risk_metrics = await self.risk_calculator.calculate_risk_metrics(portfolio_state)
+
+          return RiskAssessment(
+              total_exposure=exposure_metrics.total_exposure,
+              currency_exposures=exposure_metrics.currency_breakdown,
+              var_95=risk_metrics.var_95,
+              max_drawdown=risk_metrics.max_drawdown,
+              leverage_ratio=risk_metrics.leverage,
+              risk_score=risk_metrics.composite_score
+          )
+
+      async def _simulate_trade_impact(self, trade_request: Dict[str, Any], portfolio_state: PortfolioState) -> Dict[str, Any]:
+          """Simulate impact of proposed trade on portfolio."""
+
+          # Risk module simulates the impact
+          simulated_state = await self.risk_calculator.simulate_trade_impact(
+              portfolio_state, trade_request
+          )
+
+          return {
+              "exposure_change": simulated_state.exposure_delta,
+              "risk_change": simulated_state.risk_delta,
+              "performance_impact": simulated_state.performance_impact
+          }
+  ```
+
+- [ ] **Unified Service Factory (Clean Module Coordination)**
+  ```python
+  """Unified factory coordinating clean portfolio and risk modules."""
+  from __future__ import annotations
+
+  from cyberdelta.core.portfolio.services import PortfolioServiceFactory
+  from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
+
+  class UnifiedServiceFactory(BaseModel):
+      """Coordinates portfolio and risk service factories with clean boundaries."""
+
+      config: Any = Field(..., description="Configuration object")
+
+      model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+      def model_post_init(self, __context: Any) -> None:
+          """Initialize service instances after Pydantic validation."""
+          # Separate factories for each module
+          self.portfolio_factory = PortfolioServiceFactory(self.config.portfolio_config)
+          self.risk_factory = RiskServiceFactory(self.config.risk_config)
+
+          # Integration layer
+          self.coordinator = PortfolioRiskCoordinator(
+              portfolio_factory=self.portfolio_factory,
+              risk_factory=self.risk_factory
+          )
+
+      async def initialize_all(self) -> None:
+          """Initialize both modules in correct order."""
+          # Portfolio module first (state management)
+          await self.portfolio_factory.initialize_all()
+
+          # Risk module second (needs portfolio state)
+          await self.risk_factory.initialize_all()
+
+          # Integration layer last
+          await self.coordinator.initialize()
+
+      # Clean interfaces for production components
+      def get_portfolio_manager(self):
+          """Pure portfolio state management."""
+          return self.portfolio_factory.get_portfolio_manager()
+
+      def get_risk_coordinator(self):
+          """Clean portfolio-risk coordination."""
+          return self.coordinator
+
+      def get_portfolio_with_risk_assessment(self):
+          """Integrated portfolio + risk view."""
+          return self.coordinator.get_current_portfolio_with_risk_assessment()
+
+      async def shutdown_all(self) -> None:
+          """Shutdown in reverse order."""
+          await self.coordinator.shutdown()
+          await self.risk_factory.shutdown_all()
+          await self.portfolio_factory.shutdown_all()
+  ```
+
+  import asyncio
+  from __future__ import annotations
+
   from typing import Any
+
+  from pydantic import BaseModel, ConfigDict, Field
 
   from cyberdelta.core.portfolio.portfolio_types.models import PortfolioConfig
   from cyberdelta.core.portfolio.portfolio_types.protocols import (
