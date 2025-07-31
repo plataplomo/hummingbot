@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, NoReturn, TypedDict, cast
+from typing import Any, NoReturn, TypedDict
 
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
@@ -86,8 +86,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     """
 
     # Protocol method implementations (delegated to common utilities)
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -98,14 +98,39 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Returns:
             datetime | None: The converted datetime or None if timestamp is None.
         """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
+
+    # Protocol-specific methods
+    def transform_raw_order_to_internal(self, raw_order: HyperliquidRawOrder) -> Order:
+        """Transform raw order data to internal model.
+
+        Args:
+            raw_order: Raw order data from API
+
+        Returns:
+            Order domain model
+        """
+        return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(
+            raw_order, trigger=None
+        )
+
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
+        """Transform raw fill data to internal trade model.
+
+        Args:
+            raw_fill: Raw fill data from API
+
+        Returns:
+            Trade domain model
+        """
+        transaction_mapper = HyperliquidTransactionMapper()
+        return transaction_mapper.transform_raw_user_fill_to_internal(raw_fill)
 
     @staticmethod
     def _raise_timestamp_validation_error() -> None:
@@ -128,20 +153,6 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         raise RuntimeError(msg)
 
     # Protocol-specific methods
-
-    @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: HyperliquidRawUserFill) -> Trade:
-        """Transform raw fill data to internal trade model.
-
-        Args:
-            raw_fill: Raw fill data from API
-
-        Returns:
-            Trade domain model
-        """
-        # Use the transaction mapper which has the proper implementation
-        # Delegate to transaction mapper
-        return HyperliquidTransactionMapper.transform_raw_user_fill_to_internal(raw_fill)
 
     @staticmethod
     def _ensure_quantity_not_none(
@@ -194,55 +205,6 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             )
 
     @staticmethod
-    def transform_raw_order_to_internal(raw_order: HyperliquidRawOrder) -> Order:
-        """Transform raw order data to internal model per protocol.
-
-        Args:
-            raw_order: Raw order data from API
-
-        Returns:
-            Order domain model
-        """
-        # Extract trigger info if present in the order type dict
-        trigger = None
-        if "trigger" in raw_order.order_type:
-            trigger_data = raw_order.order_type["trigger"]
-            # Validate that trigger_data is a dict before unpacking
-            if isinstance(trigger_data, dict):
-                # Create a trigger info object from the dict with proper type conversion
-                # Use direct key access with get() and default values
-                try:
-                    # The trigger_data is guaranteed to be a dict[str, object] here
-                    trigger_dict = cast("dict[str, Any]", trigger_data)
-                    trigger_px = trigger_dict.get("triggerPx")
-                    is_market = trigger_dict.get("isMarket")
-                    tpsl_value = trigger_dict.get("tpsl")
-
-                    if all(x is not None for x in [trigger_px, is_market, tpsl_value]):
-                        try:
-                            trigger = HyperliquidRawTriggerInfo(
-                                triggerPx=str(trigger_px),
-                                isMarket=bool(is_market),
-                                tpsl=str(tpsl_value),
-                            )
-                        except (TypeError, ValueError) as e:
-                            logger.warning(
-                                "trigger_info_creation_failed",
-                                component="HyperliquidOrderMapper",
-                                action="transform_raw_order_to_internal",
-                                error=str(e),
-                                trigger_keys=list(trigger_dict.keys()) if trigger_dict else [],
-                                message="Trigger info creation failed, continuing without trigger",
-                            )
-                            # trigger remains None, which is acceptable - order processing continues
-                except (TypeError, AttributeError):
-                    # If casting or access fails, trigger remains None
-                    pass
-
-        # Delegate to existing implementation
-        return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(raw_order, trigger)
-
-    @staticmethod
     def _transform_raw_order_to_internal_impl(
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
@@ -286,8 +248,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_raw_simple_open_order_to_internal(
+        self,
         raw_simple_order: HyperliquidRawSimpleOpenOrder,
     ) -> Order:
         """Transforms a HyperliquidRawSimpleOpenOrder to an Internal Order model.
@@ -398,8 +360,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_raw_historical_order_to_internal(
+        self,
         raw_historical_order: HyperliquidRawHistoricalOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
@@ -448,8 +410,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_ws_order_update_to_internal_order(
+        self,
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:

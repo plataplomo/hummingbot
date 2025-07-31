@@ -54,16 +54,19 @@ class SymbolAwareMixin:
             symbol: Symbol to validate
             order_type: Order type string
 
-        Raises:
-            ValueError: If symbol is incompatible with order type
+        Note:
+            May raise ValueError if symbol is incompatible with order type
         """
+        def _raise_invalid_order_type() -> None:
+            msg = f"Order type {order_type} not valid for spot market symbol {symbol.value}"
+            raise ValueError(msg)
+
         # Type-safe component access
         try:
             # Components are computed on demand via property
             market_type = symbol.market_type
             if market_type == MarketType.SPOT and "PERP" in order_type.upper():
-                msg = f"Order type {order_type} not valid for spot market symbol {symbol.value}"
-                raise ValueError(msg)
+                _raise_invalid_order_type()
         except (AttributeError, ValueError):
             # Components not available or not parsed, skip validation
             pass

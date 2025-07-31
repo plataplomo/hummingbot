@@ -8,6 +8,11 @@ Following the Backpack pattern for consistency across exchange implementations.
 from typing import Any, Protocol, runtime_checkable
 
 from cyberdelta.apis.base.infrastructure_config_domain import RegistrationConfiguration
+from cyberdelta.apis.base.protocols.base_protocols import (
+    MapperProtocol,
+    RequestBuilderProtocol,
+    ResponseHandlerProtocol,
+)
 from cyberdelta.apis.base.registry_interface import BaseComponentRegistry
 from cyberdelta.apis.hyperliquid.mappers.account.hl_account_summary_mapper import (
     HyperliquidAccountSummaryMapper,
@@ -44,11 +49,6 @@ from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
 )
 from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
     HyperliquidCommonMappers,
-)
-from cyberdelta.apis.hyperliquid.protocols.base_protocols import (
-    MapperProtocol,
-    RequestBuilderProtocol,
-    ResponseHandlerProtocol,
 )
 from cyberdelta.apis.hyperliquid.request_builders.hl_account_request_builder import (
     HyperliquidAccountRequestBuilder,

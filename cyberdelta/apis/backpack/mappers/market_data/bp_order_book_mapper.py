@@ -37,8 +37,8 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
     into CyberDeltaEngine Internal OrderBook Domain Models.
     """
 
-    @staticmethod
     def transform_raw_order_book_to_internal(
+        self,
         symbol: Symbol,
         raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
@@ -106,8 +106,8 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_ws_depth_event_to_internal(
+        self,
         symbol: Symbol,
         raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
@@ -194,8 +194,8 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
             ) from e
 
     # MapperProtocol methods
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -210,8 +210,7 @@ class BackpackOrderBookMapper(OrderBookMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert timestamp to datetime using BackpackCommonMappers.
 
         Args:

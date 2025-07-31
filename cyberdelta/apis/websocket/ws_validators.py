@@ -89,7 +89,8 @@ class UnexpectedFieldsError(ValueError):
     ) -> None:
         """Initialize with field information."""
         super().__init__(
-            f"Unexpected fields in {context}: {unexpected_fields}. Allowed fields: {allowed_fields}",
+            f"Unexpected fields in {context}: {unexpected_fields}. "
+            f"Allowed fields: {allowed_fields}",
         )
 
 

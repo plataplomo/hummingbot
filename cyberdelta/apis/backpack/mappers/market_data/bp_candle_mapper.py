@@ -70,8 +70,8 @@ class BackpackCandleMapper(CandleMapperProtocol):
 
             raise MissingRequiredFieldError(missing_fields, f"candle for {symbol}")
 
-    @staticmethod
     def transform_raw_kline_to_internal(
+        self,
         symbol: Symbol,
         interval: str,
         raw_kline: BackpackRawKlineResponse,
@@ -167,8 +167,8 @@ class BackpackCandleMapper(CandleMapperProtocol):
             ) from e
 
     # MapperProtocol methods
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -183,8 +183,7 @@ class BackpackCandleMapper(CandleMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert timestamp to datetime using BackpackCommonMappers.
 
         Args:

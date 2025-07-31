@@ -13,7 +13,6 @@ Focused on:
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from itertools import starmap
 
 from pydantic import ValidationError
 
@@ -34,6 +33,7 @@ from cyberdelta.core.models import (
     BackpackMarginDetails,
     MarginAccountSummary,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -49,8 +49,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
     into CyberDeltaEngine Internal Domain Models for account summaries and settings.
     """
 
-    @staticmethod
     def transform_raw_account_summary_to_internal(
+        self,
         raw_settings: BackpackRawAccountSummaryResponse,
         spot_balances_raw: dict[str, BackpackRawBalanceResponse],
         derivative_positions_raw: list[BackpackRawPositionResponse],
@@ -81,16 +81,18 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
             )
 
             # Transform spot balances using the dedicated mapper
-            internal_spot_balances = list(
-                starmap(
-                    BackpackBalanceMapper.transform_raw_balance_to_internal,
-                    spot_balances_raw.items(),
-                ),
-            )
+            balance_mapper = BackpackBalanceMapper()
+            internal_spot_balances = [
+                balance_mapper.transform_raw_balance_to_internal(
+                    exchanges.backpack(value=symbol), raw_balance
+                )
+                for symbol, raw_balance in spot_balances_raw.items()
+            ]
 
             # Transform derivative positions using the dedicated mapper
+            position_mapper = BackpackPositionMapper()
             internal_derivative_positions = [
-                BackpackPositionMapper.transform_raw_position_to_internal(pos_raw)
+                position_mapper.transform_raw_position_to_internal(pos_raw)
                 for pos_raw in derivative_positions_raw
             ]
 
@@ -191,8 +193,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
         else:
             return summary
 
-    @staticmethod
     def transform_enhanced_account_data_to_margin_summary(
+        self,
         raw_collateral: BackpackRawCollateralResponse,
         raw_settings: BackpackRawAccountSummaryResponse,
         raw_positions: list[BackpackRawPositionResponse],
@@ -269,8 +271,9 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
             )
 
             # Transform derivative positions using the dedicated mapper
+            position_mapper = BackpackPositionMapper()
             internal_derivative_positions = [
-                BackpackPositionMapper.transform_raw_position_to_internal(pos_raw)
+                position_mapper.transform_raw_position_to_internal(pos_raw)
                 for pos_raw in raw_positions
             ]
 
@@ -377,8 +380,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
         else:
             return summary
 
-    @staticmethod
     def transform_account_settings_update_to_internal(
+        self,
         args: UpdateAccountSettingsArgs,
         exchange_name: str,
     ) -> AccountSettings:
@@ -461,8 +464,8 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
             return settings
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -477,8 +480,7 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

@@ -86,8 +86,7 @@ class BackpackPositionMapper(PositionMapperProtocol):
             )
         return size
 
-    @staticmethod
-    def transform_raw_position_to_internal(raw: BackpackRawPositionResponse) -> DerivativePosition:
+    def transform_raw_position_to_internal(self, raw: BackpackRawPositionResponse) -> DerivativePosition:
         """Transform a validated BackpackRawPositionResponse object into an internal model.
 
         Args:
@@ -218,8 +217,8 @@ class BackpackPositionMapper(PositionMapperProtocol):
         else:
             return position
 
-    @staticmethod
     def transform_ws_position_update_to_internal_position(
+        self,
         raw_position_update: BackpackRawPositionUpdate,
     ) -> DerivativePosition:
         """Transform a BackpackRawPositionUpdate to an Internal DerivativePosition.
@@ -364,8 +363,8 @@ class BackpackPositionMapper(PositionMapperProtocol):
             return position
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -380,8 +379,7 @@ class BackpackPositionMapper(PositionMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

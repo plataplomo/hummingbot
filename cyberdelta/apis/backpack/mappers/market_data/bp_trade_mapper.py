@@ -76,8 +76,7 @@ class BackpackTradeMapper(TradeMapperProtocol):
 
         return parsed_price, parsed_quantity
 
-    @staticmethod
-    def transform_raw_trade_to_internal(raw_trade: BackpackRawPublicTrade) -> Trade:
+    def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Trade:
         """Transform a BackpackRawPublicTrade to an Internal Trade model.
 
         Args:
@@ -142,8 +141,8 @@ class BackpackTradeMapper(TradeMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_raw_recent_trade_to_internal(
+        self,
         raw_trade: BackpackRawRecentPublicTrade,
         symbol: Symbol,
     ) -> Trade:
@@ -214,8 +213,7 @@ class BackpackTradeMapper(TradeMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
-    def transform_ws_trade_event_to_internal(raw_trade: BackpackRawPublicTradeEvent) -> Trade:
+    def transform_ws_trade_event_to_internal(self, raw_trade: BackpackRawPublicTradeEvent) -> Trade:
         """Transform a BackpackRawPublicTradeEvent to an Internal Trade model.
 
         Args:
@@ -284,8 +282,8 @@ class BackpackTradeMapper(TradeMapperProtocol):
             ) from e
 
     # MapperProtocol methods
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -300,8 +298,7 @@ class BackpackTradeMapper(TradeMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert timestamp to datetime using BackpackCommonMappers.
 
         Args:

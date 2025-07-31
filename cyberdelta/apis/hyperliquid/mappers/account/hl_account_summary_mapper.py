@@ -55,8 +55,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
     """
 
     # Protocol method implementations - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -71,8 +71,7 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Args:
@@ -84,8 +83,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific method from AccountSummaryMapperProtocol
-    @staticmethod
     def transform_raw_summary_to_internal(
+        self,
         raw_summary: HyperliquidRawClearinghouseState,
     ) -> MarginAccountSummary:
         """Transform raw account summary data to internal model.
@@ -97,7 +96,7 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             MarginAccountSummary domain model
         """
         # Delegate to existing method that matches git history business logic
-        return HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+        return self.transform_raw_clearinghouse_state_to_margin_summary(
             raw_summary,
         )
 
@@ -215,8 +214,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             )
         return cross_mmr
 
-    @staticmethod
     def transform_raw_clearinghouse_state_to_margin_summary(
+        self,
         clearinghouse_data: HyperliquidRawClearinghouseState,
     ) -> MarginAccountSummary:
         """Transforms a HyperliquidRawClearinghouseState to an Internal MarginAccountSummary model.
@@ -318,8 +317,9 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             )
 
             # Calculate total unrealized PnL from derivative positions
+            position_mapper = HyperliquidPositionMapper()
             derivative_positions = (
-                HyperliquidPositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+                position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                     clearinghouse_data,
                 )
             )

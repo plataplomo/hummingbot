@@ -10,6 +10,7 @@ from typing import Protocol, runtime_checkable
 
 from eth_typing import ChecksumAddress
 
+from cyberdelta.apis.base.protocols.base_protocols import RequestBuilderProtocol
 from cyberdelta.apis.base.trading_execution_domain import PositionIntent
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMidsRequestPayload,
@@ -53,7 +54,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawUserStateRequestPayload,
 )
-from cyberdelta.apis.hyperliquid.protocols.base_protocols import RequestBuilderProtocol
 from cyberdelta.apis.models.service_args.hyperliquid import (
     HyperliquidGetCandleSnapshotArgs,
     HyperliquidGetOpenOrdersArgs,

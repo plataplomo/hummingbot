@@ -72,7 +72,7 @@ class HyperliquidMarketDataResponseHandler(
     # Base protocol method implementation
     def handle_response(
         self,
-        response: dict[str, object],
+        response: ParsedJsonResponse,
         status_code: int,
         headers: dict[str, str],
         context: str,

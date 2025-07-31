@@ -21,11 +21,6 @@ from cyberdelta.apis.backpack.mappers import (
     BackpackTransactionMapper,
     BackpackTransferMapper,
 )
-from cyberdelta.apis.backpack.protocols.base_protocols import (
-    MapperProtocol,
-    RequestBuilderProtocol,
-    ResponseHandlerProtocol,
-)
 from cyberdelta.apis.backpack.request_builders import (
     BackpackAccountRequestBuilder,
     BackpackMarketDataRequestBuilder,
@@ -38,6 +33,11 @@ from cyberdelta.apis.backpack.response_handlers import (
     BackpackTradingResponseHandler,
 )
 from cyberdelta.apis.base.infrastructure_config_domain import RegistrationConfiguration
+from cyberdelta.apis.base.protocols.base_protocols import (
+    MapperProtocol,
+    RequestBuilderProtocol,
+    ResponseHandlerProtocol,
+)
 from cyberdelta.apis.base.registry_interface import BaseComponentRegistry
 from cyberdelta.config.structlog_config import get_logger
 

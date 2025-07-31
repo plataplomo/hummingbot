@@ -124,7 +124,7 @@ class TestMapperProtocolCompliance:
         """Test that BackpackCommonMappers is a utility class with static methods."""
         mapper = BackpackCommonMappers()
         assert hasattr(mapper, "parse_decimal_safely")
-        assert hasattr(mapper, "normalize_symbol")
+        assert hasattr(mapper, "timestamp_ms_to_datetime")
 
 
 class TestBuilderProtocolCompliance:
@@ -195,8 +195,6 @@ class TestProtocolIntegration:
         for mapper in mappers:
             # Check that all mappers have the common protocol methods
             assert hasattr(mapper, "parse_decimal_safely")
-            assert hasattr(mapper, "normalize_symbol")
-            assert hasattr(mapper, "denormalize_symbol")
             assert hasattr(mapper, "timestamp_ms_to_datetime")
 
     def test_all_builders_have_common_methods(self) -> None:

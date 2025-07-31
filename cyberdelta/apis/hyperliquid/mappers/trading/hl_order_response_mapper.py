@@ -47,8 +47,8 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
     """
 
     # Protocol method implementations - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -59,8 +59,7 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Returns:
@@ -68,8 +67,8 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
         """
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
-    @staticmethod
     async def map_place_order_response_to_order(
+        self,
         processed_status: dict[str, Any],
         order_args: PlaceOrderArgs,
         timestamp: datetime,
@@ -91,7 +90,7 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
             # Handle resting orders
             if "resting" in processed_status:
                 resting_data = processed_status["resting"]
-                return HyperliquidOrderResponseMapper.transform_resting_order_to_internal(
+                return self.transform_resting_order_to_internal(
                     resting_data,
                     order_args,
                 )
@@ -99,7 +98,7 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
             # Handle filled orders
             if "filled" in processed_status:
                 filled_data = processed_status["filled"]
-                return HyperliquidOrderResponseMapper.transform_filled_order_to_internal(
+                return self.transform_filled_order_to_internal(
                     filled_data,
                     order_args,
                 )
@@ -129,8 +128,8 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
                 original_exception=e,
             ) from e
 
-    @staticmethod
     def transform_resting_order_to_internal(
+        self,
         resting_data: HyperliquidRawExchangeStatusResting,
         order_args: PlaceOrderArgs,
     ) -> Order:
@@ -215,8 +214,8 @@ class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
             code=mapped_error.code,
         )
 
-    @staticmethod
     def transform_filled_order_to_internal(
+        self,
         filled_data: HyperliquidRawExchangeStatusFilled,
         order_args: PlaceOrderArgs,
     ) -> Order:

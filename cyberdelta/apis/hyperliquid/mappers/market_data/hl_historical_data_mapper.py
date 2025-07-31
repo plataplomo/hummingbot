@@ -60,8 +60,8 @@ class HyperliquidHistoricalDataMapper(
     """
 
     # Protocol method implementations - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -76,8 +76,7 @@ class HyperliquidHistoricalDataMapper(
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Args:
@@ -89,8 +88,7 @@ class HyperliquidHistoricalDataMapper(
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from CandleMapperProtocol
-    @staticmethod
-    def transform_raw_candle_to_internal(raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
+    def transform_raw_candle_to_internal(self, raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
         """Transform raw candle data to internal model.
 
         Args:
@@ -105,7 +103,7 @@ class HyperliquidHistoricalDataMapper(
         # For a single candle snapshot, transform and return first candle
         # Default symbol and interval if not available
         default_symbol = exchanges.hyperliquid(value="UNKNOWN")
-        candles = HyperliquidHistoricalDataMapper.transform_raw_candle_snapshot_to_candles(
+        candles = self.transform_raw_candle_snapshot_to_candles(
             raw_candle,
             default_symbol,
             "1h",
@@ -121,8 +119,7 @@ class HyperliquidHistoricalDataMapper(
 
         return candles[0]
 
-    @staticmethod
-    def transform_ws_candle_to_internal(raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
+    def transform_ws_candle_to_internal(self, raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
         """Transform WebSocket candle to internal Candle model.
 
         Args:
@@ -199,8 +196,8 @@ class HyperliquidHistoricalDataMapper(
             return candle
 
     # Protocol-specific methods from HistoricalDataMapperProtocol
-    @staticmethod
     def transform_raw_funding_history_to_internal(
+        self,
         raw_funding: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """Transform raw funding history data to internal model.
@@ -212,13 +209,13 @@ class HyperliquidHistoricalDataMapper(
             FundingRate domain model
         """
         # Delegate to existing business logic method
-        return HyperliquidHistoricalDataMapper.transform_raw_funding_history_item_to_internal(
+        return self.transform_raw_funding_history_item_to_internal(
             raw_funding,
         )
 
     # Protocol-specific methods from FundingRateMapperProtocol
-    @staticmethod
     def transform_raw_funding_rate_to_internal(
+        self,
         raw_funding_rate: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """Transform raw funding rate data to internal model.
@@ -230,7 +227,7 @@ class HyperliquidHistoricalDataMapper(
             FundingRate domain model
         """
         # Delegate to existing business logic method
-        return HyperliquidHistoricalDataMapper.transform_raw_funding_history_item_to_internal(
+        return self.transform_raw_funding_history_item_to_internal(
             raw_funding_rate,
         )
 
@@ -281,8 +278,8 @@ class HyperliquidHistoricalDataMapper(
             )
         return timestamp
 
-    @staticmethod
     def transform_raw_asset_ctx_to_funding_rate(
+        self,
         raw_asset_ctx: HyperliquidRawAssetCtx,
     ) -> FundingRate | None:
         """Transforms a HyperliquidRawAssetCtx to an Internal FundingRate model.
@@ -399,8 +396,8 @@ class HyperliquidHistoricalDataMapper(
         else:
             return funding_rate_model
 
-    @staticmethod
     def transform_raw_funding_history_item_to_internal(
+        self,
         raw_funding_item: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """Transforms a HyperliquidRawFundingHistoryItem to an Internal FundingRate model.
@@ -497,8 +494,8 @@ class HyperliquidHistoricalDataMapper(
         else:
             return funding_rate_model
 
-    @staticmethod
     def transform_raw_candle_snapshot_to_candles(
+        self,
         raw_snapshot: HyperliquidRawCandleSnapshot,
         symbol: Symbol,
         interval: str,

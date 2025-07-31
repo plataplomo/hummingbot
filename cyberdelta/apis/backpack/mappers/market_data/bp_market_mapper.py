@@ -34,8 +34,7 @@ class BackpackMarketMapper(MarketMapperProtocol):
     into CyberDeltaEngine Internal Market Domain Models.
     """
 
-    @staticmethod
-    def transform_raw_market_to_internal(raw_market: BackpackRawMarketResponse) -> Market:
+    def transform_raw_market_to_internal(self, raw_market: BackpackRawMarketResponse) -> Market:
         """Transform a BackpackRawMarketResponse to an Internal Market model.
 
         Args:
@@ -133,8 +132,8 @@ class BackpackMarketMapper(MarketMapperProtocol):
             ) from e
 
     # MapperProtocol methods
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -149,8 +148,7 @@ class BackpackMarketMapper(MarketMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert timestamp to datetime using BackpackCommonMappers.
 
         Args:

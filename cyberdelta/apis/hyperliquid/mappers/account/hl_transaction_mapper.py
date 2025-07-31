@@ -47,8 +47,8 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
     """
 
     # Protocol method implementations (delegated to common utilities)
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -59,8 +59,7 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Returns:
@@ -70,8 +69,7 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
 
     # Protocol-specific methods - TransactionMapperProtocol focuses on user fills
 
-    @staticmethod
-    def transform_raw_user_fill_to_internal(raw_fill: HyperliquidRawUserFill) -> Trade:
+    def transform_raw_user_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
         """Transforms a HyperliquidRawUserFill to an Internal Trade model.
 
         Converts user fill data from Hyperliquid into an internal Trade domain model.
@@ -326,8 +324,7 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
         else:
             return trade
 
-    @staticmethod
-    def transform_ws_fill_event_to_internal(raw_fill: HyperliquidRawWsFillEvent) -> Trade:
+    def transform_ws_fill_event_to_internal(self, raw_fill: HyperliquidRawWsFillEvent) -> Trade:
         """Transforms a WebSocket fill event to an Internal Trade model.
 
         Converts WebSocket fill event data from Hyperliquid into an internal Trade domain model.

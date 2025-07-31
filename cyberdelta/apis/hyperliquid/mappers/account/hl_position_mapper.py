@@ -51,8 +51,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
     """
 
     # Protocol method implementations (delegated to common utilities)
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -67,8 +67,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Args:
@@ -80,8 +79,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods
-    @staticmethod
     def transform_raw_position_to_internal_static(
+        self,
         raw_position: dict[str, object],
     ) -> DerivativePosition:
         """Transform raw position data to internal model (static protocol method).
@@ -179,8 +178,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             )
         return size
 
-    @staticmethod
     def transform_raw_clearinghouse_state_to_derivative_positions(
+        self,
         clearinghouse_data: HyperliquidRawClearinghouseState,
     ) -> dict[str, DerivativePosition]:
         """Transforms a HyperliquidRawClearinghouseState to Internal DerivativePosition models.
@@ -699,8 +698,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         else:
             return position
 
-    @staticmethod
     def transform_ws_position_update_to_internal_position(
+        self,
         raw_position_update: HyperliquidRawWsPositionUpdateEvent,
     ) -> DerivativePosition:
         """Transforms a HyperliquidRawWsPositionUpdateEvent to an Internal DerivativePosition model.

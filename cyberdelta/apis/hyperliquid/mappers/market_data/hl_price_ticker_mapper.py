@@ -52,8 +52,8 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
     """
 
     # Protocol method implementations - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -64,8 +64,7 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Returns:
@@ -74,8 +73,7 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from PriceTickerMapperProtocol
-    @staticmethod
-    def transform_raw_price_ticker_to_internal(raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
+    def transform_raw_price_ticker_to_internal(self, raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
         """Transform raw price ticker data to internal model.
 
         Args:
@@ -85,11 +83,10 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             Ticker domain model
         """
         # Delegate to existing method with typed model
-        return HyperliquidPriceTickerMapper.transform_raw_asset_ctx_to_ticker(raw_ticker)
+        return self.transform_raw_asset_ctx_to_ticker(raw_ticker)
 
     # Protocol-specific methods from TickerMapperProtocol
-    @staticmethod
-    def transform_raw_ticker_to_internal(raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
+    def transform_raw_ticker_to_internal(self, raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
         """Transform raw ticker data to internal model.
 
         Args:
@@ -99,7 +96,7 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             Ticker domain model
         """
         # Delegate to existing method that matches git history business logic
-        return HyperliquidPriceTickerMapper.transform_raw_asset_ctx_to_ticker(raw_ticker)
+        return self.transform_raw_asset_ctx_to_ticker(raw_ticker)
 
     @staticmethod
     def _validate_asset_ctx_data(mark_px: object, name: object, context: str) -> tuple[object, str]:
@@ -148,8 +145,7 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
             raise MissingRequiredFieldError("name", context)
         return name
 
-    @staticmethod
-    def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
+    def transform_raw_asset_ctx_to_ticker(self, raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
         """Transforms a HyperliquidRawAssetCtx to an Internal Ticker model.
 
         Converts asset context data from Hyperliquid into an internal Ticker domain model
@@ -258,8 +254,8 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
         else:
             return ticker
 
-    @staticmethod
     def transform_raw_all_mids_to_internal(
+        self,
         raw_all_mids: HyperliquidRawAllMids,
     ) -> MidPrices:
         """Transform Hyperliquid AllMids response to internal MidPrices model.

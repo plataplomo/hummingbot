@@ -11,12 +11,6 @@ Protocols are organized into separate modules:
 """
 
 # Import base protocols
-from cyberdelta.apis.backpack.protocols.base_protocols import (
-    MapperProtocol,
-    RequestBuilderProtocol,
-    ResponseHandlerProtocol,
-)
-
 # Import specific request builder protocols
 from cyberdelta.apis.backpack.protocols.builder_protocols import (
     AccountRequestBuilderProtocol,
@@ -46,6 +40,11 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import (
     TradeMapperProtocol,
     TransactionMapperProtocol,
     TransferMapperProtocol,
+)
+from cyberdelta.apis.base.protocols.base_protocols import (
+    MapperProtocol,
+    RequestBuilderProtocol,
+    ResponseHandlerProtocol,
 )
 
 

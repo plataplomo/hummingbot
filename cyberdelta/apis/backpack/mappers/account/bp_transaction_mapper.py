@@ -391,8 +391,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             ),
         }
 
-    @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: BackpackRawFillResponse) -> Trade | None:
+    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawFillResponse) -> Trade | None:
         """Transform a BackpackRawFillResponse to an Internal Trade model.
 
         Converts fill data from Backpack order execution into an internal Trade domain model.
@@ -520,8 +519,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         else:
             return trade
 
-    @staticmethod
-    def transform_raw_order_to_internal(raw: BackpackRawOrderResponse) -> Order:
+    def transform_raw_order_to_internal(self, raw: BackpackRawOrderResponse) -> Order:
         """Transform a validated BackpackRawOrderResponse into an internal Order domain model.
 
         Converts order data from Backpack into an internal Order domain model with comprehensive
@@ -651,8 +649,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         else:
             return order
 
-    @staticmethod
-    def transform_raw_trade_to_internal(raw: BackpackRawPublicTrade) -> Trade | None:
+    def transform_raw_trade_to_internal(self, raw: BackpackRawPublicTrade) -> Trade | None:
         """Transform a validated BackpackRawPublicTrade into an internal Trade model.
 
         Note: Backpack REST API for trades typically lacks side information.
@@ -723,8 +720,8 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         else:
             return None
 
-    @staticmethod
     def transform_ws_fill_event_to_internal_trade(
+        self,
         raw_fill: BackpackRawFillResponse,
     ) -> Trade | None:
         """Transform a WebSocket fill event (BackpackRawFillResponse) to an Internal Trade model.
@@ -738,11 +735,11 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             Trade | None: Internal domain model with BP details populated, or None if
                          price or quantity is zero
         """
-        return BackpackTransactionMapper.transform_raw_fill_to_internal(raw_fill)
+        return self.transform_raw_fill_to_internal(raw_fill)
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -757,8 +754,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

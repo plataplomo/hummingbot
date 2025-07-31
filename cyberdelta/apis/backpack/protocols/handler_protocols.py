@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawRecentPublicTrade,
 )
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.backpack.protocols.base_protocols import ResponseHandlerProtocol
+from cyberdelta.apis.base.protocols.base_protocols import ResponseHandlerProtocol
 from cyberdelta.core.models import CancelOrderResult
 from cyberdelta.core.symbols.models import Symbol
 

@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommon
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralAsset
 from cyberdelta.apis.backpack.protocols.mapper_protocols import BalanceMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import BalanceMapperMixin
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
     MissingRequiredFieldError,
@@ -32,7 +33,7 @@ from cyberdelta.utils.secure_transformation import secure_transform
 logger = get_logger(__name__)
 
 
-class BackpackBalanceMapper(BalanceMapperProtocol):
+class BackpackBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
     """Focused mapper for Backpack balance data transformations.
 
     This class contains static methods for transforming validated Backpack Raw balance models
@@ -85,8 +86,8 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
             )
         return field_value
 
-    @staticmethod
     def transform_balance_data_to_spot_balance(
+        self,
         asset: str,
         total_balance: str,
         available_balance: str,
@@ -174,8 +175,8 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
         else:
             return spot_balance
 
-    @staticmethod
     def transform_raw_balance_to_internal(
+        self,
         asset_symbol: Symbol,
         raw: BackpackRawBalanceResponse,
     ) -> SpotBalance:
@@ -292,8 +293,8 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
         else:
             return spot_balance
 
-    @staticmethod
     def create_balance_from_collateral(
+        self,
         symbol: Symbol,
         collateral_data: BackpackRawCollateralAsset,
         exchange_name: str,
@@ -402,8 +403,8 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
             return spot_balance
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -418,8 +419,7 @@ class BackpackBalanceMapper(BalanceMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

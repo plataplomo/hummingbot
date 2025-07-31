@@ -8,6 +8,7 @@ all handler protocols inherit from the base ResponseHandlerProtocol.
 from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
+from cyberdelta.apis.base.protocols.base_protocols import ResponseHandlerProtocol
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCandleSnapshot
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
@@ -38,7 +39,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_usd_transfer_response import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
-from cyberdelta.apis.hyperliquid.protocols.base_protocols import ResponseHandlerProtocol
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 

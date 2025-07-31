@@ -150,8 +150,8 @@ class BackpackTransferMapper(TransferMapperProtocol):
         )
         return InternalWithdrawalStatus.UNKNOWN
 
-    @staticmethod
     def transform_raw_transfer_to_internal(
+        self,
         raw_response: RawJsonResponse,
         exchange_name: str,
         asset: str,
@@ -295,8 +295,8 @@ class BackpackTransferMapper(TransferMapperProtocol):
         else:
             return transfer
 
-    @staticmethod
     def transform_raw_withdrawal_response_to_internal(
+        self,
         raw_response: BackpackRawWithdrawalResponse,
         asset: str,
         quantity: Decimal,
@@ -444,8 +444,8 @@ class BackpackTransferMapper(TransferMapperProtocol):
             return withdrawal
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -460,8 +460,7 @@ class BackpackTransferMapper(TransferMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

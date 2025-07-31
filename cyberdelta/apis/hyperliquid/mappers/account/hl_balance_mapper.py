@@ -13,6 +13,7 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import BalanceMapperMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import DataTransformationError
 from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
@@ -35,7 +36,7 @@ from cyberdelta.utils.secure_transformation import secure_transform
 logger = get_logger(__name__)
 
 
-class HyperliquidBalanceMapper(BalanceMapperProtocol):
+class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
     """Focused mapper for Hyperliquid balance data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw balance models
@@ -43,8 +44,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
     """
 
     # Protocol method implementations (delegated to common utilities)
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -59,8 +60,7 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Args:
@@ -72,8 +72,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods
-    @staticmethod
     def transform_raw_balance_to_internal(
+        self,
         asset_symbol: Symbol,
         raw_user_state: HyperliquidRawClearinghouseState,
     ) -> SpotBalance:
@@ -87,53 +87,22 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol):
             SpotBalance domain model
         """
         # Get all balances and return the requested one
-        balances = HyperliquidBalanceMapper.transform_raw_clearinghouse_state_to_spot_balances(
+        balances = self.transform_raw_clearinghouse_state_to_spot_balances(
             raw_user_state,
         )
 
         asset_symbol_str = asset_symbol.value
         if asset_symbol_str not in balances:
-            # Return zero balance for missing assets
-            return HyperliquidBalanceMapper._create_zero_balance(asset_symbol_str)
+            # Return zero balance for missing assets using mixin utility
+            return self.create_zero_balance(
+                asset=exchanges.hyperliquid(value=asset_symbol_str),
+                exchange=ExchangeName.HYPERLIQUID.value
+            )
 
         return balances[asset_symbol_str]
 
-    @staticmethod
-    def _create_zero_balance(asset_symbol: str) -> SpotBalance:
-        """Create a zero balance for a given asset.
-
-        Args:
-            asset_symbol: The asset symbol
-
-        Returns:
-            SpotBalance with zero quantities
-        """
-        details = HyperliquidSpotBalanceDetails()
-
-        # Create domain symbol at entry point
-        exchange_symbol = exchanges.hyperliquid(
-            value=asset_symbol,
-        )
-
-        balance_data = {
-            "asset": exchange_symbol,  # Domain object!
-            "exchange": ExchangeName.HYPERLIQUID.value,
-            "total_quantity": "0",
-            "available_quantity": "0",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "hl_details": details.model_dump() if details else None,
-            "bp_details": None,
-        }
-
-        return secure_transform(
-            data=balance_data,
-            model_class=SpotBalance,
-            context="hyperliquid_zero_balance_transform",
-            source_exchange="hyperliquid",
-        )
-
-    @staticmethod
     def transform_raw_clearinghouse_state_to_spot_balances(
+        self,
         raw_state: HyperliquidRawClearinghouseState,
     ) -> dict[str, SpotBalance]:
         """Transforms a HyperliquidRawClearinghouseState to Internal SpotBalance models.

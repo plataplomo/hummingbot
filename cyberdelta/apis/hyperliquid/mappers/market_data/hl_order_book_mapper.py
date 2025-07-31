@@ -55,8 +55,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
     """
 
     # Protocol method implementations - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -67,8 +67,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Returns:
@@ -77,8 +76,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from OrderBookMapperProtocol
-    @staticmethod
-    def transform_raw_order_book_to_internal(raw_order_book: HyperliquidRawL2Book) -> OrderBook:
+    def transform_raw_order_book_to_internal(self, raw_order_book: HyperliquidRawL2Book) -> OrderBook:
         """Transform raw order book data to internal model.
 
         Args:
@@ -88,11 +86,10 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             OrderBook domain model
         """
         # Create HyperliquidRawL2Book from dict and delegate to existing method
-        return HyperliquidOrderBookMapper.transform_raw_l2_book_to_internal(raw_order_book)
+        return self.transform_raw_l2_book_to_internal(raw_order_book)
 
     # Protocol-specific methods from TradeMapperProtocol
-    @staticmethod
-    def transform_raw_trade_to_internal(raw_trade: HyperliquidRawPublicTrade) -> Trade:
+    def transform_raw_trade_to_internal(self, raw_trade: HyperliquidRawPublicTrade) -> Trade:
         """Transform raw trade data to internal model.
 
         Args:
@@ -105,7 +102,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             TradeTransformationError: If transformation fails
         """
         # Delegate to existing method with typed model
-        result = HyperliquidOrderBookMapper.transform_raw_public_trade_to_internal(raw_trade)
+        result = self.transform_raw_public_trade_to_internal(raw_trade)
         if result is None:
             raise TradeTransformationError(
                 trade_source="HyperliquidRawPublicTrade",
@@ -150,8 +147,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             )
         return price, quantity
 
-    @staticmethod
     def transform_raw_l2_book_to_internal(
+        self,
         raw_book: HyperliquidRawL2Book,
         depth: int | None = None,
     ) -> OrderBook:
@@ -291,8 +288,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
         else:
             return levels
 
-    @staticmethod
     def transform_raw_public_trade_to_internal(
+        self,
         raw_trade: HyperliquidRawPublicTrade,
     ) -> Trade | None:
         """Transforms a HyperliquidRawPublicTrade to an Internal Trade model.
@@ -424,8 +421,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
         else:
             return trade
 
-    @staticmethod
-    def transform_ws_trade_event_to_internal(raw: HyperliquidRawWsTradeEvent) -> Trade:
+    def transform_ws_trade_event_to_internal(self, raw: HyperliquidRawWsTradeEvent) -> Trade:
         """Transforms a WebSocket trade event to an Internal Trade model.
 
         Args:
@@ -529,8 +525,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
         else:
             return trade
 
-    @staticmethod
-    def transform_ws_book_update_to_internal(raw: HyperliquidRawWsBookUpdate) -> OrderBook:
+    def transform_ws_book_update_to_internal(self, raw: HyperliquidRawWsBookUpdate) -> OrderBook:
         """Transforms a WebSocket order book update to an Internal OrderBook model.
 
         Args:
@@ -647,9 +642,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
 
             for raw_trade in raw_public_trades:
                 try:
-                    trade = HyperliquidOrderBookMapper.transform_raw_public_trade_to_internal(
-                        raw_trade,
-                    )
+                    mapper = HyperliquidOrderBookMapper()
+                    trade = mapper.transform_raw_public_trade_to_internal(raw_trade)
                     if trade is not None:
                         trades.append(trade)
                     else:

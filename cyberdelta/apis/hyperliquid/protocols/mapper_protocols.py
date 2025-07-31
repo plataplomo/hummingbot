@@ -9,6 +9,22 @@ from the base MapperProtocol.
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from cyberdelta.apis.base.protocols.base_protocols import MapperProtocol
+
+# Add abstract protocol imports
+from cyberdelta.apis.base.protocols.mapper_protocols import (
+    AbstractAccountSummaryMapperProtocol,
+    # Abstract protocols
+    AbstractBalanceMapperProtocol,
+    AbstractCandleMapperProtocol,
+    AbstractFundingRateMapperProtocol,
+    AbstractMarketMapperProtocol,
+    AbstractOrderBookMapperProtocol,
+    AbstractOrderMapperProtocol,
+    AbstractPositionMapperProtocol,
+    AbstractTickerMapperProtocol,
+    AbstractTradeMapperProtocol,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -40,7 +56,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsPositionUpdateEvent,
     HyperliquidRawWsTradeEvent,
 )
-from cyberdelta.apis.hyperliquid.protocols.base_protocols import MapperProtocol
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.derivative_position import DerivativePosition
@@ -67,15 +82,20 @@ if TYPE_CHECKING:
 
 
 @runtime_checkable
-class BalanceMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for balance-related mapping operations.
+class BalanceMapperProtocol(MapperProtocol, AbstractBalanceMapperProtocol, Protocol):
+    """Hyperliquid-specific balance mapper protocol.
 
-    This protocol defines the interface for transforming raw balance data
-    from the Hyperliquid API into internal SpotBalance models.
+    Inherits from:
+    - MapperProtocol: Base utility methods (parse_decimal_safely, timestamp_ms_to_datetime)
+    - AbstractBalanceMapperProtocol: Conceptual interface documentation
+    - Protocol: Runtime type checking support
+    
+    Note: Implementations should also inherit from BalanceMapperMixin for shared utilities:
+    - create_zero_balance, validate_balance_amount, calculate_available_from_total_and_locked
     """
 
-    @staticmethod
     def transform_raw_clearinghouse_state_to_spot_balances(
+        self,
         raw_state: HyperliquidRawClearinghouseState,
     ) -> dict[str, SpotBalance]:
         """Transform raw clearinghouse state to internal spot balance models.
@@ -88,8 +108,8 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
     def transform_raw_balance_to_internal(
+        self,
         asset_symbol: Symbol,
         raw_user_state: HyperliquidRawClearinghouseState,
     ) -> SpotBalance:
@@ -106,15 +126,18 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class PositionMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for position-related mapping operations.
+class PositionMapperProtocol(MapperProtocol, AbstractPositionMapperProtocol, Protocol):
+    """Hyperliquid-specific position mapper protocol.
 
-    This protocol defines the interface for transforming raw position data
-    from the Hyperliquid API into internal DerivativePosition models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractPositionMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
+    
+    Note: Implementations should also inherit from PositionMapperMixin for shared utilities:
+    - calculate_unrealized_pnl, calculate_position_value
     """
 
-    @staticmethod
-    def transform_raw_clearinghouse_state_to_derivative_positions(
+    def transform_raw_clearinghouse_state_to_derivative_positions(self, 
         clearinghouse_data: HyperliquidRawClearinghouseState,
     ) -> dict[str, DerivativePosition]:
         """Transform raw clearinghouse state to derivative positions.
@@ -127,8 +150,7 @@ class PositionMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_position_update_to_internal_position(
+    def transform_ws_position_update_to_internal_position(self, 
         raw_position_update: HyperliquidRawWsPositionUpdateEvent,
     ) -> DerivativePosition:
         """Transform WebSocket position update to internal model.
@@ -143,15 +165,15 @@ class PositionMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for account summary mapping operations.
+class AccountSummaryMapperProtocol(MapperProtocol, AbstractAccountSummaryMapperProtocol, Protocol):
+    """Hyperliquid-specific account summary mapper protocol.
 
-    This protocol defines the interface for transforming raw account summary
-    data from the Hyperliquid API into internal MarginAccountSummary models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractAccountSummaryMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_summary_to_internal(
+    def transform_raw_summary_to_internal(self, 
         raw_summary: HyperliquidRawClearinghouseState,
     ) -> MarginAccountSummary:
         """Transform raw account summary to internal model.
@@ -164,8 +186,7 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_clearinghouse_state_to_margin_summary(
+    def transform_raw_clearinghouse_state_to_margin_summary(self, 
         clearinghouse_data: HyperliquidRawClearinghouseState,
     ) -> MarginAccountSummary:
         """Transform raw clearinghouse state to margin account summary.
@@ -180,15 +201,15 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class OrderMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for order-related mapping operations.
+class OrderMapperProtocol(MapperProtocol, AbstractOrderMapperProtocol, Protocol):
+    """Hyperliquid-specific order mapper protocol.
 
-    This protocol defines the interface for transforming raw order data
-    from the Hyperliquid API into internal Order models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractOrderMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_order_to_internal(raw_order: HyperliquidRawOrder) -> Order:
+    def transform_raw_order_to_internal(self, raw_order: HyperliquidRawOrder) -> Order:
         """Transform raw order data to internal model.
 
         Args:
@@ -199,8 +220,7 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: HyperliquidRawUserFill) -> Trade:
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
         """Transform raw fill data to internal trade model.
 
         Args:
@@ -211,8 +231,7 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_historical_order_to_internal(
+    def transform_raw_historical_order_to_internal(self, 
         raw_historical_order: HyperliquidRawHistoricalOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
@@ -227,8 +246,7 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_simple_open_order_to_internal(
+    def transform_raw_simple_open_order_to_internal(self, 
         raw_simple_order: HyperliquidRawSimpleOpenOrder,
     ) -> Order:
         """Transform raw simple open order data to internal model.
@@ -241,8 +259,7 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_order_update_to_internal_order(
+    def transform_ws_order_update_to_internal_order(self, 
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
@@ -259,15 +276,15 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class TickerMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for ticker-related mapping operations.
+class TickerMapperProtocol(MapperProtocol, AbstractTickerMapperProtocol, Protocol):
+    """Hyperliquid-specific ticker mapper protocol.
 
-    This protocol defines the interface for transforming raw ticker data
-    from the Hyperliquid API into internal Ticker models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractTickerMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_ticker_to_internal(raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
+    def transform_raw_ticker_to_internal(self, raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
         """Transform raw ticker data to internal model.
 
         Args:
@@ -280,15 +297,17 @@ class TickerMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class OrderBookMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for order book mapping operations.
+class OrderBookMapperProtocol(MapperProtocol, AbstractOrderBookMapperProtocol, Protocol):
+    """Hyperliquid-specific orderbook mapper protocol.
 
-    This protocol defines the interface for transforming raw order book data
-    from the Hyperliquid API into internal OrderBook models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractOrderBookMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_order_book_to_internal(raw_order_book: HyperliquidRawL2Book) -> OrderBook:
+    def transform_raw_order_book_to_internal(
+        self, raw_order_book: HyperliquidRawL2Book
+    ) -> OrderBook:
         """Transform raw order book data to internal model.
 
         Args:
@@ -299,8 +318,7 @@ class OrderBookMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_public_trade_to_internal(
+    def transform_raw_public_trade_to_internal(self, 
         raw_trade: HyperliquidRawPublicTrade,
     ) -> Trade | None:
         """Transform raw public trade data to internal model.
@@ -313,8 +331,7 @@ class OrderBookMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_book_update_to_internal(raw: HyperliquidRawWsBookUpdate) -> OrderBook:
+    def transform_ws_book_update_to_internal(self, raw: HyperliquidRawWsBookUpdate) -> OrderBook:
         """Transform WebSocket book update to internal model.
 
         Args:
@@ -325,8 +342,7 @@ class OrderBookMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_trade_event_to_internal(raw: HyperliquidRawWsTradeEvent) -> Trade:
+    def transform_ws_trade_event_to_internal(self, raw: HyperliquidRawWsTradeEvent) -> Trade:
         """Transform WebSocket trade event to internal model.
 
         Args:
@@ -339,15 +355,15 @@ class OrderBookMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class TradeMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for trade-related mapping operations.
+class TradeMapperProtocol(MapperProtocol, AbstractTradeMapperProtocol, Protocol):
+    """Hyperliquid-specific trade mapper protocol.
 
-    This protocol defines the interface for transforming raw trade data
-    from the Hyperliquid API into internal Trade models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractTradeMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_trade_to_internal(raw_trade: HyperliquidRawPublicTrade) -> Trade:
+    def transform_raw_trade_to_internal(self, raw_trade: HyperliquidRawPublicTrade) -> Trade:
         """Transform raw trade data to internal model.
 
         Args:
@@ -360,15 +376,15 @@ class TradeMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class CandleMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for candle-related mapping operations.
+class CandleMapperProtocol(MapperProtocol, AbstractCandleMapperProtocol, Protocol):
+    """Hyperliquid-specific candle mapper protocol.
 
-    This protocol defines the interface for transforming raw candle data
-    from the Hyperliquid API into internal Candle models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractCandleMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_candle_to_internal(raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
+    def transform_raw_candle_to_internal(self, raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
         """Transform raw candle data to internal model.
 
         Args:
@@ -379,8 +395,7 @@ class CandleMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_candle_to_internal(raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
+    def transform_ws_candle_to_internal(self, raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
         """Transform WebSocket candle to internal Candle model.
 
         Args:
@@ -393,15 +408,15 @@ class CandleMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class FundingRateMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for funding rate mapping operations.
+class FundingRateMapperProtocol(MapperProtocol, AbstractFundingRateMapperProtocol, Protocol):
+    """Hyperliquid-specific fundingrate mapper protocol.
 
-    This protocol defines the interface for transforming raw funding rate data
-    from the Hyperliquid API into internal FundingRate models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractFundingRateMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_funding_rate_to_internal(
+    def transform_raw_funding_rate_to_internal(self, 
         raw_funding_rate: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """Transform raw funding rate data to internal model.
@@ -416,15 +431,15 @@ class FundingRateMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class MarketMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for market-related mapping operations.
+class MarketMapperProtocol(MapperProtocol, AbstractMarketMapperProtocol, Protocol):
+    """Hyperliquid-specific market mapper protocol.
 
-    This protocol defines the interface for transforming raw market data
-    from the Hyperliquid API into internal Market models.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractMarketMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_single_asset_to_market(
+    def transform_single_asset_to_market(self, 
         asset_def: "HyperliquidRawAssetDefinition",
         asset_ctx: HyperliquidRawAssetCtx | None = None,
     ) -> Market:
@@ -447,8 +462,7 @@ class MarketDataMapperProtocol(MapperProtocol, Protocol):
     This protocol defines common interface for all market data mappers.
     """
 
-    @staticmethod
-    def transform_raw_market_data_to_internal(raw_data: object) -> object:
+    def transform_raw_market_data_to_internal(self, raw_data: object) -> object:
         """Transform raw market data to internal model.
 
         Args:
@@ -468,8 +482,7 @@ class OrderResponseMapperProtocol(MapperProtocol, Protocol):
     from the Hyperliquid API into internal models.
     """
 
-    @staticmethod
-    async def map_place_order_response_to_order(
+    async def map_place_order_response_to_order(self, 
         processed_status: dict[str, Any],
         order_args: PlaceOrderArgs,
         timestamp: datetime,
@@ -486,8 +499,7 @@ class OrderResponseMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_resting_order_to_internal(
+    def transform_resting_order_to_internal(self, 
         resting_data: "HyperliquidRawExchangeStatusResting",
         order_args: PlaceOrderArgs,
     ) -> Order:
@@ -502,8 +514,7 @@ class OrderResponseMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_filled_order_to_internal(
+    def transform_filled_order_to_internal(self, 
         filled_data: "HyperliquidRawExchangeStatusFilled",
         order_args: PlaceOrderArgs,
     ) -> Order:
@@ -527,8 +538,7 @@ class TransactionMapperProtocol(MapperProtocol, Protocol):
     from the Hyperliquid API into internal Trade models.
     """
 
-    @staticmethod
-    def transform_raw_user_fill_to_internal(raw_fill: HyperliquidRawUserFill) -> Trade:
+    def transform_raw_user_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
         """Transform raw user fill data to internal model.
 
         Args:
@@ -539,8 +549,7 @@ class TransactionMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_fill_event_to_internal(raw_fill: HyperliquidRawWsFillEvent) -> Trade:
+    def transform_ws_fill_event_to_internal(self, raw_fill: HyperliquidRawWsFillEvent) -> Trade:
         """Transform WebSocket fill event to internal model.
 
         Args:
@@ -560,8 +569,7 @@ class TradingEnumMapperProtocol(MapperProtocol, Protocol):
     and internal trading enumerations.
     """
 
-    @staticmethod
-    def map_order_side(raw_side: str) -> OrderSide:
+    def map_order_side(self, raw_side: str) -> OrderSide:
         """Map raw order side to internal enum.
 
         Args:
@@ -572,8 +580,7 @@ class TradingEnumMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def map_order_type(raw_type: str) -> OrderType:
+    def map_order_type(self, raw_type: str) -> OrderType:
         """Map raw order type to internal enum.
 
         Args:
@@ -584,8 +591,7 @@ class TradingEnumMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def map_order_status(raw_status: str) -> OrderStatus:
+    def map_order_status(self, raw_status: str) -> OrderStatus:
         """Map raw order status to internal enum.
 
         Args:
@@ -605,8 +611,7 @@ class PriceTickerMapperProtocol(MapperProtocol, Protocol):
     from the Hyperliquid API into internal Ticker models.
     """
 
-    @staticmethod
-    def transform_raw_price_ticker_to_internal(raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
+    def transform_raw_price_ticker_to_internal(self, raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
         """Transform raw price ticker data to internal model.
 
         Args:
@@ -617,8 +622,7 @@ class PriceTickerMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_asset_ctx_to_ticker(raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
+    def transform_raw_asset_ctx_to_ticker(self, raw_asset_ctx: HyperliquidRawAssetCtx) -> Ticker:
         """Transform raw asset context data to internal ticker model.
 
         Args:
@@ -629,8 +633,7 @@ class PriceTickerMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_all_mids_to_internal(raw_all_mids: HyperliquidRawAllMids) -> MidPrices:
+    def transform_raw_all_mids_to_internal(self, raw_all_mids: HyperliquidRawAllMids) -> MidPrices:
         """Transform raw all mids data to internal model.
 
         Args:
@@ -650,8 +653,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
     from the Hyperliquid API into internal models.
     """
 
-    @staticmethod
-    def transform_raw_candle_to_internal(raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
+    def transform_raw_candle_to_internal(self, raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
         """Transform raw candle data to internal model.
 
         Args:
@@ -662,8 +664,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_ws_candle_to_internal(raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
+    def transform_ws_candle_to_internal(self, raw_ws_candle: HyperliquidRawWsCandle) -> Candle:
         """Transform WebSocket candle to internal Candle model.
 
         Args:
@@ -674,8 +675,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_funding_history_to_internal(
+    def transform_raw_funding_history_to_internal(self, 
         raw_funding: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """Transform raw funding history data to internal model.
@@ -688,8 +688,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_funding_history_item_to_internal(
+    def transform_raw_funding_history_item_to_internal(self, 
         raw_funding_item: HyperliquidRawFundingHistoryItem,
     ) -> FundingRate:
         """Transform raw funding history item data to internal model.
@@ -702,8 +701,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_asset_ctx_to_funding_rate(
+    def transform_raw_asset_ctx_to_funding_rate(self, 
         raw_asset_ctx: HyperliquidRawAssetCtx,
     ) -> FundingRate | None:
         """Transform raw asset context data to internal funding rate model.
@@ -716,8 +714,7 @@ class HistoricalDataMapperProtocol(MapperProtocol, Protocol):
         """
         ...
 
-    @staticmethod
-    def transform_raw_candle_snapshot_to_candles(
+    def transform_raw_candle_snapshot_to_candles(self, 
         raw_snapshot: HyperliquidRawCandleSnapshot,
         symbol: Symbol,
         interval: str,
@@ -743,8 +740,7 @@ class MarketMetadataMapperProtocol(MapperProtocol, Protocol):
     from the Hyperliquid API into internal Market models.
     """
 
-    @staticmethod
-    def transform_raw_meta_and_asset_ctxs_to_markets(
+    def transform_raw_meta_and_asset_ctxs_to_markets(self, 
         raw_meta_and_asset_ctxs: HyperliquidRawMetaAndAssetCtxsResponse,
     ) -> list[Market]:
         """Transform raw meta and asset contexts to internal Market models.

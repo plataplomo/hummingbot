@@ -38,8 +38,8 @@ class BackpackTickerMapper(TickerMapperProtocol):
     into CyberDeltaEngine Internal Ticker Domain Models.
     """
 
-    @staticmethod
     def transform_raw_ticker_to_internal(
+        self,
         raw_ticker: BackpackRawTickerResponse,
         symbol_override: str | None = None,
     ) -> Ticker:
@@ -155,8 +155,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
-    def transform_ws_ticker_event_to_internal(raw_ticker: BackpackRawTickerEvent) -> Ticker:
+    def transform_ws_ticker_event_to_internal(self, raw_ticker: BackpackRawTickerEvent) -> Ticker:
         """Transform a BackpackRawTickerEvent to an Internal Ticker model.
 
         Args:
@@ -219,8 +218,8 @@ class BackpackTickerMapper(TickerMapperProtocol):
             ) from e
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -235,8 +234,7 @@ class BackpackTickerMapper(TickerMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

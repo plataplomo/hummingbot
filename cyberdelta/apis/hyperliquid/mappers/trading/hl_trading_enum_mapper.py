@@ -59,8 +59,8 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
     """
 
     # Base protocol methods - delegate to HyperliquidCommonMappers
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -75,8 +75,7 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Args:
@@ -88,8 +87,7 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-compliant static methods
-    @staticmethod
-    def map_order_side(raw_side: str) -> OrderSide:
+    def map_order_side(self, raw_side: str) -> OrderSide:
         """Map raw order side to internal enum.
 
         Args:
@@ -100,8 +98,7 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         """
         return HyperliquidTradingEnumMapper.map_side_to_internal(raw_side)
 
-    @staticmethod
-    def map_order_type(raw_type: str) -> OrderType:
+    def map_order_type(self, raw_type: str) -> OrderType:
         """Map raw order type to internal enum.
 
         Note: This is a simplified version for basic string types.
@@ -128,8 +125,7 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
         )
         return OrderType.LIMIT
 
-    @staticmethod
-    def map_order_status(raw_status: str) -> OrderStatus:
+    def map_order_status(self, raw_status: str) -> OrderStatus:
         """Map raw order status to internal enum.
 
         Args:

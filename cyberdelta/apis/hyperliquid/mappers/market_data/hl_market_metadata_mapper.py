@@ -50,8 +50,8 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
     """
 
     # Protocol method implementations - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -62,8 +62,7 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
         """
         return HyperliquidCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to datetime.
 
         Returns:
@@ -72,8 +71,8 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
         return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific method from MarketMapperProtocol
-    @staticmethod
     def transform_single_asset_to_market(
+        self,
         asset_def: HyperliquidRawAssetDefinition,
         asset_ctx: HyperliquidRawAssetCtx | None = None,
     ) -> Market:
@@ -118,8 +117,8 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
             )
         return step_size_parsed
 
-    @staticmethod
     def transform_raw_meta_and_asset_ctxs_to_markets(
+        self,
         raw_meta_and_asset_ctxs: HyperliquidRawMetaAndAssetCtxsResponse,
     ) -> list[Market]:
         """Transform raw meta and asset contexts to internal Market models.

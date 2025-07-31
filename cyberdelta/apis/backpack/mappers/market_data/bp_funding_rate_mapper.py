@@ -100,8 +100,8 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
             )
         return timestamp
 
-    @staticmethod
     def transform_raw_funding_rate_to_internal(
+        self,
         raw_funding: BackpackRawFundingRateResponse,
     ) -> FundingRate:
         """Transform a BackpackRawFundingRateResponse to an Internal FundingRate model.
@@ -179,8 +179,8 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_raw_funding_interval_rate_to_internal(
+        self,
         raw_funding: BackpackRawFundingIntervalRate,
         symbol: Symbol,
     ) -> FundingRate:
@@ -255,8 +255,8 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
             ) from e
 
     # MapperProtocol methods
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -271,8 +271,7 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert timestamp to datetime using BackpackCommonMappers.
 
         Args:

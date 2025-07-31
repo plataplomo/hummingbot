@@ -20,7 +20,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers
+# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
@@ -84,7 +84,7 @@ class DataHandler:
         self.api_clients = api_clients
         self.portfolio_state_manager = portfolio_state_manager
         self.symbol_service = symbol_mapper  # Internal reference uses proper name
-        self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
+        # self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)  # TODO: Remove obsolete helpers
         self.loop = loop or asyncio.get_event_loop()
         self.datetime_alias = (
             dt_real  # Keep for now if other parts use it, but _is_data_stale will use self.clock

@@ -36,7 +36,21 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawRecentPublicTrade,
 )
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
-from cyberdelta.apis.backpack.protocols.base_protocols import MapperProtocol
+from cyberdelta.apis.base.protocols.base_protocols import MapperProtocol
+
+# Add abstract protocol imports
+from cyberdelta.apis.base.protocols.mapper_protocols import (
+    AbstractAccountSummaryMapperProtocol,
+    AbstractBalanceMapperProtocol,
+    AbstractCandleMapperProtocol,
+    AbstractFundingRateMapperProtocol,
+    AbstractMarketMapperProtocol,
+    AbstractOrderBookMapperProtocol,
+    AbstractOrderMapperProtocol,
+    AbstractPositionMapperProtocol,
+    AbstractTickerMapperProtocol,
+    AbstractTradeMapperProtocol,
+)
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.core.models import (
     AccountSettings,
@@ -61,14 +75,20 @@ RawJsonResponse = dict[str, Any]
 
 
 @runtime_checkable
-class BalanceMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for balance mapper components.
+class BalanceMapperProtocol(MapperProtocol, AbstractBalanceMapperProtocol, Protocol):
+    """Backpack-specific balance mapper protocol.
 
-    Inherits from MapperProtocol to ensure compliance with base mapper interface.
+    Inherits from:
+    - MapperProtocol: Base utility methods (parse_decimal_safely, timestamp_ms_to_datetime)
+    - AbstractBalanceMapperProtocol: Conceptual interface documentation
+    - Protocol: Runtime type checking support
+    
+    Note: Implementations should also inherit from BalanceMapperMixin for shared utilities:
+    - create_zero_balance, validate_balance_amount, calculate_available_from_total_and_locked
     """
 
-    @staticmethod
     def transform_balance_data_to_spot_balance(
+        self,
         asset: str,
         total_balance: str,
         available_balance: str,
@@ -76,16 +96,14 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
         """Transform balance data to internal SpotBalance model."""
         ...
 
-    @staticmethod
-    def transform_raw_balance_to_internal(
+    def transform_raw_balance_to_internal(self, 
         asset_symbol: Symbol,
         raw: BackpackRawBalanceResponse,
     ) -> SpotBalance:
         """Transform validated BackpackRawBalance to SpotBalance."""
         ...
 
-    @staticmethod
-    def create_balance_from_collateral(
+    def create_balance_from_collateral(self, 
         symbol: Symbol,
         collateral_data: BackpackRawCollateralAsset,
         exchange_name: str,
@@ -95,19 +113,21 @@ class BalanceMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class PositionMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for position mapper components.
+class PositionMapperProtocol(MapperProtocol, AbstractPositionMapperProtocol, Protocol):
+    """Backpack-specific position mapper protocol.
 
-    Inherits from MapperProtocol to ensure compliance with base mapper interface.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractPositionMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_position_to_internal(raw: BackpackRawPositionResponse) -> DerivativePosition:
+    def transform_raw_position_to_internal(
+        self, raw: BackpackRawPositionResponse
+    ) -> DerivativePosition:
         """Transform BackpackRawPositionResponse to internal DerivativePosition."""
         ...
 
-    @staticmethod
-    def transform_ws_position_update_to_internal_position(
+    def transform_ws_position_update_to_internal_position(self, 
         raw_position_update: BackpackRawPositionUpdate,
     ) -> DerivativePosition:
         """Transform WebSocket position updates to DerivativePosition."""
@@ -115,14 +135,15 @@ class PositionMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for account summary mapper components.
+class AccountSummaryMapperProtocol(MapperProtocol, AbstractAccountSummaryMapperProtocol, Protocol):
+    """Backpack-specific account summary mapper protocol.
 
-    Inherits from MapperProtocol to ensure compliance with base mapper interface.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractAccountSummaryMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_raw_account_summary_to_internal(
+    def transform_raw_account_summary_to_internal(self, 
         raw_settings: BackpackRawAccountSummaryResponse,
         spot_balances_raw: dict[str, BackpackRawBalanceResponse],
         derivative_positions_raw: list[BackpackRawPositionResponse],
@@ -130,8 +151,7 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
         """Create basic margin account summary."""
         ...
 
-    @staticmethod
-    def transform_enhanced_account_data_to_margin_summary(
+    def transform_enhanced_account_data_to_margin_summary(self, 
         raw_collateral: BackpackRawCollateralResponse,
         raw_settings: BackpackRawAccountSummaryResponse,
         raw_positions: list[BackpackRawPositionResponse],
@@ -139,8 +159,7 @@ class AccountSummaryMapperProtocol(MapperProtocol, Protocol):
         """Create enhanced MarginAccountSummary using collateral data."""
         ...
 
-    @staticmethod
-    def transform_account_settings_update_to_internal(
+    def transform_account_settings_update_to_internal(self, 
         args: UpdateAccountSettingsArgs,
         exchange_name: str,
     ) -> AccountSettings:
@@ -155,23 +174,19 @@ class TransactionMapperProtocol(MapperProtocol, Protocol):
     Inherits from MapperProtocol to ensure compliance with base mapper interface.
     """
 
-    @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: BackpackRawFillResponse) -> Trade | None:
+    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawFillResponse) -> Trade | None:
         """Transform fill data to internal Trade model."""
         ...
 
-    @staticmethod
-    def transform_raw_order_to_internal(raw: BackpackRawOrderResponse) -> Order:
+    def transform_raw_order_to_internal(self, raw: BackpackRawOrderResponse) -> Order:
         """Comprehensive order transformation with all fields."""
         ...
 
-    @staticmethod
-    def transform_raw_trade_to_internal(raw: BackpackRawPublicTrade) -> Trade | None:
+    def transform_raw_trade_to_internal(self, raw: BackpackRawPublicTrade) -> Trade | None:
         """Transform public trade data to Trade model."""
         ...
 
-    @staticmethod
-    def transform_ws_fill_event_to_internal_trade(
+    def transform_ws_fill_event_to_internal_trade(self, 
         raw_fill: BackpackRawFillResponse,
     ) -> Trade | None:
         """Transform WebSocket fill events to Trade."""
@@ -185,8 +200,7 @@ class TransferMapperProtocol(MapperProtocol, Protocol):
     Inherits from MapperProtocol to ensure compliance with base mapper interface.
     """
 
-    @staticmethod
-    def transform_raw_transfer_to_internal(
+    def transform_raw_transfer_to_internal(self, 
         raw_response: RawJsonResponse,
         exchange_name: str,
         asset: str,
@@ -198,8 +212,7 @@ class TransferMapperProtocol(MapperProtocol, Protocol):
         """Transform raw transfer response to Transfer model."""
         ...
 
-    @staticmethod
-    def transform_raw_withdrawal_response_to_internal(
+    def transform_raw_withdrawal_response_to_internal(self, 
         raw_response: BackpackRawWithdrawalResponse,
         asset: str,
         quantity: Decimal,
@@ -213,14 +226,15 @@ class TransferMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class OrderMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for order mapper components.
+class OrderMapperProtocol(MapperProtocol, AbstractOrderMapperProtocol, Protocol):
+    """Backpack-specific order mapper protocol.
 
-    Inherits from MapperProtocol to ensure compliance with base mapper interface.
+    Inherits from both MapperProtocol (for utility methods) and 
+    AbstractOrderMapperProtocol (for conceptual interface) to ensure
+    compliance with base mapper interface and transformation patterns.
     """
 
-    @staticmethod
-    def transform_order_data_to_internal(
+    def transform_order_data_to_internal(self, 
         order_id: str,
         symbol: Symbol,
         side: str,
@@ -236,13 +250,11 @@ class OrderMapperProtocol(MapperProtocol, Protocol):
         """Transform basic order data with individual parameters."""
         ...
 
-    @staticmethod
-    def transform_raw_order_to_internal(raw_order: BackpackRawOrderResponse) -> Order:
+    def transform_raw_order_to_internal(self, raw_order: BackpackRawOrderResponse) -> Order:
         """Comprehensive order transformation from BackpackRawOrderResponse."""
         ...
 
-    @staticmethod
-    def transform_ws_order_update_to_internal_order(
+    def transform_ws_order_update_to_internal_order(self, 
         raw_order_update: BackpackRawOrderUpdate,
     ) -> Order:
         """Transform WebSocket order updates."""
@@ -259,43 +271,41 @@ class MarketDataMapperProtocol(MapperProtocol, Protocol):
 
 
 @runtime_checkable
-class TickerMapperProtocol(MarketDataMapperProtocol, Protocol):
-    """Protocol for ticker mapper components.
+class TickerMapperProtocol(MarketDataMapperProtocol, AbstractTickerMapperProtocol, Protocol):
+    """Backpack-specific ticker mapper protocol.
 
-    Inherits from MarketDataMapperProtocol for market data mapper consistency.
+    Inherits from MarketDataMapperProtocol (for market data consistency), 
+    AbstractTickerMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    @staticmethod
-    def transform_raw_ticker_to_internal(
+    def transform_raw_ticker_to_internal(self, 
         raw_ticker: BackpackRawTickerResponse,
         symbol_override: str | None = None,
     ) -> Ticker:
         """Transform comprehensive ticker data from REST API."""
         ...
 
-    @staticmethod
-    def transform_ws_ticker_event_to_internal(raw_ticker: BackpackRawTickerEvent) -> Ticker:
+    def transform_ws_ticker_event_to_internal(self, raw_ticker: BackpackRawTickerEvent) -> Ticker:
         """Transform WebSocket ticker events."""
         ...
 
 
 @runtime_checkable
-class OrderBookMapperProtocol(MarketDataMapperProtocol, Protocol):
-    """Protocol for order book mapper components.
+class OrderBookMapperProtocol(MarketDataMapperProtocol, AbstractOrderBookMapperProtocol, Protocol):
+    """Backpack-specific order book mapper protocol.
 
-    Inherits from MarketDataMapperProtocol for market data mapper consistency.
+    Inherits from MarketDataMapperProtocol (for market data consistency), 
+    AbstractOrderBookMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    @staticmethod
-    def transform_raw_order_book_to_internal(
+    def transform_raw_order_book_to_internal(self, 
         symbol: Symbol,
         raw_book: BackpackRawOrderBook,
     ) -> OrderBook:
         """Transform REST order book data to internal OrderBook."""
         ...
 
-    @staticmethod
-    def transform_ws_depth_event_to_internal(
+    def transform_ws_depth_event_to_internal(self, 
         symbol: Symbol,
         raw_depth: BackpackRawDepthUpdateEvent,
     ) -> OrderBook:
@@ -304,40 +314,38 @@ class OrderBookMapperProtocol(MarketDataMapperProtocol, Protocol):
 
 
 @runtime_checkable
-class TradeMapperProtocol(MarketDataMapperProtocol, Protocol):
-    """Protocol for trade mapper components.
+class TradeMapperProtocol(MarketDataMapperProtocol, AbstractTradeMapperProtocol, Protocol):
+    """Backpack-specific trade mapper protocol.
 
-    Inherits from MarketDataMapperProtocol for market data mapper consistency.
+    Inherits from MarketDataMapperProtocol (for market data consistency), 
+    AbstractTradeMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    @staticmethod
-    def transform_raw_trade_to_internal(raw_trade: BackpackRawPublicTrade) -> Trade:
+    def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Trade:
         """Transform public trade data with default BUY side."""
         ...
 
-    @staticmethod
-    def transform_raw_recent_trade_to_internal(
+    def transform_raw_recent_trade_to_internal(self, 
         raw_trade: BackpackRawRecentPublicTrade,
         symbol: Symbol,
     ) -> Trade:
         """Transform recent trades with side determination."""
         ...
 
-    @staticmethod
-    def transform_ws_trade_event_to_internal(raw_trade: BackpackRawPublicTradeEvent) -> Trade:
+    def transform_ws_trade_event_to_internal(self, raw_trade: BackpackRawPublicTradeEvent) -> Trade:
         """Transform WebSocket trade events."""
         ...
 
 
 @runtime_checkable
-class CandleMapperProtocol(MarketDataMapperProtocol, Protocol):
-    """Protocol for candle mapper components.
+class CandleMapperProtocol(MarketDataMapperProtocol, AbstractCandleMapperProtocol, Protocol):
+    """Backpack-specific candle mapper protocol.
 
-    Inherits from MarketDataMapperProtocol for market data mapper consistency.
+    Inherits from MarketDataMapperProtocol (for market data consistency), 
+    AbstractCandleMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    @staticmethod
-    def transform_raw_kline_to_internal(
+    def transform_raw_kline_to_internal(self, 
         symbol: Symbol,
         interval: str,
         raw_kline: BackpackRawKlineResponse,
@@ -347,21 +355,22 @@ class CandleMapperProtocol(MarketDataMapperProtocol, Protocol):
 
 
 @runtime_checkable
-class FundingRateMapperProtocol(MarketDataMapperProtocol, Protocol):
-    """Protocol for funding rate mapper components.
+class FundingRateMapperProtocol(
+    MarketDataMapperProtocol, AbstractFundingRateMapperProtocol, Protocol
+):
+    """Backpack-specific funding rate mapper protocol.
 
-    Inherits from MarketDataMapperProtocol for market data mapper consistency.
+    Inherits from MarketDataMapperProtocol (for market data consistency), 
+    AbstractFundingRateMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    @staticmethod
-    def transform_raw_funding_rate_to_internal(
+    def transform_raw_funding_rate_to_internal(self, 
         raw_funding: BackpackRawFundingRateResponse,
     ) -> FundingRate:
         """Transform comprehensive funding rate data."""
         ...
 
-    @staticmethod
-    def transform_raw_funding_interval_rate_to_internal(
+    def transform_raw_funding_interval_rate_to_internal(self, 
         raw_funding: BackpackRawFundingIntervalRate,
         symbol: Symbol,
     ) -> FundingRate:
@@ -370,13 +379,13 @@ class FundingRateMapperProtocol(MarketDataMapperProtocol, Protocol):
 
 
 @runtime_checkable
-class MarketMapperProtocol(MarketDataMapperProtocol, Protocol):
-    """Protocol for market mapper components.
+class MarketMapperProtocol(MarketDataMapperProtocol, AbstractMarketMapperProtocol, Protocol):
+    """Backpack-specific market mapper protocol.
 
-    Inherits from MarketDataMapperProtocol for market data mapper consistency.
+    Inherits from MarketDataMapperProtocol (for market data consistency), 
+    AbstractMarketMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    @staticmethod
-    def transform_raw_market_to_internal(raw_market: BackpackRawMarketResponse) -> Market:
+    def transform_raw_market_to_internal(self, raw_market: BackpackRawMarketResponse) -> Market:
         """Transform market configuration to internal Market model."""
         ...

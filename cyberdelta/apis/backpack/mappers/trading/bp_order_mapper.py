@@ -244,8 +244,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
         }
         return tif_map.get(bp_tif.lower(), TimeInForce.GTC)
 
-    @staticmethod
     def transform_order_data_to_internal(
+        self,
         order_id: str,
         symbol: Symbol,
         side: str,
@@ -511,8 +511,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
         return created_timestamp, updated_timestamp, triggered_timestamp
 
-    @staticmethod
-    def transform_raw_order_to_internal(raw_order: BackpackRawOrderResponse) -> Order:
+    def transform_raw_order_to_internal(self, raw_order: BackpackRawOrderResponse) -> Order:
         """Transform a BackpackRawOrderResponse to an Internal Order model.
 
         Args:
@@ -667,8 +666,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
     def transform_ws_order_update_to_internal_order(
+        self,
         raw_order_update: BackpackRawOrderUpdate,
     ) -> Order:
         """Transform a BackpackRawOrderUpdate (WebSocket order update event) to an Internal Order.
@@ -796,8 +795,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
             raise MissingQuantityError
 
     # MapperProtocol implementation - delegate to common utilities
-    @staticmethod
     def parse_decimal_safely(
+        self,
         value: str | float | Decimal | None,
         default: Decimal = Decimal(0),
     ) -> Decimal:
@@ -812,8 +811,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
         """
         return BackpackCommonMappers.parse_decimal_safely(value, default)
 
-    @staticmethod
-    def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
         """Convert millisecond timestamp to UTC datetime.
 
         Args:

@@ -12,7 +12,7 @@ The protocol system is organized into four main categories:
 """
 
 # Base protocols
-from cyberdelta.apis.hyperliquid.protocols.base_protocols import (
+from cyberdelta.apis.base.protocols.base_protocols import (
     MapperProtocol,
     RequestBuilderProtocol,
     ResponseHandlerProtocol,
