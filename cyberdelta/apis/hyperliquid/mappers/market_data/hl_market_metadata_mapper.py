@@ -10,17 +10,14 @@ Focused on:
 - Market status and configuration data
 """
 
-from datetime import datetime
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
     DataTransformationError,
     MarketTransformationError,
     MissingRequiredFieldError,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -35,40 +32,23 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails
 from cyberdelta.core.symbols import exchanges
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapperProtocol):
+class HyperliquidMarketMetadataMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    MarketMetadataMapperProtocol,
+    MarketMapperProtocol,
+):
     """Focused mapper for Hyperliquid market metadata transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw market metadata
     into CyberDeltaEngine Internal Domain Models for markets and trading rules.
     """
-
-    # Protocol method implementations - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Returns:
-            Decimal: Parsed decimal value or default if parsing fails.
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Returns:
-            datetime | None: UTC datetime object or None if timestamp is None.
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific method from MarketMapperProtocol
     def transform_single_asset_to_market(
@@ -86,7 +66,7 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
             Market domain model
         """
         # Delegate to existing business logic method from git history
-        return HyperliquidMarketMetadataMapper._create_market_from_asset_definition(
+        return self._create_market_from_asset_definition(
             asset_def,
             asset_ctx,
         )
@@ -155,7 +135,7 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
                     # Get corresponding asset context (optional)
                     asset_ctx = asset_ctx_lookup.get(asset_def.name)
 
-                    market = HyperliquidMarketMetadataMapper._create_market_from_asset_definition(
+                    market = self._create_market_from_asset_definition(
                         asset_def,
                         asset_ctx,
                     )
@@ -196,8 +176,8 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
         else:
             return markets
 
-    @staticmethod
     def _create_market_from_asset_definition(
+        self,
         asset_def: HyperliquidRawAssetDefinition,
         asset_ctx: HyperliquidRawAssetCtx | None = None,
     ) -> Market:
@@ -226,7 +206,7 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
             )
 
             # Calculate step_size from sz_decimals
-            step_size_parsed = parse_decimal_value(f"1e-{asset_def.sz_decimals}")
+            step_size_parsed = self.parse_decimal_safely(f"1e-{asset_def.sz_decimals}")
             step_size = HyperliquidMarketMetadataMapper._validate_asset_definition_data(
                 step_size_parsed,
                 asset_def.name,
@@ -241,7 +221,10 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
                 if "." in mark_price_str:
                     # Count decimal places in the actual market price
                     decimal_places = len(mark_price_str.split(".")[1].rstrip("0"))
-                    tick_size = parse_decimal_value(f"1e-{decimal_places}") or Decimal("1.0")
+                    tick_size = self.parse_decimal_safely(
+                        f"1e-{decimal_places}", 
+                        default=Decimal("1.0")
+                    )
                 else:
                     # Whole number pricing
                     tick_size = Decimal("1.0")
@@ -255,8 +238,12 @@ class HyperliquidMarketMetadataMapper(MarketMetadataMapperProtocol, MarketMapper
                 max_leverage=asset_def.max_leverage,
                 only_isolated=asset_def.only_isolated,
                 sz_decimals=asset_def.sz_decimals,
-                mark_price=parse_decimal_value(asset_ctx.mark_px) if asset_ctx else None,
-                funding_rate=parse_decimal_value(asset_ctx.funding) if asset_ctx else None,
+                mark_price=self.parse_decimal_safely(
+                    asset_ctx.mark_px, default=None
+                ) if asset_ctx else None,
+                funding_rate=self.parse_decimal_safely(
+                    asset_ctx.funding, default=None
+                ) if asset_ctx else None,
             )
 
             # Parse symbol to domain object at entry point

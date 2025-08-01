@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, NoReturn, TypedDict
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
     MissingRequiredFieldError,
@@ -27,9 +28,6 @@ from cyberdelta.apis.hyperliquid.mappers.account.hl_transaction_mapper import (
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
     HyperliquidTradingEnumMapper,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_historical_order import (
     HyperliquidRawHistoricalOrder,
@@ -54,7 +52,6 @@ from cyberdelta.enums import (
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
@@ -78,7 +75,7 @@ class OrderComponents(TypedDict):
     updated_at: datetime
 
 
-class HyperliquidOrderMapper(OrderMapperProtocol):
+class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
     """Focused mapper for Hyperliquid order transformations.
 
     Handles transformations of various order formats from Hyperliquid
@@ -86,25 +83,6 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
     """
 
     # Protocol method implementations (delegated to common utilities)
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Returns:
-            Decimal: The parsed decimal value or default if parsing fails.
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Returns:
-            datetime | None: The converted datetime or None if timestamp is None.
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods
     def transform_raw_order_to_internal(self, raw_order: HyperliquidRawOrder) -> Order:
@@ -116,9 +94,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         Returns:
             Order domain model
         """
-        return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(
-            raw_order, trigger=None
-        )
+        return self._transform_raw_order_to_internal_impl(raw_order, trigger=None)
 
     def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
         """Transform raw fill data to internal trade model.
@@ -204,8 +180,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
                 source_data={field_name: raw_timestamp},
             )
 
-    @staticmethod
     def _transform_raw_order_to_internal_impl(
+        self,
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> Order:
@@ -225,7 +201,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         """
         try:
             # Parse all order components
-            order_components = HyperliquidOrderMapper._parse_order_components(raw_order, trigger)
+            order_components = self._parse_order_components(raw_order, trigger)
 
             # Create and return the Order object
             return HyperliquidOrderMapper._create_order_from_components(raw_order, order_components)
@@ -277,15 +253,15 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             time_in_force = TimeInForce.GTC  # Default for open orders
 
             # Parse quantities and price
-            quantity_requested = parse_decimal_value(raw_simple_order.orig_sz, field_name="orig_sz")
-            quantity_sz = parse_decimal_value(raw_simple_order.sz, field_name="sz")
+            quantity_requested = self.parse_decimal_safely(raw_simple_order.orig_sz)
+            quantity_sz = self.parse_decimal_safely(raw_simple_order.sz)
 
             # Calculate quantity filled if both values are available
             if quantity_requested is not None and quantity_sz is not None:
                 quantity_filled = quantity_requested - quantity_sz
             else:
                 quantity_filled = Decimal(0)
-            price = parse_decimal_value(raw_simple_order.limit_px, field_name="limit_px")
+            price = self.parse_decimal_safely(raw_simple_order.limit_px)
 
             # For simple orders, these are not available
             average_fill_price = None
@@ -293,7 +269,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             trigger_by = None
 
             # Parse timestamp
-            created_at = parse_datetime_utc(raw_simple_order.timestamp, field_name="timestamp")
+            created_at = self.parse_timestamp(raw_simple_order.timestamp)
             updated_at = created_at  # No separate updated timestamp in simple orders
 
             # Parse symbol to domain object at entry point
@@ -381,7 +357,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         """
         try:
             # Parse all historical order components
-            order_components = HyperliquidOrderMapper._parse_historical_order_components(
+            order_components = self._parse_historical_order_components(
                 raw_historical_order,
                 trigger,
             )
@@ -428,10 +404,10 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         """
-        return HyperliquidOrderMapper._transform_raw_order_to_internal_impl(raw_order, trigger)
+        return self._transform_raw_order_to_internal_impl(raw_order, trigger)
 
-    @staticmethod
     def _parse_order_components(
+        self,
         raw_order: HyperliquidRawOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> OrderComponents:
@@ -448,14 +424,14 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
 
         # Parse quantities and price
         quantity_requested, quantity_filled, price = (
-            HyperliquidOrderMapper._parse_order_quantities_and_price(raw_order)
+            self._parse_order_quantities_and_price(raw_order)
         )
 
         # Parse timestamps
-        created_at, updated_at = HyperliquidOrderMapper._parse_order_timestamps(raw_order)
+        created_at, updated_at = self._parse_order_timestamps(raw_order)
 
         # Parse trigger/stop logic
-        stop_price, trigger_by = HyperliquidOrderMapper._parse_trigger_info(trigger)
+        stop_price, trigger_by = self._parse_trigger_info(trigger)
 
         # Calculate average_fill_price
         average_fill_price, quantity_filled = HyperliquidOrderMapper._calculate_average_fill_price(
@@ -498,8 +474,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         time_in_force = HyperliquidTradingEnumMapper.map_time_in_force(raw_order.order_type)
         return side, order_type, status, time_in_force
 
-    @staticmethod
     def _parse_order_quantities_and_price(
+        self,
         raw_order: HyperliquidRawOrder,
     ) -> tuple[Decimal, Decimal, Decimal | None]:
         """Parse quantities and price from raw order data.
@@ -514,10 +490,9 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         """
         try:
             # Parse quantities
-            quantity_requested = parse_decimal_value(
+            quantity_requested = self.parse_decimal_safely(
                 raw_order.sz,
-                allow_none=False,
-                field_name="sz",
+                default=None,
             )
             HyperliquidOrderMapper._ensure_quantity_not_none(
                 quantity_requested,
@@ -526,11 +501,13 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
                 raw_data=raw_order.model_dump(),
             )
             # After validation, quantity_requested is guaranteed to be not None
+            # Type narrowing: validation function raises if None
+            if quantity_requested is None:  # This should never happen after validation
+                HyperliquidOrderMapper._raise_runtime_validation_error("quantity_requested")
 
-            remaining_sz = parse_decimal_value(
+            remaining_sz = self.parse_decimal_safely(
                 str(raw_order.remaining_sz),
-                allow_none=True,
-                field_name="remainingSz",
+                default=None,
             )
             if remaining_sz is None:
                 remaining_sz = Decimal(0)
@@ -538,10 +515,9 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             quantity_filled = quantity_requested - remaining_sz
 
             # Parse price - handle market orders correctly
-            price = parse_decimal_value(
+            price = self.parse_decimal_safely(
                 str(raw_order.limit_px),
-                allow_none=True,
-                field_name="limitPx",
+                default=None,
             )
             # For market orders, Hyperliquid uses limit_px="0", but internal Order
             # expects price=None
@@ -566,8 +542,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         else:
             return quantity_requested, quantity_filled, price
 
-    @staticmethod
     def _parse_order_timestamps(
+        self,
         raw_order: HyperliquidRawOrder,
     ) -> tuple[datetime, datetime]:
         """Parse order timestamps.
@@ -580,7 +556,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             OrderTransformationError: If transformation fails.
         """
         try:
-            created_at = parse_datetime_utc(raw_order.timestamp, field_name="timestamp")
+            created_at = self.parse_timestamp(raw_order.timestamp)
             HyperliquidOrderMapper._ensure_timestamp_not_none(
                 created_at,
                 field_name="timestamp",
@@ -592,10 +568,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             if created_at is None:  # This should never happen after validation
                 HyperliquidOrderMapper._raise_timestamp_validation_error()
 
-            updated_at = parse_datetime_utc(
-                raw_order.status_timestamp,
-                field_name="statusTimestamp",
-            )
+            updated_at = self.parse_timestamp(raw_order.status_timestamp)
             if updated_at is None:
                 updated_at = created_at
 
@@ -625,8 +598,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             # Return the validated timestamps
             return created_at, updated_at
 
-    @staticmethod
     def _parse_trigger_info(
+        self,
         trigger: HyperliquidRawTriggerInfo | None,
     ) -> tuple[Decimal | None, TriggerType | None]:
         """Parse trigger/stop logic.
@@ -638,10 +611,9 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         trigger_by = None
 
         if trigger:
-            stop_price = parse_decimal_value(
+            stop_price = self.parse_decimal_safely(
                 str(getattr(trigger, "trigger_px", "")),
-                allow_none=True,
-                field_name="triggerPx",
+                default=None,
             )
 
             # Map trigger type if available
@@ -747,8 +719,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             source_exchange="hyperliquid",
         )
 
-    @staticmethod
     def _parse_historical_order_components(
+        self,
         raw_historical_order: HyperliquidRawHistoricalOrder,
         trigger: HyperliquidRawTriggerInfo | None = None,
     ) -> OrderComponents:
@@ -788,18 +760,16 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
 
         # Parse quantities and price
         quantity_requested, quantity_filled, price = (
-            HyperliquidOrderMapper._parse_historical_quantities_and_price(
+            self._parse_historical_quantities_and_price(
                 raw_historical_order,
             )
         )
 
         # Parse timestamps
-        created_at, updated_at = HyperliquidOrderMapper._parse_historical_timestamps(
-            raw_historical_order,
-        )
+        created_at, updated_at = self._parse_historical_timestamps(raw_historical_order)
 
         # Parse trigger/stop logic (reuse existing method)
-        stop_price, trigger_by = HyperliquidOrderMapper._parse_trigger_info(trigger)
+        stop_price, trigger_by = self._parse_trigger_info(trigger)
 
         # Calculate average_fill_price (reuse existing method with different order ID)
         average_fill_price, quantity_filled = (
@@ -825,8 +795,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
             updated_at=updated_at,
         )
 
-    @staticmethod
     def _parse_historical_quantities_and_price(
+        self,
         raw_historical_order: HyperliquidRawHistoricalOrder,
     ) -> tuple[Decimal, Decimal, Decimal | None]:
         """Parse quantities and price for historical orders.
@@ -834,38 +804,32 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         Returns:
             tuple[Decimal, Decimal, Decimal | None]: Tuple containing quantity requested,
                 quantity filled, and price.
+
+        Raises:
+            MissingRequiredFieldError: If required fields are missing.
         """
         # Parse quantities - use orig_sz for quantity_requested (sz is remaining quantity)
-        quantity_requested = parse_decimal_value(
+        quantity_requested = self.parse_decimal_safely(
             raw_historical_order.orig_sz,
-            allow_none=False,
-            field_name="orig_sz",
+            default=None,
         )
-
-        # Ensure quantity_requested is not None
-        HyperliquidOrderMapper._ensure_quantity_not_none(
-            quantity_requested,
-            field_name="orig_sz",
-            context="HyperliquidRawHistoricalOrder",
-            raw_data=raw_historical_order.model_dump(),
-        )
+        if quantity_requested is None:
+            raise MissingRequiredFieldError("orig_sz", "original quantity")
 
         # For historical orders, calculate filled quantity from original size and remaining
-        remaining_sz = parse_decimal_value(
+        remaining_sz = self.parse_decimal_safely(
             str(getattr(raw_historical_order, "remaining_sz", "0")),
-            allow_none=True,
-            field_name="remainingSz",
+            default=Decimal(0),
         )
+        # remaining_sz is guaranteed to be Decimal when default is not None
         if remaining_sz is None:
             remaining_sz = Decimal(0)
-
         quantity_filled = quantity_requested - remaining_sz
 
         # Parse price - handle market orders correctly
-        price = parse_decimal_value(
+        price = self.parse_decimal_safely(
             str(raw_historical_order.limit_px),
-            allow_none=True,
-            field_name="limitPx",
+            default=None,
         )
         # For market orders, Hyperliquid uses limit_px="0", but internal Order
         # expects price=None
@@ -874,8 +838,8 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
 
         return quantity_requested, quantity_filled, price
 
-    @staticmethod
     def _parse_historical_timestamps(
+        self,
         raw_historical_order: HyperliquidRawHistoricalOrder,
     ) -> tuple[datetime, datetime]:
         """Parse timestamps for historical orders.
@@ -886,7 +850,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
         Raises:
             MissingRequiredFieldError: If timestamp parsing fails.
         """
-        created_at = parse_datetime_utc(raw_historical_order.timestamp, field_name="timestamp")
+        created_at = self.parse_timestamp(raw_historical_order.timestamp)
         if created_at is None:
             raise MissingRequiredFieldError(
                 field_names="timestamp",
@@ -896,10 +860,7 @@ class HyperliquidOrderMapper(OrderMapperProtocol):
 
         # Historical orders might not have separate status timestamp
         updated_at = (
-            parse_datetime_utc(
-                getattr(raw_historical_order, "status_timestamp", None),
-                field_name="statusTimestamp",
-            )
+            self.parse_timestamp(getattr(raw_historical_order, "status_timestamp", None))
             or created_at
         )
 

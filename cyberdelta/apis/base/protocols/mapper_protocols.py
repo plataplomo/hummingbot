@@ -8,8 +8,9 @@ that reduce code duplication across exchanges.
 
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Protocol, cast, runtime_checkable
+from typing import NoReturn, Protocol, cast, runtime_checkable
 
+from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.core.models import (
     SpotBalance,
 )
@@ -153,8 +154,155 @@ class AbstractPositionMapperProtocol(Protocol):
     """
 
 
+class ValidationMixin:
+    """Common validation utilities for all mappers."""
+    
+    def ensure_not_none(self, value: object | None, field_name: str, context: str = "") -> object:
+        """Ensure a value is not None.
+        
+        Args:
+            value: Value to check
+            field_name: Field name for error reporting
+            context: Additional context for error
+            
+        Returns:
+            The non-None value
+            
+        Raises:
+            MissingRequiredFieldError: If value is None
+        """
+        if value is None:
+            raise MissingRequiredFieldError(
+                field_names=field_name,
+                context=context or "validation",
+            )
+        return value
+    
+    def ensure_decimal_not_none(
+        self, value: Decimal | None, field_name: str, context: str = ""
+    ) -> Decimal:
+        """Ensure a decimal value is not None.
+        
+        Args:
+            value: Decimal value to check
+            field_name: Field name for error reporting
+            context: Additional context for error
+            
+        Returns:
+            The non-None decimal value
+            
+        Raises:
+            MissingRequiredFieldError: If value is None
+        """
+        if value is None:
+            raise MissingRequiredFieldError(
+                field_names=field_name,
+                context=context or "decimal validation",
+            )
+        return value
+    
+    def _raise_missing_ticker_field_error(self, field_name: str, raw_data: object) -> NoReturn:
+        """Raise error for missing ticker field.
+        
+        Args:
+            field_name: Name of the missing field
+            raw_data: Raw data object for context
+            
+        Raises:
+            MissingRequiredFieldError: Always raises this error
+        """
+        raise MissingRequiredFieldError(
+            field_names=field_name,
+            context=f"ticker transformation: {raw_data}",
+        )
+    
+    def _raise_missing_mid_price_field_error(self, field_name: str, raw_data: object) -> NoReturn:
+        """Raise error for missing mid price field.
+        
+        Args:
+            field_name: Name of the missing field
+            raw_data: Raw data object for context
+            
+        Raises:
+            MissingRequiredFieldError: Always raises this error
+        """
+        raise MissingRequiredFieldError(
+            field_names=field_name,
+            context=f"mid price transformation: {raw_data}",
+        )
+    
+    def _raise_missing_candle_field_error(self, field_name: str, raw_data: object) -> NoReturn:
+        """Raise error for missing candle field.
+        
+        Args:
+            field_name: Name of the missing field
+            raw_data: Raw data object for context
+            
+        Raises:
+            MissingRequiredFieldError: Always raises this error
+        """
+        raise MissingRequiredFieldError(
+            field_names=field_name,
+            context=f"candle transformation: {raw_data}",
+        )
+    
+    def _raise_missing_funding_history_field_error(
+        self, field_name: str, raw_data: object
+    ) -> NoReturn:
+        """Raise error for missing funding history field.
+        
+        Args:
+            field_name: Name of the missing field
+            raw_data: Raw data object for context
+            
+        Raises:
+            MissingRequiredFieldError: Always raises this error
+        """
+        raise MissingRequiredFieldError(
+            field_names=field_name,
+            context=f"funding history transformation: {raw_data}",
+        )
+
+
 class CommonDataParserMixin:
     """Common data parsing utilities for all mappers."""
+    
+    def parse_decimal_safely(
+        self, value: str | float | Decimal | None, default: Decimal | None = Decimal(0)
+    ) -> Decimal | None:
+        """Safely parse decimal values with fallback.
+        
+        Args:
+            value: The value to parse as a decimal
+            default: Default value to return if parsing fails (can be None for optional values)
+            
+        Returns:
+            Parsed decimal value or default
+        """
+        if value is None:
+            return default
+        try:
+            if isinstance(value, Decimal):
+                return value
+            return Decimal(str(value))
+        except (ValueError, TypeError, InvalidOperation):
+            return default
+            
+    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
+        """Convert millisecond timestamp to datetime.
+        
+        Args:
+            timestamp_ms: Millisecond timestamp
+            
+        Returns:
+            Converted datetime or None
+        """
+        if timestamp_ms is None:
+            return None
+        try:
+            return datetime.fromtimestamp(float(timestamp_ms) / 1000, tz=UTC)
+        except (ValueError, TypeError, OSError):
+            return None
     
     def parse_timestamp(self, timestamp: datetime | float | str | None) -> datetime | None:
         """Parse various timestamp formats to datetime.
@@ -384,4 +532,5 @@ __all__ = [
     "BalanceMapperMixin",
     "CommonDataParserMixin",
     "PositionMapperMixin",
+    "ValidationMixin",
 ]

@@ -13,13 +13,11 @@ Focused on:
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import (
     CandleTransformationError,
     FundingRateTransformationError,
     MissingRequiredFieldError,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleSnapshot,
@@ -41,7 +39,6 @@ from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
@@ -49,6 +46,8 @@ logger = get_logger(__name__)
 
 
 class HyperliquidHistoricalDataMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
     HistoricalDataMapperProtocol,
     CandleMapperProtocol,
     FundingRateMapperProtocol,
@@ -60,32 +59,6 @@ class HyperliquidHistoricalDataMapper(
     """
 
     # Protocol method implementations - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Args:
-            value: The value to parse as Decimal.
-            default: The default value to return if parsing fails.
-
-        Returns:
-            The parsed Decimal value or the default.
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Args:
-            timestamp_ms: The timestamp in milliseconds.
-
-        Returns:
-            The converted datetime object or None if input is None.
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from CandleMapperProtocol
     def transform_raw_candle_to_internal(self, raw_candle: HyperliquidRawCandleSnapshot) -> Candle:
@@ -141,11 +114,21 @@ class HyperliquidHistoricalDataMapper(
             )
 
             # Parse OHLCV data
-            open_price = parse_decimal_value(raw_ws_candle.o, allow_none=False, field_name="open")
-            high_price = parse_decimal_value(raw_ws_candle.h, allow_none=False, field_name="high")
-            low_price = parse_decimal_value(raw_ws_candle.l, allow_none=False, field_name="low")
-            close_price = parse_decimal_value(raw_ws_candle.c, allow_none=False, field_name="close")
-            volume = parse_decimal_value(raw_ws_candle.v, allow_none=False, field_name="volume")
+            open_price = self.parse_decimal_safely(raw_ws_candle.o)
+            if open_price is None:
+                self._raise_missing_candle_field_error("open", raw_ws_candle)
+            high_price = self.parse_decimal_safely(raw_ws_candle.h) 
+            if high_price is None:
+                self._raise_missing_candle_field_error("high", raw_ws_candle)
+            low_price = self.parse_decimal_safely(raw_ws_candle.l)
+            if low_price is None:
+                self._raise_missing_candle_field_error("low", raw_ws_candle)
+            close_price = self.parse_decimal_safely(raw_ws_candle.c)
+            if close_price is None:
+                self._raise_missing_candle_field_error("close", raw_ws_candle)
+            volume = self.parse_decimal_safely(raw_ws_candle.v)
+            if volume is None:
+                self._raise_missing_candle_field_error("volume", raw_ws_candle)
 
             # Convert timestamp from milliseconds to datetime
             open_time = datetime.fromtimestamp(raw_ws_candle.t / 1000, UTC)
@@ -301,10 +284,8 @@ class HyperliquidHistoricalDataMapper(
             )
 
             # Parse mark price first
-            mark_price = parse_decimal_value(
-                raw_asset_ctx.mark_px,
-                allow_none=True,
-                field_name="mark_px",
+            mark_price = self.parse_decimal_safely(
+                raw_asset_ctx.mark_px, default=None
             )
 
             # Parse hourly funding rate
@@ -312,10 +293,8 @@ class HyperliquidHistoricalDataMapper(
             funding_rate_8hr = None
 
             try:
-                hourly_funding_rate = parse_decimal_value(
-                    raw_asset_ctx.funding,
-                    allow_none=True,
-                    field_name="funding",
+                hourly_funding_rate = self.parse_decimal_safely(
+                    raw_asset_ctx.funding, default=None
                 )
 
                 if hourly_funding_rate is not None and hourly_funding_rate.is_finite():
@@ -337,10 +316,8 @@ class HyperliquidHistoricalDataMapper(
             )
 
             # Parse additional HL-specific details
-            impact_px = parse_decimal_value(
-                raw_asset_ctx.impact_px,
-                allow_none=True,
-                field_name="impact_px",
+            impact_px = self.parse_decimal_safely(
+                raw_asset_ctx.impact_px, default=None
             )
 
             # Create HL-specific details
@@ -421,14 +398,12 @@ class HyperliquidHistoricalDataMapper(
             )
 
             # Parse funding rate
-            funding_rate = parse_decimal_value(
-                raw_funding_item.funding_rate,
-                allow_none=False,
-                field_name="fundingRate",
-            )
+            funding_rate = self.parse_decimal_safely(raw_funding_item.funding_rate)
+            if funding_rate is None:
+                self._raise_missing_funding_history_field_error("fundingRate", raw_funding_item)
 
             # Parse timestamp
-            timestamp = parse_datetime_utc(raw_funding_item.time, field_name="time")
+            timestamp = self.parse_timestamp(raw_funding_item.time)
             timestamp = HyperliquidHistoricalDataMapper._ensure_funding_timestamp_not_none(
                 timestamp,
             )
@@ -536,7 +511,7 @@ class HyperliquidHistoricalDataMapper(
 
             # Iterate through parallel lists
             for i in range(len(raw_snapshot.t)):
-                candle = HyperliquidHistoricalDataMapper._parse_single_candle(
+                candle = self._parse_single_candle(
                     raw_snapshot,
                     i,
                     symbol,
@@ -572,8 +547,8 @@ class HyperliquidHistoricalDataMapper(
         else:
             return candles
 
-    @staticmethod
     def _parse_single_candle(
+        self,
         raw_snapshot: HyperliquidRawCandleSnapshot,
         index: int,
         symbol: Symbol,
@@ -592,7 +567,7 @@ class HyperliquidHistoricalDataMapper(
             should be skipped.
         """
         # Parse OHLCV data from parallel lists
-        ohlcv_prices = HyperliquidHistoricalDataMapper._parse_ohlcv_prices(raw_snapshot, index)
+        ohlcv_prices = self._parse_ohlcv_prices(raw_snapshot, index)
         if not ohlcv_prices:
             return None
 
@@ -611,7 +586,7 @@ class HyperliquidHistoricalDataMapper(
         )
 
         # Create and return candle
-        return HyperliquidHistoricalDataMapper._create_candle_from_data(
+        return self._create_candle_from_data(
             symbol,
             interval,
             timestamp,
@@ -622,8 +597,8 @@ class HyperliquidHistoricalDataMapper(
             volume,
         )
 
-    @staticmethod
     def _parse_ohlcv_prices(
+        self,
         raw_snapshot: HyperliquidRawCandleSnapshot,
         index: int,
     ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal] | None:
@@ -638,23 +613,20 @@ class HyperliquidHistoricalDataMapper(
             None if any price is invalid.
         """
         try:
-            open_price = parse_decimal_value(
+            open_price = self.parse_decimal_safely(
                 raw_snapshot.o[index],
-                allow_none=False,
-                field_name="o",
+                default=None,
             )
-            high_price = parse_decimal_value(
+            high_price = self.parse_decimal_safely(
                 raw_snapshot.h[index],
-                allow_none=False,
-                field_name="h",
+                default=None,
             )
-            low_price = parse_decimal_value(raw_snapshot.l[index], allow_none=False, field_name="l")
-            close_price = parse_decimal_value(
+            low_price = self.parse_decimal_safely(raw_snapshot.l[index], default=None)
+            close_price = self.parse_decimal_safely(
                 raw_snapshot.c[index],
-                allow_none=False,
-                field_name="c",
+                default=None,
             )
-            volume = parse_decimal_value(raw_snapshot.v[index], allow_none=False, field_name="v")
+            volume = self.parse_decimal_safely(raw_snapshot.v[index], default=None)
         except (ValueError, TypeError, IndexError):
             logger.warning(
                 "invalid_candle_data_skipped",
@@ -663,7 +635,14 @@ class HyperliquidHistoricalDataMapper(
             )
             return None
 
-        if None in {open_price, high_price, low_price, close_price, volume}:
+        # Explicit type narrowing without cast
+        if (
+            open_price is None 
+            or high_price is None 
+            or low_price is None 
+            or close_price is None 
+            or volume is None
+        ):
             logger.warning(
                 "invalid_candle_data_skipped",
                 index=index,
@@ -671,8 +650,8 @@ class HyperliquidHistoricalDataMapper(
             )
             return None
 
-        # At this point, all values are guaranteed to be non-None
-        return open_price, high_price, low_price, close_price, volume
+        # Type checker now knows all values are Decimal, not Decimal | None
+        return (open_price, high_price, low_price, close_price, volume)
 
     @staticmethod
     def _validate_candle_prices(
@@ -709,8 +688,8 @@ class HyperliquidHistoricalDataMapper(
         if missing_fields:
             raise MissingRequiredFieldError(missing_fields, "candle after validation")
 
-    @staticmethod
     def _create_candle_from_data(
+        self,
         symbol: Symbol,
         interval: str,
         timestamp: datetime,

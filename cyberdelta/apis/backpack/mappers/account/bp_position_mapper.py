@@ -13,80 +13,45 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPositionResponse,
     BackpackRawPositionUpdate,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import PositionMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import (
+    CommonDataParserMixin,
+    PositionMapperMixin,
+    ValidationMixin,
+)
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
-    MissingRequiredFieldError,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackPositionMapper(PositionMapperProtocol):
+class BackpackPositionMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    PositionMapperMixin,
+    PositionMapperProtocol,
+):
     """Focused mapper for Backpack position data transformations.
 
     This class contains static methods for transforming validated Backpack Raw position models
     into CyberDeltaEngine Internal DerivativePosition Domain Models.
     """
 
-    @staticmethod
-    def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """Map a Backpack order side string to internal OrderSide enum.
-
-        Args:
-            bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
-
-        Returns:
-            OrderSide: Mapped internal enum value (defaults to BUY for unknown sides)
-        """
-        side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in {"buy", "bid", "long"}:
-            return OrderSide.BUY
-        if side_lower in {"sell", "ask", "short"}:
-            return OrderSide.SELL
-
-        logger.warning(
-            "unknown_position_side",
-            bp_side=bp_side,
-            mapped_to="BUY",
-            message="Unknown Backpack position side encountered, defaulting to BUY",
-        )
-        return OrderSide.BUY  # Default fallback
-
-    @staticmethod
-    def _ensure_position_size_not_none(size: Decimal | None) -> Decimal:
-        """Ensure position size is not None.
-
-        Args:
-            size: Position size value
-
-        Returns:
-            Decimal: The validated size value
-
-        Raises:
-            MissingRequiredFieldError: If size is None
-        """
-        if size is None:
-            raise MissingRequiredFieldError(
-                field_names="size",
-                context="position_validation",
-            )
-        return size
-
-    def transform_raw_position_to_internal(self, raw: BackpackRawPositionResponse) -> DerivativePosition:
+    def transform_raw_position_to_internal(
+        self, raw: BackpackRawPositionResponse
+    ) -> DerivativePosition:
         """Transform a validated BackpackRawPositionResponse object into an internal model.
 
         Args:
@@ -107,22 +72,18 @@ class BackpackPositionMapper(PositionMapperProtocol):
             )
 
             # Parse and validate position size
-            size_dec = parse_decimal_value(
-                raw.net_quantity,
-                allow_none=False,
-                field_name="net_quantity",
-            )
-            size_typed = BackpackPositionMapper._ensure_position_size_not_none(size_dec)
+            size_dec = self.parse_decimal_safely(raw.net_quantity)
+            size_typed = self.ensure_decimal_not_none(size_dec, "size", "position_validation")
 
             # Determine side from size (positive = long/BUY, negative = short/SELL)
             side = OrderSide.BUY if size_typed >= 0 else OrderSide.SELL
 
             # Parse optional price fields
-            entry_price_dec = parse_decimal_value(raw.entry_price, allow_none=True)
-            mark_price_dec = parse_decimal_value(raw.mark_price, allow_none=True)
-            liq_price_dec = parse_decimal_value(raw.est_liquidation_price, allow_none=True)
-            unrealized_pnl_dec = parse_decimal_value(raw.pnl_unrealized, allow_none=True)
-            realized_pnl_dec = parse_decimal_value(raw.pnl_realized, allow_none=True)
+            entry_price_dec = self.parse_decimal_safely(raw.entry_price, default=None)
+            mark_price_dec = self.parse_decimal_safely(raw.mark_price, default=None)
+            liq_price_dec = self.parse_decimal_safely(raw.est_liquidation_price, default=None)
+            unrealized_pnl_dec = self.parse_decimal_safely(raw.pnl_unrealized, default=None)
+            realized_pnl_dec = self.parse_decimal_safely(raw.pnl_realized, default=None)
 
             # Use current time as timestamp since BackpackRawPositionResponse doesn't have timestamp
             timestamp = datetime.now(UTC)
@@ -136,17 +97,16 @@ class BackpackPositionMapper(PositionMapperProtocol):
 
             # imf_function, mmf_function, and cumulative_funding_payment are required fields
             if raw.imf_function:
-                imf_base_dec = parse_decimal_value(raw.imf_function.base, allow_none=True)
-                imf_factor_dec = parse_decimal_value(raw.imf_function.factor, allow_none=True)
+                imf_base_dec = self.parse_decimal_safely(raw.imf_function.base, default=None)
+                imf_factor_dec = self.parse_decimal_safely(raw.imf_function.factor, default=None)
 
             if raw.mmf_function:
-                mmf_base_dec = parse_decimal_value(raw.mmf_function.base, allow_none=True)
-                mmf_factor_dec = parse_decimal_value(raw.mmf_function.factor, allow_none=True)
+                mmf_base_dec = self.parse_decimal_safely(raw.mmf_function.base, default=None)
+                mmf_factor_dec = self.parse_decimal_safely(raw.mmf_function.factor, default=None)
 
             # cumulative_funding_payment is always present
-            cumulative_funding_dec = parse_decimal_value(
-                raw.cumulative_funding_payment,
-                allow_none=True,
+            cumulative_funding_dec = self.parse_decimal_safely(
+                raw.cumulative_funding_payment, default=None
             )
 
             # Create BP-specific details
@@ -243,31 +203,30 @@ class BackpackPositionMapper(PositionMapperProtocol):
             )
 
             # Parse and validate position size
-            size_dec = parse_decimal_value(
-                raw_position_update.net_quantity,
-                allow_none=True,
-                field_name="net_quantity",
+            size_dec = self.parse_decimal_safely(
+                raw_position_update.net_quantity, default=None
             )
             if size_dec is None:
                 size_dec = Decimal(0)
-            size_typed = BackpackPositionMapper._ensure_position_size_not_none(size_dec)
+            size_typed = self.ensure_decimal_not_none(size_dec, "size", "position_validation")
 
             # Determine side from size (positive = long/BUY, negative = short/SELL)
             side = OrderSide.BUY if size_typed >= 0 else OrderSide.SELL
 
             # Parse optional price fields
-            entry_price_dec = parse_decimal_value(raw_position_update.entry_price, allow_none=True)
-            mark_price_dec = parse_decimal_value(raw_position_update.mark_price, allow_none=True)
-            liq_price_dec = parse_decimal_value(
-                raw_position_update.liquidation_price,
-                allow_none=True,
+            entry_price_dec = self.parse_decimal_safely(
+                raw_position_update.entry_price, default=None
+            )
+            mark_price_dec = self.parse_decimal_safely(raw_position_update.mark_price, default=None)
+            liq_price_dec = self.parse_decimal_safely(
+                raw_position_update.liquidation_price, default=None
             )
             # These fields don't exist in BackpackRawPositionUpdate
             unrealized_pnl_dec = None
             realized_pnl_dec = None
 
             # Parse timestamp - use event_time if available
-            timestamp = parse_datetime_utc(raw_position_update.event_time, field_name="event_time")
+            timestamp = self.parse_timestamp(raw_position_update.event_time)
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
@@ -281,17 +240,15 @@ class BackpackPositionMapper(PositionMapperProtocol):
             # BackpackRawPositionUpdate has initial_margin_fraction and maintenance_margin_fraction
             # fields instead of imf_function/mmf_function objects
             if raw_position_update.initial_margin_fraction is not None:
-                imf_base_dec = parse_decimal_value(
-                    raw_position_update.initial_margin_fraction,
-                    allow_none=True,
+                imf_base_dec = self.parse_decimal_safely(
+                    raw_position_update.initial_margin_fraction, default=None
                 )
                 # No factor available in position update, only base value
                 imf_factor_dec = None
 
             if raw_position_update.maintenance_margin_fraction is not None:
-                mmf_base_dec = parse_decimal_value(
-                    raw_position_update.maintenance_margin_fraction,
-                    allow_none=True,
+                mmf_base_dec = self.parse_decimal_safely(
+                    raw_position_update.maintenance_margin_fraction, default=None
                 )
                 # No factor available in position update, only base value
                 mmf_factor_dec = None
@@ -362,30 +319,3 @@ class BackpackPositionMapper(PositionMapperProtocol):
         else:
             return position
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

@@ -9,24 +9,22 @@ Focused on:
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import CandleMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import CandleTransformationError, MissingRequiredFieldError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Candle
 from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackCandleMapper(CandleMapperProtocol):
+class BackpackCandleMapper(CommonDataParserMixin, ValidationMixin, CandleMapperProtocol):
     """Focused mapper for Backpack candle data transformations.
 
     This class contains static methods for transforming validated Backpack Raw kline models
@@ -92,27 +90,11 @@ class BackpackCandleMapper(CandleMapperProtocol):
         """
         try:
             # Parse OHLCV data using correct field names
-            open_price = parse_decimal_value(
-                raw_kline.open_price,
-                allow_none=False,
-                field_name="open_price",
-            )
-            high_price = parse_decimal_value(
-                raw_kline.high_price,
-                allow_none=False,
-                field_name="high_price",
-            )
-            low_price = parse_decimal_value(
-                raw_kline.low_price,
-                allow_none=False,
-                field_name="low_price",
-            )
-            close_price = parse_decimal_value(
-                raw_kline.close_price,
-                allow_none=False,
-                field_name="close_price",
-            )
-            volume = parse_decimal_value(raw_kline.volume, allow_none=False, field_name="volume")
+            open_price = self.parse_decimal_safely(raw_kline.open_price)
+            high_price = self.parse_decimal_safely(raw_kline.high_price)
+            low_price = self.parse_decimal_safely(raw_kline.low_price)
+            close_price = self.parse_decimal_safely(raw_kline.close_price)
+            volume = self.parse_decimal_safely(raw_kline.volume)
 
             # Validate all OHLCV values are present
             BackpackCandleMapper._validate_candle_data(
@@ -125,7 +107,7 @@ class BackpackCandleMapper(CandleMapperProtocol):
             )
 
             # Parse timestamp from start_time_ms using common mapper utility
-            open_time = BackpackCommonMappers.timestamp_ms_to_datetime(raw_kline.start_time_ms)
+            open_time = self.timestamp_ms_to_datetime(raw_kline.start_time_ms)
             if not open_time:
                 # Fallback to current time if conversion fails
                 open_time = datetime.now(UTC)
@@ -167,29 +149,3 @@ class BackpackCandleMapper(CandleMapperProtocol):
             ) from e
 
     # MapperProtocol methods
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely using BackpackCommonMappers.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert timestamp to datetime using BackpackCommonMappers.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

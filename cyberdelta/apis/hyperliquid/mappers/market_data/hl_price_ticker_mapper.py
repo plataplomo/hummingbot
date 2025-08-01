@@ -13,15 +13,13 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
     DataTransformationError,
     MarketTransformationError,
     MissingRequiredFieldError,
     TickerTransformationError,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
@@ -37,40 +35,23 @@ from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtocol):
+class HyperliquidPriceTickerMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    PriceTickerMapperProtocol,
+    TickerMapperProtocol,
+):
     """Focused mapper for Hyperliquid price ticker and mid price data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw price models
     into CyberDeltaEngine Internal Domain Models for tickers and mid prices.
     """
-
-    # Protocol method implementations - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Returns:
-            Decimal: Parsed decimal value or default if parsing fails.
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Returns:
-            datetime | None: UTC datetime object or None if timestamp is None.
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods from PriceTickerMapperProtocol
     def transform_raw_price_ticker_to_internal(self, raw_ticker: HyperliquidRawAssetCtx) -> Ticker:
@@ -177,19 +158,15 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
                 "HyperliquidRawAssetCtx",
             )
 
-            mark_px = parse_decimal_value(
-                raw_asset_ctx.mark_px,
-                allow_none=False,
-                field_name="markPx",
-            )
+            mark_px = self.parse_decimal_safely(raw_asset_ctx.mark_px)
+            if mark_px is None:
+                self._raise_missing_ticker_field_error("markPx", raw_asset_ctx)
 
             # Extract volume data from day_ntl_vlm (daily notional volume)
             volume_24h = None
             if raw_asset_ctx.day_ntl_vlm:
-                volume_24h = parse_decimal_value(
-                    raw_asset_ctx.day_ntl_vlm,
-                    allow_none=True,
-                    field_name="dayNtlVlm",
+                volume_24h = self.parse_decimal_safely(
+                    raw_asset_ctx.day_ntl_vlm, default=None
                 )
 
             # Get current timestamp for ticker timestamp
@@ -290,11 +267,11 @@ class HyperliquidPriceTickerMapper(PriceTickerMapperProtocol, TickerMapperProtoc
                 )
 
                 # Use our standard decimal parsing utility
-                decimal_price = parse_decimal_value(
-                    price_str,
-                    allow_none=False,
-                    field_name=f"mid_price[{symbol}]",
-                )
+                decimal_price = self.parse_decimal_safely(price_str)
+                if decimal_price is None:
+                    self._raise_missing_mid_price_field_error(
+                        f"mid_price[{symbol}]", {symbol: price_str}
+                    )
 
                 # Use Symbol object as key
                 prices[exchange_symbol] = decimal_price

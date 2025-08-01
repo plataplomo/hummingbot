@@ -14,19 +14,19 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
+from cyberdelta.apis.backpack.mappers.utils.backpack_enum_mappers import BackpackEnumMappers
 from cyberdelta.apis.backpack.models.bp_raw_order import (
     BackpackRawOrderResponse,
     BackpackRawOrderUpdate,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import (
     InvalidQuantityError,
     MissingQuantityError,
     MissingTimestampError,
     OrderTransformationError,
 )
-from cyberdelta.apis.exceptions.trading_transformation import UnknownOrderSideError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
     OrderStatus,
@@ -36,46 +36,22 @@ from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import (
-    OrderSide,
     OrderType,
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackOrderMapper(OrderMapperProtocol):
+class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
     """Focused mapper for Backpack order data transformations.
 
     This class contains static methods for transforming validated Backpack Raw order models
     into CyberDeltaEngine Internal Order Domain Models.
     """
-
-    @staticmethod
-    def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """Map a Backpack order side string to internal OrderSide enum.
-
-        Args:
-            bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
-
-        Returns:
-            OrderSide: Mapped internal enum value
-
-        Raises:
-            UnknownOrderSideError: If side cannot be mapped
-
-        """
-        side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in {"buy", "bid"}:
-            return OrderSide.BUY
-        if side_lower in {"sell", "ask"}:
-            return OrderSide.SELL
-
-        raise UnknownOrderSideError(bp_side, exchange="Backpack")
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
@@ -277,40 +253,32 @@ class BackpackOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
+            MissingQuantityError: If quantity is missing or invalid
             OrderTransformationError: If transformation fails
 
         """
         try:
             # Map enums
-            mapped_side = BackpackOrderMapper._map_side_to_internal(side)
+            mapped_side = BackpackEnumMappers.map_side_to_internal(side, "order")
             mapped_type = BackpackOrderMapper._map_type_to_internal(order_type, None, None)
             mapped_status = BackpackOrderMapper._map_status_to_internal(status)
             mapped_tif = BackpackOrderMapper._map_time_in_force(time_in_force or "gtc")
 
             # Parse quantities
-            quantity_requested = parse_decimal_value(
-                quantity,
-                allow_none=False,
-                field_name="quantity",
-            )
+            quantity_requested = self.parse_decimal_safely(quantity)
+            if quantity_requested is None:
+                raise MissingQuantityError
             BackpackOrderMapper._validate_quantity_requested(quantity_requested)
 
             # For now, assume no filled quantity available in basic order data
             quantity_filled = Decimal(0)
 
             # Parse price
-            order_price = None
-            if price:
-                order_price = parse_decimal_value(price, allow_none=True, field_name="price")
+            order_price = self.parse_decimal_safely(price, default=None) if price else None
 
             # Parse timestamps
-            created_timestamp = None
-            if created_at:
-                created_timestamp = parse_datetime_utc(created_at, field_name="created_at")
-
-            updated_timestamp = None
-            if updated_at:
-                updated_timestamp = parse_datetime_utc(updated_at, field_name="updated_at")
+            created_timestamp = self.parse_timestamp(created_at)
+            updated_timestamp = self.parse_timestamp(updated_at)
 
             # Symbol is already a domain object
             exchange_symbol = symbol
@@ -352,8 +320,9 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 original_error=e,
             ) from e
 
-    @staticmethod
-    def _parse_order_quantities(raw_order: BackpackRawOrderResponse) -> tuple[Decimal, Decimal]:
+    def _parse_order_quantities(
+        self, raw_order: BackpackRawOrderResponse
+    ) -> tuple[Decimal, Decimal]:
         """Parse and validate order quantities.
 
         Args:
@@ -365,20 +334,16 @@ class BackpackOrderMapper(OrderMapperProtocol):
         Raises:
             InvalidQuantityError: If quantity requirements are not met
         """
-        quantity_requested = parse_decimal_value(
-            raw_order.quantity,
-            allow_none=True,
-            field_name="quantity",
+        quantity_requested = self.parse_decimal_safely(
+            raw_order.quantity, default=None
         )
 
         # For stop orders, quantity might be 0 and the actual quantity is in triggerQuantity
         if (quantity_requested is None or quantity_requested == Decimal(0)) and (
             raw_order.triggerQuantity
         ):
-            quantity_requested = parse_decimal_value(
-                raw_order.triggerQuantity,
-                allow_none=False,
-                field_name="triggerQuantity",
+            quantity_requested = self.parse_decimal_safely(
+                raw_order.triggerQuantity
             )
 
         if quantity_requested is None or quantity_requested <= Decimal(0):
@@ -387,16 +352,13 @@ class BackpackOrderMapper(OrderMapperProtocol):
                 value=quantity_requested,
             )
 
-        quantity_filled = parse_decimal_value(
-            raw_order.executedQuantity,
-            allow_none=True,
-            field_name="executedQuantity",
+        quantity_filled = self.parse_decimal_safely(
+            raw_order.executedQuantity, default=Decimal(0)
         ) or Decimal(0)
 
         return quantity_requested, quantity_filled
 
-    @staticmethod
-    def _parse_order_price(price_value: str | None, field_name: str) -> Decimal | None:
+    def _parse_order_price(self, price_value: str | None, field_name: str) -> Decimal | None:
         """Parse order price field, returning None for zero or invalid values.
 
         Args:
@@ -409,15 +371,13 @@ class BackpackOrderMapper(OrderMapperProtocol):
         if not price_value or price_value == "0":
             return None
 
-        parsed_price = parse_decimal_value(
-            price_value,
-            allow_none=True,
-            field_name=field_name,
+        parsed_price = self.parse_decimal_safely(
+            price_value, default=None
         )
         return parsed_price if parsed_price is not None and parsed_price > 0 else None
 
-    @staticmethod
     def _calculate_average_fill_price(
+        self,
         raw_order: BackpackRawOrderResponse,
         quantity_filled: Decimal,
     ) -> Decimal | None:
@@ -434,7 +394,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
             Average fill price or None if cannot be determined
         """
         # First try to use the provided avgFillPrice
-        avg_fill_price = BackpackOrderMapper._parse_order_price(
+        avg_fill_price = self._parse_order_price(
             raw_order.avgFillPrice,
             "avgFillPrice",
         )
@@ -451,10 +411,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
         # If no avgFillPrice but order has fills, calculate from quote quantity
         if quantity_filled > 0 and raw_order.executedQuoteQuantity:
-            executed_quote = parse_decimal_value(
-                raw_order.executedQuoteQuantity,
-                allow_none=True,
-                field_name="executedQuoteQuantity",
+            executed_quote = self.parse_decimal_safely(
+                raw_order.executedQuoteQuantity, default=None
             )
 
             if executed_quote is not None and executed_quote > 0:
@@ -475,8 +433,8 @@ class BackpackOrderMapper(OrderMapperProtocol):
         )
         return None
 
-    @staticmethod
     def _parse_order_timestamps(
+        self,
         raw_order: BackpackRawOrderResponse,
     ) -> tuple[datetime, datetime | None, datetime | None]:
         """Parse order timestamps.
@@ -491,23 +449,15 @@ class BackpackOrderMapper(OrderMapperProtocol):
         Raises:
             MissingTimestampError: If required timestamp is missing
         """
-        created_timestamp = parse_datetime_utc(raw_order.createdAt, field_name="createdAt")
+        created_timestamp = self.parse_timestamp(raw_order.createdAt)
         if created_timestamp is None:
             raise MissingTimestampError(
                 field_name="createdAt",
                 order_id=raw_order.id,
             )
 
-        updated_timestamp = None
-        if raw_order.updatedAt:
-            updated_timestamp = parse_datetime_utc(raw_order.updatedAt, field_name="updatedAt")
-
-        triggered_timestamp = None
-        if raw_order.triggeredAt:
-            triggered_timestamp = parse_datetime_utc(
-                raw_order.triggeredAt,
-                field_name="triggeredAt",
-            )
+        updated_timestamp = self.parse_timestamp(raw_order.updatedAt)
+        triggered_timestamp = self.parse_timestamp(raw_order.triggeredAt)
 
         return created_timestamp, updated_timestamp, triggered_timestamp
 
@@ -526,7 +476,7 @@ class BackpackOrderMapper(OrderMapperProtocol):
         """
         try:
             # Map enums
-            mapped_side = BackpackOrderMapper._map_side_to_internal(raw_order.side)
+            mapped_side = BackpackEnumMappers.map_side_to_internal(raw_order.side, "order")
             mapped_type = BackpackOrderMapper._map_type_to_internal(
                 raw_order.orderType,
                 raw_order.triggerPrice,
@@ -538,72 +488,60 @@ class BackpackOrderMapper(OrderMapperProtocol):
             )
 
             # Parse quantities
-            quantity_requested, quantity_filled = BackpackOrderMapper._parse_order_quantities(
+            quantity_requested, quantity_filled = self._parse_order_quantities(
                 raw_order,
             )
 
             # Parse prices
-            order_price = BackpackOrderMapper._parse_order_price(raw_order.price, "price")
-            stop_price = BackpackOrderMapper._parse_order_price(
+            order_price = self._parse_order_price(raw_order.price, "price")
+            stop_price = self._parse_order_price(
                 raw_order.triggerPrice,
                 "triggerPrice",
             )
-            average_fill_price = BackpackOrderMapper._calculate_average_fill_price(
+            average_fill_price = self._calculate_average_fill_price(
                 raw_order,
                 quantity_filled,
             )
 
             # Parse timestamps
             created_timestamp, updated_timestamp, triggered_timestamp = (
-                BackpackOrderMapper._parse_order_timestamps(raw_order)
+                self._parse_order_timestamps(raw_order)
             )
 
             # Create BackpackOrderDetails from raw order data
             bp_details = BackpackOrderDetails(
-                executed_quote_quantity=parse_decimal_value(
-                    raw_order.executedQuoteQuantity,
-                    field_name="executedQuoteQuantity",
-                    allow_none=True,
+                executed_quote_quantity=self.parse_decimal_safely(
+                    raw_order.executedQuoteQuantity, default=None
                 )
                 if raw_order.executedQuoteQuantity
                 else None,
                 self_trade_prevention=None,  # Can be mapped if needed
                 expiry_reason=None,  # Can be mapped if needed
                 origin=None,  # Can be mapped if needed
-                sl_trigger_price=parse_decimal_value(
-                    raw_order.stopLossTriggerPrice,
-                    field_name="stopLossTriggerPrice",
-                    allow_none=True,
+                sl_trigger_price=self.parse_decimal_safely(
+                    raw_order.stopLossTriggerPrice, default=None
                 )
                 if raw_order.stopLossTriggerPrice
                 else None,
-                sl_limit_price=parse_decimal_value(
-                    raw_order.stopLossLimitPrice,
-                    field_name="stopLossLimitPrice",
-                    allow_none=True,
+                sl_limit_price=self.parse_decimal_safely(
+                    raw_order.stopLossLimitPrice, default=None
                 )
                 if raw_order.stopLossLimitPrice
                 else None,
                 sl_trigger_by=None,  # Can be mapped from stopLossTriggerBy if needed
-                tp_trigger_price=parse_decimal_value(
-                    raw_order.takeProfitTriggerPrice,
-                    field_name="takeProfitTriggerPrice",
-                    allow_none=True,
+                tp_trigger_price=self.parse_decimal_safely(
+                    raw_order.takeProfitTriggerPrice, default=None
                 )
                 if raw_order.takeProfitTriggerPrice
                 else None,
-                tp_limit_price=parse_decimal_value(
-                    raw_order.takeProfitLimitPrice,
-                    field_name="takeProfitLimitPrice",
-                    allow_none=True,
+                tp_limit_price=self.parse_decimal_safely(
+                    raw_order.takeProfitLimitPrice, default=None
                 )
                 if raw_order.takeProfitLimitPrice
                 else None,
                 tp_trigger_by=None,  # Can be mapped from takeProfitTriggerBy if needed
-                trigger_quantity=parse_decimal_value(
-                    raw_order.triggerQuantity,
-                    field_name="triggerQuantity",
-                    allow_none=True,
+                trigger_quantity=self.parse_decimal_safely(
+                    raw_order.triggerQuantity, default=None
                 )
                 if raw_order.triggerQuantity
                 else None,
@@ -682,12 +620,13 @@ class BackpackOrderMapper(OrderMapperProtocol):
             Order: Internal domain model with populated fields
 
         Raises:
+            MissingQuantityError: If quantity is missing or invalid
             OrderTransformationError: If transformation fails
 
         """
         try:
             # Map enums
-            mapped_side = BackpackOrderMapper._map_side_to_internal(raw_order_update.side)
+            mapped_side = BackpackEnumMappers.map_side_to_internal(raw_order_update.side, "order")
             mapped_type = BackpackOrderMapper._map_type_to_internal(
                 raw_order_update.order_type,
                 None,
@@ -702,11 +641,11 @@ class BackpackOrderMapper(OrderMapperProtocol):
 
             # Parse quantities
             if raw_order_update.quantity:
-                quantity_requested = parse_decimal_value(
-                    raw_order_update.quantity,
-                    allow_none=False,
-                    field_name="quantity",
+                quantity_requested = self.parse_decimal_safely(
+                    raw_order_update.quantity
                 )
+                if quantity_requested is None:
+                    raise MissingQuantityError
                 # parse_decimal_value with allow_none=False guarantees non-None result
             else:
                 quantity_requested = Decimal(0)
@@ -717,19 +656,12 @@ class BackpackOrderMapper(OrderMapperProtocol):
             # Parse price
             order_price = None
             if raw_order_update.price:
-                order_price = parse_decimal_value(
-                    raw_order_update.price,
-                    allow_none=True,
-                    field_name="price",
+                order_price = self.parse_decimal_safely(
+                    raw_order_update.price, default=None
                 )
 
             # Parse timestamps
-            event_timestamp = None
-            if raw_order_update.event_time:
-                event_timestamp = parse_datetime_utc(
-                    raw_order_update.event_time,
-                    field_name="event_time",
-                )
+            event_timestamp = self.parse_timestamp(raw_order_update.event_time)
 
             if event_timestamp is None:
                 event_timestamp = datetime.now(UTC)
@@ -794,30 +726,3 @@ class BackpackOrderMapper(OrderMapperProtocol):
         if quantity_requested is None:
             raise MissingQuantityError
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal
-            default: Default value to return if parsing fails
-
-        Returns:
-            Parsed Decimal value or default if parsing fails
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds or None
-
-        Returns:
-            UTC datetime object or None if timestamp is None
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

@@ -8,26 +8,23 @@ Focused on:
 - Market-specific data validation and error handling
 """
 
-from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarketResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import MarketMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import MarketTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market import Market
 from cyberdelta.core.models.market.market import BackpackMarketDetails
 from cyberdelta.core.symbols import exchanges
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackMarketMapper(MarketMapperProtocol):
+class BackpackMarketMapper(CommonDataParserMixin, MarketMapperProtocol):
     """Focused mapper for Backpack market metadata transformations.
 
     This class contains static methods for transforming validated Backpack Raw market models
@@ -49,45 +46,27 @@ class BackpackMarketMapper(MarketMapperProtocol):
         """
         try:
             # Parse core market fields (required, won't be None since allow_none=False)
-            tick_size = parse_decimal_value(
-                raw_market.filters.price.tick_size,
-                allow_none=False,
-                field_name="tickSize",
-            )
-            step_size = parse_decimal_value(
-                raw_market.filters.quantity.step_size,
-                allow_none=False,
-                field_name="stepSize",
-            )
+            tick_size = self.parse_decimal_safely(raw_market.filters.price.tick_size)
+            step_size = self.parse_decimal_safely(raw_market.filters.quantity.step_size)
 
             # Parse optional price limits
-            min_price = parse_decimal_value(
-                raw_market.filters.price.min_price,
-                allow_none=True,
-                field_name="minPrice",
+            min_price = self.parse_decimal_safely(
+                raw_market.filters.price.min_price, default=None
             )
-            max_price = parse_decimal_value(
-                raw_market.filters.price.max_price,
-                allow_none=True,
-                field_name="maxPrice",
+            max_price = self.parse_decimal_safely(
+                raw_market.filters.price.max_price, default=None
             )
 
             # Parse optional quantity limits
-            min_quantity = parse_decimal_value(
-                raw_market.filters.quantity.min_quantity,
-                allow_none=True,
-                field_name="minQuantity",
+            min_quantity = self.parse_decimal_safely(
+                raw_market.filters.quantity.min_quantity, default=None
             )
-            max_quantity = parse_decimal_value(
-                raw_market.filters.quantity.max_quantity,
-                allow_none=True,
-                field_name="maxQuantity",
+            max_quantity = self.parse_decimal_safely(
+                raw_market.filters.quantity.max_quantity, default=None
             )
 
             # Parse created_at timestamp
-            created_at = None
-            if raw_market.created_at:
-                created_at = parse_datetime_utc(raw_market.created_at, field_name="createdAt")
+            created_at = self.parse_timestamp(raw_market.created_at)
 
             # Create Backpack-specific details
             bp_details = BackpackMarketDetails(
@@ -131,30 +110,3 @@ class BackpackMarketMapper(MarketMapperProtocol):
                 original_error=e,
             ) from e
 
-    # MapperProtocol methods
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely using BackpackCommonMappers.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert timestamp to datetime using BackpackCommonMappers.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

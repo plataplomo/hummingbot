@@ -18,12 +18,12 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralResponse
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import AccountSummaryMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
@@ -35,14 +35,13 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
+class BackpackAccountSummaryMapper(CommonDataParserMixin, AccountSummaryMapperProtocol):
     """Focused mapper for Backpack account summary and settings data transformations.
 
     This class contains static methods for transforming validated Backpack Raw account models
@@ -228,46 +227,43 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
             )
 
             # Parse core equity fields from collateral response
-            total_equity = parse_decimal_value(
-                raw_collateral.net_equity,
-                allow_none=False,
-                field_name="net_equity",
-            )
+            total_equity = self.parse_decimal_safely(raw_collateral.net_equity)
             # total_equity is guaranteed to be Decimal (not None) due to allow_none=False
 
             # Use the exchange's net_equity_available which correctly accounts for locked margin
             # When auto-lending is active, the exchange correctly reports available equity
             # accounting for both lent funds and locked margin from open positions
-            available_equity = parse_decimal_value(
-                raw_collateral.net_equity_available,
-                allow_none=False,
-                field_name="net_equity_available",
-            )
+            available_equity = self.parse_decimal_safely(raw_collateral.net_equity_available)
             # available_equity is guaranteed to be Decimal (not None) due to allow_none=False
 
             # Parse detailed collateral fields
-            assets_value = parse_decimal_value(raw_collateral.assets_value, allow_none=True)
-            liabilities_value = parse_decimal_value(
-                raw_collateral.liabilities_value,
-                allow_none=True,
+            assets_value = self.parse_decimal_safely(raw_collateral.assets_value, default=None)
+            liabilities_value = self.parse_decimal_safely(
+                raw_collateral.liabilities_value, default=None
             )
-            locked_equity = parse_decimal_value(raw_collateral.net_equity_locked, allow_none=True)
-            borrow_liability = parse_decimal_value(raw_collateral.borrow_liability, allow_none=True)
-            unsettled_equity = parse_decimal_value(raw_collateral.unsettled_equity, allow_none=True)
-            margin_fraction = parse_decimal_value(raw_collateral.margin_fraction, allow_none=True)
-            net_exposure_futures = parse_decimal_value(
-                raw_collateral.net_exposure_futures,
-                allow_none=True,
+            locked_equity = self.parse_decimal_safely(
+                raw_collateral.net_equity_locked, default=None
+            )
+            borrow_liability = self.parse_decimal_safely(
+                raw_collateral.borrow_liability, default=None
+            )
+            unsettled_equity = self.parse_decimal_safely(
+                raw_collateral.unsettled_equity, default=None
+            )
+            margin_fraction = self.parse_decimal_safely(
+                raw_collateral.margin_fraction, default=None
+            )
+            net_exposure_futures = self.parse_decimal_safely(
+                raw_collateral.net_exposure_futures, default=None
             )
 
             # Parse margin factors
-            imf_value = parse_decimal_value(raw_collateral.imf, allow_none=True)
-            mmf_value = parse_decimal_value(raw_collateral.mmf, allow_none=True)
+            imf_value = self.parse_decimal_safely(raw_collateral.imf, default=None)
+            mmf_value = self.parse_decimal_safely(raw_collateral.mmf, default=None)
 
             # Parse unrealized PnL
-            total_unrealized_pnl = parse_decimal_value(
-                raw_collateral.pnl_unrealized,
-                allow_none=True,
+            total_unrealized_pnl = self.parse_decimal_safely(
+                raw_collateral.pnl_unrealized, default=None
             )
 
             # Transform derivative positions using the dedicated mapper
@@ -463,30 +459,3 @@ class BackpackAccountSummaryMapper(AccountSummaryMapperProtocol):
         else:
             return settings
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

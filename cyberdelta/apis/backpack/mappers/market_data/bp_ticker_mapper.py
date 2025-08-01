@@ -9,29 +9,27 @@ Focused on:
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawTickerEvent,
     BackpackRawTickerResponse,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TickerMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import TickerTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.models.market.ticker import BackpackTickerDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackTickerMapper(TickerMapperProtocol):
+class BackpackTickerMapper(CommonDataParserMixin, TickerMapperProtocol):
     """Focused mapper for Backpack ticker data transformations.
 
     This class contains static methods for transforming validated Backpack Raw ticker models
@@ -62,40 +60,16 @@ class BackpackTickerMapper(TickerMapperProtocol):
             symbol = symbol_override or raw_ticker.symbol
 
             # Parse core ticker fields using new model structure
-            last_price = parse_decimal_value(
-                raw_ticker.last_price,
-                allow_none=False,
-                field_name="lastPrice",
-            )
-            volume_24h = parse_decimal_value(
-                raw_ticker.volume,
-                allow_none=False,
-                field_name="volume",
-            )
+            last_price = self.parse_decimal_safely(raw_ticker.last_price)
+            volume_24h = self.parse_decimal_safely(raw_ticker.volume)
 
             # Parse extension fields for BackpackTickerDetails
-            first_price = parse_decimal_value(
-                raw_ticker.first_price,
-                allow_none=False,
-                field_name="firstPrice",
-            )
-            high_price = parse_decimal_value(raw_ticker.high, allow_none=False, field_name="high")
-            low_price = parse_decimal_value(raw_ticker.low, allow_none=False, field_name="low")
-            price_change = parse_decimal_value(
-                raw_ticker.price_change,
-                allow_none=False,
-                field_name="priceChange",
-            )
-            price_change_percent = parse_decimal_value(
-                raw_ticker.price_change_percent,
-                allow_none=False,
-                field_name="priceChangePercent",
-            )
-            quote_volume = parse_decimal_value(
-                raw_ticker.quote_volume,
-                allow_none=False,
-                field_name="quoteVolume",
-            )
+            first_price = self.parse_decimal_safely(raw_ticker.first_price)
+            high_price = self.parse_decimal_safely(raw_ticker.high)
+            low_price = self.parse_decimal_safely(raw_ticker.low)
+            price_change = self.parse_decimal_safely(raw_ticker.price_change)
+            price_change_percent = self.parse_decimal_safely(raw_ticker.price_change_percent)
+            quote_volume = self.parse_decimal_safely(raw_ticker.quote_volume)
 
             # Parse trade count
             trades_count = None
@@ -170,19 +144,11 @@ class BackpackTickerMapper(TickerMapperProtocol):
         """
         try:
             # Parse core ticker fields
-            last_price = parse_decimal_value(
-                raw_ticker.last_price,
-                allow_none=True,
-                field_name="lastPrice",
-            )
-            volume_24h = parse_decimal_value(
-                raw_ticker.volume,
-                allow_none=True,
-                field_name="volume",
-            )
+            last_price = self.parse_decimal_safely(raw_ticker.last_price, default=None)
+            volume_24h = self.parse_decimal_safely(raw_ticker.volume, default=None)
 
             # Parse timestamp from event_time
-            timestamp = parse_datetime_utc(raw_ticker.event_time, field_name="event_time")
+            timestamp = self.parse_timestamp(raw_ticker.event_time)
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
@@ -217,30 +183,3 @@ class BackpackTickerMapper(TickerMapperProtocol):
                 original_error=e,
             ) from e
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

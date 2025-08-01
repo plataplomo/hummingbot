@@ -13,12 +13,12 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.apis.base.protocols.mapper_protocols import BalanceMapperMixin
+from cyberdelta.apis.base.protocols.mapper_protocols import (
+    BalanceMapperMixin,
+    CommonDataParserMixin,
+)
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import DataTransformationError
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
     HyperliquidRawClearinghouseState,
@@ -29,47 +29,18 @@ from cyberdelta.core.models import HyperliquidSpotBalanceDetails, SpotBalance
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
+class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, BalanceMapperProtocol):
     """Focused mapper for Hyperliquid balance data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw balance models
     into CyberDeltaEngine Internal SpotBalance Domain Models.
     """
-
-    # Protocol method implementations (delegated to common utilities)
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Args:
-            value: Value to parse as Decimal
-            default: Default value if parsing fails
-
-        Returns:
-            Decimal: Parsed decimal value or default
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds
-
-        Returns:
-            datetime | None: Converted datetime or None if input is None
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods
     def transform_raw_balance_to_internal(
@@ -134,10 +105,10 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             spot_balances: dict[str, SpotBalance] = {}
 
             # Extract USDC balance from margin summary account value
-            HyperliquidBalanceMapper._process_usdc_balance(raw_state, spot_balances)
+            self._process_usdc_balance(raw_state, spot_balances)
 
             # Check for other spot assets in asset positions
-            HyperliquidBalanceMapper._process_other_spot_assets(raw_state, spot_balances)
+            self._process_other_spot_assets(raw_state, spot_balances)
 
             logger.debug(
                 "clearinghouse_state_to_spot_balances_transformed",
@@ -169,8 +140,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
         else:
             return spot_balances
 
-    @staticmethod
     def _process_usdc_balance(
+        self,
         raw_state: HyperliquidRawClearinghouseState,
         spot_balances: dict[str, SpotBalance],
     ) -> None:
@@ -199,16 +170,14 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             message="Processing USDC balance from margin summary",
         )
 
-        total_usdc = parse_decimal_value(
-            raw_state.margin_summary.account_value,
-            allow_none=False,
-            field_name="margin_summary.account_value",
+        total_usdc = self.parse_decimal_safely(
+            raw_state.margin_summary.account_value
         )
+        if total_usdc is None:
+            total_usdc = Decimal(0)
 
-        available_usdc = parse_decimal_value(
-            raw_state.withdrawable,
-            allow_none=True,
-            field_name="withdrawable",
+        available_usdc = self.parse_decimal_safely(
+            raw_state.withdrawable, default=None
         )
 
         if total_usdc >= Decimal(0):
@@ -253,8 +222,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
                 message="Successfully processed USDC balance from margin summary",
             )
 
-    @staticmethod
     def _process_other_spot_assets(
+        self,
         raw_state: HyperliquidRawClearinghouseState,
         spot_balances: dict[str, SpotBalance],
     ) -> None:
@@ -288,7 +257,7 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             if asset_name is None or asset_name == "USDC" or "-PERP" in asset_name.upper():
                 continue
 
-            HyperliquidBalanceMapper._process_single_spot_asset(
+            self._process_single_spot_asset(
                 asset_pos,
                 asset_name,
                 spot_balances,
@@ -300,8 +269,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             message="Successfully processed other spot assets",
         )
 
-    @staticmethod
     def _process_single_spot_asset(
+        self,
         asset_pos: HyperliquidRawAssetPosition,
         asset_name: str,
         spot_balances: dict[str, SpotBalance],
@@ -336,10 +305,8 @@ class HyperliquidBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
 
         pos = asset_pos.position
         size_str = getattr(pos, "szi", "0")
-        size = parse_decimal_value(
-            size_str,
-            allow_none=True,
-            field_name=f"asset_positions.{asset_name}.szi",
+        size = self.parse_decimal_safely(
+            size_str, default=None
         )
 
         if size is not None and size >= Decimal(0):

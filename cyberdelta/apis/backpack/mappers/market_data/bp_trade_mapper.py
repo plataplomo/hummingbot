@@ -10,16 +10,15 @@ Focused on:
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_trade import (
     BackpackRawPublicTrade,
     BackpackRawPublicTradeEvent,
     BackpackRawRecentPublicTrade,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TradeMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import TradeTransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Trade
@@ -28,22 +27,21 @@ from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackTradeMapper(TradeMapperProtocol):
+class BackpackTradeMapper(CommonDataParserMixin, ValidationMixin, TradeMapperProtocol):
     """Focused mapper for Backpack trade data transformations.
 
     This class contains static methods for transforming validated Backpack Raw trade models
     into CyberDeltaEngine Internal Trade Domain Models.
     """
 
-    @staticmethod
     def _validate_trade_data(
+        self,
         price: object,
         quantity: object,
         context: str,
@@ -57,22 +55,31 @@ class BackpackTradeMapper(TradeMapperProtocol):
 
         Returns:
             tuple[object, object]: Validated price and quantity
+            
+        Raises:
+            TradeTransformationError: If price or quantity validation fails
         """
         # Type assertion: ensure price is compatible with parse_decimal_value
         if not isinstance(price, (str, float, int, type(None))):
             # Convert to string for parsing
             price = str(price) if price is not None else None
-        parsed_price = parse_decimal_value(price, allow_none=False, field_name="price")
+        parsed_price = self.parse_decimal_safely(price)
+        if parsed_price is None:
+            raise TradeTransformationError(
+                trade_source=context,
+                reason=f"Invalid price value: {price}"
+            )
 
         # Type assertion: ensure quantity is compatible with parse_decimal_value
         if not isinstance(quantity, (str, float, int, type(None))):
             # Convert to string for parsing
             quantity = str(quantity) if quantity is not None else None
-        parsed_quantity = parse_decimal_value(
-            quantity,
-            allow_none=False,
-            field_name="quantity",
-        )
+        parsed_quantity = self.parse_decimal_safely(quantity)
+        if parsed_quantity is None:
+            raise TradeTransformationError(
+                trade_source=context,
+                reason=f"Invalid quantity value: {quantity}"
+            )
 
         return parsed_price, parsed_quantity
 
@@ -91,14 +98,14 @@ class BackpackTradeMapper(TradeMapperProtocol):
         """
         try:
             # Validate trade fields
-            price, quantity = BackpackTradeMapper._validate_trade_data(
+            price, quantity = self._validate_trade_data(
                 raw_trade.price,
                 raw_trade.quantity,
                 "BackpackRawPublicTrade",
             )
 
             # Parse timestamp
-            executed_at = parse_datetime_utc(raw_trade.time, field_name="time")
+            executed_at = self.parse_timestamp(raw_trade.time)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
@@ -161,14 +168,14 @@ class BackpackTradeMapper(TradeMapperProtocol):
         """
         try:
             # Validate trade fields
-            price, quantity = BackpackTradeMapper._validate_trade_data(
+            price, quantity = self._validate_trade_data(
                 raw_trade.price,
                 raw_trade.quantity,
                 "BackpackRawRecentPublicTrade",
             )
 
             # Parse timestamp
-            executed_at = parse_datetime_utc(raw_trade.timestamp, field_name="timestamp")
+            executed_at = self.parse_timestamp(raw_trade.timestamp)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
@@ -228,7 +235,7 @@ class BackpackTradeMapper(TradeMapperProtocol):
         """
         try:
             # Validate trade fields
-            price, quantity = BackpackTradeMapper._validate_trade_data(
+            price, quantity = self._validate_trade_data(
                 raw_trade.price,
                 raw_trade.quantity,
                 "BackpackRawPublicTradeEvent",
@@ -239,7 +246,7 @@ class BackpackTradeMapper(TradeMapperProtocol):
             side = OrderSide.BUY if raw_trade.is_buyer_the_maker else OrderSide.SELL
 
             # Parse timestamp from event_time
-            executed_at = parse_datetime_utc(raw_trade.event_time, field_name="event_time")
+            executed_at = self.parse_timestamp(raw_trade.event_time)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
@@ -281,30 +288,3 @@ class BackpackTradeMapper(TradeMapperProtocol):
                 original_error=e,
             ) from e
 
-    # MapperProtocol methods
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely using BackpackCommonMappers.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert timestamp to datetime using BackpackCommonMappers.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

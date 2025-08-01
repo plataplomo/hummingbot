@@ -11,15 +11,11 @@ Focused on:
 - Trigger type mapping
 """
 
-from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import OrderTransformationError, UnknownEnumError
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TradingEnumMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
@@ -49,7 +45,11 @@ def _is_dict_str_any(value: object) -> bool:
     return isinstance(value, dict)
 
 
-class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
+class HyperliquidTradingEnumMapper(
+    CommonDataParserMixin,
+    ValidationMixin, 
+    TradingEnumMapperProtocol,
+):
     """Focused mapper for Hyperliquid trading enum transformations.
 
     Handles all enum conversions for trading operations including order side,
@@ -57,34 +57,6 @@ class HyperliquidTradingEnumMapper(TradingEnumMapperProtocol):
 
     Implements TradingEnumMapperProtocol for full protocol compliance.
     """
-
-    # Base protocol methods - delegate to HyperliquidCommonMappers
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Args:
-            value: Value to parse as decimal
-            default: Default value if parsing fails
-
-        Returns:
-            Decimal: Parsed decimal value or default
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds
-
-        Returns:
-            datetime | None: Converted datetime or None if timestamp is None
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-compliant static methods
     def map_order_side(self, raw_side: str) -> OrderSide:

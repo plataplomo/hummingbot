@@ -13,6 +13,7 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
     OrderBookTransformationError,
@@ -21,9 +22,6 @@ from cyberdelta.apis.exceptions import (
 from cyberdelta.apis.hyperliquid.mappers.utils.common_mappers import (
     map_side_to_internal,
     validate_trade_data,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawL2Book
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidRawPublicTrade
@@ -40,43 +38,28 @@ from cyberdelta.core.models import OrderBook, Trade
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
+class HyperliquidOrderBookMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    OrderBookMapperProtocol,
+    TradeMapperProtocol,
+):
     """Focused mapper for Hyperliquid order book and trade data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw order book
     and trade models into CyberDeltaEngine Internal Domain Models.
     """
 
-    # Protocol method implementations - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Returns:
-            Decimal: Parsed decimal value or default if parsing fails
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Returns:
-            datetime | None: Converted datetime object or None if timestamp is None
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
-
     # Protocol-specific methods from OrderBookMapperProtocol
-    def transform_raw_order_book_to_internal(self, raw_order_book: HyperliquidRawL2Book) -> OrderBook:
+    def transform_raw_order_book_to_internal(
+        self, raw_order_book: HyperliquidRawL2Book
+    ) -> OrderBook:
         """Transform raw order book data to internal model.
 
         Args:
@@ -112,41 +95,6 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             )
         return result
 
-    @staticmethod
-    def _ensure_trade_values_not_none(
-        price: Decimal | None,
-        quantity: Decimal | None,
-        raw_trade: object,
-    ) -> tuple[Decimal, Decimal]:
-        """Ensure trade values are not None after parsing.
-
-        Args:
-            price: Parsed price value
-            quantity: Parsed quantity value
-            raw_trade: Raw trade object for error reporting
-
-        Returns:
-            tuple[Decimal, Decimal]: Non-None price and quantity values
-
-        Raises:
-            TradeTransformationError: If values are None after parsing
-        """
-        if price is None:
-            raise TradeTransformationError(
-                trade_source=type(raw_trade).__name__,
-                reason="Price is None after parsing",
-                symbol=getattr(raw_trade, "coin", "unknown"),
-                original_error=None,
-            )
-        if quantity is None:
-            raise TradeTransformationError(
-                trade_source=type(raw_trade).__name__,
-                reason="Quantity is None after parsing",
-                symbol=getattr(raw_trade, "coin", "unknown"),
-                original_error=None,
-            )
-        return price, quantity
-
     def transform_raw_l2_book_to_internal(
         self,
         raw_book: HyperliquidRawL2Book,
@@ -176,19 +124,19 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             )
 
             # Parse bid and ask levels
-            bids = HyperliquidOrderBookMapper._parse_order_book_levels(
+            bids = self._parse_order_book_levels(
                 raw_book,
                 level_index=0,
                 depth=depth,
             )
-            asks = HyperliquidOrderBookMapper._parse_order_book_levels(
+            asks = self._parse_order_book_levels(
                 raw_book,
                 level_index=1,
                 depth=depth,
             )
 
             # Parse timestamp
-            timestamp = parse_datetime_utc(raw_book.time, field_name="time")
+            timestamp = self.parse_timestamp(raw_book.time)
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
@@ -240,8 +188,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
         else:
             return orderbook
 
-    @staticmethod
     def _parse_order_book_levels(
+        self,
         raw_book: HyperliquidRawL2Book,
         level_index: int,
         depth: int | None = None,
@@ -271,10 +219,13 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
                 if depth is not None and len(levels) >= depth:
                     break
 
-                price = parse_decimal_value(level.px, allow_none=False, field_name="px")
-                size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
-
-                levels.append((price, size))
+                try:
+                    price = self.parse_decimal_safely(level.px, default=None)
+                    size = self.parse_decimal_safely(level.sz, default=None)
+                    if price is not None and size is not None:
+                        levels.append((price, size))
+                except (ValueError, TypeError):
+                    continue  # Skip invalid levels
 
         except TransformationError:
             # Re-raise TransformationError as-is
@@ -320,18 +271,15 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             side = map_side_to_internal(raw_trade.side)
 
             # Parse price and quantity
-            price = parse_decimal_value(raw_trade.px, allow_none=False, field_name="px")
-            quantity = parse_decimal_value(raw_trade.sz, allow_none=False, field_name="sz")
+            price = self.parse_decimal_safely(raw_trade.px)
+            quantity = self.parse_decimal_safely(raw_trade.sz)
 
             # Validate trade data
             validate_trade_data(price, quantity, "HyperliquidRawPublicTrade")
 
             # Ensure trade values are not None after parsing and get validated values
-            price, quantity = HyperliquidOrderBookMapper._ensure_trade_values_not_none(
-                price,
-                quantity,
-                raw_trade,
-            )
+            price = self.ensure_decimal_not_none(price, "price", "trade_transformation")
+            quantity = self.ensure_decimal_not_none(quantity, "quantity", "trade_transformation")
 
             # Check for zero or negative values - return None for invalid trades
             # Also filter out extremely small quantities that are not meaningful for trading
@@ -347,7 +295,7 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
                 return None
 
             # Parse timestamp
-            executed_at = parse_datetime_utc(raw_trade.time, field_name="time")
+            executed_at = self.parse_timestamp(raw_trade.time)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
@@ -449,8 +397,8 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             side = map_side_to_internal(raw.side)
 
             # Parse price and quantity
-            price = parse_decimal_value(raw.px, allow_none=False, field_name="px")
-            quantity = parse_decimal_value(raw.sz, allow_none=False, field_name="sz")
+            price = self.parse_decimal_safely(raw.px)
+            quantity = self.parse_decimal_safely(raw.sz)
 
             # Validate trade data
             validate_trade_data(price, quantity, "HyperliquidRawWsTradeEvent")
@@ -550,19 +498,21 @@ class HyperliquidOrderBookMapper(OrderBookMapperProtocol, TradeMapperProtocol):
             bids: list[tuple[Decimal, Decimal]] = []
             if raw.levels and len(raw.levels) > 0:
                 for level in raw.levels[0]:
-                    price = parse_decimal_value(level.px, allow_none=False, field_name="px")
-                    size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
-
-                    bids.append((price, size))
+                    price = self.parse_decimal_safely(level.px)
+                    size = self.parse_decimal_safely(level.sz)
+                    
+                    if price is not None and size is not None:
+                        bids.append((price, size))
 
             # Parse ask levels (levels[1])
             asks: list[tuple[Decimal, Decimal]] = []
             if raw.levels and len(raw.levels) > 1:
                 for level in raw.levels[1]:
-                    price = parse_decimal_value(level.px, allow_none=False, field_name="px")
-                    size = parse_decimal_value(level.sz, allow_none=False, field_name="sz")
-
-                    asks.append((price, size))
+                    price = self.parse_decimal_safely(level.px)
+                    size = self.parse_decimal_safely(level.sz)
+                    
+                    if price is not None and size is not None:
+                        asks.append((price, size))
 
             # Parse timestamp (convert from milliseconds)
             timestamp = datetime.fromtimestamp(raw.time / 1000, tz=UTC)

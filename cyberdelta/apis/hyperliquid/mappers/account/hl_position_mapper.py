@@ -14,13 +14,15 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.apis.base.protocols.mapper_protocols import (
+    CommonDataParserMixin,
+    PositionMapperMixin,
+    ValidationMixin,
+)
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import (
     DataTransformationError,
     MissingRequiredFieldError,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawAssetPosition,
@@ -36,47 +38,23 @@ from cyberdelta.core.models import DerivativePosition, HyperliquidPositionDetail
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidPositionMapper(PositionMapperProtocol):
+class HyperliquidPositionMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    PositionMapperMixin,
+    PositionMapperProtocol,
+):
     """Focused mapper for Hyperliquid position data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw position models
     into CyberDeltaEngine Internal DerivativePosition Domain Models.
     """
-
-    # Protocol method implementations (delegated to common utilities)
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Args:
-            value: Value to parse as Decimal
-            default: Default value if parsing fails
-
-        Returns:
-            Decimal: Parsed decimal value or default
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds
-
-        Returns:
-            datetime | None: Converted datetime or None if input is None
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods
     def transform_raw_position_to_internal_static(
@@ -94,8 +72,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         # Convert dict to validated model
         validated_position = HyperliquidRawAssetPosition.model_validate(raw_position)
 
-        # Use static method for the actual transformation
-        return HyperliquidPositionMapper.transform_raw_asset_position_to_internal(
+        # Use instance method for the actual transformation
+        return self.transform_raw_asset_position_to_internal(
             validated_position,
         )
 
@@ -156,28 +134,6 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             )
         return size
 
-    @staticmethod
-    def _ensure_position_size_not_none(size: Decimal | None, position_info: object) -> Decimal:
-        """Ensure position size is not None after parsing.
-
-        Args:
-            size: Size value to validate
-            position_info: Position info for context
-
-        Returns:
-            Decimal: The validated non-None size value
-
-        Raises:
-            MissingRequiredFieldError: If size is None
-        """
-        if size is None:
-            raise MissingRequiredFieldError(
-                field_names="position_size",
-                context="position_transformation",
-                source_data=getattr(position_info, "__dict__", {}) if position_info else None,
-            )
-        return size
-
     def transform_raw_clearinghouse_state_to_derivative_positions(
         self,
         clearinghouse_data: HyperliquidRawClearinghouseState,
@@ -217,7 +173,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             # asset_positions is a required field in HyperliquidRawClearinghouseState
             if clearinghouse_data.asset_positions:
                 for position_data in clearinghouse_data.asset_positions:
-                    HyperliquidPositionMapper._process_single_derivative_position(
+                    self._process_single_derivative_position(
                         position_data,
                         positions,
                     )
@@ -250,8 +206,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         else:
             return positions
 
-    @staticmethod
     def _process_single_derivative_position(
+        self,
         position_data: HyperliquidRawAssetPosition,
         positions: dict[str, DerivativePosition],
     ) -> None:
@@ -281,7 +237,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         )
 
         # Parse and validate position data
-        size, entry_price = HyperliquidPositionMapper._parse_position_core_data(pos, symbol)
+        size, entry_price = self._parse_position_core_data(pos, symbol)
 
         if size is None:
             logger.debug(
@@ -300,7 +256,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             entry_price = None
 
         # Create the derivative position
-        position = HyperliquidPositionMapper._create_derivative_position(
+        position = self._create_derivative_position(
             pos,
             symbol,
             size,
@@ -316,8 +272,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             message="Successfully processed single derivative position",
         )
 
-    @staticmethod
     def _parse_position_core_data(
+        self,
         pos: HyperliquidRawPositionInfo,
         symbol: str,
     ) -> tuple[Decimal | None, Decimal | None]:
@@ -334,10 +290,9 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         """
         # Parse position size
         size_str = getattr(pos, "szi", "0")
-        size = parse_decimal_value(
+        size = self.parse_decimal_safely(
             size_str,
-            allow_none=False,
-            field_name="position.szi",
+            default=None,
         )
 
         # Parse entry price
@@ -345,10 +300,9 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         entry_price = None
         if entry_price_str and entry_price_str != "0":
             try:
-                entry_price = parse_decimal_value(
+                entry_price = self.parse_decimal_safely(
                     entry_price_str,
-                    allow_none=True,
-                    field_name="position.entry_px",
+                    default=None,
                 )
             except (ValueError, TypeError) as e:
                 logger.warning(
@@ -361,8 +315,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
 
         return size, entry_price
 
-    @staticmethod
     def _create_derivative_position(
+        self,
         pos: HyperliquidRawPositionInfo,
         symbol: str,
         size: Decimal,
@@ -382,20 +336,18 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             DerivativePosition: The constructed position model
         """
         # Parse unrealized PnL
-        unrealized_pnl = parse_decimal_value(
+        unrealized_pnl = self.parse_decimal_safely(
             pos.unrealized_pnl or "0",
-            allow_none=True,
-            field_name="position.unrealized_pnl",
+            default=None,
         )
 
         # Create HL-specific details
-        details = HyperliquidPositionMapper._create_position_details(pos)
+        details = self._create_position_details(pos)
 
         # Parse liquidation price
-        liquidation_price = parse_decimal_value(
+        liquidation_price = self.parse_decimal_safely(
             pos.liquidation_px,
-            allow_none=True,
-            field_name="position.liquidation_px",
+            default=None,
         )
 
         # Determine side based on position size
@@ -433,8 +385,9 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             source_exchange="hyperliquid",
         )
 
-    @staticmethod
-    def _create_position_details(pos: HyperliquidRawPositionInfo) -> HyperliquidPositionDetails:
+    def _create_position_details(
+        self, pos: HyperliquidRawPositionInfo
+    ) -> HyperliquidPositionDetails:
         """Create HyperliquidPositionDetails from position data.
 
         Extracts leverage and margin information to create position details.
@@ -447,10 +400,9 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
         """
         leverage_obj = pos.leverage
         max_leverage = pos.max_leverage or 1
-        margin_used = parse_decimal_value(
+        margin_used = self.parse_decimal_safely(
             pos.margin_used,
-            allow_none=True,
-            field_name="position.margin_used",
+            default=None,
         )
 
         # Extract leverage value from HyperliquidRawLeverage object
@@ -467,8 +419,8 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             margin_used=margin_used,
         )
 
-    @staticmethod
     def transform_raw_asset_position_to_internal(
+        self,
         raw_asset_position: HyperliquidRawAssetPosition,
     ) -> DerivativePosition:
         """Transform a HyperliquidRawAssetPosition to an Internal DerivativePosition model.
@@ -503,7 +455,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             )
 
         # Parse and validate position data
-        size, entry_price = HyperliquidPositionMapper._parse_position_core_data(pos, symbol)
+        size, entry_price = self._parse_position_core_data(pos, symbol)
 
         if size is None:
             raise DataTransformationError(
@@ -521,15 +473,15 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             entry_price = None
 
         # Create the derivative position
-        return HyperliquidPositionMapper._create_derivative_position(
+        return self._create_derivative_position(
             pos,
             symbol,
             size,
             entry_price,
         )
 
-    @staticmethod
     def _transform_raw_position_to_internal_impl(
+        self,
         position_info: dict[str, Any] | object,
         symbol: str,
         timestamp: datetime,
@@ -559,7 +511,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
 
             # Parse position size
             size_str = getattr(position_info, "szi", "0")
-            size = parse_decimal_value(size_str, allow_none=False, field_name="position.szi")
+            size = self.parse_decimal_safely(size_str)
 
             # Validate position size
             HyperliquidPositionMapper._validate_position_size(size, "position transformation")
@@ -569,11 +521,7 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             entry_price = None
             if entry_price_str and entry_price_str != "0":
                 try:
-                    entry_price = parse_decimal_value(
-                        entry_price_str,
-                        allow_none=True,
-                        field_name="position.entry_px",
-                    )
+                    entry_price = self.parse_decimal_safely(entry_price_str)
                 except (ValueError, TypeError) as e:
                     logger.warning(
                         "entry_price_parse_failed",
@@ -591,19 +539,15 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
                 entry_price = None
 
             # Parse unrealized PnL
-            unrealized_pnl = parse_decimal_value(
-                getattr(position_info, "unrealized_pnl", "0"),
-                allow_none=True,
-                field_name="position.unrealized_pnl",
+            unrealized_pnl = self.parse_decimal_safely(
+                getattr(position_info, "unrealized_pnl", "0")
             )
 
             # Create HL-specific details
             leverage_obj = getattr(position_info, "leverage", None)
             max_leverage = getattr(position_info, "max_leverage", 1)
-            margin_used = parse_decimal_value(
-                getattr(position_info, "margin_used", "0"),
-                allow_none=True,
-                field_name="position.margin_used",
+            margin_used = self.parse_decimal_safely(
+                getattr(position_info, "margin_used", "0")
             )
 
             # Extract leverage value from HyperliquidRawLeverage object
@@ -621,15 +565,12 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             )
 
             # Parse liquidation price
-            liquidation_price = parse_decimal_value(
-                getattr(position_info, "liquidation_px", None),
-                allow_none=True,
-                field_name="position.liquidation_px",
-            )
+            liquidation_price = self.parse_decimal_safely(
+                getattr(position_info, "liquidation_px", None), default=None)
 
             # Determine side based on position size
             # Ensure position size is not None after parsing and get validated value
-            size = HyperliquidPositionMapper._ensure_position_size_not_none(size, position_info)
+            size = self.ensure_decimal_not_none(size, "position_size", "position_transformation")
 
             if size > Decimal(0):
                 side = OrderSide.BUY
@@ -726,12 +667,12 @@ class HyperliquidPositionMapper(PositionMapperProtocol):
             # Extract position info from the WebSocket event
             position_info = raw_position_update.position
             symbol = raw_position_update.asset
-            timestamp = parse_datetime_utc(str(raw_position_update.time), field_name="time")
+            timestamp = self.parse_timestamp(str(raw_position_update.time))
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
             # Use the existing position transformation logic
-            position = HyperliquidPositionMapper._transform_raw_position_to_internal_impl(
+            position = self._transform_raw_position_to_internal_impl(
                 position_info,
                 symbol,
                 timestamp,

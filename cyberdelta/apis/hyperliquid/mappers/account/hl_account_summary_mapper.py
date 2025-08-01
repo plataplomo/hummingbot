@@ -14,15 +14,13 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import (
     DataTransformationError,
     MissingRequiredFieldError,
 )
 from cyberdelta.apis.hyperliquid.mappers.account.hl_position_mapper import (
     HyperliquidPositionMapper,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
@@ -40,47 +38,22 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDetails
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
+class HyperliquidAccountSummaryMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    AccountSummaryMapperProtocol,
+):
     """Focused mapper for Hyperliquid account summary and settings data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw account models
     into CyberDeltaEngine Internal Domain Models for account summaries and settings.
     """
-
-    # Protocol method implementations - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Args:
-            value: Value to parse as Decimal
-            default: Default value if parsing fails
-
-        Returns:
-            Decimal: Parsed decimal value or default
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds
-
-        Returns:
-            datetime | None: Converted datetime or None if input is None
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific method from AccountSummaryMapperProtocol
     def transform_raw_summary_to_internal(
@@ -100,8 +73,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             raw_summary,
         )
 
-    @staticmethod
     def _validate_margin_summary_data(
+        self,
         margin_summary: object,
         context: str,
     ) -> HyperliquidRawMarginSummary:
@@ -131,8 +104,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
         return margin_summary
 
-    @staticmethod
     def _validate_required_margin_fields(
+        self,
         account_value: object,
         total_margin_used: object,
         context: str,
@@ -161,8 +134,8 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
 
         return account_value, total_margin_used
 
-    @staticmethod
     def _validate_maintenance_margin_fields(
+        self,
         cross_mmr: object,
         withdrawable: object,
         context: str,
@@ -190,29 +163,6 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             raise MissingRequiredFieldError(missing_fields, context)
 
         return cross_mmr, withdrawable
-
-    @staticmethod
-    def _ensure_cross_mmr_not_none(cross_mmr: Decimal | None, source_data: object) -> Decimal:
-        """Ensure cross maintenance margin is not None after parsing.
-
-        Args:
-            cross_mmr: Parsed cross maintenance margin
-            source_data: Source data for error context
-
-        Returns:
-            Decimal: The validated non-None cross_mmr
-
-        Raises:
-            DataTransformationError: If cross_mmr is None
-        """
-        if cross_mmr is None:
-            raise DataTransformationError(
-                source_model="cross_maintenance_margin_used",
-                target_model="Decimal",
-                reason="cross_mmr should not be None after parsing with allow_none=False",
-                source_data=source_data,
-            )
-        return cross_mmr
 
     def transform_raw_clearinghouse_state_to_margin_summary(
         self,
@@ -245,57 +195,48 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             margin_summary = getattr(clearinghouse_data, "margin_summary", None)
 
             # Validate margin summary data
-            margin_summary = HyperliquidAccountSummaryMapper._validate_margin_summary_data(
+            margin_summary = self._validate_margin_summary_data(
                 margin_summary,
                 "clearinghouse state",
             )
 
             # Parse core margin fields
-            account_value = parse_decimal_value(
-                margin_summary.account_value,
-                allow_none=False,
-                field_name="marginSummary.account_value",
+            account_value = self.parse_decimal_safely(
+                margin_summary.account_value
             )
 
-            total_margin_used = parse_decimal_value(
-                margin_summary.total_margin_used,
-                allow_none=False,
-                field_name="marginSummary.total_margin_used",
+            total_margin_used = self.parse_decimal_safely(
+                margin_summary.total_margin_used
             )
 
             # Parse additional fields for completeness
-            total_ntl_pos = parse_decimal_value(
-                margin_summary.total_ntl_pos,
-                allow_none=True,
-                field_name="marginSummary.total_ntl_pos",
+            total_ntl_pos = self.parse_decimal_safely(
+                margin_summary.total_ntl_pos
             )
 
             # Validate required margin fields
-            HyperliquidAccountSummaryMapper._validate_required_margin_fields(
+            self._validate_required_margin_fields(
                 account_value,
                 total_margin_used,
                 "margin summary",
             )
 
             # Parse maintenance margin fields from the clearinghouse state
-            cross_mmr = parse_decimal_value(
-                clearinghouse_data.cross_maintenance_margin_used,
-                allow_none=False,
-                field_name="cross_maintenance_margin_used",
+            cross_mmr = self.parse_decimal_safely(
+                clearinghouse_data.cross_maintenance_margin_used
             )
             # Parse isolated maintenance margin (optional field)
-            isolated_mmr = parse_decimal_value(
-                clearinghouse_data.isolated_maintenance_margin_used,
-                allow_none=True,
-                field_name="isolated_maintenance_margin_used",
+            isolated_mmr = self.parse_decimal_safely(
+                clearinghouse_data.isolated_maintenance_margin_used
             )
 
             # Calculate total maintenance margin
             # If isolated margin is not provided, use only cross margin
             # Ensure cross_mmr is not None after parsing and get validated value
-            cross_mmr = HyperliquidAccountSummaryMapper._ensure_cross_mmr_not_none(
+            cross_mmr = self.ensure_decimal_not_none(
                 cross_mmr,
-                clearinghouse_data.cross_maintenance_margin_used,
+                "cross_maintenance_margin_used",
+                "margin_account_summary",
             )
 
             total_maintenance_margin = cross_mmr + (
@@ -303,14 +244,12 @@ class HyperliquidAccountSummaryMapper(AccountSummaryMapperProtocol):
             )
 
             # Calculate available margin (withdrawable from raw state)
-            withdrawable = parse_decimal_value(
-                clearinghouse_data.withdrawable,
-                allow_none=False,
-                field_name="withdrawable",
+            withdrawable = self.parse_decimal_safely(
+                clearinghouse_data.withdrawable
             )
 
             # Validate maintenance margin fields
-            HyperliquidAccountSummaryMapper._validate_maintenance_margin_fields(
+            self._validate_maintenance_margin_fields(
                 cross_mmr,
                 withdrawable,
                 "margin summary",

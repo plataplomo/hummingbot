@@ -16,12 +16,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions import OrderError
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
-)
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusFilled,
     HyperliquidRawExchangeStatusResting,
@@ -39,33 +37,16 @@ from cyberdelta.enums.exchange_names import ExchangeName
 logger = get_logger(__name__)
 
 
-class HyperliquidOrderResponseMapper(OrderResponseMapperProtocol):
+class HyperliquidOrderResponseMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    OrderResponseMapperProtocol,
+):
     """Focused mapper for Hyperliquid order response transformations.
 
     Handles transformations of order placement responses and status updates
     from Hyperliquid into the internal Order model.
     """
-
-    # Protocol method implementations - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Returns:
-            Decimal: Parsed decimal value or default if parsing fails.
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Returns:
-            datetime | None: UTC datetime object or None if timestamp is None.
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     async def map_place_order_response_to_order(
         self,

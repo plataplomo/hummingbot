@@ -14,9 +14,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TransferMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
     InvalidMappingError,
@@ -27,7 +27,6 @@ from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStat
 from cyberdelta.core.models import BackpackTransferDetails, BackpackWithdrawalDetails
 from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -39,7 +38,7 @@ type RawJsonResponse = ParsedJsonResponse
 logger = get_logger(__name__)
 
 
-class BackpackTransferMapper(TransferMapperProtocol):
+class BackpackTransferMapper(CommonDataParserMixin, ValidationMixin, TransferMapperProtocol):
     """Focused mapper for Backpack transfer and withdrawal data transformations.
 
     This class contains static methods for transforming validated Backpack Raw transfer models
@@ -223,7 +222,7 @@ class BackpackTransferMapper(TransferMapperProtocol):
             if timestamp_ms_str and isinstance(timestamp_ms_str, str | int):
                 try:
                     timestamp_ms = int(timestamp_ms_str)
-                    parsed_timestamp = BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
+                    parsed_timestamp = self.timestamp_ms_to_datetime(timestamp_ms)
                     timestamp = parsed_timestamp or datetime.now(UTC)
                 except ValueError:
                     logger.warning(
@@ -348,7 +347,7 @@ class BackpackTransferMapper(TransferMapperProtocol):
             timestamp_value: datetime
             if timestamp_str:
                 try:
-                    parsed_dt = parse_datetime_utc(timestamp_str, field_name="created_at")
+                    parsed_dt = self.parse_timestamp(timestamp_str)
                     timestamp_value = datetime.now(UTC) if parsed_dt is None else parsed_dt
                 except ValueError:
                     logger.warning(
@@ -362,7 +361,7 @@ class BackpackTransferMapper(TransferMapperProtocol):
                 timestamp_value = datetime.now(UTC)
 
             # Parse fee
-            fee = parse_decimal_value(fee_str, allow_none=True, field_name="fee")
+            fee = self.parse_decimal_safely(fee_str, default=None)
 
             # Create BP-specific details
             bp_details = BackpackWithdrawalDetails(
@@ -370,10 +369,9 @@ class BackpackTransferMapper(TransferMapperProtocol):
                 is_internal=raw_response.is_internal,
                 client_id=client_withdrawal_id or raw_response.client_id,
                 identifier=raw_response.identifier,
-                fiat_fee=parse_decimal_value(
+                fiat_fee=self.parse_decimal_safely(
                     raw_response.fiat_fee,
-                    allow_none=True,
-                    field_name="fiat_fee",
+                    default=None,
                 )
                 if raw_response.fiat_fee is not None
                 else None,
@@ -443,30 +441,3 @@ class BackpackTransferMapper(TransferMapperProtocol):
         else:
             return withdrawal
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

@@ -28,8 +28,8 @@ class MapperProtocol(Protocol):
     """
 
     def parse_decimal_safely(
-        self, value: str | float | Decimal | None, default: Decimal = Decimal(0)
-    ) -> Decimal:
+        self, value: str | float | Decimal | None, default: Decimal | None = Decimal(0)
+    ) -> Decimal | None:
         """Safely parse decimal values with fallback.
 
         Args:

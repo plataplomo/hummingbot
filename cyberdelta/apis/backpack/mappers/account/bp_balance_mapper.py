@@ -10,81 +10,40 @@ Focused on:
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollateralAsset
 from cyberdelta.apis.backpack.protocols.mapper_protocols import BalanceMapperProtocol
-from cyberdelta.apis.base.protocols.mapper_protocols import BalanceMapperMixin
+from cyberdelta.apis.base.protocols.mapper_protocols import (
+    BalanceMapperMixin,
+    CommonDataParserMixin,
+    ValidationMixin,
+)
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
-    MissingRequiredFieldError,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import BackpackSpotBalanceDetails, SpotBalance
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
+class BackpackBalanceMapper(
+    CommonDataParserMixin,
+    ValidationMixin,
+    BalanceMapperMixin,
+    BalanceMapperProtocol,
+):
     """Focused mapper for Backpack balance data transformations.
 
     This class contains static methods for transforming validated Backpack Raw balance models
     into CyberDeltaEngine Internal SpotBalance Domain Models.
     """
-
-    @staticmethod
-    def _ensure_balance_values_not_none(total: Decimal | None, available: Decimal | None) -> None:
-        """Ensure balance values are not None.
-
-        Args:
-            total: Total balance value
-            available: Available balance value
-
-        Raises:
-            MissingRequiredFieldError: If any value is None
-        """
-        if total is None:
-            raise MissingRequiredFieldError(
-                field_names="total_balance",
-                context="balance_validation",
-            )
-        if available is None:
-            raise MissingRequiredFieldError(
-                field_names="available_balance",
-                context="balance_validation",
-            )
-
-    @staticmethod
-    def _ensure_balance_field_not_none(
-        field_value: Decimal | None,
-        field_name: str,
-    ) -> Decimal:
-        """Ensure a balance field is not None and return typed value.
-
-        Args:
-            field_value: The field value to check
-            field_name: The name of the field for error reporting
-
-        Returns:
-            Decimal: The validated field value
-
-        Raises:
-            MissingRequiredFieldError: If field_value is None
-        """
-        if field_value is None:
-            raise MissingRequiredFieldError(
-                field_names=field_name,
-                context="balance_field_validation",
-            )
-        return field_value
 
     def transform_balance_data_to_spot_balance(
         self,
@@ -115,14 +74,13 @@ class BackpackBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             )
 
             # Parse balances
-            total = parse_decimal_value(total_balance, allow_none=False, field_name="total_balance")
-            available = parse_decimal_value(
-                available_balance,
-                allow_none=False,
-                field_name="available_balance",
-            )
+            total = self.parse_decimal_safely(total_balance)
+            available = self.parse_decimal_safely(available_balance)
 
-            BackpackBalanceMapper._ensure_balance_values_not_none(total, available)
+            total = self.ensure_decimal_not_none(total, "total_balance", "balance_validation")
+            available = self.ensure_decimal_not_none(
+                available, "available_balance", "balance_validation"
+            )
 
             # Create BP-specific details
             details = BackpackSpotBalanceDetails()
@@ -205,33 +163,24 @@ class BackpackBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             )
 
             # Defensive parsing of numeric strings
-            parsed_available = parse_decimal_value(
-                raw.available,
-                allow_none=False,
-                field_name=f"{asset_symbol.value}_available",
-            )
-            parsed_locked = parse_decimal_value(
-                raw.locked,
-                allow_none=False,
-                field_name=f"{asset_symbol.value}_locked",
-            )
-            parsed_staked = parse_decimal_value(
-                raw.staked,
-                allow_none=False,
-                field_name=f"{asset_symbol.value}_staked",
-            )
+            parsed_available = self.parse_decimal_safely(raw.available)
+            parsed_locked = self.parse_decimal_safely(raw.locked)
+            parsed_staked = self.parse_decimal_safely(raw.staked)
 
-            available_typed = BackpackBalanceMapper._ensure_balance_field_not_none(
+            available_typed = self.ensure_decimal_not_none(
                 parsed_available,
                 "available",
+                "balance_field_validation",
             )
-            locked_typed = BackpackBalanceMapper._ensure_balance_field_not_none(
+            locked_typed = self.ensure_decimal_not_none(
                 parsed_locked,
                 "locked",
+                "balance_field_validation",
             )
-            staked_typed = BackpackBalanceMapper._ensure_balance_field_not_none(
+            staked_typed = self.ensure_decimal_not_none(
                 parsed_staked,
                 "staked",
+                "balance_field_validation",
             )
 
             # Calculate total balance
@@ -324,35 +273,24 @@ class BackpackBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
             )
 
             # Parse quantities from collateral data
-            total = parse_decimal_value(
-                collateral_data.total_quantity,
-                allow_none=False,
-                field_name="total_quantity",
-            )
-            available = parse_decimal_value(
-                collateral_data.available_quantity,
-                allow_none=False,
-                field_name="available_quantity",
-            )
+            total = self.parse_decimal_safely(collateral_data.total_quantity)
+            available = self.parse_decimal_safely(collateral_data.available_quantity)
 
-            BackpackBalanceMapper._ensure_balance_values_not_none(total, available)
+            total = self.ensure_decimal_not_none(total, "total_balance", "balance_validation")
+            available = self.ensure_decimal_not_none(
+                available, "available_balance", "balance_validation"
+            )
 
             # Create BP-specific details from collateral data
             details = BackpackSpotBalanceDetails(
-                open_order_quantity=parse_decimal_value(
-                    collateral_data.open_order_quantity,
-                    allow_none=True,
-                    field_name="open_order_quantity",
+                open_order_quantity=self.parse_decimal_safely(
+                    collateral_data.open_order_quantity, default=None
                 ),
-                lend_quantity=parse_decimal_value(
-                    collateral_data.lend_quantity,
-                    allow_none=True,
-                    field_name="lend_quantity",
+                lend_quantity=self.parse_decimal_safely(
+                    collateral_data.lend_quantity, default=None
                 ),
-                collateral_weight=parse_decimal_value(
-                    collateral_data.collateral_weight,
-                    allow_none=True,
-                    field_name="collateral_weight",
+                collateral_weight=self.parse_decimal_safely(
+                    collateral_data.collateral_weight, default=None
                 ),
             )
 
@@ -402,30 +340,3 @@ class BackpackBalanceMapper(BalanceMapperProtocol, BalanceMapperMixin):
         else:
             return spot_balance
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

@@ -15,16 +15,16 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
+from cyberdelta.apis.backpack.mappers.utils.backpack_enum_mappers import BackpackEnumMappers
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.backpack.protocols.mapper_protocols import TransactionMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
     MissingRequiredFieldError,
     OrderTransformationError,
-    UnknownEnumError,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
@@ -38,105 +38,22 @@ from cyberdelta.core.models import BackpackOrderDetails, Order, Trade
 from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import (
-    OrderSide,
     OrderType,
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackTransactionMapper(TransactionMapperProtocol):
+class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, TransactionMapperProtocol):
     """Focused mapper for Backpack transaction data transformations.
 
     This class contains static methods for transforming validated Backpack Raw transaction models
     into CyberDeltaEngine Internal Domain Models for orders and trades.
     """
-
-    @staticmethod
-    def _ensure_trade_values_not_none(
-        price: Decimal | None,
-        quantity: Decimal | None,
-    ) -> tuple[Decimal, Decimal]:
-        """Ensure trade price and quantity are not None after parsing.
-
-        Args:
-            price: Price value to validate
-            quantity: Quantity value to validate
-
-        Returns:
-            tuple[Decimal, Decimal]: The validated non-None values for type narrowing
-
-        Raises:
-            MissingRequiredFieldError: If either value is None
-        """
-        if price is None or quantity is None:
-            raise MissingRequiredFieldError(
-                field_names=["price", "quantity"],
-                context="trade",
-            )
-        return price, quantity
-
-    @staticmethod
-    def _ensure_public_trade_fields_not_none(
-        price_dec: Decimal | None,
-        quantity_dec: Decimal | None,
-        timestamp: datetime | None,
-    ) -> None:
-        """Ensure public trade required fields are not None after parsing.
-
-        Args:
-            price_dec: Price value to validate
-            quantity_dec: Quantity value to validate
-            timestamp: Timestamp to validate
-
-        Raises:
-            MissingRequiredFieldError: If any required field is None
-        """
-        if price_dec is None:
-            raise MissingRequiredFieldError(
-                field_names="price",
-                context="BackpackRawPublicTrade",
-            )
-        if quantity_dec is None:
-            raise MissingRequiredFieldError(
-                field_names="quantity",
-                context="BackpackRawPublicTrade",
-            )
-        if timestamp is None:
-            raise MissingRequiredFieldError(
-                field_names="time",
-                context="BackpackRawPublicTrade",
-            )
-
-    @staticmethod
-    def _map_side_to_internal(bp_side: str) -> OrderSide:
-        """Map a Backpack order side string to internal OrderSide enum.
-
-        Args:
-            bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
-
-        Returns:
-            OrderSide: Mapped internal enum value
-
-        Raises:
-            UnknownEnumError: If side cannot be mapped
-        """
-        side_lower = bp_side.lower() if bp_side else ""
-        if side_lower in {"buy", "bid"}:
-            return OrderSide.BUY
-        if side_lower in {"sell", "ask"}:
-            return OrderSide.SELL
-
-        raise UnknownEnumError(
-            enum_type="Backpack order side",
-            value=bp_side,
-            valid_values=["buy", "sell", "bid", "ask", "Buy", "Sell", "Bid", "Ask"],
-        )
 
     @staticmethod
     def _map_status_to_internal(bp_status: str) -> OrderStatus:
@@ -335,8 +252,9 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         }
         return origin_mapping.get(origin_str, OrderUpdateOrigin.UNKNOWN)
 
-    @staticmethod
-    def _parse_required_order_fields(raw: BackpackRawOrderResponse) -> tuple[Decimal, datetime]:
+    def _parse_required_order_fields(
+        self, raw: BackpackRawOrderResponse
+    ) -> tuple[Decimal, datetime]:
         """Parse and validate required order fields.
 
         Args:
@@ -349,9 +267,15 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         Raises:
             MissingRequiredFieldError: If parsing fails
         """
-        parsed_quantity = parse_decimal_value(raw.quantity, allow_none=False)
+        parsed_quantity = self.parse_decimal_safely(raw.quantity)
+        if parsed_quantity is None:
+            raise MissingRequiredFieldError(
+                field_names="quantity",
+                context="BackpackRawOrderResponse",
+                source_data=raw.model_dump() if raw else None,
+            )
 
-        parsed_created_at = parse_datetime_utc(raw.createdAt)
+        parsed_created_at = self.parse_timestamp(raw.createdAt)
         if parsed_created_at is None:
             raise MissingRequiredFieldError(
                 field_names="createdAt",
@@ -361,8 +285,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
 
         return parsed_quantity, parsed_created_at
 
-    @staticmethod
-    def _parse_optional_order_fields(raw: BackpackRawOrderResponse) -> dict[str, Any]:
+    def _parse_optional_order_fields(self, raw: BackpackRawOrderResponse) -> dict[str, Any]:
         """Parse optional order fields.
 
         Args:
@@ -371,23 +294,26 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         Returns:
             dict[str, Any]: Dictionary with parsed optional order field values
         """
-        quantity_filled = parse_decimal_value(raw.executedQuantity) or Decimal("0.0")
+        quantity_filled = self.parse_decimal_safely(raw.executedQuantity, default=Decimal("0.0"))
 
         # Calculate average fill price if not provided but order has fills
-        avg_fill_price = parse_decimal_value(raw.avgFillPrice)
-        if avg_fill_price is None and quantity_filled > 0 and raw.executedQuoteQuantity:
-            executed_quote = parse_decimal_value(raw.executedQuoteQuantity, allow_none=True)
+        avg_fill_price = self.parse_decimal_safely(raw.avgFillPrice, default=None)
+        if (
+            avg_fill_price is None 
+            and quantity_filled and quantity_filled > 0 
+            and raw.executedQuoteQuantity
+        ):
+            executed_quote = self.parse_decimal_safely(raw.executedQuoteQuantity, default=None)
             if executed_quote is not None and executed_quote > 0:
                 avg_fill_price = executed_quote / quantity_filled
 
         return {
             "quantity_filled": quantity_filled,
-            "price": parse_decimal_value(raw.price),
-            "stop_price": parse_decimal_value(raw.triggerPrice),
+            "price": self.parse_decimal_safely(raw.price, default=None),
+            "stop_price": self.parse_decimal_safely(raw.triggerPrice, default=None),
             "avg_fill_price": avg_fill_price,
-            "executed_quote_quantity": parse_decimal_value(
-                raw.executedQuoteQuantity,
-                allow_none=True,
+            "executed_quote_quantity": self.parse_decimal_safely(
+                raw.executedQuoteQuantity, default=None
             ),
         }
 
@@ -418,20 +344,15 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             )
 
             # Map side
-            side = BackpackTransactionMapper._map_side_to_internal(raw_fill.side)
+            side = BackpackEnumMappers.map_side_to_internal(raw_fill.side, "standard")
 
             # Parse price and quantity
-            price = parse_decimal_value(raw_fill.price, allow_none=False, field_name="price")
-            quantity = parse_decimal_value(
-                raw_fill.quantity,
-                allow_none=False,
-                field_name="quantity",
-            )
+            price = self.parse_decimal_safely(raw_fill.price)
+            quantity = self.parse_decimal_safely(raw_fill.quantity)
 
-            price_typed, quantity_typed = BackpackTransactionMapper._ensure_trade_values_not_none(
-                price,
-                quantity,
-            )
+            # Ensure values are not None
+            price_typed = self.ensure_decimal_not_none(price, "price", "trade")
+            quantity_typed = self.ensure_decimal_not_none(quantity, "quantity", "trade")
 
             # Check if price or quantity is zero - Trade model requires positive values
             if price_typed <= Decimal(0) or quantity_typed <= Decimal(0):
@@ -446,12 +367,12 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 return None
 
             # Parse timestamp
-            executed_at = parse_datetime_utc(raw_fill.timestamp, field_name="timestamp")
+            executed_at = self.parse_timestamp(raw_fill.timestamp)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
             # Parse fee
-            fee = parse_decimal_value(raw_fill.fee, allow_none=True, field_name="fee") or Decimal(0)
+            fee = self.parse_decimal_safely(raw_fill.fee, default=Decimal(0))
 
             # Create BP-specific details
             details = BackpackTradeDetails(
@@ -548,11 +469,11 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
 
             # Parse required fields
             parsed_quantity, parsed_created_at = (
-                BackpackTransactionMapper._parse_required_order_fields(raw)
-            )
+            self._parse_required_order_fields(raw)
+        )
 
             # Parse optional fields
-            optional_fields = BackpackTransactionMapper._parse_optional_order_fields(raw)
+            optional_fields = self._parse_optional_order_fields(raw)
 
             # Create BackpackOrderDetails with mapped enums
             bp_details = BackpackOrderDetails(
@@ -568,10 +489,10 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
             trigger_by_result = BackpackTransactionMapper._map_trigger_by_to_internal(raw.triggerBy)
             trigger_by_value = trigger_by_result.value if trigger_by_result is not None else None
 
-            updated_dt = parse_datetime_utc(raw.updatedAt) if raw.updatedAt else None
+            updated_dt = self.parse_timestamp(raw.updatedAt) if raw.updatedAt else None
             updated_at_value = updated_dt.isoformat() if updated_dt is not None else None
 
-            triggered_dt = parse_datetime_utc(raw.triggeredAt) if raw.triggeredAt else None
+            triggered_dt = self.parse_timestamp(raw.triggeredAt) if raw.triggeredAt else None
             triggered_at_value = triggered_dt.isoformat() if triggered_dt is not None else None
 
             # Use secure_transform for type-safe model creation
@@ -581,7 +502,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 "related_order_id": raw.relatedOrderId,
                 "exchange": ExchangeName.BACKPACK.value,
                 "symbol": exchanges.backpack(value=raw.symbol),  # Domain object!
-                "side": BackpackTransactionMapper._map_side_to_internal(raw.side).value,
+                "side": BackpackEnumMappers.map_side_to_internal(raw.side, "standard").value,
                 "order_type": BackpackTransactionMapper._map_type_to_internal(raw.orderType).value,
                 "status": BackpackTransactionMapper._map_status_to_internal(raw.status).value,
                 "quantity_requested": str(parsed_quantity),
@@ -623,7 +544,7 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 order_id=raw.id,
                 client_order_id=raw.clientId,
                 symbol=raw.symbol,
-                side=BackpackTransactionMapper._map_side_to_internal(raw.side).value,
+                side=BackpackEnumMappers.map_side_to_internal(raw.side, "standard").value,
                 order_type=BackpackTransactionMapper._map_type_to_internal(raw.orderType).value,
                 status=BackpackTransactionMapper._map_status_to_internal(raw.status).value,
                 quantity_requested=str(parsed_quantity),
@@ -675,19 +596,19 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
                 message="Attempting to transform BackpackRawPublicTrade to Trade",
             )
 
-            price_dec = parse_decimal_value(raw.price, allow_none=False, field_name="price")
-            quantity_dec = parse_decimal_value(
-                raw.quantity,
-                allow_none=False,
-                field_name="quantity",
-            )
-            timestamp = parse_datetime_utc(raw.time, field_name="time")
+            price_dec = self.parse_decimal_safely(raw.price)
+            quantity_dec = self.parse_decimal_safely(raw.quantity)
+            timestamp = self.parse_timestamp(raw.time)
 
-            BackpackTransactionMapper._ensure_public_trade_fields_not_none(
-                price_dec,
-                quantity_dec,
-                timestamp,
+            # Ensure required fields are not None
+            price_dec = self.ensure_decimal_not_none(
+                price_dec, "price", "BackpackRawPublicTrade"
             )
+            quantity_dec = self.ensure_decimal_not_none(
+                quantity_dec, "quantity", "BackpackRawPublicTrade"
+            )
+            if timestamp is None:
+                self._raise_missing_timestamp_error()
 
             # Backpack REST API for recent trades doesn't provide side
             logger.warning(
@@ -720,6 +641,17 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         else:
             return None
 
+    def _raise_missing_timestamp_error(self) -> None:
+        """Raise MissingRequiredFieldError for missing timestamp.
+        
+        Raises:
+            MissingRequiredFieldError: Always raised for missing timestamp
+        """
+        raise MissingRequiredFieldError(
+            field_names="time",
+            context="BackpackRawPublicTrade",
+        )
+
     def transform_ws_fill_event_to_internal_trade(
         self,
         raw_fill: BackpackRawFillResponse,
@@ -737,30 +669,3 @@ class BackpackTransactionMapper(TransactionMapperProtocol):
         """
         return self.transform_raw_fill_to_internal(raw_fill)
 
-    # MapperProtocol implementation - delegate to common utilities
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Safely parse decimal values with fallback.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
-        """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to UTC datetime.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

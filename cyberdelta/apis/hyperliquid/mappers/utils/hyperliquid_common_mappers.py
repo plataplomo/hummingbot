@@ -55,8 +55,8 @@ class HyperliquidCommonMappers:
     @staticmethod
     def parse_decimal_safely(
         value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
+        default: Decimal | None = Decimal(0),
+    ) -> Decimal | None:
         """Parse decimal values safely with default fallback.
 
         Args:
@@ -479,6 +479,8 @@ class HyperliquidCommonMappers:
                 default=Decimal(1),
             )
             # Leverage should be at least 1
+            if leverage is None:
+                return Decimal(1)
             return max(leverage, Decimal(1))
         except (ValueError, TypeError, InvalidOperation, AttributeError):
             return Decimal(1)

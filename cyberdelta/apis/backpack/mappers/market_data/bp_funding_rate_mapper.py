@@ -9,96 +9,34 @@ Focused on:
 """
 
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 
-from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
     BackpackRawFundingRateResponse,
 )
 from cyberdelta.apis.backpack.protocols.mapper_protocols import FundingRateMapperProtocol
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import (
     DataTransformationError,
     FundingRateTransformationError,
-    MissingRequiredFieldError,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails, FundingRate
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class BackpackFundingRateMapper(FundingRateMapperProtocol):
+class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingRateMapperProtocol):
     """Focused mapper for Backpack funding rate data transformations.
 
     This class contains static methods for transforming validated Backpack Raw funding rate models
     into CyberDeltaEngine Internal FundingRate Domain Models.
     """
-
-    @staticmethod
-    def _validate_funding_rate_data(funding_rate: object, context: str) -> object:
-        """Validate funding rate data.
-
-        Args:
-            funding_rate: Raw funding rate value
-            context: Context for error messages
-
-        Returns:
-            object: Validated funding rate
-
-        Raises:
-            MissingRequiredFieldError: If funding rate is missing
-        """
-        if funding_rate is None:
-            raise MissingRequiredFieldError("funding_rate", context)
-        return funding_rate
-
-    @staticmethod
-    def _validate_funding_timestamp(timestamp: object, context: str) -> object:
-        """Validate funding rate timestamp.
-
-        Args:
-            timestamp: Raw timestamp value
-            context: Context for error messages
-
-        Returns:
-            object: Validated timestamp
-
-        Raises:
-            MissingRequiredFieldError: If timestamp is None
-        """
-        if timestamp is None:
-            raise MissingRequiredFieldError("timestamp", context)
-        return timestamp
-
-    @staticmethod
-    def _ensure_timestamp_not_none(timestamp: datetime | None, source_data: object) -> datetime:
-        """Ensure timestamp is not None after validation.
-
-        Args:
-            timestamp: Parsed timestamp
-            source_data: Source data for error context
-
-        Returns:
-            The validated non-None timestamp
-
-        Raises:
-            DataTransformationError: If timestamp is None
-        """
-        if timestamp is None:
-            raise DataTransformationError(
-                source_model="BackpackRawFundingRateResponse.time",
-                target_model="datetime",
-                reason="timestamp should not be None after validation",
-                source_data=source_data,
-            )
-        return timestamp
 
     def transform_raw_funding_rate_to_internal(
         self,
@@ -118,32 +56,21 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
         """
         try:
             # Parse funding rate
-            funding_rate = parse_decimal_value(
-                raw_funding.funding_rate,
-                allow_none=False,
-                field_name="fundingRate",
-            )
-            BackpackFundingRateMapper._validate_funding_rate_data(
+            funding_rate = self.parse_decimal_safely(raw_funding.funding_rate)
+            funding_rate = self.ensure_decimal_not_none(
                 funding_rate,
+                "funding_rate",
                 "BackpackRawFundingRateResponse",
             )
 
             # Parse timestamp
-            timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
+            timestamp = self.parse_timestamp(raw_funding.time)
             if timestamp is None:
                 timestamp = datetime.now(UTC)
 
             # Parse mark price and index price
-            mark_price = parse_decimal_value(
-                raw_funding.mark_price,
-                allow_none=True,
-                field_name="markPrice",
-            )
-            index_price = parse_decimal_value(
-                raw_funding.index_price,
-                allow_none=True,
-                field_name="indexPrice",
-            )
+            mark_price = self.parse_decimal_safely(raw_funding.mark_price)
+            index_price = self.parse_decimal_safely(raw_funding.index_price)
 
             # Create BP-specific details
             details = BackpackFundingDetails()
@@ -199,28 +126,19 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
         """
         try:
             # Parse funding rate
-            funding_rate = parse_decimal_value(
-                raw_funding.rate,
-                allow_none=False,
-                field_name="rate",
-            )
-            BackpackFundingRateMapper._validate_funding_rate_data(
+            funding_rate = self.parse_decimal_safely(raw_funding.rate)
+            funding_rate = self.ensure_decimal_not_none(
                 funding_rate,
+                "funding_rate",
                 "BackpackRawFundingIntervalRate",
             )
 
             # Parse timestamp (time is now an ISO datetime string)
-            timestamp = parse_datetime_utc(raw_funding.time, field_name="time")
-            BackpackFundingRateMapper._validate_funding_timestamp(
-                timestamp,
-                "BackpackRawFundingIntervalRate",
-            )
-
-            # Ensure timestamp is not None after validation and get the validated value
-            timestamp = BackpackFundingRateMapper._ensure_timestamp_not_none(
-                timestamp,
-                raw_funding.time,
-            )
+            timestamp = self.parse_timestamp(raw_funding.time)
+            if timestamp is None:
+                self._raise_timestamp_validation_error()
+                # This line is unreachable but helps with type narrowing
+                timestamp = datetime.now(UTC)
 
             # Use the Symbol object directly (no need to create another)
             exchange_symbol = symbol
@@ -254,30 +172,15 @@ class BackpackFundingRateMapper(FundingRateMapperProtocol):
                 original_error=e,
             ) from e
 
-    # MapperProtocol methods
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely using BackpackCommonMappers.
-
-        Args:
-            value: Value to parse as Decimal (string, float, Decimal, or None).
-            default: Default value to return if parsing fails.
-
-        Returns:
-            Parsed Decimal value or default if parsing fails.
+    def _raise_timestamp_validation_error(self) -> None:
+        """Raise DataTransformationError for timestamp validation failure.
+        
+        Raises:
+            DataTransformationError: Always raised for timestamp validation failure
         """
-        return BackpackCommonMappers.parse_decimal_safely(value, default)
+        raise DataTransformationError(
+            source_model="BackpackRawFundingIntervalRate",
+            target_model="FundingRate",
+            reason="Timestamp is not a datetime object after validation",
+        )
 
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert timestamp to datetime using BackpackCommonMappers.
-
-        Args:
-            timestamp_ms: Timestamp in milliseconds (float or None).
-
-        Returns:
-            UTC datetime object if timestamp is provided, None otherwise.
-        """
-        return BackpackCommonMappers.timestamp_ms_to_datetime(timestamp_ms)

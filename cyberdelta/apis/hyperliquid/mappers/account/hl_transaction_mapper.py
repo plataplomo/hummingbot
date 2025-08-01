@@ -13,13 +13,11 @@ Focused on:
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import TradeTransformationError
 from cyberdelta.apis.hyperliquid.mappers.utils.common_mappers import (
     map_side_to_internal,
     validate_trade_data,
-)
-from cyberdelta.apis.hyperliquid.mappers.utils.hyperliquid_common_mappers import (
-    HyperliquidCommonMappers,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFill
@@ -32,40 +30,18 @@ from cyberdelta.core.models import Trade
 from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
 logger = get_logger(__name__)
 
 
-class HyperliquidTransactionMapper(TransactionMapperProtocol):
+class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProtocol):
     """Focused mapper for Hyperliquid transaction data transformations.
 
     This class contains static methods for transforming validated Hyperliquid Raw transaction models
     into CyberDeltaEngine Internal Domain Models for trades and fills.
     """
-
-    # Protocol method implementations (delegated to common utilities)
-    def parse_decimal_safely(
-        self,
-        value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
-        """Parse decimal values safely with default fallback.
-
-        Returns:
-            Decimal: Parsed decimal value or default if parsing fails.
-        """
-        return HyperliquidCommonMappers.parse_decimal_safely(value, default)
-
-    def timestamp_ms_to_datetime(self, timestamp_ms: float | None) -> datetime | None:
-        """Convert millisecond timestamp to datetime.
-
-        Returns:
-            datetime | None: UTC datetime object or None if timestamp is None.
-        """
-        return HyperliquidCommonMappers.timestamp_ms_to_datetime(timestamp_ms)
 
     # Protocol-specific methods - TransactionMapperProtocol focuses on user fills
 
@@ -98,23 +74,21 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
             side = map_side_to_internal(raw_fill.side)
 
             # Parse price and quantity
-            price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
-            quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
+            price = self.parse_decimal_safely(raw_fill.px)
+            quantity = self.parse_decimal_safely(raw_fill.sz)
 
             # Validate trade data
             validate_trade_data(price, quantity, "HyperliquidRawUserFill")
 
             # Parse timestamp
-            executed_at = parse_datetime_utc(raw_fill.time, field_name="time")
+            executed_at = self.parse_timestamp(raw_fill.time)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
             # Parse fee
-            fee = parse_decimal_value(
-                getattr(raw_fill, "fee", "0"),
-                allow_none=True,
-                field_name="fee",
-            ) or Decimal(0)
+            fee = self.parse_decimal_safely(
+                getattr(raw_fill, "fee", "0"), default=Decimal(0)
+            )
 
             # Create HL-specific details
             trade_hash = getattr(raw_fill, "hash", None)
@@ -123,15 +97,11 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
 
             details = HyperliquidTradeDetails(
                 trade_hash=str(trade_hash),
-                liquidation_mark_px=parse_decimal_value(
-                    getattr(raw_fill, "liquidationMarkPx", None),
-                    allow_none=True,
-                    field_name="liquidationMarkPx",
+                liquidation_mark_px=self.parse_decimal_safely(
+                    getattr(raw_fill, "liquidationMarkPx", None), default=None
                 ),
-                start_position=parse_decimal_value(
-                    getattr(raw_fill, "startPosition", None),
-                    allow_none=True,
-                    field_name="startPosition",
+                start_position=self.parse_decimal_safely(
+                    getattr(raw_fill, "startPosition", None), default=None
                 ),
                 dir=getattr(raw_fill, "dir", None),
             )
@@ -195,8 +165,7 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
         else:
             return trade
 
-    @staticmethod
-    def transform_raw_fill_to_internal(raw_fill: HyperliquidRawFill) -> Trade:
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawFill) -> Trade:
         """Transforms a HyperliquidRawFill to an Internal Trade model.
 
         Converts fill data from Hyperliquid into an internal Trade domain model.
@@ -226,36 +195,30 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
             side = map_side_to_internal(raw_fill.side)
 
             # Parse price and quantity
-            price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
-            quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
+            price = self.parse_decimal_safely(raw_fill.px)
+            quantity = self.parse_decimal_safely(raw_fill.sz)
 
             # Validate trade data
             validate_trade_data(price, quantity, "HyperliquidRawFill")
 
             # Parse timestamp
-            executed_at = parse_datetime_utc(raw_fill.time, field_name="time")
+            executed_at = self.parse_timestamp(raw_fill.time)
             if executed_at is None:
                 executed_at = datetime.now(UTC)
 
             # Parse fee
-            fee = parse_decimal_value(
-                getattr(raw_fill, "fee", "0"),
-                allow_none=True,
-                field_name="fee",
-            ) or Decimal(0)
+            fee = self.parse_decimal_safely(
+                getattr(raw_fill, "fee", "0"), default=Decimal(0)
+            )
 
             # Create HL-specific details
             details = HyperliquidTradeDetails(
                 trade_hash=raw_fill.hash,
-                liquidation_mark_px=parse_decimal_value(
-                    getattr(raw_fill, "liquidation_mark_px", None),
-                    allow_none=True,
-                    field_name="liquidationMarkPx",
+                liquidation_mark_px=self.parse_decimal_safely(
+                    getattr(raw_fill, "liquidation_mark_px", None), default=None
                 ),
-                start_position=parse_decimal_value(
-                    getattr(raw_fill, "start_position", None),
-                    allow_none=True,
-                    field_name="startPosition",
+                start_position=self.parse_decimal_safely(
+                    getattr(raw_fill, "start_position", None), default=None
                 ),
                 dir=getattr(raw_fill, "dir", None),
             )
@@ -355,8 +318,8 @@ class HyperliquidTransactionMapper(TransactionMapperProtocol):
             side = map_side_to_internal(raw_fill.side)
 
             # Parse price and quantity
-            price = parse_decimal_value(raw_fill.px, allow_none=False, field_name="px")
-            quantity = parse_decimal_value(raw_fill.sz, allow_none=False, field_name="sz")
+            price = self.parse_decimal_safely(raw_fill.px)
+            quantity = self.parse_decimal_safely(raw_fill.sz)
 
             # Validate trade data
             validate_trade_data(price, quantity, "HyperliquidRawWsFillEvent")

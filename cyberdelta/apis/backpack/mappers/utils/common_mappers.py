@@ -41,8 +41,8 @@ class BackpackCommonMappers:
     @staticmethod
     def parse_decimal_safely(
         value: str | float | Decimal | None,
-        default: Decimal = Decimal(0),
-    ) -> Decimal:
+        default: Decimal | None = Decimal(0),
+    ) -> Decimal | None:
         """Safely parse decimal values with fallback.
 
         Args:
