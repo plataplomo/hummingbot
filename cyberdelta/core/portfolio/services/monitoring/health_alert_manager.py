@@ -46,8 +46,8 @@ class HealthAlertManager(BasePortfolioService):
     """Manages health alerts for portfolio monitoring system."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__("health_alert_manager")
-        self.config = config or {}
+        super().__init__("health_alert_manager", config)
+        self._raw_config = config or {}
         self.logger = get_logger(__name__)
         
         # Alert storage
@@ -56,9 +56,9 @@ class HealthAlertManager(BasePortfolioService):
         self.alert_rules: dict[str, AlertRule] = {}
         
         # Configuration
-        self.max_active_alerts = self.config.get("max_active_alerts", 100)
-        self.alert_history_days = self.config.get("alert_history_days", 30)
-        self.escalation_enabled = self.config.get("escalation_enabled", True)
+        self.max_active_alerts = self._raw_config.get("max_active_alerts", 100)
+        self.alert_history_days = self._raw_config.get("alert_history_days", 30)
+        self.escalation_enabled = self._raw_config.get("escalation_enabled", True)
         
         # Alert counters
         self.alert_counters: dict[str, dict[str, int]] = {
@@ -348,7 +348,7 @@ class HealthAlertManager(BasePortfolioService):
 
     def _get_alerts_by_component(self) -> dict[str, int]:
         """Get count of active alerts by component."""
-        component_counts = {}
+        component_counts: dict[str, int] = {}
         for alert in self.active_alerts.values():
             component = alert.source_component
             component_counts[component] = component_counts.get(component, 0) + 1

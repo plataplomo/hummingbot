@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 from datetime import datetime, UTC
 
 from cyberdelta.config import AppSettings
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.portfolio.services.event_dispatcher import EventDispatcher
 from cyberdelta.core.portfolio.services.analytics.performance_analytics import PerformanceAnalyticsService
@@ -38,7 +39,16 @@ class PortfolioServiceFactory:
         """Initialize portfolio service factory with real dependencies."""
         # Use AppSettings if no config provided
         if config is None:
-            self.app_settings = AppSettings()
+            # Create minimal SmartSymbolsConfig for default AppSettings
+            patterns = SymbolPatterns(
+                hyperliquid={"perp": "{symbol}-USD"},
+                backpack={"perp": "{symbol}_USDC"}
+            )
+            symbols_config = SmartSymbolsConfig(
+                list=["BTC", "ETH"],
+                patterns=patterns
+            )
+            self.app_settings = AppSettings(symbols=symbols_config)
         else:
             self.app_settings = config
             
@@ -49,7 +59,7 @@ class PortfolioServiceFactory:
         self._state_container: Optional[StateContainerProtocol] = None
         self._validation_service: Optional[ValidationServiceProtocol] = None
         self._metrics_collector: Optional[MetricsCollectorProtocol] = None
-        self._cache_service: Optional[MemoryCacheService] = None
+        self._cache_service: Optional[MemoryCacheService[str, Any]] = None
         self._health_service: Optional[HealthCheckOrchestrator] = None
         
         # API clients for exchange integration
@@ -179,7 +189,7 @@ class PortfolioServiceFactory:
         if not self._cache_service:
             cache_config = getattr(self.app_settings.portfolio_tracker, 'cache', None)
             if cache_config:
-                self._cache_service = MemoryCacheService(app_settings=self.app_settings)
+                self._cache_service = MemoryCacheService[str, Any](app_settings=self.app_settings)
                 if hasattr(self._cache_service, 'start'):
                     await self._cache_service.start()
                     
@@ -400,7 +410,7 @@ class PortfolioServiceFactory:
         """Get market data service (alias for create method)."""
         return self.create_market_data_service()
         
-    def get_cache_service(self) -> Optional[MemoryCacheService]:
+    def get_cache_service(self) -> Optional[MemoryCacheService[str, Any]]:
         """Get cache service."""
         return self._cache_service
         

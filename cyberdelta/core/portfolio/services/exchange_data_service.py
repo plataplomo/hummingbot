@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,7 +32,7 @@ class ExchangeDataService(BaseModel):
         self.api_clients[exchange_id.lower()] = api_client
         logger.info(f"Registered API client for {exchange_id}")
 
-    async def fetch_all_portfolio_data(self) -> dict[str, dict]:
+    async def fetch_all_portfolio_data(self) -> dict[str, dict[str, Any]]:
         """Fetch portfolio data from all exchanges in parallel."""
         logger.info("Fetching portfolio data from all exchanges")
 
@@ -46,18 +46,18 @@ class ExchangeDataService(BaseModel):
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        exchange_data = {}
+        exchange_data: dict[str, dict[str, Any]] = {}
         for result in results:
             if isinstance(result, Exception):
                 # Log error but continue with other exchanges
                 self._log_exchange_error(result)
                 continue
-            exchange_data.update(result)
+            exchange_data.update(cast(dict[str, dict[str, Any]], result))
 
         logger.info(f"Successfully fetched portfolio data from {len(exchange_data)} exchanges")
         return exchange_data
 
-    async def fetch_exchange_data(self, exchange_id: str) -> dict:
+    async def fetch_exchange_data(self, exchange_id: str) -> dict[str, Any]:
         """Fetch portfolio data from specific exchange."""
         logger.info(f"Fetching portfolio data from exchange: {exchange_id}")
 
@@ -68,7 +68,7 @@ class ExchangeDataService(BaseModel):
         result = await self._fetch_exchange_data_async(exchange_id, api_client)
         return result.get(exchange_id.lower(), {})
 
-    async def _fetch_exchange_data_async(self, exchange_id: str, api_client: Any) -> dict[str, dict]:
+    async def _fetch_exchange_data_async(self, exchange_id: str, api_client: Any) -> dict[str, dict[str, Any]]:
         """Fetch portfolio data from specific exchange API client."""
         try:
             logger.debug(f"Fetching {exchange_id} portfolio data")
@@ -78,13 +78,16 @@ class ExchangeDataService(BaseModel):
             positions_task = api_client.get_positions()
             orders_task = api_client.get_open_orders()
             
-            balances, positions, orders = await asyncio.gather(
+            gather_results = await asyncio.gather(
                 balances_task, positions_task, orders_task,
                 return_exceptions=True
             )
+            balances: Any = gather_results[0]
+            positions: Any = gather_results[1]
+            orders: Any = gather_results[2]
             
             # Handle individual failures
-            result_data = {}
+            result_data: dict[str, Any] = {}
             if not isinstance(balances, Exception):
                 result_data["balances"] = balances
             else:

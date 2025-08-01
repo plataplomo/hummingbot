@@ -18,6 +18,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.models import TradeSignal
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.portfolio.services import PortfolioServiceFactory
 from cyberdelta.core.risk_manager import RiskManager
@@ -51,7 +52,7 @@ class StrategyManager(BaseModel):
         self._tasks: list[asyncio.Task[Any]] = []
         self._running = False
         self.enabled_strategies: set[str] = set()
-        self.active_symbols: set[str] = set()
+        self.active_symbols: set[Symbol] = set()
         self.last_update_time: datetime | None = None
         self.logger = get_logger(__name__)
 
@@ -372,7 +373,7 @@ class StrategyManager(BaseModel):
         """Entry point for market data. Processes data via relevant strategies."""
         await self.process_market_data(market_data)
 
-    def get_strategies_for_symbol(self, symbol: str) -> list[Strategy]:
+    def get_strategies_for_symbol(self, symbol: Symbol) -> list[Strategy]:
         """Get a list of enabled strategies for a given symbol.
 
         Args:

@@ -15,6 +15,7 @@ from cyberdelta.core.portfolio.base.typed_state_manager import (
     StateManagerResult,
 )
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import StateValidationResult
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -281,7 +282,7 @@ class TradeManager(TypedStateManager[TradeState]):
             self.logger.exception("get_trades_by_exchange_failed", exchange=exchange)
             return []
 
-    async def get_trades_by_symbol(self, symbol: str) -> list[Trade]:
+    async def get_trades_by_symbol(self, symbol: Symbol) -> list[Trade]:
         """Get trades for a specific symbol.
 
         Args:

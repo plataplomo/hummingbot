@@ -8,6 +8,7 @@ from typing import Any, Unpack
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.events.base.base_event import (
     BasePortfolioEvent,
     EventMetadata,
@@ -34,7 +35,7 @@ class PositionData:
 
     position_id: str
     exchange_id: str
-    symbol: str
+    symbol: Symbol
     side: str  # "LONG" or "SHORT"
     size: Decimal
     entry_price: Decimal
@@ -44,7 +45,7 @@ class PositionData:
     margin_used: Decimal | None = None
     leverage: Decimal | None = None
 
-    @field_validator("position_id", "exchange_id", "symbol", mode="before")
+    @field_validator("position_id", "exchange_id", mode="before")
     @classmethod
     def validate_strings(cls, v: str, info: ValidationInfo) -> str:
         """Validate required string fields are non-empty.
@@ -168,7 +169,7 @@ class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
             PositionOpenedEvent: The created position opened event.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=str(position.symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -238,7 +239,7 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
             PositionUpdatedEvent: The created position updated event.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=str(position.symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -311,7 +312,7 @@ class PositionClosedEvent(BasePortfolioEvent[PositionData]):
             PositionClosedEvent: The created position closed event.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=str(position.symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -363,7 +364,7 @@ class PositionErrorData(BaseModel):
     """Data for position-related errors."""
 
     exchange_id: str = Field(description="Exchange where error occurred")
-    symbol: str = Field(description="Trading symbol")
+    symbol: Symbol = Field(description="Trading symbol")
     position_id: str | None = Field(default=None, description="Position ID if applicable")
     error_type: str = Field(description="Type of error")
     error_message: str = Field(description="Error message")
@@ -378,7 +379,7 @@ class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
     def create(
         cls,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         position_id: str | None,
         error_type: str,
         error_message: str,
@@ -410,7 +411,7 @@ class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
         )
 
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=exchange_id, symbol=symbol)
+        metadata = EventMetadata(exchange_id=exchange_id, symbol=str(symbol))
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:

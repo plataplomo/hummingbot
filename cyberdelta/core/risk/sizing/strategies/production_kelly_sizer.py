@@ -78,7 +78,7 @@ class ProductionKellySizer(KellyCriterionSizer):
         )
         
         # Get real market volatility
-        volatility = await self._get_real_volatility(opportunity)
+        volatility = await self._get_real_volatility(opportunity, context)
         
         # Calculate Kelly fraction using the binary outcome formula
         if avg_loss > 0:
@@ -185,18 +185,19 @@ class ProductionKellySizer(KellyCriterionSizer):
         
         return win_probability, avg_win, avg_loss
     
-    async def _get_real_volatility(self, opportunity: ArbitrageOpportunity) -> Decimal:
+    async def _get_real_volatility(self, opportunity: ArbitrageOpportunity, context: SizingContext) -> Decimal:
         """Get real market volatility for the symbol.
         
         Args:
             opportunity: Trading opportunity
+            context: Sizing context for volatility calculation
             
         Returns:
             Real volatility from market data
         """
         if not self.market_data_provider:
-            # Fallback to parent implementation
-            return await super()._calculate_volatility(opportunity, SizingContext())
+            # Fallback to parent's volatility calculation which uses opportunity data
+            return await super()._calculate_volatility(opportunity, context)
         
         # Get symbol from opportunity
         symbol = getattr(opportunity, "symbol", None)

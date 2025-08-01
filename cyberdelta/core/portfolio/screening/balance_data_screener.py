@@ -195,9 +195,7 @@ class BalanceDataScreener(BaseScreener):
         sanitized = balance
 
         # Clean balance data directly (SpotBalance objects have known structure)
-        # Clean asset
-        if sanitized.asset:
-            sanitized.asset = sanitized.asset.strip().upper()
+        # Symbol objects are already normalized - no cleaning needed
 
         # Clean exchange
         if sanitized.exchange:
@@ -230,7 +228,7 @@ class BalanceDataScreener(BaseScreener):
         errors: list[str] = []
 
         # Validate required SpotBalance model fields directly
-        if not balance.asset or not balance.asset.strip():
+        if not balance.asset:
             errors.append("Required field asset is missing or empty")
 
         if not balance.exchange or not balance.exchange.strip():
@@ -601,7 +599,7 @@ class BalanceDataScreener(BaseScreener):
                 valid_count += 1
 
                 # Track currency and exchange statistics
-                currency = balance.asset
+                currency = balance.asset.value  # Get string value from Symbol
                 exchange = balance.exchange
 
                 currency_summary[currency] = currency_summary.get(currency, 0) + 1

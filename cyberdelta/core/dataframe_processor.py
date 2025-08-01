@@ -16,6 +16,8 @@ import structlog
 
 # Import Candle directly - circular import is resolved by module structure
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -40,7 +42,7 @@ class DataFrameProcessingError(ValueError):
 
 async def process_dataframe(
     df: pd.DataFrame,
-    symbol: str,
+    symbol: Symbol,
     process_market_data: Callable[[Candle], Awaitable[None]],
 ) -> None:
     """Process a pandas DataFrame of historical/batch market data.
@@ -50,7 +52,7 @@ async def process_dataframe(
 
     Args:
         df: DataFrame with market data (must have timestamp, open, high, low, close, volume).
-        symbol: Symbol this data represents.
+        symbol: Symbol object this data represents.
         process_market_data: Async function to process each Candle.
 
     Raises:
@@ -63,7 +65,7 @@ async def process_dataframe(
         # Use logger for errors
         logger.error(
             "dataframe_processing_failed",
-            symbol=symbol,
+            symbol=symbol.value,
             missing_columns=missing,
             message="DataFrame processing failed: Missing required columns",
         )

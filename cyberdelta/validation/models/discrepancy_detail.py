@@ -10,12 +10,13 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from cyberdelta.core.symbols import Symbol
 
 
 class DiscrepancyDetail(BaseModel):
     """Represents a single detected discrepancy during position reconciliation."""
 
-    symbol: str = Field(..., description="The trading symbol of the asset with a discrepancy.")
+    symbol: Symbol = Field(..., description="The trading symbol of the asset with a discrepancy.")
     discrepancy_type: Literal[
         "size",
         "entry_price",

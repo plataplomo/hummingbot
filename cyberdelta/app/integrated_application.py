@@ -9,6 +9,7 @@ from typing import Any
 
 from cyberdelta.core.engines.clean_trading_engine import CleanTradingEngine
 from cyberdelta.core.portfolio.coordinators.unified_service_factory import UnifiedServiceFactory
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioConfig
 
 
@@ -190,7 +191,7 @@ class CyberDeltaApplication:
         Returns:
             Portfolio status including value, positions, and P&L
         """
-        portfolio_state = await self.portfolio_manager.get_portfolio_summary()
+        portfolio_state: PortfolioState = await self.portfolio_manager.get_portfolio_summary()
         
         # Calculate total value and position count
         total_capital = Decimal("0")
@@ -199,7 +200,7 @@ class CyberDeltaApplication:
         # Sum balance values
         for exchange_balances in portfolio_state.balances.values():
             for balance in exchange_balances.values():
-                if hasattr(balance, 'available_quantity') and balance.asset == "USDC":
+                if hasattr(balance, 'available_quantity') and balance.asset.value == "USDC":
                     total_capital += Decimal(str(balance.available_quantity))
         
         # Count positions
@@ -210,5 +211,5 @@ class CyberDeltaApplication:
             "total_capital": str(total_capital),
             "position_count": position_count,
             "portfolio_id": portfolio_state.portfolio_id,
-            "timestamp": portfolio_state.timestamp
+            "timestamp": portfolio_state.timestamp.isoformat()
         }

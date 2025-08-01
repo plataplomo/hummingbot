@@ -17,6 +17,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
 from cyberdelta.core.models import Order, Trade
 from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -122,7 +123,7 @@ class OrderRequest:
     """Request for order placement operations."""
 
     exchange_id: str
-    symbol: str
+    symbol: Symbol
     side: OrderSide
     quantity: Decimal
     order_type: OrderType

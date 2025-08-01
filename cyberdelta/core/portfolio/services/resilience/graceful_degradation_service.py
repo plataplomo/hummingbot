@@ -16,8 +16,8 @@ class GracefulDegradationService(BasePortfolioService):
     """Service for managing graceful degradation and fallback mechanisms."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__("graceful_degradation_service")
-        self.config = config or {}
+        super().__init__("graceful_degradation_service", config)
+        self._raw_config = config or {}
         self.logger = get_logger(__name__)
         
         # Fallback management

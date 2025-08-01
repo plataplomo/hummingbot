@@ -245,10 +245,10 @@ def create_business_rule_violation(
         ValidationIssue representing the business rule violation
     """
     return ValidationIssue(
-        issue_type="BUSINESS_RULE_VIOLATION",
-        severity=severity,
-        description=description,
-        context=context or {},
+        category=ValidationCategory.BUSINESS_RULE,
+        severity=ValidationSeverity(severity) if isinstance(severity, str) else severity,
+        message=description,
+        details=context or {},
         suggestion=f"Review and fix business rule violation: {rule_name}",
     )
 
@@ -290,10 +290,11 @@ def create_range_violation_issue(
         description += f" (expected: <= {max_value})"
     
     return ValidationIssue(
-        issue_type="RANGE_VIOLATION",
-        severity=severity,
-        description=description,
-        context=context,
+        category=ValidationCategory.OUT_OF_RANGE,
+        severity=ValidationSeverity(severity) if isinstance(severity, str) else severity,
+        field=field_name,
+        message=description,
+        details=context,
         suggestion=f"Ensure '{field_name}' value is within acceptable range",
     )
 
@@ -634,12 +635,12 @@ class ValidationChain[T](BaseModel):
     validators: list[Any] = Field(default_factory=list)
     stop_on_error: bool = True
     
-    async def validate(self, data: T) -> ValidationResult[T]:
+    async def validate_data(self, data: T) -> ValidationResult[T]:
         """Run all validators in sequence."""
         result = ValidationResult[T](is_valid=True, validated_data=data)
         
         for validator in self.validators:
-            validator_result = await validator.validate(data)
+            validator_result = await validator.validate_data(data)
             result = result.merge(validator_result)
             
             if not validator_result.is_valid and self.stop_on_error:
@@ -736,9 +737,7 @@ class CurrentState(BaseModel):
 
 # ==================== Error and Exception Types ====================
 
-class PortfolioError(Exception):
-    """Base portfolio exception."""
-    pass
+# PortfolioError is imported from cyberdelta.core.portfolio.exceptions.base
 
 
 class CalculationError(PortfolioError):

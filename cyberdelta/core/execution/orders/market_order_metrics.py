@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import OrderStatus
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide
 
 
@@ -21,7 +22,7 @@ class MarketOrderExecutionMetric:
     def __init__(
         self,
         timestamp: datetime,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         requested_quantity: Decimal,
         filled_quantity: Decimal,
@@ -35,7 +36,7 @@ class MarketOrderExecutionMetric:
 
         Args:
             timestamp: Execution timestamp
-            symbol: Trading symbol
+            symbol: Trading Symbol object
             side: Order side
             requested_quantity: Requested quantity
             filled_quantity: Actually filled quantity
@@ -98,7 +99,7 @@ class MarketOrderMetrics:
 
     def record_execution(
         self,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         requested_qty: Decimal,
         filled_qty: Decimal,
@@ -151,7 +152,7 @@ class MarketOrderMetrics:
         logger.info(
             "market_order_execution",
             extra={
-                "symbol": metric.symbol,
+                "symbol": metric.symbol.value,
                 "side": metric.side.value,
                 "status": metric.status.value,
                 "fill_rate": float(metric.fill_rate),
@@ -164,11 +165,11 @@ class MarketOrderMetrics:
             },
         )
 
-    def get_symbol_stats(self, symbol: str) -> dict[str, float]:
+    def get_symbol_stats(self, symbol: Symbol) -> dict[str, float]:
         """Get execution statistics for a specific symbol.
 
         Args:
-            symbol: Trading symbol
+            symbol: Trading Symbol object
 
         Returns:
             Dict with average fill rate, slippage, etc.

@@ -19,6 +19,7 @@ from cyberdelta.core.execution.orders.market_order_errors import (
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
 from cyberdelta.core.models import Order
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -52,7 +53,7 @@ class MarketOrder:
 
     async def execute_market_order(
         self,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         quantity: Decimal,
         max_slippage: Decimal | None = None,
@@ -122,14 +123,8 @@ class MarketOrder:
             # 4. Prepare IoC limit order
             from cyberdelta.core.symbols import exchanges
 
-            # Create Symbol object based on exchange name
-            if self._exchange.exchange_name.lower() == "hyperliquid":
-                symbol_obj = exchanges.hyperliquid(symbol)
-            elif self._exchange.exchange_name.lower() == "backpack":
-                symbol_obj = exchanges.backpack(symbol)
-            else:
-                # Fallback for unknown exchanges
-                raise ValueError(f"Unknown exchange: {self._exchange.exchange_name}")
+            # Use Symbol object directly (now passed as parameter)
+            symbol_obj = symbol
 
             order_args = PlaceOrderArgs(
                 symbol=symbol_obj,
@@ -211,7 +206,7 @@ class MarketOrder:
 
     async def execute_market_order_with_retry(
         self,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         quantity: Decimal,
         max_slippage: Decimal | None = None,
@@ -277,7 +272,7 @@ class MarketOrder:
 
         raise MarketOrderError.no_orders_error()
 
-    def validate_order_parameters(self, symbol: str, side: OrderSide, quantity: Decimal) -> None:
+    def validate_order_parameters(self, symbol: Symbol, side: OrderSide, quantity: Decimal) -> None:
         """Validate order parameters before execution.
 
         Args:

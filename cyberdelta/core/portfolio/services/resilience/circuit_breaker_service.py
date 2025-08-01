@@ -160,8 +160,8 @@ class CircuitBreakerService(BasePortfolioService):
     """Service for managing circuit breakers across portfolio components."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__("circuit_breaker_service")
-        self.config = config or {}
+        super().__init__("circuit_breaker_service", config)
+        self._raw_config = config or {}
         self.logger = get_logger(__name__)
         
         # Circuit breaker management
@@ -186,10 +186,10 @@ class CircuitBreakerService(BasePortfolioService):
 
     def _init_default_config(self) -> CircuitBreakerConfig:
         """Initialize default circuit breaker configuration."""
-        failure_threshold = self.config.get("default_failure_threshold", 5)
-        recovery_timeout = self.config.get("default_recovery_timeout", 60.0)
-        success_threshold = self.config.get("default_success_threshold", 2)
-        timeout = self.config.get("default_timeout", 30.0)
+        failure_threshold = self._raw_config.get("default_failure_threshold", 5)
+        recovery_timeout = self._raw_config.get("default_recovery_timeout", 60.0)
+        success_threshold = self._raw_config.get("default_success_threshold", 2)
+        timeout = self._raw_config.get("default_timeout", 30.0)
 
         return CircuitBreakerConfig(
             failure_threshold=failure_threshold,

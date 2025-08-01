@@ -160,14 +160,11 @@ class NullStateManager(StateManagerProtocol):
     async def calculate_exposure_metrics(self) -> ExposureMetrics:
         """Return empty exposure metrics."""
         return ExposureMetrics(
+            total_exposure=Decimal(0),
             gross_exposure=Decimal(0),
             net_exposure=Decimal(0),
             long_exposure=Decimal(0),
             short_exposure=Decimal(0),
-            exposure_by_symbol={},
-            exposure_by_exchange={},
-            leverage=Decimal(0),
-            timestamp=0.0,
         )
 
     async def get_total_capital(self) -> CapitalSummary:
@@ -214,13 +211,13 @@ class NullStateManager(StateManagerProtocol):
     async def get_pnl_summary(self) -> PnLSummary:
         """Return zero PnL summary."""
         return PnLSummary(
-            total_realized_pnl=Decimal(0),
-            total_unrealized_pnl=Decimal(0),
-            daily_realized_pnl=Decimal(0),
-            daily_unrealized_pnl=Decimal(0),
-            pnl_by_exchange={},
-            pnl_by_symbol={},
-            timestamp=0.0,
+            total_pnl=Decimal(0),
+            realized_pnl=Decimal(0),
+            unrealized_pnl=Decimal(0),
+            fees_paid=Decimal(0),
+            net_pnl=Decimal(0),
+            by_exchange={},
+            by_symbol={},
         )
 
     async def get_all_positions(self) -> dict[str, DerivativePosition]:

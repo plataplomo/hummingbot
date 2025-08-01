@@ -71,12 +71,12 @@ def with_resilience[**P, T](
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> ResilienceResult[T]:
             start_time = time.time()
             metrics = ResilienceMetrics(
-                total_attempts=0,
-                successful_attempts=0,
-                failed_attempts=0,
-                circuit_breaker_trips=0,
-                fallback_executions=0,
-                total_duration_ms=0,
+                total_requests=0,
+                successful_requests=0,
+                failed_requests=0,
+                circuit_breaker_opens=0,
+                fallback_successes=0,
+                average_response_time_ms=0.0,
             )
 
             try:
@@ -94,27 +94,37 @@ def with_resilience[**P, T](
                     # Update metrics
                     duration_ms = (time.time() - start_time) * 1000
                     metrics = ResilienceMetrics(
-                        total_attempts=1,
-                        successful_attempts=1,
-                        failed_attempts=0,
-                        circuit_breaker_trips=0,
-                        fallback_executions=0,
-                        total_duration_ms=duration_ms,
+                        total_requests=1,
+                        successful_requests=1,
+                        failed_requests=0,
+                        circuit_breaker_opens=0,
+                        fallback_successes=0,
+                        average_response_time_ms=duration_ms,
                     )
 
-                    return ResilienceResult[T].successful(result, metrics)
+                    return ResilienceResult[T](
+                        success=True,
+                        value=result,
+                        metrics=metrics,
+                        duration_ms=duration_ms
+                    )
                 # No resilience service, execute directly
                 result = await func(*args, **kwargs)
                 duration_ms = (time.time() - start_time) * 1000
                 metrics = ResilienceMetrics(
-                    total_attempts=1,
-                    successful_attempts=1,
-                    failed_attempts=0,
-                    circuit_breaker_trips=0,
-                    fallback_executions=0,
-                    total_duration_ms=duration_ms,
+                    total_requests=1,
+                    successful_requests=1,
+                    failed_requests=0,
+                    circuit_breaker_opens=0,
+                    fallback_successes=0,
+                    average_response_time_ms=duration_ms,
                 )
-                return ResilienceResult[T].successful(result, metrics)
+                return ResilienceResult[T](
+                    success=True,
+                    value=result,
+                    metrics=metrics,
+                    duration_ms=duration_ms
+                )
 
             except TimeoutError as e:
                 duration_ms = (time.time() - start_time) * 1000
@@ -125,13 +135,12 @@ def with_resilience[**P, T](
                     cause=e,
                 )
                 metrics = ResilienceMetrics(
-                    total_attempts=1,
-                    successful_attempts=0,
-                    failed_attempts=1,
-                    circuit_breaker_trips=0,
-                    fallback_executions=0,
-                    total_duration_ms=duration_ms,
-                    last_error=error,
+                    total_requests=1,
+                    successful_requests=0,
+                    failed_requests=1,
+                    circuit_breaker_opens=0,
+                    fallback_failures=1,
+                    average_response_time_ms=duration_ms,
                 )
                 logger.warning(
                     "resilience_timeout",
@@ -149,12 +158,12 @@ def with_resilience[**P, T](
                     cause=e,
                 )
                 metrics = ResilienceMetrics(
-                    total_attempts=1,
-                    successful_attempts=0,
-                    failed_attempts=1,
-                    circuit_breaker_trips=0,
-                    fallback_executions=0,
-                    total_duration_ms=duration_ms,
+                    total_requests=1,
+                    successful_requests=0,
+                    failed_requests=1,
+                    circuit_breaker_opens=0,
+                    fallback_successes=0,
+                    average_response_time_ms=duration_ms,
                     last_error=error,
                 )
                 logger.exception(
@@ -264,12 +273,12 @@ class ResilienceContext:
 
         if exc_type is None:
             self.metrics = ResilienceMetrics(
-                total_attempts=1,
-                successful_attempts=1,
-                failed_attempts=0,
-                circuit_breaker_trips=0,
-                fallback_executions=0,
-                total_duration_ms=duration_ms,
+                total_requests=1,
+                successful_requests=1,
+                failed_requests=0,
+                circuit_breaker_opens=0,
+                fallback_successes=0,
+                average_response_time_ms=duration_ms,
             )
             logger.debug(
                 "resilience_context_success",
@@ -284,12 +293,12 @@ class ResilienceContext:
                 cause=exc_val if isinstance(exc_val, Exception) else None,
             )
             self.metrics = ResilienceMetrics(
-                total_attempts=1,
-                successful_attempts=0,
-                failed_attempts=1,
-                circuit_breaker_trips=0,
-                fallback_executions=0,
-                total_duration_ms=duration_ms,
+                total_requests=1,
+                successful_requests=0,
+                failed_requests=1,
+                circuit_breaker_opens=0,
+                fallback_successes=0,
+                average_response_time_ms=duration_ms,
                 last_error=error,
             )
             logger.warning(

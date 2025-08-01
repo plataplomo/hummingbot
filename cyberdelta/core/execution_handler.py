@@ -185,10 +185,9 @@ class ExecutionHandler:
         self.alert_service = alert_service
         self.logger = logger or get_logger(__name__)
 
-        # Initialize symbol service and domain helpers
-        self.symbol_service = symbol_service or SymbolService()
-        self.symbol_helpers = get_domain_helpers(self.symbol_service)
-        self.symbol_logger = create_operation_logger("execution_handler")
+        # Initialize symbol service - clean break approach
+        from cyberdelta.core.symbols import get_symbol_service
+        self.symbol_service = symbol_service or get_symbol_service()
 
         # API clients registry
         self.api_clients: dict[str, ExchangeAPI] = {}
@@ -380,26 +379,29 @@ class ExecutionHandler:
                     {"exchange_id": missing_exchange, "execution_id": execution.id},
                 )
 
-            # Get exchange-specific symbols using domain helpers
-            long_symbol = self.symbol_helpers.resolve_for_exchange(
-                opportunity.opportunity.symbol, opportunity.opportunity.long_exchange
-            )
-            short_symbol = self.symbol_helpers.resolve_for_exchange(
-                opportunity.opportunity.symbol, opportunity.opportunity.short_exchange
-            )
-
-            # Log symbol resolution with domain context
-            self.symbol_logger.log_symbol_resolution(
-                operation="arbitrage_symbol_resolution",
-                symbol_input=opportunity.opportunity.symbol,
-                exchange=f"{opportunity.opportunity.long_exchange}/{opportunity.opportunity.short_exchange}",
-                result=long_symbol or None,
-                error=(
-                    None
-                    if (long_symbol and short_symbol)
-                    else ValueError("Symbol resolution failed")
-                ),
-            )
+            # Use existing Symbol objects - clean break approach
+            # opportunity.opportunity.symbol is already a Symbol object
+            long_symbol = opportunity.opportunity.symbol
+            short_symbol = opportunity.opportunity.symbol
+            
+            # Validate that the Symbol supports the required exchanges
+            from cyberdelta.enums.exchange_names import ExchangeName
+            long_exchange = ExchangeName(opportunity.opportunity.long_exchange)
+            short_exchange = ExchangeName(opportunity.opportunity.short_exchange)
+            
+            # Check if Symbol supports the exchanges (basic validation)
+            if long_symbol.exchange != long_exchange:
+                self.logger.warning(
+                    "Symbol exchange mismatch for long leg",
+                    symbol_exchange=long_symbol.exchange.value,
+                    required_exchange=long_exchange.value
+                )
+            if short_symbol.exchange != short_exchange:
+                self.logger.warning(
+                    "Symbol exchange mismatch for short leg",
+                    symbol_exchange=short_symbol.exchange.value,
+                    required_exchange=short_exchange.value
+                )
 
             if not long_symbol or not short_symbol:
                 missing_leg = "long" if not long_symbol else "short"
@@ -410,26 +412,14 @@ class ExecutionHandler:
                 )
 
                 # Get available exchanges for better error context
-                available_exchanges = []
-                try:
-                    unified_symbol = self.symbol_service.store.get_by_internal(
-                        opportunity.opportunity.symbol
-                    )
-                    if unified_symbol:
-                        available_exchanges = list(unified_symbol.exchange_mappings.keys())
-                except (KeyError, AttributeError, ValueError) as e:
-                    self.logger.debug(
-                        "Failed to get available exchanges for symbol",
-                        symbol=opportunity.opportunity.symbol,
-                        error=str(e),
-                    )
-
+                available_exchanges: list[str] = []  # Simplified for clean break approach
+                
                 # Get symbol type if available
                 symbol_type = None
                 if long_symbol or short_symbol:
                     existing_symbol = long_symbol or short_symbol
-                    if existing_symbol and existing_symbol.internal_symbol:
-                        symbol_type = existing_symbol.internal_symbol.market_type.value
+                    if existing_symbol:
+                        symbol_type = existing_symbol.market_type.value
 
                 return await self.services.error_handler.handle_validation_error(
                     f"Symbol mapping failed for {missing_leg} leg",
@@ -493,12 +483,10 @@ class ExecutionHandler:
             "Placing orders for execution",
             execution_id=execution.id,
             symbol=opportunity.opportunity.symbol,
-            long_exchange=long_symbol.exchange_id.value,
-            short_exchange=short_symbol.exchange_id.value,
+            long_exchange=long_symbol.exchange.value,
+            short_exchange=short_symbol.exchange.value,
             long_symbol=long_symbol.value,
             short_symbol=short_symbol.value,
-            long_indexed=long_symbol.is_indexed,
-            short_indexed=short_symbol.is_indexed,
         )
 
         # Update execution status
@@ -630,7 +618,7 @@ class ExecutionHandler:
         """
         order_request = OrderRequest(
             exchange_id=opportunity.opportunity.long_exchange,
-            symbol=long_symbol.value,  # Use the string value for API
+            symbol=long_symbol,  # Use the Symbol object
             side=OrderSide.BUY,
             quantity=base_asset_quantity_long,
             order_type=OrderType.MARKET,
@@ -640,26 +628,26 @@ class ExecutionHandler:
         )
 
         # Log with rich domain context
-        self.logger.info(
-            "Placing long order",
-            execution_id=execution.id,
-            exchange_id=opportunity.opportunity.long_exchange,
-            symbol=long_symbol.value,
-            internal_symbol=(
-                long_symbol.internal_symbol.value if long_symbol.internal_symbol else None
-            ),
-            base_asset=(
-                long_symbol.internal_symbol.base_asset if long_symbol.internal_symbol else None
-            ),
-            market_type=(
-                long_symbol.internal_symbol.market_type.value
-                if long_symbol.internal_symbol
-                else None
-            ),
-            quantity=str(base_asset_quantity_long),
-            asset_index=long_symbol.asset_index,
-            symbol_id=long_symbol.symbol_id,
-        )
+        log_data = {
+            "execution_id": execution.id,
+            "exchange_id": opportunity.opportunity.long_exchange,
+            "symbol": long_symbol.value,
+            "base_asset": long_symbol.base_asset,
+            "market_type": long_symbol.market_type.value,
+            "quantity": str(base_asset_quantity_long),
+        }
+        
+        # Add exchange-specific metadata
+        from cyberdelta.enums.exchange_names import ExchangeName
+        from cyberdelta.core.symbols.models import HyperliquidMetadata, BackpackMetadata
+        if long_symbol.exchange == ExchangeName.HYPERLIQUID and isinstance(long_symbol.metadata, HyperliquidMetadata):
+            if long_symbol.metadata.asset_index is not None:
+                log_data["asset_index"] = str(long_symbol.metadata.asset_index)
+        elif long_symbol.exchange == ExchangeName.BACKPACK and isinstance(long_symbol.metadata, BackpackMetadata):
+            if long_symbol.metadata.symbol_id is not None:
+                log_data["symbol_id"] = str(long_symbol.metadata.symbol_id)
+        
+        self.logger.info("Placing long order", **log_data)
 
         result = await self.services.order_service.place_order_with_retry(order_request)
 
@@ -687,7 +675,7 @@ class ExecutionHandler:
         """Place short order and handle compensation if needed with domain objects."""
         order_request = OrderRequest(
             exchange_id=opportunity.opportunity.short_exchange,
-            symbol=short_symbol.value,  # Use the string value for API
+            symbol=short_symbol,  # Use the Symbol object
             side=OrderSide.SELL,
             quantity=base_asset_quantity_short,
             order_type=OrderType.MARKET,
@@ -697,26 +685,26 @@ class ExecutionHandler:
         )
 
         # Log with rich domain context
-        self.logger.info(
-            "Placing short order",
-            execution_id=execution.id,
-            exchange_id=opportunity.opportunity.short_exchange,
-            symbol=short_symbol.value,
-            internal_symbol=(
-                short_symbol.internal_symbol.value if short_symbol.internal_symbol else None
-            ),
-            base_asset=(
-                short_symbol.internal_symbol.base_asset if short_symbol.internal_symbol else None
-            ),
-            market_type=(
-                short_symbol.internal_symbol.market_type.value
-                if short_symbol.internal_symbol
-                else None
-            ),
-            quantity=str(base_asset_quantity_short),
-            asset_index=short_symbol.asset_index,
-            symbol_id=short_symbol.symbol_id,
-        )
+        log_data = {
+            "execution_id": execution.id,
+            "exchange_id": opportunity.opportunity.short_exchange,
+            "symbol": short_symbol.value,
+            "base_asset": short_symbol.base_asset,
+            "market_type": short_symbol.market_type.value,
+            "quantity": str(base_asset_quantity_short),
+        }
+        
+        # Add exchange-specific metadata
+        from cyberdelta.enums.exchange_names import ExchangeName
+        from cyberdelta.core.symbols.models import HyperliquidMetadata, BackpackMetadata
+        if short_symbol.exchange == ExchangeName.HYPERLIQUID and isinstance(short_symbol.metadata, HyperliquidMetadata):
+            if short_symbol.metadata.asset_index is not None:
+                log_data["asset_index"] = str(short_symbol.metadata.asset_index)
+        elif short_symbol.exchange == ExchangeName.BACKPACK and isinstance(short_symbol.metadata, BackpackMetadata):
+            if short_symbol.metadata.symbol_id is not None:
+                log_data["symbol_id"] = str(short_symbol.metadata.symbol_id)
+        
+        self.logger.info("Placing short order", **log_data)
 
         result = await self.services.order_service.place_order_with_retry(order_request)
 
@@ -818,24 +806,17 @@ class ExecutionHandler:
             if exchange_symbol:
                 log_context.update({
                     "exchange_symbol": exchange_symbol.value,
-                    "internal_symbol": (
-                        exchange_symbol.internal_symbol.value
-                        if exchange_symbol.internal_symbol
-                        else None
-                    ),
-                    "base_asset": (
-                        exchange_symbol.internal_symbol.base_asset
-                        if exchange_symbol.internal_symbol
-                        else None
-                    ),
-                    "market_type": (
-                        exchange_symbol.internal_symbol.market_type.value
-                        if exchange_symbol.internal_symbol
-                        else None
-                    ),
-                    "asset_index": exchange_symbol.asset_index,
-                    "symbol_id": exchange_symbol.symbol_id,
+                    "base_asset": exchange_symbol.base_asset,
+                    "market_type": exchange_symbol.market_type.value,
                 })
+                
+                # Add exchange-specific metadata
+                from cyberdelta.enums.exchange_names import ExchangeName
+                from cyberdelta.core.symbols.models import HyperliquidMetadata, BackpackMetadata
+                if exchange_symbol.exchange == ExchangeName.HYPERLIQUID and isinstance(exchange_symbol.metadata, HyperliquidMetadata):
+                    log_context["asset_index"] = exchange_symbol.metadata.asset_index
+                elif exchange_symbol.exchange == ExchangeName.BACKPACK and isinstance(exchange_symbol.metadata, BackpackMetadata):
+                    log_context["symbol_id"] = exchange_symbol.metadata.symbol_id
 
             self.logger.info("Trade processed by portfolio tracker", **log_context)
 

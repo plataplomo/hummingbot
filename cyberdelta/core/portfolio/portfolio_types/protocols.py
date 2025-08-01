@@ -160,35 +160,6 @@ class ServiceStateData:
         return v
 
 
-@dataclass
-class ServiceSymbolMetadata:
-    """Service symbol metadata structure."""
-    base_asset: str = Field(min_length=1)
-    quote_asset: str = Field(min_length=1)
-    exchange_type: str = Field(min_length=1)
-    is_perpetual: bool = Field(default=False)
-    contract_size: float | None = Field(default=None, gt=0)
-
-    @field_validator("base_asset", "quote_asset", "exchange_type", mode="before")
-    @classmethod
-    def validate_strings(cls, v: str) -> str:
-        """Validate asset and exchange type strings are non-empty."""
-        if not v or not v.strip():
-            raise ServiceProtocolValidationError(
-                field_type="Asset and exchange type strings", requirement="cannot be empty"
-            )
-        return v.strip().upper()
-
-    @field_validator("contract_size", mode="before")
-    @classmethod
-    def validate_contract_size(cls, v: float | None, info: ValidationInfo) -> float | None:
-        """Validate contract size is positive for perpetual contracts."""
-        if v is not None and info.data.get("is_perpetual", False) and v <= 0:
-            raise ServiceProtocolValidationError(
-                field_type="Contract size", requirement="must be positive for perpetual contracts"
-            )
-        return v
-
 
 # ==================== Core Manager Protocols ====================
 
@@ -570,21 +541,6 @@ class PersistenceServiceProtocol(Protocol):
         ...
 
 
-@runtime_checkable
-class SymbolServiceProtocol(Protocol):
-    """Protocol for symbol normalization services."""
-
-    def get_base_symbol(self, symbol: str) -> str:
-        """Get base symbol from trading pair."""
-        ...
-
-    def normalize_symbol(self, symbol: str, exchange_id: str) -> str:
-        """Normalize symbol for specific exchange."""
-        ...
-
-    def get_symbol_metadata(self, symbol: str) -> ServiceSymbolMetadata:
-        """Get metadata for symbol."""
-        ...
 
 
 # ==================== Behavioral Protocols ====================

@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Ticker
+from cyberdelta.core.symbols import Symbol, symbol as create_symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -118,12 +120,12 @@ class PriceDataService:
             client_type=type(client).__name__,
         )
 
-    async def get_ticker(self, exchange_id: str, symbol: str) -> Ticker | None:
+    async def get_ticker(self, exchange_id: str, symbol: Symbol) -> Ticker | None:
         """Get ticker data for a symbol, using cache or fetching from API.
 
         Args:
             exchange_id: The exchange to get ticker from
-            symbol: The symbol to get ticker for
+            symbol: The Symbol object to get ticker for
 
         Returns:
             Ticker data if available, None otherwise
@@ -134,8 +136,8 @@ class PriceDataService:
             self.logger.debug(
                 "ticker_cache_hit",
                 exchange_id=exchange_id,
-                symbol=symbol,
-                message=f"Using cached ticker for {symbol} on {exchange_id}",
+                symbol=symbol.value,
+                message=f"Using cached ticker for {symbol.value} on {exchange_id}",
             )
             return cached_ticker
 
@@ -145,20 +147,21 @@ class PriceDataService:
             self.logger.error(
                 "no_api_client_for_ticker",
                 exchange_id=exchange_id,
-                symbol=symbol,
+                symbol=symbol.value,
                 message=f"No API client found for {exchange_id}",
             )
             return None
 
         try:
+            # Use the Symbol object directly - it's already passed in
             ticker = await client.get_ticker(symbol)
         except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
             self.logger.exception(
                 "ticker_fetch_error",
                 exchange_id=exchange_id,
-                symbol=symbol,
+                symbol=symbol.value,
                 error=str(e),
-                message=f"Error fetching ticker for {symbol} on {exchange_id}: {e}",
+                message=f"Error fetching ticker for {symbol.value} on {exchange_id}: {e}",
             )
             return None
         else:
@@ -181,33 +184,34 @@ class PriceDataService:
             )
             return None
 
-    def cache_ticker(self, exchange_id: str, symbol: str, ticker: Ticker) -> None:
+    def cache_ticker(self, exchange_id: str, symbol: Symbol, ticker: Ticker) -> None:
         """Cache ticker data for future use.
 
         Args:
             exchange_id: The exchange the ticker is from
-            symbol: The symbol the ticker is for
+            symbol: The Symbol object the ticker is for
             ticker: The ticker data to cache
         """
         if exchange_id not in self._ticker_cache:
             self._ticker_cache[exchange_id] = {}
 
-        self._ticker_cache[exchange_id][symbol] = (ticker, datetime.now(UTC))
+        # Use symbol.value as key for cache storage
+        self._ticker_cache[exchange_id][symbol.value] = (ticker, datetime.now(UTC))
 
         self.logger.debug(
             "ticker_cached",
             exchange_id=exchange_id,
-            symbol=symbol,
+            symbol=symbol.value,
             cache_expiry_seconds=self.cache_expiry_seconds,
-            message=f"Cached ticker for {symbol} on {exchange_id}",
+            message=f"Cached ticker for {symbol.value} on {exchange_id}",
         )
 
-    def _get_cached_ticker(self, exchange_id: str, symbol: str) -> Ticker | None:
+    def _get_cached_ticker(self, exchange_id: str, symbol: Symbol) -> Ticker | None:
         """Get ticker from cache if it exists and is not expired.
 
         Args:
             exchange_id: The exchange to get ticker from
-            symbol: The symbol to get ticker for
+            symbol: The Symbol object to get ticker for
 
         Returns:
             Cached ticker if available and valid, None otherwise
@@ -216,10 +220,11 @@ class PriceDataService:
             return None
 
         exchange_cache = self._ticker_cache[exchange_id]
-        if symbol not in exchange_cache:
+        symbol_key = symbol.value
+        if symbol_key not in exchange_cache:
             return None
 
-        ticker, timestamp = exchange_cache[symbol]
+        ticker, timestamp = exchange_cache[symbol_key]
 
         # Check if cache entry is expired
         now = datetime.now(UTC)
@@ -228,13 +233,13 @@ class PriceDataService:
         if age_seconds <= self.cache_expiry_seconds:
             return ticker
         # Remove expired entry
-        del exchange_cache[symbol]
+        del exchange_cache[symbol_key]
         self.logger.debug(
             "ticker_cache_expired",
             exchange_id=exchange_id,
-            symbol=symbol,
+            symbol=symbol.value,
             age_seconds=age_seconds,
-            message=f"Ticker cache expired for {symbol} on {exchange_id}",
+            message=f"Ticker cache expired for {symbol.value} on {exchange_id}",
         )
         return None
 
@@ -278,8 +283,20 @@ class PriceDataService:
             asset,  # Direct symbol (for derivatives)
         ]
 
-        for symbol in possible_symbols:
-            ticker = await self.get_ticker(exchange_id, symbol)
+        for symbol_str in possible_symbols:
+            # Create Symbol object for the ticker lookup
+            try:
+                symbol = create_symbol(symbol_str, ExchangeName(exchange_id))
+                ticker = await self.get_ticker(exchange_id, symbol)
+            except (ValueError, KeyError) as e:
+                self.logger.debug(
+                    "symbol_creation_failed",
+                    exchange_id=exchange_id,
+                    symbol_str=symbol_str,
+                    error=str(e),
+                    message=f"Failed to create symbol {symbol_str} for {exchange_id}: {e}",
+                )
+                continue
             if ticker:
                 # Use mid price if available, otherwise average of bid/ask
                 price: Decimal | None = None
@@ -300,7 +317,7 @@ class PriceDataService:
                     exchange_id=exchange_id,
                     asset=asset,
                     base_currency=base_currency,
-                    symbol=symbol,
+                    symbol=symbol.value,
                     price=float(price),
                     message=f"Found price for {asset}: {price} {base_currency}",
                 )

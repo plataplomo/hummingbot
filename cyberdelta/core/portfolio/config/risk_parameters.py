@@ -9,6 +9,7 @@ from typing import Dict, Any, Protocol
 from dataclasses import dataclass, field
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 logger = get_logger(__name__)
 
@@ -151,19 +152,19 @@ class RiskParameters:
 class MarketDataProvider(Protocol):
     """Interface for getting real market data instead of hardcoded values."""
     
-    async def get_symbol_volatility(self, symbol: str) -> Decimal:
+    async def get_symbol_volatility(self, symbol: Symbol) -> Decimal:
         """Get real volatility from market data."""
         ...
     
-    async def get_daily_volume(self, symbol: str) -> Decimal:
+    async def get_daily_volume(self, symbol: Symbol) -> Decimal:
         """Get real daily volume from market data."""
         ...
     
-    async def get_correlation_matrix(self, symbols: list[str]) -> Dict[str, Dict[str, Decimal]]:
+    async def get_correlation_matrix(self, symbols: list[Symbol]) -> Dict[str, Dict[str, Decimal]]:
         """Get real correlation matrix from market data."""
         ...
     
-    async def get_expected_return(self, symbol: str, strategy: str) -> Decimal:
+    async def get_expected_return(self, symbol: Symbol, strategy: str) -> Decimal:
         """Get expected return based on strategy and market conditions."""
         ...
 
@@ -179,7 +180,7 @@ class DynamicRiskParameters:
         self.base_params = base_params
         self.market_data_provider = market_data_provider
         
-    async def get_symbol_volatility(self, symbol: str) -> Decimal:
+    async def get_symbol_volatility(self, symbol: Symbol) -> Decimal:
         """Get volatility with real data fallback to defaults."""
         if self.market_data_provider:
             try:
@@ -192,8 +193,8 @@ class DynamicRiskParameters:
                     msg="Using default volatility"
                 )
         
-        # Fallback to defaults
-        symbol_upper = symbol.upper()
+        # Fallback to defaults - use Symbol value for string operations
+        symbol_upper = symbol.value.upper()
         if "BTC" in symbol_upper:
             return self.base_params.default_volatilities["BTC"]
         elif "ETH" in symbol_upper:
@@ -205,7 +206,7 @@ class DynamicRiskParameters:
         else:
             return self.base_params.default_volatilities["unknown"]
     
-    async def get_daily_volume(self, symbol: str) -> Decimal:
+    async def get_daily_volume(self, symbol: Symbol) -> Decimal:
         """Get daily volume with estimates as fallback."""
         if self.market_data_provider:
             try:
@@ -218,8 +219,8 @@ class DynamicRiskParameters:
                     msg="Using volume estimates"
                 )
         
-        # Fallback estimates
-        symbol_upper = symbol.upper()
+        # Fallback estimates - use Symbol value for string operations
+        symbol_upper = symbol.value.upper()
         if "BTC" in symbol_upper:
             return Decimal("1000000000")  # $1B
         elif "ETH" in symbol_upper:
@@ -229,7 +230,7 @@ class DynamicRiskParameters:
         else:
             return Decimal("10000000")    # $10M
     
-    async def get_correlation_matrix(self, symbols: list[str]) -> Dict[str, Dict[str, Decimal]]:
+    async def get_correlation_matrix(self, symbols: list[Symbol]) -> Dict[str, Dict[str, Decimal]]:
         """Get correlation matrix with defaults as fallback."""
         if self.market_data_provider:
             try:
@@ -245,7 +246,7 @@ class DynamicRiskParameters:
         # Fallback to default correlations
         return self._get_default_correlation_matrix(symbols)
     
-    async def get_expected_return(self, symbol: str, strategy: str) -> Decimal:
+    async def get_expected_return(self, symbol: Symbol, strategy: str) -> Decimal:
         """Get expected return with defaults as fallback."""
         if self.market_data_provider:
             try:
@@ -265,18 +266,20 @@ class DynamicRiskParameters:
             self.base_params.default_expected_returns["default"]
         )
     
-    def _get_default_correlation_matrix(self, symbols: list[str]) -> Dict[str, Dict[str, Decimal]]:
+    def _get_default_correlation_matrix(self, symbols: list[Symbol]) -> Dict[str, Dict[str, Decimal]]:
         """Generate default correlation matrix for symbols."""
-        matrix = {}
+        matrix: Dict[str, Dict[str, Decimal]] = {}
         
         for symbol1 in symbols:
-            matrix[symbol1] = {}
+            symbol1_key = symbol1.value
+            matrix[symbol1_key] = {}
             for symbol2 in symbols:
+                symbol2_key = symbol2.value
                 if symbol1 == symbol2:
-                    matrix[symbol1][symbol2] = Decimal("1.0")
+                    matrix[symbol1_key][symbol2_key] = Decimal("1.0")
                 else:
                     # Use statistical default correlation
-                    matrix[symbol1][symbol2] = self.base_params.statistical_params["correlation_adjustment"]
+                    matrix[symbol1_key][symbol2_key] = self.base_params.statistical_params["correlation_adjustment"]
         
         return matrix
     
@@ -309,9 +312,9 @@ class DynamicRiskParameters:
         else:
             return self.base_params.correlation_factors["low"]
     
-    def get_liquidity_factor(self, symbol: str) -> Decimal:
+    def get_liquidity_factor(self, symbol: Symbol) -> Decimal:
         """Get liquidity risk factor for symbol."""
-        symbol_upper = symbol.upper()
+        symbol_upper = symbol.value.upper()
         if "BTC" in symbol_upper:
             return self.base_params.liquidity_factors["btc"]
         elif "ETH" in symbol_upper:

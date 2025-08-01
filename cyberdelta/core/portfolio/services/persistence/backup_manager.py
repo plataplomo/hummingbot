@@ -121,7 +121,7 @@ class BackupManager:
         """
         return len(self.list_backups(state_id))
 
-    def get_backup_info(self) -> dict[str, int]:
+    def get_backup_info(self) -> dict[str, str | int]:
         """Get backup information summary.
         
         Returns:

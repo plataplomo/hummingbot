@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Dict
 
 from cyberdelta.core.portfolio.coordinators.portfolio_risk_coordinator import PortfolioRiskCoordinator
+from cyberdelta.core.symbols import Symbol
 
 
 class PortfolioAwarePositionSizer:
@@ -346,7 +347,7 @@ class PortfolioAwarePositionSizer:
 
         return size
 
-    async def _get_symbol_volatility(self, symbol: str) -> Decimal:
+    async def _get_symbol_volatility(self, symbol: Symbol) -> Decimal:
         """Get symbol volatility from risk metrics."""
         # Get current portfolio state
         portfolio_with_risk = await self.coordinator.get_current_portfolio_with_risk_assessment()

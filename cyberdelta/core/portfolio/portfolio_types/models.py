@@ -21,6 +21,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.core.models import Order, SpotBalance, Trade
+from cyberdelta.core.symbols import Symbol
 
 
 # ==================== Enums ====================
@@ -50,7 +51,7 @@ class HealthStatus(Enum):
 class Position(BaseModel):
     """Position data model."""
     exchange: str
-    symbol: str
+    symbol: Symbol
     size: Decimal
     entry_price: Decimal | None = None
     mark_price: Decimal | None = None
@@ -262,7 +263,7 @@ class BalanceUpdate(BaseModel):
 class PositionUpdate(BaseModel):
     """Position update event data."""
     exchange_id: str
-    symbol: str
+    symbol: Symbol
     size: Decimal
     entry_price: Decimal | None
     mark_price: Decimal | None
@@ -276,7 +277,7 @@ class OrderUpdate(BaseModel):
     """Order update event data."""
     exchange_id: str
     order_id: str
-    symbol: str
+    symbol: Symbol
     side: str
     price: Decimal
     quantity: Decimal
@@ -291,7 +292,7 @@ class TradeUpdate(BaseModel):
     exchange_id: str
     trade_id: str
     order_id: str
-    symbol: str
+    symbol: Symbol
     side: str
     price: Decimal
     quantity: Decimal
@@ -768,7 +769,7 @@ class BalanceUpdateRequest(BaseModel):
 class PositionUpdateRequest(BaseModel):
     """Request to update position."""
     exchange_id: str
-    symbol: str
+    symbol: Symbol
     size: Decimal
     entry_price: Decimal | None = None
     mark_price: Decimal | None = None

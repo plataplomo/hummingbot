@@ -196,7 +196,6 @@ class MarginAccountSummaryManager:
             
             # Parse standardized data
             summary = self._parse_standard_data(standard_data, exchange_id)
-                summary = self._parse_generic_data(exchange_id, generic_data)
 
             # Store current summary
             old_summary = self._summaries.get(exchange_id)

@@ -20,7 +20,9 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import FundingRate, Order, OrderBook, Ticker, Trade
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.symbols import Symbol, symbol
 from cyberdelta.core.symbols.service import SymbolService
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.logging_utilities import ErrorSuppressor, SampledLogger
 
 
@@ -95,13 +97,13 @@ class DataHandler:
         self._shutdown_event = asyncio.Event()  # Event for coordinated shutdown
 
         # Storage for latest data (exchange_id -> symbol -> data)
-        self.tickers: dict[str, dict[str, Ticker]] = {}
-        self.order_books: dict[str, dict[str, OrderBook]] = {}
+        self.tickers: dict[str, dict[Symbol, Ticker]] = {}
+        self.order_books: dict[str, dict[Symbol, OrderBook]] = {}
         # Store FundingRate with datetime timestamp
-        self.funding_rates: dict[str, dict[str, FundingRate]] = {}
-        self.user_fills: dict[str, dict[str, list[Trade]]] = {}
-        self.open_orders: dict[str, dict[str, list[Order]]] = {}
-        self.last_update_time: dict[str, dict[str, dt_real]] = {}
+        self.funding_rates: dict[str, dict[Symbol, FundingRate]] = {}
+        self.user_fills: dict[str, dict[Symbol, list[Trade]]] = {}
+        self.open_orders: dict[str, dict[Symbol, list[Order]]] = {}
+        self.last_update_time: dict[str, dict[Symbol, dt_real]] = {}
 
         # Observer pattern implementation
         self._market_data_observers: list[MarketDataObserver] = []
@@ -177,37 +179,43 @@ class DataHandler:
                 continue
 
             # Access symbols directly from exchange configuration
-            symbols = list(exchange_config.symbols.keys())
+            symbol_strings = list(exchange_config.symbols.keys())
+            
+            # Create Symbol objects from config strings at initialization
+            symbol_objects = {
+                symbol_str: symbol(symbol_str, ExchangeName(exchange_id))
+                for symbol_str in symbol_strings
+            }
 
             self.tickers[exchange_id] = {
-                symbol: self._get_default_ticker(symbol) for symbol in symbols
+                sym: self._get_default_ticker(sym) for sym in symbol_objects.values()
             }
             self.order_books[exchange_id] = {
-                symbol: self._get_default_order_book(symbol) for symbol in symbols
+                sym: self._get_default_order_book(sym) for sym in symbol_objects.values()
             }
             # Initialize with None or a default FundingRate object if appropriate
             # For simplicity, initializing with an empty dict, will be populated on first update
             self.funding_rates[exchange_id] = {
-                symbol: FundingRate(
-                    symbol=symbol,
+                sym: FundingRate(
+                    symbol=sym,
                     funding_rate=None,
                     timestamp=dt_real.min.replace(tzinfo=UTC),  # Provide default timestamp
                     next_funding_time=None,  # Default next_funding_time
                 )
-                for symbol in symbols
+                for sym in symbol_objects.values()
             }
-            self.user_fills[exchange_id] = {symbol: [] for symbol in symbols}
+            self.user_fills[exchange_id] = {sym: [] for sym in symbol_objects.values()}
             self.open_orders[exchange_id] = {}
             self.last_update_time[exchange_id] = {
-                symbol: dt_real.min.replace(tzinfo=UTC) for symbol in symbols
+                sym: dt_real.min.replace(tzinfo=UTC) for sym in symbol_objects.values()
             }
 
             logger.debug(
                 "data_structures_initialized",
                 exchange_id=exchange_id,
-                symbols=symbols,
+                symbols=symbol_strings,
                 action="initialize_data_structures",
-                message=f"Initialized data structures for {exchange_id} with symbols: {symbols}",
+                message=f"Initialized data structures for {exchange_id} with symbols: {symbol_strings}",
             )
 
     def register_api_client(self, exchange_id: str, client: ExchangeAPI) -> None:
@@ -237,8 +245,12 @@ class DataHandler:
         for exchange_id, exchange_config in exchanges_dict.items():
             if exchange_config.enabled:
                 client = self.api_clients.get(exchange_id)
-                # Access symbols directly from exchange configuration
-                symbols_for_exchange = list(exchange_config.symbols.keys())
+                # Convert string symbols to Symbol objects at entry point
+                symbol_strings = list(exchange_config.symbols.keys())
+                symbols_for_exchange = [
+                    symbol(symbol_str, ExchangeName(exchange_id))
+                    for symbol_str in symbol_strings
+                ]
 
                 if client and hasattr(
                     client,
@@ -297,7 +309,7 @@ class DataHandler:
         self,
         exchange_id: str,
         client: ExchangeAPI,
-        symbols: list[str],
+        symbols: list[Symbol],
     ) -> None:
         """Connect to WebSocket and subscribe to required data feeds.
 
@@ -386,7 +398,7 @@ class DataHandler:
         self,
         exchange_id: str,
         client: ExchangeAPI,
-        symbols: list[str],
+        symbols: list[Symbol],
     ) -> None:
         """Setup all subscriptions for the given exchange and symbols."""
         logger.info(
@@ -467,7 +479,7 @@ class DataHandler:
         self,
         exchange_id: str,
         client: ExchangeAPI,
-        symbols: list[str],
+        symbols: list[Symbol],
         handlers: dict[str, Any],
     ) -> list[Coroutine[Any, Any, None]]:
         """Create subscription tasks for all symbols and data types.
@@ -509,7 +521,7 @@ class DataHandler:
         self,
         exchange_id: str,
         client: ExchangeAPI,
-        symbol: str,
+        symbol: Symbol,
         handlers: dict[str, Any],
     ) -> list[Coroutine[Any, Any, None]]:
         """Create subscription tasks for a specific symbol.
@@ -517,33 +529,36 @@ class DataHandler:
         Args:
             exchange_id: Exchange identifier.
             client: Exchange API client.
-            symbol: Trading symbol.
+            symbol: Trading symbol (Symbol object).
             handlers: Dictionary of message handlers.
 
         Returns:
             list[Coroutine[Any, Any, None]]: List of subscription coroutines for the symbol.
         """
         tasks: list[Coroutine[Any, Any, None]] = []
+        
+        # Convert Symbol object to string for external API subscription topics
+        symbol_str = str(symbol)
 
         if exchange_id == "hyperliquid":
             # Hyperliquid uses l2Book for order book data and trades for trade data
             tasks.extend([
-                client.subscribe(f"l2Book:{symbol}", handlers["orderbook"]),
-                client.subscribe(f"trades:{symbol}", handlers["ticker"]),
+                client.subscribe(f"l2Book:{symbol_str}", handlers["orderbook"]),
+                client.subscribe(f"trades:{symbol_str}", handlers["ticker"]),
             ])
         elif exchange_id == "backpack":
             # Backpack topic formats (adjust based on actual implementation)
             tasks.extend((
-                client.subscribe(f"ticker.{symbol}", handlers["ticker"]),
-                client.subscribe(f"orderbook.{symbol}", handlers["orderbook"]),
-                client.subscribe(f"funding.{symbol}", handlers["funding"]),
+                client.subscribe(f"ticker.{symbol_str}", handlers["ticker"]),
+                client.subscribe(f"orderbook.{symbol_str}", handlers["orderbook"]),
+                client.subscribe(f"funding.{symbol_str}", handlers["funding"]),
             ))
         else:
             # Generic fallback - adjust based on actual exchange implementations
             tasks.extend((
-                client.subscribe(f"ticker:{symbol}", handlers["ticker"]),
-                client.subscribe(f"orderbook:{symbol}", handlers["orderbook"]),
-                client.subscribe(f"funding:{symbol}", handlers["funding"]),
+                client.subscribe(f"ticker:{symbol_str}", handlers["ticker"]),
+                client.subscribe(f"orderbook:{symbol_str}", handlers["orderbook"]),
+                client.subscribe(f"funding:{symbol_str}", handlers["funding"]),
             ))
 
         return tasks
@@ -601,8 +616,8 @@ class DataHandler:
         try:
             # Extract symbol and price data from the message
             # This will need to be customized based on each exchange's message format
-            symbol = data_payload.get("symbol") or full_message.get("symbol")
-            if not symbol:
+            symbol_str = data_payload.get("symbol") or full_message.get("symbol")
+            if not symbol_str:
                 logger.warning(
                     "ticker_message_missing_symbol",
                     exchange_id=exchange_id,
@@ -613,6 +628,10 @@ class DataHandler:
                 )
                 return
 
+            # Create Symbol object at WebSocket entry point
+            from cyberdelta.core.symbols import symbol
+            symbol_obj = symbol(symbol_str, ExchangeName(exchange_id))
+
             # Create a Ticker object from the message data
             # This is a simplified example - actual implementation depends on message format
             price = (
@@ -620,7 +639,7 @@ class DataHandler:
             )
             if price is not None:
                 ticker = Ticker(
-                    symbol=str(symbol),
+                    symbol=symbol_obj,
                     exchange=exchange_id,
                     price=Decimal(str(price)) if price is not None else None,
                     timestamp=dt_real.now(UTC),
@@ -634,7 +653,7 @@ class DataHandler:
                     if data_payload.get("volume")
                     else None,
                 )
-                self._update_ticker(exchange_id, str(symbol), ticker, dt_real.now(UTC))
+                self._update_ticker(exchange_id, symbol_obj, ticker, dt_real.now(UTC))
         except (ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "ticker_message_handling_error",
@@ -654,8 +673,8 @@ class DataHandler:
         """Handle order book update messages."""
         try:
             # Extract symbol and order book data from the message
-            symbol = data_payload.get("symbol") or full_message.get("symbol")
-            if not symbol:
+            symbol_str = data_payload.get("symbol") or full_message.get("symbol")
+            if not symbol_str:
                 logger.warning(
                     "orderbook_message_missing_symbol",
                     exchange_id=exchange_id,
@@ -666,6 +685,10 @@ class DataHandler:
                 )
                 return
 
+            # Create Symbol object at WebSocket entry point
+            from cyberdelta.core.symbols import symbol
+            symbol_obj = symbol(symbol_str, ExchangeName(exchange_id))
+
             # Create an OrderBook object from the message data
             # This is a simplified example - actual implementation depends on message format
             bids = data_payload.get("bids", [])
@@ -673,12 +696,12 @@ class DataHandler:
 
             if bids or asks:
                 orderbook = OrderBook(
-                    symbol=str(symbol),
+                    symbol=symbol_obj,
                     bids=[(Decimal(str(price)), Decimal(str(qty))) for price, qty in bids[:10]],
                     asks=[(Decimal(str(price)), Decimal(str(qty))) for price, qty in asks[:10]],
                     timestamp=dt_real.now(UTC),
                 )
-                self._update_order_book(exchange_id, str(symbol), orderbook, dt_real.now(UTC))
+                self._update_order_book(exchange_id, symbol_obj, orderbook, dt_real.now(UTC))
         except (ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "orderbook_message_handling_error",
@@ -702,8 +725,8 @@ class DataHandler:
         """
         try:
             # Extract symbol from the funding update
-            symbol = data_payload.get("symbol") or full_message.get("symbol")
-            if not symbol:
+            symbol_str = data_payload.get("symbol") or full_message.get("symbol")
+            if not symbol_str:
                 logger.warning(
                     "funding_message_missing_symbol",
                     exchange_id=exchange_id,
@@ -714,16 +737,20 @@ class DataHandler:
                 )
                 return
 
+            # Create Symbol object at WebSocket entry point
+            from cyberdelta.core.symbols import symbol
+            symbol_obj = symbol(symbol_str, ExchangeName(exchange_id))
+
             # Create a FundingRate object from the message data
             funding_rate_value = data_payload.get("funding_rate") or data_payload.get("rate")
             if funding_rate_value is not None:
                 funding_rate = FundingRate(
-                    symbol=str(symbol),
+                    symbol=symbol_obj,
                     funding_rate=Decimal(str(funding_rate_value)),
                     timestamp=dt_real.now(UTC),
                     next_funding_time=None,  # Extract from message if available
                 )
-                self._update_funding_rate(exchange_id, str(symbol), funding_rate, dt_real.now(UTC))
+                self._update_funding_rate(exchange_id, symbol_obj, funding_rate, dt_real.now(UTC))
         except (ValueError, TypeError, KeyError) as e:
             logger.exception(
                 "funding_message_handling_error",
@@ -835,7 +862,7 @@ class DataHandler:
     def _update_ticker(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         data: Ticker,
         timestamp: dt_real,
     ) -> None:
@@ -893,7 +920,7 @@ class DataHandler:
     def _update_order_book(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         data: OrderBook,
         timestamp: dt_real,
     ) -> None:
@@ -922,7 +949,7 @@ class DataHandler:
     def _update_funding_rate(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         data: FundingRate,
         timestamp: dt_real,
     ) -> None:
@@ -936,8 +963,8 @@ class DataHandler:
                 self.last_update_time[exchange_id] = {}
 
         self.funding_rates[exchange_id][symbol] = data  # Store the full object
-        # Store funding-specific timestamp to avoid conflicts with ticker updates
-        self.last_update_time[exchange_id][f"{symbol}_funding"] = timestamp
+        # Store timestamp for staleness checking
+        self.last_update_time[exchange_id][symbol] = timestamp
         # Only log funding rate changes, not every update
         old_funding = self.funding_rates.get(exchange_id, {}).get(symbol)
         old_rate = old_funding.funding_rate if old_funding else None
@@ -954,7 +981,7 @@ class DataHandler:
                 message=f"Funding rate changed: {exchange_id}/{symbol} - {old_rate} -> {new_rate}",
             )
 
-    def _update_user_fills(self, exchange_id: str, symbol: str, fills: list[Trade]) -> None:
+    def _update_user_fills(self, exchange_id: str, symbol: Symbol, fills: list[Trade]) -> None:
         # Ensure structures are initialized if symbol is new
         # Method does not exist, commenting out
 
@@ -1017,12 +1044,12 @@ class DataHandler:
 
     # --- Public Data Access Methods ---
 
-    def get_latest_ticker(self, exchange_id: str, symbol: str) -> Ticker | None:
+    def get_latest_ticker(self, exchange_id: str, symbol: Symbol) -> Ticker | None:
         """Get the latest ticker data for a specific symbol on an exchange.
 
         Args:
             exchange_id: Exchange identifier.
-            symbol: Trading symbol.
+            symbol: Trading symbol as Symbol object.
 
         Returns:
             Ticker | None: Latest ticker data or None if stale/not found.
@@ -1040,12 +1067,12 @@ class DataHandler:
             return None
         return self.tickers.get(exchange_id, {}).get(symbol)
 
-    def get_latest_order_book(self, exchange_id: str, symbol: str) -> OrderBook | None:
+    def get_latest_order_book(self, exchange_id: str, symbol: Symbol) -> OrderBook | None:
         """Get the latest order book for a symbol, checking for staleness.
 
         Args:
             exchange_id: Exchange identifier.
-            symbol: Trading symbol.
+            symbol: Trading symbol as Symbol object.
 
         Returns:
             OrderBook | None: Latest order book or None if stale/not found.
@@ -1069,7 +1096,7 @@ class DataHandler:
             return None
         return order_book_obj
 
-    def get_latest_funding_rate(self, exchange_id: str, symbol: str) -> FundingRate | None:
+    def get_latest_funding_rate(self, exchange_id: str, symbol: Symbol) -> FundingRate | None:
         """Get the latest funding rate data for a symbol on an exchange.
 
         For Hyperliquid, this will trigger an on-demand fetch if data is stale or missing.
@@ -1077,7 +1104,7 @@ class DataHandler:
 
         Args:
             exchange_id: Exchange identifier.
-            symbol: Trading symbol.
+            symbol: Trading symbol as Symbol object.
 
         Returns:
             FundingRate | None: Latest funding rate or None if not found.
@@ -1174,14 +1201,14 @@ class DataHandler:
         # Return the funding rate object even if stale
         return funding_rate_obj
 
-    def get_all_tickers(self, exchange_id: str) -> dict[str, Ticker]:
+    def get_all_tickers(self, exchange_id: str) -> dict[Symbol, Ticker]:
         """Get all available tickers (as Candles) for a given exchange.
 
         Args:
             exchange_id: Exchange identifier.
 
         Returns:
-            dict[str, Ticker]: Dictionary mapping symbols to their latest ticker data.
+            dict[Symbol, Ticker]: Dictionary mapping symbols to their latest ticker data.
         """
         # Consider adding staleness checks for each symbol
         return self.tickers.get(exchange_id, {})
@@ -1390,7 +1417,7 @@ class DataHandler:
         """Stop the data handler gracefully."""
         await self.shutdown()
 
-    async def fetch_funding_rates(self, exchange_id: str, symbols: list[str] | None = None) -> None:
+    async def fetch_funding_rates(self, exchange_id: str, symbols: list[Symbol] | None = None) -> None:
         """Fetch funding rates for specified symbols via REST API.
 
         This is useful for exchanges like Hyperliquid that don't provide
@@ -1398,7 +1425,7 @@ class DataHandler:
 
         Args:
             exchange_id: Exchange identifier
-            symbols: List of symbols to fetch, or None for all configured symbols
+            symbols: List of Symbol objects to fetch, or None for all configured symbols
         """
         try:
             client = self.api_clients.get(exchange_id)
@@ -1426,21 +1453,11 @@ class DataHandler:
             logger.debug(
                 "fetching_funding_rates",
                 exchange_id=exchange_id,
-                symbols=symbols,
+                symbols=[s.value for s in symbols],
                 message="Fetching funding rates",
             )
-            # Convert string symbols to Symbol objects
-            from cyberdelta.core.symbols.api import symbol as create_symbol
-            from cyberdelta.enums.exchange_names import ExchangeName
 
-            exchange_name = (
-                ExchangeName.HYPERLIQUID if exchange_id == "hyperliquid" else ExchangeName.BACKPACK
-            )
-            exchange_symbols = [
-                create_symbol(value=symbol, exchange=exchange_name) for symbol in symbols
-            ]
-
-            rates = await client.get_funding_rates(GetFundingRatesArgs(symbols=exchange_symbols))
+            rates = await client.get_funding_rates(GetFundingRatesArgs(symbols=symbols))
 
             # Update cache with fresh data
             for rate in rates:
@@ -1596,12 +1613,12 @@ class DataHandler:
 
     # --- Staleness Check ---
 
-    def _is_data_stale(self, exchange_id: str, symbol: str, data_type: str) -> bool:
+    def _is_data_stale(self, exchange_id: str, symbol: Symbol, data_type: str) -> bool:
         """Check if data for a given exchange, symbol, and type is stale.
 
         Args:
             exchange_id: Exchange identifier.
-            symbol: Trading symbol.
+            symbol: Trading symbol as Symbol object.
             data_type: Type of data (e.g., 'ticker', 'order_book', 'funding').
 
         Returns:
@@ -1682,7 +1699,7 @@ class DataHandler:
         self,
         exchange_id: str,
         client: ExchangeAPI,
-        symbols: list[str],
+        symbols: list[Symbol],
     ) -> None:
         # TODO: Add websocket configuration to ExchangeSpecificConfig when needed
         # For now, use hardcoded defaults
@@ -1799,7 +1816,7 @@ class DataHandler:
             message=f"[{exchange_id}] Exited WebSocket maintenance loop.",
         )
 
-    def _get_default_ticker(self, symbol: str) -> Ticker:
+    def _get_default_ticker(self, symbol: Symbol) -> Ticker:
         """Return a default Ticker object for initialization."""
         # Ensure timestamp is timezone-aware (UTC)
         default_time = dt_real.min.replace(tzinfo=UTC)
@@ -1813,7 +1830,7 @@ class DataHandler:
             volume=Decimal("0.0"),  # Default volume
         )
 
-    def _get_default_order_book(self, symbol: str) -> OrderBook:
+    def _get_default_order_book(self, symbol: Symbol) -> OrderBook:
         """Return a default OrderBook object for initialization."""
         return OrderBook(
             symbol=symbol,

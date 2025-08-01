@@ -195,10 +195,7 @@ class FinancialDataScreener(BaseScreener):
         field_errors = await self._validate_ticker_fields(ticker)
         errors.extend(field_errors)
 
-        # Validate symbol
-        symbol_errors, symbol_warnings = await self._validate_symbol(ticker)
-        errors.extend(symbol_errors)
-        warnings.extend(symbol_warnings)
+        # Symbol objects are already validated at creation - no additional validation needed
 
         # Validate exchange
         if self.require_exchange_id:
@@ -299,7 +296,7 @@ class FinancialDataScreener(BaseScreener):
         # No protocol check needed
 
         # Validate required protocol fields
-        if not ticker.symbol or not ticker.symbol.strip():
+        if not ticker.symbol:
             errors.append("Required field symbol is missing or empty")
 
         if ticker.price is None:
@@ -348,44 +345,6 @@ class FinancialDataScreener(BaseScreener):
 
         return errors
 
-    async def _validate_symbol(self, data: object) -> tuple[list[str], list[str]]:
-        """Validate trading symbol format.
-
-        Args:
-            data: Data object with symbol
-
-        Returns:
-            Tuple of (errors, warnings)
-        """
-        errors: list[str] = []
-        warnings: list[str] = []
-
-        # Get symbol from the data object - Ticker has symbol field
-        symbol = None
-        if isinstance(data, Ticker):
-            symbol = data.symbol
-
-        if not symbol:
-            errors.append("Symbol is required")
-            return errors, warnings
-
-        symbol = str(symbol).strip().upper()
-
-        # Basic format validation
-        if len(symbol) < MIN_SYMBOL_LENGTH:
-            errors.append("Symbol too short (minimum 2 characters)")
-        elif len(symbol) > MAX_SYMBOL_LENGTH_TRADING_PAIR:
-            errors.append("Symbol too long (maximum 20 characters)")
-
-        # Character validation
-        if not symbol.replace("-", "").replace("/", "").replace("_", "").isalnum():
-            errors.append("Symbol contains invalid characters")
-
-        # Common format warnings
-        if not any(sep in symbol for sep in ["-", "/", "_"]):
-            warnings.append("Symbol may not be a trading pair (no separator found)")
-
-        return errors, warnings
 
     async def _validate_margin_balances(
         self, summary: MarginAccountSummary

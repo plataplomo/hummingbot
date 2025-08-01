@@ -9,6 +9,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.core.execution.orders.market_order_errors import MarketOrderParameterError
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.utils.parsing import parse_decimal_value
 
 
@@ -127,16 +128,18 @@ class MarketOrderConfig(BaseModel):
 
         return v
 
-    def get_slippage_for_symbol(self, symbol: str) -> Decimal:
-        """Get the slippage configuration for a specific symbol.
+    def get_slippage_for_symbol(self, symbol: Symbol) -> Decimal:
+        """Get the slippage configuration for a specific Symbol.
 
         Args:
-            symbol: Trading symbol (e.g., "BTC", "ETH")
+            symbol: Symbol object
 
         Returns:
             Decimal: Configured slippage for the symbol, or default if not found
         """
-        return self.slippage_by_symbol.get(symbol, self.slippage_by_symbol["default"])
+        # Extract base asset from symbol for configuration lookup
+        symbol_key = symbol.base_asset if hasattr(symbol, 'base_asset') and symbol.base_asset else symbol.value
+        return self.slippage_by_symbol.get(symbol_key, self.slippage_by_symbol["default"])
 
     def validate_slippage(self, slippage: Decimal) -> Decimal:
         """Validate and cap slippage to maximum allowed.

@@ -12,6 +12,7 @@ from typing import Any, TypedDict, cast
 
 from cyberdelta.config.models.config_models import AppSettings  # Correct path
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 
 class HistorySeries(TypedDict):
@@ -72,7 +73,7 @@ class FundingRateValidator:
     def record_prediction(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         predicted_rate: float,
         method: str = "api",
         confidence: float = 1.0,
@@ -93,7 +94,7 @@ class FundingRateValidator:
             "timestamp": timestamp,
             "datetime": datetime.fromtimestamp(timestamp / 1000, UTC),
             "exchange": exchange,
-            "symbol": symbol,
+            "symbol": symbol.value,
             "predicted_rate": predicted_rate,
             "method": method,
             "confidence": confidence,
@@ -103,14 +104,14 @@ class FundingRateValidator:
         self.logger.debug(
             "funding_rate_prediction_recorded",
             exchange=exchange,
-            symbol=symbol,
+            symbol=symbol.value,
             predicted_rate=predicted_rate,
             method=method,
             confidence=confidence,
             timestamp=timestamp,
             action="prediction_stored",
             message=(
-                f"Recorded funding rate prediction: {exchange}/{symbol}, "
+                f"Recorded funding rate prediction: {exchange}/{symbol.value}, "
                 f"rate={predicted_rate:.6f}, method={method}"
             ),
         )

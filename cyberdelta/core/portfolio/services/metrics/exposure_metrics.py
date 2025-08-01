@@ -139,8 +139,9 @@ class ExposureMetricsService(BaseModel):
         # Calculate from positions
         for exchange, positions in state.positions.items():
             for position in positions:
-                # Extract currency from symbol (simplified)
-                currency = position.symbol.split("-")[0] if "-" in position.symbol else position.symbol
+                # Extract currency from symbol (simplified) - use Symbol value for string operations
+                symbol_value = position.symbol.value
+                currency = symbol_value.split("-")[0] if "-" in symbol_value else symbol_value
                 
                 if currency not in currency_exposure:
                     currency_exposure[currency] = Decimal(0)

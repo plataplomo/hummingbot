@@ -529,7 +529,7 @@ class CurrencyExposureCalculator:
         Returns:
             Tuple of (base_currency, quote_currency), either may be None
         """
-        symbol = position.symbol
+        symbol = position.symbol.value
 
         # Handle perpetuals
         if "-PERP" in symbol:

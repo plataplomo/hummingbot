@@ -11,6 +11,8 @@ from decimal import Decimal
 from typing import Any, Protocol, TypeGuard, cast
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol, symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
     AllSourcesFailedError,
     FundingRateSourceError,
@@ -61,7 +63,7 @@ def _safe_repr(value: object) -> str:
 class FundingRateValidatorProtocol(Protocol):
     """Protocol for funding rate validator."""
 
-    def calculate_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:
+    def calculate_metrics(self, exchange: str, symbol: Symbol) -> dict[str, float | None]:
         """Calculate accuracy metrics for funding rate predictions."""
         ...
 
@@ -90,7 +92,7 @@ class MultiTierFundingProvider:
         self.funding_rate_validator = funding_rate_validator
 
         # Cached funding rate data
-        self.funding_cache: dict[tuple[str, str], IntegratedFundingData] = {}
+        self.funding_cache: dict[tuple[str, Symbol], IntegratedFundingData] = {}
 
         # Source configuration
         self.primary_source_weight = config.get("primary_source_weight", 0.6)
@@ -238,7 +240,7 @@ class MultiTierFundingProvider:
             ),
         )
 
-    async def get_funding_rate(self, exchange: str, symbol: str) -> tuple[float, float]:
+    async def get_funding_rate(self, exchange: str, symbol: Symbol) -> tuple[float, float]:
         """Get funding rate with confidence score using multi-tier approach.
 
         Args:
@@ -377,7 +379,7 @@ class MultiTierFundingProvider:
         else:
             return integrated_data.rate, confidence_score
 
-    async def _get_primary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
+    async def _get_primary_funding_rate(self, exchange: str, symbol: Symbol) -> FundingData | None:
         """Get funding rate from primary source.
 
         Args:
@@ -434,7 +436,7 @@ class MultiTierFundingProvider:
             )
             return None
 
-    async def _get_secondary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
+    async def _get_secondary_funding_rate(self, exchange: str, symbol: Symbol) -> FundingData | None:
         """Get funding rate from secondary source.
 
         Args:
@@ -490,7 +492,7 @@ class MultiTierFundingProvider:
             )
             return None
 
-    async def _get_tertiary_funding_rate(self, exchange: str, symbol: str) -> FundingData | None:
+    async def _get_tertiary_funding_rate(self, exchange: str, symbol: Symbol) -> FundingData | None:
         """Get funding rate from tertiary source.
 
         Args:
@@ -546,7 +548,7 @@ class MultiTierFundingProvider:
             )
             return None
 
-    async def _get_fallback_funding_rate(self, exchange: str, symbol: str) -> tuple[float, float]:
+    async def _get_fallback_funding_rate(self, exchange: str, symbol: Symbol) -> tuple[float, float]:
         """Get funding rate from fallback source.
 
         Args:
@@ -633,7 +635,7 @@ class MultiTierFundingProvider:
     def _integrate_funding_data(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         primary: FundingData | None,
         secondary: FundingData | None,
         tertiary: FundingData | None,
@@ -755,7 +757,7 @@ class MultiTierFundingProvider:
         self,
         integrated_data: IntegratedFundingData,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
     ) -> ConfidenceFactors:
         """Calculate confidence factors based on integrated data.
 
@@ -790,7 +792,7 @@ class MultiTierFundingProvider:
             freshness_factor=freshness_score,
         )
 
-    def _check_historical_accuracy(self, exchange: str, symbol: str) -> float:
+    def _check_historical_accuracy(self, exchange: str, symbol: Symbol) -> float:
         """Check historical accuracy of funding rate predictions.
 
         Args:

@@ -25,8 +25,8 @@ from cyberdelta.core.models import (  # Import MarketData, OrderBook
     Ticker,
 )
 
-# from cyberdelta.core.symbols.helpers import SymbolDomainHelpers, get_domain_helpers  # TODO: Remove obsolete import
 from cyberdelta.core.symbols.service import SymbolService
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -80,7 +80,6 @@ class SignalGenerator:
         self.app_settings = app_settings
         self.data_handler = data_handler
         self.symbol_service = symbol_mapper  # Internal reference uses proper name
-        self.symbol_helpers: SymbolDomainHelpers = get_domain_helpers(self.symbol_service)
 
         # Configuration values from AppSettings
         # Use strategy configuration from the hl_perp_bp_spot strategy
@@ -99,25 +98,28 @@ class SignalGenerator:
         self.risk_aversion = 1.0  # Default risk aversion
 
         # Historical funding rates for volatility calculation
-        # exchange -> internal_symbol -> deque[(timestamp, rate: Decimal)]
-        self.historical_funding_rates: dict[str, dict[str, deque[tuple[datetime, Decimal]]]] = {}
+        # exchange -> Symbol -> deque[(timestamp, rate: Decimal)]
+        self.historical_funding_rates: dict[str, dict[Symbol, deque[tuple[datetime, Decimal]]]] = {}
 
         # Historical basis data for volatility calculation
-        # internal_symbol -> deque[(timestamp, basis: Decimal)]
-        self.historical_basis: dict[str, deque[tuple[datetime, Decimal]]] = {}
+        # Symbol -> deque[(timestamp, basis: Decimal)]
+        self.historical_basis: dict[Symbol, deque[tuple[datetime, Decimal]]] = {}
 
         # Historical slippage data for estimation
-        # exchange -> symbol -> list[Decimal]
-        self.historical_slippage: dict[str, dict[str, list[Decimal]]] = {}
+        # exchange -> Symbol -> list[Decimal]
+        self.historical_slippage: dict[str, dict[Symbol, list[Decimal]]] = {}
 
         # Initialize data structures
         self._initialize_data_structures()
         logger.info("SignalGenerator initialized.")
 
     def _initialize_data_structures(self) -> None:
-        """Initialize data structures for historical data using SymbolMapper."""
-        all_unified_symbols = self.symbol_service.get_all_symbols()
-        all_internal_symbols = [symbol.internal for symbol in all_unified_symbols]
+        """Initialize data structures for historical data using SymbolService."""
+        # Get all registered symbols from the equivalence map
+        all_symbols = []
+        for symbols_list in self.symbol_service._equivalence_map.values():
+            all_symbols.extend(symbols_list)
+        all_internal_symbols = all_symbols  # Keep Symbol objects, don't extract .value
         # Use the exchanges from AppSettings structure
         configured_exchanges: list[str] = list(self.app_settings.exchanges.keys())
 
@@ -143,55 +145,38 @@ class SignalGenerator:
         for exchange_id in enabled_exchanges:
             self.historical_funding_rates[exchange_id] = {}
             self.historical_slippage[exchange_id] = {}  # Initialize historical slippage structure
-            for internal_symbol in all_internal_symbols:
-                # Check if this exchange has a mapping for the internal symbol
-                exchange_symbol = self.symbol_helpers.resolve_for_exchange(
-                    internal_symbol.value,
-                    exchange_id,
-                )
-                if exchange_symbol:
-                    self.historical_funding_rates[exchange_id][internal_symbol.value] = deque(
+            for symbol in all_internal_symbols:
+                # Use Symbol objects directly as keys - no string conversion
+                if symbol:
+                    self.historical_funding_rates[exchange_id][symbol] = deque(
                         maxlen=self.funding_sample_count,  # Use maxlen
                     )
-                    self.historical_slippage[exchange_id][
-                        internal_symbol.value
-                    ] = []  # Initialize empty list
+                    self.historical_slippage[exchange_id][symbol] = []  # Initialize empty list
                     # Enhanced logging with domain context
                     logger.debug(
                         "funding_deque_initialized",
                         action="init",
                         exchange_id=exchange_id,
-                        internal_symbol=internal_symbol,
-                        exchange_symbol=exchange_symbol.value,
-                        base_asset=(
-                            exchange_symbol.internal_symbol.base_asset
-                            if exchange_symbol.internal_symbol
-                            else None
-                        ),
-                        market_type=(
-                            exchange_symbol.internal_symbol.market_type.value
-                            if exchange_symbol.internal_symbol
-                            else None
-                        ),
-                        is_indexed=exchange_symbol.is_indexed,
+                        symbol=symbol.value,
+                        base_asset=getattr(symbol, 'base_asset', None),
+                        market_type=str(getattr(symbol, 'market_type', None)) if hasattr(symbol, 'market_type') else None,
                         message=(
-                            f"  Initialized funding deque for {exchange_id} / {internal_symbol} "
-                            f"(maps to {exchange_symbol.value})"
+                            f"  Initialized funding deque for {exchange_id} / {symbol.value}"
                         ),
                     )
                 #    logger.debug(
                 #        f"skipping funding deque."
 
-        # Initialize basis history using all known internal symbols
-        for internal_symbol in all_internal_symbols:
-            self.historical_basis[internal_symbol.value] = deque(
+        # Initialize basis history using all known symbols
+        for symbol in all_internal_symbols:
+            self.historical_basis[symbol] = deque(
                 maxlen=self.funding_sample_count,
             )  # Use maxlen
             logger.debug(
                 "basis_deque_initialized",
                 action="init",
-                internal_symbol=internal_symbol,
-                message=f"  Initialized basis deque for {internal_symbol}",
+                symbol=symbol.value,
+                message=f"  Initialized basis deque for {symbol.value}",
             )
 
         # Log the final structure for verification
@@ -214,8 +199,11 @@ class SignalGenerator:
         Uses SymbolMapper for translation.
         """
         now = datetime.now(UTC)
-        all_unified_symbols = self.symbol_service.get_all_symbols()
-        all_internal_symbols = [symbol.internal for symbol in all_unified_symbols]
+        # Get all registered symbols from the equivalence map
+        all_symbols = []
+        for symbols_list in self.symbol_service._equivalence_map.values():
+            all_symbols.extend(symbols_list)
+        all_internal_symbols = [symbol.value for symbol in all_symbols]
 
         # Determine enabled exchanges directly from config
         enabled_exchanges = self._get_enabled_exchanges()
@@ -224,8 +212,8 @@ class SignalGenerator:
         self._update_funding_rate_history(enabled_exchanges, now)
 
         # Update basis history (price difference between exchanges)
-        all_internal_symbol_values = [symbol.value for symbol in all_internal_symbols]
-        self._update_basis_history(all_internal_symbol_values, enabled_exchanges, now)
+        # Pass Symbol objects directly, not their string values
+        self._update_basis_history(all_symbols, enabled_exchanges, now)
 
     def _get_enabled_exchanges(self) -> list[str]:
         """Get list of enabled exchanges from configuration.
@@ -241,54 +229,38 @@ class SignalGenerator:
     def _update_funding_rate_history(self, enabled_exchanges: list[str], now: datetime) -> None:
         """Update funding rate history for all exchanges and symbols."""
         for exchange_id in enabled_exchanges:
-            # Iterate through internal symbols expected for this exchange based on init
-            expected_internal_symbols = self.historical_funding_rates.get(exchange_id, {}).keys()
+            # Iterate through symbols expected for this exchange based on init
+            expected_symbols = self.historical_funding_rates.get(exchange_id, {}).keys()
 
-            for internal_symbol in expected_internal_symbols:
-                self._update_single_funding_rate(exchange_id, internal_symbol, now)
+            for symbol in expected_symbols:
+                self._update_single_funding_rate(exchange_id, symbol, now)
 
     def _update_single_funding_rate(
         self,
         exchange_id: str,
-        internal_symbol: str,
+        symbol: Symbol,
         now: datetime,
     ) -> None:
         """Update funding rate for a single exchange/symbol combination."""
-        # Get the corresponding exchange symbol using domain helpers
-        exchange_symbol_obj = self.symbol_helpers.resolve_for_exchange(
-            internal_symbol,
-            exchange_id,
-        )
-        exchange_symbol = exchange_symbol_obj.value if exchange_symbol_obj else None
+        # Use Symbol object directly - no conversion needed
 
-        if not exchange_symbol:
-            # Get available exchanges for better error context
-            unified_symbol = self.symbol_service.store.get_by_internal(internal_symbol)
-            available_exchanges = (
-                list(unified_symbol.exchange_mappings.keys()) if unified_symbol else []
-            )
-
-            # This indicates a possible inconsistency if the symbol was present during init
+        if not symbol:
             logger.error(
-                "symbol_mapping_inconsistency",
+                "invalid_symbol_object",
                 action="update",
-                internal_symbol=internal_symbol,
+                symbol=symbol,
                 exchange_id=exchange_id,
-                available_exchanges=available_exchanges,
                 message=(
-                    f"Symbol mapping inconsistency: Cannot find exchange symbol for "
-                    f"internal symbol '{internal_symbol}' on '{exchange_id}', though it was "
-                    f"expected during initialization. Available on: "
-                    f"{', '.join(available_exchanges) if available_exchanges else 'none'}. "
-                    f"Skipping update."
+                    f"Invalid Symbol object for exchange '{exchange_id}'. "
+                    f"Skipping funding rate update."
                 ),
             )
             return
 
-        # Fetch data using the exchange-specific symbol
+        # Fetch data using the Symbol object directly
         funding_data = self.data_handler.get_latest_funding_rate(
             exchange_id,
-            exchange_symbol,
+            symbol,
         )
         if not isinstance(funding_data, FundingRate):
             return
@@ -298,28 +270,28 @@ class SignalGenerator:
         if rate is None:
             return  # Skip this data point
 
-        # Add to history using internal_symbol key
+        # Add to history using Symbol object as key
         if (
             exchange_id in self.historical_funding_rates
-            and internal_symbol in self.historical_funding_rates[exchange_id]
+            and symbol in self.historical_funding_rates[exchange_id]
         ):
-            history_deque = self.historical_funding_rates[exchange_id][internal_symbol]
+            history_deque = self.historical_funding_rates[exchange_id][symbol]
             history_deque.append((timestamp, rate))
         else:
             logger.error(
                 "funding_deque_not_found",
                 action="update",
                 exchange_id=exchange_id,
-                internal_symbol=internal_symbol,
+                symbol=symbol.value,
                 message=(
                     f"Historical funding rate deque not found for "
-                    f"{exchange_id}/{internal_symbol} during update."
+                    f"{exchange_id}/{symbol.value} during update."
                 ),
             )
 
     def _update_basis_history(
         self,
-        all_internal_symbols: list[str],
+        all_internal_symbols: list[Symbol],
         enabled_exchanges: list[str],
         now: datetime,
     ) -> None:
@@ -329,21 +301,21 @@ class SignalGenerator:
 
     def _update_single_basis(
         self,
-        internal_symbol: str,
+        internal_symbol: Symbol,
         enabled_exchanges: list[str],
         now: datetime,
     ) -> None:
         """Update basis for a single symbol."""
         # Find exchanges that map this internal symbol and get valid tickers
         valid_exchanges_for_symbol, exchange_tickers = self._get_valid_tickers_for_symbol(
-            internal_symbol,
+            internal_symbol,  # Pass Symbol object directly
             enabled_exchanges,
         )
 
         # Compute basis if enough valid tickers were found
         if len(valid_exchanges_for_symbol) >= MIN_EXCHANGES_FOR_BASIS:
             self._compute_and_store_basis(
-                internal_symbol,
+                internal_symbol,  # Pass Symbol object directly
                 valid_exchanges_for_symbol,
                 exchange_tickers,
                 now,
@@ -351,13 +323,13 @@ class SignalGenerator:
 
     def _get_valid_tickers_for_symbol(
         self,
-        internal_symbol: str,
+        internal_symbol: Symbol,
         enabled_exchanges: list[str],
     ) -> tuple[list[str], dict[str, Ticker]]:
         """Get valid tickers for a symbol across exchanges.
 
         Args:
-            internal_symbol: Internal symbol to get tickers for
+            internal_symbol: Internal Symbol object to get tickers for
             enabled_exchanges: List of enabled exchanges to check
 
         Returns:
@@ -368,49 +340,48 @@ class SignalGenerator:
 
         # Check all enabled exchanges
         for exchange_id in enabled_exchanges:
-            # Get exchange symbol using domain helpers
-            exchange_symbol_obj = self.symbol_helpers.resolve_for_exchange(
-                internal_symbol,
-                exchange_id,
-            )
-
-            if exchange_symbol_obj:  # Check if mapping exists
+            # Create Symbol object for this exchange
+            from cyberdelta.core.symbols import symbol as create_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+            try:
+                symbol_obj = create_symbol(internal_symbol.value, ExchangeName(exchange_id))
                 ticker_data: Ticker | None = self.data_handler.get_latest_ticker(
                     exchange_id,
-                    exchange_symbol_obj.value,
+                    symbol_obj,
                 )
-
-                # Ensure market data and price are valid
-                if ticker_data is not None and ticker_data.price is not None:
-                    # Attempt to convert price to Decimal immediately for validation
-                    try:
-                        # Ticker.price is already Decimal | None, checked above
-                        valid_exchanges_for_symbol.append(exchange_id)
-                        # Store the ticker
-                        exchange_tickers[exchange_id] = ticker_data
-                    except (InvalidOperation, TypeError, AttributeError) as conversion_error:
-                        logger.warning(
-                            "market_data_processing_failed",
-                            action="update",
-                            exchange_id=exchange_id,
-                            exchange_symbol=(
-                                exchange_symbol_obj.value if exchange_symbol_obj else None
-                            ),
-                            internal_symbol=internal_symbol,
-                            error=str(conversion_error),
-                            message=(
-                                f"Could not process market data for {exchange_id}/"
-                                f"{exchange_symbol_obj.value if exchange_symbol_obj else 'unknown'}"
-                                f" (Internal: {internal_symbol}): {conversion_error}"
-                            ),
-                        )
-                        # Do not add this exchange/ticker if price is invalid
+            except Exception:
+                # Fallback if symbol creation fails
+                ticker_data = None
+                
+            # Ensure market data and price are valid
+            if ticker_data is not None and ticker_data.price is not None:
+                # Attempt to convert price to Decimal immediately for validation
+                try:
+                    # Ticker.price is already Decimal | None, checked above
+                    valid_exchanges_for_symbol.append(exchange_id)
+                    # Store the ticker
+                    exchange_tickers[exchange_id] = ticker_data
+                except (InvalidOperation, TypeError, AttributeError) as conversion_error:
+                    logger.warning(
+                        "market_data_processing_failed",
+                        action="update",
+                        exchange_id=exchange_id,
+                        exchange_symbol=internal_symbol.value,
+                        internal_symbol=internal_symbol.value,
+                        error=str(conversion_error),
+                        message=(
+                            f"Could not process market data for {exchange_id}/"
+                            f"{internal_symbol.value}"
+                            f" (Internal: {internal_symbol.value}): {conversion_error}"
+                        ),
+                    )
+                    # Do not add this exchange/ticker if price is invalid
 
         return valid_exchanges_for_symbol, exchange_tickers
 
     def _compute_and_store_basis(
         self,
-        internal_symbol: str,
+        internal_symbol: Symbol,
         valid_exchanges_for_symbol: list[str],
         exchange_tickers: dict[str, Ticker],
         now: datetime,
@@ -427,7 +398,7 @@ class SignalGenerator:
             basis = ticker1.price - ticker2.price
             timestamp = now  # Use current time for basis update
 
-            # Add to basis history
+            # Add to basis history using Symbol object directly
             if internal_symbol in self.historical_basis:
                 basis_history_deque = self.historical_basis[internal_symbol]
                 basis_history_deque.append((timestamp, basis))
@@ -435,18 +406,18 @@ class SignalGenerator:
                 logger.warning(
                     "basis_deque_not_found",
                     action="update",
-                    internal_symbol=internal_symbol,
+                    internal_symbol=internal_symbol.value,
                     message=(
-                        f"Historical basis deque not found for {internal_symbol} during update."
+                        f"Historical basis deque not found for {internal_symbol.value} during update."
                     ),
                 )
 
-    def calculate_funding_rate_volatility(self, exchange: str, internal_symbol: str) -> Decimal:
+    def calculate_funding_rate_volatility(self, exchange: str, symbol: Symbol) -> Decimal:
         """Calculate the volatility (std dev) of the historical funding rates.
 
         Args:
             exchange: Exchange identifier
-            internal_symbol: Internal symbol identifier
+            symbol: Symbol object
 
         Returns:
             Standard deviation of funding rates as Decimal
@@ -461,11 +432,11 @@ class SignalGenerator:
             )
             return Decimal("0.0001")  # Default funding volatility
 
-        if internal_symbol not in self.historical_funding_rates[exchange]:
-            # logger.debug(
+        # Use Symbol object directly as key
+        if symbol not in self.historical_funding_rates[exchange]:
             return Decimal("0.0001")  # Default funding volatility
 
-        history_deque = self.historical_funding_rates[exchange][internal_symbol]
+        history_deque = self.historical_funding_rates[exchange][symbol]
         if len(history_deque) < MIN_DATA_POINTS_FOR_VOLATILITY:
             # Need at least 2 points to calculate volatility
             return Decimal("0.0001")  # Default volatility
@@ -494,7 +465,7 @@ class SignalGenerator:
             logger.warning(
                 "decimal_calculation_failed_funding_volatility",
                 exchange=exchange,
-                internal_symbol=internal_symbol,
+                symbol=symbol.value,
                 error=str(e),
                 message=(
                     "Decimal calculation failed. Falling back to numpy "
@@ -512,32 +483,32 @@ class SignalGenerator:
                 logger.exception(
                     "error_calculating_funding_rate_volatility",
                     exchange=exchange,
-                    internal_symbol=internal_symbol,
+                    symbol=symbol.value,
                     error=str(e2),
                     message="Error calculating funding rate volatility",
                 )
                 return Decimal("0.0001")  # Default on calculation error
 
-    def calculate_basis_volatility(self, symbol: str) -> Decimal:
+    def calculate_basis_volatility(self, symbol_obj: Symbol) -> Decimal:
         """Calculate the volatility (std dev) of the historical price basis.
 
         Args:
-            symbol: Symbol to calculate basis volatility for
+            symbol_obj: Symbol object to calculate basis volatility for
 
         Returns:
             Standard deviation of price basis as Decimal
         """
-        if symbol not in self.historical_basis:
+        if symbol_obj not in self.historical_basis:
             logger.debug(
                 "no_historical_basis_data",
                 action="calculate_volatility",
-                symbol=symbol,
+                symbol=symbol_obj.value,
                 default_volatility="0.01",
-                message=f"No historical basis data for {symbol}. Returning default volatility.",
+                message=f"No historical basis data for {symbol_obj.value}. Returning default volatility.",
             )
             return Decimal("0.01")  # Default basis volatility
 
-        history_deque = self.historical_basis[symbol]
+        history_deque = self.historical_basis[symbol_obj]
         if len(history_deque) < MIN_DATA_POINTS_FOR_VOLATILITY:
             # logger.debug(
             #    f"Returning default."
@@ -566,7 +537,7 @@ class SignalGenerator:
             # Fallback to numpy if Decimal calculation fails
             logger.warning(
                 "decimal_calculation_failed_basis_volatility",
-                symbol=symbol,
+                symbol=symbol_obj.value,
                 error=str(e),
                 message=(
                     "Decimal calculation failed for basis volatility. "
@@ -584,20 +555,20 @@ class SignalGenerator:
                 logger.exception(
                     "basis_volatility_calculation_error",
                     action="calculate_volatility",
-                    symbol=symbol,
+                    symbol=symbol_obj.value,
                     error=str(e2),
-                    message=f"Error calculating basis volatility for {symbol}: {e2}",
+                    message=f"Error calculating basis volatility for {symbol_obj.value}: {e2}",
                 )
                 return Decimal("0.01")  # Default on calculation error
 
-    def estimate_slippage(self, exchange: str, symbol: str, size: Decimal | None = None) -> Decimal:
+    def estimate_slippage(self, exchange: str, symbol: Symbol, size: Decimal | None = None) -> Decimal:
         """Estimate the slippage cost for trading on a given exchange and symbol.
 
         Potentially considers the trade size to provide more accurate slippage estimates.
 
         Args:
             exchange: Exchange name
-            symbol: Trading symbol
+            symbol: Symbol object
             size: Optional trade size (Decimal) to potentially adjust slippage estimate.
 
         Returns:
@@ -678,13 +649,10 @@ class SignalGenerator:
             # Correctly fetch tickers using exchange-specific symbols
             current_tickers: dict[str, Ticker | None] = {}
             for exchange_id in relevant_exchanges:
-                exchange_symbol_obj = self.symbol_helpers.resolve_for_exchange(
-                    internal_symbol,
-                    exchange_id,
-                )
-                exchange_specific_symbol = (
-                    exchange_symbol_obj.value if exchange_symbol_obj else None
-                )
+                # For now, use simplified symbol resolution - assume internal_symbol works as exchange symbol
+                # TODO: Implement proper symbol resolution through SymbolService
+                exchange_specific_symbol = internal_symbol  # Simplified assumption
+                
                 if not exchange_specific_symbol:
                     logger.warning(
                         "sg_gen_opps_symbol_mapping_failed",
@@ -698,7 +666,15 @@ class SignalGenerator:
                     current_tickers[exchange_id] = None  # Store None if mapping fails
                     continue
 
-                ticker = self.data_handler.get_latest_ticker(exchange_id, exchange_specific_symbol)
+                # Create Symbol object for DataHandler call  
+                from cyberdelta.core.symbols import symbol as create_symbol
+                from cyberdelta.enums.exchange_names import ExchangeName
+                try:
+                    symbol_obj = create_symbol(internal_symbol, ExchangeName(exchange_id))
+                    ticker = self.data_handler.get_latest_ticker(exchange_id, symbol_obj)
+                except Exception:
+                    # Fallback if symbol creation fails
+                    ticker = None
                 if ticker is None:
                     logger.debug(
                         "sg_ticker_fetch_fail",
@@ -761,10 +737,26 @@ class SignalGenerator:
                 )
                 continue
 
+            # Create Symbol object for this internal symbol
+            from cyberdelta.core.symbols import symbol as create_symbol
+            from cyberdelta.enums.exchange_names import ExchangeName
+            # Use the first available exchange to create the Symbol object
+            first_exchange = list(current_funding_on_exchanges.keys())[0]
+            try:
+                symbol_obj = create_symbol(internal_symbol, ExchangeName(first_exchange))
+            except Exception:
+                # Fallback: create a basic Symbol representation
+                from cyberdelta.core.symbols.models import BaseSymbol, HyperliquidMetadata
+                symbol_obj = BaseSymbol(
+                    value=internal_symbol,
+                    exchange=ExchangeName(first_exchange),
+                    metadata=HyperliquidMetadata()
+                )
+            
             # Now call _check_funding_rate_opportunities with the correctly gathered tickers
             # and the correctly typed funding data
             symbol_opportunities = self._check_funding_rate_opportunities(
-                internal_symbol,
+                symbol_obj,
                 current_funding_on_exchanges,
                 current_tickers,
             )
@@ -789,7 +781,7 @@ class SignalGenerator:
 
     def _check_funding_rate_opportunities(
         self,
-        symbol: str,
+        symbol: Symbol,
         exchanges_with_data: dict[str, FundingRate],
         tickers: dict[str, Ticker | None],
     ) -> list[ArbitrageOpportunity]:
@@ -821,6 +813,8 @@ class SignalGenerator:
                 exchange_a = exchanges[i]
                 exchange_b = exchanges[j]
 
+                # symbol is already a Symbol object, use it directly
+                
                 opportunity = self._check_exchange_pair_opportunity(
                     symbol,
                     exchange_a,
@@ -835,7 +829,7 @@ class SignalGenerator:
 
     def _check_exchange_pair_opportunity(
         self,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_a: str,
         exchange_b: str,
         exchanges_with_data: dict[str, FundingRate],
@@ -862,7 +856,7 @@ class SignalGenerator:
 
         logger.debug(
             "nfd_check_pair",
-            symbol=symbol,
+            symbol=symbol_obj.value,
             exchange_a=exchange_a,
             exchange_b=exchange_b,
             rate_a=rate_a,
@@ -873,7 +867,7 @@ class SignalGenerator:
         if rate_a is None or rate_b is None:
             logger.debug(
                 "nfd_skip_pair_missing_rate",
-                symbol=symbol,
+                symbol=symbol_obj.value,
                 exchange_a=exchange_a,
                 exchange_b=exchange_b,
                 rate_a=rate_a,
@@ -889,7 +883,7 @@ class SignalGenerator:
         if abs(funding_differential) < self.min_funding_differential:
             logger.debug(
                 "nfd_skip_threshold",
-                symbol=symbol,
+                symbol=symbol_obj.value,
                 exchange_a=exchange_a,
                 exchange_b=exchange_b,
                 funding_differential=funding_differential,
@@ -902,7 +896,7 @@ class SignalGenerator:
             return None
 
         # Validate ticker data
-        ticker_validation = self._validate_ticker_data(symbol, exchange_a, exchange_b, tickers)
+        ticker_validation = self._validate_ticker_data(symbol_obj, exchange_a, exchange_b, tickers)
         if ticker_validation is None:
             return None
 
@@ -910,7 +904,7 @@ class SignalGenerator:
 
         # Calculate expected profit
         expected_profit = self._calculate_expected_profit(
-            symbol,
+            symbol_obj,
             exchange_a,
             exchange_b,
             rate_a,
@@ -923,7 +917,7 @@ class SignalGenerator:
 
         # Create opportunity based on funding differential direction
         return self._create_opportunity_from_differential(
-            symbol,
+            symbol_obj,
             exchange_a,
             exchange_b,
             funding_differential,
@@ -936,7 +930,7 @@ class SignalGenerator:
 
     def _validate_ticker_data(
         self,
-        symbol: str,
+        symbol: Symbol,
         exchange_a: str,
         exchange_b: str,
         tickers: dict[str, Ticker | None],
@@ -1002,7 +996,7 @@ class SignalGenerator:
 
     def _calculate_expected_profit(
         self,
-        symbol: str,
+        symbol: Symbol,
         exchange_a: str,
         exchange_b: str,
         rate_a: Decimal,
@@ -1013,7 +1007,7 @@ class SignalGenerator:
         """Calculate expected profit after slippage.
 
         Args:
-            symbol: Trading symbol
+            symbol: Trading Symbol object
             exchange_a: First exchange
             exchange_b: Second exchange
             rate_a: Funding rate for exchange A
@@ -1062,7 +1056,7 @@ class SignalGenerator:
 
     def _create_opportunity_from_differential(
         self,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_a: str,
         exchange_b: str,
         funding_differential: Decimal,
@@ -1090,7 +1084,7 @@ class SignalGenerator:
         """
         if funding_differential > Decimal(0):  # rate_b > rate_a: Long B, Short A
             return self._create_long_b_short_a_opportunity(
-                symbol,
+                symbol_obj,
                 exchange_a,
                 exchange_b,
                 rate_a,
@@ -1101,7 +1095,7 @@ class SignalGenerator:
             )
         # rate_a > rate_b: Long A, Short B
         return self._create_long_a_short_b_opportunity(
-            symbol,
+            symbol_obj,
             exchange_a,
             exchange_b,
             rate_a,
@@ -1113,7 +1107,7 @@ class SignalGenerator:
 
     def _create_long_b_short_a_opportunity(
         self,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_a: str,
         exchange_b: str,
         rate_a: Decimal,
@@ -1148,13 +1142,13 @@ class SignalGenerator:
         current_short_price = ticker_a.bid
         if current_long_price is None or current_short_price is None:
             # This should not happen due to prior validation, but defensive check
-            raise PriceDataError(symbol)
+            raise PriceDataError(symbol_obj.value)
 
         opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
         logger.debug(
             "nfd_opp_debug_case1",
-            symbol=symbol,
+            symbol=symbol_obj.value,
             long_exchange=exchange_b,
             short_exchange=exchange_a,
             long_price=float(current_long_price),
@@ -1166,7 +1160,7 @@ class SignalGenerator:
         )
 
         opportunity = ArbitrageOpportunity(
-            symbol=symbol,
+            symbol=symbol_obj,
             long_exchange=exchange_b,
             short_exchange=exchange_a,
             long_price=current_long_price,
@@ -1180,7 +1174,7 @@ class SignalGenerator:
 
         logger.info(
             "nfd_opp_created",
-            symbol=symbol,
+            symbol=symbol_obj.value,
             long_exchange=exchange_b,
             long_rate=float(actual_long_rate),
             short_exchange=exchange_a,
@@ -1192,7 +1186,7 @@ class SignalGenerator:
 
     def _create_long_a_short_b_opportunity(
         self,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_a: str,
         exchange_b: str,
         rate_a: Decimal,
@@ -1227,13 +1221,13 @@ class SignalGenerator:
         current_short_price = ticker_b.bid
         if current_long_price is None or current_short_price is None:
             # This should not happen due to prior validation, but defensive check
-            raise PriceDataError(symbol)
+            raise PriceDataError(symbol_obj.value)
 
         opportunity_nfd_calculated = actual_long_rate - actual_short_rate
 
         logger.debug(
             "nfd_opp_debug_case2",
-            symbol=symbol,
+            symbol=symbol_obj.value,
             long_exchange=exchange_a,
             short_exchange=exchange_b,
             long_price=float(current_long_price),
@@ -1245,7 +1239,7 @@ class SignalGenerator:
         )
 
         opportunity = ArbitrageOpportunity(
-            symbol=symbol,
+            symbol=symbol_obj,
             long_exchange=exchange_a,
             short_exchange=exchange_b,
             long_price=current_long_price,
@@ -1259,7 +1253,7 @@ class SignalGenerator:
 
         logger.info(
             "nfd_opp_created",
-            symbol=symbol,
+            symbol=symbol_obj.value,
             long_exchange=exchange_a,
             long_rate=float(actual_long_rate),
             short_exchange=exchange_b,

@@ -5,6 +5,8 @@ This module defines custom exceptions for market order execution failures.
 
 from decimal import Decimal
 
+from cyberdelta.core.symbols import Symbol
+
 
 class MarketOrderError(Exception):
     """Base exception for market order execution errors."""
@@ -46,27 +48,27 @@ class MarketOrderError(Exception):
         return cls(f"Invalid aggressive price: {price}")
 
     @classmethod
-    def no_order_book_error(cls, symbol: str) -> "MarketOrderError":
+    def no_order_book_error(cls, symbol: Symbol) -> "MarketOrderError":
         """Create error when no order book is available.
 
         Returns:
             MarketOrderError: Error instance for missing order book
         """
-        return cls(f"Cannot calculate market order price: no order book for {symbol}")
+        return cls(f"Cannot calculate market order price: no order book for {symbol.value}")
 
 
 class InsufficientLiquidityError(MarketOrderError):
     """Raised when there's not enough liquidity in the order book.
 
     Attributes:
-        symbol: Trading symbol
+        symbol: Trading symbol (Symbol object)
         requested_quantity: Requested order quantity
         available_quantity: Available liquidity in the order book
     """
 
     def __init__(
         self,
-        symbol: str,
+        symbol: Symbol,
         requested_quantity: Decimal,
         available_quantity: Decimal,
         message: str | None = None,
@@ -85,7 +87,7 @@ class InsufficientLiquidityError(MarketOrderError):
 
         if message is None:
             message = (
-                f"Insufficient liquidity for {symbol}: "
+                f"Insufficient liquidity for {symbol.value}: "
                 f"requested {requested_quantity}, available {available_quantity}"
             )
 
@@ -96,7 +98,7 @@ class PriceDeviationError(MarketOrderError):
     """Raised when aggressive price deviates too far from reference.
 
     Attributes:
-        symbol: Trading symbol
+        symbol: Trading symbol (Symbol object)
         aggressive_price: Calculated aggressive price
         reference_price: Reference price (best bid/ask)
         deviation_pct: Actual deviation percentage
@@ -105,7 +107,7 @@ class PriceDeviationError(MarketOrderError):
 
     def __init__(
         self,
-        symbol: str,
+        symbol: Symbol,
         aggressive_price: Decimal,
         reference_price: Decimal,
         deviation_pct: Decimal,
@@ -130,7 +132,7 @@ class PriceDeviationError(MarketOrderError):
 
         if message is None:
             message = (
-                f"Price deviation for {symbol} exceeds limit: "
+                f"Price deviation for {symbol.value} exceeds limit: "
                 f"{deviation_pct:.2%} > {max_deviation_pct:.2%} "
                 f"(aggressive: {aggressive_price}, reference: {reference_price})"
             )

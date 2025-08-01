@@ -17,6 +17,7 @@ from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.portfolio.services import PortfolioServiceFactory
 from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
 from cyberdelta.core.portfolio.portfolio_types.protocols import PortfolioManagerProtocol
+from cyberdelta.core.symbols import Symbol
 
 from .strategy import Strategy
 
@@ -51,7 +52,7 @@ class Engine(BaseModel):
         # Legacy engine state for compatibility
         self.strategies: dict[str, Strategy] = {}
         self.enabled_strategies: set[str] = set()
-        self.active_symbols: set[str] = set()
+        self.active_symbols: set[Symbol] = set()
         self.signal_handler: Callable[[TradeSignal], Awaitable[None]] | None = None
         self.is_running = False
         self.start_time: datetime | None = None
@@ -71,7 +72,7 @@ class Engine(BaseModel):
         performance = await self.performance_analytics.calculate_performance(portfolio_state)
         return performance.total_capital
 
-    async def get_position_size_for_trade(self, symbol: str, signal_strength: float) -> Decimal:
+    async def get_position_size_for_trade(self, symbol: Symbol, signal_strength: float) -> Decimal:
         """Calculate optimal position size using risk module."""
         # Risk module handles all position sizing decisions
         portfolio_state = await self.portfolio_manager.get_current_state()
@@ -273,11 +274,11 @@ class Engine(BaseModel):
 
         return True
 
-    def _should_process_symbol(self, symbol: str) -> bool:
+    def _should_process_symbol(self, symbol: Symbol) -> bool:
         """Check if the symbol should be processed.
 
         Args:
-            symbol: Trading symbol to check.
+            symbol: Trading Symbol object to check.
 
         Returns:
             bool: True if symbol has active strategies.

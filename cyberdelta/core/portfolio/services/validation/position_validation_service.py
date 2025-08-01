@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from decimal import Decimal
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -28,11 +29,14 @@ class PositionValidationService:
             app_settings: Application settings with portfolio configuration
         """
         self.app_settings = app_settings
-        self.validation_config = app_settings.portfolio_tracker.validation
-
-        self.max_position_size = self.validation_config.max_position_size
-        self.max_leverage = self.validation_config.max_leverage
-        self.max_position_value = self.validation_config.max_position_value
+        
+        # Use risk settings for position validation limits
+        global_risk = app_settings.risk.global_risk
+        sizing = app_settings.risk.sizing
+        
+        self.max_position_size = sizing.max_position_size
+        self.max_leverage = sizing.max_leverage
+        self.max_position_value = global_risk.max_position_usd
 
         logger.info(
             "position_validation_service_initialized",
@@ -59,9 +63,9 @@ class PositionValidationService:
             issues.append(
                 create_business_rule_violation(
                     "MAX_POSITION_SIZE",
-                    f"Position size must not exceed {self.max_position_size}",
-                    "quantity",
                     f"Position size {abs(position.size)} exceeds maximum {self.max_position_size}",
+                    "ERROR",
+                    {"position_size": float(abs(position.size)), "max_size": float(self.max_position_size)},
                 )
             )
 
@@ -71,9 +75,9 @@ class PositionValidationService:
             issues.append(
                 create_business_rule_violation(
                     "MAX_LEVERAGE",
-                    f"Leverage must not exceed {self.max_leverage}x",
-                    "leverage",
                     f"Leverage {leverage}x exceeds maximum {self.max_leverage}x",
+                    "ERROR",
+                    {"leverage": float(leverage), "max_leverage": float(self.max_leverage)},
                 )
             )
 
@@ -84,14 +88,20 @@ class PositionValidationService:
                 issues.append(
                     create_business_rule_violation(
                         "MAX_POSITION_VALUE",
-                        f"Position value must not exceed {self.max_position_value}",
-                        "position_value",
-                        f"Position value {position_value} exceeds "
-                        f"maximum {self.max_position_value}",
+                        f"Position value {position_value} exceeds maximum {self.max_position_value}",
+                        "ERROR",
+                        {"position_value": float(position_value), "max_value": float(self.max_position_value)},
                     )
                 )
 
-        return ValidationResult[DerivativePosition].from_issues(position, issues)
+        return ValidationResult[DerivativePosition](
+            is_valid=len([i for i in issues if i.is_error()]) == 0,
+            validated_data=position if len([i for i in issues if i.is_error()]) == 0 else None,
+            issues=issues,
+            error_count=len([i for i in issues if i.is_error()]),
+            warning_count=len([i for i in issues if i.is_warning()]),
+            validator_name="PositionValidationService"
+        )
 
     def update_validation_limits(
         self,
@@ -107,11 +117,11 @@ class PositionValidationService:
             max_position_value: New maximum position value limit
         """
         if max_position_size is not None:
-            self.max_position_size = max_position_size
+            self.max_position_size = Decimal(str(max_position_size))
         if max_leverage is not None:
-            self.max_leverage = max_leverage
+            self.max_leverage = Decimal(str(max_leverage))
         if max_position_value is not None:
-            self.max_position_value = max_position_value
+            self.max_position_value = Decimal(str(max_position_value))
 
         logger.info(
             "position_validation_limits_updated",
@@ -120,7 +130,7 @@ class PositionValidationService:
             max_position_value=self.max_position_value,
         )
 
-    def get_validation_config(self) -> dict[str, any]:
+    def get_validation_config(self) -> dict[str, Any]:
         """Get current validation configuration.
         
         Returns:
@@ -132,7 +142,7 @@ class PositionValidationService:
             "max_position_value": self.max_position_value,
         }
 
-    def _extract_position_leverage(self, position: Position) -> float | None:
+    def _extract_position_leverage(self, position: DerivativePosition) -> float | None:
         """Extract leverage from position using generic approach.
         
         Args:
@@ -165,7 +175,7 @@ class PositionValidationService:
                 position_value = abs(position.size * position.mark_price)
                 margin_used = abs(position.margin_used)
                 if margin_used > 0:
-                    return position_value / margin_used
+                    return float(position_value / margin_used)
             except (AttributeError, ZeroDivisionError, TypeError):
                 pass
         

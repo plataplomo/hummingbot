@@ -10,6 +10,7 @@ from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.exceptions import RiskCalculationError
+from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
@@ -34,7 +35,7 @@ class PositionExposure:
     # Position identification
     position_id: str = Field(min_length=1, description="Position identifier")
     exchange_id: str = Field(min_length=1, description="Exchange identifier")
-    symbol: str = Field(min_length=1, description="Trading symbol")
+    symbol: Symbol = Field(description="Trading symbol")
     side: str = Field(pattern="^(LONG|SHORT)$", description="Position side (LONG or SHORT)")
 
     # Size and value metrics
@@ -336,7 +337,7 @@ class PositionExposureCalculator:
                 stress_loss = notional_value * self.stress_scenario_move
 
             # Parse currency exposure
-            base_currency, quote_currency = self._parse_symbol_currencies(position.symbol)
+            base_currency, quote_currency = self._parse_symbol_currencies(position.symbol.value)
 
             # Calculate currency exposures
             base_exposure = position.size if base_currency else None
@@ -346,7 +347,7 @@ class PositionExposureCalculator:
             side_str = "LONG" if position.side.value == "BUY" else "SHORT"
 
             exposure = PositionExposure(
-                position_id=f"{position.exchange}_{position.symbol}",
+                position_id=f"{position.exchange}_{position.symbol.value}",
                 exchange_id=position.exchange,
                 symbol=position.symbol,
                 side=side_str,
@@ -518,16 +519,16 @@ class PositionExposureCalculator:
         exposures: list[PositionExposure] = []
 
         for position in positions:
-            price = prices.get(position.symbol)
+            price = prices.get(position.symbol.value)
             if not price:
                 logger.warning(
                     "position_exposure_skipped_no_price",
-                    position_id=f"{position.exchange}_{position.symbol}",
+                    position_id=f"{position.exchange}_{position.symbol.value}",
                     symbol=position.symbol,
                 )
                 continue
 
-            vol = volatilities.get(position.symbol) if volatilities else None
+            vol = volatilities.get(position.symbol.value) if volatilities else None
 
             try:
                 exposure = await self.calculate_exposure(

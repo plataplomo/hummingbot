@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.symbols import Symbol, symbol as create_symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import Order
@@ -23,7 +25,7 @@ class OrderDiscrepancy(BaseModel):
     
     exchange: str = Field(..., description="Exchange where discrepancy found")
     order_id: str = Field(..., description="Order ID with discrepancy")
-    symbol: str = Field(..., description="Symbol for the order")
+    symbol: Symbol = Field(..., description="Symbol for the order")
     discrepancy_type: str = Field(..., description="Type of discrepancy")
     expected_value: str | Decimal = Field(..., description="Expected value")
     actual_value: str | Decimal = Field(..., description="Actual value")
@@ -71,7 +73,7 @@ class OrderReconciliationService(BasePortfolioService):
         current_time = time.time()
         
         # Track orders per symbol for concentration check
-        orders_per_symbol: dict[str, int] = {}
+        orders_per_symbol: dict[Symbol, int] = {}
         total_open_orders = 0
         
         for exchange, exchange_orders in orders.items():
@@ -88,17 +90,17 @@ class OrderReconciliationService(BasePortfolioService):
                 orders_per_symbol[order.symbol] += 1
                 
                 # Check order age
-                order_age = current_time - order.timestamp
+                order_age = current_time - order.created_at.timestamp()
                 if order_age > self.max_order_age_seconds:
                     discrepancies.append(OrderDiscrepancy(
                         exchange=exchange,
-                        order_id=order.id,
+                        order_id=order.exchange_order_id or order.client_order_id,
                         symbol=order.symbol,
                         discrepancy_type="stale_order",
                         expected_value=str(self.max_order_age_seconds),
                         actual_value=str(int(order_age)),
                         severity="warning",
-                        message=f"Order {order.id} is {order_age/3600:.1f} hours old",
+                        message=f"Order {order.exchange_order_id or order.client_order_id} is {order_age/3600:.1f} hours old",
                     ))
                 
                 # Check order consistency
@@ -127,7 +129,7 @@ class OrderReconciliationService(BasePortfolioService):
             discrepancies.append(OrderDiscrepancy(
                 exchange="all",
                 order_id="total",
-                symbol="all",
+                symbol=create_symbol("ALL", ExchangeName.HYPERLIQUID),
                 discrepancy_type="excessive_total_orders",
                 expected_value=str(self.max_total_open_orders),
                 actual_value=str(total_open_orders),
@@ -145,28 +147,29 @@ class OrderReconciliationService(BasePortfolioService):
     ) -> None:
         """Check internal consistency of an order."""
         # Check filled vs size
-        if order.filled > order.size:
+        if order.quantity_filled > order.quantity_requested:
             discrepancies.append(OrderDiscrepancy(
                 exchange=exchange,
-                order_id=order.id,
+                order_id=order.exchange_order_id or order.client_order_id,
                 symbol=order.symbol,
                 discrepancy_type="overfilled_order",
-                expected_value=order.size,
-                actual_value=order.filled,
+                expected_value=order.quantity_requested,
+                actual_value=order.quantity_filled,
                 severity="error",
                 message=f"Order filled amount exceeds size",
             ))
         
-        # Check remaining calculation
-        expected_remaining = order.size - order.filled
-        if abs(expected_remaining - order.remaining) > Decimal("0.00001"):
+        # Check remaining calculation consistency
+        expected_remaining = order.quantity_requested - order.quantity_filled
+        actual_remaining = self._get_order_remaining(order)
+        if actual_remaining is not None and abs(expected_remaining - actual_remaining) > Decimal("0.00001"):
             discrepancies.append(OrderDiscrepancy(
                 exchange=exchange,
-                order_id=order.id,
+                order_id=order.exchange_order_id or order.client_order_id,
                 symbol=order.symbol,
                 discrepancy_type="remaining_mismatch",
                 expected_value=expected_remaining,
-                actual_value=order.remaining,
+                actual_value=actual_remaining,
                 severity="error",
                 message=f"Order remaining calculation mismatch",
             ))
@@ -175,7 +178,7 @@ class OrderReconciliationService(BasePortfolioService):
         if order.price <= 0:
             discrepancies.append(OrderDiscrepancy(
                 exchange=exchange,
-                order_id=order.id,
+                order_id=order.exchange_order_id or order.client_order_id,
                 symbol=order.symbol,
                 discrepancy_type="invalid_price",
                 expected_value=Decimal("0.01"),
@@ -185,14 +188,14 @@ class OrderReconciliationService(BasePortfolioService):
             ))
         
         # Check size validity
-        if order.size <= 0:
+        if order.quantity_requested <= 0:
             discrepancies.append(OrderDiscrepancy(
                 exchange=exchange,
-                order_id=order.id,
+                order_id=order.exchange_order_id or order.client_order_id,
                 symbol=order.symbol,
                 discrepancy_type="invalid_size",
                 expected_value=Decimal("0.01"),
-                actual_value=order.size,
+                actual_value=order.quantity_requested,
                 severity="error",
                 message=f"Invalid order size",
             ))
@@ -206,14 +209,14 @@ class OrderReconciliationService(BasePortfolioService):
         """Check partially filled orders for issues."""
         # Check if partially filled order has been stuck for too long
         if order.status == OrderStatus.PARTIALLY_FILLED:
-            fill_percentage = (order.filled / order.size) * 100
+            fill_percentage = (order.quantity_filled / order.quantity_requested) * 100
             
             # Warning if order is less than 10% filled after significant time
-            order_age = time.time() - order.timestamp
+            order_age = time.time() - order.created_at.timestamp()
             if order_age > 3600 and fill_percentage < 10:  # 1 hour and <10% filled
                 discrepancies.append(OrderDiscrepancy(
                     exchange=exchange,
-                    order_id=order.id,
+                    order_id=order.exchange_order_id or order.client_order_id,
                     symbol=order.symbol,
                     discrepancy_type="stuck_partial_fill",
                     expected_value="10%",
@@ -221,3 +224,12 @@ class OrderReconciliationService(BasePortfolioService):
                     severity="warning",
                     message=f"Order only {fill_percentage:.1f}% filled after {order_age/3600:.1f} hours",
                 ))
+    
+    def _get_order_remaining(self, order: Order) -> Decimal | None:
+        """Get remaining quantity from order based on exchange-specific details."""
+        # Try Hyperliquid details
+        if order.hl_details and order.hl_details.remaining_sz is not None:
+            return order.hl_details.remaining_sz
+        
+        # For other exchanges or if no exchange details, calculate from core fields
+        return order.quantity_requested - order.quantity_filled

@@ -118,8 +118,8 @@ class RetryService(BasePortfolioService):
     """Service for managing retry mechanisms across portfolio operations."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__("retry_service")
-        self.config = config or {}
+        super().__init__("retry_service", config)
+        self._raw_config = config or {}
         self.logger = get_logger(__name__)
         
         # Retry configurations per service
@@ -145,11 +145,11 @@ class RetryService(BasePortfolioService):
 
     def _init_default_config(self) -> RetryConfig:
         """Initialize default retry configuration."""
-        max_attempts = self.config.get("default_max_attempts", 3)
-        initial_delay = self.config.get("default_initial_delay", 1.0)
-        max_delay = self.config.get("default_max_delay", 60.0)
-        backoff_multiplier = self.config.get("default_backoff_multiplier", 2.0)
-        jitter = self.config.get("default_jitter", True)
+        max_attempts = self._raw_config.get("default_max_attempts", 3)
+        initial_delay = self._raw_config.get("default_initial_delay", 1.0)
+        max_delay = self._raw_config.get("default_max_delay", 60.0)
+        backoff_multiplier = self._raw_config.get("default_backoff_multiplier", 2.0)
+        jitter = self._raw_config.get("default_jitter", True)
 
         return RetryConfig(
             max_attempts=max_attempts,

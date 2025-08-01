@@ -4,6 +4,8 @@ These exceptions handle risk management errors including configuration,
 validation, and portfolio constraint violations.
 """
 
+from cyberdelta.core.symbols import Symbol
+
 
 class RiskManagerError(Exception):
     """Base exception for all RiskManager errors."""
@@ -32,11 +34,11 @@ class RiskConfigError(RiskManagerError):
 class RiskCheckError(RiskManagerError):
     """Raised when an opportunity or action fails risk validation checks."""
 
-    def __init__(self, symbol: str, validation_type: str, reason: str | None = None) -> None:
+    def __init__(self, symbol: Symbol, validation_type: str, reason: str | None = None) -> None:
         """Initialize risk check error.
 
         Args:
-            symbol: Trading symbol that failed validation
+            symbol: Trading Symbol object that failed validation
             validation_type: Type of validation that failed
             reason: Optional detailed reason for failure
         """
@@ -44,7 +46,7 @@ class RiskCheckError(RiskManagerError):
         self.validation_type = validation_type
         self.reason = reason
 
-        message = f"Validation failed at {validation_type} for {symbol}"
+        message = f"Validation failed at {validation_type} for {symbol.value}"
         if reason:
             message = f"{message}: {reason}"
         super().__init__(message)

@@ -9,6 +9,9 @@ from cyberdelta.core.portfolio.analytics.performance import PerformanceSnapshot
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.core.models.market.trade import Trade
 
 logger = get_logger(__name__)
 
@@ -101,7 +104,7 @@ class PerformanceCalculator:
             for balance in exchange_balances.values():
                 if hasattr(balance, 'available_quantity'):
                     # Simplified - would need price data for non-USDC assets
-                    if balance.asset == "USDC":
+                    if balance.asset.value == "USDC":
                         total += Decimal(str(balance.available_quantity))
                         
         # Add position values
@@ -142,7 +145,7 @@ class PerformanceCalculator:
                 realized_pnl = Decimal("0")
                 
                 # Group trades by symbol to track position lifecycle
-                symbol_trades = {}
+                symbol_trades: dict[Symbol, list[Trade]] = {}
                 for trade in trades:
                     if trade.symbol not in symbol_trades:
                         symbol_trades[trade.symbol] = []

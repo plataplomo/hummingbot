@@ -453,15 +453,25 @@ class ValidationFactorApplier:
         """
         base_value = Decimal("1.0")
 
-        # Get symbol
-        symbol = getattr(opportunity, "symbol", "").upper()
-        base_symbol = symbol.replace("USDT", "").replace("USD", "")
+        # Get symbol - opportunity.symbol is a Symbol object
+        symbol_obj = getattr(opportunity, "symbol", None)
+        if not symbol_obj:
+            return ValidationFactor(
+                factor_type=FactorType.SYMBOL_RISK,
+                base_value=base_value,
+                adjusted_value=base_value * Decimal("0.5"),
+                reason="No symbol provided"
+            )
+        
+        # Extract string value for lookups
+        symbol_str = symbol_obj.value.upper()
+        base_symbol = symbol_str.replace("USDT", "").replace("USD", "")
 
         # Get risk score
         risk_score = self.symbol_risk_scores.get(base_symbol, Decimal("0.6"))
 
         # Adjust for stablecoin pairs (lower risk)
-        if "USD" in symbol or "USDT" in symbol:
+        if "USD" in symbol_str or "USDT" in symbol_str:
             risk_score *= Decimal("1.1")
 
         return ValidationFactor(
@@ -652,10 +662,19 @@ class ValidationFactorApplier:
         adjusted_value = base_value
 
         # Simple correlation check based on symbol
-        symbol = getattr(opportunity, "symbol", "").upper()
+        symbol_obj = getattr(opportunity, "symbol", None)
+        if not symbol_obj:
+            return ValidationFactor(
+                factor_type=FactorType.CORRELATION,
+                base_value=base_value,
+                adjusted_value=base_value * Decimal("0.5"),
+                reason="No symbol provided"
+            )
+        
+        symbol_str = symbol_obj.value.upper()
 
         # Check if correlated with major pairs
-        if "BTC" in symbol or "ETH" in symbol:
+        if "BTC" in symbol_str or "ETH" in symbol_str:
             adjusted_value = Decimal("0.98")
             reason = "Correlated with major pairs"
         else:

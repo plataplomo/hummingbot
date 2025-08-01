@@ -21,6 +21,7 @@ from cyberdelta.core.portfolio.coordinators.portfolio_risk_coordinator import (
     TradeRequestModel,
 )
 from cyberdelta.core.portfolio.coordinators.unified_service_factory import UnifiedServiceFactory
+from cyberdelta.core.symbols import Symbol
 
 
 class AlertSystem:
@@ -49,7 +50,7 @@ class EngineState(Enum):
 class TradingSignal:
     """Trading signal with portfolio context."""
 
-    symbol: str
+    symbol: Symbol
     direction: str  # "long" | "short" | "close"
     strength: float  # 0.0 to 1.0
     strategy_id: str
@@ -223,7 +224,7 @@ class CleanTradingEngine:
                         "risk_score": risk_check.risk_score
                     }
             
-            # Create trade request for coordinator validation
+            # Create trade request for coordinator validation  
             trade_request = TradeRequestModel(
                 symbol=signal.symbol,
                 side="buy" if signal.direction == "long" else "sell",
@@ -323,7 +324,13 @@ class CleanTradingEngine:
         # Initialize engine components with the coordinator
         self.position_sizer = PortfolioAwarePositionSizer(self.coordinator)
         self.risk_manager = AdvancedRiskManager(self.coordinator)
-        self.trade_executor = PortfolioAwareTradeExecutor(self.coordinator)
+        
+        # Pass price service from coordinator to trade executor
+        price_service = None
+        if hasattr(self.coordinator, 'price_service'):
+            price_service = self.coordinator.price_service
+        self.trade_executor = PortfolioAwareTradeExecutor(self.coordinator, price_service)
+        
         self.alert_system = AlertSystem()
         
         # Initialize each component
@@ -524,8 +531,16 @@ class CleanTradingEngine:
         # Simulate execution result
         execution_id = str(uuid.uuid4())
         
-        # Calculate simulated portfolio impact
-        price = Decimal(50000)  # Simulated price
+        # Get actual price from trade request validation result
+        # This should have been set during coordinator validation
+        validation_result = trade_params.get("validation_result")
+        if not validation_result or not hasattr(validation_result, "estimated_price"):
+            raise ValueError(
+                "Cannot execute trade without price. "
+                "Trade validation must provide estimated_price."
+            )
+        
+        price = validation_result.estimated_price
         notional_value = position_size * price
         fees = notional_value * Decimal("0.001")  # 0.1% fee
         

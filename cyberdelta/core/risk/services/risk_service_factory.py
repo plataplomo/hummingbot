@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cyberdelta.config import AppSettings
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 from cyberdelta.core.risk.exposure.portfolio_exposure import PortfolioExposureCalculator
 from cyberdelta.core.risk.sizing.orchestrator.position_sizer import PositionSizer
 from cyberdelta.core.risk.sizing.strategies.simple_sizer import SimpleSizer
@@ -18,7 +19,18 @@ class RiskServiceFactory:
 
     def __init__(self, config: AppSettings | None = None):
         """Initialize risk service factory."""
-        self.config = config or AppSettings()
+        if config is None:
+            # Create minimal SmartSymbolsConfig for default AppSettings
+            patterns = SymbolPatterns(
+                hyperliquid={"perp": "{symbol}-USD"},
+                backpack={"perp": "{symbol}_USDC"}
+            )
+            symbols_config = SmartSymbolsConfig(
+                list=["BTC", "ETH"],
+                patterns=patterns
+            )
+            config = AppSettings(symbols=symbols_config)
+        self.config = config
         self._services: dict[str, object] = {}
         self._portfolio_state: PortfolioState | None = None
         self._market_data_provider: MarketDataProvider | None = None

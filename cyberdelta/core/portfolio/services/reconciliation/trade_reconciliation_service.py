@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.symbols import Symbol
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import Trade
@@ -22,7 +23,7 @@ class TradeDiscrepancy(BaseModel):
     
     exchange: str = Field(..., description="Exchange where discrepancy found")
     trade_id: str = Field(..., description="Trade ID with discrepancy")
-    symbol: str = Field(..., description="Symbol for the trade")
+    symbol: Symbol = Field(..., description="Symbol for the trade")
     discrepancy_type: str = Field(..., description="Type of discrepancy")
     expected_value: str | Decimal = Field(..., description="Expected value")
     actual_value: str | Decimal = Field(..., description="Actual value")
@@ -112,14 +113,14 @@ class TradeReconciliationService(BasePortfolioService):
             ))
         
         # Check size validity
-        if trade.size < self.min_trade_size:
+        if trade.quantity < self.min_trade_size:
             discrepancies.append(TradeDiscrepancy(
                 exchange=exchange,
                 trade_id=trade.id,
                 symbol=trade.symbol,
                 discrepancy_type="invalid_size",
                 expected_value=self.min_trade_size,
-                actual_value=trade.size,
+                actual_value=trade.quantity,
                 severity="error",
                 message=f"Trade size below minimum",
             ))
@@ -138,7 +139,7 @@ class TradeReconciliationService(BasePortfolioService):
             ))
         
         # Check cost calculation
-        expected_cost = trade.price * trade.size
+        expected_cost = trade.price * trade.quantity
         cost_difference = abs(expected_cost - trade.cost)
         if cost_difference > Decimal("0.01"):  # Allow small rounding differences
             discrepancies.append(TradeDiscrepancy(
@@ -154,14 +155,15 @@ class TradeReconciliationService(BasePortfolioService):
         
         # Check timestamp validity
         current_time = time.time()
-        if trade.timestamp > current_time:
+        trade_timestamp = trade.executed_at.timestamp()
+        if trade_timestamp > current_time:
             discrepancies.append(TradeDiscrepancy(
                 exchange=exchange,
                 trade_id=trade.id,
                 symbol=trade.symbol,
                 discrepancy_type="future_timestamp",
                 expected_value=str(int(current_time)),
-                actual_value=str(int(trade.timestamp)),
+                actual_value=str(int(trade_timestamp)),
                 severity="error",
                 message=f"Trade timestamp in the future",
             ))
@@ -174,7 +176,7 @@ class TradeReconciliationService(BasePortfolioService):
     ) -> None:
         """Check for duplicate trades within time window."""
         # Sort trades by timestamp
-        sorted_trades = sorted(trades, key=lambda t: t.timestamp)
+        sorted_trades = sorted(trades, key=lambda t: t.executed_at)
         
         for i in range(len(sorted_trades) - 1):
             current_trade = sorted_trades[i]
@@ -185,13 +187,14 @@ class TradeReconciliationService(BasePortfolioService):
                 next_trade = sorted_trades[j]
                 
                 # Stop if outside duplicate window
-                if next_trade.timestamp - current_trade.timestamp > self.duplicate_window_seconds:
+                time_diff = (next_trade.executed_at - current_trade.executed_at).total_seconds()
+                if time_diff > self.duplicate_window_seconds:
                     break
                 
                 # Check if trades are suspiciously similar
                 if (current_trade.symbol == next_trade.symbol and
                     current_trade.price == next_trade.price and
-                    current_trade.size == next_trade.size and
+                    current_trade.quantity == next_trade.quantity and
                     current_trade.side == next_trade.side):
                     
                     discrepancies.append(TradeDiscrepancy(
@@ -218,10 +221,10 @@ class TradeReconciliationService(BasePortfolioService):
             return
         
         # Sort by timestamp
-        sorted_trades = sorted(trades, key=lambda t: t.timestamp)
+        sorted_trades = sorted(trades, key=lambda t: t.executed_at)
         
         # Track price movements by symbol
-        last_price_by_symbol: dict[str, Decimal] = {}
+        last_price_by_symbol: dict[Symbol, Decimal] = {}
         
         for trade in sorted_trades:
             if trade.symbol in last_price_by_symbol:
@@ -259,7 +262,7 @@ class TradeReconciliationService(BasePortfolioService):
                 all_trades.append((exchange, trade))
         
         # Sort by timestamp
-        all_trades.sort(key=lambda x: x[1].timestamp)
+        all_trades.sort(key=lambda x: x[1].executed_at)
         
         # Check for price discrepancies in same time window
         for i, (exchange1, trade1) in enumerate(all_trades):
@@ -267,7 +270,8 @@ class TradeReconciliationService(BasePortfolioService):
                 exchange2, trade2 = all_trades[j]
                 
                 # Stop if outside time window
-                if trade2.timestamp - trade1.timestamp > time_window:
+                time_diff = (trade2.executed_at - trade1.executed_at).total_seconds()
+                if time_diff > time_window:
                     break
                 
                 # Check same symbol on different exchanges

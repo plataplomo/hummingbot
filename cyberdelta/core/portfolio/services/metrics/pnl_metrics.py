@@ -121,13 +121,13 @@ class PnLMetricsService(BaseModel):
         breakdown = {}
         for exchange, positions in state.positions.items():
             for position in positions:
-                symbol = position.symbol
-                if symbol not in breakdown:
-                    breakdown[symbol] = Decimal(0)
+                symbol_key = position.symbol.value
+                if symbol_key not in breakdown:
+                    breakdown[symbol_key] = Decimal(0)
                 
                 # Add position P&L to symbol total
                 if position.realized_pnl:
-                    breakdown[symbol] += position.realized_pnl
+                    breakdown[symbol_key] += position.realized_pnl
                 if position.unrealized_pnl:
-                    breakdown[symbol] += position.unrealized_pnl
+                    breakdown[symbol_key] += position.unrealized_pnl
         return breakdown

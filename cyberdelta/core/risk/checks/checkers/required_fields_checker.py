@@ -109,9 +109,7 @@ class RequiredFieldsChecker(TypedBaseChecker[CheckResult]):
         # Core required fields are enforced by Pydantic model validation
         # Only check for business logic requirements here
 
-        # Check for empty string fields (Pydantic allows empty strings)
-        if not opportunity.symbol.strip():
-            missing_fields.append("symbol (empty)")
+        # Symbol validation is redundant - Symbol objects are already validated at creation
         if not opportunity.long_exchange.strip():
             missing_fields.append("long_exchange (empty)")
         if not opportunity.short_exchange.strip():

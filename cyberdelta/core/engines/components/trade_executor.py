@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from cyberdelta.core.portfolio.coordinators.portfolio_risk_coordinator import PortfolioRiskCoordinator
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.core.portfolio.services.pricing.price_service import PriceDataService
 
 
 class ExecutionStatus(str, Enum):
@@ -46,8 +48,9 @@ class ExecutionResult:
 class PortfolioAwareTradeExecutor:
     """Trade executor with complete portfolio integration."""
 
-    def __init__(self, coordinator: PortfolioRiskCoordinator):
+    def __init__(self, coordinator: PortfolioRiskCoordinator, price_service: PriceDataService | None = None):
         self.coordinator = coordinator
+        self.price_service = price_service
 
         # Execution parameters
         self.max_slippage = Decimal("0.005")  # 0.5% max slippage
@@ -245,7 +248,7 @@ class PortfolioAwareTradeExecutor:
             return {"valid": False, "reason": "Slippage tolerance too high"}
 
         # Check symbol validity (placeholder)
-        if not signal.symbol or len(signal.symbol) < 3:
+        if not signal.symbol or len(signal.symbol.value) < 3:
             return {"valid": False, "reason": "Invalid symbol"}
 
         return {"valid": True}
@@ -347,7 +350,7 @@ class PortfolioAwareTradeExecutor:
         fees = position_size * fee_rate
         
         # Generate order ID
-        order_id = f"{exchange}_{signal.symbol.replace('/', '_')}_{uuid.uuid4().hex[:8]}"
+        order_id = f"{exchange}_{signal.symbol.value.replace('/', '_')}_{uuid.uuid4().hex[:8]}"
         
         # Simulate execution delay
         await asyncio.sleep(0.05)  # 50ms latency
@@ -361,7 +364,7 @@ class PortfolioAwareTradeExecutor:
             "exchange_order_id": order_id,
             "metadata": {
                 "exchange": exchange,
-                "symbol": signal.symbol,
+                "symbol": signal.symbol.value,
                 "direction": signal.direction,
                 "market_price": market_price,
                 "fee_rate": fee_rate
@@ -526,28 +529,16 @@ class PortfolioAwareTradeExecutor:
             for exchange in self.exchange_connections:
                 self.exchange_connections[exchange]["connected"] = False
     
-    async def _get_market_price(self, symbol: str, exchange: str) -> Decimal:
-        """Get current market price for symbol."""
-        # In production, would fetch from market data service
-        # For now, return reasonable estimates based on symbol
+    async def _get_market_price(self, symbol: Symbol, exchange: str) -> Decimal:
+        """Get current market price for symbol.
         
-        # Common crypto prices (rough estimates)
-        price_map = {
-            "BTC/USDC": Decimal("65000"),
-            "BTC/USD": Decimal("65000"),
-            "ETH/USDC": Decimal("3500"),
-            "ETH/USD": Decimal("3500"),
-            "SOL/USDC": Decimal("150"),
-            "SOL/USD": Decimal("150"),
-            "ARB/USDC": Decimal("1.8"),
-            "ARB/USD": Decimal("1.8"),
-            "MATIC/USDC": Decimal("0.9"),
-            "MATIC/USD": Decimal("0.9"),
-        }
+        Uses the configured price service to fetch real market prices.
+        """
+        if self.price_service:
+            return await self.price_service.get_current_price(symbol.value, exchange)
         
-        # Check if we have a price for this symbol
-        if symbol in price_map:
-            return price_map[symbol]
-        
-        # Default to $100 for unknown symbols
-        return Decimal("100")
+        raise NotImplementedError(
+            "Market price fetching not configured. "
+            "Trade executor must be initialized with a price service "
+            "to fetch real market prices."
+        )

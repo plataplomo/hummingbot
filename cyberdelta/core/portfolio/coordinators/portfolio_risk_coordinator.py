@@ -16,6 +16,8 @@ from cyberdelta.core.portfolio.config.risk_parameters import (
     DynamicRiskParameters,
     MarketDataProvider,
 )
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.core.portfolio.services.pricing.price_service import PriceDataService
 
 
 # Supporting Pydantic models for type-safe integration
@@ -48,7 +50,7 @@ class PortfolioWithRiskModel(BaseModel):
 
 class TradeRequestModel(BaseModel):
     """Trade request with validation."""
-    symbol: str
+    symbol: Symbol
     side: str  # "buy" or "sell"
     quantity: Decimal
     price: Decimal | None = None
@@ -95,6 +97,7 @@ class TradeValidationResultModel(BaseModel):
     portfolio_impact: dict[str, Any] | None = None
     risk_violations: list[str] = Field(default_factory=list)
     execution_parameters: dict[str, Any] = Field(default_factory=dict)
+    estimated_price: Decimal | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -106,6 +109,7 @@ class PortfolioRiskCoordinator(BaseModel):
     risk_factory: RiskServiceFactory = Field(..., description="Risk service factory")
     risk_params: RiskParameters = Field(default_factory=RiskParameters, description="Risk parameters")
     market_data_provider: MarketDataProvider | None = Field(default=None, description="Market data provider")
+    price_service: PriceDataService | None = Field(default=None, description="Price service for real market prices")
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, arbitrary_types_allowed=True)
 
@@ -223,7 +227,8 @@ class PortfolioRiskCoordinator(BaseModel):
                 reason="Risk validation failed - see violations",
                 risk_violations=risk_violations,
                 risk_assessment=current_risk,
-                execution_parameters=execution_parameters
+                execution_parameters=execution_parameters,
+                estimated_price=estimated_price
             )
 
         # Calculate optimal position size using sophisticated methods
@@ -248,7 +253,8 @@ class PortfolioRiskCoordinator(BaseModel):
             optimal_size=optimal_size,
             risk_assessment=current_risk,
             portfolio_impact=portfolio_impact,
-            execution_parameters=execution_parameters
+            execution_parameters=execution_parameters,
+            estimated_price=estimated_price
         )
 
     async def execute_coordinated_trade(self, trade_request: TradeRequestModel) -> dict[str, Any]:
@@ -289,8 +295,9 @@ class PortfolioRiskCoordinator(BaseModel):
                 position_value = abs(position.size * entry_price)
                 total_exposure += position_value
                 
-                # Extract currency from symbol
-                currency = position.symbol.split("/")[1] if "/" in position.symbol else "USDC"
+                # Extract currency from symbol - use Symbol value for string operations
+                symbol_value = position.symbol.value
+                currency = symbol_value.split("/")[1] if "/" in symbol_value else "USDC"
                 currency_exposures[currency] = currency_exposures.get(currency, Decimal("0")) + position_value
 
         # Calculate risk metrics using risk module
@@ -368,7 +375,7 @@ class PortfolioRiskCoordinator(BaseModel):
             return weighted_volatility / total_weight
         return self.risk_params.default_volatilities["default"]
 
-    async def _get_symbol_volatility(self, symbol: str) -> Decimal:
+    async def _get_symbol_volatility(self, symbol: Symbol) -> Decimal:
         """Get symbol volatility from market data or use defaults."""
         # Use dynamic parameters which will try market data first
         return await self.dynamic_params.get_symbol_volatility(symbol)
@@ -425,7 +432,7 @@ class PortfolioRiskCoordinator(BaseModel):
         stable_positions = 0
         
         for position in positions:
-            symbol_upper = position.symbol.upper()
+            symbol_upper = position.symbol.value.upper()
             if any(stable in symbol_upper for stable in ["USDC", "USDT", "DAI"]):
                 stable_positions += 1
             else:
@@ -449,7 +456,7 @@ class PortfolioRiskCoordinator(BaseModel):
         position_count = len(positions)
         
         for position in positions:
-            symbol_upper = position.symbol.upper()
+            symbol_upper = position.symbol.value.upper()
             position_size_usd = abs(position.size * (position.entry_price or position.mark_price or Decimal("100")))
             
             # Liquidity risk factors
@@ -561,27 +568,38 @@ class PortfolioRiskCoordinator(BaseModel):
 
     # Supporting methods for professional risk validation
     
-    async def _get_estimated_price(self, symbol: str) -> Decimal:
-        """Get estimated price for symbol from market data."""
-        # In production, this would fetch from market data service
-        # For now, return reasonable estimates based on symbol
-        if "BTC" in symbol.upper():
-            return Decimal("45000")
-        elif "ETH" in symbol.upper():
-            return Decimal("2800")
-        elif "SOL" in symbol.upper():
-            return Decimal("100")
-        elif any(stable in symbol.upper() for stable in ["USDC", "USDT"]):
-            return Decimal("1.0")
-        else:
-            return Decimal("100")
+    async def _get_estimated_price(self, symbol: Symbol) -> Decimal:
+        """Get estimated price for symbol from market data.
+        
+        Uses the configured price service to fetch real market prices.
+        Falls back to a default value if price service is not available.
+        """
+        if self.price_service:
+            try:
+                # Try to fetch real price from price service
+                # Extract exchange from symbol metadata if available
+                exchange_id = None
+                if hasattr(symbol, 'exchange_name') and symbol.exchange_name:
+                    exchange_id = symbol.exchange_name
+                
+                return await self.price_service.get_current_price(symbol.value, exchange_id)
+            except Exception:
+                # Log error and continue to fallback
+                pass
+        
+        # Fallback: require price to be provided in trade request
+        raise ValueError(
+            f"Cannot estimate price for {symbol.value}. "
+            "Price service not configured or unavailable. "
+            "Please provide price in trade request."
+        )
 
     async def _get_dynamic_leverage_limit(self, current_risk: RiskAssessment) -> Decimal:
         """Calculate dynamic leverage limit based on current risk."""
         # Use dynamic leverage limit based on market volatility
         return self.dynamic_params.get_leverage_limit(current_risk.volatility_estimate)
 
-    async def _get_dynamic_position_limit(self, symbol: str, current_risk: RiskAssessment, total_capital: Decimal) -> Decimal:
+    async def _get_dynamic_position_limit(self, symbol: Symbol, current_risk: RiskAssessment, total_capital: Decimal) -> Decimal:
         """Calculate dynamic position limit for symbol."""
         # Base limit from risk parameters
         base_limit = total_capital * self.risk_params.base_position_percent
@@ -595,7 +613,7 @@ class PortfolioRiskCoordinator(BaseModel):
         
         return base_limit * volatility_factor * correlation_factor
 
-    async def _get_existing_position_value(self, symbol: str, portfolio_state: PortfolioState) -> Decimal:
+    async def _get_existing_position_value(self, symbol: Symbol, portfolio_state: PortfolioState) -> Decimal:
         """Get existing position value for symbol."""
         total_value = Decimal("0")
         
@@ -640,7 +658,7 @@ class PortfolioRiskCoordinator(BaseModel):
         self, trade_request: TradeRequestModel, portfolio_state: PortfolioState
     ) -> dict[str, Any]:
         """Validate liquidity requirements for the trade."""
-        symbol_upper = trade_request.symbol.upper()
+        symbol_upper = trade_request.symbol.value.upper()
         estimated_price = trade_request.price or await self._get_estimated_price(trade_request.symbol)
         trade_value = trade_request.quantity * estimated_price
         
@@ -673,7 +691,7 @@ class PortfolioRiskCoordinator(BaseModel):
         self, trade_request: TradeRequestModel, current_risk: RiskAssessment, portfolio_state: PortfolioState
     ) -> dict[str, Any]:
         """Validate correlation risk of adding new position."""
-        symbol_upper = trade_request.symbol.upper()
+        symbol_upper = trade_request.symbol.value.upper()
         
         # Count existing positions in same asset class
         crypto_exposure = Decimal("0")
@@ -683,7 +701,7 @@ class PortfolioRiskCoordinator(BaseModel):
         for exchange_positions in portfolio_state.positions.values():
             for position in exchange_positions:
                 position_value = abs(position.size * (position.entry_price or position.mark_price or Decimal("100")))
-                pos_symbol_upper = position.symbol.upper()
+                pos_symbol_upper = position.symbol.value.upper()
                 
                 if any(stable in pos_symbol_upper for stable in ["USDC", "USDT", "DAI"]):
                     stable_exposure += position_value
@@ -732,7 +750,7 @@ class PortfolioRiskCoordinator(BaseModel):
         # - Recent price movements
         # - Market hours
         
-        symbol_upper = trade_request.symbol.upper()
+        symbol_upper = trade_request.symbol.value.upper()
         current_time = datetime.now(UTC)
         
         # Basic market hours check (crypto trades 24/7, but some have lower liquidity periods)
@@ -823,12 +841,37 @@ class PortfolioRiskCoordinator(BaseModel):
 
     async def _calculate_max_slippage(self, trade_request: TradeRequestModel, current_risk: RiskAssessment) -> float:
         """Calculate maximum acceptable slippage for trade."""
-        symbol_upper = trade_request.symbol.upper()
+        # Use Symbol object properties (clean break approach)
+        symbol = trade_request.symbol
+        
+        # Get base asset for categorization
+        base_asset = None
+        if hasattr(symbol, 'base_asset') and symbol.base_asset:
+            base_asset = symbol.base_asset.upper()
+        else:
+            # Fallback to parsing from symbol value
+            symbol_str = symbol.value.upper()
+            for asset in ["BTC", "ETH", "SOL", "AVAX", "ARB", "MATIC"]:
+                if symbol_str.startswith(asset):
+                    base_asset = asset
+                    break
+        
+        # Get quote asset for stablecoin detection
+        quote_asset = None
+        if hasattr(symbol, 'quote_asset') and symbol.quote_asset:
+            quote_asset = symbol.quote_asset.upper()
+        else:
+            # Fallback to checking symbol value
+            symbol_str = symbol.value.upper()
+            for stable in ["USDC", "USDT", "USD"]:
+                if stable in symbol_str:
+                    quote_asset = stable
+                    break
         
         # Base slippage tolerance by asset class
-        if "BTC" in symbol_upper or "ETH" in symbol_upper:
+        if base_asset in ["BTC", "ETH"]:
             base_slippage = 0.001  # 0.1% for major assets
-        elif any(stable in symbol_upper for stable in ["USDC", "USDT"]):
+        elif quote_asset in ["USDC", "USDT"]:
             base_slippage = 0.0005  # 0.05% for stablecoins
         else:
             base_slippage = 0.005  # 0.5% for other assets

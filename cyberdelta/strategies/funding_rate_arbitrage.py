@@ -32,6 +32,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.models.market import Candle  # Import Candle
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.core.strategy import Strategy
@@ -65,7 +66,7 @@ class FundingRateArbitrageStrategy(Strategy):
     def __init__(
         self,
         name: str,
-        symbol: str,
+        symbol: Symbol,
         data_handler: DataHandler | None,
         portfolio_state_manager: PortfolioStateManager | None,
         risk_manager: RiskManager | None = None,
@@ -75,7 +76,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         Args:
             name: Unique name for the strategy
-            symbol: Trading symbol this strategy operates on (e.g., "BTC-PERP")
+            symbol: Trading symbol this strategy operates on (Symbol object)
             data_handler: Data handler for market data access
             portfolio_state_manager: Portfolio state manager for position management
             risk_manager: Risk manager for position sizing and risk controls
@@ -129,7 +130,7 @@ class FundingRateArbitrageStrategy(Strategy):
         # Strategy state
         self.last_opportunity_check: datetime | None = None
         self.active_opportunities: list[ArbitrageOpportunity] = []
-        self.historical_basis: dict[str, list[tuple[datetime, Decimal]]] = {}
+        self.historical_basis: dict[Symbol, list[tuple[datetime, Decimal]]] = {}
         self._consecutive_failures = 0  # Track consecutive funding rate failures
         # Defensive: ensure check_interval is always int
 
@@ -137,22 +138,32 @@ class FundingRateArbitrageStrategy(Strategy):
         self.perp_exchange: str = str(self.get_param("perp_exchange", "hyperliquid"))
         self.spot_exchange: str = str(self.get_param("spot_exchange", "backpack"))
 
-        # Market mapping (perp to spot)
+        # Market mapping (perp to spot) - now using Symbol objects
+        from cyberdelta.core.symbols import symbol as create_symbol
+        self.symbol_mapping: dict[Symbol, Symbol] = {}
+        
         symbol_mapping_param = self.get_param("symbol_mapping", None)
         if symbol_mapping_param is not None and isinstance(symbol_mapping_param, dict):
-            self.symbol_mapping: dict[str, str] = symbol_mapping_param
+            # Convert string mapping to Symbol mapping
+            for perp_str, spot_str in symbol_mapping_param.items():
+                perp_symbol = create_symbol(perp_str, ExchangeName(self.perp_exchange))
+                spot_symbol = create_symbol(spot_str, ExchangeName(self.spot_exchange))
+                self.symbol_mapping[perp_symbol] = spot_symbol
         else:
             # Default mapping if not provided
             # Extract the base asset from compound symbols like "SOL_USD-PERP" -> "SOL"
-            if "-" in symbol:
-                perp_part = symbol.split("-", maxsplit=1)[0]  # Get "SOL_USD" from "SOL_USD-PERP"
+            symbol_value = symbol.value
+            if "-" in symbol_value:
+                perp_part = symbol_value.split("-", maxsplit=1)[0]  # Get "SOL_USD" from "SOL_USD-PERP"
                 base = perp_part.split("_", maxsplit=1)[0]  # Get "SOL" from "SOL_USD"
             else:
-                base = symbol.split("_", maxsplit=1)[0]  # Get "SOL" from "SOL_USD"
-            self.symbol_mapping = {symbol: f"{base}_USDC"}
+                base = symbol_value.split("_", maxsplit=1)[0]  # Get "SOL" from "SOL_USD"
+            spot_symbol_str = f"{base}_USDC"
+            spot_symbol = create_symbol(spot_symbol_str, ExchangeName(self.spot_exchange))
+            self.symbol_mapping[symbol] = spot_symbol
 
         # Position sizing info storage
-        self.sized_opportunities: dict[str, SizedOpportunity] = {}
+        self.sized_opportunities: dict[Symbol, SizedOpportunity] = {}
         self.signals_generated: int = 0
 
         logger.info(
@@ -194,7 +205,7 @@ class FundingRateArbitrageStrategy(Strategy):
     async def _get_funding_rate_with_retry(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         max_retries: int = 3,
     ) -> FundingRate | None:
         """Get funding rate with exponential backoff retry.
@@ -306,7 +317,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Log with context
         perp_ticker = self.data_handler.get_latest_ticker(self.perp_exchange, self.symbol)
-        spot_symbol = self.symbol_mapping.get(self.symbol, "")
+        spot_symbol = self.symbol_mapping.get(self.symbol)
         spot_ticker = (
             self.data_handler.get_latest_ticker(self.spot_exchange, spot_symbol)
             if spot_symbol
@@ -677,7 +688,7 @@ class FundingRateArbitrageStrategy(Strategy):
         )
         return opportunity
 
-    def _calculate_basis_volatility(self, symbol: str) -> Decimal:
+    def _calculate_basis_volatility(self, symbol: Symbol) -> Decimal:
         """Calculate the volatility of the basis between perp and spot markets.
 
         Args:
@@ -725,7 +736,7 @@ class FundingRateArbitrageStrategy(Strategy):
             )
             return Decimal("0.01")
 
-    def _estimate_slippage(self, symbol: str, size: Decimal, exchange: str) -> Decimal:
+    def _estimate_slippage(self, symbol: Symbol, size: Decimal, exchange: str) -> Decimal:
         """Estimate slippage for a given symbol, size, and exchange.
 
         Args:
@@ -911,7 +922,7 @@ class FundingRateArbitrageStrategy(Strategy):
                 and sized_opportunity.long_size > Decimal(0)
                 and sized_opportunity.short_size > Decimal(0)
             ):
-                self.sized_opportunities[opportunity.id] = sized_opportunity
+                self.sized_opportunities[opportunity.symbol] = sized_opportunity
                 entry_signals = self._generate_entry_signal(
                     opportunity,
                     sized_opportunity,
@@ -968,7 +979,7 @@ class FundingRateArbitrageStrategy(Strategy):
 
         # Get current positions
         perp_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.perp_exchange))
-        perp_position = perp_positions.get(self.symbol)
+        perp_position = perp_positions.get(self.symbol.value)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if not spot_symbol:
             logger.error(
@@ -982,7 +993,7 @@ class FundingRateArbitrageStrategy(Strategy):
             )
             return False
         spot_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.spot_exchange))
-        spot_position = spot_positions.get(spot_symbol)
+        spot_position = spot_positions.get(spot_symbol.value)
 
         # Ensure positions are not None before accessing .size or using in calculations
         if perp_position is None or spot_position is None:
@@ -1291,10 +1302,10 @@ class FundingRateArbitrageStrategy(Strategy):
 
     async def _get_and_validate_positions(
         self,
-    ) -> tuple[DerivativePosition, DerivativePosition, str] | None:
+    ) -> tuple[DerivativePosition, DerivativePosition, Symbol] | None:
         """Get and validate perp and spot positions."""
         perp_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.perp_exchange))
-        perp_position = perp_positions.get(self.symbol)
+        perp_position = perp_positions.get(self.symbol.value)
         spot_symbol = self.symbol_mapping.get(self.symbol)
         if not spot_symbol:
             logger.error(
@@ -1308,7 +1319,7 @@ class FundingRateArbitrageStrategy(Strategy):
             )
             return None
         spot_positions = await self.portfolio_state_manager.get_positions(ExchangeName(self.spot_exchange))
-        spot_position = spot_positions.get(spot_symbol)
+        spot_position = spot_positions.get(spot_symbol.value)
 
         # Check if positions are None before accessing .size
         if perp_position is None or spot_position is None:
@@ -1451,7 +1462,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_position: DerivativePosition,
         perp_price: Decimal,
         spot_price: Decimal,
-        spot_symbol: str,
+        spot_symbol: Symbol,
     ) -> TradeSignal | None:
         """Create a rebalance signal based on net exposure.
 
@@ -1461,6 +1472,12 @@ class FundingRateArbitrageStrategy(Strategy):
         if abs(net_exposure) < Decimal("0.01"):  # Effectively zero, no rebalance needed
             return None
 
+        # Initialize variables for type safety
+        side: OrderSide
+        exchange_to_adjust: str
+        symbol_to_adjust: Symbol
+        price_to_use: Decimal
+        
         # Determine which leg to adjust and by how much
         if net_exposure > Decimal(0):  # Net long, need to sell something
             if perp_position.size > 0:  # If perp is long, sell some

@@ -19,17 +19,15 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import TradeSignal
+from cyberdelta.core.symbols import Symbol, symbol as create_symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 # Setup logging
 logger = get_logger(__name__)
-
-# Symbol parsing constants
-HYPERLIQUID_SYMBOL_PARTS = 3  # Expected parts in Hyperliquid symbol format (BASE-QUOTE-TYPE)
-BACKPACK_SYMBOL_PARTS = 2  # Expected parts in Backpack symbol format (BASE_QUOTE or BASE:QUOTE)
 
 
 class PrioritySignalQueue:
@@ -299,7 +297,7 @@ class PrioritySignalQueue:
         signal_type = SignalType.ENTER_LONG  # Default, needs better logic
         side = OrderSide.BUY if signal_type == SignalType.ENTER_LONG else OrderSide.SELL
 
-        # Extract required fields
+        # Extract required fields - symbol is already a Symbol object  
         symbol = opportunity.symbol
         timestamp = datetime.now(UTC)
 
@@ -498,7 +496,7 @@ class PrioritySignalQueue:
     async def get_signals(
         self,
         max_count: int = 10,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> list[TradeSignal]:
         """Get a list of signals, optionally filtered by symbol. Asynchronous version.
 
@@ -826,7 +824,7 @@ class PrioritySignalQueue:
             return True
 
         # Assume a naming convention like "symbol_SYMBOL_main" for general symbol breakers
-        symbol_breaker_name = f"symbol_{signal.symbol}_main"
+        symbol_breaker_name = f"symbol_{signal.symbol.value}_main"
         symbol_breaker = self.circuit_breaker_system.get_breaker(symbol_breaker_name)
 
         if symbol_breaker and symbol_breaker.state == BreakerState.OPEN:
@@ -937,7 +935,7 @@ class PrioritySignalQueue:
         if not self.circuit_breaker_system:
             return True
 
-        pair_breaker_name = f"pair_{exchange_name}_{signal.symbol}_main"
+        pair_breaker_name = f"pair_{exchange_name}_{signal.symbol.value}_main"
         pair_breaker = self.circuit_breaker_system.get_breaker(pair_breaker_name)
 
         if pair_breaker and pair_breaker.state == BreakerState.OPEN:
@@ -986,121 +984,6 @@ class PrioritySignalQueue:
             )
         return allow_signal
 
-    def _try_perp_format(self, symbol: str) -> str | None:
-        """Try to extract exchange from EXCHANGE-SYMBOL-PERP format.
-
-        Returns:
-            Exchange name if format matches, None otherwise.
-        """
-        if "-PERP" not in symbol:
-            return None
-        parts = symbol.split("-")
-        if len(parts) == HYPERLIQUID_SYMBOL_PARTS and parts[0]:
-            return parts[0].lower()
-        return "hyperliquid"  # Default assumption for perp contracts
-
-    def _try_dash_format(self, symbol: str) -> str | None:
-        """Try to extract exchange from EXCHANGE-SYMBOL format.
-
-        Returns:
-            Exchange name if format matches, None otherwise.
-        """
-        if "-" not in symbol:
-            return None
-        parts = symbol.split("-", 1)
-        if len(parts) == BACKPACK_SYMBOL_PARTS and parts[0]:
-            return parts[0].lower()
-        return None
-
-    def _try_underscore_format(self, symbol: str) -> str | None:
-        """Try to extract exchange from SYMBOL_EXCHANGE format.
-
-        Returns:
-            Exchange name if format matches, None otherwise.
-        """
-        if "_" not in symbol:
-            return None
-        parts = symbol.split("_")
-        if len(parts) == BACKPACK_SYMBOL_PARTS and parts[1]:
-            return parts[1].lower()
-        return "backpack"  # Example assumption
-
-    def _try_colon_format(self, symbol: str) -> str | None:
-        """Try to extract exchange from SYMBOL:EXCHANGE format.
-
-        Returns:
-            Exchange name if format matches, None otherwise.
-        """
-        if ":" not in symbol:
-            return None
-        parts = symbol.split(":")
-        if len(parts) == BACKPACK_SYMBOL_PARTS and parts[1]:
-            return parts[1].lower()
-        return None
-
-    def _try_common_exchange_names(self, symbol: str) -> str | None:
-        """Try to find common exchange names within the symbol.
-
-        Returns:
-            Exchange name if found in symbol, None otherwise.
-        """
-        common_exchanges = [
-            "binance",
-            "coinbase",
-            "bybit",
-            "okx",
-            "kucoin",
-            "dydx",
-            "hyperliquid",
-            "backpack",
-            "kraken",
-            "huobi",
-        ]
-
-        for exchange in common_exchanges:
-            if exchange.lower() in symbol.lower():
-                return exchange.lower()
-        return None
-
-    def _infer_exchange_from_symbol(self, symbol: str) -> str | None:
-        """Attempt to infer the exchange based on the symbol format.
-
-        This method tries to extract exchange information from the symbol formatting.
-        Different exchanges use different symbol formats.
-
-        Args:
-            symbol: The trading symbol to analyze
-
-        Returns:
-            Inferred exchange name or None if inference fails
-
-        """
-        if not symbol:
-            return None
-
-        # Try different exchange-specific symbol formats
-        symbol = symbol.strip().upper()
-
-        # Try each format in order of specificity
-        for format_checker in [
-            self._try_perp_format,
-            self._try_dash_format,
-            self._try_underscore_format,
-            self._try_colon_format,
-            self._try_common_exchange_names,
-        ]:
-            result = format_checker(symbol)
-            if result:
-                return result
-
-        # If no exchange could be inferred
-        self.logger.debug(
-            "exchange_inference_failed",
-            symbol=symbol,
-            action="exchange_inference",
-            message=f"Could not infer exchange from symbol: {symbol}",
-        )
-        return None
 
     async def get_pending_signals(self) -> list[TradeSignal]:
         """Get a list of all signals currently pending in the queue.

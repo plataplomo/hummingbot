@@ -16,6 +16,7 @@ from typing import Any, Protocol
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.risk import (
     RiskCheckError,
@@ -60,7 +61,7 @@ class FundingRateValidatorProtocol(Protocol):
     def get_symbol_metrics(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
     ) -> dict[str, float | Decimal | None]:
         """Get symbol metrics for funding rate validation."""
         ...
@@ -163,7 +164,7 @@ class SizedOpportunity:
 class Position(Protocol):
     """Protocol for position data structure."""
 
-    symbol: str
+    symbol: Symbol
     size: Decimal
     entry_price: Decimal | None  # Changed to Optional[Decimal]
     mark_price: Decimal | None
@@ -210,7 +211,7 @@ class RiskManager:
             circuit_breaker_system: Optional system for circuit breakers
                 (must implement CircuitBreakerSystemProtocol)
             funding_rate_validator: Optional validator for funding rate predictions.
-                Must implement get_symbol_metrics(exchange: str, symbol: str).
+                Must implement get_symbol_metrics(exchange: str, symbol: Symbol).
 
         Raises:
             RiskConfigError: If any required config value is missing or invalid during
@@ -552,15 +553,7 @@ class RiskManager:
         Returns:
             True if all required fields are valid, False otherwise
         """
-        # Check that symbol is not empty
-        if not opportunity.symbol or not opportunity.symbol.strip():
-            self.logger.warning(
-                "opportunity_validation_failed_empty_symbol",
-                symbol=opportunity.symbol,
-                action="rejecting_opportunity",
-                message="Opportunity has empty or whitespace-only symbol",
-            )
-            return False
+        # Symbol validation is redundant - Symbol objects are already validated at creation
 
         # Check that exchanges are not empty
         if not opportunity.long_exchange or not opportunity.long_exchange.strip():
@@ -1207,7 +1200,7 @@ class RiskManager:
 
         return sized_opportunity
 
-    def _get_validation_metrics(self, exchange: str, symbol: str) -> Decimal | None:
+    def _get_validation_metrics(self, exchange: str, symbol: Symbol) -> Decimal | None:
         """Retrieve validation metrics for funding rate predictions.
 
         Returns:
@@ -1794,7 +1787,7 @@ class RiskManager:
         self,
         calculated_size_usd: Decimal,
         validation_factor: Decimal,
-        symbol: str,
+        symbol: Symbol,
     ) -> Decimal | None:
         """Apply validation factor to calculated size.
 
@@ -2021,11 +2014,11 @@ class RiskManager:
             return False
         return True
 
-    async def calculate_position_exposure(self, symbol: str) -> Decimal | None:
-        """Calculate the total USD exposure for a specific symbol across all exchanges.
+    async def calculate_position_exposure(self, symbol: Symbol) -> Decimal | None:
+        """Calculate the total USD exposure for a specific Symbol across all exchanges.
 
         Args:
-            symbol: The trading symbol (e.g., "BTC-PERP").
+            symbol: The trading Symbol object.
 
         Returns:
             Total USD exposure as a Decimal, or None if price is unavailable.
@@ -2038,8 +2031,8 @@ class RiskManager:
         for exchange_name in ExchangeName:
             try:
                 positions = await self.portfolio_state_manager.get_positions(exchange_name)
-                for symbol, position in positions.items():
-                    all_positions.append((symbol, position))
+                for symbol_key, position in positions.items():
+                    all_positions.append((symbol_key, position))
             except Exception:
                 # Skip exchanges that fail
                 continue
@@ -2083,8 +2076,8 @@ class RiskManager:
         for exchange_name in ExchangeName:
             try:
                 positions = await self.portfolio_state_manager.get_positions(exchange_name)
-                for symbol, position in positions.items():
-                    all_positions.append((symbol, position))
+                for symbol_key, position in positions.items():
+                    all_positions.append((symbol_key, position))
             except Exception:
                 # Skip exchanges that fail
                 continue
@@ -2115,7 +2108,7 @@ class RiskManager:
 
     def calculate_required_margin(
         self,
-        symbol: str,
+        symbol: Symbol,
         size: Decimal,
         price: Decimal,
         leverage: Decimal,
@@ -2130,7 +2123,7 @@ class RiskManager:
             return size * price  # 1x leverage requires full notional value
         return (size * price) / leverage
 
-    async def evaluate_liquidation_risk(self, symbol: str) -> Decimal | None:
+    async def evaluate_liquidation_risk(self, symbol: Symbol) -> Decimal | None:
         """Evaluate the liquidation risk for a symbol based on current price and liquidation price.
 
         Args:
@@ -2148,14 +2141,14 @@ class RiskManager:
         for exchange_name in ExchangeName:
             try:
                 positions = await self.portfolio_state_manager.get_positions(exchange_name)
-                for symbol, position in positions.items():
-                    all_positions.append((symbol, position))
+                for symbol_key, position in positions.items():
+                    all_positions.append((symbol_key, position))
             except Exception:
                 # Skip exchanges that fail
                 continue
         if all_positions:  # Check if the list is not empty
             for _exchange_id, pos in all_positions:
-                if pos.symbol:
+                if pos.symbol == symbol:
                     position = pos
                     break  # Found the position, stop searching
 
@@ -2230,7 +2223,7 @@ class RiskManager:
             )
         return is_profitable
 
-    def adjust_order_size(self, symbol: str, requested_size: Decimal) -> Decimal:
+    def adjust_order_size(self, symbol: Symbol, requested_size: Decimal) -> Decimal:
         """Adjust order size based on liquidity, order book depth, etc.
 
         Returns:
@@ -2381,14 +2374,14 @@ class RiskManager:
             return False
         return True
 
-    def get_collateral_asset_for_exchange(self, exchange: str, symbol: str) -> str:
+    def get_collateral_asset_for_exchange(self, exchange: str, symbol: Symbol) -> str:
         """Retrieve the collateral asset for a given exchange and symbol.
 
         Defaults to "USD" if specific configurations are not found.
 
         Args:
             exchange: The trading exchange.
-            symbol: The trading symbol (currently unused in direct logic but kept for context).
+            symbol: The trading Symbol object (currently unused in direct logic but kept for context).
 
         Returns:
             The collateral asset for the given exchange.

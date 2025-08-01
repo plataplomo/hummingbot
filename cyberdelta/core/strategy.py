@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ class Strategy(ABC):
     specific algorithms and parameters.
     """
 
-    def __init__(self, name: str, symbol: str, params: dict[str, Any] | None = None) -> None:
+    def __init__(self, name: str, symbol: Symbol, params: dict[str, Any] | None = None) -> None:
         """Initialize a strategy.
 
         Args:

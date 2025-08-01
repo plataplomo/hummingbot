@@ -15,6 +15,9 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.portfolio.portfolio_types.models import PositionUpdateRequest
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.core.symbols import symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.models.discrepancy_detail import (
@@ -228,7 +231,7 @@ class PositionReconciliationSystem:
     def _record_discrepancy(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         discrepancy_type: Literal[
             "size",
             "entry_price",
@@ -307,7 +310,7 @@ class PositionReconciliationSystem:
         self,
         exchange: str,
         results: dict[str, Any],
-        api_positions_map: dict[str, DerivativePosition],  # Pass the map for lookups
+        api_positions_map: dict[Symbol, DerivativePosition],  # Pass the map for lookups
     ) -> None:
         """Apply corrections to the portfolio tracker based on reconciliation results.
 
@@ -370,7 +373,7 @@ class PositionReconciliationSystem:
         self,
         exchange: str,
         discrepancy_detail: DiscrepancyDetail,
-        api_positions_map: dict[str, DerivativePosition],
+        api_positions_map: dict[Symbol, DerivativePosition],
         results: dict[str, Any],
     ) -> None:
         """Process a single discrepancy and apply corrections."""
@@ -388,21 +391,22 @@ class PositionReconciliationSystem:
             )
             return
 
-        symbol = discrepancy_detail.symbol
-        exchange_value = self._parse_exchange_value(discrepancy_detail, symbol)
+        symbol_obj = discrepancy_detail.symbol  # Already a Symbol object
+        symbol_str = symbol_obj.value  # Get the string value for logging
+        exchange_value = self._parse_exchange_value(discrepancy_detail, symbol_obj)
         if exchange_value is None:
             return
 
         # Apply the position correction
-        await self._apply_position_correction(exchange, symbol, exchange_value, api_positions_map)
+        await self._apply_position_correction(exchange, symbol_obj, exchange_value, api_positions_map)
 
         # Mark as corrected in history
-        self._mark_discrepancy_corrected(exchange, symbol, discrepancy_detail, results)
+        self._mark_discrepancy_corrected(exchange, symbol_obj, discrepancy_detail, results)
 
     def _parse_exchange_value(
         self,
         discrepancy_detail: DiscrepancyDetail,
-        symbol: str,
+        symbol: Symbol,
     ) -> Decimal | None:
         """Parse exchange value from discrepancy detail.
 
@@ -415,9 +419,9 @@ class PositionReconciliationSystem:
             logger.warning(
                 "missing_exchange_value",
                 action="parse",
-                symbol=symbol,
+                symbol=symbol.value,
                 message=(
-                    f"Skipping discrepancy for {symbol} due to missing 'exchange_value' "
+                    f"Skipping discrepancy for {symbol.value} due to missing 'exchange_value' "
                     f"in DiscrepancyDetail"
                 ),
             )
@@ -441,15 +445,15 @@ class PositionReconciliationSystem:
     async def _apply_position_correction(
         self,
         exchange: str,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_value: Decimal,
-        api_positions_map: dict[str, DerivativePosition],
+        api_positions_map: dict[Symbol, DerivativePosition],
     ) -> None:
         """Apply position correction based on exchange value."""
         # Get positions from the exchange
         positions = await self._portfolio_state_manager.get_positions(ExchangeName(exchange))
-        current_local_position = positions.get(symbol)
-        api_position_for_correction = api_positions_map.get(symbol)
+        current_local_position = positions.get(symbol_obj.value)
+        api_position_for_correction = api_positions_map.get(symbol_obj)
 
         timestamp_to_use = self._get_correction_timestamp(
             api_position_for_correction,
@@ -459,7 +463,7 @@ class PositionReconciliationSystem:
         if current_local_position is None:
             await self._create_missing_position(
                 exchange,
-                symbol,
+                symbol_obj,
                 exchange_value,
                 api_position_for_correction,
                 timestamp_to_use,
@@ -467,7 +471,7 @@ class PositionReconciliationSystem:
         elif current_local_position.size != exchange_value:
             await self._update_existing_position(
                 exchange,
-                symbol,
+                symbol_obj,
                 exchange_value,
                 current_local_position,
                 api_position_for_correction,
@@ -505,7 +509,7 @@ class PositionReconciliationSystem:
     async def _create_missing_position(
         self,
         exchange: str,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_value: Decimal,
         api_position: DerivativePosition | None,
         timestamp: datetime,
@@ -517,34 +521,44 @@ class PositionReconciliationSystem:
         logger.info(
             "creating_missing_local_position",
             exchange=exchange,
-            symbol=symbol,
+            symbol=symbol_obj.value,
             size=float(exchange_value),
-            message=f"Creating missing local position: {exchange} {symbol} size={exchange_value}",
+            message=f"Creating missing local position: {exchange} {symbol_obj.value} size={exchange_value}",
         )
 
         if api_position:
             new_local_pos = self._create_position_from_api_data(
                 exchange,
-                symbol,
+                symbol_obj,
                 exchange_value,
                 api_position,
             )
         else:
             new_local_pos = self._create_minimal_position(
                 exchange,
-                symbol,
+                symbol_obj,
                 exchange_value,
                 timestamp,
             )
 
-        await self._portfolio_state_manager.update_position(
-            ExchangeName(exchange), symbol, new_local_pos
+        # Create PositionUpdateRequest for compatibility with current portfolio system
+        position_update_request = PositionUpdateRequest(
+            exchange_id=exchange,
+            symbol=symbol_obj,
+            size=new_local_pos.size,
+            entry_price=new_local_pos.entry_price,
+            mark_price=new_local_pos.mark_price,
+            unrealized_pnl=new_local_pos.unrealized_pnl,
+            update_source="position_reconciliation"
+        )
+        await self._portfolio_state_manager.update_positions(
+            ExchangeName(exchange), position_update_request
         )
 
     def _create_position_from_api_data(
         self,
         exchange: str,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_value: Decimal,
         api_position: DerivativePosition,
     ) -> DerivativePosition:
@@ -556,7 +570,7 @@ class PositionReconciliationSystem:
         """
         return DerivativePosition(
             exchange=exchange,
-            symbol=symbol,
+            symbol=symbol_obj,
             side=OrderSide.BUY
             if exchange_value > Decimal(0)
             else OrderSide.SELL
@@ -578,7 +592,7 @@ class PositionReconciliationSystem:
     def _create_minimal_position(
         self,
         exchange: str,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_value: Decimal,
         timestamp: datetime,
     ) -> DerivativePosition:
@@ -591,10 +605,10 @@ class PositionReconciliationSystem:
         logger.warning(
             "cannot_create_position_missing_api_data",
             exchange=exchange,
-            symbol=symbol,
+            symbol=symbol_obj.value,
             exchange_value=float(exchange_value),
             message=(
-                f"Cannot create local position for {exchange}/{symbol} - "
+                f"Cannot create local position for {exchange}/{symbol_obj.value} - "
                 f"missing full API data for discrepancy correction, "
                 f"only size {exchange_value} is known."
             ),
@@ -602,7 +616,7 @@ class PositionReconciliationSystem:
 
         return DerivativePosition(
             exchange=exchange,
-            symbol=symbol,
+            symbol=symbol_obj,
             side=OrderSide.BUY if exchange_value > 0 else OrderSide.SELL,
             size=exchange_value,
             entry_price=None,
@@ -612,7 +626,7 @@ class PositionReconciliationSystem:
     async def _update_existing_position(
         self,
         exchange: str,
-        symbol: str,
+        symbol_obj: Symbol,
         exchange_value: Decimal,
         current_position: DerivativePosition,
         api_position: DerivativePosition | None,
@@ -622,11 +636,11 @@ class PositionReconciliationSystem:
         logger.info(
             "correcting_local_position",
             exchange=exchange,
-            symbol=symbol,
+            symbol=symbol_obj.value,
             old_size=float(current_position.size),
             new_size=float(exchange_value),
             message=(
-                f"Correcting local position: {exchange} {symbol} "
+                f"Correcting local position: {exchange} {symbol_obj.value} "
                 f"from {current_position.size} to {exchange_value}"
             ),
         )
@@ -654,14 +668,24 @@ class PositionReconciliationSystem:
                 else current_position.liquidation_price,
             },
         )
-        await self._portfolio_state_manager.update_position(
-            ExchangeName(exchange), symbol, updated_local_position
+        # Create PositionUpdateRequest for compatibility with current portfolio system
+        position_update_request = PositionUpdateRequest(
+            exchange_id=exchange,
+            symbol=symbol_obj,
+            size=updated_local_position.size,
+            entry_price=updated_local_position.entry_price,
+            mark_price=updated_local_position.mark_price,
+            unrealized_pnl=updated_local_position.unrealized_pnl,
+            update_source="position_reconciliation"
+        )
+        await self._portfolio_state_manager.update_positions(
+            ExchangeName(exchange), position_update_request
         )
 
     def _mark_discrepancy_corrected(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         discrepancy_detail: DiscrepancyDetail,
         results: dict[str, Any],
     ) -> None:
@@ -716,7 +740,7 @@ class PositionReconciliationSystem:
         self,
         historical_record: HistoricalDiscrepancyRecord,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         discrepancy_detail: DiscrepancyDetail,
         results_timestamp_dt: datetime,
     ) -> bool:
@@ -1048,8 +1072,8 @@ class PositionReconciliationSystem:
     async def reconcile_positions(
         self,
         exchange_id: str,
-        api_positions: dict[str, Any],
-        local_positions: dict[str, Any],
+        api_positions: dict[Symbol, DerivativePosition],
+        local_positions: dict[Symbol, DerivativePosition],
     ) -> dict[str, Any]:
         """Reconcile positions for a given exchange.
 
@@ -1144,9 +1168,9 @@ class PositionReconciliationSystem:
     def _create_reconciliation_tasks(
         self,
         exchange_id: str,
-        all_symbols: set[str],
-        api_positions: dict[str, Any],
-        local_positions: dict[str, Any],
+        all_symbols: set[Symbol],
+        api_positions: dict[Symbol, DerivativePosition],
+        local_positions: dict[Symbol, DerivativePosition],
     ) -> list[Awaitable[list[HistoricalDiscrepancyRecord]]]:
         """Create reconciliation tasks for all symbols.
 
@@ -1186,7 +1210,7 @@ class PositionReconciliationSystem:
     def _parse_symbol_positions(
         self,
         exchange_id: str,
-        symbol_key: str,
+        symbol_key: Symbol,
         api_pos_raw: object,
         local_pos_raw: object,
     ) -> tuple[ParsedPosition | ErrorDict, ParsedPosition | ErrorDict | None]:
@@ -1278,7 +1302,7 @@ class PositionReconciliationSystem:
     def _log_parsing_results(
         self,
         exchange_id: str,
-        symbol_key: str,
+        symbol_key: Symbol,
         parsed_api_pos: ParsedPosition | ErrorDict,
         parsed_local_pos: ParsedPosition | ErrorDict | None,
     ) -> None:
@@ -1304,7 +1328,7 @@ class PositionReconciliationSystem:
         exchange_id: str,
         reconciliation_tasks: list[Awaitable[list[HistoricalDiscrepancyRecord]]],
         overall_results: dict[str, Any],
-        api_positions: dict[str, Any],
+        api_positions: dict[Symbol, DerivativePosition],
     ) -> None:
         """Execute reconciliation tasks and process the results."""
         symbol_results_list = await asyncio.gather(*reconciliation_tasks, return_exceptions=True)
@@ -1384,9 +1408,11 @@ class PositionReconciliationSystem:
         )
         overall_results["success"] = False
 
+        # Create error Symbol object - clean break approach
+        error_symbol = symbol("UNKNOWN_SYMBOL_DUE_TO_EXCEPTION", ExchangeName(exchange_id))
         error_record = self._record_discrepancy(
             exchange_id=exchange_id,
-            symbol="UNKNOWN_SYMBOL_DUE_TO_EXCEPTION",
+            symbol=error_symbol,
             discrepancy_type="reconciliation_error",
             api_val=None,
             local_val=None,
@@ -1415,9 +1441,11 @@ class PositionReconciliationSystem:
         )
         overall_results["success"] = False
 
+        # Create error Symbol object - clean break approach
+        error_symbol = symbol("UNKNOWN_SYMBOL_DUE_TO_BAD_RESULT_TYPE", ExchangeName(exchange_id))
         error_record = self._record_discrepancy(
             exchange_id=exchange_id,
-            symbol="UNKNOWN_SYMBOL_DUE_TO_BAD_RESULT_TYPE",
+            symbol=error_symbol,
             discrepancy_type="reconciliation_error",
             api_val=None,
             local_val=None,
@@ -1430,7 +1458,7 @@ class PositionReconciliationSystem:
         self,
         exchange_id: str,
         overall_results: dict[str, Any],
-        api_positions: dict[str, Any],
+        api_positions: dict[Symbol, DerivativePosition],
     ) -> None:
         """Handle corrections for found discrepancies."""
         self.logger.info(
@@ -1470,27 +1498,27 @@ class PositionReconciliationSystem:
     def _build_api_positions_map(
         self,
         exchange_id: str,
-        api_positions: dict[str, Any],
-    ) -> dict[str, DerivativePosition]:
+        api_positions: dict[Symbol, DerivativePosition],
+    ) -> dict[Symbol, DerivativePosition]:
         """Build a map of API positions for corrections.
 
         Returns:
-            dict[str, DerivativePosition]: Map of symbol to DerivativePosition for
+            dict[Symbol, DerivativePosition]: Map of symbol to DerivativePosition for
                 valid API positions that can be used for position corrections.
         """
-        api_positions_map_for_correction: dict[str, DerivativePosition] = {}
+        api_positions_map_for_correction: dict[Symbol, DerivativePosition] = {}
 
-        for sym, pos_data in api_positions.items():
+        for symbol_obj, pos_data in api_positions.items():
             if isinstance(pos_data, DerivativePosition):
-                api_positions_map_for_correction[sym] = pos_data
+                api_positions_map_for_correction[symbol_obj] = pos_data
             else:
                 self.logger.warning(
                     "prs_reconcile_positions_invalid_api_position_type",
-                    symbol=sym,
+                    symbol=symbol_obj.value,
                     actual_type=type(pos_data).__name__,
                     expected_type="DerivativePosition",
                     message=(
-                        f"PRS.reconcile_positions: Item '{sym}' in api_positions is not a "
+                        f"PRS.reconcile_positions: Item '{symbol_obj.value}' in api_positions is not a "
                         f"DerivativePosition for correction: {type(pos_data).__name__}"
                     ),
                 )
@@ -1500,7 +1528,7 @@ class PositionReconciliationSystem:
     async def _reconcile_symbol(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         parsed_api_pos: ParsedPosition | ErrorDict,
         parsed_local_pos: ParsedPosition | ErrorDict | None,
     ) -> list[HistoricalDiscrepancyRecord]:
@@ -1547,7 +1575,7 @@ class PositionReconciliationSystem:
     def _handle_parsing_errors(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         parsed_api_pos: ParsedPosition | ErrorDict,
         parsed_local_pos: ParsedPosition | ErrorDict | None,
     ) -> list[HistoricalDiscrepancyRecord]:
@@ -1588,7 +1616,7 @@ class PositionReconciliationSystem:
     def _handle_position_existence_discrepancies(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         api_pos_data: ParsedPosition,
         local_pos_data: ParsedPosition | None,
     ) -> list[HistoricalDiscrepancyRecord]:
@@ -1637,7 +1665,7 @@ class PositionReconciliationSystem:
     def _compare_position_attributes(
         self,
         exchange_id: str,
-        symbol: str,
+        symbol: Symbol,
         api_pos_data: ParsedPosition,
         local_pos_data: ParsedPosition,
     ) -> list[HistoricalDiscrepancyRecord]:
@@ -1789,11 +1817,14 @@ class PositionReconciliationSystem:
             parsed_local_pos_input = self._validate_local_position(local_pos_raw, symbol_key)
             parsed_api = self._parse_comparison_api_position(api_pos_raw)
             parsed_local = self._parse_comparison_local_position(parsed_local_pos_input)
+            
+            # Convert string symbol to Symbol object - clean break approach
+            symbol_obj = symbol(symbol_key, ExchangeName(exchange_id_placeholder))
 
             reconciliation_tasks.append(
                 self._reconcile_symbol(
                     exchange_id_placeholder,
-                    symbol_key,
+                    symbol_obj,
                     parsed_api,
                     parsed_local,
                 ),
@@ -1933,9 +1964,11 @@ class PositionReconciliationSystem:
             exc_info=exception,
         )
         overall_results["success"] = False
+        # Create error Symbol object - clean break approach
+        error_symbol = symbol("UNKNOWN_SYMBOL_DUE_TO_COMPARE_EXCEPTION", ExchangeName(exchange_id_placeholder))
         error_record = self._record_discrepancy(
             exchange_id=exchange_id_placeholder,
-            symbol="UNKNOWN_SYMBOL_DUE_TO_COMPARE_EXCEPTION",
+            symbol=error_symbol,
             discrepancy_type="reconciliation_error",
             api_val=None,
             local_val=None,
@@ -1962,9 +1995,11 @@ class PositionReconciliationSystem:
             ),
         )
         overall_results["success"] = False
+        # Create error Symbol object - clean break approach
+        error_symbol = symbol("UNKNOWN_SYMBOL_DUE_TO_COMPARE_BAD_RESULT", ExchangeName(exchange_id_placeholder))
         error_record = self._record_discrepancy(
             exchange_id=exchange_id_placeholder,
-            symbol="UNKNOWN_SYMBOL_DUE_TO_COMPARE_BAD_RESULT",
+            symbol=error_symbol,
             discrepancy_type="reconciliation_error",
             api_val=None,
             local_val=None,

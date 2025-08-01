@@ -288,7 +288,7 @@ class ReportGenerator:
             return Decimal("0")
             
         total = sum(s.sharpe_ratio for s in history)
-        return total / len(history)
+        return Decimal(str(total / len(history)))
         
     def _calculate_sortino_ratio(self, history: List[PerformanceSnapshot]) -> Decimal:
         """Calculate Sortino ratio using downside deviation."""
@@ -315,11 +315,11 @@ class ReportGenerator:
         if not negative_returns:
             return Decimal("999.99")  # Very high ratio if no downside
             
-        downside_variance = sum((r - Decimal("0")) ** 2 for r in negative_returns) / len(negative_returns)
+        downside_variance = Decimal(str(sum((r - Decimal("0")) ** 2 for r in negative_returns) / len(negative_returns)))
         downside_deviation = downside_variance.sqrt() if downside_variance > 0 else Decimal("0")
         
         # Annualize
-        annual_return = avg_return * Decimal("252")  # 252 trading days
+        annual_return = Decimal(str(avg_return)) * Decimal("252")  # 252 trading days
         annual_downside_dev = downside_deviation * Decimal("252").sqrt()
         
         # Risk-free rate (2% annual)

@@ -184,14 +184,18 @@ class CircuitBreaker[T]:
                     retry_after = int(self._next_attempt_time - time.time())
 
                     error = ResilienceError(
-                        error_type=ResilienceErrorType.CIRCUIT_OPEN,
+                        error_type=ResilienceErrorType.CIRCUIT_BREAKER_OPEN,
                         message=f"Circuit breaker is open for {self.name}",
-                        service_name=self.name,
+                        component=self.name,
                         retry_after=retry_after,
                     )
 
                     metrics = self._create_metrics()
-                    return ResilienceResult[T].failed(error, metrics)
+                    return ResilienceResult[T](
+                        success=False,
+                        error=error,
+                        metrics=metrics
+                    )
                 # Transition to half-open
                 self._transition_to(CircuitState.HALF_OPEN)
 
@@ -211,7 +215,11 @@ class CircuitBreaker[T]:
 
             duration_ms = (time.time() - start_time) * 1000
             metrics = self._create_metrics(duration_ms=duration_ms)
-            return ResilienceResult[T].successful(result, metrics)
+            return ResilienceResult[T](
+                success=True,
+                value=result,
+                metrics=metrics
+            )
 
         except TimeoutError as e:
             await self._on_failure(is_timeout=True)
@@ -220,12 +228,16 @@ class CircuitBreaker[T]:
             error = ResilienceError(
                 error_type=ResilienceErrorType.TIMEOUT,
                 message=f"Operation timed out after {self.config.timeout}s",
-                service_name=self.name,
-                cause=e,
+                component=self.name,
+                original_error=str(e),
             )
 
             metrics = self._create_metrics(duration_ms=duration_ms)
-            return ResilienceResult[T].failed(error, metrics)
+            return ResilienceResult[T](
+                success=False,
+                error=error,
+                metrics=metrics
+            )
 
         except Exception as e:
             # Check if exception should be excluded
@@ -236,14 +248,18 @@ class CircuitBreaker[T]:
 
             duration_ms = (time.time() - start_time) * 1000
             error = ResilienceError(
-                error_type=ResilienceErrorType.SERVICE_UNAVAILABLE,
+                error_type=ResilienceErrorType.UNKNOWN,
                 message=f"Service error: {e!s}",
-                service_name=self.name,
-                cause=e,
+                component=self.name,
+                original_error=str(e),
             )
 
             metrics = self._create_metrics(duration_ms=duration_ms)
-            return ResilienceResult[T].failed(error, metrics)
+            return ResilienceResult[T](
+                success=False,
+                error=error,
+                metrics=metrics
+            )
 
     async def _on_success(self) -> None:
         """Handle successful execution."""
@@ -320,12 +336,13 @@ class CircuitBreaker[T]:
             ResilienceMetrics: Metrics object containing circuit breaker statistics.
         """
         return ResilienceMetrics(
-            total_attempts=self._metrics.total_calls,
-            successful_attempts=self._metrics.successful_calls,
-            failed_attempts=self._metrics.failed_calls,
-            circuit_breaker_trips=self._metrics.rejected_calls,
-            fallback_executions=0,  # Circuit breaker doesn't use fallbacks
-            total_duration_ms=duration_ms,
+            total_requests=self._metrics.total_calls,
+            successful_requests=self._metrics.successful_calls,
+            failed_requests=self._metrics.failed_calls,
+            circuit_breaker_opens=self._metrics.rejected_calls,
+            fallback_successes=0,  # Circuit breaker doesn't use fallbacks
+            fallback_failures=0,
+            average_response_time_ms=duration_ms,
         )
 
     def get_metrics(self) -> dict[str, object]:

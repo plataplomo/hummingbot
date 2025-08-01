@@ -437,7 +437,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
                 if (
                     result.metadata
                     and result.metadata.notes
-                    and position.symbol in result.metadata.notes
+                    and position.symbol.value in result.metadata.notes
                 )
             ),
             None,

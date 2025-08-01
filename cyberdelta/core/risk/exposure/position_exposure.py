@@ -12,6 +12,7 @@ from cyberdelta.config import AppSettings
 from cyberdelta.core.risk.calculations import RiskCalculationResult
 from cyberdelta.core.risk.utils.calculator_base import RiskCalculatorBase
 from cyberdelta.core.risk.exceptions import RiskCalculationError
+from cyberdelta.core.symbols.models import Symbol
 
 
 # Constants
@@ -28,7 +29,7 @@ class ExposureMetrics:
     """Exposure calculation result with validation."""
 
     position_id: str = Field(min_length=1, description="Position identifier")
-    symbol: str = Field(min_length=1, description="Trading symbol")
+    symbol: Symbol = Field(description="Trading symbol")
     gross_exposure: Decimal = Field(ge=0, description="Gross exposure (non-negative)")
     net_exposure: Decimal = Field(description="Net exposure (can be positive or negative)")
     leverage: Decimal = Field(ge=0, description="Position leverage (non-negative)")
@@ -446,11 +447,12 @@ class ExposureCalculator(RiskCalculatorBase[ExposureInput, ExposureMetrics]):
             Dictionary mapping currency codes to exposure amounts.
         """
         # Simplified - extract base and quote currencies from symbol
-        if "/" in position.symbol:
-            base, quote = position.symbol.split("/", 1)
+        symbol_value = position.symbol.value
+        if "/" in symbol_value:
+            base, quote = symbol_value.split("/", 1)
         else:
             # Fallback
-            base, quote = position.symbol, "USD"
+            base, quote = symbol_value, "USD"
 
         notional_value = position.size * current_price
 

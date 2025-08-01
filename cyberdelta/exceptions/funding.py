@@ -4,6 +4,8 @@ These exceptions handle funding rate data errors including source failures,
 data availability issues, and multi-tier provider errors.
 """
 
+from cyberdelta.core.symbols import Symbol
+
 __all__ = [
     "AllSourcesFailedError",
     "ArbitrageFieldError",
@@ -30,7 +32,7 @@ FundingRateSourceError = FundingError
 class NoFundingDataError(FundingError):
     """Raised when no funding rate data is available for a symbol."""
 
-    def __init__(self, exchange: str, symbol: str) -> None:
+    def __init__(self, exchange: str, symbol: Symbol) -> None:
         """Initialize no funding data error.
 
         Args:
@@ -39,7 +41,7 @@ class NoFundingDataError(FundingError):
         """
         self.exchange = exchange
         self.symbol = symbol
-        super().__init__(f"No funding rate data available for {exchange}:{symbol}")
+        super().__init__(f"No funding rate data available for {exchange}:{symbol.value}")
 
 
 class NoFallbackSourceError(FundingError):
@@ -58,7 +60,7 @@ class NoFallbackSourceError(FundingError):
 class AllSourcesFailedError(FundingError):
     """Raised when all funding rate sources fail for a symbol."""
 
-    def __init__(self, exchange: str, symbol: str, original_error: Exception | None = None) -> None:
+    def __init__(self, exchange: str, symbol: Symbol, original_error: Exception | None = None) -> None:
         """Initialize all sources failed error.
 
         Args:
@@ -69,13 +71,13 @@ class AllSourcesFailedError(FundingError):
         self.exchange = exchange
         self.symbol = symbol
         self.original_error = original_error
-        super().__init__(f"All sources failed for {exchange}:{symbol}")
+        super().__init__(f"All sources failed for {exchange}:{symbol.value}")
 
 
 class NoValidWeightedDataError(FundingError):
     """Raised when no valid weighted funding rate data is available."""
 
-    def __init__(self, exchange: str, symbol: str) -> None:
+    def __init__(self, exchange: str, symbol: Symbol) -> None:
         """Initialize no valid weighted data error.
 
         Args:
@@ -84,7 +86,7 @@ class NoValidWeightedDataError(FundingError):
         """
         self.exchange = exchange
         self.symbol = symbol
-        super().__init__(f"No valid, weighted funding rate data available for {exchange}:{symbol}")
+        super().__init__(f"No valid, weighted funding rate data available for {exchange}:{symbol.value}")
 
 
 class ArbitrageFieldError(ValueError, FundingError):

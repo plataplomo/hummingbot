@@ -19,6 +19,7 @@ from cyberdelta.core.portfolio.exceptions.state import (
 )
 from cyberdelta.core.portfolio.models.base import BaseStateModel
 from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.portfolio.portfolio_types.models import (
     BalanceUpdateRequest,
     OrderUpdateRequest,
@@ -555,8 +556,12 @@ class PortfolioStateManager:
                     if balances:
                         all_balances[exchange.value] = balances
                         for balance in balances.values():
-                            if hasattr(balance, 'total_quantity') and balance.asset in ['USDC', 'USDT']:
-                                total_value += balance.total_quantity
+                            if hasattr(balance, 'total_quantity'):
+                                # Create Symbol objects for comparison based on current exchange
+                                usdc_symbol = getattr(exchanges, exchange.value.lower())('USDC')
+                                usdt_symbol = getattr(exchanges, exchange.value.lower())('USDT')
+                                if balance.asset in [usdc_symbol, usdt_symbol]:
+                                    total_value += balance.total_quantity
                     
                     # Get orders
                     orders_dict = await self.get_orders(exchange)

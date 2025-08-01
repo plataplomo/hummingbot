@@ -58,7 +58,8 @@ class RiskLimitBreach:
         value: float = float(v)
         if not (REASONABLE_VALUE_MIN < value < REASONABLE_VALUE_MAX):
             raise RiskCalculationError(
-                parameter="limit_value", value=value, expected="finite and reasonable value"
+                "Value must be finite and reasonable",
+                metadata={"parameter": "limit_value", "value": float(value), "expected": "finite and reasonable value"}
             )
         return value
 
@@ -172,7 +173,8 @@ class PortfolioExposure:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="decimal_value", value=value, expected="finite decimal"
+                "Decimal value must be finite",
+                metadata={"parameter": "decimal_value", "value": str(value), "expected": "finite decimal"}
             )
         return value
 
@@ -200,11 +202,13 @@ class PortfolioExposure:
             val: Decimal = value if isinstance(value, Decimal) else Decimal(str(value))
             if not val.is_finite():
                 raise RiskCalculationError(
-                    parameter=f"value_for_{key}", value=val, expected="finite decimal"
+                    "Dictionary value must be finite decimal",
+                    metadata={"parameter": f"value_for_{key}", "value": str(val), "expected": "finite decimal"}
                 )
             if val < 0:
                 raise RiskCalculationError(
-                    parameter=f"value_for_{key}", value=val, expected="non-negative decimal"
+                    "Dictionary value must be non-negative decimal",
+                    metadata={"parameter": f"value_for_{key}", "value": str(val), "expected": "non-negative decimal"}
                 )
             result[key] = val
         return result
@@ -223,9 +227,12 @@ class PortfolioExposure:
         for key, count in v.items():
             if count < 0:
                 raise RiskCalculationError(
-                    parameter=f"position_count_for_{key}",
-                    value=count,
-                    expected="non-negative integer",
+                    "Position count must be non-negative integer",
+                    metadata={
+                        "parameter": f"position_count_for_{key}",
+                        "value": count,
+                        "expected": "non-negative integer"
+                    }
                 )
         return v
 

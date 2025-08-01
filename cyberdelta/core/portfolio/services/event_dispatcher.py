@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, Awaitable
 
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import EventType, PortfolioEvent
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
@@ -16,9 +16,9 @@ class EventDispatcher(BasePortfolioService):
     def __init__(self, service_name: str = "event_dispatcher"):
         """Initialize event dispatcher."""
         super().__init__(service_name)
-        self._handlers: dict[EventType, list[Callable]] = {}
+        self._handlers: dict[EventType, list[Callable[[PortfolioEvent], Any]]] = {}
         self._event_queue: asyncio.Queue[PortfolioEvent] = asyncio.Queue()
-        self._processing_task: asyncio.Task | None = None
+        self._processing_task: asyncio.Task[None] | None = None
         self._event_history: list[PortfolioEvent] = []
         self._max_history = 1000
 
@@ -36,7 +36,7 @@ class EventDispatcher(BasePortfolioService):
             except asyncio.CancelledError:
                 pass
 
-    async def register_handler(self, event_type: EventType, handler: Callable) -> None:
+    async def register_handler(self, event_type: EventType, handler: Callable[[PortfolioEvent], Any]) -> None:
         """Register event handler for specific event type."""
         if event_type not in self._handlers:
             self._handlers[event_type] = []
@@ -49,7 +49,7 @@ class EventDispatcher(BasePortfolioService):
 
     async def _process_events(self) -> None:
         """Background task to process events."""
-        while self.is_initialized():
+        while self.is_running:
             try:
                 # Wait for event with timeout
                 event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
@@ -80,7 +80,7 @@ class EventDispatcher(BasePortfolioService):
 
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _safe_handler_call(self, handler: Callable, event: PortfolioEvent) -> None:
+    async def _safe_handler_call(self, handler: Callable[[PortfolioEvent], Any], event: PortfolioEvent) -> None:
         """Safely call event handler with error handling."""
         try:
             if asyncio.iscoroutinefunction(handler):

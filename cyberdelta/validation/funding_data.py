@@ -22,6 +22,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.exceptions.funding import (
     NegativeLongPriceError,
     NegativeShortPriceError,
@@ -63,7 +64,7 @@ class FundingData:
     """Base funding rate data from a single source."""
 
     exchange: str
-    symbol: str
+    symbol: Symbol
     rate: float
     timestamp: datetime
     source_type: SourceType
@@ -100,7 +101,7 @@ class IntegratedFundingData:
     """Integrated funding rate data from multiple sources."""
 
     exchange: str
-    symbol: str
+    symbol: Symbol
     rate: float
     timestamp: datetime
     dispersion: float  # Measure of disagreement between sources
@@ -139,7 +140,7 @@ class FundingRateValidationMetrics:
     """Validation metrics for funding rate predictions."""
 
     exchange: str
-    symbol: str
+    symbol: Symbol
     rmse: float  # Root Mean Square Error
     mae: float  # Mean Absolute Error
     bias: float  # Systematic bias (positive = over-prediction)
@@ -192,7 +193,7 @@ class FundingRatePrediction:
     """Prediction of future funding rate."""
 
     exchange: str
-    symbol: str
+    symbol: Symbol
     predicted_rate: float
     prediction_time: datetime
     target_time: datetime
@@ -207,7 +208,7 @@ class HistoricalTrade:
     """Historical trade record for probability estimation."""
 
     exchange: str
-    symbol: str
+    symbol: Symbol
     entry_time: datetime
     exit_time: datetime | None
     entry_funding_rate: float
@@ -227,7 +228,7 @@ class ArbitrageOpportunity(BaseModel):
     with analytics, sizing, or confidence scores after initial creation.
 
     Fields:
-        symbol (str): Trading symbol.
+        symbol (Symbol): Trading symbol.
         long_exchange (str): Exchange to go long.
         short_exchange (str): Exchange to go short.
         long_price (Decimal): Long entry price (must be positive).
@@ -256,7 +257,7 @@ class ArbitrageOpportunity(BaseModel):
 
     """
 
-    symbol: str
+    symbol: Symbol
     long_exchange: str
     short_exchange: str
     long_price: Decimal = Field(gt=0, description="Long price must be positive.")

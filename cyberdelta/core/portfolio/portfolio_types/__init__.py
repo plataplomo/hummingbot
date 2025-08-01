@@ -77,7 +77,6 @@ from .protocols import (
     ServiceLifecycle,
     StateContainerProtocol,
     StateStorableProtocol,
-    SymbolServiceProtocol,
     ThreadSafeProtocol,
     TimestampedProtocol,
     ValidationMiddlewareProtocol,
@@ -88,7 +87,6 @@ from .protocols import (
     ServiceProtocolValidationError,
     ServiceResilienceStatus,
     ServiceStateData,
-    ServiceSymbolMetadata,
     ServiceValidationResult,
     ServiceValidationStats,
 )
@@ -260,7 +258,6 @@ __all__ = [
     "ServiceLifecycle",
     "StateContainerProtocol",
     "StateStorableProtocol",
-    "SymbolServiceProtocol",
     "ThreadSafeProtocol",
     "TimestampedProtocol",
     "ValidationMiddlewareProtocol",
@@ -271,7 +268,6 @@ __all__ = [
     "ServiceProtocolValidationError",
     "ServiceResilienceStatus",
     "ServiceStateData",
-    "ServiceSymbolMetadata",
     "ServiceValidationResult",
     "ServiceValidationStats",
     # Calculations

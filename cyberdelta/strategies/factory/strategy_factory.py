@@ -15,6 +15,8 @@ from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.core.symbols import Symbol, symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 
 
@@ -72,7 +74,7 @@ class StrategyFactory:
     def create_hl_perp_bp_spot_strategy(
         self,
         name: str,
-        symbol: str,
+        symbol: Symbol,
         data_handler: DataHandler,
         portfolio_state_manager: PortfolioStateManager,
         risk_manager: RiskManager | None = None,
@@ -81,7 +83,7 @@ class StrategyFactory:
 
         Args:
             name: Unique name for the strategy instance
-            symbol: Trading symbol (e.g., "HYPE")
+            symbol: Trading Symbol object
             data_handler: Data handler for market data access
             portfolio_state_manager: Portfolio state manager for position management
             risk_manager: Optional risk manager for position sizing
@@ -117,10 +119,10 @@ class StrategyFactory:
                 "strategy_created_via_factory",
                 strategy_name=name,
                 strategy_type="hl_perp_bp_spot",
-                symbol=symbol,
+                symbol=symbol.value,
                 params=params,
                 action="strategy_instantiated",
-                message=f"Created {name} strategy for {symbol} via factory",
+                message=f"Created {name} strategy for {symbol.value} via factory",
             )
 
         except StrategyCreationError:
@@ -145,7 +147,7 @@ class StrategyFactory:
         self,
         strategy_type: str,
         name: str,
-        symbol: str,
+        symbol: Symbol,
         data_handler: DataHandler,
         portfolio_state_manager: PortfolioStateManager,
         risk_manager: RiskManager | None = None,
@@ -155,7 +157,7 @@ class StrategyFactory:
         Args:
             strategy_type: Type of strategy to create ("hl_perp_bp_spot")
             name: Unique name for the strategy instance
-            symbol: Trading symbol
+            symbol: Trading Symbol object
             data_handler: Data handler for market data access
             portfolio_state_manager: Portfolio state manager for position management
             risk_manager: Optional risk manager for position sizing

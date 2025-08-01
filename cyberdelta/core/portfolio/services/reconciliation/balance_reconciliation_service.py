@@ -80,43 +80,44 @@ class BalanceReconciliationService(BasePortfolioService):
         for exchange, exchange_balances in balances.items():
             for asset, balance in exchange_balances.items():
                 # Check for negative balances
-                if not self.allow_negative_balances and balance.free < 0:
+                if not self.allow_negative_balances and balance.available_quantity < 0:
                     discrepancies.append(BalanceDiscrepancy(
                         exchange=exchange,
                         asset=asset,
                         discrepancy_type="negative_balance",
                         expected_value=Decimal("0"),
-                        actual_value=balance.free,
-                        difference=balance.free,
+                        actual_value=balance.available_quantity,
+                        difference=balance.available_quantity,
                         severity="error",
-                        message=f"Negative free balance for {asset} on {exchange}",
+                        message=f"Negative available balance for {asset} on {exchange}",
                     ))
                 
                 # Check for unusually large balances
-                if balance.total > self.max_balance_warning:
+                if balance.total_quantity > self.max_balance_warning:
                     discrepancies.append(BalanceDiscrepancy(
                         exchange=exchange,
                         asset=asset,
                         discrepancy_type="large_balance",
                         expected_value=self.max_balance_warning,
-                        actual_value=balance.total,
-                        difference=balance.total - self.max_balance_warning,
+                        actual_value=balance.total_quantity,
+                        difference=balance.total_quantity - self.max_balance_warning,
                         severity="warning",
                         message=f"Large balance detected for {asset} on {exchange}",
                     ))
                 
-                # Check balance consistency (free + used = total)
-                calculated_total = balance.free + balance.used
-                if abs(calculated_total - balance.total) > self.tolerance:
+                # Check balance consistency (available + used = total)
+                used_quantity = balance.total_quantity - balance.available_quantity
+                calculated_total = balance.available_quantity + used_quantity
+                if abs(calculated_total - balance.total_quantity) > self.tolerance:
                     discrepancies.append(BalanceDiscrepancy(
                         exchange=exchange,
                         asset=asset,
                         discrepancy_type="balance_mismatch",
-                        expected_value=balance.total,
+                        expected_value=balance.total_quantity,
                         actual_value=calculated_total,
-                        difference=abs(calculated_total - balance.total),
+                        difference=abs(calculated_total - balance.total_quantity),
                         severity="error",
-                        message=f"Balance mismatch: free + used != total for {asset} on {exchange}",
+                        message=f"Balance mismatch: available + used != total for {asset} on {exchange}",
                     ))
         
         # Check balance concentration
@@ -137,13 +138,13 @@ class BalanceReconciliationService(BasePortfolioService):
             for asset, balance in exchange_balances.items():
                 if asset not in total_by_asset:
                     total_by_asset[asset] = Decimal("0")
-                total_by_asset[asset] += balance.total
+                total_by_asset[asset] += balance.total_quantity
         
         # Check concentration for each exchange
         for exchange, exchange_balances in balances.items():
             for asset, balance in exchange_balances.items():
                 if asset in total_by_asset and total_by_asset[asset] > 0:
-                    concentration = (balance.total / total_by_asset[asset]) * 100
+                    concentration = (balance.total_quantity / total_by_asset[asset]) * 100
                     
                     if concentration > self.balance_concentration_threshold:
                         discrepancies.append(BalanceDiscrepancy(

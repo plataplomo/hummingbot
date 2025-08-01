@@ -201,9 +201,7 @@ class PositionDataScreener(BaseScreener):
         sanitized = position
 
         # Clean position data directly (DerivativePosition objects have known structure)
-        # Clean symbol
-        if sanitized.symbol:
-            sanitized.symbol = sanitized.symbol.strip().upper()
+        # Symbol objects are already normalized - no cleaning needed
 
         # Clean exchange
         if sanitized.exchange:
@@ -239,7 +237,7 @@ class PositionDataScreener(BaseScreener):
         errors: list[str] = []
 
         # Validate required DerivativePosition model fields directly
-        if not position.symbol or not position.symbol.strip():
+        if not position.symbol:
             errors.append("Required field symbol is missing or empty")
 
         # DerivativePosition model guarantees size is not None and is Decimal

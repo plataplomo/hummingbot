@@ -31,6 +31,7 @@ from cyberdelta.core.models import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import RequiredFieldError
@@ -50,7 +51,7 @@ OpportunityType = ArbitrageOpportunity
 class PositionReconciliationSystem(Protocol):
     """Protocol defining the interface for position reconciliation systems."""
 
-    async def reconcile_positions(self, exchange: str, symbol: str) -> dict[str, Any]:
+    async def reconcile_positions(self, exchange: str, symbol: Symbol) -> dict[str, Any]:
         """Reconcile positions for a given exchange and symbol."""
         ...
 
@@ -58,7 +59,7 @@ class PositionReconciliationSystem(Protocol):
         # TODO: Define more specific types for expected/actual if possible
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         # TODO: Refine Any with specific Position/Order types if possible
         expected: dict[str, Any],
         actual: dict[str, Any],
@@ -682,8 +683,7 @@ class OrderVerifier:
             RequiredFieldError: If required fields are missing for the API call.
         """
         if hasattr(api_client, "get_order_status"):
-            from cyberdelta.core.symbols import exchanges
-            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.core.symbols import symbol
             from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_symbol = None
@@ -693,17 +693,8 @@ class OrderVerifier:
                     if exchange.lower() == "hyperliquid"
                     else ExchangeName.BACKPACK
                 )
-                # Dynamically call the appropriate exchange method
-                if exchange_name == ExchangeName.HYPERLIQUID:
-                    exchange_symbol = exchanges.hyperliquid(
-                        value=symbol_for_api_call, exchange_id=exchange_name
-                    )
-                elif exchange_name == ExchangeName.BACKPACK:
-                    exchange_symbol = exchanges.backpack(
-                        value=symbol_for_api_call, exchange_id=exchange_name
-                    )
-                else:
-                    raise ValueError(f"Unsupported exchange: {exchange_name}")
+                # Create Symbol using the symbol function
+                exchange_symbol = symbol(symbol_for_api_call, exchange_name)
 
             return await api_client.get_order_status(
                 GetOrderArgs(
@@ -720,8 +711,7 @@ class OrderVerifier:
                 preferred_method="get_order_status",
                 fallback_method="get_order",
             )
-            from cyberdelta.core.symbols import exchanges
-            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.core.symbols import symbol
             from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_symbol = None
@@ -731,17 +721,8 @@ class OrderVerifier:
                     if exchange.lower() == "hyperliquid"
                     else ExchangeName.BACKPACK
                 )
-                # Dynamically call the appropriate exchange method
-                if exchange_name == ExchangeName.HYPERLIQUID:
-                    exchange_symbol = exchanges.hyperliquid(
-                        value=symbol_for_api_call, exchange_id=exchange_name
-                    )
-                elif exchange_name == ExchangeName.BACKPACK:
-                    exchange_symbol = exchanges.backpack(
-                        value=symbol_for_api_call, exchange_id=exchange_name
-                    )
-                else:
-                    raise ValueError(f"Unsupported exchange: {exchange_name}")
+                # Create Symbol using the symbol function
+                exchange_symbol = symbol(symbol_for_api_call, exchange_name)
 
             return await api_client.get_order(
                 GetOrderArgs(
@@ -1327,7 +1308,7 @@ class SynchronizedOrderSubmissionService:
         # Circuit breaker check for long leg
         cb_long_ok, cb_long_msg = self.circuit_breaker_system.can_execute(
             opportunity.long_exchange,
-            opportunity.symbol,
+            opportunity.symbol.value,
         )
         if self.execution_coordinator:
             await self.execution_coordinator.add_checkpoint(
@@ -1352,7 +1333,7 @@ class SynchronizedOrderSubmissionService:
         if all_success:  # Only check short leg if long leg is okay
             cb_short_ok, cb_short_msg = self.circuit_breaker_system.can_execute(
                 opportunity.short_exchange,
-                opportunity.symbol,
+                opportunity.symbol.value,
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(
@@ -1845,7 +1826,7 @@ class SynchronizedOrderSubmissionService:
             OrderParameterError: If required fields are missing or invalid in the opportunity data.
         """
         # Ensure opportunity is the correct type before accessing attributes
-        symbol_val: str
+        symbol_val: Symbol
         quantity_val: Any
         price_val: Any
         exchange_val: str  # Added for the order
@@ -1907,8 +1888,7 @@ class SynchronizedOrderSubmissionService:
         order_type = OrderType.MARKET
 
         # Create the Order object using correct field names
-        from cyberdelta.core.symbols import exchanges
-        from cyberdelta.core.symbols.models import create_exchange_symbol
+        from cyberdelta.core.symbols import symbol
         from cyberdelta.enums.exchange_names import ExchangeName
 
         exchange_name = (

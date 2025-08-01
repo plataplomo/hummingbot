@@ -11,6 +11,7 @@ from typing import cast
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
@@ -49,7 +50,7 @@ class MarketOrderService:
 
     async def calculate_aggressive_price(
         self,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         quantity: Decimal,
         max_slippage: Decimal | None = None,
@@ -57,7 +58,7 @@ class MarketOrderService:
         """Calculate aggressive price with comprehensive safety checks.
 
         Args:
-            symbol: Trading symbol
+            symbol: Trading Symbol object
             side: Order side (BUY/SELL)
             quantity: Order quantity
             max_slippage: Optional maximum slippage override
@@ -135,11 +136,11 @@ class MarketOrderService:
 
         return available
 
-    def _estimate_slippage(self, symbol: str, quantity: Decimal) -> Decimal:
+    def _estimate_slippage(self, symbol: Symbol, quantity: Decimal) -> Decimal:
         """Estimate slippage for the given symbol and quantity.
 
         Args:
-            symbol: Trading symbol
+            symbol: Trading Symbol object
             quantity: Order quantity
 
         Returns:
@@ -169,7 +170,7 @@ class MarketOrderService:
     def _validate_price_bounds(
         self,
         aggressive_price: Decimal,
-        symbol: str,
+        symbol: Symbol,
         reference_price: Decimal,
     ) -> None:
         """Validate price is within acceptable bounds.
@@ -200,7 +201,7 @@ class MarketOrderService:
         if not aggressive_price.is_finite() or aggressive_price <= Decimal(0):
             raise MarketOrderError.invalid_price_error(aggressive_price)
 
-    async def round_to_tick_size(self, price: Decimal, symbol: str) -> Decimal:
+    async def round_to_tick_size(self, price: Decimal, symbol: Symbol) -> Decimal:
         """Round price to exchange tick size.
 
         Args:
@@ -216,7 +217,7 @@ class MarketOrderService:
         try:
             # Get market metadata from exchange
             from cyberdelta.core.symbols import exchanges
-            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.core.symbols import symbol as create_symbol
             from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_name = (
@@ -269,7 +270,7 @@ class MarketOrderService:
             )
             return price
 
-    async def round_to_step_size(self, quantity: Decimal, symbol: str) -> Decimal:
+    async def round_to_step_size(self, quantity: Decimal, symbol: Symbol) -> Decimal:
         """Round quantity to exchange step size.
 
         Args:
@@ -285,7 +286,7 @@ class MarketOrderService:
         try:
             # Get market metadata from exchange
             from cyberdelta.core.symbols import exchanges
-            from cyberdelta.core.symbols.models import create_exchange_symbol
+            from cyberdelta.core.symbols import symbol as create_symbol
             from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_name = (
@@ -338,11 +339,11 @@ class MarketOrderService:
             )
             return quantity
 
-    async def get_reference_price_all_mids(self, symbol: str) -> Decimal | None:
+    async def get_reference_price_all_mids(self, symbol: Symbol) -> Decimal | None:
         """Get reference price from AllMids endpoint if available.
 
         Args:
-            symbol: Trading symbol
+            symbol: Trading Symbol object
 
         Returns:
             Decimal | None: Mid price if available, None otherwise
